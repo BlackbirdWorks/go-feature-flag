@@ -16,6 +16,7 @@ var (
 	errNoValueToConvert = errors.New("no value to convert, returning empty string")
 )
 
+// FeatureEventMetadata holds the metadata attached to a feature event.
 type FeatureEventMetadata = map[string]any
 
 // FeatureEvent represent an Event that we store in the data storage
@@ -64,6 +65,7 @@ type FeatureEvent struct {
 	Metadata FeatureEventMetadata `json:"metadata,omitempty" parquet:"name=metadata, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
+// NewFeatureEvent returns a feature event for an evaluation of a flag.
 func NewFeatureEvent(
 	ctx ffcontext.Context,
 	flagKey string,
@@ -72,13 +74,13 @@ func NewFeatureEvent(
 	failed bool,
 	version, source string,
 	metadata FeatureEventMetadata,
-) FeatureEvent {
+) *FeatureEvent {
 	contextKind := "user"
 	if ctx.IsAnonymous() {
 		contextKind = "anonymousUser"
 	}
 
-	return FeatureEvent{
+	return &FeatureEvent{
 		Kind:         "feature",
 		ContextKind:  contextKind,
 		UserKey:      ctx.GetKey(),
@@ -94,21 +96,22 @@ func NewFeatureEvent(
 }
 
 // GetKey returns the key of the event.
-func (f FeatureEvent) GetKey() string {
+func (f *FeatureEvent) GetKey() string {
 	return f.Key
 }
 
 // GetUserKey returns the user key of the event.
-func (f FeatureEvent) GetUserKey() string {
+func (f *FeatureEvent) GetUserKey() string {
 	return f.UserKey
 }
 
 // GetCreationDate returns the creationDate of the event.
-func (f FeatureEvent) GetCreationDate() int64 {
+func (f *FeatureEvent) GetCreationDate() int64 {
 	return f.CreationDate
 }
 
-func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
+// FormatInCSV returns the feature event formatted as a CSV line using csvTemplate.
+func (f *FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
 
 	err := csvTemplate.Execute(&buf, struct {
@@ -116,7 +119,7 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 
 		FormattedDate string
 	}{
-		FeatureEvent:  f,
+		FeatureEvent:  *f,
 		FormattedDate: time.Unix(f.GetCreationDate(), 0).Format(time.RFC3339),
 	})
 	if err != nil {
@@ -126,7 +129,8 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	return buf.Bytes(), nil
 }
 
-func (f FeatureEvent) FormatInJSON() ([]byte, error) {
+// FormatInJSON returns the feature event formatted as JSON.
+func (f *FeatureEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event JSON: %w", err)
@@ -138,7 +142,7 @@ func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 }
 
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
-func (f FeatureEvent) ConvertValueForParquet() (string, error) {
+func (f *FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
 		return "", errNoValueToConvert
 	}

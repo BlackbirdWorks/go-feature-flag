@@ -6,7 +6,7 @@ your feature flag solution as well.
 This is why Semaphore relay-proxy offers out of the box some ways of monitor what is happening.
 
 ## Logging
-Semaphore relay proxy logs through the standard [`log/slog`](https://pkg.go.dev/log/slog) package, with its own handler (`cmdhelpers/log`) that writes the `json` and `logfmt` formats without allocating.
+Semaphore relay proxy logs through the standard [`log/slog`](https://pkg.go.dev/log/slog) package, with its own handler (`cmdhelpers/cmdlog`) that writes the `json` and `logfmt` formats without allocating.
 
 By default, the relay proxy is logging to the standard output with a JSON format in level `INFO`.
 

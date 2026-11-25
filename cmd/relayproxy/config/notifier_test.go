@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestNotifierConf_IsValid(t *testing.T) {
@@ -28,7 +29,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "Invalid kind",
 			fields: fields{
-				Kind: "invalid",
+				Kind: invalidKey,
 			},
 			wantErr:  true,
 			errValue: "invalid notifier: kind \"invalid\" is not supported",
@@ -42,7 +43,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind slack without URL",
 			fields: fields{
-				Kind:       "slack",
+				Kind:       slack,
 				WebhookURL: "",
 			},
 			wantErr:  true,
@@ -51,7 +52,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without EndpointURL",
 			fields: fields{
-				Kind:        "webhook",
+				Kind:        fixtures.KindWebhook,
 				EndpointURL: "",
 			},
 			wantErr:  true,
@@ -60,17 +61,17 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "valid use-case slack",
 			fields: fields{
-				Kind:       "slack",
-				WebhookURL: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				Kind:       slack,
+				WebhookURL: httpsHooksSlackCom,
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid use-case webhook",
 			fields: fields{
-				Kind:        "webhook",
-				EndpointURL: "https://hooktest.com/",
-				Secret:      "xxxx",
+				Kind:        fixtures.KindWebhook,
+				EndpointURL: httpsHooktestCom,
+				Secret:      xxxx,
 			},
 			wantErr: false,
 		},

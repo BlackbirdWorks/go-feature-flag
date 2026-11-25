@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // HTTPError is an error that carries the status code of the response and the message sent to the client. The
@@ -38,7 +39,7 @@ func (e *HTTPError) StatusCode() int { return e.Code }
 func (e *HTTPError) GetStatus() int { return e.Code }
 
 // ContentType keeps the content type of the negotiation (huma defaults an error to application/problem+json).
-func (e *HTTPError) ContentType(ct string) string { return ct }
+func (*HTTPError) ContentType(ct string) string { return ct }
 
 // Schema documents the error as the body it is sent as.
 func (*HTTPError) Schema(r huma.Registry) *huma.Schema {
@@ -118,7 +119,7 @@ func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 
 // WriteJSON sends v as the JSON body of the response, with the status code.
 func WriteJSON(w http.ResponseWriter, code int, v any) error {
-	w.Header().Set(HeaderContentType, MIMEApplicationJSON)
+	w.Header().Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	w.WriteHeader(code)
 
 	err := json.NewEncoder(w).Encode(v)

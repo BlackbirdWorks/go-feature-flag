@@ -1,0 +1,84 @@
+package testhelpers
+
+import (
+	"context"
+	"errors"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+)
+
+var (
+	errCannotCreateContextFrom = errors.New("cannot create context from nil parent")
+	errInvalidBucket           = errors.New("invalid bucket")
+	errWriterAtIsRequired      = errors.New("WriterAt is required")
+	errNoFile                  = errors.New("no file")
+)
+
+// S3ManagerV2Mock is a mock of the S3 transfer manager that works on an in-memory file system.
+type S3ManagerV2Mock struct {
+	S3ManagerMockFileSystem map[string]string
+	TestDataLocation        string
+}
+
+// UploadObject stores the uploaded content in the mock file system.
+func (s *S3ManagerV2Mock) UploadObject(
+	ctx context.Context,
+	uploadInput *transfermanager.UploadObjectInput,
+	_ ...func(*transfermanager.Options),
+) (*transfermanager.UploadObjectOutput, error) {
+	if ctx == nil {
+		return nil, errCannotCreateContextFrom
+	}
+
+	if uploadInput.Bucket == nil || *uploadInput.Bucket == "" {
+		return nil, errInvalidBucket
+	}
+
+	if s.S3ManagerMockFileSystem == nil {
+		s.S3ManagerMockFileSystem = make(map[string]string)
+	}
+
+	buf := new(strings.Builder)
+
+	_, err := io.Copy(buf, uploadInput.Body)
+	if err != nil {
+		_, _ = os.Stderr.WriteString(err.Error() + "\n")
+	}
+
+	s.S3ManagerMockFileSystem[*uploadInput.Key] = buf.String()
+
+	return &transfermanager.UploadObjectOutput{
+		Location: uploadInput.Key,
+	}, nil
+}
+
+// DownloadObject reads the object from the mock file system.
+func (s *S3ManagerV2Mock) DownloadObject(
+	ctx context.Context,
+	input *transfermanager.DownloadObjectInput,
+	_ ...func(*transfermanager.Options),
+) (*transfermanager.DownloadObjectOutput, error) {
+	if ctx == nil {
+		return nil, errCannotCreateContextFrom
+	}
+
+	if input.WriterAt == nil {
+		return nil, errWriterAtIsRequired
+	}
+
+	if input.Key != nil && *input.Key == "valid" {
+		res, _ := os.ReadFile(s.TestDataLocation + "/flag-config.yaml")
+		_, _ = input.WriterAt.WriteAt(res, 0)
+
+		return &transfermanager.DownloadObjectOutput{}, nil
+	}
+
+	if input.Key != nil && *input.Key == "no-file" {
+		return nil, errNoFile
+	}
+
+	return &transfermanager.DownloadObjectOutput{}, nil
+}

@@ -15,7 +15,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	accessControlAllowOrigin = "Access-Control-Allow-Origin"
+	contentTypeAuthorization = "content-type,authorization"
+	vary                     = "Vary"
 )
 
 // testConfig returns a minimal HTTP relay proxy configuration. startTestServer gives it its port.
@@ -25,8 +33,8 @@ func testConfig(t *testing.T) *config.Config {
 	return &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: fixtures.KindFile,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -42,18 +50,18 @@ func testConfig(t *testing.T) *config.Config {
 // serves the endpoints the API server no longer has.
 func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (string, string) {
 	t.Helper()
-	ln, port := testutils.ListenLocal(t)
+	ln, port := testhelpers.ListenLocal(t)
 	conf.Server.Port = port
 	opts := []api.Option{api.WithListener(ln)}
 
 	var monitoringURL string
 
 	if withMonitoring {
-		monitoringLn, monitoringPort := testutils.ListenLocal(t)
+		monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
 		conf.Server.MonitoringPort = monitoringPort
 
 		opts = append(opts, api.WithMonitoringListener(monitoringLn))
-		monitoringURL = fmt.Sprintf("http://localhost:%d", monitoringPort)
+		monitoringURL = fmt.Sprintf(httpLocalhostD, monitoringPort)
 	}
 
 	log := newTestLogger(t)
@@ -67,7 +75,7 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	srv := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
@@ -77,7 +85,7 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 
 	if withMonitoring {
 		waitForServer(t, monitoringURL)
@@ -88,12 +96,12 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	return baseURL, monitoringURL
 }
 
-// doRequest performs a request with the given headers and returns the response, the body being
-// closed for the caller since every assertion here is on headers and status code.
+// doRequest performs a request with the given headers and returns the response. Callers close
+// the body with t.Cleanup since every assertion here is on headers and status code.
 func doRequest(t *testing.T, method, url string, headers map[string]string) *http.Response {
 	t.Helper()
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(t.Context(), method, url, http.NoBody)
 	require.NoError(t, err)
 
 	for name, value := range headers {
@@ -102,7 +110,6 @@ func doRequest(t *testing.T, method, url string, headers map[string]string) *htt
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = resp.Body.Close() })
 
 	return resp
 }
@@ -120,8 +127,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 		wantAllowOrigin string
 		wantStatus      int
 	}{
-		{name: "health endpoint", endpoint: "/health", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
-		{name: "evaluation endpoint", endpoint: "/v1/flag/change", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
+		{name: "health endpoint", endpoint: healthPath, wantStatus: http.StatusOK, wantAllowOrigin: "*"},
+		{name: "evaluation endpoint", endpoint: v1FlagChange, wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 	}
 
 	for _, tt := range tests {
@@ -132,11 +139,12 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				t.Parallel()
 
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, map[string]string{
-					"Origin": "https://example.com",
+					protocol.HeaderOrigin: httpsExampleCom,
 				})
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
-				assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
-				assert.Contains(t, resp.Header.Values("Vary"), "Origin")
+				assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get(accessControlAllowOrigin))
+				assert.Contains(t, resp.Header.Values(vary), protocol.HeaderOrigin)
 				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Credentials"))
 				assert.Empty(t, resp.Header.Get("Access-Control-Expose-Headers"))
 			})
@@ -145,8 +153,9 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				t.Parallel()
 
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, nil)
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
-				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+				assert.Empty(t, resp.Header.Get(accessControlAllowOrigin))
 			})
 		})
 	}
@@ -164,10 +173,10 @@ func Test_CORS_Preflight(t *testing.T) {
 	baseURL, _ := startTestServer(t, conf, false)
 
 	endpoints := []string{
-		"/health",
-		"/v1/allflags",
+		healthPath,
+		v1Allflags,
 		"/v1/feature/my-flag/eval",
-		"/ofrep/v1/evaluate/flags",
+		fixtures.OFREPEvaluateFlagsPath,
 	}
 
 	for _, endpoint := range endpoints {
@@ -175,15 +184,16 @@ func Test_CORS_Preflight(t *testing.T) {
 			t.Parallel()
 
 			resp := doRequest(t, http.MethodOptions, baseURL+endpoint, map[string]string{
-				"Origin":                         "https://example.com",
-				"Access-Control-Request-Method":  http.MethodPost,
-				"Access-Control-Request-Headers": "content-type,authorization",
+				protocol.HeaderOrigin:       httpsExampleCom,
+				accessControlRequestMethod:  http.MethodPost,
+				accessControlRequestHeaders: contentTypeAuthorization,
 			})
+			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-			assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+			assert.Equal(t, "*", resp.Header.Get(accessControlAllowOrigin))
 			assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), http.MethodPost)
 			assert.Equal(t,
-				"content-type,authorization",
+				contentTypeAuthorization,
 				resp.Header.Get("Access-Control-Allow-Headers"))
 			// MaxAge is not configured, so browsers are never told to cache the preflight.
 			assert.Empty(t, resp.Header.Get("Access-Control-Max-Age"))
@@ -199,10 +209,11 @@ func Test_CORS_MonitoringPort(t *testing.T) {
 	conf := testConfig(t)
 	_, monitoringURL := startTestServer(t, conf, true)
 
-	resp := doRequest(t, http.MethodGet, monitoringURL+"/health", map[string]string{
-		"Origin": "https://example.com",
+	resp := doRequest(t, http.MethodGet, monitoringURL+healthPath, map[string]string{
+		protocol.HeaderOrigin: httpsExampleCom,
 	})
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
-	assert.Contains(t, resp.Header.Values("Vary"), "Origin")
+	assert.Equal(t, "*", resp.Header.Get(accessControlAllowOrigin))
+	assert.Contains(t, resp.Header.Values(vary), protocol.HeaderOrigin)
 }

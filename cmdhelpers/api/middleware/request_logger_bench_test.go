@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 func BenchmarkRequestLogger(b *testing.B) {
@@ -27,7 +27,7 @@ func BenchmarkRequestLogger(b *testing.B) {
 			handler := requestLogger(l.Slog, true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(testCase.status)
 			}))
-			req := httptest.NewRequest(http.MethodGet, "/v1/feature/x/eval?a=b", nil)
+			req := httptest.NewRequestWithContext(b.Context(), http.MethodGet, "/v1/feature/x/eval?a=b", nil)
 
 			b.ReportAllocs()
 

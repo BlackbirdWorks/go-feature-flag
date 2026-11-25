@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"testing"
@@ -10,14 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ffClient "github.com/blackbirdworks/semaphore"
+	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	init123 = "init-123"
 )
 
 // contextKey is the type of the keys of the values the tests put in a context.
@@ -44,7 +49,7 @@ func (r *contextRecordingRetriever) Retrieve(ctx context.Context) ([]byte, error
 	return []byte("flag:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"), nil
 }
 
-func (r *contextRecordingRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+func (r *contextRecordingRetriever) Init(ctx context.Context, _ *slog.Logger) error {
 	r.initNonNil = ctx != nil
 	if ctx != nil {
 		r.initVal = ctx.Value(r.key)
@@ -62,7 +67,7 @@ func (r *contextRecordingRetriever) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (r *contextRecordingRetriever) Status() retriever.Status {
+func (*contextRecordingRetriever) Status() retriever.Status {
 	return retriever.RetrieverReady
 }
 
@@ -98,7 +103,7 @@ func TestConfig_Initialize(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				c := ffClient.Config{
+				c := ffclient.Config{
 					PollingInterval: tt.pollingInterval,
 				}
 				c.Initialize()
@@ -162,7 +167,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 				PollingInterval: 3 * time.Second,
 				Retriever: &githubretriever.Retriever{
 					RepositorySlug: "thomaspoignant/go-feature-flag",
-					FilePath:       "testdata/flag-config.yaml",
+					FilePath:       fixtures.FlagConfigYAMLPath,
 					GithubToken:    "XXX",
 				},
 			},
@@ -195,7 +200,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &ffClient.Config{
+			c := &ffclient.Config{
 				PollingInterval: tt.fields.PollingInterval,
 				Retriever:       tt.fields.Retriever,
 			}
@@ -212,7 +217,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 func TestOfflineConfig(t *testing.T) {
 	t.Parallel()
 
-	c := ffClient.Config{
+	c := ffclient.Config{
 		Offline: true,
 	}
 	assert.True(t, c.IsOffline())
@@ -224,29 +229,29 @@ func TestConfig_GetDataExporters(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		DataExporters []ffClient.DataExporter
-		DataExporter  ffClient.DataExporter
+		DataExporters []ffclient.DataExporter
+		DataExporter  ffclient.DataExporter
 	}
 
 	tests := []struct {
 		name   string
-		want   []ffClient.DataExporter
+		want   []ffclient.DataExporter
 		fields fields
 	}{
 		{
 			name:   "No data exporter",
 			fields: fields{},
-			want:   []ffClient.DataExporter{},
+			want:   []ffclient.DataExporter{},
 		},
 		{
 			name: "Single data exporter",
 			fields: fields{
-				DataExporter: ffClient.DataExporter{
+				DataExporter: ffclient.DataExporter{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
@@ -256,7 +261,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		{
 			name: "Multiple data exporters",
 			fields: fields{
-				DataExporters: []ffClient.DataExporter{
+				DataExporters: []ffclient.DataExporter{
 					{
 						FlushInterval:    20 * time.Second,
 						MaxEventInMemory: 200,
@@ -267,7 +272,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 					},
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    20 * time.Second,
 					MaxEventInMemory: 200,
@@ -281,11 +286,11 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		{
 			name: "Both single and multiple data exporters",
 			fields: fields{
-				DataExporter: ffClient.DataExporter{
+				DataExporter: ffclient.DataExporter{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
 				},
-				DataExporters: []ffClient.DataExporter{
+				DataExporters: []ffclient.DataExporter{
 					{
 						FlushInterval:    20 * time.Second,
 						MaxEventInMemory: 200,
@@ -296,7 +301,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 					},
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
@@ -317,7 +322,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &ffClient.Config{
+			c := &ffclient.Config{
 				DataExporter:  tt.fields.DataExporter,
 				DataExporters: tt.fields.DataExporters,
 			}
@@ -343,10 +348,10 @@ func TestNewWithContext(t *testing.T) {
 	}{
 		{
 			name:            "custom context propagates to retriever lifecycle",
-			initVal:         "init-123",
+			initVal:         init123,
 			closeVal:        "close-456",
-			wantInitVal:     "init-123",
-			wantRetrieveVal: "init-123",
+			wantInitVal:     init123,
+			wantRetrieveVal: init123,
 			wantShutdownVal: "close-456",
 		},
 		{
@@ -367,7 +372,7 @@ func TestNewWithContext(t *testing.T) {
 				closeCtx = context.WithValue(t.Context(), key, tt.closeVal)
 			}
 
-			client, err := ffClient.NewWithContext(initCtx, ffClient.Config{
+			client, err := ffclient.NewWithContext(initCtx, &ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				Retriever:       rec,
 			})

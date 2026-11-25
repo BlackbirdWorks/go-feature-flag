@@ -34,7 +34,7 @@ To do that, you can call the `ForceRefresh` method on the client.
 
 ```go
 // Init ffclient with a file retriever.
-	client, _ := ffclient.New(ffclient.Config{
+	client, _ := ffclient.New(&ffclient.Config{
 		PollingInterval: 10 * time.Minute,
 		Retriever: &fileretriever.Retriever{
 			Path: "xxxx.yaml",

@@ -12,9 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	versionOneOne      = "1.1"
+	httpsDiscordComAPI = "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 )
 
 type discordNotifyArgs struct {
@@ -40,11 +46,12 @@ type discordNotifyCase struct {
 func runDiscordNotifyCases(t *testing.T, tests []discordNotifyCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockHTTPClient := &testutils.HTTPClientMock{
+			mockHTTPClient := &testhelpers.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
 			}
@@ -73,30 +80,30 @@ func runDiscordNotifyCases(t *testing.T, tests []discordNotifyCase) {
 	}
 }
 
-func discordGenericFlag() *flag.InternalFlag {
-	return &flag.InternalFlag{
-		Rules: &[]flag.Rule{
+func discordGenericFlag() *flagdef.InternalFlag {
+	return &flagdef.InternalFlag{
+		Rules: &[]flagdef.Rule{
 			{
-				Name:  new("rule1"),
-				Query: new("key eq \"random-key\""),
+				Name:  new(fixtures.RuleOne),
+				Query: new(fixtures.QueryKeyEqRandomKey),
 				Percentages: &map[string]float64{
-					"False": 95,
-					"True":  5,
+					fixtures.VariationFalse: 95,
+					fixtures.VariationTrue:  5,
 				},
 			},
 		},
 		Variations: &map[string]*any{
-			"Default": new(any("default")),
-			"False":   new(any("false")),
-			"True":    new(any("test")),
+			fixtures.VariationDefault: new(any("default")),
+			fixtures.VariationFalse:   new(any("false")),
+			fixtures.VariationTrue:    new(any("test")),
 		},
-		DefaultRule: &flag.Rule{
-			Name:            new("defaultRule"),
-			VariationResult: new("Default"),
+		DefaultRule: &flagdef.Rule{
+			Name:            new(fixtures.RuleDefault),
+			VariationResult: new(fixtures.VariationDefault),
 		},
 		TrackEvents: new(true),
 		Disable:     new(false),
-		Version:     new("1.1"),
+		Version:     new(versionOneOne),
 	}
 }
 
@@ -112,105 +119,105 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results.json",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						"test-flag3": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Added: map[string]flagdef.Flag{
+						"test-flag3": &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(fixtures.RuleOne),
+									Query: new(fixtures.QueryKeyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 95,
-										"True":  5,
+										fixtures.VariationFalse: 95,
+										fixtures.VariationTrue:  5,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any("default")),
-								"False":   new(any("false")),
-								"True":    new(any("test")),
+								fixtures.VariationDefault: new(any("default")),
+								fixtures.VariationFalse:   new(any("false")),
+								fixtures.VariationTrue:    new(any("test")),
 							},
-							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+							DefaultRule: &flagdef.Rule{
+								Name:            new(fixtures.RuleDefault),
+								VariationResult: new(fixtures.VariationDefault),
 							},
 							TrackEvents: new(true),
 							Disable:     new(false),
-							Version:     new("1.1"),
-							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Version:     new(versionOneOne),
+							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 						},
 					},
-					Deleted: map[string]flag.Flag{
-						"test-flag": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Deleted: map[string]flagdef.Flag{
+						fixtures.FlagKeyTest: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(fixtures.RuleOne),
+									Query: new(fixtures.QueryKeyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtures.VariationFalse: 0,
+										fixtures.VariationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(false)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
-							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
+							DefaultRule: &flagdef.Rule{
+								Name:            new(fixtures.RuleDefault),
+								VariationResult: new(fixtures.VariationDefault),
 							},
 						},
 					},
 					Updated: map[string]notifier.DiffUpdated{
 						"test-flag2": {
-							Before: &flag.InternalFlag{
+							Before: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any(false)),
-									"False":   new(any(false)),
-									"True":    new(any(true)),
+									fixtures.VariationDefault: new(any(false)),
+									fixtures.VariationFalse:   new(any(false)),
+									fixtures.VariationTrue:    new(any(true)),
 								},
-								DefaultRule: &flag.Rule{
-									Name: new("defaultRule"),
+								DefaultRule: &flagdef.Rule{
+									Name: new(fixtures.RuleDefault),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtures.VariationFalse: 0,
+										fixtures.VariationTrue:  100,
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
-								Experimentation: &flag.ExperimentationRollout{
+								Experimentation: &flagdef.ExperimentationRollout{
 									Start: new(time.Unix(1095379400, 0).UTC()),
 									End:   new(time.Unix(1095371000, 0).UTC()),
 								},
 							},
-							After: &flag.InternalFlag{
+							After: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any("strDefault")),
-									"False":   new(any("strFalse")),
-									"True":    new(any("strTrue")),
+									fixtures.VariationDefault: new(any("strDefault")),
+									fixtures.VariationFalse:   new(any("strFalse")),
+									fixtures.VariationTrue:    new(any("strTrue")),
 								},
-								Rules: &[]flag.Rule{
+								Rules: &[]flagdef.Rule{
 									{
-										Name:  new("rule1"),
+										Name:  new(fixtures.RuleOne),
 										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
-											"False": 20,
-											"True":  80,
+											fixtures.VariationFalse: 20,
+											fixtures.VariationTrue:  80,
 										},
 									},
 								},
-								DefaultRule: &flag.Rule{
-									Name:            new("defaultRule"),
-									VariationResult: new("Default"),
+								DefaultRule: &flagdef.Rule{
+									Name:            new(fixtures.RuleDefault),
+									VariationResult: new(fixtures.VariationDefault),
 								},
 								Disable:     new(true),
 								TrackEvents: new(false),
-								Version:     new("1.1"),
-								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+								Version:     new(versionOneOne),
+								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 							},
 						},
 					},
@@ -223,23 +230,23 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results_limit_max.json",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
+					Added: map[string]flagdef.Flag{
 						"test-flag3": genericFlag,
 						"test-flag4": genericFlag,
 						"test-flag5": genericFlag,
 						"test-flag6": genericFlag,
 					},
-					Deleted: map[string]flag.Flag{
-						"test-flag":   genericFlag,
-						"test-flag1":  genericFlag,
-						"test-flag2":  genericFlag,
-						"test-flag7":  genericFlag,
-						"test-flag8":  genericFlag,
-						"test-flag9":  genericFlag,
-						"test-flag10": genericFlag,
+					Deleted: map[string]flagdef.Flag{
+						fixtures.FlagKeyTest: genericFlag,
+						"test-flag1":         genericFlag,
+						"test-flag2":         genericFlag,
+						"test-flag7":         genericFlag,
+						"test-flag8":         genericFlag,
+						"test-flag9":         genericFlag,
+						"test-flag10":        genericFlag,
 					},
 				},
 			},
@@ -258,7 +265,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) webhook call failed with statusCode = 400",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
 			},
@@ -270,7 +277,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) error calling webhook: random error",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 				forceError: true,
@@ -336,9 +343,9 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 
 			embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
-						Before: &flag.InternalFlag{Metadata: &map[string]any{}},
-						After:  &flag.InternalFlag{Metadata: &after},
+					fixtures.FlagKeyTest: {
+						Before: &flagdef.InternalFlag{Metadata: &map[string]any{}},
+						After:  &flagdef.InternalFlag{Metadata: &after},
 					},
 				},
 			})
@@ -352,14 +359,14 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 }
 
 // otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
 	t.Parallel()
 
 	broken := otherFlag{}
 	embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
-		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},
+		Updated: map[string]notifier.DiffUpdated{fixtures.FlagKeyTest: {Before: broken, After: broken}},
 	})
 	require.Len(t, embeds, 1)
 	assert.Contains(t, embeds[0].Description, notifier.ChangesUnavailable)
@@ -376,8 +383,8 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 		}
 
 		return notifier.DiffUpdated{
-			Before: &flag.InternalFlag{Metadata: &map[string]any{}},
-			After:  &flag.InternalFlag{Metadata: &after},
+			Before: &flagdef.InternalFlag{Metadata: &map[string]any{}},
+			After:  &flagdef.InternalFlag{Metadata: &after},
 		}
 	}
 
@@ -433,7 +440,7 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			assert.LessOrEqual(t, total, maxDiscordTotal)
 
 			description := func(key string) string {
-				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag \"%s\" updated", key), maxDiscordTitle)]
+				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag %q updated", key), maxDiscordTitle)]
 				require.True(t, ok, "no embed for %s", key)
 
 				return d

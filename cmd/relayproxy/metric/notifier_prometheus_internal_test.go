@@ -7,8 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	testFlagAddOne   = "test-flagAdd1"
+	testFlagAddTwo   = "test-flagAdd2"
+	testFlagAddThree = "test-flagAdd3"
 )
 
 func TestPrometheusNotifier_with_diff(t *testing.T) {
@@ -18,19 +25,19 @@ func TestPrometheusNotifier_with_diff(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{
-			"test-flag": &flag.InternalFlag{},
+		Deleted: map[string]flagdef.Flag{
+			fixtures.FlagKeyTest: &flagdef.InternalFlag{},
 		},
 		Updated: map[string]notifier.DiffUpdated{
-			"test-flag2": {
-				Before: &flag.InternalFlag{},
-				After:  &flag.InternalFlag{},
+			fixtures.FlagKeyTestSecond: {
+				Before: &flagdef.InternalFlag{},
+				After:  &flagdef.InternalFlag{},
 			},
 		},
-		Added: map[string]flag.Flag{
-			"test-flagAdd1": &flag.InternalFlag{},
-			"test-flagAdd2": &flag.InternalFlag{},
-			"test-flagAdd3": &flag.InternalFlag{},
+		Added: map[string]flagdef.Flag{
+			testFlagAddOne:   &flagdef.InternalFlag{},
+			testFlagAddTwo:   &flagdef.InternalFlag{},
+			testFlagAddThree: &flagdef.InternalFlag{},
 		},
 	}
 
@@ -44,23 +51,28 @@ func TestPrometheusNotifier_with_diff(t *testing.T) {
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd1")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddOne)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd2")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddTwo)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd3")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddThree)),
 		0,
 	)
-	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.flagUpdateCounterVec.WithLabelValues("test-flag2")), 0)
-	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.flagDeleteCounterVec.WithLabelValues("test-flag")), 0)
+	assert.InDelta(
+		t,
+		1.0,
+		testutil.ToFloat64(metrics.flagUpdateCounterVec.WithLabelValues(fixtures.FlagKeyTestSecond)),
+		0,
+	)
+	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.flagDeleteCounterVec.WithLabelValues(fixtures.FlagKeyTest)), 0)
 	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.flagChange), 0)
 }
 
@@ -71,9 +83,9 @@ func TestPrometheusNotifier_no_diff(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{},
+		Deleted: map[string]flagdef.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
-		Added:   map[string]flag.Flag{},
+		Added:   map[string]flagdef.Flag{},
 	}
 
 	n := NewPrometheusNotifier(metrics)
@@ -85,22 +97,27 @@ func TestPrometheusNotifier_no_diff(t *testing.T) {
 	assert.InDelta(
 		t,
 		0.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd1")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddOne)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		0.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd2")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddTwo)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		0.0,
-		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues("test-flagAdd3")),
+		testutil.ToFloat64(metrics.flagCreateCounterVec.WithLabelValues(testFlagAddThree)),
 		0,
 	)
-	assert.InDelta(t, 0.0, testutil.ToFloat64(metrics.flagUpdateCounterVec.WithLabelValues("test-flag2")), 0)
-	assert.InDelta(t, 0.0, testutil.ToFloat64(metrics.flagDeleteCounterVec.WithLabelValues("test-flag")), 0)
+	assert.InDelta(
+		t,
+		0.0,
+		testutil.ToFloat64(metrics.flagUpdateCounterVec.WithLabelValues(fixtures.FlagKeyTestSecond)),
+		0,
+	)
+	assert.InDelta(t, 0.0, testutil.ToFloat64(metrics.flagDeleteCounterVec.WithLabelValues(fixtures.FlagKeyTest)), 0)
 	assert.InDelta(t, 0.0, testutil.ToFloat64(metrics.flagChange), 0)
 }

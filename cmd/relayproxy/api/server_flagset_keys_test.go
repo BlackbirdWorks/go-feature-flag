@@ -14,11 +14,14 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestFlagsetMode_EvaluationKeysOutsideFlagsets checks that, in flag set mode, a key that is not
@@ -27,16 +30,16 @@ import (
 func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
 			APIKeys:   []string{"flagset-key"},
-			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		}},
 		AuthorizedKeys: config.APIKeys{
 			Evaluation: []string{"authorized-evaluation-key"},
-			Admin:      []string{"admin-key"},
+			Admin:      []string{adminKey},
 		},
 		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
 	}
@@ -53,21 +56,21 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
 
-	srv := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	const evalBody = `{"context":{"targetingKey":"user-1"}}`
+	const evalBody = contextTargetingKeyUserOne
 
 	endpoints := []struct {
 		name   string
@@ -77,18 +80,18 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		// keyInQuery is true for the streaming endpoints, which read the key from the apiKey query param.
 		keyInQuery bool
 	}{
-		{name: "ofrep single", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag", body: evalBody},
-		{name: "ofrep bulk", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: evalBody},
-		{name: "eval", method: http.MethodPost, path: "/v1/feature/test-flag/eval",
+		{name: "ofrep single", method: http.MethodPost, path: ofrepEvaluateTestFlag, body: evalBody},
+		{name: "ofrep bulk", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: evalBody},
+		{name: "eval", method: http.MethodPost, path: v1FeatureTest,
 			body: `{"evaluationContext":{"key":"user-1"},"defaultValue":false}`},
-		{name: "allflags", method: http.MethodPost, path: "/v1/allflags",
+		{name: "allflags", method: http.MethodPost, path: v1Allflags,
 			body: `{"evaluationContext":{"key":"user-1"}}`},
-		{name: "flag configuration", method: http.MethodPost, path: "/v1/flag/configuration", body: `{}`},
-		{name: "flag change", method: http.MethodGet, path: "/v1/flag/change"},
-		{name: "data collector", method: http.MethodPost, path: "/v1/data/collector", body: `{"events":[]}`},
-		{name: "manifest", method: http.MethodGet, path: "/openfeature/v0/manifest"},
-		{name: "websocket", method: http.MethodGet, path: "/stream/v1/ws/flag/change", keyInQuery: true},
-		{name: "sse", method: http.MethodGet, path: "/stream/v1/sse/flag/change", keyInQuery: true},
+		{name: "flag configuration", method: http.MethodPost, path: v1FlagConfiguration, body: `{}`},
+		{name: "flag change", method: http.MethodGet, path: v1FlagChange},
+		{name: "data collector", method: http.MethodPost, path: v1DataCollector, body: emptyEventsBody},
+		{name: "manifest", method: http.MethodGet, path: openfeatureV0Manifest},
+		{name: "websocket", method: http.MethodGet, path: streamV1Ws, keyInQuery: true},
+		{name: "sse", method: http.MethodGet, path: streamV1Sse, keyInQuery: true},
 	}
 	keys := []struct {
 		name string
@@ -99,7 +102,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	}{
 		{name: "flag set", key: "flagset-key", want: http.StatusOK, skipStreams: true},
 		// An admin key authenticates but it is not linked to a flag set: documented 400.
-		{name: "admin", key: "admin-key", want: http.StatusBadRequest},
+		{name: fixtures.UserAdmin, key: adminKey, want: http.StatusBadRequest},
 		{name: "authorizedKeys.evaluation", key: "authorized-evaluation-key", want: http.StatusUnauthorized},
 		{name: "unknown", key: "unknown-key", want: http.StatusUnauthorized},
 	}
@@ -115,16 +118,16 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 
 				target := baseURL + endpoint.path
 				if endpoint.keyInQuery {
-					target += "?apiKey=" + url.QueryEscape(keyCase.key)
+					target += apiKeyQuery + url.QueryEscape(keyCase.key)
 				}
 
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(), endpoint.method, target, strings.NewReader(endpoint.body))
 				require.NoError(t, requestWithContextErr)
-				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 				if !endpoint.keyInQuery {
-					req.Header.Set("X-Api-Key", keyCase.key)
+					req.Header.Set(helper.XAPIKeyHeader, keyCase.key)
 				}
 
 				resp, requestWithContextErr := http.DefaultClient.Do(req)

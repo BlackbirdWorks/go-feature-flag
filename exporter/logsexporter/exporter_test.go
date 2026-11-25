@@ -11,9 +11,9 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 func TestLog_Export(t *testing.T) {
@@ -38,18 +38,19 @@ func TestLog_Export(t *testing.T) {
 			name:   "Default format",
 			fields: fields{LogFormat: ""},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			}},
-			expectedLog: "user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", " +
+				"value=\"YO\"\n",
 		},
 		{
 			name: "Custom format",
@@ -57,18 +58,18 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .Key}}\"",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			}},
-			expectedLog: "key=\"random-key\"\n",
+			expectedLog: "feature event event=key=\"random-key\"\n",
 		},
 		{
 			name: "LogFormat error",
@@ -76,18 +77,19 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .Key}\" [{{ .FormattedDate}}]",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex +
+				"\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 		},
 		{
 			name: "Field does not exist",
@@ -95,19 +97,20 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .UnknownKey}}\" [{{ .FormattedDate}}]",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
-			wantErr:     true,
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex +
+				"\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -119,8 +122,8 @@ func TestLog_Export(t *testing.T) {
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
-			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+			textHandler := slogutil.PlainHandler{Writer: logFile}
+			logger := slog.New(&textHandler)
 			err := logsExp.Export(context.Background(), logger, tt.args.featureEvents)
 
 			if tt.wantErr {
@@ -140,6 +143,6 @@ func TestLog_Export(t *testing.T) {
 func TestLog_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := logsexporter.Exporter{}
-	assert.False(t, exporter.IsBulk(), "File exporter is not a bulk exporter")
+	exp := logsexporter.Exporter{}
+	assert.False(t, exp.IsBulk(), "File exporter is not a bulk exporter")
 }

@@ -14,7 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	testExplicitHashKey = "test-explicit-hash-key"
+	testStream          = "test-stream"
+	testStreamArn       = "test-stream-arn"
+	testStreamName      = "test-stream-name"
 )
 
 var (
@@ -33,12 +41,12 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   "json",
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -69,12 +77,12 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   "json",
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamArn("test-stream")),
+		Settings: NewSettings(WithStreamArn(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -107,11 +115,11 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format: "json",
+		Format: protocol.FormatJSON,
 		sender: &mock,
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -129,10 +137,10 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format: "json",
+		Format: protocol.FormatJSON,
 		sender: &mock,
 		Settings: NewSettings(
-			WithStreamName("test-stream"),
+			WithStreamName(testStream),
 			WithPartitionKey(func(context.Context, exporter.ExportableEvent) string {
 				return "test-key"
 			}),
@@ -142,7 +150,7 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 		},
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),
@@ -163,12 +171,12 @@ func TestExporter_ExportSenderError(t *testing.T) {
 	mock := MockKinesisSenderWithError{}
 
 	exp := Exporter{
-		Format:   "json",
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),
@@ -186,61 +194,61 @@ func TestExporterSettingsCreation(t *testing.T) {
 
 	{
 		settings := NewSettings()
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithStreamArn("test-stream-arn"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		settings := NewSettings(WithStreamArn(testStreamArn))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
-		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
+		assert.Equal(t, testStreamArn, *settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithStreamName("test-stream-name"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
-		assert.Equal(t, "test-stream-name", *settings.StreamName)
+		settings := NewSettings(WithStreamName(testStreamName))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, testStreamName, *settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithExplicitHashKey("test-explicit-hash-key"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		settings := NewSettings(WithExplicitHashKey(testExplicitHashKey))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
-		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
+		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
-			WithStreamName("test-stream-name"),
-			WithStreamArn("test-stream-arn"),
-			WithExplicitHashKey("test-explicit-hash-key"),
+			WithStreamName(testStreamName),
+			WithStreamArn(testStreamArn),
+			WithExplicitHashKey(testExplicitHashKey),
 			WithPartitionKey(
 				func(_ context.Context, _ exporter.ExportableEvent) string { return "non-default" },
 			),
 		)
 		assert.Equal(t, "non-default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName) // overwritten by streamArn
-		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
-		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
+		assert.Equal(t, testStreamArn, *settings.StreamArn)
+		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
-			WithStreamArn("test-stream-arn"),
-			WithStreamName("test-stream-name"),
+			WithStreamArn(testStreamArn),
+			WithStreamName(testStreamName),
 		)
 		assert.Nil(t, settings.StreamArn) // overwritten by streamName
-		assert.Equal(t, "test-stream-name", *settings.StreamName)
+		assert.Equal(t, testStreamName, *settings.StreamName)
 	}
 }
 
 func TestHugeMessageExportFlow(t *testing.T) {
 	t.Parallel()
 
-	event := exporter.FeatureEvent{
-		Kind:         "feature",
+	event := &exporter.FeatureEvent{
+		Kind:         fixtures.KindFeature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,
@@ -254,12 +262,12 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format:   "json",
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),
@@ -276,9 +284,9 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	assert.Empty(t, mock.PutRecordsInputs)
 }
 
-func NewFeatureEvent() exporter.ExportableEvent {
+func NewFeatureEvent() *exporter.FeatureEvent {
 	return &exporter.FeatureEvent{
-		Kind:         "feature",
+		Kind:         fixtures.KindFeature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,
@@ -317,7 +325,7 @@ func (k *MockKinesisSender) SendMessages(
 
 type MockKinesisSenderWithError struct{}
 
-func (k *MockKinesisSenderWithError) SendMessages(
+func (*MockKinesisSenderWithError) SendMessages(
 	_ context.Context,
 	_ *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {

@@ -20,10 +20,10 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
-	"github.com/blackbirdworks/semaphore/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 )
 
 const (
@@ -44,6 +44,7 @@ const (
 	legacyEnvVariablePrefix = "GOFF"
 )
 
+// Loader reads the configuration of the relay proxy from files, flags and environment variables.
 type Loader struct {
 	studioParser  koanf.Parser
 	studioLoadErr error
@@ -102,7 +103,13 @@ func NewConfigLoader(
 
 	if configLoader.warner == nil {
 		configLoader.warner = legacy.NewWarner(func(kind, message string) {
-			log.LogAttrs(context.Background(), slog.LevelWarn, message, slog.String("legacyName", kind))
+			log.LogAttrs(
+				context.Background(),
+				slog.LevelWarn,
+				"legacy configuration setting used",
+				slog.String("legacyName", kind),
+				slog.String("warning", message),
+			)
 		})
 	}
 
@@ -500,18 +507,21 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 	)
 }
 
+// fileParser wraps [koanf.Parser] so selectParserForFile returns a concrete type.
+type fileParser struct {
+	koanf.Parser
+}
+
 // selectParserForFile returns the appropriate parser based on file extension.
-//
-//nolint:ireturn // selects among the toml, json and yaml parsers at runtime
-func selectParserForFile(configFileLocation string) koanf.Parser {
+func selectParserForFile(configFileLocation string) fileParser {
 	ext := filepath.Ext(configFileLocation)
 	switch strings.ToLower(ext) {
 	case ".toml":
-		return toml.Parser()
+		return fileParser{Parser: toml.Parser()}
 	case ".json":
-		return json.Parser()
+		return fileParser{Parser: json.Parser()}
 	default:
-		return yaml.Parser()
+		return fileParser{Parser: yaml.Parser()}
 	}
 }
 
@@ -524,7 +534,7 @@ func processExporters(proxyConf *Config) {
 	for i := range *proxyConf.Exporters {
 		addresses := (*proxyConf.Exporters)[i].Kafka.Addresses
 		if len(addresses) == 0 || (len(addresses) == 1 && strings.Contains(addresses[0], ",")) {
-			(*proxyConf.Exporters)[i].Kafka.Addresses = utils.StringToArray(addresses)
+			(*proxyConf.Exporters)[i].Kafka.Addresses = stringsx.StringToArray(addresses)
 		}
 	}
 }

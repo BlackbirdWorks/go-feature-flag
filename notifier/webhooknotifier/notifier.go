@@ -12,8 +12,14 @@ import (
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/blackbirdworks/semaphore/notifier"
+)
+
+const (
+	hostnameKey      = "hostname"
+	xHubSignature256 = "X-Hub-Signature-256"
 )
 
 var (
@@ -106,9 +112,9 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		}
 
 		// if no hostname provided we return the hostname of the current machine
-		if _, ok := c.Meta["hostname"]; !ok {
+		if _, ok := c.Meta[hostnameKey]; !ok {
 			hostname, _ := os.Hostname()
-			c.Meta["hostname"] = hostname
+			c.Meta[hostnameKey] = hostname
 		}
 	})
 
@@ -135,11 +141,11 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		headers = make(http.Header)
 	}
 
-	headers.Set("Content-Type", "application/json")
+	headers.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 	// if a secret is provided we sign the body and add this signature as a header.
 	if c.Secret != "" {
-		headers.Set("X-Hub-Signature-256", signer.Sign(payload, []byte(c.Secret)))
+		headers.Set(xHubSignature256, signer.Sign(payload, []byte(c.Secret)))
 	}
 
 	request := http.Request{

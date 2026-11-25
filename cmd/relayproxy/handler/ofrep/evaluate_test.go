@@ -22,6 +22,20 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	failedToCreateFlagset   = "failed to create flagset manager"
+	numberFlag              = "number-flag"
+	ofrepInvalidContextJSON = "/ofrep/invalid_context.json"
+	ofrepNoTargetingKey     = "/ofrep/no_targeting_key_context.json"
+	ofrepEvaluatePrefix     = "/ofrep/v1/evaluate/flags/"
+	ofrepValidRequestJSON   = "/ofrep/valid_request.json"
+	postOfrepVOneEvaluate   = "POST /ofrep/v1/evaluate/flags/{flagKey...}"
+	sse                     = "sse"
+	targetingKeyRule        = "targeting-key-rule"
 )
 
 const testdataDir = "../../testdata"
@@ -51,7 +65,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 		{
 			name: "valid flag",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/valid_request.json",
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
@@ -73,7 +87,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 		{
 			name: "Invalid context",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/invalid_context.json",
+				bodyFile:            testdataDir + ofrepInvalidContextJSON,
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
@@ -108,7 +122,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			// in this case we don't have a targetingKey, so we will evaluate the flags individually
 			// if the flag requires bucketing, we will return a targeting key missing error
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/no_targeting_key_context.json",
+				bodyFile:            testdataDir + ofrepNoTargetingKey,
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
@@ -124,7 +138,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -134,11 +148,11 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, failedToCreateFlagset)
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -151,8 +165,13 @@ func Test_Bulk_Evaluation(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags", bodyReq)
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				fixtures.OFREPEvaluateFlagsPath,
+				bodyReq,
+			)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			handlerErr := ctrl.BulkEvaluate(rec, req)
 
 			if tt.want.handlerErr {
@@ -208,7 +227,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			},
 			want: []model.OFREPEventStream{
 				{
-					Type:               "sse",
+					Type:               sse,
 					URL:                "https://gofeatureflag.example.com/stream/v1/sse/flag/change",
 					InactivityDelaySec: 60,
 				},
@@ -220,7 +239,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 				eventStream: config.OfrepEventStream{BaseURL: "https://example.com/goff"},
 			},
 			want: []model.OFREPEventStream{
-				{Type: "sse", URL: "https://example.com/goff/stream/v1/sse/flag/change"},
+				{Type: sse, URL: "https://example.com/goff/stream/v1/sse/flag/change"},
 			},
 		},
 		{
@@ -230,7 +249,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 				headers:     map[string]string{"X-API-Key": "my-key"},
 			},
 			want: []model.OFREPEventStream{
-				{Type: "sse", URL: "https://example.com/stream/v1/sse/flag/change?apiKey=my-key"},
+				{Type: sse, URL: "https://example.com/stream/v1/sse/flag/change?apiKey=my-key"},
 			},
 		},
 		{
@@ -240,7 +259,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 				headers:     map[string]string{"Authorization": "Bearer my key&x=1"},
 			},
 			want: []model.OFREPEventStream{
-				{Type: "sse", URL: "https://example.com/stream/v1/sse/flag/change?apiKey=my+key%26x%3D1"},
+				{Type: sse, URL: "https://example.com/stream/v1/sse/flag/change?apiKey=my+key%26x%3D1"},
 			},
 		},
 	}
@@ -250,7 +269,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
@@ -260,12 +279,17 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, tt.args.eventStream)
-			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, tt.args.eventStream)
+			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags", strings.NewReader(string(body)))
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				fixtures.OFREPEvaluateFlagsPath,
+				strings.NewReader(string(body)),
+			)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			for k, v := range tt.args.headers {
 				req.Header.Set(k, v)
@@ -305,7 +329,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "flag key with an escaped reserved character",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/valid_request.json",
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: testdataDir + "/ofrep/config_flags_special_chars.yaml",
 				flagKey:             "team%3Acheckout",
 			},
@@ -317,9 +341,9 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "valid evaluation",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/valid_request.json",
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "number-flag",
+				flagKey:             numberFlag,
 			},
 			want: want{
 				httpCode: http.StatusOK,
@@ -329,9 +353,9 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "Invalid context",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/invalid_context.json",
+				bodyFile:            testdataDir + ofrepInvalidContextJSON,
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "number-flag",
+				flagKey:             numberFlag,
 			},
 			want: want{
 				httpCode: http.StatusBadRequest,
@@ -343,7 +367,7 @@ func Test_Evaluate(t *testing.T) {
 			args: args{
 				bodyFile:            testdataDir + "/ofrep/nil_context.json",
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "number-flag",
+				flagKey:             numberFlag,
 			},
 			want: want{
 				httpCode: http.StatusBadRequest,
@@ -353,9 +377,9 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "No Targeting Key for bucketing-required flag - should return 400 from core evaluation",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/no_targeting_key_context.json",
+				bodyFile:            testdataDir + ofrepNoTargetingKey,
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "number-flag", // This flag has percentage rules, requires bucketing
+				flagKey:             numberFlag, // This flag has percentage rules, requires bucketing
 			},
 			want: want{
 				httpCode: http.StatusBadRequest,
@@ -365,9 +389,9 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "No Targeting Key for non-bucketing flag - should succeed",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/no_targeting_key_context.json",
+				bodyFile:            testdataDir + ofrepNoTargetingKey,
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "targeting-key-rule", // This flag has no percentages, doesn't require bucketing
+				flagKey:             targetingKeyRule, // This flag has no percentages, doesn't require bucketing
 			},
 			want: want{
 				httpCode: http.StatusOK,
@@ -377,7 +401,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "Percentage-based rule in flag without targeting key should return 400 error",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/no_targeting_key_context.json",
+				bodyFile:            testdataDir + ofrepNoTargetingKey,
 				configFlagsLocation: configFlagsLocation,
 				flagKey:             "flag-only-for-admin", // This flag has percentage rules, requires bucketing
 			},
@@ -389,7 +413,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "Empty flag key",
 			args: args{
-				bodyFile:            testdataDir + "/ofrep/valid_request.json",
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
 				flagKey:             "",
 			},
@@ -405,7 +429,7 @@ func Test_Evaluate(t *testing.T) {
 			args: args{
 				bodyFile:            testdataDir + "/ofrep/valid_targeting_key_query_request.json",
 				configFlagsLocation: configFlagsLocation,
-				flagKey:             "targeting-key-rule",
+				flagKey:             targetingKeyRule,
 			},
 			want: want{
 				httpCode: http.StatusOK,
@@ -420,7 +444,7 @@ func Test_Evaluate(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -430,13 +454,13 @@ func Test_Evaluate(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, failedToCreateFlagset)
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 			mux := http.NewServeMux()
-			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
 			rec := httptest.NewRecorder()
 
@@ -452,8 +476,8 @@ func Test_Evaluate(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepEvaluatePrefix+flagKey, bodyReq)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			mux.ServeHTTP(rec, req)
 
@@ -482,8 +506,8 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",
-			flagKeys: []string{"number-flag", "number-flag", "targeting-key-rule"},
-			bodyFile: testdataDir + "/ofrep/valid_request.json",
+			flagKeys: []string{numberFlag, numberFlag, targetingKeyRule},
+			bodyFile: testdataDir + ofrepValidRequestJSON,
 			want: metricHeader +
 				metricName + "{flag_name=\"number-flag\"} 2\n" +
 				metricName + "{flag_name=\"targeting-key-rule\"} 1\n",
@@ -491,13 +515,13 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 		{
 			name:     "should use the same label for all the flags that do not exist",
 			flagKeys: []string{"unknown-flag-1", "unknown-flag-2", "unknown-flag-3"},
-			bodyFile: testdataDir + "/ofrep/valid_request.json",
+			bodyFile: testdataDir + ofrepValidRequestJSON,
 			want:     metricHeader + metricName + "{flag_name=\"FLAG_NOT_FOUND\"} 3\n",
 		},
 		{
 			name:     "should not count a request that is not evaluated",
-			flagKeys: []string{"number-flag", "unknown-flag"},
-			bodyFile: testdataDir + "/ofrep/invalid_context.json",
+			flagKeys: []string{numberFlag, "unknown-flag"},
+			bodyFile: testdataDir + ofrepInvalidContextJSON,
 			want:     "",
 		},
 	}
@@ -507,7 +531,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -517,7 +541,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, failedToCreateFlagset)
 
 			defer flagsetManager.Close()
 
@@ -526,15 +550,15 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, config.OfrepEventStream{})
 			mux := http.NewServeMux()
-			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
-				req := httptest.NewRequest(
-					http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, strings.NewReader(string(bodyReqContent)))
-				req.Header.Set("Content-Type", "application/json")
+				req := httptest.NewRequestWithContext(t.Context(),
+					http.MethodPost, ofrepEvaluatePrefix+flagKey, strings.NewReader(string(bodyReqContent)))
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 				mux.ServeHTTP(httptest.NewRecorder(), req)
 			}
 
@@ -565,7 +589,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
@@ -575,19 +599,19 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
 			mux := http.NewServeMux()
-			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
-			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
+			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(t.Context(),
 				http.MethodPost,
 				"/ofrep/v1/evaluate/flags/number-flag",
 				strings.NewReader(string(body)),
 			)
-			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)

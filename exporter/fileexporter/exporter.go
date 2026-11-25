@@ -3,6 +3,7 @@ package fileexporter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,14 +16,14 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter writes evaluation events to local files.
 type Exporter struct {
-	csvTemplate      *template.Template
-	filenameTemplate *template.Template
+	parsedCSVTemplate *template.Template
+	filenameTemplate  *template.Template
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV, and Parquet.
 	// Default: JSON
@@ -53,12 +54,12 @@ type Exporter struct {
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	// Parse the template only once
 	f.initTemplates.Do(func() {
-		f.csvTemplate = exporter.ParseTemplate(
+		f.parsedCSVTemplate = exporter.ParseTemplate(
 			"csvFormat",
 			f.CsvTemplate,
 			exporter.DefaultCsvTemplate,
@@ -92,7 +93,7 @@ func (f *Exporter) Export(
 	} else {
 		// Ensure OutputDir exists or create it
 		//nolint:gosec // G302/G304: the path is chosen by the operator
-		mkdirAllErr := os.MkdirAll(outputDir, 0755)
+		mkdirAllErr := os.MkdirAll(outputDir, 0o755)
 		if mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
@@ -109,7 +110,7 @@ func (f *Exporter) Export(
 
 // IsBulk return false if we should directly send the data as soon as it is produce
 // and true if we collect the data to send them in bulk.
-func (f *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
@@ -130,9 +131,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		// Convert the line in the right format
 		switch f.Format {
 		case "csv":
-			line, innerErr = event.FormatInCSV(f.csvTemplate)
-		case "json":
-			line, innerErr = event.FormatInJSON()
+			line, innerErr = event.FormatInCSV(f.parsedCSVTemplate)
 		default:
 			line, innerErr = event.FormatInJSON()
 		}
@@ -156,11 +155,15 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 	parquetTrackingEvents := make([]exporter.TrackingEvent, 0)
 
 	for _, event := range events {
-		switch ev := any(event).(type) {
-		case exporter.FeatureEvent:
-			parquetFeatureEvents = append(parquetFeatureEvents, ev)
-		case exporter.TrackingEvent:
-			parquetTrackingEvents = append(parquetTrackingEvents, ev)
+		switch typedEvent := any(event).(type) {
+		case *exporter.FeatureEvent:
+			if typedEvent != nil {
+				parquetFeatureEvents = append(parquetFeatureEvents, *typedEvent)
+			}
+		case *exporter.TrackingEvent:
+			if typedEvent != nil {
+				parquetTrackingEvents = append(parquetTrackingEvents, *typedEvent)
+			}
 		default:
 			// do nothing
 		}
@@ -193,7 +196,9 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 		pqWriter.CompressionType = ct
 	}
 
-	for _, event := range events {
+	for i := range events {
+		event := &events[i]
+
 		eventValue, convertValueForParquetErr := event.ConvertValueForParquet()
 		if convertValueForParquetErr != nil {
 			return fmt.Errorf("convert event value for parquet: %w", convertValueForParquetErr)

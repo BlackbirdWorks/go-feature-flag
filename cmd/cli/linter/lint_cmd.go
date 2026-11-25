@@ -12,6 +12,7 @@ var (
 	errInvalidSemaphoreConfiguration = errors.New("invalid Semaphore configuration")
 )
 
+// NewLintCmd returns the command that lints a flag configuration file.
 func NewLintCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
 	var lintFlagFormat string

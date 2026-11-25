@@ -20,6 +20,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // FuzzOFREPEvaluate checks that any request body sent to the OFREP endpoints
@@ -31,13 +33,13 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	for _, file := range requests {
 		content, readFileErr := os.ReadFile(file)
 		require.NoError(f, readFileErr)
-		f.Add("number-flag", string(content), false)
+		f.Add(numberFlag, string(content), false)
 		f.Add("", string(content), true)
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10000,
-		FileFormat:      "yaml",
+		FileFormat:      protocol.FormatYAML,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 		},
@@ -45,19 +47,19 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	require.NoError(f, err)
 	f.Cleanup(flagsetManager.Close)
 
-	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 	mux := http.NewServeMux()
-	mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+	mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 	mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
 
 	f.Fuzz(func(t *testing.T, flagKey, body string, bulk bool) {
-		target := "/ofrep/v1/evaluate/flags/" + url.PathEscape(flagKey)
+		target := ofrepEvaluatePrefix + url.PathEscape(flagKey)
 		if bulk {
-			target = "/ofrep/v1/evaluate/flags"
+			target = fixtures.OFREPEvaluateFlagsPath
 		}
 
-		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(body))
+		req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

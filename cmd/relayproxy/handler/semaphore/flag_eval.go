@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -23,11 +23,11 @@ var (
 // FlagEval is the controller for the /v1/feature/{flagKey}/eval endpoint.
 type FlagEval struct {
 	flagsetMngr service.FlagsetManager
-	metrics     metric.Metrics
+	metrics     *metric.Metrics
 }
 
 // NewFlagEval initializes the controller for the /v1/feature/{flagKey}/eval endpoint.
-func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) *FlagEval {
+func NewFlagEval(flagsetMngr service.FlagsetManager, metrics *metric.Metrics) *FlagEval {
 	return &FlagEval{
 		flagsetMngr: flagsetMngr,
 		metrics:     metrics,
@@ -70,7 +70,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	flagValue, _ := flagset.RawVariation(flagKey, evaluationCtx, reqBody.DefaultValue)
-	if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
+	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
 	} else {
 		h.metrics.IncFlagEvaluation(flagKey)

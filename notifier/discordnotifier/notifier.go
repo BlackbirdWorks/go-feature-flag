@@ -2,6 +2,7 @@ package discordnotifier
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"unicode/utf8"
 
@@ -101,8 +102,8 @@ func convertToDiscordMessage(diffCache notifier.DiffCache) discordMessage {
 	embeds = append(embeds, convertUpdatedFlagsToDiscordEmbed(diffCache)...)
 	embeds = append(embeds, convertAddedFlagsToDiscordEmbed(diffCache)...)
 
-	sort.Slice(embeds, func(i, j int) bool {
-		return embeds[i].Title < embeds[j].Title
+	slices.SortFunc(embeds, func(a, b embed) int {
+		return cmp.Compare(a.Title, b.Title)
 	})
 
 	if len(embeds) > maxDiscordEmbeds {
@@ -129,7 +130,7 @@ func convertDeletedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 	embeds := make([]embed, 0, len(diffCache.Deleted))
 	for key := range diffCache.Deleted {
 		embeds = append(embeds, embed{
-			Title: fmt.Sprintf("❌ Flag \"%s\" deleted", key),
+			Title: fmt.Sprintf("❌ Flag %q deleted", key),
 			Color: colorDeleted,
 		})
 	}
@@ -140,7 +141,7 @@ func convertDeletedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 func convertUpdatedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 	embeds := make([]embed, 0, len(diffCache.Updated))
 	for key, value := range diffCache.Updated {
-		title := fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After))
+		title := fmt.Sprintf("✏️ Flag %q updated%s", key, notifier.UpdatedBySuffix(value.After))
 		item := embed{Title: title, Color: colorUpdated}
 
 		changes, err := notifier.DescribeChanges(value.Before, value.After)
@@ -161,7 +162,7 @@ func convertAddedFlagsToDiscordEmbed(diff notifier.DiffCache) []embed {
 	embeds := make([]embed, 0, len(diff.Added))
 	for key, value := range diff.Added {
 		embeds = append(embeds, embed{
-			Title: fmt.Sprintf("🆕 Flag \"%s\" created%s", key, notifier.UpdatedBySuffix(value)),
+			Title: fmt.Sprintf("🆕 Flag %q created%s", key, notifier.UpdatedBySuffix(value)),
 			Color: colorAdded,
 		})
 	}
@@ -199,12 +200,8 @@ func fitTotalLength(embeds []embed) {
 		lists = append(lists, i)
 	}
 
-	sort.SliceStable(lists, func(a, b int) bool {
-		return utf8.RuneCountInString(
-			embeds[lists[a]].Description,
-		) < utf8.RuneCountInString(
-			embeds[lists[b]].Description,
-		)
+	slices.SortStableFunc(lists, func(a, b int) int {
+		return cmp.Compare(utf8.RuneCountInString(embeds[a].Description), utf8.RuneCountInString(embeds[b].Description))
 	})
 
 	for n, i := range lists {

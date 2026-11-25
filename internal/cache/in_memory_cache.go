@@ -6,8 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -16,28 +15,31 @@ var (
 
 var _ Cache = (*InMemoryCache)(nil)
 
+// InMemoryCache stores the flags in memory.
 type InMemoryCache struct {
 	// Flags are the flags by key. A flag of the map is shared by every reader: it must be treated
 	// as read-only once it is in the map.
-	Flags  map[string]*flag.InternalFlag
-	Logger *fflog.FFLogger
+	Flags  map[string]*flagdef.InternalFlag
+	Logger *slog.Logger
 	// Service validates the flags that are added, and keeps the parses of their queries.
-	Service *flag.Service
+	Service *flagdef.Service
 }
 
 // NewInMemoryCache creates an empty cache, which validates its flags with svc.
-func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache {
+func NewInMemoryCache(svc *flagdef.Service, logger *slog.Logger) *InMemoryCache {
 	return &InMemoryCache{
-		Flags:   map[string]*flag.InternalFlag{},
+		Flags:   map[string]*flagdef.InternalFlag{},
 		Logger:  logger,
 		Service: svc,
 	}
 }
 
+// Copy returns a copy of the cache that holds the same flags.
 func (fc *InMemoryCache) Copy() *InMemoryCache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
-		inMemoryCache.addFlag(k, *v)
+		flagCopy := *v
+		inMemoryCache.addFlag(k, &flagCopy)
 	}
 
 	return inMemoryCache
@@ -46,8 +48,8 @@ func (fc *InMemoryCache) Copy() *InMemoryCache {
 // All returns a snapshot of the flags: every flag is a deep copy of the cached one, so the
 // caller can keep the map and change its flags, at any depth, without affecting the cache.
 // The copy is not free: the evaluations read the flags with getFlag or shared, which do not copy.
-func (fc *InMemoryCache) All() map[string]flag.Flag {
-	c := make(map[string]flag.Flag, len(fc.Flags))
+func (fc *InMemoryCache) All() map[string]flagdef.Flag {
+	c := make(map[string]flagdef.Flag, len(fc.Flags))
 	for key, val := range fc.Flags {
 		c[key] = val.DeepCopy()
 	}
@@ -55,8 +57,9 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 	return c
 }
 
+// Init replaces the cached flags with the given flags.
 func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
-	cache := make(map[string]*flag.InternalFlag, len(flags))
+	cache := make(map[string]*flagdef.InternalFlag, len(flags))
 	for key, flagDto := range flags {
 		flagToAdd := flagDto.Convert()
 
@@ -72,10 +75,10 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	fc.Flags = cache
 }
 
-func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
+func (fc *InMemoryCache) addFlag(key string, value *flagdef.InternalFlag) {
 	err := value.IsValid(fc.Service)
 	if err == nil {
-		fc.Flags[key] = &value
+		fc.Flags[key] = value
 	} else {
 		fc.Logger.Error("[cache] invalid configuration for flag",
 			slog.String("key", key), slog.Any("error", err.Error()))
@@ -84,13 +87,11 @@ func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
 
 // getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
 // allocation-free. The caller must not modify it.
-//
-//nolint:ireturn // returns the flag.Flag stored in the cache (the cache holds the interface of the public API)
-func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
+func (fc *InMemoryCache) getFlag(key string) (*flagdef.InternalFlag, error) {
 	cachedFlag, ok := fc.Flags[key]
 	if !ok {
 		// callers expect a usable (empty) flag next to the error
-		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
+		return &flagdef.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
 	}
 
 	return cachedFlag, nil
@@ -98,8 +99,8 @@ func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 
 // shared returns the flags of the cache without copying them. The caller must treat them as
 // read-only and must not hand them to code that does not.
-func (fc *InMemoryCache) shared() map[string]flag.Flag {
-	c := make(map[string]flag.Flag, len(fc.Flags))
+func (fc *InMemoryCache) shared() map[string]flagdef.Flag {
+	c := make(map[string]flagdef.Flag, len(fc.Flags))
 	for key, val := range fc.Flags {
 		c[key] = val
 	}

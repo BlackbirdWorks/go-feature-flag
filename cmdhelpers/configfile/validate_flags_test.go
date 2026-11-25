@@ -9,7 +9,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -22,11 +23,11 @@ func TestValidateFlags(t *testing.T) {
 
 	panicking := dto.DTO{
 		Variations:  &map[string]*any{"a": new(any(true))},
-		DefaultRule: &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{}},
+		DefaultRule: &flagdef.Rule{ProgressiveRollout: &flagdef.ProgressiveRollout{}},
 	}
 	valid := dto.DTO{
 		Variations:  &map[string]*any{"a": new(any(true))},
-		DefaultRule: &flag.Rule{VariationResult: new("a")},
+		DefaultRule: &flagdef.Rule{VariationResult: new("a")},
 	}
 	invalid := dto.DTO{Variations: &map[string]*any{"a": new(any(true))}}
 
@@ -109,7 +110,7 @@ func TestFlagError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var err error = configfile.FlagError{Flag: "my-flag", Err: tt.err}
+			var err error = configfile.FlagError{Flag: fixtures.FlagKeyMy, Err: tt.err}
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
 

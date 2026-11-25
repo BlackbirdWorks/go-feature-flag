@@ -1,0 +1,4 @@
+package testhelpers
+
+// RFC3339Regex is a regular expression that matches RFC 3339 timestamps.
+const RFC3339Regex = "([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))" //nolint:lll // long literal that can not be wrapped

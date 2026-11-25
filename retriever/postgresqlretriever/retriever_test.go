@@ -12,10 +12,21 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	testcontainerPostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	testcontainerpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	databaseConnectionPoolIs = "database connection pool is not initialized"
+	failedToExecuteQuery     = "failed to execute query"
+	flagNameColumn           = "flag_name"
+	goFeatureFlag            = "go_feature_flag"
+	sqlInitSQL               = "sql/init.sql"
+	sqlInsertDataSQL         = "sql/insert_data.sql"
+	testTable                = "test_table"
 )
 
 func TestPostgreSQLRetriever(t *testing.T) {
@@ -33,18 +44,18 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "valid set of flag",
 			files: []string{
-				"sql/init.sql",
-				"sql/insert_data.sql",
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
-			tableName: "go_feature_flag",
+			tableName: goFeatureFlag,
 			assertErr: assert.NoError,
 			want:      "response/valid.json",
 		},
 		{
 			name: "invalid table name",
 			files: []string{
-				"sql/init.sql",
-				"sql/insert_data.sql",
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			tableName: "invalid_table_name",
 			assertErr: assert.Error,
@@ -52,24 +63,24 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "invalid column names",
 			files: []string{
-				"sql/init.sql",
-				"sql/insert_data.sql",
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			assertErr: assert.Error,
 			columns: map[string]string{
-				"flag_name": "invalid_flag_name",
-				"flagset":   "invalid_flagset",
-				"config":    "invalid_config",
+				flagNameColumn:          "invalid_flag_name",
+				"flagset":               "invalid_flagset",
+				fixtures.ConfigFlagName: "invalid_config",
 			},
 		},
 		{
 			name: "valid set of flag with flagset",
 			files: []string{
-				"sql/init.sql",
-				"sql/insert_data.sql",
+				sqlInitSQL,
+				sqlInsertDataSQL,
 				"sql/insert_alternative_flagset.sql",
 			},
-			tableName: "go_feature_flag",
+			tableName: goFeatureFlag,
 			assertErr: assert.NoError,
 			flagset:   "team-A",
 			want:      "response/valid_alternative_flagset.json",
@@ -77,10 +88,10 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "valid set of flag with empty flagset",
 			files: []string{
-				"sql/init.sql",
-				"sql/insert_data.sql",
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
-			tableName: "go_feature_flag",
+			tableName: goFeatureFlag,
 			assertErr: assert.NoError,
 			flagset:   "empty-flagset",
 			want:      "response/empty-flagset.json",
@@ -124,7 +135,7 @@ func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 	t.Helper()
 
 	ctx := context.TODO()
-	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
+	postgreSQLContainer, err := testcontainerpostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)
 
 	connectionString, err := postgreSQLContainer.ConnectionString(ctx, "sslmode=disable")
@@ -175,7 +186,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   "invalid-connection-string",
-			Table: "test_table",
+			Table: testTable,
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -189,7 +200,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		// Use a non-routable IP address to simulate connection timeout
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@192.0.2.1:5432/db", // RFC5737 test address
-			Table: "test_table",
+			Table: testTable,
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -206,7 +217,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		// This test uses a malformed URI that allows connection but fails on ping
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://nonexistentuser:wrongpass@localhost:9999/nonexistentdb",
-			Table: "test_table",
+			Table: testTable,
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -219,13 +230,13 @@ func TestRetrieverErrorHandling(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@localhost:5432/db",
-			Table: "test_table",
+			Table: testTable,
 		}
 		// Don't call Init() to ensure conn is nil
 
 		_, err := r.Retrieve(context.Background())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "database connection pool is not initialized")
+		assert.Contains(t, err.Error(), databaseConnectionPoolIs)
 	})
 
 	t.Run("Status - nil receiver", func(t *testing.T) {
@@ -250,7 +261,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@localhost:5432/db",
-			Table: "test_table",
+			Table: testTable,
 		}
 		// Don't call Init() to ensure conn is nil
 
@@ -264,7 +275,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 func TestRetrieverQueryErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql", "sql/insert_data.sql"})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL, sqlInsertDataSQL})
 
 	t.Run("Query execution error - invalid table", func(t *testing.T) {
 		t.Parallel()
@@ -283,7 +294,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 
 		_, err = r.Retrieve(context.Background())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute query")
+		assert.Contains(t, err.Error(), failedToExecuteQuery)
 	})
 
 	t.Run("Query execution error - invalid columns", func(t *testing.T) {
@@ -291,10 +302,10 @@ func TestRetrieverQueryErrors(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 			Columns: map[string]string{
-				"flag_name": "nonexistent_column",
-				"config":    "config",
+				flagNameColumn:          "nonexistent_column",
+				fixtures.ConfigFlagName: fixtures.ConfigFlagName,
 			},
 		}
 
@@ -307,7 +318,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 
 		_, err = r.Retrieve(context.Background())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute query")
+		assert.Contains(t, err.Error(), failedToExecuteQuery)
 	})
 
 	t.Run("Context cancellation during query", func(t *testing.T) {
@@ -315,7 +326,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -331,7 +342,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 
 		_, err = r.Retrieve(ctx)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute query")
+		assert.Contains(t, err.Error(), failedToExecuteQuery)
 	})
 }
 
@@ -340,7 +351,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	t.Parallel()
 
 	// Create a test container with some test data
-	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	// Insert some test data
 	ctx := context.Background()
@@ -368,7 +379,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		initErr := r.Init(context.Background(), nil, nil)
@@ -392,7 +403,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		initErr := r.Init(context.Background(), nil, nil)
@@ -410,7 +421,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 		_, retrieveErr := r.Retrieve(expiredCtx)
 		require.Error(t, retrieveErr)
 		require.ErrorIs(t, retrieveErr, context.DeadlineExceeded)
-		assert.Contains(t, retrieveErr.Error(), "failed to execute query")
+		assert.Contains(t, retrieveErr.Error(), failedToExecuteQuery)
 	})
 }
 
@@ -418,14 +429,14 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 func TestRetrieverEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	t.Run("Empty result set", func(t *testing.T) {
 		t.Parallel()
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag", // Empty table
+			Table: goFeatureFlag, // Empty table
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -483,7 +494,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		// First init should succeed
@@ -530,9 +541,9 @@ func TestRetrieverEdgeCases(t *testing.T) {
 			URI:   connectionString,
 			Table: "custom_flags",
 			Columns: map[string]string{
-				"flag_name": "name",
-				"flagset":   "environment",
-				"config":    "configuration",
+				flagNameColumn:          "name",
+				"flagset":               "environment",
+				fixtures.ConfigFlagName: "configuration",
 			},
 		}
 
@@ -553,14 +564,14 @@ func TestRetrieverEdgeCases(t *testing.T) {
 func TestRetrieverShutdownErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	t.Run("Shutdown with active connection", func(t *testing.T) {
 		t.Parallel()
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -583,7 +594,7 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: goFeatureFlag,
 		}
 
 		err := r.Init(context.Background(), nil, nil)
@@ -627,11 +638,11 @@ func TestPostgreSQLRetriever_OutputFormat(t *testing.T) {
 func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql", "sql/insert_data.sql"})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL, sqlInsertDataSQL})
 
 	pools := postgresqlretriever.NewPoolRegistry()
-	first := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
-	second := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
+	first := &postgresqlretriever.Retriever{URI: connectionString, Table: goFeatureFlag, Pools: pools}
+	second := &postgresqlretriever.Retriever{URI: connectionString, Table: goFeatureFlag, Pools: pools}
 
 	require.NoError(t, first.Init(context.Background(), nil, nil))
 	require.NoError(t, second.Init(context.Background(), nil, nil))
@@ -659,12 +670,12 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 		{
 			name: "the second retriever leaves, the reference of the test keeps the pool", shutdown: second,
 			other: first, wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
-			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: true,
+			wantOtherErr: databaseConnectionPoolIs, wantPoolOpen: true,
 		},
 		{
 			name: "the last reference is released, the pool is closed", release: true, shutdown: first, other: first,
 			wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
-			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: false,
+			wantOtherErr: databaseConnectionPoolIs, wantPoolOpen: false,
 		},
 	}
 	// sequential: each case depends on the previous shutdowns

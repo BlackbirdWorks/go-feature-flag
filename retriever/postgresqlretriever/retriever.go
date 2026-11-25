@@ -11,9 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+const (
+	configKey      = "config"
+	flagNameColumn = "flag_name"
+	flagsetKey     = "flagset"
 )
 
 var (
@@ -23,36 +28,38 @@ var (
 // defaultColumns returns the names of the columns when the configuration does not set them.
 func defaultColumns() map[string]string {
 	return map[string]string{
-		"flag_name": "flag_name",
-		"flagset":   "flagset",
-		"config":    "config",
+		flagNameColumn: flagNameColumn,
+		flagsetKey:     flagsetKey,
+		configKey:      configKey,
 	}
 }
 
+// Retriever retrieves flag configurations from PostgreSQL.
 type Retriever struct {
 	Columns map[string]string
 	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
 	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
 	// creates one of its own at Init.
-	Pools   *PoolRegistry
-	logger  *fflog.FFLogger
-	columns map[string]string
-	pool    *pgxpool.Pool
-	flagset *string
-	URI     string
-	Table   string
-	status  retriever.Status
+	Pools       *PoolRegistry
+	logger      *slog.Logger
+	columnNames map[string]string
+	pool        *pgxpool.Pool
+	flagset     *string
+	URI         string
+	Table       string
+	status      retriever.Status
 }
 
-func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {
+// Init connects to PostgreSQL and prepares the retriever for the flagset.
+func (r *Retriever) Init(ctx context.Context, logger *slog.Logger, flagset *string) error {
 	r.status = retriever.RetrieverNotReady
 
 	r.logger = logger
 	if r.logger == nil {
-		r.logger = &fflog.FFLogger{}
+		r.logger = slog.New(slog.DiscardHandler)
 	}
 
-	r.columns = r.getColumnNames()
+	r.columnNames = r.getColumnNames()
 	r.flagset = flagset
 
 	if r.Pools == nil {
@@ -61,7 +68,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 
 	if r.pool == nil {
 		r.logger.InfoContext(ctx, "Initializing PostgreSQL retriever")
-		r.logger.DebugContext(ctx, "Using columns", "columns", r.columns)
+		r.logger.DebugContext(ctx, "Using columns", slog.Any("columns", r.columnNames))
 
 		pool, err := r.Pools.GetPool(ctx, r.URI)
 		if err != nil {
@@ -133,7 +140,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		scanErr := rows.Scan(&flagName, &configData)
 		if scanErr != nil {
-			r.logger.ErrorContext(ctx, "Failed to scan row", "error", scanErr)
+			r.logger.ErrorContext(ctx, "Failed to scan row", slog.Any("error", scanErr))
 
 			continue
 		}
@@ -143,7 +150,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		unmarshalErr := json.Unmarshal(configData, &config)
 		if unmarshalErr != nil {
-			r.logger.ErrorContext(ctx, "Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
+			r.logger.ErrorContext(ctx, "Failed to unmarshal config data",
+				slog.Any("error", unmarshalErr), slog.String("flagName", flagName))
 
 			continue
 		}
@@ -168,14 +176,14 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal flag configurations: %w", err)
 	}
 
-	r.logger.DebugContext(ctx, "Retrieved flags from PostgreSQL", "count", len(flagConfigs))
+	r.logger.DebugContext(ctx, "Retrieved flags from PostgreSQL", slog.Int("count", len(flagConfigs)))
 
 	return result, nil
 }
 
 // OutputFormat declares that this retriever always returns JSON-encoded data,
 // so the manager can pick the JSON parser regardless of the global FileFormat.
-func (r *Retriever) OutputFormat() string {
+func (*Retriever) OutputFormat() string {
 	return "json"
 }
 
@@ -184,10 +192,10 @@ func (r *Retriever) OutputFormat() string {
 func (r *Retriever) buildQuery() string {
 	var query string
 
-	flagNameCol := pgx.Identifier{r.columns["flag_name"]}.Sanitize()
-	configCol := pgx.Identifier{r.columns["config"]}.Sanitize()
+	flagNameCol := pgx.Identifier{r.columnNames[flagNameColumn]}.Sanitize()
+	configCol := pgx.Identifier{r.columnNames[configKey]}.Sanitize()
 	tableCol := pgx.Identifier{r.Table}.Sanitize()
-	flagsetCol := pgx.Identifier{r.columns["flagset"]}.Sanitize()
+	flagsetCol := pgx.Identifier{r.columnNames[flagsetKey]}.Sanitize()
 
 	if r.getFlagset() != "" {
 		query = fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s = $1 ORDER BY %s",
@@ -217,9 +225,12 @@ func (r *Retriever) getColumnNames() map[string]string {
 }
 
 func (r *Retriever) getFlagset() string {
-	if r.flagset != nil && *r.flagset != "" && *r.flagset != utils.DefaultFlagSetName {
+	if r.flagset != nil && *r.flagset != "" && *r.flagset != stringsx.DefaultFlagSetName {
 		return *r.flagset
 	}
 
 	return ""
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetrieverWithFlagset = (*Retriever)(nil)

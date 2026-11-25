@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -41,8 +41,8 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 func TestSQSIsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := Exporter{}
-	assert.False(t, exporter.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
+	exp := Exporter{}
+	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporterExport(t *testing.T) {
@@ -63,18 +63,18 @@ func TestExporterExport(t *testing.T) {
 		{
 			name: "should return an error if no QueueURL provided",
 			fields: fields{
-				//QueueURL:   "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
+				// QueueURL:   "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
 				sqsService: SQSSendMessageAPIMock{},
 			},
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -88,23 +88,23 @@ func TestExporterExport(t *testing.T) {
 			},
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -118,23 +118,23 @@ func TestExporterExport(t *testing.T) {
 			},
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -151,7 +151,7 @@ func TestExporterExport(t *testing.T) {
 				sqsService: &tt.fields.sqsService,
 			}
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+			logger := slog.Default()
 
 			err := sqsExp.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {

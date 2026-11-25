@@ -19,7 +19,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -146,7 +145,7 @@ type sharedDownload struct {
 
 // newS3Client builds the S3 client of the shared items from the AWS configuration of opts, or from
 // the default AWS configuration chain.
-func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, error) {
+func newS3Client(ctx context.Context, opts *SharedItemsOptions) (*s3.Client, error) {
 	cfg := opts.AwsConfig
 	if cfg == nil {
 		loaded, err := config.LoadDefaultConfig(ctx)
@@ -161,7 +160,7 @@ func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, erro
 }
 
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
-func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
+func NewSharedItems(ctx context.Context, opts *SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
 		return nil, errImpossibleToInitShared
 	}
@@ -269,7 +268,7 @@ type SharedItemRetriever struct {
 }
 
 // Init registers the item in the group.
-func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *SharedItemRetriever) Init(_ context.Context, _ *slog.Logger) error {
 	if r.item == "" {
 		r.status.Store(retriever.RetrieverError)
 
@@ -324,7 +323,7 @@ func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 // OutputFormat returns an empty string like the single file Retriever: the format of the file is
 // unknown, the global file format applies.
-func (r *SharedItemRetriever) OutputFormat() string { return "" }
+func (*SharedItemRetriever) OutputFormat() string { return "" }
 
 // PollerConfig configures the poller of a SharedItems group.
 type PollerConfig struct {
@@ -432,7 +431,9 @@ func (g *SharedItems) register(r *SharedItemRetriever) {
 	}
 
 	g.items[r] = struct{}{}
-	if g.keyRefs[r.item]++; g.keyRefs[r.item] == 1 {
+	g.keyRefs[r.item]++
+
+	if g.keyRefs[r.item] == 1 {
 		// a listing started before this registration may not know the key: force a refresh
 		g.seq++
 		g.keySeq[r.item] = g.seq
@@ -477,7 +478,8 @@ func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
 		}
 	}
 
-	if g.keyRefs[r.item]--; g.keyRefs[r.item] <= 0 {
+	g.keyRefs[r.item]--
+	if g.keyRefs[r.item] <= 0 {
 		delete(g.keyRefs, r.item)
 		delete(g.contents, r.item)
 		delete(g.keySeq, r.item)
@@ -657,7 +659,7 @@ func (g *SharedItems) list(
 	return res, nil
 }
 
-func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
+func (*SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
 
@@ -742,7 +744,8 @@ func (g *SharedItems) runDownload(
 	ctx, cancel := activeContext(parent, active)
 	defer cancel()
 
-	data, dlETag, startedAt, err := g.download(ctx, active, key)
+	result, err := g.download(ctx, active, key)
+	data, dlETag, startedAt := result.data, result.etag, result.startedAt
 
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
@@ -759,22 +762,29 @@ func (g *SharedItems) runDownload(
 	close(dlOp.done)
 }
 
+// downloadResult is the object that download fetched.
+type downloadResult struct {
+	startedAt time.Time
+	etag      string
+	data      []byte
+}
+
 // download waits for a free download slot, then downloads the object.
 func (g *SharedItems) download(
 	base context.Context, active <-chan struct{}, key string,
-) ([]byte, string, time.Time, error) {
+) (downloadResult, error) {
 	select {
 	case g.sem <- struct{}{}:
 		defer func() { <-g.sem }()
 	case <-active:
-		return nil, "", time.Time{}, context.Canceled
+		return downloadResult{}, context.Canceled
 	case <-base.Done():
-		return nil, "", time.Time{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
+		return downloadResult{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
 	}
 	// Check active directly as well because activeContext cancels base asynchronously when active closes.
 	select {
 	case <-active:
-		return nil, "", time.Time{}, context.Canceled
+		return downloadResult{}, context.Canceled
 	default:
 	}
 
@@ -785,7 +795,7 @@ func (g *SharedItems) download(
 
 	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
 
-	return data, etag, startedAt, err
+	return downloadResult{data: data, etag: etag, startedAt: startedAt}, err
 }
 
 // poll lists the bucket every polling interval until ctx is done.

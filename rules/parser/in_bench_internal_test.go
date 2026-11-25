@@ -5,6 +5,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	str = "str"
 )
 
 func inBenchSizes() []int { return []int{8, 16, 32, 64, 1000, 10000, 300000} }
@@ -12,7 +20,7 @@ func inBenchSizes() []int { return []int{8, 16, 32, 64, 1000, 10000, 300000} }
 func inBenchList(kind string, n int) string {
 	parts := make([]string, n)
 	for i := range parts {
-		if kind == "str" {
+		if kind == str {
 			parts[i] = `"user-` + strconv.Itoa(i) + `"`
 		} else {
 			parts[i] = strconv.Itoa(i)
@@ -26,12 +34,12 @@ func inBenchList(kind string, n int) string {
 // NOT IN, with the looked-up value present (hit) and absent (miss). The hit
 // is the last element, the worst case for a linear scan.
 func BenchmarkIn(b *testing.B) {
-	for _, kind := range []string{"str", "int"} {
+	for _, kind := range []string{str, fixtures.IntType} {
 		for _, size := range inBenchSizes() {
 			list := inBenchList(kind, size)
 
 			var hit, miss any
-			if kind == "str" {
+			if kind == str {
 				hit, miss = "user-"+strconv.Itoa(size-1), "nobody"
 			} else {
 				hit, miss = size-1, -1
@@ -50,7 +58,8 @@ func BenchmarkIn(b *testing.B) {
 					name string
 				}{{name: "hit", val: hit}, {name: "miss", val: miss}} {
 					input := map[string]any{"x": probe.val}
-					eval.Process(input) // compile
+					_, err := eval.Process(input) // compile
+					require.NoError(b, err)
 
 					name := fmt.Sprintf(
 						"%s/%s/%s/n=%d",
@@ -63,7 +72,8 @@ func BenchmarkIn(b *testing.B) {
 						b.ReportAllocs()
 
 						for range b.N {
-							eval.Process(input)
+							_, procErr := eval.Process(input)
+							require.NoError(b, procErr)
 						}
 					})
 				}
@@ -75,12 +85,12 @@ func BenchmarkIn(b *testing.B) {
 // BenchmarkInCompile measures NewEvaluator plus the first Process call, which
 // is when the rule is compiled (and the hash set built, if any).
 func BenchmarkInCompile(b *testing.B) {
-	for _, kind := range []string{"str", "int"} {
+	for _, kind := range []string{str, fixtures.IntType} {
 		for _, size := range inBenchSizes() {
-			rule := "x in " + inBenchList(kind, size)
+			rule := xIn + inBenchList(kind, size)
 
 			input := map[string]any{"x": -1}
-			if kind == "str" {
+			if kind == str {
 				input["x"] = "nobody"
 			}
 
@@ -88,7 +98,8 @@ func BenchmarkInCompile(b *testing.B) {
 				b.ReportAllocs()
 
 				for range b.N {
-					newBenchEvaluator(b, rule).Process(input)
+					_, err := newBenchEvaluator(b, rule).Process(input)
+					require.NoError(b, err)
 				}
 			})
 		}

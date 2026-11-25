@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // threadSafeConn serializes all writes to a single websocket connection.

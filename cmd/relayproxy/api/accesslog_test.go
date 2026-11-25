@@ -13,7 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
+)
+
+const (
+	getHealthRoute = "GET /health"
 )
 
 // panicMonitoring is a monitoring service whose health endpoint panics.
@@ -47,24 +52,24 @@ func Test_AccessLog(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name: "clean path", monitoring: okMonitoring{}, target: "/health", wantRequest: "GET /health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			name: "clean path", monitoring: okMonitoring{}, target: healthPath, wantRequest: getHealthRoute,
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
 			name: "double slash", monitoring: okMonitoring{}, target: "//health", wantRequest: "GET //health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
 			name: "dot segments", monitoring: okMonitoring{}, target: "/a/../health?x=1",
 			wantRequest: "GET /a/../health?x=1", wantStatus: http.StatusOK,
-			wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
-			name: "panic", monitoring: panicMonitoring{}, target: "/health", wantRequest: "GET /health",
+			name: "panic", monitoring: panicMonitoring{}, target: healthPath, wantRequest: getHealthRoute,
 			wantStatus: http.StatusInternalServerError,
 			wantRecords: map[string]slog.Level{
 				"panic recovered": slog.LevelError,
-				"Server error":    slog.LevelError,
+				serverError:       slog.LevelError,
 			},
 		},
 	}
@@ -76,9 +81,9 @@ func Test_AccessLog(t *testing.T) {
 			conf := testConfig(t)
 			// /health is not logged at the default level: the debug level logs everything.
 			conf.LogLevel = "debug"
-			srv := api.New(conf, service.Services{MonitoringService: tt.monitoring}, logger)
+			srv := api.New(conf, &service.Services{MonitoringService: tt.monitoring}, logger)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, healthPath, nil)
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]
 			req.RequestURI = tt.target
 			req.Header.Set("X-Request-ID", "req-1")

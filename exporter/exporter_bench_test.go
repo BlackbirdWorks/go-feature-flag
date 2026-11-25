@@ -13,12 +13,13 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
-func benchEvent() exporter.FeatureEvent {
+func benchEvent() *exporter.FeatureEvent {
 	return exporter.NewFeatureEvent(
 		ffcontext.NewEvaluationContext("user-1"),
-		"flag", true, "A", false, "v1", "SERVER", nil)
+		"flag", true, "A", false, "v1", fixtures.SourceServer, nil)
 }
 
 // resetEvery is the number of adds after which BenchmarkEventStoreAdd releases the events.
@@ -26,10 +27,10 @@ const resetEvery = 1_000_000
 
 // resetStore consumes and releases every event of the store, so that the benchmark memory stays
 // bounded whatever b.N is. It is cheap compared to the resetEvery adds it amortizes over.
-func resetStore(b *testing.B, store exporter.EventStore[exporter.FeatureEvent]) {
+func resetStore(b *testing.B, store exporter.EventStore[*exporter.FeatureEvent]) {
 	b.Helper()
 
-	err := store.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
+	err := store.ProcessPendingEvents("c", func(context.Context, []*exporter.FeatureEvent) error {
 		return nil
 	})
 	if err != nil {
@@ -47,7 +48,7 @@ func resetStore(b *testing.B, store exporter.EventStore[exporter.FeatureEvent]) 
 // benchmark memory bounded.
 func BenchmarkEventStoreAdd(b *testing.B) {
 	b.Run("serial", func(b *testing.B) {
-		store := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
+		store := exporter.NewEventStore[*exporter.FeatureEvent](time.Hour)
 		defer store.Stop()
 
 		store.AddConsumer("c")
@@ -66,7 +67,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 		}
 	})
 	b.Run("parallel", func(b *testing.B) {
-		store := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
+		store := exporter.NewEventStore[*exporter.FeatureEvent](time.Hour)
 		defer store.Stop()
 
 		store.AddConsumer("c")
@@ -95,7 +96,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 func BenchmarkEventStoreFlushCycle(b *testing.B) {
 	for _, numEvents := range []int{1000, 10000, 100000} {
 		b.Run(fmt.Sprintf("events=%d", numEvents), func(b *testing.B) {
-			store := exporter.NewEventStore[exporter.FeatureEvent](time.Millisecond)
+			store := exporter.NewEventStore[*exporter.FeatureEvent](time.Millisecond)
 			defer store.Stop()
 
 			store.AddConsumer("c")
@@ -110,7 +111,7 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 					store.Add(event)
 				}
 
-				err := store.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
+				err := store.ProcessPendingEvents("c", func(_ context.Context, _ []*exporter.FeatureEvent) error {
 					return nil
 				})
 				if err != nil {
@@ -136,7 +137,7 @@ func BenchmarkManagerAddEvent(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/parallel=%t", mode, par), func(b *testing.B) {
 				exp := loadtest.NewExporter(mode)
 				exp.Delay = time.Millisecond
-				mgr := exporter.NewManager[exporter.FeatureEvent](
+				mgr := exporter.NewManager[*exporter.FeatureEvent](
 					[]exporter.Config{{Exporter: exp, FlushInterval: 50 * time.Millisecond, MaxEventInMemory: 1000}},
 					time.Millisecond, nil)
 				mgr.Start()

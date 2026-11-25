@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
 // errLegacyUser is the message returned when a request still uses the removed `user` field.
@@ -41,5 +41,5 @@ func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.Evaluati
 
 	u := req.EvaluationContext
 
-	return utils.ConvertEvaluationCtxFromRequest(u.Key, u.Custom), nil
+	return evalcore.ConvertEvaluationCtxFromRequest(u.Key, u.Custom), nil
 }

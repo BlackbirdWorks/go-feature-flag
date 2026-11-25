@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal"
-	httpretriever "github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 )
 
 var (

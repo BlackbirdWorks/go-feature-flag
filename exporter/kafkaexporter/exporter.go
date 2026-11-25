@@ -4,18 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/IBM/sarama"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
-
-const (
-	formatJSON = "json"
-)
 
 // MessageSender is a Kafka producer that implements the SendMessages method.
 type MessageSender interface {
@@ -49,7 +45,7 @@ type Exporter struct {
 // selected format. Messages are published synchronously and will error immediately on failure.
 func (e *Exporter) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	if e.sender == nil {
@@ -81,8 +77,8 @@ func (e *Exporter) Export(
 	return nil
 }
 
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (e *Exporter) IsBulk() bool {
+// IsBulk returns false: this exporter sends each event on its own as a Kafka message, it does not batch events.
+func (*Exporter) IsBulk() bool {
 	return false
 }
 
@@ -119,16 +115,11 @@ func (e *Exporter) initializeProducer() error {
 }
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
-func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
-	switch e.Format {
-	case formatJSON:
-		fallthrough
-	default:
-		b, err := json.Marshal(event)
-		if err != nil {
-			return nil, fmt.Errorf("marshal kafka event: %w", err)
-		}
-
-		return b, nil
+func (*Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
+	b, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kafka event: %w", err)
 	}
+
+	return b, nil
 }

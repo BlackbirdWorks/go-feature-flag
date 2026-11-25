@@ -3,6 +3,7 @@ package retriever_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,9 +13,10 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -41,15 +43,15 @@ func (failingRetriever) Retrieve(context.Context) ([]byte, error) {
 // shutdownFailingRetriever retrieves flags but cannot be shut down.
 type shutdownFailingRetriever struct{ countingRetriever }
 
-func (*shutdownFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return nil }
-func (*shutdownFailingRetriever) Shutdown(context.Context) error              { return errCannotClose }
-func (*shutdownFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverReady }
+func (*shutdownFailingRetriever) Init(context.Context, *slog.Logger) error { return nil }
+func (*shutdownFailingRetriever) Shutdown(context.Context) error           { return errCannotClose }
+func (*shutdownFailingRetriever) Status() retriever.Status                 { return retriever.RetrieverReady }
 
 func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retriever.Manager {
-	logger := fflog.FFLogger{}
-	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+	logger := slog.New(slog.DiscardHandler)
+	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 
-	return retriever.NewManager(conf, []retriever.Retriever{r}, cacheManager, &logger)
+	return retriever.NewManager(conf, []retriever.Retriever{r}, cacheManager, logger)
 }
 
 func TestManagerInit_FirstRetrieverError(t *testing.T) {
@@ -79,7 +81,7 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := retriever.ManagerConfig{FileFormat: "yaml", StartWithRetrieverError: tt.startAnyway}
+			conf := retriever.ManagerConfig{FileFormat: protocol.FormatYAML, StartWithRetrieverError: tt.startAnyway}
 			if tt.withFile {
 				conf.PersistentFlagConfigurationFile = filepath.Join(t.TempDir(), "persist.yaml")
 				if tt.persisted != nil {
@@ -107,9 +109,9 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 
 			if tt.wantFlag {
 				require.NoError(t, err)
-				assert.Contains(t, flags, "test-flag")
+				assert.Contains(t, flags, fixtures.FlagKeyTest)
 
-				f, getFlagErr := mgr.GetFlag("test-flag")
+				f, getFlagErr := mgr.GetFlag(fixtures.FlagKeyTest)
 				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
 				assert.False(t, mgr.GetCacheRefreshDate().IsZero())
@@ -138,7 +140,7 @@ func TestManagerForceRefresh(t *testing.T) {
 
 			mgr := newErrorManager(
 				tt.retriever,
-				retriever.ManagerConfig{FileFormat: "json", StartWithRetrieverError: true},
+				retriever.ManagerConfig{FileFormat: protocol.FormatJSON, StartWithRetrieverError: true},
 			)
 
 			require.NoError(t, mgr.Init(context.Background()))
@@ -163,7 +165,7 @@ func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 	t.Parallel()
 
-	m := newErrorManager(&shutdownFailingRetriever{}, retriever.ManagerConfig{FileFormat: "json"})
+	m := newErrorManager(&shutdownFailingRetriever{}, retriever.ManagerConfig{FileFormat: protocol.FormatJSON})
 	require.NoError(t, m.Init(context.Background()))
 	assert.ErrorContains(t, m.Shutdown(context.Background()), "error while shutting down the retrievers")
 }
@@ -171,12 +173,12 @@ func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 func TestManagerInitFailsWhenARetrieverCannotInitialise(t *testing.T) {
 	t.Parallel()
 
-	m := newErrorManager(&initFailingRetriever{}, retriever.ManagerConfig{FileFormat: "json"})
+	m := newErrorManager(&initFailingRetriever{}, retriever.ManagerConfig{FileFormat: protocol.FormatJSON})
 	assert.ErrorContains(t, m.Init(context.Background()), "error while initializing the retrievers")
 }
 
 type initFailingRetriever struct{ countingRetriever }
 
-func (*initFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return errNo }
-func (*initFailingRetriever) Shutdown(context.Context) error              { return nil }
-func (*initFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverNotReady }
+func (*initFailingRetriever) Init(context.Context, *slog.Logger) error { return errNo }
+func (*initFailingRetriever) Shutdown(context.Context) error           { return nil }
+func (*initFailingRetriever) Status() retriever.Status                 { return retriever.RetrieverNotReady }

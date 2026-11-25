@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	redis "github.com/redis/go-redis/v9"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -30,7 +30,7 @@ type Retriever struct {
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
-func (r *Retriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+func (r *Retriever) Init(ctx context.Context, _ *slog.Logger) error {
 	r.status = retriever.RetrieverNotReady
 	client := redis.NewClient(r.Options)
 
@@ -125,6 +125,6 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 // OutputFormat declares that this retriever always returns JSON-encoded data,
 // so the manager can pick the JSON parser regardless of the global FileFormat.
-func (r *Retriever) OutputFormat() string {
+func (*Retriever) OutputFormat() string {
 	return "json"
 }

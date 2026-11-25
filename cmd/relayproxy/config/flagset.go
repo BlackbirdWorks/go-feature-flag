@@ -33,9 +33,11 @@ type FlagSet struct {
 	// This property is madatory for every flagset, we will use it to filter the flag available.
 	APIKeys []string `koanf:"apikeys" mapstructure:"apiKeys"`
 	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
-	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
+	CommonFlagSet `koanf:",squash"`
 }
 
+// CommonFlagSet holds the settings common to the top-level configuration and to every flag set;
+// it is embedded in both.
 type CommonFlagSet struct {
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
@@ -123,7 +125,7 @@ func (c *Config) GetFlagSets() []FlagSet {
 
 // AddFlagSet adds a new flag set to the configuration.
 // It returns an error if a flag set with the same name already exists.
-func (c *Config) AddFlagSet(flagset FlagSet) error {
+func (c *Config) AddFlagSet(flagset *FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -132,7 +134,7 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
 
-	c.FlagSets = append(c.FlagSets, flagset)
+	c.FlagSets = append(c.FlagSets, *flagset)
 
 	return nil
 }
@@ -153,6 +155,7 @@ func (c *Config) RemoveFlagSet(flagsetName string) error {
 	return nil
 }
 
+// SetFlagSetAPIKeys sets the API keys of the named flagset.
 func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -167,6 +170,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	return nil
 }
 
+// GetFlagSetAPIKeys returns the API keys of the named flagset.
 func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -183,7 +187,8 @@ func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 // If the flagset is not found, it returns -1.
 // This function is not thread safe, it is expected to be called with the mutex locked.
 func (c *Config) getFlagSetIndexFromName(flagsetName string) (int, error) {
-	for index, flagset := range c.FlagSets {
+	for index := range c.FlagSets {
+		flagset := &c.FlagSets[index]
 		if flagset.Name == flagsetName {
 			return index, nil
 		}

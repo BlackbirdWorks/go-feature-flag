@@ -14,6 +14,29 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	age                    = "age"
+	callD                  = "call %d"
+	zeroVersion            = "0.0.0"
+	negativeVersion        = "-0.5"
+	versionTenTwentyThirty = "10.20.30"
+	prereleaseVersion      = "1.2.3-alpha"
+	buildMetadataVersion   = "1.2.3+build.5"
+	overflowVersion        = "1.5e999"
+	versionTwoFive         = "2.5"
+	overflowInteger        = "99999999999999999999"
+	floats                 = "floats"
+	hello                  = `"hello"`
+	intsName               = "ints"
+	stringsName            = "strings"
+	unicodeEscapeA         = `"\u0041"`
+	uPlanEqProAnd          = `u.plan eq "pro" and u.age gt 18`
+	xInOneTwo              = `x in [1, 2]`
+	yInOneToThree          = `y in [1, 2, 3]`
 )
 
 var errUnexpectedVisitorResultType = errors.New("unexpected visitor result type")
@@ -35,7 +58,7 @@ func (s testStringer) String() string { return s.s }
 // Evaluator.Process did before rules were compiled.
 //
 //nolint:nonamedreturns // recover sets the result
-func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr error, debugErr error) {
+func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr, debugErr error) {
 	defer func() {
 		if info := recover(); info != nil {
 			retErr = recoveredPanicError{info: info}
@@ -123,15 +146,36 @@ func differentialInputs() []diffKV {
 		{},
 		nil,
 		{
-			"i": 5, "i64": int64(7), "i32": int32(3), "f": 2.5, "s": "Hello", "b": true, "n": nil,
-			"v": "1.2.3", "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": "x.y",
-			"u":   diffKV{"plan": "pro", "age": 31, "n": nil, "deep": diffKV{"x": 1, "s": "abc", "o": diffKV{}}},
-			"str": "5", "stringer": fmt.Stringer(nil), "e": "",
-			"nilmap": diffKV(nil), "nm": map[string]string{"a": "b"},
-			"st": testStringer{"HELLO"}, "f32": float32(1.5), "esc": "a\"b", "uni": "A",
-			"r": deepMap(12), "q": deepMap(20),
+			"i":   5,
+			"i64": int64(7),
+			"i32": int32(3),
+			"f":   2.5,
+			"s":   "Hello",
+			"b":   true,
+			"n":   nil,
+			"v":   fixtures.VersionOneTwoThree,
+			"l":   []int{1, 2},
+			"m":   diffKV{"k": "v"},
+			"bad": dottedName,
+			"u": diffKV{
+				fixtures.AttrPlan: fixtures.PlanPro,
+				age:               31,
+				"n":               nil,
+				"deep":            diffKV{"x": 1, "s": fixtures.UserKeyAbc, "o": diffKV{}},
+			},
+			str:        "5",
+			"stringer": fmt.Stringer(nil),
+			"e":        "",
+			"nilmap":   diffKV(nil),
+			"nm":       map[string]string{"a": "b"},
+			"st":       testStringer{"HELLO"},
+			"f32":      float32(1.5),
+			"esc":      "a\"b",
+			"uni":      "A",
+			"r":        deepMap(12),
+			"q":        deepMap(20),
 		},
-		{"i": "text", "f": "text", "s": 12, "b": "true", "v": 5, "u": "notamap", "u2": 3.5},
+		{"i": "text", "f": "text", "s": 12, "b": trueLiteral, "v": 5, "u": "notamap", "u2": 3.5},
 	}
 }
 
@@ -170,7 +214,7 @@ func differentialAttrNames() []string {
 		"l",
 		"m",
 		"missing",
-		"str",
+		str,
 		"e",
 		"u.plan",
 		"u.age",
@@ -203,31 +247,31 @@ func differentialRuleValues() []string {
 		`-2E+1`,
 		`2E+1`,
 		`"a\"b"`,
-		`"\u0041"`,
+		unicodeEscapeA,
 		`"\\"`,
-		`2.5`,
-		`-0.5`,
+		versionTwoFive,
+		negativeVersion,
 		`1.0e2`,
-		`"hello"`,
+		hello,
 		`"HELLO"`,
 		`""`,
 		`"1.2.4"`,
-		`1.2.3`,
+		fixtures.VersionOneTwoThree,
 		`0.0.1`,
-		`true`,
+		trueLiteral,
 		`false`,
-		`null`,
+		fixtures.NullLiteral,
 		`[1, 2, 3]`,
 		`[5]`,
 		`[1.5, 2.5]`,
 		`[2.5]`,
 		`["a", "hello"]`,
 		`["x"]`,
-		`99999999999999999999`,
+		overflowInteger,
 		`[1, 99999999999999999999]`,
 		`[99999999999999999999, 2]`,
 		`1e999`,
-		`1.5e999`,
+		overflowVersion,
 		`[1.5, 1.5e999]`,
 		`[1.5e999]`,
 	}
@@ -268,7 +312,7 @@ func buildCombinationDifferentialGroup(inputs []diffKV) diffGroup {
 		`NOT (i eq 5 or f gt 1)`,
 		`(i eq 5)`,
 		`((i eq 5) and (s eq "hello" or b eq true))`,
-		`u.plan eq "pro" and u.age gt 18`,
+		uPlanEqProAnd,
 		`u.missing.y eq 1 or x pr`,
 		`u.missing.y eq 1 or i eq 5`,
 		`u.missing.y eq 1 or u.plan eq "pro"`,
@@ -292,7 +336,7 @@ func buildCombinationDifferentialGroup(inputs []diffKV) diffGroup {
 		`n ne null or s co "ell"`,
 		`i eq 1 or i eq 2 or i eq 3 or i eq 5`,
 		`(i eq 1 or i eq 2) and (s eq "nope" or f > 1)`,
-		`y IN [1, 2, 3, 4, 5]`,
+		yInOneToFive,
 		`z in ["abcd", "efghijkl", "asdada"]`,
 		`(aa == 123123131.1232313131312312 or bb == 1231.1312313123123131231)`,
 		`(jh gt "1.2.3" or kl le "1.4.56")`,
@@ -417,8 +461,9 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 // versions but rejected by semver.Make.
 func versionRuleValues() []string {
 	return []string{
-		`1.2.3`, `0.0.0`, `10.20.30`, `1.2.3-alpha`, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
-		`1.2.3+build.5`, `1.2.3+-`, `1.2.3--x`,
+		fixtures.VersionOneTwoThree, zeroVersion, versionTenTwentyThirty, prereleaseVersion, `1.2.3-alpha.1`, `1.2.3-0`,
+		`1.2.3-rc.1+b`,
+		buildMetadataVersion, `1.2.3+-`, `1.2.3--x`,
 		`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
 		`1.2.3-99999999999999999999`, `"1.2.3"`,
 	}
@@ -427,12 +472,48 @@ func versionRuleValues() []string {
 // versionLeftValues are object values compared against rule versions.
 func versionLeftValues() []any {
 	return []any{
-		"1.2.3", "1.2.4", "1.2.2", "0.0.0", "10.20.30", "2.0.0", "1.10.0",
-		"1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
-		"1.2.3+build.5", "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
-		"v1.2.3", "1.2", "1.2.3.4", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "", " 1.2.3", "1.2.3 ",
-		"99999999999999999999.0.0", "1.2.99999999999999999999", "1..3", "1.2.", ".2.3", "1.2.3-", "x.y.z", "1.2.٣",
-		5, 1.5, true, nil, []string{"1.2.3"}, testStringer{"1.2.3"},
+		fixtures.VersionOneTwoThree,
+		"1.2.4",
+		"1.2.2",
+		zeroVersion,
+		versionTenTwentyThirty,
+		fixtures.VersionTwoZeroZero,
+		"1.10.0",
+		prereleaseVersion,
+		"1.2.3-alpha.1",
+		"1.2.3-beta",
+		"1.2.3-0",
+		"1.2.3-rc.1+x",
+		buildMetadataVersion,
+		"1.2.3+other",
+		"1.2.3+",
+		"1.2.3+a..b",
+		"1.2.3+a_b",
+		"1.2.3+a+b",
+		"v1.2.3",
+		"1.2",
+		"1.2.3.4",
+		"01.2.3",
+		"1.02.3",
+		"1.2.03",
+		"1.2.3-01",
+		"",
+		" 1.2.3",
+		"1.2.3 ",
+		"99999999999999999999.0.0",
+		"1.2.99999999999999999999",
+		"1..3",
+		"1.2.",
+		".2.3",
+		"1.2.3-",
+		"x.y.z",
+		"1.2.٣",
+		5,
+		1.5,
+		true,
+		nil,
+		[]string{fixtures.VersionOneTwoThree},
+		testStringer{fixtures.VersionOneTwoThree},
 	}
 }
 
@@ -457,9 +538,30 @@ func fuzzAttrs() []string {
 
 func fuzzVals() []string {
 	return []string{
-		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, `2.5`, `-0.5`, `1.0e2`, `1.5e999`,
-		`"hello"`, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, `"\u0041"`, `"1.2.3"`, `1.2.3`, `1.2.3-alpha+b`,
-		`true`, `false`, `null`, `99999999999999999999`, `-99999999999999999999`,
+		`1`,
+		`-3`,
+		`0`,
+		`5`,
+		`1e3`,
+		`-2E+1`,
+		versionTwoFive,
+		negativeVersion,
+		`1.0e2`,
+		overflowVersion,
+		hello,
+		`"HeLLo"`,
+		`""`,
+		`"A"`,
+		`"a\"b"`,
+		unicodeEscapeA,
+		`"1.2.3"`,
+		fixtures.VersionOneTwoThree,
+		`1.2.3-alpha+b`,
+		trueLiteral,
+		`false`,
+		fixtures.NullLiteral,
+		overflowInteger,
+		`-99999999999999999999`,
 	}
 }
 
@@ -481,11 +583,11 @@ func genList(r *rand.Rand) string {
 
 	switch r.Intn(3) {
 	case 0:
-		pool = []string{"1", "2", "5", "0", "99999999999999999999"}
+		pool = []string{"1", "2", "5", "0", overflowInteger}
 	case 1:
-		pool = []string{"1.5", "2.5", "-0.5", "1.5e999", "1.0"}
+		pool = []string{"1.5", versionTwoFive, negativeVersion, overflowVersion, "1.0"}
 	default:
-		pool = []string{`"a"`, `"hello"`, `""`, `"x"`, `"\u0041"`}
+		pool = []string{`"a"`, hello, `""`, `"x"`, unicodeEscapeA}
 	}
 
 	el := make([]string, 1+r.Intn(4))
@@ -518,38 +620,20 @@ func genRule(r *rand.Rand, depth int) string {
 	case 2:
 		return genRule(r, depth-1) + " and " + genRule(r, depth-1)
 	default:
-		return genRule(r, depth-1) + " or " + genRule(r, depth-1)
+		return genRule(r, depth-1) + orOperator + genRule(r, depth-1)
 	}
 }
 
+// genVal draws one value: a scalar, a composite or a nested map. The draws of r are fixed per seed.
 func genVal(r *rand.Rand, depth int) any {
-	switch r.Intn(16) {
-	case 0:
-		return nil
-	case 1:
-		return r.Intn(6)
-	case 2:
-		return int64(r.Intn(6))
-	case 3:
-		return int32(r.Intn(6))
-	case 4:
-		return 2.5
-	case 5:
-		return "hello"
-	case 6:
-		return "1.2.3"
-	case 7:
-		return true
-	case 8:
-		return []int{1, 2}
-	case 9:
-		return testStringer{"HELLO"}
-	case 10:
-		return map[string]any(nil)
-	case 11:
-		return map[string]string{"a": "b"}
-	case 12:
-		return float32(1.5)
+	choice := r.Intn(16)
+
+	if v, ok := genScalar(r, choice); ok {
+		return v
+	}
+
+	if v, ok := genComposite(choice); ok {
+		return v
 	}
 
 	if depth <= 0 {
@@ -557,6 +641,48 @@ func genVal(r *rand.Rand, depth int) any {
 	}
 
 	return genMap(r, depth-1)
+}
+
+// genScalar returns the scalar of choice, false when choice is not one of them.
+func genScalar(r *rand.Rand, choice int) (any, bool) {
+	switch choice {
+	case 0:
+		return nil, true
+	case 1:
+		return r.Intn(6), true
+	case 2:
+		return int64(r.Intn(6)), true
+	case 3:
+		return int32(r.Intn(6)), true
+	case 4:
+		return 2.5, true
+	case 5:
+		return "hello", true
+	case 6:
+		return fixtures.VersionOneTwoThree, true
+	case 7:
+		return true, true
+	case 12:
+		return float32(1.5), true
+	}
+
+	return nil, false
+}
+
+// genComposite returns the composite value of choice, false when choice is not one of them.
+func genComposite(choice int) (any, bool) {
+	switch choice {
+	case 8:
+		return []int{1, 2}, true
+	case 9:
+		return testStringer{"HELLO"}, true
+	case 10:
+		return map[string]any(nil), true
+	case 11:
+		return map[string]string{"a": "b"}, true
+	}
+
+	return nil, false
 }
 
 func genMap(r *rand.Rand, depth int) map[string]any {
@@ -614,9 +740,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "ints",
-			rule: `x in [1, 2]`,
-			bad:  map[string]any{"x": "str"},
+			name: intsName,
+			rule: xInOneTwo,
+			bad:  map[string]any{"x": str},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
 
@@ -628,9 +754,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			probe: map[string]any{"x": 42},
 		},
 		{
-			name: "floats",
+			name: floats,
 			rule: `x in [1.5, 2.5]`,
-			bad:  map[string]any{"x": "str"},
+			bad:  map[string]any{"x": str},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
 
@@ -642,7 +768,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			probe: map[string]any{"x": 42.0},
 		},
 		{
-			name: "strings",
+			name: stringsName,
 			rule: `x in ["a", "b"]`,
 			bad:  map[string]any{"x": 5},
 			mutate: func(t *testing.T, r any) {
@@ -651,9 +777,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 				s, ok := r.([]string)
 				require.True(t, ok)
 
-				s[0] = "zzz"
+				s[0] = fixtures.PlaceholderZzz
 			},
-			probe: map[string]any{"x": "zzz"},
+			probe: map[string]any{"x": fixtures.PlaceholderZzz},
 		},
 	}
 	for _, tt := range tests {
@@ -667,7 +793,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 
 			var ne *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &ne)
-			tt.mutate(t, ne.Vals["rule_operand"])
+			tt.mutate(t, ne.Vals[errValRuleOperand])
 			got, _ := eval.Process(tt.probe)
 			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
@@ -714,14 +840,14 @@ func testProcessConcurrent(t *testing.T) {
 		rule  string
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{name: "int in", rule: yInOneToThree, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			name:  fixtures.NestedKey,
+			rule:  uPlanEqProAnd,
+			items: map[string]any{"u": map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31}},
 			want:  true,
 		},
-		{name: "debug err", rule: `y in [1, 2, 3]`, items: map[string]any{"y": "s"}},
+		{name: "debug err", rule: yInOneToThree, items: map[string]any{"y": "s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -762,7 +888,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 		wantListTypeObj bool
 	}{
 		{
-			name:  "ints",
+			name:  intsName,
 			rule:  `x eq [1, 2]`,
 			items: map[string]any{"x": 1},
 			mut: func(t *testing.T, v any) {
@@ -776,7 +902,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			want: []int{1, 2},
 		},
 		{
-			name:  "floats",
+			name:  floats,
 			rule:  `x eq [1.5, 2.5]`,
 			items: map[string]any{"x": 1.0},
 			mut: func(t *testing.T, v any) {
@@ -790,7 +916,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			want: []float64{1.5, 2.5},
 		},
 		{
-			name:  "strings",
+			name:  stringsName,
 			rule:  `x eq ["a", "b"]`,
 			items: map[string]any{"x": "a"},
 			mut: func(t *testing.T, v any) {
@@ -799,7 +925,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				s, ok := v.([]string)
 				require.True(t, ok)
 
-				s[0] = "zzz"
+				s[0] = fixtures.PlaceholderZzz
 			},
 			want:            []string{"a", "b"},
 			wantListTypeObj: true,
@@ -829,7 +955,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
 
-			tt.mut(t, nestedErr.Vals["rule_operand"])
+			tt.mut(t, nestedErr.Vals[errValRuleOperand])
 			assert.Equal(t, tt.want, eval.root.cmp.listOp, "compiled constant mutated")
 			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
@@ -853,11 +979,11 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 		rule  string
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{name: "int in", rule: yInOneToThree, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			name:  fixtures.NestedKey,
+			rule:  uPlanEqProAnd,
+			items: map[string]any{"u": map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31}},
 			want:  true,
 		},
 	}
@@ -913,9 +1039,9 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 			eval := &Evaluator{tree: tt.tree}
 			for call := range 2 {
 				gotRet, gotErr := eval.Process(tt.items)
-				assert.Equal(t, wantRet, gotRet, "call %d", call)
-				assert.Equal(t, errString(wantErr), errString(gotErr), "call %d", call)
-				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "call %d", call)
+				assert.Equal(t, wantRet, gotRet, callD, call)
+				assert.Equal(t, errString(wantErr), errString(gotErr), callD, call)
+				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), callD, call)
 			}
 
 			assert.Nil(t, eval.root, "failed compile must leave no root")
@@ -927,7 +1053,7 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 func testProcessDropsTreeAfterCompile(t *testing.T) {
 	t.Helper()
 
-	eval, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(xEqOne)
 	require.NoError(t, err)
 	require.NotNil(t, eval.tree, "NewEvaluator must only parse")
 	require.Nil(t, eval.root, "NewEvaluator must only parse")
@@ -964,7 +1090,7 @@ func testProcessVersionFastPath(t *testing.T) {
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 
-			items := map[string]any{"v": "1.2.3"}
+			items := map[string]any{"v": fixtures.VersionOneTwoThree}
 			want, wantErr := eval.Process(items)
 			assert.Equal(t, tt.wantFast, eval.root.cmp.version != nil, "fast path")
 			// the fast path must be what evaluates the rule: with apply
@@ -995,7 +1121,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 		name  string
 	}{
 		{name: "clean call", clear: func(eval *Evaluator) { _, _ = eval.Process(good) }},
-		{name: "reset", clear: func(eval *Evaluator) { _ = eval.Reset() }},
+		{name: "reset", clear: func(eval *Evaluator) { eval.Reset() }},
 		{name: "panicking call", clear: func(eval *Evaluator) {
 			eval.testHookPanic = func() { panic("p") }
 			_, _ = eval.Process(good)
@@ -1006,7 +1132,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			eval, err := NewEvaluator(`x in [1, 2]`)
+			eval, err := NewEvaluator(xInOneTwo)
 			require.NoError(t, err)
 
 			for round := range 3 {
@@ -1024,7 +1150,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 func TestPanicClearsDebugErrStoredByOverlappingCall(t *testing.T) {
 	t.Parallel()
 
-	eval, err := NewEvaluator(`x in [1, 2]`)
+	eval, err := NewEvaluator(xInOneTwo)
 	require.NoError(t, err)
 
 	eval.testHookPanic = func() {
@@ -1043,11 +1169,44 @@ func TestParsePlainVersion(t *testing.T) {
 	t.Parallel()
 
 	literals := []string{
-		"1.2.3", "0.0.0", "10.20.30", "18446744073709551615.0.1", "18446744073709551616.0.1",
-		"1.2.3+b", "1.2.3+build.5", "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
-		"1.2.3+a+b", "1.2.3+a_b", "1.2.3+é", "1+a.2.3", "1.2+a.3",
-		"1.2.3-alpha", "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
-		"01.2.3", "1.02.3", "1.2.03", "0.0.00", "v1.2.3", " 1.2.3", "1.2.3 ", "1.2.٣", "-1.2.3", "+1.2.3",
+		fixtures.VersionOneTwoThree,
+		zeroVersion,
+		versionTenTwentyThirty,
+		"18446744073709551615.0.1",
+		"18446744073709551616.0.1",
+		"1.2.3+b",
+		buildMetadataVersion,
+		"1.2.3+-",
+		"1.2.3+a-b.c",
+		"1.2.3+",
+		"1.2.3+a.",
+		"1.2.3+.a",
+		"1.2.3+a..b",
+		"1.2.3+a+b",
+		"1.2.3+a_b",
+		"1.2.3+é",
+		"1+a.2.3",
+		"1.2+a.3",
+		prereleaseVersion,
+		"1.2.3-alpha+b",
+		"1.2.3-",
+		"1.2",
+		"1",
+		"",
+		"1.2.3.4",
+		"1..3",
+		".2.3",
+		"1.2.",
+		"01.2.3",
+		"1.02.3",
+		"1.2.03",
+		"0.0.00",
+		"v1.2.3",
+		" 1.2.3",
+		"1.2.3 ",
+		"1.2.٣",
+		"-1.2.3",
+		"+1.2.3",
 	}
 
 	const randomInputs = 20000
@@ -1085,7 +1244,7 @@ func TestParsePlainVersion(t *testing.T) {
 		assert.Nil(t, got.Build, "%q", input)
 	}
 
-	for _, input := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
+	for _, input := range []string{fixtures.VersionOneTwoThree, zeroVersion, "1.2.3+b.5"} {
 		_, ok := parsePlainVersion(input)
 		assert.True(t, ok, "%q: not parsed by the fast path", input)
 	}
@@ -1135,17 +1294,17 @@ func testProcessConcurrentStaleList(t *testing.T) {
 		rule  string
 	}{
 		{
-			name:  "ints",
+			name:  intsName,
 			rule:  `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`,
 			items: map[string]any{"a": 1, "b": 2, "c": 6},
 		},
 		{
-			name:  "floats",
+			name:  floats,
 			rule:  `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`,
 			items: map[string]any{"a": 1, "b": 2.5, "c": 4.5},
 		},
 		{
-			name:  "strings",
+			name:  stringsName,
 			rule:  `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`,
 			items: map[string]any{"a": 1, "b": "y", "c": "w"},
 		},
@@ -1154,10 +1313,10 @@ func testProcessConcurrentStaleList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tree, err := parseRule(tt.rule)
+			parsed, err := parseRule(tt.rule)
 			require.NoError(t, err)
 
-			wantRet, wantErr, wantDebug := visitorProcess(tree, tt.items)
+			wantRet, wantErr, wantDebug := visitorProcess(parsed.tree, tt.items)
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 

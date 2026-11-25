@@ -37,6 +37,7 @@ type Evaluator struct {
 	once          sync.Once
 }
 
+// NewEvaluator parses and compiles a JSON query rule into an Evaluator.
 func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamedreturns // recover sets the result
 	// antlr lib has panics for exceptions so we have to put a recover here
 	// in the unlikely case there is an exception
@@ -47,19 +48,22 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 		}
 	}()
 
-	tree, err := parseRule(rule)
+	parsed, err := parseRule(rule)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Evaluator{
 		rule: rule,
-		tree: tree,
+		tree: parsed.tree,
 	}, nil
 }
 
-//nolint:ireturn // returns the antlr.ParseTree that the generated parser constructs, which only exposes the interface
-func parseRule(rule string) (antlr.ParseTree, error) {
+type parsedRule struct {
+	tree antlr.ParseTree
+}
+
+func parseRule(rule string) (parsedRule, error) {
 	input := antlr.NewInputStream(normalizeRuleInput(rule))
 	lex := NewJsonQueryLexer(input)
 	errListener := &collectingErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
@@ -73,24 +77,24 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	tree := p.Query()
 
 	if len(errListener.errs) > 0 {
-		return nil, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
+		return parsedRule{}, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
 	}
 
 	consumeTrailingWhitespace(tokens)
 
 	if tokens.LA(1) != antlr.TokenEOF {
-		return nil, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
+		return parsedRule{}, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
 	}
 
-	return tree, nil
+	return parsedRule{tree: tree}, nil
 }
 
-func (e *Evaluator) Reset() error {
+// Reset clears the last debug error recorded by the evaluator.
+func (e *Evaluator) Reset() {
 	e.lastDebugErr.Store(nil)
-
-	return nil
 }
 
+// LastDebugErr returns the last debug error recorded by the evaluator, or nil if there is none.
 func (e *Evaluator) LastDebugErr() error {
 	if p := e.lastDebugErr.Load(); p != nil {
 		return *p
@@ -193,9 +197,10 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 		return false, visitor.err
 	}
 
-	return assertType[bool](result), visitor.err
+	return assertBool(result), visitor.err
 }
 
+// Evaluate reports whether the rule matches the items, and false if the rule does not compile.
 func Evaluate(rule string, items map[string]any) bool {
 	ev, err := NewEvaluator(rule)
 	if err != nil {
@@ -212,15 +217,57 @@ type recoveredPanicError struct{ info any }
 
 func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }
 
-// assertType returns v as a T. A mismatch is a bug of the evaluator, not a bad rule: it panics, and the recover of
-// the evaluation reports it as an error, as the unchecked type assertion it replaces did.
-//
-//nolint:ireturn // generic: the result is a type parameter
-func assertType[T any](v any) T {
-	res, ok := v.(T)
+// The assert functions return v as the type they name. A mismatch is a bug of the evaluator, not a bad rule: they
+// panic, and the recover of the evaluation reports it as an error, as the unchecked type assertion they replace did.
+
+func assertBool(v any) bool {
+	res, ok := v.(bool)
 	if !ok {
-		panic(fmt.Sprintf("interface conversion: %T is not %s", v, reflect.TypeFor[T]()))
+		panicConversion(v, "bool")
 	}
 
 	return res
+}
+
+func assertString(v any) string {
+	res, ok := v.(string)
+	if !ok {
+		panicConversion(v, "string")
+	}
+
+	return res
+}
+
+func assertMap(v any) map[string]any {
+	res, ok := v.(map[string]any)
+	if !ok {
+		panicConversion(v, "map[string]any")
+	}
+
+	return res
+}
+
+func assertInts(v any) []int {
+	return assertSlice[int](v)
+}
+
+func assertFloats(v any) []float64 {
+	return assertSlice[float64](v)
+}
+
+func assertStrings(v any) []string {
+	return assertSlice[string](v)
+}
+
+func assertSlice[E any](v any) []E {
+	res, ok := v.([]E)
+	if !ok {
+		panicConversion(v, reflect.TypeFor[[]E]().String())
+	}
+
+	return res
+}
+
+func panicConversion(v any, want string) {
+	panic(fmt.Sprintf("interface conversion: %T is not %s", v, want))
 }

@@ -2,6 +2,7 @@ package opentelemetryexporter
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"text/template"
 
@@ -12,17 +13,17 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
 type MockUnsupportedEvent struct{}
 
-func (m MockUnsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) { return nil, nil }
-func (m MockUnsupportedEvent) FormatInJSON() ([]byte, error)                    { return nil, nil }
-func (m MockUnsupportedEvent) GetCreationDate() int64                           { return 0 }
-func (m MockUnsupportedEvent) GetUserKey() string                               { return "" }
-func (m MockUnsupportedEvent) GetKey() string                                   { return "" }
+func (MockUnsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) { return nil, nil }
+func (MockUnsupportedEvent) FormatInJSON() ([]byte, error)                    { return nil, nil }
+func (MockUnsupportedEvent) GetCreationDate() int64                           { return 0 }
+func (MockUnsupportedEvent) GetUserKey() string                               { return "" }
+func (MockUnsupportedEvent) GetKey() string                                   { return "" }
 
 func TestOpenTelemetryIsBulk(t *testing.T) {
 	t.Parallel()
@@ -46,9 +47,9 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 	}
 
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
-			Kind:         "feature",
-			ContextKind:  "user",
+		&exporter.FeatureEvent{
+			Kind:         fixtures.KindFeature,
+			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      "user-1",
 			CreationDate: 1617970547,
 			Key:          "flag-1",
@@ -56,10 +57,10 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 			Value:        true,
 			Default:      false,
 			Version:      "v1",
-			Source:       "SERVER",
+			Source:       fixtures.SourceServer,
 		},
-		exporter.FeatureEvent{
-			Kind:         "feature",
+		&exporter.FeatureEvent{
+			Kind:         fixtures.KindFeature,
 			ContextKind:  "anonymousUser",
 			UserKey:      "user-2",
 			CreationDate: 1617970548,
@@ -72,7 +73,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 		},
 	}
 
-	logger := &fflog.FFLogger{}
+	logger := slog.New(slog.DiscardHandler)
 
 	// Act
 	err := exp.Export(context.Background(), logger, events)
@@ -98,9 +99,9 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 	exp := &Exporter{tracerProvider: tp}
 
-	event := exporter.FeatureEvent{
-		Kind:         "feature",
-		ContextKind:  "user",
+	event := &exporter.FeatureEvent{
+		Kind:         fixtures.KindFeature,
+		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      "user-123",
 		CreationDate: 1617970547,
 		Key:          "my-flag",
@@ -108,7 +109,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 		Value:        true,
 		Default:      false,
 		Version:      "v1",
-		Source:       "SERVER",
+		Source:       fixtures.SourceServer,
 		//  the for-loop branch
 		Metadata: map[string]any{
 			"team": "platform",
@@ -116,7 +117,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 	}
 
 	// Act
-	err := exp.Export(context.Background(), &fflog.FFLogger{}, []exporter.ExportableEvent{event})
+	err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	// Assert
 	require.NoError(t, err)
@@ -128,10 +129,10 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 	assertAttribute(t, attrs, "feature_flag.key", "my-flag")
 	assertAttribute(t, attrs, "feature_flag.user_key", "user-123")
-	assertAttribute(t, attrs, "feature_flag.context_kind", "user")
+	assertAttribute(t, attrs, "feature_flag.context_kind", fixtures.ContextKindUser)
 	assertAttribute(t, attrs, "feature_flag.variation", "on")
 	assertAttribute(t, attrs, "feature_flag.version", "v1")
-	assertAttribute(t, attrs, "feature_flag.source", "SERVER")
+	assertAttribute(t, attrs, "feature_flag.source", fixtures.SourceServer)
 	assertAttribute(t, attrs, "feature_flag.metadata.team", "platform")
 }
 

@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"context"
@@ -9,17 +9,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
 // FlagChangeAPICtrl is the controller of the endpoint to poll to know if the flags changed.
 type FlagChangeAPICtrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
 // NewAPIFlagChange is the constructor of the controller of the flag change endpoint.
-func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics metric.Metrics) *FlagChangeAPICtrl {
+func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *FlagChangeAPICtrl {
 	return &FlagChangeAPICtrl{flagsetManager: flagsetManager, metrics: metrics}
 }
 
@@ -75,8 +75,8 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 			)
 		}
 
-		flagHashes[key] = utils.Hash(string(jsonFlag))
+		flagHashes[key] = evalcore.Hash(string(jsonFlag))
 	}
 
-	return &FlagChangeOutput{Body: FlagChangeResponse{Hash: utils.Hash(string(res)), Flags: flagHashes}}, nil
+	return &FlagChangeOutput{Body: FlagChangeResponse{Hash: evalcore.Hash(string(res)), Flags: flagHashes}}, nil
 }

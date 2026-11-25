@@ -37,10 +37,10 @@ func jsonqueryParserInit() {
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "'\\n'",
 	}
 	staticData.SymbolicNames = []string{
-		"", "", "", "", "", "", "", "", "NOT", "LOGICAL_OPERATOR", "BOOLEAN",
-		"NULL", "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
-		"ATTRNAME", "VERSION", "STRING", "DOUBLE", "INT", "EXP", "NEWLINE",
-		"COMMA", "SP",
+		"", "", "", "", "", "", "", "", tokenNot, tokenLogicalOperator, tokenBoolean,
+		tokenNull, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
+		tokenAttrName, tokenVersion, tokenString, tokenDouble, tokenInt, tokenExp, tokenNewline,
+		tokenComma, "SP",
 	}
 	staticData.RuleNames = []string{
 		"query", "attrPath", "subAttr", "value", "listStrings", "subListOfStrings",

@@ -10,7 +10,7 @@ import (
 	"net/http/pprof"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
@@ -19,7 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 )
 
@@ -40,7 +39,7 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 		mux.Handle("GET /swagger/{$}", http.RedirectHandler("/swagger/index.html", http.StatusFound))
 	}
 
-	return &routeSet{mux: mux, api: newHumaAPI(mux, s.config.IsDebugEnabled(), docs)}
+	return &routeSet{mux: mux, api: humago.New(mux, newHumaConfig(s.config.IsDebugEnabled(), docs))}
 }
 
 // mergeOpenAPI adds the operations and the schemas of src to dst.
@@ -62,7 +61,7 @@ func primeDocs(mux http.Handler) {
 	for _, path := range []string{
 		"/swagger/openapi.json", "/swagger/openapi-3.0.json", "/swagger/openapi.yaml", "/swagger/openapi-3.0.yaml",
 	} {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, http.NoBody)
 		if err != nil {
 			continue
 		}
@@ -82,9 +81,11 @@ func (discardWriter) WriteHeader(int) {}
 
 // register serves a typed operation with huma, with the middleware of the operation (they run in order).
 func register[I, O any](
-	routes *routeSet, operation huma.Operation, handler func(context.Context, *I) (*O, error),
+	routes *routeSet, operationConf *huma.Operation, handler func(context.Context, *I) (*O, error),
 	humaMiddleware ...func(huma.Context, func(huma.Context)),
 ) {
+	// the operation of the caller is not changed: huma registers a copy.
+	operation := *operationConf
 	operation.Middlewares = append(operation.Middlewares, humaMiddleware...)
 	// the error responses are documented with the body the relay proxy sends, not huma's RFC 9457 model.
 	errorStatuses := operation.Errors
@@ -216,7 +217,7 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	routes.raw(op, "/v1/feature/{flagKey}/eval", helper.Handle(cFlagEval.Handler, debug), userAuth.HTTP())
 
 	collector := operationCollector()
-	controller.BodyOpts(&collector, s.readTimeout)
+	controller.BodyOpts(collector, s.readTimeout)
 	register(routes, collector, cEvalDataCollector.Handle, userAuth.Huma())
 	setRequestBody(api, collector.OperationID, jsonBody(api,
 		"List of flag evaluation that be passed to the data exporter", true, model.CollectEvalDataRequest{}))
@@ -224,7 +225,7 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	register(routes, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(), middleware.ETagHuma())
 
 	configuration := operationFlagConfiguration()
-	controller.BodyOpts(&configuration, s.readTimeout)
+	controller.BodyOpts(configuration, s.readTimeout)
 	register(routes, configuration, cFlagConfiguration.Handle, userAuth.Huma(), middleware.ETagHuma())
 	setRequestBody(api, configuration.OperationID, jsonBody(api,
 		"List of flags to get the configuration from.", false, controller.FlagConfigurationRequest{}))
@@ -266,12 +267,12 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 
 	api.OpenAPI().AddOperation(operationMetrics())
 
-	if s.services.Metrics != (metric.Metrics{}) {
+	if s.services.Metrics.Enabled() {
 		gatherer := s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)
 
 		h := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{DisableCompression: true})
-		if r, ok := gatherer.(prometheus.Registerer); ok {
-			h = promhttp.InstrumentMetricHandler(r, h)
+		if !s.config.ExposeLegacyMetrics {
+			h = promhttp.InstrumentMetricHandler(s.services.Metrics.Registry, h)
 		}
 
 		routes.mux.Handle("GET /metrics", h)

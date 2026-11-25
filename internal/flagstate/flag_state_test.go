@@ -8,7 +8,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestFromFlagEvaluation(t *testing.T) {
@@ -18,18 +19,18 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	tests := []struct {
 		expected      flagstate.FlagState
-		flagCtx       flag.Context
+		flagCtx       flagdef.Context
 		evaluationCtx ffcontext.Context
-		currentFlag   flag.Flag
+		currentFlag   flagdef.Flag
 		name          string
 		key           string
 	}{
 		{
 			name:          "Flag is disabled",
-			key:           "test-key",
+			key:           fixtures.UserKeyTest,
 			evaluationCtx: ffcontext.NewEvaluationContext("user-key"),
-			flagCtx:       flag.Context{Service: flag.NewService()},
-			currentFlag: &flag.InternalFlag{
+			flagCtx:       flagdef.Context{Service: flagdef.NewService()},
+			currentFlag: &flagdef.InternalFlag{
 				Disable: new(true),
 			},
 			expected: flagstate.FlagState{
@@ -38,25 +39,25 @@ func TestFromFlagEvaluation(t *testing.T) {
 				Failed:       false,
 				ErrorCode:    "",
 				ErrorDetails: "",
-				Reason:       flag.ReasonDisabled,
+				Reason:       flagdef.ReasonDisabled,
 				Metadata:     nil,
 			},
 		},
 		{
 			name:          "Flag evaluation error",
-			key:           "test-key",
+			key:           fixtures.UserKeyTest,
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
-			flagCtx:       flag.Context{Service: flag.NewService()},
-			currentFlag: &flag.InternalFlag{
+			flagCtx:       flagdef.Context{Service: flagdef.NewService()},
+			currentFlag: &flagdef.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(1)),
-					"var2": new(any(2)),
+					fixtures.VarOne: new(any(1)),
+					fixtures.VarTwo: new(any(2)),
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					Percentages: &map[string]float64{
-						"var1": 50,
-						"var2": 50,
+						fixtures.VarOne: 50,
+						fixtures.VarTwo: 50,
 					},
 				},
 			},
@@ -64,54 +65,54 @@ func TestFromFlagEvaluation(t *testing.T) {
 				Timestamp:    evaluatedAt.Unix(),
 				TrackEvents:  true,
 				Failed:       true,
-				ErrorCode:    flag.ErrorCodeTargetingKeyMissing,
+				ErrorCode:    flagdef.ErrorCodeTargetingKeyMissing,
 				ErrorDetails: "Error: Empty targeting key",
-				Reason:       flag.ReasonError,
+				Reason:       flagdef.ReasonError,
 				Metadata:     nil,
 			},
 		},
 		{
 			name:          "Flag evaluation valid type",
-			key:           "test-key",
-			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
-			flagCtx:       flag.Context{Service: flag.NewService()},
-			currentFlag: &flag.InternalFlag{
+			key:           fixtures.UserKeyTest,
+			evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyMy),
+			flagCtx:       flagdef.Context{Service: flagdef.NewService()},
+			currentFlag: &flagdef.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(1)),
-					"var2": new(any(2)),
+					fixtures.VarOne: new(any(1)),
+					fixtures.VarTwo: new(any(2)),
 				},
-				DefaultRule: &flag.Rule{
-					VariationResult: new("var1"),
+				DefaultRule: &flagdef.Rule{
+					VariationResult: new(fixtures.VarOne),
 				},
 			},
 			expected: flagstate.FlagState{
 				Value:         1,
-				VariationType: "var1",
+				VariationType: fixtures.VarOne,
 				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Metadata:      nil,
 			},
 		},
 		{
 			name:          "Flag evaluation invalid type",
-			key:           "test-key",
-			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
-			flagCtx:       flag.Context{Service: flag.NewService()},
-			currentFlag: &flag.InternalFlag{
+			key:           fixtures.UserKeyTest,
+			evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyMy),
+			flagCtx:       flagdef.Context{Service: flagdef.NewService()},
+			currentFlag: &flagdef.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(
+					fixtures.VarOne: new(any(
 						map[bool]*any{true: new(any(1))},
 					)),
-					"var2": new(any(
+					fixtures.VarTwo: new(any(
 						map[bool]*any{true: new(any(2))},
 					)),
 				},
-				DefaultRule: &flag.Rule{
-					VariationResult: new("var1"),
+				DefaultRule: &flagdef.Rule{
+					VariationResult: new(fixtures.VarOne),
 				},
 			},
 			expected: flagstate.FlagState{
@@ -119,8 +120,8 @@ func TestFromFlagEvaluation(t *testing.T) {
 				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        true,
-				Reason:        flag.ReasonError,
-				ErrorCode:     flag.ErrorCodeTypeMismatch,
+				Reason:        flagdef.ReasonError,
+				ErrorCode:     flagdef.ErrorCodeTypeMismatch,
 				Metadata:      nil,
 			},
 		},

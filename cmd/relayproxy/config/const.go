@@ -15,6 +15,7 @@ const (
 	defaultExporterMaxEventInMemory = 100000
 )
 
+// DefaultLogLevel is the log level used when none is configured.
 const DefaultLogLevel = "info"
 
 // ExporterDefaults are the values that an exporter configuration falls back to.

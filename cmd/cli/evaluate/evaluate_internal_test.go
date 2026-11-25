@@ -2,6 +2,7 @@ package evaluate
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"
@@ -18,8 +19,16 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+)
+
+const (
+	defaultUpper        = "DEFAULT"
+	httpsJiraXxxGOFF    = "https://jira.xxx/GOFF-01"
+	simpleFlag          = "simple-flag"
+	targetingKeyUser123 = `{"targetingKey": "user-123"}`
 )
 
 // evaluateTestCase describes a single Test_Evaluate scenario.
@@ -41,10 +50,12 @@ func buildEvaluate(
 	evaluationCtx string,
 	customize func(r retriever.Retriever),
 ) (evaluate, error) {
-	r, err := retrieverInit.Retriever(conf)
+	built, err := retrieverinit.Retriever(conf)
 	if err != nil {
 		return evaluate{}, err
 	}
+
+	r := built.Retriever
 
 	if customize != nil {
 		customize(r)
@@ -104,9 +115,9 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error is config file does not exist",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
-					Kind: "file",
+					Kind: fixtures.KindFile,
 					Path: "testdata/invalid.yaml",
-				}, "test-flag", `{"targetingKey": "user-123"}`, nil)
+				}, fixtures.FlagKeyTest, targetingKeyUser123, nil)
 			},
 			wantErr: assert.Error,
 			// OS-specific suffix ("no such file or directory" / "The system cannot
@@ -119,22 +130,22 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error if no evaluation context provided with flag containing percentage rules",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: "file", Path: "testdata/flag.goff.yaml"},
-					"simple-flag", "", nil)
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
+					simpleFlag, "", nil)
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"simple-flag": {
+				simpleFlag: {
 					TrackEvents:   true,
 					VariationType: "B",
 					Failed:        false,
 					Version:       "",
-					Reason:        "STATIC",
+					Reason:        fixtures.VariationStatic,
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -143,22 +154,22 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should perform evaluation if no evaluation context and compatible flag",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: "file", Path: "testdata/flag.goff.yaml"},
-					"simple-flag", "", nil)
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
+					simpleFlag, "", nil)
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"simple-flag": {
+				simpleFlag: {
 					TrackEvents:   true,
 					VariationType: "B",
 					Failed:        false,
 					Version:       "",
-					Reason:        "STATIC",
+					Reason:        fixtures.VariationStatic,
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -167,12 +178,12 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error if evaluation context provided has no targeting key",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: "file", Path: "testdata/flag.goff.yaml"},
-					"test-flag", `{"id": "user-123"}`, nil)
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
+					fixtures.FlagKeyTest, `{"id": "user-123"}`, nil)
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
 					VariationType: "SdkDefault",
 					Failed:        true,
@@ -183,8 +194,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         nil,
 					Cacheable:     false,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -193,24 +204,24 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should evaluate a single flag if flag name is provided",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: "file", Path: "testdata/flag.goff.yaml"},
-					"test-flag", `{"targetingKey": "user-123"}`, nil)
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
+					fixtures.FlagKeyTest, targetingKeyUser123, nil)
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "Default",
+					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -219,50 +230,50 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should evaluate all flags if flag name is not provided",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: "file", Path: "testdata/flag.goff.yaml"},
-					"", `{"targetingKey": "user-123"}`, nil)
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
+					"", targetingKeyUser123, nil)
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "Default",
+					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 				"test-flag2": {
 					TrackEvents:   true,
-					VariationType: "Default",
+					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
 				},
-				"simple-flag": {
+				simpleFlag: {
 					TrackEvents:   true,
 					VariationType: "B",
 					Failed:        false,
 					Version:       "",
-					Reason:        "STATIC",
+					Reason:        fixtures.VariationStatic,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						"description": "this is a simple feature flag",
-						"issue-link":  "https://jira.xxx/GOFF-01",
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -279,10 +290,10 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:           "github",
-					RepositorySlug: "thomaspoignant/go-feature-flag",
+					RepositorySlug: fixtures.RepoGoFeatureFlag,
 					GithubToken:    "XXX_GH_TOKEN", //nolint:staticcheck // SA1019: the test covers the deprecated setting
-					Path:           "testdata/flag-config.yaml",
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+					Path:           fixtures.FlagConfigYAMLPath,
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					gitHubRetriever, ok := r.(*githubretriever.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *githubretriever.Retriever")
 					gitHubRetriever.SetHTTPClient(&mock.HTTP{})
@@ -290,12 +301,12 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "false_var",
+					VariationType: fixtures.FalseVar,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
@@ -310,10 +321,10 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:           "gitlab",
 					BaseURL:        "https://gitlab.com/api/v4/",
-					RepositorySlug: "thomaspoignant/go-feature-flag",
+					RepositorySlug: fixtures.RepoGoFeatureFlag,
 					AuthToken:      "XXX",
-					Path:           "testdata/flag-config.yaml",
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+					Path:           fixtures.FlagConfigYAMLPath,
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					gitLabRetriever, ok := r.(*gitlabretriever.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *gitlabretriever.Retriever")
 					gitLabRetriever.SetHTTPClient(&mock.HTTP{})
@@ -321,12 +332,12 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "false_var",
+					VariationType: fixtures.FalseVar,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
@@ -341,10 +352,10 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:           "bitbucket",
 					BaseURL:        "https://bitbucket.com/api/v4/",
-					RepositorySlug: "thomaspoignant/go-feature-flag",
+					RepositorySlug: fixtures.RepoGoFeatureFlag,
 					AuthToken:      "XXX",
-					Path:           "testdata/flag-config.yaml",
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+					Path:           fixtures.FlagConfigYAMLPath,
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					bitBucketRetriever, ok := r.(*bitbucketretriever.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *bitbucketretriever.Retriever")
 					bitBucketRetriever.SetHTTPClient(&mock.HTTP{})
@@ -352,12 +363,12 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "false_var",
+					VariationType: fixtures.FalseVar,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
@@ -369,7 +380,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 		{
 			name: "Should evaluate a flag from a S3 repository",
 			initEvaluate: func() (evaluate, error) {
-				downloader := &testutils.S3ManagerV2Mock{
+				downloader := &testhelpers.S3ManagerV2Mock{
 					TestDataLocation: "./testdata",
 				}
 
@@ -377,27 +388,27 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 					Kind:   "s3",
 					Bucket: "Bucket",
 					Item:   "valid",
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					s3Retriever, ok := r.(*s3retrieverv2.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *s3retrieverv2.Retriever")
 					s3Retriever.SetDownloader(downloader)
-					_ = s3Retriever.Init(context.Background(), nil)
+					_ = s3Retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 				})
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "Default",
+					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
-					Metadata: map[string]any{"description": "this is a simple feature flag",
-						"issue-link": "https://jira.xxx/GOFF-01"},
+					Metadata: map[string]any{fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink: httpsJiraXxxGOFF},
 				},
 			},
 		},
@@ -410,7 +421,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 					HTTPMethod:  http.MethodGet,
 					HTTPBody:    "",
 					HTTPHeaders: nil,
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					httpRetriever, ok := r.(*httpretriever.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *httpretriever.Retriever")
 					httpRetriever.SetHTTPClient(&mock.HTTP{})
@@ -418,12 +429,12 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "false_var",
+					VariationType: fixtures.FalseVar,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
@@ -435,14 +446,14 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 		{
 			name: "Should evaluate a flag from a GCS",
 			initEvaluate: func() (evaluate, error) {
-				mockedStorage := testutils.NewMockedGCS(t)
-				mockedStorage.WithFiles(t, "flags", map[string]string{"testdata/flag-config.yaml": "flag-config.yaml"})
+				mockedStorage := testhelpers.NewMockedGCS(t)
+				mockedStorage.WithFiles(t, "flags", map[string]string{fixtures.FlagConfigYAMLPath: "flag-config.yaml"})
 
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:   "googleStorage",
 					Bucket: "flags",
 					Object: "flag-config.yaml",
-				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
+				}, fixtures.FlagKeyTest, targetingKeyUser123, func(r retriever.Retriever) {
 					gcsRetriever, ok := r.(*gcstorageretriever.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *gcstorageretriever.Retriever")
 					gcsRetriever.SetOptions([]option.ClientOption{
@@ -453,18 +464,18 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			expectedResult: map[string]model.RawVarResult{
-				"test-flag": {
+				fixtures.FlagKeyTest: {
 					TrackEvents:   true,
-					VariationType: "Default",
+					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Version:       "",
-					Reason:        "DEFAULT",
+					Reason:        defaultUpper,
 					ErrorCode:     "",
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
-					Metadata: map[string]any{"description": "this is a simple feature flag",
-						"issue-link": "https://jira.xxx/GOFF-01"},
+					Metadata: map[string]any{fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink: httpsJiraXxxGOFF},
 				},
 			},
 		},

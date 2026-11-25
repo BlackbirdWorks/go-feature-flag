@@ -15,6 +15,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestServer_WithListener checks that the server serves on the listener it is given, which stays bound from
@@ -22,7 +24,7 @@ import (
 func TestServer_WithListener(t *testing.T) {
 	t.Parallel()
 
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), protocol.NetworkTCP, "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -32,26 +34,26 @@ func TestServer_WithListener(t *testing.T) {
 	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
-		Server:     config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", Port: port},
+		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath}},
+		Server:     config.Server{Mode: config.ServerModeHTTP, Host: loopbackAddress, Port: port},
 	}
 	log := newTestLogger(t)
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 
-	srv := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, &service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	baseURL := fmt.Sprintf(localhostURLFormat, port)
 	waitForServer(t, baseURL)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

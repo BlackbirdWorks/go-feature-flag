@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // FuzzConvertToFlagStruct checks that loading any flag configuration file in the
 // cache never panics: the file comes from a retriever, and a panic there takes
 // down the polling goroutine.
 func FuzzConvertToFlagStruct(f *testing.F) {
-	formats := []string{"yaml", "json", "toml"}
+	formats := []string{protocol.FormatYAML, protocol.FormatJSON, protocol.FormatTOML}
 
 	for i, file := range []string{
 		"../../testdata/flag-config.yaml",
@@ -43,7 +43,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
   experimentation: {start: 2026-01-01T00:00:00Z, end: 2026-03-01T00:00:00Z}
 `), uint8(0))
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.DiscardHandler)}
+	logger := slog.New(slog.DiscardHandler)
 
 	f.Fuzz(func(_ *testing.T, data []byte, format uint8) {
 		flags, err := cache.ConvertToFlagStruct(data, formats[int(format)%len(formats)])
@@ -51,7 +51,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 			return
 		}
 
-		cache.NewInMemoryCache(flag.NewService(), logger).Init(flags)
+		cache.NewInMemoryCache(flagdef.NewService(), logger).Init(flags)
 	})
 }
 
@@ -61,7 +61,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 // once the validation rejects these rollouts.
 func hasProgressiveRolloutWithoutStep(flags map[string]dto.DTO) bool {
 	for _, flagDTO := range flags {
-		rules := []flag.Rule{}
+		rules := []flagdef.Rule{}
 		if flagDTO.Rules != nil {
 			rules = append(rules, *flagDTO.Rules...)
 		}

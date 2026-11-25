@@ -110,7 +110,7 @@ func convertDeletedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 	attachments := make([]attachment, 0, len(diffCache.Deleted))
 	for key := range diffCache.Deleted {
 		attachment := attachment{
-			Title:  fmt.Sprintf("❌ Flag \"%s\" deleted", key),
+			Title:  fmt.Sprintf("❌ Flag %q deleted", key),
 			Color:  colorDeleted,
 			Footer: slackFooter,
 		}
@@ -124,7 +124,7 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 	attachments := make([]attachment, 0, len(diffCache.Updated))
 	for key, value := range diffCache.Updated {
 		attachment := attachment{
-			Title:    fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After)),
+			Title:    fmt.Sprintf("✏️ Flag %q updated%s", key, notifier.UpdatedBySuffix(value.After)),
 			Color:    colorUpdated,
 			Footer:   slackFooter,
 			MrkdwnIn: []string{"text"},
@@ -147,7 +147,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 	attachments := make([]attachment, 0, len(diff.Added))
 	for key, value := range diff.Added {
 		attachment := attachment{
-			Title:  fmt.Sprintf("🆕 Flag \"%s\" created%s", key, notifier.UpdatedBySuffix(value)),
+			Title:  fmt.Sprintf("🆕 Flag %q created%s", key, notifier.UpdatedBySuffix(value)),
 			Color:  colorAdded,
 			Footer: slackFooter,
 		}
@@ -158,7 +158,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 }
 
 type slackMessage struct {
-	IconURL     string       `json:"icon_url,omitempty"`
+	IconURL     string       `json:"icon_url,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Text        string       `json:"text"`
 	Attachments []attachment `json:"attachments"`
 }
@@ -167,9 +167,9 @@ type attachment struct {
 	Color      string   `json:"color"`
 	Title      string   `json:"title"`
 	Text       string   `json:"text,omitempty"`
-	FooterIcon string   `json:"footer_icon,omitempty"`
+	FooterIcon string   `json:"footer_icon,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Footer     string   `json:"footer,omitempty"`
-	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
+	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Fields     []Field  `json:"fields"`
 }
 

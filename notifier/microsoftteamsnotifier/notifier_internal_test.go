@@ -13,8 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
@@ -31,102 +32,102 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 		{
 			name: "should call webhook and have valid results",
 			diff: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"test-flag3": &flag.InternalFlag{
-						Rules: &[]flag.Rule{
+				Added: map[string]flagdef.Flag{
+					"test-flag3": &flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
-								Name:  new("rule1"),
+								Name:  new(fixtures.RuleOne),
 								Query: new("key eq \"random-key\""),
 								Percentages: &map[string]float64{
-									"False": 95,
-									"True":  5,
+									fixtures.VariationFalse: 95,
+									fixtures.VariationTrue:  5,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": new(any("default")),
-							"False":   new(any("false")),
-							"True":    new(any("test")),
+							fixtures.VariationDefault: new(any("default")),
+							fixtures.VariationFalse:   new(any("false")),
+							fixtures.VariationTrue:    new(any("test")),
 						},
-						DefaultRule: &flag.Rule{
-							Name:            new("defaultRule"),
-							VariationResult: new("Default"),
+						DefaultRule: &flagdef.Rule{
+							Name:            new(fixtures.RuleDefault),
+							VariationResult: new(fixtures.VariationDefault),
 						},
 						TrackEvents: new(true),
 						Disable:     new(false),
 						Version:     new("1.1"),
-						Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+						Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 					},
 				},
-				Deleted: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
-						Rules: &[]flag.Rule{
+				Deleted: map[string]flagdef.Flag{
+					"test-flag": &flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
-								Name:  new("rule1"),
+								Name:  new(fixtures.RuleOne),
 								Query: new("key eq \"random-key\""),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtures.VariationFalse: 0,
+									fixtures.VariationTrue:  100,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
-						DefaultRule: &flag.Rule{
-							Name:            new("defaultRule"),
-							VariationResult: new("Default"),
+						Metadata: &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
+						DefaultRule: &flagdef.Rule{
+							Name:            new(fixtures.RuleDefault),
+							VariationResult: new(fixtures.VariationDefault),
 						},
 					},
 				},
 				Updated: map[string]notifier.DiffUpdated{
 					"test-flag2": {
-						Before: &flag.InternalFlag{
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(false)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+							DefaultRule: &flagdef.Rule{
+								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtures.VariationFalse: 0,
+									fixtures.VariationTrue:  100,
 								},
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
-							Experimentation: &flag.ExperimentationRollout{
+							Experimentation: &flagdef.ExperimentationRollout{
 								Start: new(time.Unix(1095379400, 0).UTC()),
 								End:   new(time.Unix(1095371000, 0).UTC()),
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(true)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							Rules: &[]flag.Rule{
+							Rules: &[]flagdef.Rule{
 								{
-									Name:  new("rule1"),
+									Name:  new(fixtures.RuleOne),
 									Query: new("key eq \"not-a-ke\""),
 									Percentages: &map[string]float64{
-										"False": 20,
-										"True":  80,
+										fixtures.VariationFalse: 20,
+										fixtures.VariationTrue:  80,
 									},
 								},
 							},
-							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+							DefaultRule: &flagdef.Rule{
+								Name:            new(fixtures.RuleDefault),
+								VariationResult: new(fixtures.VariationDefault),
 							},
 							Disable:     new(true),
 							TrackEvents: new(false),
 							Version:     new("1.1"),
-							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 						},
 					},
 				},
@@ -220,7 +221,7 @@ func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 // otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestConvertToMicrosoftTeamsMessage_diffError(t *testing.T) {
 	t.Parallel()

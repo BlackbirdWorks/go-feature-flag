@@ -26,11 +26,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
+)
+
+const (
+	noAWS  = "no AWS"
+	pAYaml = "p/a.yaml"
 )
 
 var (
-	errNoAWS = errors.New("no AWS")
+	errNoAWS = errors.New(noAWS)
 )
 
 // fakeS3 serves the same flag file for every key and counts the requests.
@@ -58,7 +64,7 @@ func (f *fakeS3) ListObjectsV2(
 
 	keys := f.keys
 	if keys == nil {
-		keys = []string{"p/a.yaml", "p/b.yaml", "p/c.yaml"}
+		keys = []string{pAYaml, pBYaml, pCYaml}
 	}
 
 	for _, k := range keys {
@@ -133,7 +139,7 @@ func newFakeRegistryWithPolling(
 	return newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 		created.Add(1)
 
-		return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+		return s3retrieverv2.NewSharedItems(ctx, &s3retrieverv2.SharedItemsOptions{
 			Bucket: bucket, Lister: fake, Downloader: fake,
 		})
 	}, interval, jitter, logger)
@@ -177,8 +183,8 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			var created atomic.Int32
 
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
-			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
-				s3FlagSet("c", "b2", "p/c.yaml")
+			fs1, fs2, fs3 := s3FlagSet("a", "b1", pAYaml), s3FlagSet("b", "b1", pBYaml),
+				s3FlagSet("c", "b2", pCYaml)
 			ret1, err := reg.retrieverFor(&fs1)
 			require.NoError(t, err)
 			_, err = reg.retrieverFor(&fs2)
@@ -199,7 +205,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		{name: "group is dropped after the last shutdown", run: func(t *testing.T) []int {
 			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
-			fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml")
+			fs1, fs2 := s3FlagSet("a", "b1", pAYaml), s3FlagSet("b", "b1", pBYaml)
 			ret1, err := reg.retrieverFor(&fs1)
 			require.NoError(t, err)
 			ret2, err := reg.retrieverFor(&fs2)
@@ -234,10 +240,10 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		{name: "factory error", run: func(t *testing.T) []int {
 			t.Helper()
 
-			fs := s3FlagSet("a", "b1", "p/a.yaml")
+			fs := s3FlagSet("a", "b1", pAYaml)
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
-			require.ErrorContains(t, err, "no AWS")
+			require.ErrorContains(t, err, noAWS)
 
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
@@ -255,7 +261,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 					building.Done()
 					building.Wait()
 
-					return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+					return s3retrieverv2.NewSharedItems(ctx, &s3retrieverv2.SharedItemsOptions{
 						Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
 					})
 				},
@@ -322,7 +328,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 				var created atomic.Int32
 
 				reg := newFakeRegistry(t, &fakeS3{}, &created)
-				fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "q/b.yaml")
+				fs1, fs2 := s3FlagSet("a", "b1", pAYaml), s3FlagSet("b", "b1", "q/b.yaml")
 				require.NoError(t, reg.preRegister(&fs1))
 				require.NoError(t, reg.preRegister(&fs2))
 
@@ -353,9 +359,9 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 		{name: "factory error", run: func(t *testing.T) []int {
 			t.Helper()
 
-			fs := s3FlagSet("a", "b1", "p/a.yaml")
+			fs := s3FlagSet("a", "b1", pAYaml)
 			reg := failingRegistry(nil)
-			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
+			require.ErrorContains(t, reg.preRegister(&fs), noAWS)
 
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
@@ -377,8 +383,8 @@ func failingRegistry(logger *slog.Logger) *sharedBucketRegistry {
 func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	t.Parallel()
 
-	valid := s3FlagSet("valid", "b1", "p/a.yaml")
-	plain := s3FlagSet("plain", "b1", "p/b.yaml")
+	valid := s3FlagSet("valid", "b1", pAYaml)
+	plain := s3FlagSet("plain", "b1", pBYaml)
 	plain.EnableSharedPollerPerBucket = false
 
 	tests := []struct {
@@ -445,29 +451,29 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		wantMessage []string
-		parent      time.Duration
-		polling     int
-		parentJit   bool
-		jitter      bool
+		name         string
+		wantSettings []string
+		parent       time.Duration
+		polling      int
+		parentJit    bool
+		jitter       bool
 	}{
 		{name: "unset values follow the parent", parent: 10 * time.Second},
 		{name: "same values", parent: time.Minute, polling: 60000},
 		{name: "same interval as the default parent", polling: 60000},
 		{
 			name: "different interval", parent: 10 * time.Second, polling: 5000,
-			wantMessage: []string{"the pollingInterval of the flagset is ignored"},
+			wantSettings: []string{"pollingInterval"},
 		},
 		{
-			name:        "jitter only on the flagset",
-			jitter:      true,
-			wantMessage: []string{"the enablePollingJitter of the flagset is ignored"},
+			name:         "jitter only on the flagset",
+			jitter:       true,
+			wantSettings: []string{"enablePollingJitter"},
 		},
 		{name: "jitter on the parent", parentJit: true, jitter: true},
 		{
 			name: "both differ", parent: 10 * time.Second, polling: 1000, jitter: true,
-			wantMessage: []string{"the pollingInterval of the flagset", "the enablePollingJitter of the flagset"},
+			wantSettings: []string{"pollingInterval", "enablePollingJitter"},
 		},
 	}
 	for _, tt := range tests {
@@ -476,7 +482,7 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 
 			core, logs := slogutil.NewObserver(slog.LevelWarn)
 			reg := newFakeRegistryWithPolling(t, &fakeS3{}, &atomic.Int32{}, tt.parent, tt.parentJit, core)
-			fs := s3FlagSet("fs", "b1", "p/a.yaml")
+			fs := s3FlagSet("fs", "b1", pAYaml)
 			fs.PollingInterval, fs.EnablePollingJitter = tt.polling, tt.jitter
 			r, err := reg.retrieverFor(&fs)
 			require.NoError(t, err)
@@ -484,12 +490,13 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			rel := r
 			require.NoError(t, rel.Shutdown(t.Context()))
 
-			require.Equal(t, len(tt.wantMessage), logs.Len())
+			require.Equal(t, len(tt.wantSettings), logs.Len())
 
-			for i, snippet := range tt.wantMessage {
+			for i, setting := range tt.wantSettings {
 				entry := logs.All()[i]
-				assert.Contains(t, entry.Message, snippet)
-				assert.Equal(t, "fs", entry.ContextMap()["flagset"])
+				assert.Contains(t, entry.Message, "a polling setting of the flagset is ignored")
+				assert.Equal(t, setting, entry.ContextMap()["setting"])
+				assert.Equal(t, "fs", entry.ContextMap()[fixtures.FlagsetBare])
 			}
 		})
 	}

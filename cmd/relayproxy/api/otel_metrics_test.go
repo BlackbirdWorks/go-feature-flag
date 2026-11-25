@@ -26,7 +26,7 @@ func Test_OTelMetrics(t *testing.T) {
 		path      string
 		wantRoute string
 	}{
-		{name: "huma operation", path: "/health", wantRoute: "/health"},
+		{name: "huma operation", path: healthPath, wantRoute: healthPath},
 		{name: "raw handler", path: "/v1/feature/some-flag/eval", wantRoute: "/v1/feature/{flagKey}/eval"},
 	}
 	for _, tt := range tests {
@@ -38,14 +38,14 @@ func Test_OTelMetrics(t *testing.T) {
 			traces := sdktrace.NewTracerProvider()
 			srv := api.New(
 				testConfig(t),
-				service.Services{MonitoringService: failingMonitoring()},
+				&service.Services{MonitoringService: failingMonitoring()},
 				newTestLogger(t).Slog,
 				api.WithTracing(traces, propagation.TraceContext{}),
 				api.WithMeterProvider(meters),
 			)
 
 			method := http.MethodGet
-			if tt.path != "/health" {
+			if tt.path != healthPath {
 				method = http.MethodPost
 			}
 

@@ -23,8 +23,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
+)
+
+const (
+	evaluationContextKey08B = `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
+	placeholderPort         = "1031"
 )
 
 const (
@@ -63,10 +70,10 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			modifiedConfigFile: "../testdata/config/change-authorized-keys-from-test-to-test2-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusUnauthorized},
-				{apiKey: "test", expectedStatus: http.StatusOK},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
-				{apiKey: "test", expectedStatus: http.StatusUnauthorized},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusUnauthorized},
 				{apiKey: "test2", expectedStatus: http.StatusOK},
 			},
 		},
@@ -75,7 +82,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			initialConfigFile:  "../testdata/config/remove-authorized-keys-should-allow-all-requests.yaml",
 			modifiedConfigFile: "../testdata/config/remove-authorized-keys-should-allow-all-requests-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
-				{apiKey: "test", expectedStatus: http.StatusOK},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusOK},
@@ -87,11 +94,11 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -107,7 +114,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 
 			waitForHealth(t, localhostURL+portStr)
 
-			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
+			body := evaluationContextKey08B
 
 			// Run checks before config change
 			for _, check := range tt.checksBeforeChange {
@@ -115,7 +122,13 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// Wait for the callback to be called
 			select {
@@ -195,11 +208,11 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -223,7 +236,13 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// Wait for the callback to be called
 			select {
@@ -282,11 +301,11 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
@@ -304,7 +323,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 
 			waitForHealth(t, localhostURL+portStr)
 
-			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
+			body := evaluationContextKey08B
 
 			// Run checks before config change
 			for _, check := range tt.checksBeforeChange {
@@ -312,7 +331,13 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			}
 
 			// Modify the config to create an invalid config
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// The callback should be called even for invalid configs (validation happens after)
 			select {
@@ -383,11 +408,11 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -409,7 +434,13 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 				doHTTPRequestAndCheck(t, urlAPIAllFlags, body, check, phaseBeforeChange)
 			}
 
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			select {
 			case <-callbackCalled:
@@ -430,11 +461,11 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	t.Parallel()
 
-	listener, listenPort := testutils.ListenLocal(t)
+	listener, listenPort := testhelpers.ListenLocal(t)
 	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
-	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
-	testutils.ReplaceInFile(t, configFile, "1031", port)
+	configFile := testhelpers.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
+	testhelpers.ReplaceInFile(t, configFile, placeholderPort, port)
 
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := slogutil.NewObserver(slog.LevelError)
@@ -451,7 +482,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 	waitForHealth(t, localhostURL+port)
 
-	body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
+	body := evaluationContextKey08B
 
 	// Before the change the flagset serves flag-config.yaml (test-flag).
 	doHTTPRequestAndCheck(t, urlAPIAllFlags, body, httpRequestCheck{
@@ -462,8 +493,8 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	}, phaseBeforeChange)
 
 	// Change the retriever of the existing flagset: this is a forbidden modification.
-	_ = testutils.ReplaceAndCopyFileToExistingFile(
-		t, "../testdata/config/flagset-modify-config-MODIFIED.yaml", configFile, "1031", port)
+	_ = testhelpers.ReplaceAndCopyFileToExistingFile(
+		t, "../testdata/config/flagset-modify-config-MODIFIED.yaml", configFile, placeholderPort, port)
 
 	select {
 	case <-callbackCalled:
@@ -494,9 +525,9 @@ func newAPIServerWithLogger(
 ) (api.Server, *config.Config) {
 	t.Helper()
 
-	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	err := f.Parse([]string{"--config=" + configFile.Name()})
+	f := pflag.NewFlagSet(fixtures.PlaceholderTest, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
+	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
 	cfg, err := config.New(f, logger, "v0.0.0")
@@ -509,7 +540,7 @@ func newAPIServerWithLogger(
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}
 
 	cfg.AttachConfigChangeCallback(callback)
@@ -520,7 +551,7 @@ func newAPIServerWithLogger(
 		runtime.Goexit()
 	}
 
-	s := api.New(cfg, services, logger, api.WithExit(exit), api.WithListener(listener))
+	s := api.New(cfg, &services, logger, api.WithExit(exit), api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, cfg
@@ -530,9 +561,9 @@ func newAPIServerWithLogger(
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
 
-	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
-	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
+	request.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 	if check.apiKey != "" {
 		request.Header.Set(helper.XAPIKeyHeader, check.apiKey)
@@ -571,7 +602,10 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 func waitForHealth(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + "/health")
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", http.NoBody)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false
 		}

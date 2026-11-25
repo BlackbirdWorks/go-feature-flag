@@ -12,24 +12,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
-)
-
-const (
-	configFlagName   = "config"
-	configFlagUsage  = "Location of your config file"
-	configFlagPrefix = "--config="
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
 	t.Helper()
-	configFile := testutils.CopyContentToNewTempFile(t, configContent)
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String(configFlagName, "", configFlagUsage)
-	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
+	configFile := testhelpers.CopyContentToNewTempFile(t, configContent)
+	f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
+	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
-	cfg, err := config.New(f, slog.New(slog.DiscardHandler), "1.0.0")
+	cfg, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero)
 	require.NoError(t, err)
 
 	return cfg, configFile
@@ -38,10 +33,7 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 func TestConfigAttachConfigChangeCallback(t *testing.T) {
 	t.Parallel()
 
-	initialConfig := `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`
+	initialConfig := serverPort1031PollingInterval
 
 	updatedConfig := `server:
   port: 2031
@@ -67,7 +59,7 @@ loglevel: debug`
 	cfg.AttachConfigChangeCallback(callback)
 
 	// Update config file
-	_ = testutils.CopyContentToExistingTempFile(t, updatedConfig, configFile)
+	_ = testhelpers.CopyContentToExistingTempFile(t, updatedConfig, configFile)
 
 	// Wait for callback to be triggered
 	timeout := time.After(5 * time.Second)
@@ -78,7 +70,7 @@ loglevel: debug`
 	for {
 		select {
 		case <-timeout:
-			require.Fail(t, "Timeout waiting for callback to be triggered")
+			require.Fail(t, timeoutWaitingForCallback)
 		case <-ticker.C:
 			mu.Lock()
 			if callbackCalled {
@@ -86,7 +78,7 @@ loglevel: debug`
 				assert.NotNil(t, receivedConfig, "Received config should not be nil")
 				assert.Equal(t, 2031, receivedConfig.Server.Port, "Port should be updated")
 				assert.Equal(t, 2000, receivedConfig.PollingInterval, "PollingInterval should be updated")
-				assert.Equal(t, "debug", receivedConfig.LogLevel, "LogLevel should be updated")
+				assert.Equal(t, fixtures.LogLevelDebug, receivedConfig.LogLevel, "LogLevel should be updated")
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
@@ -110,10 +102,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 			name: "Successfully stop watcher when configLoader is initialized",
 			setupConfig: func(t *testing.T) *config.Config {
 				t.Helper()
-				cfg, _ := createTestConfig(t, `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`)
+				cfg, _ := createTestConfig(t, serverPort1031PollingInterval)
 
 				return cfg
 			},
@@ -145,10 +134,7 @@ loglevel: info`)
 func TestConfigAttachConfigChangeCallbackMultipleCallbacks(t *testing.T) {
 	t.Parallel()
 
-	initialConfig := `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`
+	initialConfig := serverPort1031PollingInterval
 
 	updatedConfig := `server:
   port: 9999
@@ -179,7 +165,7 @@ loglevel: error`
 	cfg.AttachConfigChangeCallback(callback1)
 	cfg.AttachConfigChangeCallback(callback2)
 
-	_ = testutils.CopyContentToExistingTempFile(t, updatedConfig, configFile)
+	_ = testhelpers.CopyContentToExistingTempFile(t, updatedConfig, configFile)
 
 	timeout := time.After(5 * time.Second)
 

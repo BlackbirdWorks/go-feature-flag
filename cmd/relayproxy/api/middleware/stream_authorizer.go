@@ -12,12 +12,12 @@ import (
 // streaming connections (websocket / SSE).
 // In flag set mode (flagsetManager is not nil) a key is accepted if it routes to a flag set, and the name of the
 // flag set resolved here is the one the handler uses. exposeError adds the error to the body of a refusal.
-func StreamAuthorizer(config *config.Config, flagsetManager service.FlagsetManager, exposeError bool) Func {
+func StreamAuthorizer(cfg *config.Config, flagsetManager service.FlagsetManager, exposeError bool) Func {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.URL.Query().Get("apiKey")
-			if config.IsAuthenticationEnabled() {
-				req, ok := streamKeyAccepted(r, config, flagsetManager, apiKey)
+			if cfg.IsAuthenticationEnabled() {
+				req, ok := streamKeyAccepted(r, cfg, flagsetManager, apiKey)
 				if !ok {
 					helper.WriteError(w, r, helper.ErrUnauthorized, exposeError)
 
@@ -33,10 +33,10 @@ func StreamAuthorizer(config *config.Config, flagsetManager service.FlagsetManag
 }
 
 func streamKeyAccepted(
-	r *http.Request, config *config.Config, flagsetManager service.FlagsetManager, apiKey string,
+	r *http.Request, cfg *config.Config, flagsetManager service.FlagsetManager, apiKey string,
 ) (*http.Request, bool) {
 	if flagsetManager == nil || flagsetManager.IsDefaultFlagSet() {
-		return r, config.APIKeyExists(apiKey)
+		return r, cfg.APIKeyExists(apiKey)
 	}
 
 	// An admin key is accepted and then refused by the handler, as documented.
@@ -44,5 +44,5 @@ func streamKeyAccepted(
 		return r.WithContext(ctx), true
 	}
 
-	return r, config.APIKeysAdminExists(apiKey)
+	return r, cfg.APIKeysAdminExists(apiKey)
 }

@@ -6,8 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func Test_notificationService_getDifferences(t *testing.T) {
@@ -18,8 +19,8 @@ func Test_notificationService_getDifferences(t *testing.T) {
 	}
 
 	type args struct {
-		oldCache map[string]flag.Flag
-		newCache map[string]flag.Flag
+		oldCache map[string]flagdef.Flag
+		newCache map[string]flagdef.Flag
 	}
 
 	tests := []struct {
@@ -31,211 +32,211 @@ func Test_notificationService_getDifferences(t *testing.T) {
 		{
 			name: "Delete flag",
 			args: args{
-				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				oldCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
-					"test-flag2": &flag.InternalFlag{
+					fixtures.FlagKeyTestSecond: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
-				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				newCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
 			},
 			want: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"test-flag2": &flag.InternalFlag{
+				Deleted: map[string]flagdef.Flag{
+					fixtures.FlagKeyTestSecond: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
-				Added:   map[string]flag.Flag{},
+				Added:   map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{},
 			},
 		},
 		{
 			name: "Added flag",
 			args: args{
-				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				oldCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
-				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				newCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
-					"test-flag2": &flag.InternalFlag{
+					fixtures.FlagKeyTestSecond: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
 			},
 			want: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"test-flag2": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					fixtures.FlagKeyTestSecond: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
-				Deleted: map[string]flag.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{},
 			},
 		},
 		{
 			name: "Updated flag",
 			args: args{
-				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				oldCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(false)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
-				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+				newCache: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtures.VariationDefault: new(any(true)),
+							fixtures.VariationFalse:   new(any(false)),
+							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+						DefaultRule: &flagdef.Rule{
+							Name: new(fixtures.RuleOne),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtures.VariationFalse: 0,
+								fixtures.VariationTrue:  100,
 							},
 						},
 					},
 				},
 			},
 			want: notifier.DiffCache{
-				Added:   map[string]flag.Flag{},
-				Deleted: map[string]flag.Flag{},
+				Added:   map[string]flagdef.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
-						Before: &flag.InternalFlag{
+					fixtures.FlagKeyTest: {
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(false)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
-								Name: new("rule1"),
+							DefaultRule: &flagdef.Rule{
+								Name: new(fixtures.RuleOne),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtures.VariationFalse: 0,
+									fixtures.VariationTrue:  100,
 								},
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(true)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
-								Name: new("rule1"),
+							DefaultRule: &flagdef.Rule{
+								Name: new(fixtures.RuleOne),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtures.VariationFalse: 0,
+									fixtures.VariationTrue:  100,
 								},
 							},
 						},

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,20 +21,24 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
+)
+
+const (
+	jsonFileSuffixPattern = `-[0-9]+\.json$`
 )
 
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
-		res = append(res, exporter.FeatureEvent{
+		res = append(res, &exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
-			UserKey:      fmt.Sprintf("user-%d", i),
+			UserKey:      fmt.Sprintf(fixtures.UserKeyFormat, i),
 			CreationDate: int64(1617970547 + i),
-			Key:          "my-flag",
-			Variation:    "enabled",
+			Key:          fixtures.FlagKeyMy,
+			Variation:    fixtures.VariationEnabled,
 			Value:        fmt.Sprintf("value-%d", i),
 			Default:      false,
 			Source:       "SERVER",
@@ -60,18 +65,18 @@ func TestE2E_Export(t *testing.T) {
 	}{
 		{
 			name: "json default format", format: "", s3Path: "exports/json", nbEvents: 3,
-			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{
 			name: "json explicit with custom filename", format: "JSON", s3Path: "a/b/c", nbEvents: 5,
 			filename:     "custom-{{ .Hostname }}-{{ .Timestamp }}.{{ .Format }}",
-			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{
 			name: "empty S3Path gives a key starting with a slash", format: "json", s3Path: "", nbEvents: 1,
-			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{
@@ -127,11 +132,12 @@ func TestE2E_Export(t *testing.T) {
 				got := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
 				require.NoError(t, parquetReader.Read(&got))
 
-				for i, e := range got {
-					assert.Equal(t, fmt.Sprintf("user-%d", i), e.UserKey)
-					assert.Equal(t, "my-flag", e.Key)
-					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), e.Value) // parquet stores the JSON encoding
-					assert.Equal(t, "enabled", e.Variation)
+				for i := range got {
+					event := &got[i]
+					assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), event.UserKey)
+					assert.Equal(t, fixtures.FlagKeyMy, event.Key)
+					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), event.Value) // parquet stores the JSON encoding
+					assert.Equal(t, fixtures.VariationEnabled, event.Variation)
 				}
 			},
 		},
@@ -145,7 +151,7 @@ func TestE2E_Export(t *testing.T) {
 				Bucket: bucket, AwsConfig: &cfg, Format: tt.format, S3Path: tt.s3Path,
 				Filename: tt.filename, CsvTemplate: tt.csvTemplate,
 			}
-			require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)))
+			require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)))
 
 			keys := srv.ListKeys(t, bucket, "")
 			require.Len(t, keys, 1, "keys: %v", keys)
@@ -162,12 +168,12 @@ func checkJSON(t *testing.T, content []byte, n int) {
 	require.Len(t, lines, n)
 
 	for i, l := range lines {
-		var e exporter.FeatureEvent
+		var e *exporter.FeatureEvent
 		require.NoError(t, json.Unmarshal([]byte(l), &e))
-		assert.Equal(t, fmt.Sprintf("user-%d", i), e.UserKey)
-		assert.Equal(t, "my-flag", e.Key)
+		assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), e.UserKey)
+		assert.Equal(t, fixtures.FlagKeyMy, e.Key)
 		assert.Equal(t, fmt.Sprintf("value-%d", i), e.Value)
-		assert.Equal(t, "enabled", e.Variation)
+		assert.Equal(t, fixtures.VariationEnabled, e.Variation)
 	}
 }
 
@@ -195,7 +201,11 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &s3exporterv2.Exporter{Bucket: tt.bucket(t), AwsConfig: &cfg, S3Path: "x"}
-			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)), tt.wantErr)
+			require.ErrorContains(
+				t,
+				e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)),
+				tt.wantErr,
+			)
 		})
 	}
 }
@@ -209,7 +219,7 @@ func TestE2E_Export_EachCallCreatesAFile(t *testing.T) {
 	// distinct fixed names: the default timestamp-based name may collide within the same second
 	for _, name := range []string{"one.json", "two.json", "three.json"} {
 		e.Filename = name
-		require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(2)))
+		require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(2)))
 	}
 
 	assert.ElementsMatch(t, []string{"p/one.json", "p/two.json", "p/three.json"}, srv.ListKeys(t, bucket, "p/"))

@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"encoding/json"
@@ -17,6 +17,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	configFlagsYaml = "/config_flags.yaml"
+	flagChangePath  = "/flag_change/"
 )
 
 func TestPIFlagChange_WithConfigChange(t *testing.T) {
@@ -30,14 +36,14 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 		config        config.Config
 	}{
 		{
-			name: "default mode",
+			name: fixtures.DefaultMode,
 			config: config.Config{
 				CommonFlagSet: config.CommonFlagSet{
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: "file",
-							Path: testdataDir + "/config_flags.yaml",
+							Kind: fixtures.KindFile,
+							Path: testdataDir + configFlagsYaml,
 						},
 					},
 				},
@@ -46,22 +52,22 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
 		{
-			name: "flagset mode",
+			name: fixtures.FlagsetMode,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{"test"},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: "file",
-								Path: testdataDir + "/config_flags.yaml",
+								Kind: fixtures.KindFile,
+								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:        "test",
+			apiKey:        fixtures.PlaceholderTest,
 			wantFile:      "flag_change_with_config_change.json",
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
@@ -80,10 +86,10 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 				_ = os.Remove(file.Name())
 			}()
 
-			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
+			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
-			errWF := os.WriteFile(file.Name(), content, 0644)
+			errWF := os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 			file.Close()
 
@@ -95,7 +101,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
+						Kind: fixtures.KindFile,
 						Path: file.Name(),
 					},
 				}
@@ -112,23 +118,23 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 
 			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
 			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
-			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
+			want, _ := os.ReadFile(testdataDir + flagChangePath + tt.wantFile)
 			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 
 			content, err = os.ReadFile(testdataDir + "/config_flags_v2.yaml")
 			require.NoError(t, err)
 
-			errWF = os.WriteFile(file.Name(), content, 0644)
+			errWF = os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 
 			// the poller of the retriever picks the new file up: wait for the answer to change
-			wantAfter, err := os.ReadFile(testdataDir + "/flag_change/" + tt.wantAfterFile)
+			wantAfter, err := os.ReadFile(testdataDir + flagChangePath + tt.wantAfterFile)
 			require.NoError(t, err)
 
 			var after string
@@ -158,14 +164,14 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 		config   config.Config
 	}{
 		{
-			name: "default mode",
+			name: fixtures.DefaultMode,
 			config: config.Config{
 				CommonFlagSet: config.CommonFlagSet{
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: "file",
-							Path: testdataDir + "/config_flags.yaml",
+							Kind: fixtures.KindFile,
+							Path: testdataDir + configFlagsYaml,
 						},
 					},
 				},
@@ -173,22 +179,22 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			wantFile: "flag_change_without_config_change.json",
 		},
 		{
-			name: "flagset mode",
+			name: fixtures.FlagsetMode,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{"test"},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: "file",
-								Path: testdataDir + "/config_flags.yaml",
+								Kind: fixtures.KindFile,
+								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:   "test",
+			apiKey:   fixtures.PlaceholderTest,
 			wantFile: "flag_change_without_config_change.json",
 		},
 	}
@@ -206,10 +212,10 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 				_ = os.Remove(file.Name())
 			}()
 
-			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
+			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
-			errWF := os.WriteFile(file.Name(), content, 0644)
+			errWF := os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 			file.Close()
 
@@ -221,7 +227,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
+						Kind: fixtures.KindFile,
 						Path: file.Name(),
 					},
 				}
@@ -238,14 +244,14 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 
 			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
 			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
-				testdataDir + "/flag_change/" + tt.wantFile,
+				testdataDir + flagChangePath + tt.wantFile,
 			)
 			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 

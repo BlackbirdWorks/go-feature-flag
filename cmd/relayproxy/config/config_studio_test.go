@@ -16,7 +16,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	bearerSecret         = "Bearer secret"
+	serverPort2031Studio = `server:
+  port: 2031
+studio:
+  url: {{URL}}/flagsets.yaml`
+	teamA       = "team-a"
+	teamB       = "team-b"
+	teamFile    = "team-file"
+	urlTemplate = "{{URL}}"
+	v1Label     = `"v1"`
 )
 
 const studioYaml = `server:
@@ -32,7 +47,8 @@ flagSets:
 // flagSetNames returns the names of the flagSets of a configuration.
 func flagSetNames(c *config.Config) []string {
 	names := make([]string, 0, len(c.FlagSets))
-	for _, flagSet := range c.FlagSets {
+	for i := range c.FlagSets {
+		flagSet := &c.FlagSets[i]
 		names = append(names, flagSet.Name)
 	}
 
@@ -63,7 +79,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 
 // writeWithETag answers with status when it is not 200, with 304 when the client already has etag, else with body.
 func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, status int) {
-	w.Header().Set("ETag", etag)
+	w.Header().Set(protocol.HeaderETag, etag)
 
 	if status != http.StatusOK {
 		w.WriteHeader(status)
@@ -71,7 +87,7 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 		return
 	}
 
-	if r.Header.Get("If-None-Match") == etag {
+	if r.Header.Get(protocol.HeaderIfNoneMatch) == etag {
 		w.WriteHeader(http.StatusNotModified)
 
 		return
@@ -80,19 +96,17 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 	_, _ = w.Write([]byte(body))
 }
 
-// receive returns the next value of ch, it fails the test with msg after 5 seconds.
-func receive[T any](t *testing.T, ch <-chan T, msg string) T {
+// receive returns a pointer to the next value of ch, it fails the test with msg after 5 seconds.
+func receive[T any](t *testing.T, ch <-chan T, msg string) *T {
 	t.Helper()
 
 	select {
 	case v := <-ch:
-		return v
+		return &v
 	case <-time.After(5 * time.Second):
 		require.Fail(t, msg)
 
-		var zero T
-
-		return zero
+		return new(T)
 	}
 }
 
@@ -110,13 +124,10 @@ func TestStudio(t *testing.T) {
 		wantInvalid  bool // flagSets and studio are both set
 	}{
 		{
-			name: "flagSets from the URL, the rest from the file",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "flagSets from the URL, the rest from the file",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "flagSets in the file and studio",
@@ -129,7 +140,7 @@ flagSets:
 studio:
   url: {{URL}}/flagsets.yaml`,
 			body:         studioYaml,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 			wantInvalid:  true,
 		},
 		{
@@ -144,7 +155,7 @@ apiKeys = ["key-a"]
 [[flagSets.retrievers]]
 kind = "file"
 path = "/tmp/flags.yaml"`,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "headers from the file",
@@ -155,28 +166,22 @@ studio:
   headers:
     Authorization: Bearer secret`,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
-			wantFlagSets: []string{"team-a"},
+			authHeader:   bearerSecret,
+			wantFlagSets: []string{teamA},
 		},
 		{
-			name: "headers from an environment variable, URL from the file",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "headers from an environment variable, URL from the file",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
-			env:          map[string]string{"STUDIO_HEADERS_AUTHORIZATION": "Bearer secret"},
-			wantFlagSets: []string{"team-a"},
+			authHeader:   bearerSecret,
+			env:          map[string]string{"STUDIO_HEADERS_AUTHORIZATION": bearerSecret},
+			wantFlagSets: []string{teamA},
 		},
 		{
-			name: "authorization header missing",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "authorization header missing",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
+			authHeader:   bearerSecret,
 			wantFlagSets: []string{},
 		},
 		{
@@ -187,7 +192,7 @@ studio:
   url: {{URL}}/flagsets.yaml
   cacheFile: {{CACHE}}`,
 			cache:        studioYaml,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "flagSets in the file and studio down",
@@ -199,7 +204,7 @@ flagSets:
       - key-file
 studio:
   url: {{URL}}/flagsets.yaml`,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 			wantInvalid:  true,
 		},
 		{
@@ -210,7 +215,7 @@ flagSets:
   - name: team-file
     apiKeys:
       - key-file`,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 		},
 	}
 
@@ -222,7 +227,7 @@ flagSets:
 
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			if tt.cache != "" {
-				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0600))
+				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0o600))
 			}
 
 			environ := make([]string, 0, len(tt.env))
@@ -230,13 +235,14 @@ flagSets:
 				environ = append(environ, name+"="+value)
 			}
 
-			fileConfig := strings.NewReplacer("{{URL}}", srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
-			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
+			fileConfig := strings.NewReplacer(urlTemplate, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
+			configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(environ...)).
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, false,
+				withEnviron(environ...)).
 				ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
@@ -278,13 +284,13 @@ studio:
 			name:         "the URL changes",
 			newBody:      twoFlagSets,
 			wantPort:     2031,
-			wantFlagSets: []string{"team-a", "team-b"},
+			wantFlagSets: []string{teamA, teamB},
 		},
 		{
 			name:         "the file changes, flagSets still from the URL",
 			newFile:      strings.Replace(fileConfig, "2031", "3031", 1),
 			wantPort:     3031,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 	}
 
@@ -304,17 +310,17 @@ studio:
 			}))
 			defer srv.Close()
 
-			configFile := testutils.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, "{{URL}}", srv.URL))
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
+			configFile := testhelpers.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, urlTemplate, srv.URL))
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
-			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
+			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
 			defer func() { _ = loader.StopWatchChanges() }()
 
 			initialConfig, err := loader.ToConfig()
 			require.NoError(t, err)
-			assert.Equal(t, []string{"team-a"}, flagSetNames(initialConfig))
+			assert.Equal(t, []string{teamA}, flagSetNames(initialConfig))
 
 			configs := make(chan *config.Config, 10)
 
@@ -327,14 +333,14 @@ studio:
 			}
 
 			if tt.newFile != "" {
-				_ = testutils.CopyContentToExistingTempFile(
+				_ = testhelpers.CopyContentToExistingTempFile(
 					t,
-					strings.ReplaceAll(tt.newFile, "{{URL}}", srv.URL),
+					strings.ReplaceAll(tt.newFile, urlTemplate, srv.URL),
 					configFile,
 				)
 			}
 
-			newConfig := receive(t, configs, "Timeout waiting for callback to be triggered")
+			newConfig := *receive(t, configs, timeoutWaitingForCallback)
 			assert.Equal(t, tt.wantPort, newConfig.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(newConfig))
 		})
@@ -352,7 +358,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 
 			requests := 0
 			retries := make(chan string, 1)
-			updated := strings.ReplaceAll(studioYaml, "team-a", "team-b")
+			updated := strings.ReplaceAll(studioYaml, teamA, teamB)
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
@@ -363,19 +369,19 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 				case 1:
 					_, _ = w.Write([]byte(studioYaml))
 				case 2:
-					w.Header().Set("ETag", etag)
+					w.Header().Set(protocol.HeaderETag, etag)
 					_, _ = w.Write([]byte(updated))
 				case 3:
 					w.WriteHeader(http.StatusServiceUnavailable)
 				default:
 					select {
-					case retries <- r.Header.Get("If-None-Match"):
+					case retries <- r.Header.Get(protocol.HeaderIfNoneMatch):
 					default:
 					}
 
-					w.Header().Set("ETag", etag)
+					w.Header().Set(protocol.HeaderETag, etag)
 
-					if etag != "" && r.Header.Get("If-None-Match") == etag {
+					if etag != "" && r.Header.Get(protocol.HeaderIfNoneMatch) == etag {
 						w.WriteHeader(http.StatusNotModified)
 
 						return
@@ -403,11 +409,11 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 				configs <- observedConfig{config: c, requests: count}
 			})
 
-			c := receive(t, configs, "Timeout waiting for recovery after the failed reload")
-			assert.Equal(t, []string{"team-b"}, flagSetNames(c.config))
+			c := *receive(t, configs, "Timeout waiting for recovery after the failed reload")
+			assert.Equal(t, []string{teamB}, flagSetNames(c.config))
 			require.NoError(t, c.config.IsValid())
 			assert.GreaterOrEqual(t, c.requests, 4, "failed reloads must not notify consumers")
-			header := receive(t, retries, "Timeout waiting for an unconditional retry")
+			header := *receive(t, retries, "Timeout waiting for an unconditional retry")
 			assert.Empty(t, header, "the failed reload must invalidate the accepted ETag")
 		})
 	}
@@ -428,21 +434,21 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}{
 		{
 			name: "HTTP error", status: http.StatusServiceUnavailable,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid YAML", body: "flagSets: [", status: http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid field type", body: "flagSets: wrong-type", status: http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name:          "invalid flagset",
 			body:          strings.Replace(studioYaml, "apiKeys:\n      - key-a", "apiKeys: []", 1),
 			status:        http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 	}
 	for _, tt := range tests {
@@ -451,7 +457,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 			var mu sync.Mutex
 
-			body, etag, status := studioYaml, `"v1"`, http.StatusOK
+			body, etag, status := studioYaml, v1Label, http.StatusOK
 			rejected := false
 			attempts := make(chan string, 20)
 
@@ -461,7 +467,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 				if rejected {
 					select {
-					case attempts <- r.Header.Get("If-None-Match"):
+					case attempts <- r.Header.Get(protocol.HeaderIfNoneMatch):
 					default:
 					}
 				}
@@ -484,7 +490,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 				require.Equal(
 					t,
 					tt.wantRetryETag,
-					receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
+					*receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
 				)
 			}
 
@@ -492,12 +498,12 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCached, string(cached))
 			mu.Lock()
-			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
+			body = strings.ReplaceAll(studioYaml, teamA, teamB)
 			status, rejected = http.StatusOK, false
 			mu.Unlock()
 
 			// Recovery must work even when the server reuses the rejected ETag.
-			c := receive(t, configs, "Timeout waiting for recovery with the same ETag")
+			c := *receive(t, configs, "Timeout waiting for recovery with the same ETag")
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(c))
 			assert.NoError(t, c.IsValid())
 		})
@@ -512,11 +518,11 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 		fileConfig += "  cacheFile: " + cacheFile + "\n"
 	}
 
-	configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
-	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
+	configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
+	f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
+	require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
+	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
 
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 

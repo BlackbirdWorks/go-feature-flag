@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"errors"
@@ -15,12 +15,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
 type ValidateFlags struct {
+	metrics *metric.Metrics
 	version string
-	metrics metric.Metrics
 	limits  config.ValidateFlagsEndpoint
 }
 
@@ -40,7 +41,7 @@ type FlagValidationResponse struct {
 // NewValidateFlags initializes the controller for the /admin/v1/flags/validate endpoint.
 // The unset (zero) limits are replaced by their default.
 func NewValidateFlags(
-	version string, metrics metric.Metrics, limits config.ValidateFlagsEndpoint,
+	version string, metrics *metric.Metrics, limits config.ValidateFlagsEndpoint,
 ) *ValidateFlags {
 	return &ValidateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
 }
@@ -57,7 +58,7 @@ func (h *ValidateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
 	const outcomeError = metric.ValidateFlagsOutcomeError
 
-	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
+	format, maxSize, ok := h.formatFromContentType(r.Header.Get(protocol.HeaderContentType))
 	if !ok {
 		return outcomeError, fmt.Errorf("checking the content type of the flags to validate: %w", helper.NewHTTPError(
 			http.StatusUnsupportedMediaType,

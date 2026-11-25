@@ -12,6 +12,10 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
 
+const (
+	ruleBoolTrack = "rule-bool-track"
+)
+
 func TestParseEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -129,7 +133,7 @@ func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagKey := "rule-bool-track"
+			flagKey := ruleBoolTrack
 			if strings.Contains(tt.name, "untracked") {
 				flagKey = "rule-bool-notrack"
 			}
@@ -152,18 +156,18 @@ func TestTarget_Eval(t *testing.T) {
 		flag    string
 		wantErr bool
 	}{
-		{"semaphore known flag", relay.SemaphoreEval, loadtest.ExporterDiscard, "rule-bool-track", false},
+		{"semaphore known flag", relay.SemaphoreEval, loadtest.ExporterDiscard, ruleBoolTrack, false},
 		{"semaphore unknown flag is an error", relay.SemaphoreEval, loadtest.ExporterDiscard, "does-not-exist", true},
-		{"ofrep known flag", relay.OFREPEval, loadtest.ExporterDiscard, "rule-bool-track", false},
+		{"ofrep known flag", relay.OFREPEval, loadtest.ExporterDiscard, ruleBoolTrack, false},
 		{"ofrep unknown flag is an error", relay.OFREPEval, loadtest.ExporterDiscard, "does-not-exist", true},
 		{
 			"semaphore bulk with discard exporter",
 			relay.SemaphoreAllFlags,
 			loadtest.ExporterDiscard,
-			"rule-bool-track",
+			ruleBoolTrack,
 			false,
 		},
-		{"ofrep bulk without exporter", relay.OFREPBulk, "", "rule-bool-track", false},
+		{"ofrep bulk without exporter", relay.OFREPBulk, "", ruleBoolTrack, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -238,7 +242,7 @@ func TestTarget_ProtocolAndFlagsPerCall(t *testing.T) {
 				tgt, err := relay.NewTarget(
 					relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: h2c},
 					endpoint,
-					"rule-bool-track",
+					ruleBoolTrack,
 					2,
 				)
 				require.NoError(t, err)

@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -34,7 +34,7 @@ func TestExporter_Export(t *testing.T) {
 	)
 
 	ctx := context.TODO()
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	type clientFactory = func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error)
 
@@ -59,13 +59,13 @@ func TestExporter_Export(t *testing.T) {
 				topic: topic,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -77,23 +77,23 @@ func TestExporter_Export(t *testing.T) {
 				topic: topic,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         "feature1",
 					ContextKind:  "anonymousUser1",
-					UserKey:      "ABCD",
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
 					Key:          "random-key1",
-					Variation:    "Default",
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         "feature2",
 					ContextKind:  "anonymousUser2",
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970527,
 					Key:          "random-key2",
-					Variation:    "Default",
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      true,
 				},
@@ -117,13 +117,13 @@ func TestExporter_Export(t *testing.T) {
 				},
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -136,13 +136,13 @@ func TestExporter_Export(t *testing.T) {
 				publishSettings: &pubsub.PublishSettings{CountThreshold: 123},
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -155,13 +155,13 @@ func TestExporter_Export(t *testing.T) {
 				enableMessageOrdering: true,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -185,13 +185,13 @@ func TestExporter_Export(t *testing.T) {
 				topic: "not-existing-topic",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -251,12 +251,12 @@ func assertMessages(
 ) {
 	t.Helper()
 
-	events := make([]exporter.FeatureEvent, len(messages))
+	events := make([]*exporter.FeatureEvent, len(messages))
 	for i, message := range messages {
 		assert.Equal(t, map[string]string{"emitter": "GO Feature Flag"}, message.Attributes,
 			"message should have associated emitter attribute")
 
-		var event exporter.FeatureEvent
+		var event *exporter.FeatureEvent
 
 		err := json.Unmarshal(message.Data, &event)
 		require.NoError(t, err)

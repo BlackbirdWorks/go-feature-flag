@@ -18,13 +18,31 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	nestedPath          = "/a/b"
+	bearerGood          = "Bearer good"
+	doc                 = "/doc"
+	etagLower           = "etag"
+	good                = "good"
+	httpsAExample       = "https://a.example"
+	humaName            = "huma"
+	messageUnauthorized = `{"message":"Unauthorized"}`
+	okTrue              = `{"ok":true}`
+	other               = "other"
+	tea                 = "tea"
+	xAPIKeyUpper        = "X-API-Key"
+	xAPIKeyLower        = "x-api-key"
 )
 
 // newOK returns a handler that answers a JSON document.
 func newOK() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(okTrue))
 	})
 }
 
@@ -52,11 +70,11 @@ func humaHandler(
 	handler func(context.Context, *struct{}) (*document, error), mws ...func(huma.Context, func(huma.Context)),
 ) http.Handler {
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("test", "1.0.0")
+	cfg := huma.DefaultConfig("test", fixtures.VersionOneZeroZero)
 	cfg.OpenAPIPath, cfg.DocsPath, cfg.SchemasPath = "", "", ""
 	cfg.CreateHooks = nil
 	huma.Register(humago.New(mux, cfg), huma.Operation{
-		OperationID: "doc", Method: http.MethodGet, Path: "/doc", Middlewares: mws,
+		OperationID: "doc", Method: http.MethodGet, Path: doc, Middlewares: mws,
 	}, handler)
 
 	return mux
@@ -82,38 +100,53 @@ func TestKeyAuth(t *testing.T) {
 		wantStatus int
 		skip       bool
 	}{
-		{name: "bearer", entry: "http", headers: map[string]string{"Authorization": "Bearer good"},
-			wantStatus: http.StatusOK, wantKey: "good"},
-		{name: "bearer lower case", entry: "http", headers: map[string]string{"Authorization": "bearer good"},
-			wantStatus: http.StatusOK, wantKey: "good"},
-		{name: "x-api-key", entry: "http", headers: map[string]string{"X-API-Key": "good"},
-			wantStatus: http.StatusOK, wantKey: "good"},
-		{name: "x-api-key wins over bearer", entry: "http",
-			headers:    map[string]string{"X-API-Key": "bad", "Authorization": "Bearer good"},
-			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized"}` + "\n"},
-		{name: "no header", entry: "http", wantStatus: http.StatusUnauthorized,
+		{name: "bearer", entry: fixtures.KindHTTP, headers: map[string]string{protocol.HeaderAuthorization: bearerGood},
+			wantStatus: http.StatusOK, wantKey: good},
+		{
+			name:       "bearer lower case",
+			entry:      fixtures.KindHTTP,
+			headers:    map[string]string{protocol.HeaderAuthorization: "bearer good"},
+			wantStatus: http.StatusOK,
+			wantKey:    good,
+		},
+		{name: xAPIKeyLower, entry: fixtures.KindHTTP, headers: map[string]string{xAPIKeyUpper: good},
+			wantStatus: http.StatusOK, wantKey: good},
+		{name: "x-api-key wins over bearer", entry: fixtures.KindHTTP,
+			headers:    map[string]string{xAPIKeyUpper: "bad", protocol.HeaderAuthorization: bearerGood},
+			wantStatus: http.StatusUnauthorized, wantBody: messageUnauthorized + "\n"},
+		{name: "no header", entry: fixtures.KindHTTP, wantStatus: http.StatusUnauthorized,
 			wantBody: `{"message":"missing value in request header"}` + "\n"},
-		{name: "not a bearer", entry: "http", headers: map[string]string{"Authorization": "Basic good"},
-			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"invalid value in request header"}` + "\n"},
-		{name: "empty bearer", entry: "http", headers: map[string]string{"Authorization": "Bearer "},
-			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"invalid value in request header"}` + "\n"},
+		{
+			name:       "not a bearer",
+			entry:      fixtures.KindHTTP,
+			headers:    map[string]string{protocol.HeaderAuthorization: "Basic good"},
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   `{"message":"invalid value in request header"}` + "\n",
+		},
+		{
+			name:       "empty bearer",
+			entry:      fixtures.KindHTTP,
+			headers:    map[string]string{protocol.HeaderAuthorization: "Bearer "},
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   `{"message":"invalid value in request header"}` + "\n",
+		},
 		{
 			name:       "wrong key",
-			entry:      "http",
-			headers:    map[string]string{"Authorization": "Bearer bad"},
+			entry:      fixtures.KindHTTP,
+			headers:    map[string]string{protocol.HeaderAuthorization: "Bearer bad"},
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   `{"message":"authenticating the API key: code=401, message=invalid key"}` + "\n",
 		},
-		{name: "skipped", entry: "http", skip: true, wantStatus: http.StatusOK},
-		{name: "huma bearer", entry: "huma", headers: map[string]string{"Authorization": "Bearer good"},
-			wantStatus: http.StatusOK, wantKey: "good"},
-		{name: "huma x-api-key", entry: "huma", headers: map[string]string{"X-API-Key": "good"},
-			wantStatus: http.StatusOK, wantKey: "good"},
-		{name: "huma no key", entry: "huma", wantStatus: http.StatusUnauthorized,
+		{name: "skipped", entry: fixtures.KindHTTP, skip: true, wantStatus: http.StatusOK},
+		{name: "huma bearer", entry: humaName, headers: map[string]string{protocol.HeaderAuthorization: bearerGood},
+			wantStatus: http.StatusOK, wantKey: good},
+		{name: "huma x-api-key", entry: humaName, headers: map[string]string{xAPIKeyUpper: good},
+			wantStatus: http.StatusOK, wantKey: good},
+		{name: "huma no key", entry: humaName, wantStatus: http.StatusUnauthorized,
 			wantBody: `{"message":"missing value in request header"}` + "\n"},
-		{name: "huma wrong key", entry: "huma", headers: map[string]string{"X-API-Key": "bad"},
-			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized"}` + "\n"},
-		{name: "huma skipped", entry: "huma", skip: true, wantStatus: http.StatusOK},
+		{name: "huma wrong key", entry: humaName, headers: map[string]string{xAPIKeyUpper: "bad"},
+			wantStatus: http.StatusUnauthorized, wantBody: messageUnauthorized + "\n"},
+		{name: "huma skipped", entry: humaName, skip: true, wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,7 +154,7 @@ func TestKeyAuth(t *testing.T) {
 
 			auth := middleware.NewKeyAuth(middleware.KeyAuthConfig{
 				Validator: func(ctx context.Context, k string) (context.Context, bool) {
-					return context.WithValue(ctx, key{}, k), k == "good"
+					return context.WithValue(ctx, key{}, k), k == good
 				},
 				Skipper: func() bool { return tt.skip },
 			})
@@ -130,7 +163,7 @@ func TestKeyAuth(t *testing.T) {
 				gotKey  string
 				handler http.Handler
 			)
-			if tt.entry == "huma" {
+			if tt.entry == humaName {
 				handler = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
 					gotKey, _ = ctx.Value(key{}).(string)
 
@@ -143,7 +176,7 @@ func TestKeyAuth(t *testing.T) {
 				}))
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -167,8 +200,12 @@ func TestVersionHeader(t *testing.T) {
 		conf    *config.Config
 		wantNew string
 	}{
-		{name: "enabled", conf: &config.Config{Version: "1.0.0"}, wantNew: "1.0.0"},
-		{name: "disabled", conf: &config.Config{Version: "1.0.0", DisableVersionHeader: true}},
+		{
+			name:    "enabled",
+			conf:    &config.Config{Version: fixtures.VersionOneZeroZero},
+			wantNew: fixtures.VersionOneZeroZero,
+		},
+		{name: "disabled", conf: &config.Config{Version: fixtures.VersionOneZeroZero, DisableVersionHeader: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,7 +213,7 @@ func TestVersionHeader(t *testing.T) {
 
 			rec := serve(
 				middleware.VersionHeader(tt.conf)(newOK()),
-				httptest.NewRequest(http.MethodGet, "/", nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil),
 			)
 			assert.Equal(t, tt.wantNew, rec.Header().Get(middleware.VersionHeaderName))
 			assert.Equal(t, tt.wantNew, rec.Header().Get(middleware.LegacyVersionHeaderName))
@@ -197,21 +234,33 @@ func TestCORS(t *testing.T) {
 		wantStatus  int
 	}{
 		{name: "no origin", method: http.MethodGet, wantStatus: http.StatusOK},
-		{name: "simple request", method: http.MethodGet, headers: map[string]string{"Origin": "https://a.example"},
-			wantStatus: http.StatusOK, wantOrigin: "*"},
-		{name: "options without request method", method: http.MethodOptions,
-			headers: map[string]string{"Origin": "https://a.example"}, wantStatus: http.StatusOK, wantOrigin: "*"},
+		{
+			name:       "simple request",
+			method:     http.MethodGet,
+			headers:    map[string]string{protocol.HeaderOrigin: httpsAExample},
+			wantStatus: http.StatusOK,
+			wantOrigin: "*",
+		},
+		{
+			name:   "options without request method",
+			method: http.MethodOptions,
+			headers: map[string]string{
+				protocol.HeaderOrigin: httpsAExample,
+			},
+			wantStatus: http.StatusOK,
+			wantOrigin: "*",
+		},
 		{name: "preflight", method: http.MethodOptions, headers: map[string]string{
-			"Origin": "https://a.example", "Access-Control-Request-Method": "POST",
-			"Access-Control-Request-Headers": "x-api-key",
+			protocol.HeaderOrigin: httpsAExample, "Access-Control-Request-Method": "POST",
+			"Access-Control-Request-Headers": xAPIKeyLower,
 		}, wantStatus: http.StatusNoContent, wantOrigin: "*", wantMethods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-			wantHeaders: "x-api-key"},
+			wantHeaders: xAPIKeyLower},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(tt.method, "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -221,7 +270,7 @@ func TestCORS(t *testing.T) {
 			assert.Equal(t, tt.wantOrigin, rec.Header().Get("Access-Control-Allow-Origin"))
 			assert.Equal(t, tt.wantMethods, rec.Header().Get("Access-Control-Allow-Methods"))
 			assert.Equal(t, tt.wantHeaders, rec.Header().Get("Access-Control-Allow-Headers"))
-			assert.Contains(t, rec.Header().Values("Vary"), "Origin")
+			assert.Contains(t, rec.Header().Values("Vary"), protocol.HeaderOrigin)
 		})
 	}
 }
@@ -240,37 +289,61 @@ func TestETag(t *testing.T) {
 		failing    bool
 		wantETag   bool
 	}{
-		{name: "no condition", entry: "http", wantStatus: http.StatusOK, wantBody: `{"ok":true}`, wantETag: true},
-		{name: "matching", entry: "http", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
-		{name: "matching weak", entry: "http", condition: "weak", wantStatus: http.StatusNotModified, wantETag: true},
+		{name: "no condition", entry: fixtures.KindHTTP, wantStatus: http.StatusOK, wantBody: okTrue, wantETag: true},
 		{
-			name:       "other",
-			entry:      "http",
-			condition:  "other",
-			wantStatus: http.StatusOK,
-			wantBody:   `{"ok":true}`,
+			name:       "matching",
+			entry:      fixtures.KindHTTP,
+			condition:  etagLower,
+			wantStatus: http.StatusNotModified,
 			wantETag:   true,
 		},
-		{name: "error untouched", entry: "http", failing: true, wantStatus: http.StatusTeapot, wantBody: "tea"},
+		{
+			name:       "matching weak",
+			entry:      fixtures.KindHTTP,
+			condition:  "weak",
+			wantStatus: http.StatusNotModified,
+			wantETag:   true,
+		},
+		{
+			name:       other,
+			entry:      fixtures.KindHTTP,
+			condition:  other,
+			wantStatus: http.StatusOK,
+			wantBody:   okTrue,
+			wantETag:   true,
+		},
+		{
+			name:       "error untouched",
+			entry:      fixtures.KindHTTP,
+			failing:    true,
+			wantStatus: http.StatusTeapot,
+			wantBody:   tea,
+		},
 		{
 			name:       "huma no condition",
-			entry:      "huma",
+			entry:      humaName,
 			wantStatus: http.StatusOK,
 			wantBody:   `{"name":"x"}` + "\n",
 			wantETag:   true,
 		},
-		{name: "huma matching", entry: "huma", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
+		{
+			name:       "huma matching",
+			entry:      humaName,
+			condition:  etagLower,
+			wantStatus: http.StatusNotModified,
+			wantETag:   true,
+		},
 		{
 			name:       "huma other",
-			entry:      "huma",
-			condition:  "other",
+			entry:      humaName,
+			condition:  other,
 			wantStatus: http.StatusOK,
 			wantBody:   `{"name":"x"}` + "\n",
 			wantETag:   true,
 		},
 		{
 			name:       "huma error untouched",
-			entry:      "huma",
+			entry:      humaName,
 			failing:    true,
 			wantStatus: http.StatusTeapot,
 			wantBody:   `{"Message":"tea","Code":418}` + "\n",
@@ -283,36 +356,40 @@ func TestETag(t *testing.T) {
 			var handler http.Handler
 
 			switch {
-			case tt.entry == "huma" && tt.failing:
+			case tt.entry == humaName && tt.failing:
 				handler = humaHandler(func(context.Context, *struct{}) (*document, error) {
-					return nil, helper.NewHTTPError(http.StatusTeapot, "tea")
+					return nil, helper.NewHTTPError(http.StatusTeapot, tea)
 				}, middleware.ETagHuma())
-			case tt.entry == "huma":
+			case tt.entry == humaName:
 				handler = humaHandler(okDocument, middleware.ETagHuma())
 			case tt.failing:
 				handler = middleware.ETag()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusTeapot)
-					_, _ = w.Write([]byte("tea"))
+					_, _ = w.Write([]byte(tea))
 				}))
 			default:
 				handler = middleware.ETag()(newOK())
 			}
 
 			// the ETag of the document
-			etag := serve(handler, httptest.NewRequest(http.MethodGet, "/doc", nil)).Header().Get("ETag")
+			etag := serve(
+				handler,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil),
+			).Header().
+				Get(protocol.HeaderETag)
 			if tt.wantETag {
 				require.NotEmpty(t, etag)
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)
 
 			switch tt.condition {
-			case "etag":
-				req.Header.Set("If-None-Match", etag)
+			case etagLower:
+				req.Header.Set(protocol.HeaderIfNoneMatch, etag)
 			case "weak":
-				req.Header.Set("If-None-Match", "W/"+etag)
-			case "other":
-				req.Header.Set("If-None-Match", `"x"`)
+				req.Header.Set(protocol.HeaderIfNoneMatch, "W/"+etag)
+			case other:
+				req.Header.Set(protocol.HeaderIfNoneMatch, `"x"`)
 			}
 
 			rec := serve(handler, req)
@@ -320,9 +397,9 @@ func TestETag(t *testing.T) {
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 
 			if tt.wantETag {
-				assert.Equal(t, etag, rec.Header().Get("ETag"))
+				assert.Equal(t, etag, rec.Header().Get(protocol.HeaderETag))
 			} else {
-				assert.Empty(t, rec.Header().Get("ETag"))
+				assert.Empty(t, rec.Header().Get(protocol.HeaderETag))
 			}
 		})
 	}
@@ -339,8 +416,8 @@ func TestBodyDump(t *testing.T) {
 		wantRead   string
 		wantCalled bool
 	}{
-		{name: "dumped", path: "/x", wantDump: "hello", wantRead: "hello", wantCalled: true},
-		{name: "skipped", path: "/skip", wantRead: "hello"},
+		{name: "dumped", path: "/x", wantDump: fixtures.BodyHello, wantRead: fixtures.BodyHello, wantCalled: true},
+		{name: "skipped", path: "/skip", wantRead: fixtures.BodyHello},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -359,7 +436,15 @@ func TestBodyDump(t *testing.T) {
 				read = string(b)
 			}))
 
-			serve(handler, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader("hello")))
+			serve(
+				handler,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					tt.path,
+					strings.NewReader(fixtures.BodyHello),
+				),
+			)
 			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")
 			assert.Equal(t, tt.wantDump, dumped)
 			assert.Equal(t, tt.wantRead, read)
@@ -385,7 +470,7 @@ func TestDeprecatedAlias(t *testing.T) {
 
 			rec := serve(
 				middleware.DeprecatedAlias(tt.replacement)(newOK()),
-				httptest.NewRequest(http.MethodGet, "/old", nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/old", nil),
 			)
 			assert.Equal(t, "true", rec.Header().Get("Deprecation"))
 			assert.Equal(t, tt.wantLink, rec.Header().Get("Link"))
@@ -423,7 +508,10 @@ func TestChain(t *testing.T) {
 				})
 			}
 
-			serve(middleware.Chain(newOK(), mws...), httptest.NewRequest(http.MethodGet, "/", nil))
+			serve(
+				middleware.Chain(newOK(), mws...),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil),
+			)
 			assert.Equal(t, tt.want, order.String())
 		})
 	}
@@ -475,8 +563,8 @@ func TestPrometheus(t *testing.T) {
 				r.Pattern = "GET /items/{id}"
 
 				w.WriteHeader(http.StatusTeapot)
-				_, _ = w.Write([]byte("tea"))
-			})), httptest.NewRequest(http.MethodGet, "/items/42", nil))
+				_, _ = w.Write([]byte(tea))
+			})), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/items/42", nil))
 
 			families, err := reg.Gather()
 			require.NoError(t, err)
@@ -507,8 +595,8 @@ func TestRoutePattern(t *testing.T) {
 		pattern string
 		want    string
 	}{
-		{name: "no route matched", pattern: "/", want: "/a/b"},
-		{name: "no pattern", pattern: "", want: "/a/b"},
+		{name: "no route matched", pattern: "/", want: nestedPath},
+		{name: "no pattern", pattern: "", want: nestedPath},
 		{name: "static route", pattern: "GET /health", want: "/health"},
 		{name: "parameter", pattern: "POST /v1/feature/{flagKey}/eval", want: "/v1/feature/:flagKey/eval"},
 		{name: "two parameters", pattern: "/a/{x}/b/{y}", want: "/a/:x/b/:y"},
@@ -519,7 +607,7 @@ func TestRoutePattern(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, "/a/b", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, nestedPath, nil)
 			req.Pattern = tt.pattern
 			assert.Equal(t, tt.want, middleware.RoutePattern(req))
 		})

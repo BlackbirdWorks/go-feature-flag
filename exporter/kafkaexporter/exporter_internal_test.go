@@ -12,7 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	abcdef = "ABCDEF"
 )
 
 var (
@@ -53,11 +58,11 @@ func TestExporter_Export(t *testing.T) {
 	}{
 		{
 			name:    "should receive an error if dial failed",
-			format:  "json",
+			format:  protocol.FormatJSON,
 			wantErr: true,
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{fixtures.AddressOne, fixtures.AddressTwo},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return nil, errDialError
@@ -65,43 +70,43 @@ func TestExporter_Export(t *testing.T) {
 		},
 		{
 			name:    "should use default dialer when none provided",
-			format:  "json",
+			format:  protocol.FormatJSON,
 			wantErr: true, // The default dialer should error
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{fixtures.AddressOne, fixtures.AddressTwo},
 			},
 			dialer: nil,
 		},
 		{
 			name:    "should receive an event with a valid feature event",
-			format:  "json",
+			format:  protocol.FormatJSON,
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      abcdef,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{fixtures.AddressOne, fixtures.AddressTwo},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return &messageSenderMock{}, nil
@@ -112,30 +117,30 @@ func TestExporter_Export(t *testing.T) {
 			format:  "", // Should default to JSON and generate a valid message
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      abcdef,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{fixtures.AddressOne, fixtures.AddressTwo},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return &messageSenderMock{}, nil
@@ -143,33 +148,33 @@ func TestExporter_Export(t *testing.T) {
 		},
 		{
 			name:    "should return an error if the publisher is returning an error",
-			format:  "json",
+			format:  protocol.FormatJSON,
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+				&exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      abcdef,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{fixtures.AddressOne, fixtures.AddressTwo},
 				Config:    &sarama.Config{},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
@@ -190,7 +195,7 @@ func TestExporter_Export(t *testing.T) {
 				dialer:   tt.dialer,
 			}
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+			logger := slog.Default()
 
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {

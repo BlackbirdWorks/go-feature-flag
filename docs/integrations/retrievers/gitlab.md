@@ -40,7 +40,7 @@ To configure your GO module to use the GitLab retriever, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &gitlabretriever.Retriever{
         RepositorySlug: "your-org/your-repo",

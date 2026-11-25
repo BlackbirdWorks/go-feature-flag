@@ -21,7 +21,14 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	apiKeyQuery = "?apiKey="
+	flagTenantA = "flag-tenant-a"
+	flagTenantB = "flag-tenant-b"
 )
 
 func TestDeprecatedAliasHeaders(t *testing.T) {
@@ -29,10 +36,10 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 
 	logger := slog.New(slog.DiscardHandler)
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+			{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
@@ -46,20 +53,23 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	sseService := stream.NewSSEService()
 	defer sseService.Close()
 
-	apiServer := newTestServer(t, cfg, service.Services{
+	apiServer := newTestServer(t, cfg, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 
 	go apiServer.StartWithContext(context.Background())
 	defer apiServer.Stop(context.Background())
 
-	waitForServer(t, fmt.Sprintf("http://localhost:%d", cfg.ServerPort(logger)))
+	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.ServerPort(logger)))
 
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)), http.NoBody)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -133,18 +143,18 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	tenantAFile := filepath.Join(dir, "tenant-a.yaml")
 	tenantBFile := filepath.Join(dir, "tenant-b.yaml")
 
-	writeFlagFile(t, tenantAFile, "flag-tenant-a", "initial")
-	writeFlagFile(t, tenantBFile, "flag-tenant-b", "initial")
+	writeFlagFile(t, tenantAFile, flagTenantA, "initial")
+	writeFlagFile(t, tenantBFile, flagTenantB, "initial")
 
 	flagset := func(name, apiKey, path string) config.FlagSet {
 		return config.FlagSet{
 			Name:            name,
 			APIKeys:         []string{apiKey},
-			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: path}},
+			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: path}},
 			PollingInterval: 200,
 		}
 	}
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		FlagSets: []config.FlagSet{
 			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
@@ -168,24 +178,24 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	apiServer := newTestServer(t, cfg, service.Services{
+	apiServer := newTestServer(t, cfg, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 	go apiServer.StartWithContext(context.Background())
 
 	t.Cleanup(func() { apiServer.Stop(context.Background()) })
-	waitForServer(t, fmt.Sprintf("http://localhost:%d", cfg.ServerPort(logger)))
+	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.ServerPort(logger)))
 	wsURL := fmt.Sprintf("ws://localhost:%d", cfg.ServerPort(logger))
 
 	endpoints := []struct {
 		name string
 		path string
 	}{
-		{name: "stream endpoint", path: "/stream/v1/ws/flag/change"},
-		{name: "legacy alias", path: "/ws/v1/flag/change"},
+		{name: "stream endpoint", path: streamV1Ws},
+		{name: "legacy alias", path: fixtures.WebsocketFlagChangePath},
 	}
 
 	for _, tt := range endpoints {
@@ -193,7 +203,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Parallel()
 
 			dial := func(apiKey string) <-chan string {
-				conn, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+tt.path+"?apiKey="+apiKey, nil)
+				conn, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+tt.path+apiKeyQuery+apiKey, nil)
 				require.NoError(t, dialErr)
 
 				_ = resp.Body.Close()
@@ -206,15 +216,15 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			tenantBFrames := dial("tenant-B-api-key")
 
 			// The tenant-b client receives the change of its flagset.
-			frame := changeFlagUntilFrame(t, tenantBFile, "flag-tenant-b", tenantBFrames)
-			assert.Contains(t, frame, "flag-tenant-b")
-			assert.NotContains(t, frame, "flag-tenant-a")
+			frame := changeFlagUntilFrame(t, tenantBFile, flagTenantB, tenantBFrames)
+			assert.Contains(t, frame, flagTenantB)
+			assert.NotContains(t, frame, flagTenantA)
 
 			// The tenant-b change has been broadcast: if it had been sent to the tenant-a
 			// client, it would be the first frame read here, before the tenant-a change.
-			frame = changeFlagUntilFrame(t, tenantAFile, "flag-tenant-a", tenantAFrames)
-			assert.Contains(t, frame, "flag-tenant-a")
-			assert.NotContains(t, frame, "flag-tenant-b")
+			frame = changeFlagUntilFrame(t, tenantAFile, flagTenantA, tenantAFrames)
+			assert.Contains(t, frame, flagTenantA)
+			assert.NotContains(t, frame, flagTenantB)
 		})
 	}
 
@@ -231,7 +241,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Run(endpoint.name+": "+tt.name+" is rejected before the upgrade", func(t *testing.T) {
 				t.Parallel()
 
-				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+endpoint.path+"?apiKey="+tt.apiKey, nil)
+				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+endpoint.path+apiKeyQuery+tt.apiKey, nil)
 				if ws != nil {
 					_ = ws.Close()
 				}

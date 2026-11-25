@@ -6,6 +6,7 @@ type APIKeys struct {
 	Evaluation []string `koanf:"evaluation" mapstructure:"evaluation"`
 }
 
+// APIKeyType is the type of an API key.
 type APIKeyType = string
 
 // Enum for the type of the API keys.
@@ -54,7 +55,7 @@ func (c *Config) preloadAPIKeysLocked() {
 	}
 
 	// In flag set mode an evaluation request is routed by its key to a flag set, so only the keys of
-	// the flag sets can evaluate. authorizedKeys.evaluation and the top-level apiKeys are not linked
+	// the flag sets can evaluate. authorizedKeys.evaluation is not linked
 	// to any flag set: accepting them would authenticate a request that then fails the flag set lookup.
 	if len(c.FlagSets) > 0 {
 		c.hadFlagSets = true
@@ -62,20 +63,16 @@ func (c *Config) preloadAPIKeysLocked() {
 
 	if !c.hadFlagSets {
 		addAPIKeys(c.AuthorizedKeys.Evaluation, EvaluationKeyType)
-		addAPIKeys(c.APIKeys, EvaluationKeyType)
 	}
 
-	for _, flagSet := range c.FlagSets {
+	for i := range c.FlagSets {
+		flagSet := &c.FlagSets[i]
 		addAPIKeys(flagSet.APIKeys, FlagSetKeyType)
 	}
 
 	// it has to be before adding the admin keys, because when we add only the admin keys,
 	// we don't want to force the authentication (except for the admin endpoints).
-	if len(apiKeySet) > 0 {
-		c.forceAuthenticatedRequests = true
-	} else {
-		c.forceAuthenticatedRequests = false
-	}
+	c.forceAuthenticatedRequests = len(apiKeySet) > 0
 
 	addAPIKeys(c.AuthorizedKeys.Admin, AdminKeyType)
 	c.apiKeysSet = apiKeySet
@@ -101,24 +98,23 @@ func (c *Config) ForceReloadAPIKeys() {
 	c.preloadAPIKeysLocked()
 }
 
-// ReplaceAPIKeys replaces the authorized keys and the (deprecated) top-level API keys and rebuilds the
+// ReplaceAPIKeys replaces the authorized keys and rebuilds the
 // accepted key set in a single critical section: a concurrent request is authenticated against either the
 // previous or the new keys, never against a partially updated set.
-func (c *Config) ReplaceAPIKeys(authorizedKeys APIKeys, apiKeys []string) {
+func (c *Config) ReplaceAPIKeys(authorizedKeys APIKeys) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	c.AuthorizedKeys = authorizedKeys
-	c.APIKeys = apiKeys
 	c.preloadAPIKeysLocked()
 }
 
 // HasUnroutableEvaluationKeys returns true when the configuration uses flag sets and also sets
-// authorizedKeys.evaluation or the top-level apiKeys. Those keys are not linked to a flag set, so they are
+// authorizedKeys.evaluation. Those keys are not linked to a flag set, so they are
 // not accepted on the evaluation endpoints in flag set mode.
 func (c *Config) HasUnroutableEvaluationKeys() bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	return (c.hadFlagSets || len(c.FlagSets) > 0) && (len(c.AuthorizedKeys.Evaluation) > 0 || len(c.APIKeys) > 0)
+	return (c.hadFlagSets || len(c.FlagSets) > 0) && (len(c.AuthorizedKeys.Evaluation) > 0)
 }

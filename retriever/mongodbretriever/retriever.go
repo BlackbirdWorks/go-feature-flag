@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,7 +13,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -23,7 +23,7 @@ var (
 type Retriever struct {
 	dbConnection *mongo.Database
 	dbClient     *mongo.Client
-	logger       *fflog.FFLogger
+	logger       *slog.Logger
 	// MongoDB connection URI
 	URI string
 	// Mongodb database where flags collection is
@@ -36,7 +36,7 @@ type Retriever struct {
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
-func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
+func (r *Retriever) Init(ctx context.Context, logger *slog.Logger) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -154,6 +154,6 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 // OutputFormat declares that this retriever always returns JSON-encoded data,
 // so the manager can pick the JSON parser regardless of the global FileFormat.
-func (r *Retriever) OutputFormat() string {
+func (*Retriever) OutputFormat() string {
 	return "json"
 }

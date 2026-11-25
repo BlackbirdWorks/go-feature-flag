@@ -17,48 +17,18 @@ type OpenTelemetryConfiguration struct {
 	} `koanf:"sdk" mapstructure:"sdk"`
 }
 
+// OtelExporter is the configuration of the OpenTelemetry exporter.
 type OtelExporter struct {
 	Otlp OtelExporterOtlp `koanf:"otlp" mapstructure:"otlp"`
 }
 
+// OtelExporterOtlp is the configuration of the OTLP export of OpenTelemetry data.
 type OtelExporterOtlp struct {
 	Endpoint string `koanf:"endpoint" mapstructure:"endpoint"`
 	Protocol string `koanf:"protocol" mapstructure:"protocol"`
 }
 
+// OtelResource is the resource attributes reported with OpenTelemetry data.
 type OtelResource struct {
 	Attributes map[string]string `koanf:"attributes" mapstructure:"attributes"`
-}
-
-// JaegerSamplerConfiguration is the configuration object to configure the sampling.
-// Most of the time this configuration is set using environment variables.
-type JaegerSamplerConfiguration struct {
-	Sampler JaegerSampler `koanf:"sampler" mapstructure:"sampler"`
-}
-
-// JaegerSampler is the configuration object to configure the sampling.
-type JaegerSampler struct {
-	Manager JaegerSamplerManager `koanf:"manager" mapstructure:"manager"`
-	Refresh JaegerSamplerRefresh `koanf:"refresh" mapstructure:"refresh"`
-	Max     JaegerSamplerMax     `koanf:"max"     mapstructure:"max"`
-}
-
-// JaegerSamplerManager is the configuration object to configure the manager of the sampling.
-type JaegerSamplerManager struct {
-	Host JaegerSamplerManagerHost `koanf:"host" mapstructure:"host"`
-}
-
-// JaegerSamplerManagerHost is the configuration object to configure the host of the manager of the sampling.
-type JaegerSamplerManagerHost struct {
-	Port string `koanf:"port" mapstructure:"port"`
-}
-
-// JaegerSamplerRefresh is the configuration object to configure the refresh of the sampling.
-type JaegerSamplerRefresh struct {
-	Interval string `koanf:"interval" mapstructure:"interval"`
-}
-
-// JaegerSamplerMax is the configuration object to configure the max of the sampling.
-type JaegerSamplerMax struct {
-	Operations int `koanf:"operations" mapstructure:"operations"`
 }

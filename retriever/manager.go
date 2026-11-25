@@ -10,11 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+const (
+	errorLiteral = "error"
 )
 
 var errPersistentFile = errors.New("impossible to use the persistent flag configuration file")
@@ -41,7 +45,7 @@ type ManagerConfig struct {
 type Manager struct {
 	cacheManager     cache.Manager
 	bgUpdater        backgroundUpdater
-	logger           *fflog.FFLogger
+	logger           *slog.Logger
 	retrievers       []Retriever
 	onErrorRetriever []Retriever
 	config           ManagerConfig
@@ -54,11 +58,11 @@ type Manager struct {
 
 // NewManager create a new Manager.
 func NewManager(
-	config ManagerConfig, retrievers []Retriever, cacheManager cache.Manager, logger *fflog.FFLogger) *Manager {
+	config ManagerConfig, retrievers []Retriever, cacheManager cache.Manager, logger *slog.Logger) *Manager {
 	return &Manager{
 		retrievers:       retrievers,
 		onErrorRetriever: make([]Retriever, 0),
-		logger:           logger,
+		logger:           internal.LoggerOrDiscard(logger),
 		cacheManager:     cacheManager,
 		config:           config,
 	}
@@ -103,7 +107,7 @@ func (m *Manager) StartPolling(ctx context.Context) {
 				m.logger.ErrorContext(
 					ctx,
 					"Error while updating the cache.",
-					slog.Any("error", err.Error()),
+					slog.Any(errorLiteral, err.Error()),
 				)
 			}
 		case <-m.bgUpdater.updaterChan:
@@ -158,9 +162,7 @@ func (m *Manager) GetCacheRefreshDate() time.Time {
 }
 
 // GetFlag returns the flag from the cache with the current state when calling this method.
-//
-//nolint:ireturn // passes through the flag.Flag of the cache.Manager interface, it constructs none
-func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
+func (m *Manager) GetFlag(flagKey string) (*flagdef.InternalFlag, error) {
 	res, err := m.cacheManager.GetFlag(flagKey)
 	if err != nil {
 		return res, fmt.Errorf("getting the flag from the cache: %w", err)
@@ -172,7 +174,7 @@ func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
 // GetFlagsFromCache returns all the flags present in the cache with their
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned.
-func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
+func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flagdef.Flag, error) {
 	if m == nil || m.cacheManager == nil {
 		return nil, errCacheIsNotInitialized
 	}
@@ -187,7 +189,7 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 
 // GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
 // callers inside the module that only read them (evaluation of all the flags).
-func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flagdef.Flag, error) {
 	if m == nil || m.cacheManager == nil {
 		return nil, errCacheIsNotInitialized
 	}
@@ -200,13 +202,14 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 	return res, nil
 }
 
+// ForceRefresh refreshes the flag configurations now and reports whether the refresh succeeded.
 func (m *Manager) ForceRefresh(ctx context.Context) bool {
 	err := m.retrieveFlagsAndUpdateCache(ctx, false)
 	if err != nil {
 		m.logger.ErrorContext(
 			ctx,
 			"Error while force updating the cache.",
-			slog.Any("error", err.Error()),
+			slog.Any(errorLiteral, err.Error()),
 		)
 
 		return false
@@ -233,7 +236,7 @@ func (m *Manager) initRetrievers(ctx context.Context, retrieversToInit []Retriev
 // the legacy interface.
 func (m *Manager) tryInitializeLegacy(ctx context.Context, retriever Retriever) {
 	if r, ok := retriever.(InitializableRetrieverLegacy); ok {
-		if r.Init(ctx, m.logger.GetLogLogger(slog.LevelError)) != nil {
+		if r.Init(ctx, slog.NewLogLogger(m.logger.Handler(), slog.LevelError)) != nil {
 			m.onErrorRetriever = append(m.onErrorRetriever, retriever)
 		}
 	}
@@ -296,7 +299,7 @@ func (m *Manager) updateCacheWithRetriever(
 		!isInit || !m.config.DisableNotifierOnInit,
 	)
 	if err != nil {
-		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
+		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags", slog.Any("error", err))
 
 		return fmt.Errorf("updating the cache of the flags: %w", err)
 	}
@@ -322,7 +325,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 	default:
 		// We accept to start with a retriever error, we will serve only default value
 		m.logger.ErrorContext(ctx, "Impossible to retrieve the flags, starting with the "+
-			"retriever error", slog.Any("error", err.Error()))
+			"retriever error", slog.Any(errorLiteral, err.Error()))
 	}
 
 	return nil
@@ -376,20 +379,10 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	resultsChan := make(chan Results, len(retrievers))
 
 	var wg sync.WaitGroup
-	wg.Add(len(retrievers))
-
-	// Launching a goroutine that will wait until the waiting group is complete.
-	// It closes the channel when ready
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
 
 	for index, r := range retrievers {
 		// Launching GO routines to retrieve all files in parallel.
-		go func(r Retriever, format string, index int, ctx context.Context) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			// If the retriever is not ready, we ignore it
 			if rr, ok := r.(CommonInitializableRetriever); ok &&
 				rr.Status() != RetrieverReady {
@@ -405,10 +398,17 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 				return
 			}
 
-			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, format))
+			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, fileFormat))
 			resultsChan <- Results{Error: err, Value: convertedFlag, Index: index}
-		}(r, fileFormat, index, ctx)
+		})
 	}
+
+	// Launching a goroutine that will wait until the waiting group is complete.
+	// It closes the channel when ready
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
 
 	retrieversResults := make([]map[string]dto.DTO, len(retrievers))
 

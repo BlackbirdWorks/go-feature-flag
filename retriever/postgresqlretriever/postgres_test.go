@@ -43,7 +43,7 @@ func TestGetPool_MultipleURIsAndReuse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	defer pgContainer.Terminate(ctx)
+	defer func() { require.NoError(t, pgContainer.Terminate(ctx)) }()
 
 	endpoint, err := pgContainer.Endpoint(ctx, "")
 	require.NoError(t, err)

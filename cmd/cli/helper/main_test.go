@@ -1,7 +1,6 @@
 package helper_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/pterm/pterm"
@@ -12,5 +11,5 @@ import (
 func TestMain(m *testing.M) {
 	pterm.DisableStyling()
 	pterm.DisableColor()
-	os.Exit(m.Run())
+	m.Run()
 }

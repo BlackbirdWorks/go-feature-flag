@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"cloud.google.com/go/pubsub/v2"
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -36,7 +36,7 @@ type Exporter struct {
 // Export publishes a PubSub message for each exporter.FeatureEvent received.
 func (e *Exporter) Export(
 	ctx context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	if e.publisher == nil {
@@ -72,7 +72,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk always returns false as PubSub exporter sends each exporter.FeatureEvent as a separate message.
-func (e *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return false
 }
 

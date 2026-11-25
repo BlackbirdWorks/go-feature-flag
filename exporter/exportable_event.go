@@ -4,6 +4,7 @@ import (
 	"text/template"
 )
 
+// ExportableEvent is an event that can be sent to the exporters.
 type ExportableEvent interface {
 	// GetUserKey returns the unique key for the event.
 	GetUserKey() string

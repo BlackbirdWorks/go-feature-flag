@@ -10,6 +10,7 @@ var _ Context = (*EvaluationContext)(nil)
 
 const anonymousAttribute = "anonymous"
 
+// Context is the evaluation context interface used to evaluate the flags.
 type Context interface {
 	// GetKey return the unique targetingKey for the context.
 	GetKey() string
@@ -46,6 +47,8 @@ func NewEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{}}
 }
 
+// NewAnonymousEvaluationContext returns an anonymous evaluation context with the given key.
+//
 // Deprecated: NewAnonymousEvaluationContext is here for compatibility reason.
 // Please use NewEvaluationContext instead and add a attributes attribute to know that it is an anonymous user.
 //

@@ -3,10 +3,12 @@
 package kinesisexporter_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,8 +20,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/kinesisexporter"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
 func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
@@ -42,7 +43,7 @@ func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 }
 
 // readAll reads every shard of the stream from the beginning until want records are received.
-func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []exporter.FeatureEvent {
+func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*exporter.FeatureEvent {
 	t.Helper()
 	desc, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
 	require.NoError(t, err)
@@ -60,7 +61,7 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 		iterators[aws.ToString(shard.ShardId)] = iter.ShardIterator
 	}
 
-	var got []exporter.FeatureEvent
+	var got []*exporter.FeatureEvent
 	require.Eventually(t, func() bool {
 		for id, it := range iterators {
 			out, getRecordsErr := client.GetRecords(
@@ -73,7 +74,7 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 
 			iterators[id] = out.NextShardIterator
 			for _, r := range out.Records {
-				var e exporter.FeatureEvent
+				var e *exporter.FeatureEvent
 				require.NoError(t, json.Unmarshal(r.Data, &e))
 				got = append(got, e)
 			}
@@ -88,7 +89,7 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
-		res = append(res, exporter.FeatureEvent{
+		res = append(res, &exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
 			UserKey:      fmt.Sprintf("user-%04d", i),
@@ -124,7 +125,7 @@ func TestE2E_Export(t *testing.T) {
 		{
 			name: "custom partition key spreads on two shards", shards: 2, nbEvents: 20, nbCalls: 1,
 			partitionKey: func(_ context.Context, e exporter.ExportableEvent) string {
-				if fe, ok := e.(exporter.FeatureEvent); ok {
+				if fe, ok := e.(*exporter.FeatureEvent); ok {
 					return fe.UserKey
 				}
 
@@ -163,12 +164,15 @@ func TestE2E_Export(t *testing.T) {
 
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, exp.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
+				require.NoError(
+					t,
+					exp.Export(context.Background(), slog.New(slog.DiscardHandler), all[i:min(i+per, len(all))]),
+				)
 			}
 
 			got := readAll(t, client, stream, tt.nbEvents)
 			require.Len(t, got, tt.wantReceived)
-			sort.Slice(got, func(i, j int) bool { return got[i].UserKey < got[j].UserKey })
+			slices.SortFunc(got, func(a, b *exporter.FeatureEvent) int { return cmp.Compare(a.UserKey, b.UserKey) })
 
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.UserKey)
@@ -214,7 +218,11 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: tt.settings(t)}
-			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)), tt.wantErr)
+			require.ErrorContains(
+				t,
+				e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)),
+				tt.wantErr,
+			)
 		})
 	}
 }
@@ -231,6 +239,6 @@ func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 		AwsConfig: &cfg,
 		Settings:  kinesisexporter.NewSettings(kinesisexporter.WithStreamName(stream)),
 	}
-	require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(501)))
+	require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(501)))
 	assert.Len(t, readAll(t, client, stream, 501), 501)
 }

@@ -1,11 +1,12 @@
 package manifest
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
+	"slices"
 
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"go.opentelemetry.io/otel"
@@ -15,9 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
-	manifestHelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	manifesthelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 )
 
 const (
@@ -28,11 +29,12 @@ const (
 // Ctrl is the controller of the manifest endpoint.
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
+// NewManifest returns the handler that serves the flag manifest of a flagset.
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
+	flagsetManager service.FlagsetManager, metrics *metric.Metrics) *Ctrl {
 	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
@@ -78,7 +80,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		)
 	}
 
-	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(logger))
+	manifest, err := manifesthelper.GenerateDefinitionFromFlags(flags, manifesthelper.WithLogger(logger))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 
@@ -98,8 +100,8 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		})
 	}
 
-	sort.Slice(responses, func(i, j int) bool {
-		return responses[i].Key < responses[j].Key
+	slices.SortFunc(responses, func(a, b model.ManifestDefinitionSuccessResponse) int {
+		return cmp.Compare(a.Key, b.Key)
 	})
 	m.metrics.IncGetManifestCall()
 

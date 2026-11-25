@@ -13,6 +13,12 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
+const (
+	configMapOne = "ConfigMap1"
+	namespace    = "Namespace"
+	valid        = "valid"
+)
+
 var (
 	errKeyINVALIDNotExisting = errors.New("key INVALID not existing in config map ConfigMap1.Namespace")
 	errUnableToReadFrom      = errors.New(
@@ -78,12 +84,12 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "ConfigMap existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					Name: "ConfigMap1", Namespace: "Namespace",
-					Data: map[string]string{"valid": expectedContent},
+					Name: configMapOne, Namespace: namespace,
+					Data: map[string]string{valid: expectedContent},
 				},
-				namespace:     "Namespace",
-				configMapName: "ConfigMap1",
-				key:           "valid",
+				namespace:     namespace,
+				configMapName: configMapOne,
+				key:           valid,
 			},
 			want:    []byte(expectedContent),
 			wantErr: nil,
@@ -92,11 +98,11 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Key not existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					Name: "ConfigMap1", Namespace: "Namespace",
-					Data: map[string]string{"valid": expectedContent},
+					Name: configMapOne, Namespace: namespace,
+					Data: map[string]string{valid: expectedContent},
 				},
-				namespace:     "Namespace",
-				configMapName: "ConfigMap1",
+				namespace:     namespace,
+				configMapName: configMapOne,
 				key:           "INVALID",
 			},
 			wantErr: errKeyINVALIDNotExisting,
@@ -105,8 +111,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Config Map not existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					Name: "ConfigMap1", Namespace: "Namespace",
-					Data: map[string]string{"valid": expectedContent},
+					Name: configMapOne, Namespace: namespace,
+					Data: map[string]string{valid: expectedContent},
 				},
 				namespace:     "WrongNamespace",
 				configMapName: "NotExisting",
@@ -117,12 +123,12 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Client already there",
 			fields: fields{
 				object: &api.ConfigMap{
-					Name: "ConfigMap1", Namespace: "Namespace",
-					Data: map[string]string{"valid": expectedContent},
+					Name: configMapOne, Namespace: namespace,
+					Data: map[string]string{valid: expectedContent},
 				},
-				namespace:     "Namespace",
-				configMapName: "ConfigMap1",
-				key:           "valid",
+				namespace:     namespace,
+				configMapName: configMapOne,
+				key:           valid,
 				setClient:     true,
 			},
 			wantErr: errUnableToReadFromConfig,
@@ -131,12 +137,12 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "k8s client is nil",
 			fields: fields{
 				object: &api.ConfigMap{
-					Name: "ConfigMap1", Namespace: "Namespace",
-					Data: map[string]string{"valid": expectedContent},
+					Name: configMapOne, Namespace: namespace,
+					Data: map[string]string{valid: expectedContent},
 				},
-				namespace:     "Namespace",
-				configMapName: "ConfigMap1",
-				key:           "valid",
+				namespace:     namespace,
+				configMapName: configMapOne,
+				key:           valid,
 			},
 			wantErr: errK8sClientIsNil,
 		},

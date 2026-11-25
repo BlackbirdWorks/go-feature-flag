@@ -20,11 +20,13 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 // startRelayProxyFromYAML starts a relay proxy in the process from a YAML configuration, wired like
@@ -32,7 +34,7 @@ import (
 // executed with data, and the port of the server is available as {{ .Port }}. It returns the base URL.
 func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]any) string {
 	t.Helper()
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 
 	if data == nil {
 		data = map[string]any{}
@@ -73,7 +75,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		Metrics:           metrics,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {
@@ -82,7 +84,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		manager.Close()
 	})
 
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	baseURL := fmt.Sprintf(localhostURLFormat, port)
 	waitForServer(t, baseURL)
 
 	return baseURL
@@ -103,10 +105,10 @@ func postJSON(tb testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(tb, err)
 	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, url, bytes.NewReader(b))
 	require.NoError(tb, err)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 	if apiKey != "" {
-		req.Header.Set("X-Api-Key", apiKey)
+		req.Header.Set(helper.XAPIKeyHeader, apiKey)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}

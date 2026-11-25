@@ -5,6 +5,7 @@ package mongodbretriever_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,8 +19,12 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+)
+
+const (
+	collection = "collection"
+	database   = "database"
 )
 
 func Test_MongoDBRetriever_Retrieve(t *testing.T) {
@@ -34,18 +39,18 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 	}{
 		{
 			name: "Returns well formed flag definition document",
-			data: testutils.MongoFindResultString,
-			want: []byte(testutils.QueryResult),
+			data: testhelpers.MongoFindResultString,
+			want: []byte(testhelpers.QueryResult),
 		},
 		{
 			name: "One of the Flag definition document does not have 'flag' key/value (ignore this document)",
-			data: testutils.MongoMissingFlagKey,
-			want: []byte(testutils.MissingFlagKeyResult),
+			data: testhelpers.MongoMissingFlagKey,
+			want: []byte(testhelpers.MissingFlagKeyResult),
 		},
 		{
 			name: "Flag definition document 'flag' key does not have 'string' value (ignore this document)",
-			data: testutils.MongoFindResultFlagNoStr,
-			want: []byte(testutils.FlagKeyNotStringResult),
+			data: testhelpers.MongoFindResultFlagNoStr,
+			want: []byte(testhelpers.FlagKeyNotStringResult),
 		},
 		{
 			name: "No flags found on DB",
@@ -66,7 +71,7 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 				client, connectErr := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
 				require.NoError(t, connectErr)
 
-				coll := client.Database("database").Collection("collection")
+				coll := client.Database(database).Collection(collection)
 
 				var documents []bson.M
 
@@ -82,11 +87,11 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			// retriever
 			mdb := mongodbretriever.Retriever{
 				URI:        uri,
-				Collection: "collection",
-				Database:   "database",
+				Collection: collection,
+				Database:   database,
 			}
 			assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
-			err = mdb.Init(context.TODO(), &fflog.FFLogger{})
+			err = mdb.Init(context.TODO(), slog.New(slog.DiscardHandler))
 
 			require.NoError(t, err)
 			defer func() {
@@ -115,11 +120,11 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 
 	mdb := mongodbretriever.Retriever{
 		URI:        "invalidURI",
-		Collection: "collection",
-		Database:   "database",
+		Collection: collection,
+		Database:   database,
 	}
 	assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
-	err := mdb.Init(context.TODO(), &fflog.FFLogger{})
+	err := mdb.Init(context.TODO(), slog.New(slog.DiscardHandler))
 	require.Error(t, err)
 	assert.Equal(t, retriever.RetrieverError, mdb.Status())
 }

@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"runtime/metrics"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -185,8 +184,8 @@ func quantile(hist []int64, total int64, q float64) time.Duration {
 // Run evaluates the target at max rate with Workers goroutines for Duration and samples the
 // throughput, the latency, the heap and the goroutine count every Interval. If out is not nil,
 // each sample is written to it as it is taken.
-func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
-	opts = applySoakDefaults(opts)
+func Run(ctx context.Context, t Target, options *Options, out io.Writer) Report {
+	opts := applySoakDefaults(options)
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Duration)
 	defer cancel()
@@ -201,12 +200,11 @@ func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
 	for w := range opts.Workers {
 		stats[w] = &workerStats{}
 
-		wg.Add(1)
-		go func(w int, st *workerStats) {
-			defer wg.Done()
+		st := stats[w]
 
+		wg.Go(func() {
 			evalLoop(ctx, t, w, st)
-		}(w, stats[w])
+		})
 	}
 
 	rep := Report{Name: opts.Name}
@@ -270,7 +268,9 @@ loop:
 }
 
 // applySoakDefaults fills zero-valued Options fields with default soak parameters.
-func applySoakDefaults(opts Options) Options {
+func applySoakDefaults(given *Options) *Options {
+	opts := *given
+
 	if opts.Interval <= 0 {
 		opts.Interval = defaultSampleInterval
 	}
@@ -295,7 +295,7 @@ func applySoakDefaults(opts Options) Options {
 		opts.MaxHeapBytes = defaultMaxHeap
 	}
 
-	return opts
+	return &opts
 }
 
 // takeSample forces a GC and builds the sample of the interval that just ended.
@@ -392,7 +392,7 @@ func drain(stats []*workerStats, hist []int64) (int64, int64, int64) {
 
 const header = "  t     evals/s   err   p50(us)  p99(us)  heapAlloc(MiB) heapInuse(MiB)  heapObjs  numGC  goroutines"
 
-func (s Sample) line() string {
+func (s *Sample) line() string {
 	return fmt.Sprintf("%4ds %10.0f %5d %9.1f %8.1f %14.1f %14.1f %9d %6d %11d",
 		int(s.Elapsed.Seconds()), s.EvalsPerSec, s.Errors,
 		float64(s.P50)/nsPerUs, float64(s.P99)/nsPerUs,
@@ -400,7 +400,7 @@ func (s Sample) line() string {
 }
 
 // warmupCount is the number of leading samples ignored by the verdict and the window.
-func warmupCount(n int, o Options) int {
+func warmupCount(n int, o *Options) int {
 	if o.WarmupIntervals > 0 {
 		return o.WarmupIntervals
 	}
@@ -466,7 +466,7 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 // which a peak or a single sample does not: a leak raises the median, a bounded backlog does not.
 // It also fails when the goroutine count exceeds its value at the end of
 // the warm-up by more than GoroutineSlack.
-func judge(r *Report, opts Options) {
+func judge(r *Report, opts *Options) {
 	r.Pass = true
 	if r.TotalErr > 0 {
 		r.Pass = false
@@ -536,7 +536,7 @@ func judge(r *Report, opts Options) {
 }
 
 // Summary writes the final verdict.
-func (r Report) Summary(w io.Writer) {
+func (r *Report) Summary(w io.Writer) {
 	var avg float64
 	for _, s := range r.Samples {
 		avg += s.EvalsPerSec
@@ -571,7 +571,7 @@ func (r Report) Summary(w io.Writer) {
 			keys = append(keys, k)
 		}
 
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		tabW := tabwriter.NewWriter(w, 0, 0, tabPadding, ' ', 0)
 

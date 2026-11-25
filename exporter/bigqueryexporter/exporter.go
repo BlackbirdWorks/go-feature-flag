@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 
@@ -13,7 +14,6 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -94,7 +94,7 @@ type Exporter struct {
 // Export streams events to the configured BigQuery table.
 func (e *Exporter) Export(
 	ctx context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	rows, schema, err := e.buildRows(events)
@@ -115,7 +115,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk returns true because BigQuery rows are flushed in batches.
-func (e *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
@@ -151,7 +151,7 @@ func (e *Exporter) initClient(ctx context.Context) error {
 	return e.initErr
 }
 
-func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, bigquery.Schema, error) {
+func (*Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, bigquery.Schema, error) {
 	rows := make([]rowSaver, 0, len(events))
 	eventType := ""
 
@@ -185,11 +185,11 @@ func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, big
 // this exporter does not handle.
 func buildRow(event exporter.ExportableEvent) (rowSaver, string, error) {
 	switch evt := event.(type) {
-	case exporter.FeatureEvent:
+	case *exporter.FeatureEvent:
 		row, err := featureEventRow(evt)
 
 		return row, featureEventType, err
-	case exporter.TrackingEvent:
+	case *exporter.TrackingEvent:
 		row, err := trackingEventRow(evt)
 
 		return row, trackingEventType, err
@@ -243,7 +243,7 @@ func insertID(event exporter.ExportableEvent) string {
 	return fmt.Sprintf("%s|%s|%d", event.GetKey(), event.GetUserKey(), event.GetCreationDate())
 }
 
-func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
+func featureEventRow(event *exporter.FeatureEvent) (rowSaver, error) {
 	value, err := jsonString(event.Value)
 	if err != nil {
 		return rowSaver{}, err
@@ -272,7 +272,7 @@ func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
 	}, nil
 }
 
-func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
+func trackingEventRow(event *exporter.TrackingEvent) (rowSaver, error) {
 	trackingDetails, err := jsonString(event.TrackingDetails)
 	if err != nil {
 		return rowSaver{}, err
@@ -426,3 +426,6 @@ func isAlreadyExists(err error) bool {
 
 	return false
 }
+
+// compile-time check of the interface implemented by the type.
+var _ bigquery.ValueSaver = rowSaver{}

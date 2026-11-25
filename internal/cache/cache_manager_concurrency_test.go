@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"log/slog"
 	"maps"
 	"sync"
 	"sync/atomic"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // GetFlag and AllFlags are lock free and must see a complete cache while UpdateCache replaces it.
@@ -35,7 +35,7 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 			flags := map[string]dto.DTO{}
 			maps.Copy(flags, benchFlagsMap(t, tt.flags))
 
-			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
 			var (
@@ -46,7 +46,7 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				wg.Go(func() {
 					for !stop.Load() {
 						// Only a reader racing with Close may see the "not initialised" error.
-						f, err := mgr.GetFlag("flag-1")
+						f, err := mgr.GetFlag(flagOne)
 						if err == nil {
 							assert.NotNil(t, f)
 						} else if !tt.close {

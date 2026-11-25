@@ -10,31 +10,33 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest/model"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	configHelper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	confighelper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	dtoCore "github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	dtocore "github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
 	errFlagManifestDestinationIs = errors.New("--flag_manifest_destination is mandatory")
 )
 
+// Manifest is the flag manifest generated from a configuration file.
 type Manifest struct {
 	dtos                    map[string]dto.DTO
 	flagManifestDestination string
 }
 
+// NewManifest builds the flag manifest of the flags in configFile.
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
 		return Manifest{}, errFlagManifestDestinationIs
 	}
 
-	flagDTOs, err := configHelper.LoadConfigFile(
+	flagDTOs, err := confighelper.LoadConfigFile(
 		configFile,
 		configFormat,
-		configHelper.DefaultLocations(),
+		confighelper.DefaultLocations(),
 		helper.LegacyWarner(),
 	)
 	if err != nil {
@@ -51,9 +53,9 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
 
-	flags := make(map[string]flag.InternalFlag)
+	flags := make(map[string]flagdef.InternalFlag)
 	for k, v := range m.dtos {
-		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
+		flags[k] = dtocore.ConvertDtoToInternalFlag(&v)
 	}
 
 	output := helper.Output{}
@@ -68,11 +70,11 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		return output, fmt.Errorf("generating the definitions of the manifest: %w", err)
 	}
 
-	manifest := model.FlagManifest{
+	flagManifest := model.FlagManifest{
 		Flags: definitions,
 	}
 
-	definitionsJSON, err := m.toJSON(manifest)
+	definitionsJSON, err := m.toJSON(flagManifest)
 	if err != nil {
 		return output, err
 	}
@@ -86,8 +88,8 @@ func (m *Manifest) Generate() (helper.Output, error) {
 }
 
 // toJSON will convert the definitions to a JSON string.
-func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
-	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
+func (*Manifest) toJSON(flagManifest model.FlagManifest) (string, error) {
+	definitionsJSON, err := json.MarshalIndent(flagManifest, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("encoding the flag manifest: %w", err)
 	}
@@ -96,7 +98,7 @@ func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 }
 
 func (m *Manifest) storeManifest(definitionsJSON string) error {
-	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0o600)
 	if err != nil {
 		return fmt.Errorf("writing the flag manifest: %w", err)
 	}
@@ -114,10 +116,18 @@ type captureHandler struct {
 	records *[]capturedRecord
 }
 
-func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 
+//nolint:gocritic // hugeParam: signature fixed by log/slog.Handler
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
-	*h.records = append(*h.records, capturedRecord{level: r.Level, message: r.Message})
+	message := r.Message
+	r.Attrs(func(a slog.Attr) bool {
+		message += " " + a.Key + "=" + a.Value.String()
+
+		return true
+	})
+
+	*h.records = append(*h.records, capturedRecord{level: r.Level, message: message})
 
 	return nil
 }

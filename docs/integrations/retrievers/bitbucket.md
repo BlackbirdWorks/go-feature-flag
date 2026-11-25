@@ -35,7 +35,7 @@ To configure your GO module to use the Bitbucket retriever, you need to add the 
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &bitbucketretriever.Retriever{
         RepositorySlug: "your-org/your-repo",

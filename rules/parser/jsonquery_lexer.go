@@ -9,6 +9,21 @@ import (
 	"unicode"
 )
 
+const (
+	tokenAttrName        = "ATTRNAME"
+	tokenBoolean         = "BOOLEAN"
+	tokenComma           = "COMMA"
+	tokenDouble          = "DOUBLE"
+	tokenExp             = "EXP"
+	tokenInt             = "INT"
+	tokenLogicalOperator = "LOGICAL_OPERATOR"
+	tokenNewline         = "NEWLINE"
+	tokenNot             = "NOT"
+	tokenNull            = "NULL"
+	tokenString          = "STRING"
+	tokenVersion         = "VERSION"
+)
+
 // Suppress unused import error
 var _ = fmt.Printf
 var _ = sync.Once{}
@@ -47,16 +62,16 @@ func jsonquerylexerLexerInit() {
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "'\\n'",
 	}
 	staticData.SymbolicNames = []string{
-		"", "", "", "", "", "", "", "", "NOT", "LOGICAL_OPERATOR", "BOOLEAN",
-		"NULL", "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
-		"ATTRNAME", "VERSION", "STRING", "DOUBLE", "INT", "EXP", "NEWLINE",
-		"COMMA", "SP",
+		"", "", "", "", "", "", "", "", tokenNot, tokenLogicalOperator, tokenBoolean,
+		tokenNull, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
+		tokenAttrName, tokenVersion, tokenString, tokenDouble, tokenInt, tokenExp, tokenNewline,
+		tokenComma, "SP",
 	}
 	staticData.RuleNames = []string{
-		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", "NOT", "LOGICAL_OPERATOR",
-		"BOOLEAN", "NULL", "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
-		"EW", "ATTRNAME", "ATTR_NAME_CHAR", "ALPHA", "VERSION", "STRING", "ESC",
-		"UNICODE", "HEX", "DOUBLE", "INT", "EXP", "NEWLINE", "COMMA", "SP",
+		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", tokenNot, tokenLogicalOperator,
+		tokenBoolean, tokenNull, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
+		"EW", tokenAttrName, "ATTR_NAME_CHAR", "ALPHA", tokenVersion, tokenString, "ESC",
+		"UNICODE", "HEX", tokenDouble, tokenInt, tokenExp, tokenNewline, tokenComma, "SP",
 		"VALID_SEMVER", "VERSION_CORE", "MAJOR", "MINOR", "PATCH", "PRERELEASE",
 		"DOT_SEPARATED_PRERELEASE_IDENTIFIERS", "BUILD", "DOT_SEPARATED_BUILD_IDENTIFIERS",
 		"PRERELEASE_IDENTIFIER", "BUILD_IDENTIFIER", "ALPHANUMERIC_IDENTIFIER",

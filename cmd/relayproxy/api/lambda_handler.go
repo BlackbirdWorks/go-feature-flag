@@ -54,10 +54,10 @@ func (h *awsLambdaHandler) SelectAdapter(mode string) any {
 // HandlerAPIGatewayV2 is the function that proxy the lambda events to the API handler for API Gateway V2.
 func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 	ctx context.Context,
-	req events.APIGatewayV2HTTPRequest,
+	req *events.APIGatewayV2HTTPRequest,
 ) (
 	events.APIGatewayV2HTTPResponse, error) {
-	res, err := h.adapterAPIGtwV2.ProxyWithContext(ctx, req)
+	res, err := h.adapterAPIGtwV2.ProxyWithContext(ctx, *orZero(req))
 	if err != nil {
 		return res, fmt.Errorf("proxying the API Gateway V2 event: %w", err)
 	}
@@ -68,10 +68,10 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 // HandlerAPIGatewayV1 is the function that proxy the lambda events to the API handler for API Gateway V1.
 func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 	ctx context.Context,
-	req events.APIGatewayProxyRequest,
+	req *events.APIGatewayProxyRequest,
 ) (
 	events.APIGatewayProxyResponse, error) {
-	res, err := h.adapterAPIGtwV1.ProxyWithContext(ctx, req)
+	res, err := h.adapterAPIGtwV1.ProxyWithContext(ctx, *orZero(req))
 	if err != nil {
 		return res, fmt.Errorf("proxying the API Gateway V1 event: %w", err)
 	}
@@ -80,12 +80,21 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 }
 
 // HandlerALB is the function that proxy the lambda events to the API handler for API Gateway V1.
-func (h *awsLambdaHandler) HandlerALB(ctx context.Context, req events.ALBTargetGroupRequest) (
+func (h *awsLambdaHandler) HandlerALB(ctx context.Context, req *events.ALBTargetGroupRequest) (
 	events.ALBTargetGroupResponse, error) {
-	res, err := h.adapterALB.ProxyWithContext(ctx, req)
+	res, err := h.adapterALB.ProxyWithContext(ctx, *orZero(req))
 	if err != nil {
 		return res, fmt.Errorf("proxying the ALB event: %w", err)
 	}
 
 	return res, nil
+}
+
+// orZero returns the event the Lambda runtime decoded, or a pointer to the zero event for a null payload.
+func orZero[T any](event *T) *T {
+	if event == nil {
+		return new(T)
+	}
+
+	return event
 }

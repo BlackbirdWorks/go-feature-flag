@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -37,29 +38,29 @@ func (m *mockConn) WriteJSON(val any) error {
 func sensitiveDiffCache() notifier.DiffCache {
 	beforeQuery := `user.email eq "before@example.com"`
 	afterQuery := `user.email eq "after@example.com"`
-	enabled := "enabled"
+	enabled := fixtures.VariationEnabled
 
 	return notifier.DiffCache{
-		Deleted: map[string]flag.Flag{
-			"deleted-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": new(any(true))},
-				Rules: &[]flag.Rule{
+		Deleted: map[string]flagdef.Flag{
+			"deleted-flag": &flagdef.InternalFlag{
+				Variations: &map[string]*any{fixtures.VariationEnabled: new(any(true))},
+				Rules: &[]flagdef.Rule{
 					{Query: &beforeQuery, VariationResult: &enabled},
 				},
 			},
 		},
-		Added: map[string]flag.Flag{
-			"added-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": new(any(true))},
-				Rules: &[]flag.Rule{
+		Added: map[string]flagdef.Flag{
+			"added-flag": &flagdef.InternalFlag{
+				Variations: &map[string]*any{fixtures.VariationEnabled: new(any(true))},
+				Rules: &[]flagdef.Rule{
 					{Query: &afterQuery, VariationResult: &enabled},
 				},
 			},
 		},
 		Updated: map[string]notifier.DiffUpdated{
 			"updated-flag": {
-				Before: &flag.InternalFlag{Rules: &[]flag.Rule{{Query: &beforeQuery}}},
-				After:  &flag.InternalFlag{Rules: &[]flag.Rule{{Query: &afterQuery}}},
+				Before: &flagdef.InternalFlag{Rules: &[]flagdef.Rule{{Query: &beforeQuery}}},
+				After:  &flagdef.InternalFlag{Rules: &[]flagdef.Rule{{Query: &afterQuery}}},
 			},
 		},
 	}
@@ -103,9 +104,9 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 				return nil
 			}
-			websocketService.Register(conn, "default")
+			websocketService.Register(conn, fixtures.FlagsetDefault)
 
-			websocketService.BroadcastFlagChanges("default", diff)
+			websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 
 			actualJSON, err := json.Marshal(received)
 			require.NoError(t, err)
@@ -130,8 +131,8 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	conn2 := &mockConn{}
 
 	// Register the mock connections
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtures.FlagsetDefault)
+	websocketService.Register(conn2, fixtures.FlagsetDefault)
 
 	// Set up a flag to track if the WriteJSON function is called on the connections
 	conn1WriteJSONCalled := false
@@ -151,7 +152,7 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	}
 
 	// Call the BroadcastFlagChanges function
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -170,7 +171,7 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 	}{
 		{
 			name:             "broadcast on flagset-a only reaches flagset-a clients",
-			broadcastFlagset: "flagset-a",
+			broadcastFlagset: fixtures.FlagsetLower,
 			want:             map[string]bool{"a1": true, "a2": true, "b1": false},
 		},
 		{
@@ -190,7 +191,7 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 			t.Parallel()
 
 			websocketService := stream.NewWebsocketService()
-			clients := map[string]string{"a1": "flagset-a", "a2": "flagset-a", "b1": "flagset-b"}
+			clients := map[string]string{"a1": fixtures.FlagsetLower, "a2": fixtures.FlagsetLower, "b1": "flagset-b"}
 
 			got := map[string]bool{}
 			for name, flagsetName := range clients {
@@ -228,14 +229,14 @@ func TestDeregister(t *testing.T) {
 	}
 
 	// Register the mock connection
-	websocketService.Register(conn, "default")
+	websocketService.Register(conn, fixtures.FlagsetDefault)
 
 	// Call the Deregister function
 	websocketService.Deregister(conn)
 
 	// Call the BroadcastFlagChanges function after deregistering the connection
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -271,15 +272,15 @@ func TestClose(t *testing.T) {
 	}
 
 	// Register the mock connections
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtures.FlagsetDefault)
+	websocketService.Register(conn2, fixtures.FlagsetDefault)
 
 	// Call the Close function
 	websocketService.Close()
 
 	// Call the BroadcastFlagChanges function after closing the connections
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -301,8 +302,8 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 	// in the past we had a deadlock here (see: https://github.com/thomaspoignant/go-feature-flag/issues/3144)
 	conn2 := &mockConn{throwError: true}
 
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtures.FlagsetDefault)
+	websocketService.Register(conn2, fixtures.FlagsetDefault)
 
 	conn1WriteJSONCalled := false
 	conn1.writeJSONFunc = func(_ any) error {
@@ -311,7 +312,7 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 		return nil
 	}
 
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 	assert.True(t, conn1WriteJSONCalled, "WriteJSON should be called on conn1")
 
 	// We are not testing the error here, we are testing that the function does not deadlock

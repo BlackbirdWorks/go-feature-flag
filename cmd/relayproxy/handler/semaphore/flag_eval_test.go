@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"errors"
@@ -20,10 +20,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-const configFlagsLocation = testdataDir + "/config_flags.yaml"
+const (
+	flagEvalValidRequest = "/flag_eval/valid_request.json"
+	flagOnlyForAdmin     = "flag-only-for-admin"
+	testFlagRuleApply    = "test-flag-rule-apply-false"
+)
+
+const configFlagsLocation = testdataDir + configFlagsYaml
 
 func Test_flag_eval_Handler(t *testing.T) {
 	t.Parallel()
@@ -47,10 +54,10 @@ func Test_flag_eval_Handler(t *testing.T) {
 		want want
 	}{
 		{
-			name: "valid flag",
+			name: validFlag,
 			args: args{
-				flagKey:  "flag-only-for-admin",
-				bodyFile: testdataDir + "/flag_eval/valid_request.json",
+				flagKey:  flagOnlyForAdmin,
+				bodyFile: testdataDir + flagEvalValidRequest,
 			},
 			want: want{
 				httpCode: http.StatusOK,
@@ -104,7 +111,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 		{
 			name: "Get false value, rule apply",
 			args: args{
-				flagKey:  "test-flag-rule-apply-false",
+				flagKey:  testFlagRuleApply,
 				bodyFile: testdataDir + "/flag_eval/rule_apply_false_request.json",
 			},
 			want: want{
@@ -113,21 +120,21 @@ func Test_flag_eval_Handler(t *testing.T) {
 			},
 		},
 		{
-			name: "Invalid json format",
+			name: invalidJSONFormat,
 			args: args{
-				flagKey:  "test-flag-rule-apply-false",
+				flagKey:  testFlagRuleApply,
 				bodyFile: testdataDir + "/flag_eval/invalid_json_request.json",
 			},
 			want: want{
 				handlerErr: true,
-				errorMsg:   "Bad Request",
+				errorMsg:   badRequest,
 				errorCode:  http.StatusBadRequest,
 			},
 		},
 		{
 			name: "No user key in payload",
 			args: args{
-				flagKey:  "test-flag-rule-apply-false",
+				flagKey:  testFlagRuleApply,
 				bodyFile: testdataDir + "/flag_eval/no_user_key_request.json",
 			},
 			want: want{
@@ -139,7 +146,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 		{
 			name: "legacy user field is rejected and points to evaluationContext",
 			args: args{
-				flagKey:  "test-flag-rule-apply-false",
+				flagKey:  testFlagRuleApply,
 				bodyFile: testdataDir + "/flag_eval/legacy_user_request.json",
 			},
 			want: want{
@@ -153,7 +160,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			name: "no flag key in URL",
 			args: args{
 				flagKey:  "",
-				bodyFile: testdataDir + "/flag_eval/valid_request.json",
+				bodyFile: testdataDir + flagEvalValidRequest,
 			},
 			want: want{
 				handlerErr: true,
@@ -183,9 +190,9 @@ func Test_flag_eval_Handler(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
-			flagEval := controller.NewFlagEval(flagsetManager, metric.Metrics{})
+			flagEval := controller.NewFlagEval(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -193,18 +200,23 @@ func Test_flag_eval_Handler(t *testing.T) {
 
 			if tt.args.bodyFile != "" {
 				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, readFileErr, requestWantBodyFileMissing, tt.args.bodyFile)
 
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/v1/feature/"+tt.args.flagKey+"/eval",
+				bodyReq,
+			)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.SetPathValue("flagKey", tt.args.flagKey)
 			handlerErr := flagEval.Handler(rec, req)
 
 			if tt.want.handlerErr {
-				require.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, handlerShouldReturnAn)
 
 				he := &helper.HTTPError{}
 
@@ -220,9 +232,9 @@ func Test_flag_eval_Handler(t *testing.T) {
 			}
 
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
-			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
+			require.NoError(t, err, impossibleTheExpectedWantBody, tt.want.bodyFile)
+			assert.Equal(t, tt.want.httpCode, rec.Code, invalidHTTPCode)
+			assert.JSONEq(t, string(wantBody), rec.Body.String(), invalidResponseWantBody)
 		})
 	}
 }
@@ -244,8 +256,8 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",
-			flagKeys: []string{"flag-only-for-admin", "flag-only-for-admin", "test-flag-rule-apply"},
-			bodyFile: testdataDir + "/flag_eval/valid_request.json",
+			flagKeys: []string{flagOnlyForAdmin, flagOnlyForAdmin, "test-flag-rule-apply"},
+			bodyFile: testdataDir + flagEvalValidRequest,
 			want: metricHeader +
 				metricName + "{flag_name=\"flag-only-for-admin\"} 2\n" +
 				metricName + "{flag_name=\"test-flag-rule-apply\"} 1\n",
@@ -258,7 +270,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 		},
 		{
 			name:     "should not count a request that is not evaluated",
-			flagKeys: []string{"flag-only-for-admin", "unknown-flag"},
+			flagKeys: []string{flagOnlyForAdmin, "unknown-flag"},
 			bodyFile: testdataDir + "/flag_eval/invalid_json_request.json",
 			want:     "",
 		},
@@ -281,7 +293,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
 			defer flagsetManager.Close()
 
@@ -294,9 +306,9 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
-				req := httptest.NewRequest(
+				req := httptest.NewRequestWithContext(t.Context(),
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))
-				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 				req.SetPathValue("flagKey", flagKey)
 				_ = flagEval.Handler(httptest.NewRecorder(), req)
 			}

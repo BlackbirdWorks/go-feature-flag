@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/shared"
 )
 
+const (
+	buildingTheHTTPAPI = `building the HTTP API request: parse "[REDACTED]": invalid URL`
+)
+
 var (
 	errConnectionRefused       = errors.New("connection refused")
 	errStoppedAfter10Redirects = errors.New("stopped after 10 redirects")
@@ -44,26 +48,32 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 			name:    "unparsable url (invalid port)",
 			url:     "https://user:SECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 		{
 			name:    "unparsable url (invalid escape)",
 			url:     "https://u:p@h/%zzSECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 		{
 			name:    "unparsable url (control character)",
 			url:     "https://h/\x7fSECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
+			resp, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
+
+			t.Cleanup(func() {
+				if resp != nil && resp.Body != nil {
+					require.NoError(t, resp.Body.Close())
+				}
+			})
 			require.EqualError(t, err, tt.wantErr)
 			assert.NotContains(t, err.Error(), "SECRETMARKER")
 		})
@@ -83,6 +93,11 @@ func TestCallHTTPAPI_KeepsResponseOnClientError(t *testing.T) {
 	resp, err := shared.CallHTTPAPI(context.Background(),
 		"https://user:SECRETMARKER@flags.example.com/f", "", "", 0, nil, redirectRejectingClient{resp: want})
 	require.Error(t, err)
+	t.Cleanup(func() {
+		if resp != nil && resp.Body != nil {
+			require.NoError(t, resp.Body.Close())
+		}
+	})
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 	require.Same(t, want, resp)
 }

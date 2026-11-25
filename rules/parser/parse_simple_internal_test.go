@@ -6,6 +6,29 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	bbc                 = "bbc"
+	cde                 = "cde"
+	versionOneOneZero   = "1.1.0"
+	parenthesizedFormat = "(%s)"
+	notEqualExpr        = `x != 1`
+	xEqOneZeroZero      = `x EQ 1.0.0`
+	xEqOne              = `x eq 1`
+	xEqOneZero          = `x eq 1.0`
+	xEqNull             = `x eq null`
+	xGeOneOneZero       = `x GE 1.1.0`
+	xGtOneOneZero       = `x GT 1.1.0`
+	xGeOne              = `x ge 1`
+	xGeCde              = `x ge "cde"`
+	xLeOneOneZero       = `x LE 1.1.0`
+	xLtOneOneZero       = `x LT 1.1.0`
+	xLeOne              = `x le 1`
+	xLeOneOne           = `x le 1.1`
+	xNeOneZeroZero      = `x NE 1.0.0`
 )
 
 type testCase struct {
@@ -63,7 +86,7 @@ func runVersionTests(t *testing.T, tests []testCase) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
 			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -73,15 +96,15 @@ func TestVersions(t *testing.T) {
 
 	runVersionTests(t, []testCase{
 		{
-			rule: `x EQ 1.0.0`,
+			rule: xEqOneZeroZero,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x EQ 1.0.0`,
+			rule: xEqOneZeroZero,
 			input: obj{
 				"x": 2,
 			},
@@ -89,21 +112,21 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x EQ 1.0.0`,
+			rule: xEqOneZeroZero,
 			input: obj{
-				"y": "1.0.0",
+				"y": fixtures.VersionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule:     `x EQ 1.0.0`,
+			rule:     xEqOneZeroZero,
 			input:    obj{},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x EQ 1.0.0`,
+			rule: xEqOneZeroZero,
 			input: obj{
 				"x": "1.1.1",
 			},
@@ -111,7 +134,7 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x NE 1.0.0`,
+			rule: xNeOneZeroZero,
 			input: obj{
 				"x": "1.0.0.",
 			},
@@ -119,7 +142,7 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x NE 1.0.0`,
+			rule: xNeOneZeroZero,
 			input: obj{
 				"x": 2.3,
 			},
@@ -127,31 +150,31 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x NE 1.0.0`,
+			rule: xNeOneZeroZero,
 			input: obj{
-				"x": "1.1.0",
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x LT 1.1.0`,
+			rule: xLtOneOneZero,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x LT 1.1.0`,
+			rule: xLtOneOneZero,
 			input: obj{
-				"x": "2.0.0",
+				"x": fixtures.VersionTwoZeroZero,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x LT 1.1.0`,
+			rule: xLtOneOneZero,
 			input: obj{
 				"x": 1,
 			},
@@ -159,31 +182,31 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x LE 1.1.0`,
+			rule: xLeOneOneZero,
 			input: obj{
-				"x": "1.1.0",
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x LE 1.1.0`,
+			rule: xLeOneOneZero,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x LE 1.1.0`,
+			rule: xLeOneOneZero,
 			input: obj{
-				"x": "2.0.0",
+				"x": fixtures.VersionTwoZeroZero,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x LE 1.1.0`,
+			rule: xLeOneOneZero,
 			input: obj{
 				"x": 2,
 			},
@@ -191,23 +214,23 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x GT 1.1.0`,
+			rule: xGtOneOneZero,
 			input: obj{
-				"x": "2.0.0",
+				"x": fixtures.VersionTwoZeroZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x GT 1.1.0`,
+			rule: xGtOneOneZero,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x GT 1.1.0`,
+			rule: xGtOneOneZero,
 			input: obj{
 				"x": 1,
 			},
@@ -215,31 +238,31 @@ func TestVersions(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x GE 1.1.0`,
+			rule: xGeOneOneZero,
 			input: obj{
-				"x": "2.0.0",
+				"x": fixtures.VersionTwoZeroZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x GE 1.1.0`,
+			rule: xGeOneOneZero,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x GE 1.1.0`,
+			rule: xGeOneOneZero,
 			input: obj{
-				"x": "1.1.0",
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x GE 1.1.0`,
+			rule: xGeOneOneZero,
 			input: obj{
 				"x": 1,
 			},
@@ -249,7 +272,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x CO 1.1.0`,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -257,7 +280,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x SW 1.1.0`,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -265,7 +288,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x EW 1.1.0`,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -273,7 +296,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x SW 1.1.0`,
 			input: obj{
-				"x": "1.0.0",
+				"x": fixtures.VersionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -287,7 +310,7 @@ func TestVersions_PrereleaseAndBuild(t *testing.T) {
 	// ensure prerelease comparisons work per semver spec
 	runVersionTests(t, []testCase{
 		{
-			rule: `x LT 1.1.0`,
+			rule: xLtOneOneZero,
 			input: obj{
 				"x": "1.1.0-alpha",
 			},
@@ -368,7 +391,7 @@ func TestVersions_PrereleaseAndBuild(t *testing.T) {
 		},
 		// build metadata is ignored in comparisons per semver spec
 		{
-			rule: `x EQ 1.0.0`,
+			rule: xEqOneZeroZero,
 			input: obj{
 				"x": "1.0.0+20130313144700",
 			},
@@ -441,7 +464,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `x IN ["abc", "cde", "fgh"]`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -449,7 +472,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `y eq 5 and x IN ["abc", "cde", "fgh"]`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 				"y": 5,
 			},
 			result:   true,
@@ -458,7 +481,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `y eq 5 and (x IN ["abc","cde","fgh"])`,
 			input: obj{
-				"x": "cde",
+				"x": cde,
 				"y": 5,
 			},
 			result:   true,
@@ -467,7 +490,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `y eq 5 and not (x IN ["abc","cde","fgh"])`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 				"y": 5,
 			},
 			result:   false,
@@ -488,7 +511,7 @@ func TestListOfStrings(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -547,8 +570,8 @@ func TestListOfDoubles(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.False(t, Evaluate(tt.rule, obj{"x": "abc"}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": fixtures.UserKeyAbc}), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -608,7 +631,7 @@ func TestListOfInts(t *testing.T) {
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": "123"}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -654,7 +677,7 @@ func TestPresent(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -664,7 +687,7 @@ func TestNull(t *testing.T) {
 
 	tests := []testCase{
 		{
-			rule: `x eq null`,
+			rule: xEqNull,
 			input: obj{
 				"x": true,
 			},
@@ -688,7 +711,7 @@ func TestNull(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq null`,
+			rule: xEqNull,
 			input: obj{
 				"x": nil,
 			},
@@ -696,7 +719,7 @@ func TestNull(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule:     `x eq null`,
+			rule:     xEqNull,
 			input:    obj{},
 			result:   true,
 			hasError: false,
@@ -708,7 +731,7 @@ func TestNull(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -797,7 +820,7 @@ func TestBool(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input))
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -857,7 +880,7 @@ func TestInt(t *testing.T) {
 
 	tests := []testCase{
 		{
-			rule: `x eq 1`,
+			rule: xEqOne,
 			input: obj{
 				"x": 1,
 			},
@@ -873,7 +896,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq 1`,
+			rule: xEqOne,
 			input: obj{
 				"x": "1",
 			},
@@ -881,7 +904,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq 1`,
+			rule: xEqOne,
 			input: obj{
 				"y": 1,
 			},
@@ -897,7 +920,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x != 1`,
+			rule: notEqualExpr,
 			input: obj{
 				"x": 1,
 			},
@@ -913,7 +936,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x != 1`,
+			rule: notEqualExpr,
 			input: obj{
 				"x": "1",
 			},
@@ -929,7 +952,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1`,
+			rule: xLeOne,
 			input: obj{
 				"x": 0,
 			},
@@ -945,7 +968,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1`,
+			rule: xLeOne,
 			input: obj{
 				"x": "1",
 			},
@@ -961,7 +984,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1`,
+			rule: xLeOne,
 			input: obj{
 				"x": 2,
 			},
@@ -1065,7 +1088,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x ge 1`,
+			rule: xGeOne,
 			input: obj{
 				"x": 1,
 			},
@@ -1073,7 +1096,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x ge 1`,
+			rule: xGeOne,
 			input: obj{
 				"x": "1",
 			},
@@ -1081,7 +1104,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x ge 1`,
+			rule: xGeOne,
 			input: obj{
 				"x": 0,
 			},
@@ -1105,7 +1128,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x != 1`,
+			rule: notEqualExpr,
 			input: obj{
 				"x": 2,
 			},
@@ -1113,7 +1136,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq 1`,
+			rule: xEqOne,
 			input: obj{
 				"y": 1.0,
 			},
@@ -1135,7 +1158,7 @@ func TestInt(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -1145,7 +1168,7 @@ func TestFloat(t *testing.T) {
 
 	tests := []testCase{
 		{
-			rule: `x eq 1.0`,
+			rule: xEqOneZero,
 			input: obj{
 				"x": 1.0,
 			},
@@ -1153,7 +1176,7 @@ func TestFloat(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq 1.0`,
+			rule: xEqOneZero,
 			input: obj{
 				"y": 1.0,
 			},
@@ -1169,7 +1192,7 @@ func TestFloat(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1.1`,
+			rule: xLeOneOne,
 			input: obj{
 				"x": 0,
 			},
@@ -1177,7 +1200,7 @@ func TestFloat(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1.1`,
+			rule: xLeOneOne,
 			input: obj{
 				"x": 1.1,
 			},
@@ -1185,7 +1208,7 @@ func TestFloat(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x le 1.1`,
+			rule: xLeOneOne,
 			input: obj{
 				"x": 2.0,
 			},
@@ -1257,7 +1280,7 @@ func TestFloat(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x eq 1.0`,
+			rule: xEqOneZero,
 			input: obj{
 				"y": 1.0,
 			},
@@ -1271,7 +1294,7 @@ func TestFloat(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": "2.4"}), tt.rule)
 		})
 	}
@@ -1298,7 +1321,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x eq "abc"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1306,7 +1329,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x eq "abc"`,
 			input: obj{
-				"y": "abc",
+				"y": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1314,7 +1337,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x ne "abc"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1322,7 +1345,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x le "abc"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1330,7 +1353,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x le "cde"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1346,7 +1369,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x lt "cde"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1354,7 +1377,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x lt "cde"`,
 			input: obj{
-				"x": "cde",
+				"x": cde,
 			},
 			result:   false,
 			hasError: false,
@@ -1370,21 +1393,21 @@ func TestString(t *testing.T) {
 		{
 			rule: `x gt "cde"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule: `x ge "cde"`,
+			rule: xGeCde,
 			input: obj{
-				"x": "cde",
+				"x": cde,
 			},
 			result:   true,
 			hasError: false,
 		},
 		{
-			rule: `x ge "cde"`,
+			rule: xGeCde,
 			input: obj{
 				"x": "def",
 			},
@@ -1392,9 +1415,9 @@ func TestString(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: `x ge "cde"`,
+			rule: xGeCde,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1402,7 +1425,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x ne "abc"`,
 			input: obj{
-				"x": "cde",
+				"x": cde,
 			},
 			result:   true,
 			hasError: false,
@@ -1410,7 +1433,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x co "ab"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1418,7 +1441,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x co "ab"`,
 			input: obj{
-				"x": "bbc",
+				"x": bbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1426,7 +1449,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x CO "ab"`,
 			input: obj{
-				"x": "bbc",
+				"x": bbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1434,7 +1457,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x sw "ab"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1442,7 +1465,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x SW "ab"`,
 			input: obj{
-				"x": "abc",
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1450,7 +1473,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x sw "ab"`,
 			input: obj{
-				"x": "bbc",
+				"x": bbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1466,7 +1489,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x EW "ab"`,
 			input: obj{
-				"x": "bbc",
+				"x": bbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1478,7 +1501,7 @@ func TestString(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": 3}), tt.rule)
 		})
 	}

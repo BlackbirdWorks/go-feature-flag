@@ -2,6 +2,7 @@ package fileexporter_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,7 +19,13 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	parquetFileSuffixPattern = "-[0-9]*\\.parquet$"
+	parquetName              = "parquet"
 )
 
 type fileExportFields struct {
@@ -31,7 +38,7 @@ type fileExportFields struct {
 }
 
 type fileExportArgs struct {
-	logger *fflog.FFLogger
+	logger *slog.Logger
 	events []exporter.ExportableEvent
 }
 
@@ -55,7 +62,8 @@ type fileExportCase struct {
 func runFileExportTests(t *testing.T, tests []fileExportCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -121,70 +129,70 @@ func TestFile_Export(t *testing.T) {
 			fields:  fileExportFields{},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + fixtures.JSONFileSuffixPattern,
+				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
 		{
 			name:    "all default csv",
 			wantErr: false,
 			fields: fileExportFields{
-				Format: "csv",
+				Format: protocol.FormatCSV,
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + "-[0-9]*\\.csv",
 				content:       "./testdata/all_default.csv",
 			},
 		},
@@ -192,63 +200,63 @@ func TestFile_Export(t *testing.T) {
 			name:    "all default parquet",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:                  "parquet",
+				Format:                  parquetName,
 				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        `"YO"`,
 						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        `"YO2"`,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 						Metadata:     map[string]any{},
 					},
 				},
@@ -266,7 +274,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			name:    "all default parquet tracking events",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:                  "parquet",
+				Format:                  parquetName,
 				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
 				Filename:                "tracking-{{ .Hostname}}-{{ .Timestamp}}.parquet",
 				EventType:               "tracking",
@@ -274,10 +282,10 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			args: fileExportArgs{
 
 				events: []exporter.ExportableEvent{
-					exporter.TrackingEvent{
-						Kind:              "feature",
+					&exporter.TrackingEvent{
+						Kind:              fixtures.KindFeature,
 						ContextKind:       "anonymous",
-						UserKey:           "xxx",
+						UserKey:           fixtures.PlaceholderXxx,
 						CreationDate:      1617970547,
 						Key:               "what-ever-you-want",
 						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
@@ -286,12 +294,12 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^tracking-" + hostname + "-[0-9]*\\.parquet$",
+				fileNameRegex: "^tracking-" + hostname + parquetFileSuffixPattern,
 				trackingEvents: []exporter.TrackingEvent{
 					{
-						Kind:              "feature",
+						Kind:              fixtures.KindFeature,
 						ContextKind:       "anonymous",
-						UserKey:           "xxx",
+						UserKey:           fixtures.PlaceholderXxx,
 						CreationDate:      1617970547,
 						Key:               "what-ever-you-want",
 						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
@@ -304,37 +312,37 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			name:    "custom CSV format",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:      "csv",
+				Format:      protocol.FormatCSV,
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + "-[0-9]*\\.csv",
 				content:       "./testdata/custom_csv_format.csv",
 			},
 		},
@@ -342,18 +350,18 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			name:    "complex parquet value",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:                  "parquet",
+				Format:                  parquetName,
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value: map[string]any{
 							"string": "string",
 							"bool":   true,
@@ -361,25 +369,25 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 							"int":    1,
 						},
 						Default:  false,
-						Source:   "SERVER",
-						Metadata: map[string]any{"test": "test"},
+						Source:   fixtures.SourceServer,
+						Metadata: map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
 						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 				},
 			},
@@ -388,32 +396,32 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			name:    "custom file name",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:   "json",
+				Format:   protocol.FormatJSON,
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -425,86 +433,47 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 	})
 }
 
-func TestFile_Export_OutputDirAndErrors(t *testing.T) {
+func TestFile_Export_InvalidFormatAndTemplates(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
 	hostname, _ := os.Hostname()
 	runFileExportTests(t, []fileExportCase{
 		{
 			name:    "invalid format",
 			wantErr: false,
 			fields: fileExportFields{
-				Format: "xxx",
+				Format: fixtures.PlaceholderXxx,
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.xxx$",
-				content:       "./testdata/all_default.json",
-			},
-		},
-		{
-			name:    "non-existent outputdir",
-			wantErr: false,
-			fields: fileExportFields{
-				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
-			},
-			args: fileExportArgs{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + "-[0-9]*\\.xxx$",
+				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
 		{
@@ -515,27 +484,27 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -544,55 +513,102 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			name:    "invalid csv formatter",
 			wantErr: true,
 			fields: fileExportFields{
-				Format:      "csv",
+				Format:      protocol.FormatCSV,
 				CsvTemplate: "{{ .Foo}}",
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
+			},
+		},
+	})
+}
+
+func TestFile_Export_OutputDir(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
+		{
+			name:    "non-existent outputdir",
+			wantErr: false,
+			fields: fileExportFields{
+				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
+						CreationDate: 1617970547,
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        "YO",
+						Default:      false,
+						Source:       fixtures.SourceServer,
+					},
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
+						CreationDate: 1617970701,
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
+						Default:      false,
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + fixtures.JSONFileSuffixPattern,
+				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
 		{
 			name:    "outputdir with invalid permissions",
 			wantErr: true,
 			fields: fileExportFields{
-				Format:    "parquet",
+				Format:    parquetName,
 				OutputDir: filepath.Join(tempDir, "invalid-permissions-dir"),
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -604,15 +620,15 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
 
-				err := os.MkdirAll(fields.OutputDir, 0755)
+				err := os.MkdirAll(fields.OutputDir, 0o755)
 				require.NoError(t, err)
-				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
+				err = os.Chmod(fields.OutputDir, 0o000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 
-				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
+				err := os.Chmod(fields.OutputDir, 0o755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},
@@ -620,21 +636,21 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			name:    "outputdir with invalid parent folder",
 			wantErr: true,
 			fields: fileExportFields{
-				Format:    "parquet",
+				Format:    parquetName,
 				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -648,15 +664,15 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 				// Only the dedicated parent of this case loses its permissions, the other
 				// cases of this table run in parallel in sibling directories of tempDir.
 				parent := filepath.Dir(fields.OutputDir)
-				err := os.MkdirAll(parent, 0755)
+				err := os.MkdirAll(parent, 0o755)
 				require.NoError(t, err)
-				err = os.Chmod(parent, 0000) // Remove all permissions
+				err = os.Chmod(parent, 0o000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 
-				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
+				err := os.Chmod(filepath.Dir(fields.OutputDir), 0o755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},
@@ -664,39 +680,39 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			name:    "outputdir with trailing slash",
 			wantErr: false,
 			fields: fileExportFields{
-				Format:    "json",
+				Format:    protocol.FormatJSON,
 				OutputDir: filepath.Join(tempDir, "dir-with-trailing-slash") + "/",
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + fixtures.JSONFileSuffixPattern,
+				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
 	})
@@ -758,7 +774,7 @@ func assertExportOutput(
 ) {
 	t.Helper()
 
-	if format == "parquet" {
+	if format == parquetName {
 		if eventType == "tracking" {
 			assert.ElementsMatch(t, expectedTrackingEvents, readParquetTrackingEvents(t, filePath))
 
@@ -791,17 +807,25 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	t.Parallel()
 
 	featureEvents := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-			Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
-		}}
+		&exporter.FeatureEvent{
+			Kind:         fixtures.KindFeature,
+			ContextKind:  fixtures.UserKeyAnonymous,
+			UserKey:      fixtures.UserKeyABCD,
+			CreationDate: 1617970547,
+			Key:          fixtures.UserKeyRandom,
+			Variation:    fixtures.VariationDefault,
+			Value:        "YO",
+			Default:      false,
+			Source:       fixtures.SourceServer,
+		},
+	}
 
 	filePrefix := "test-flag-variation-EXAMPLE-"
 	e := fileexporter.Exporter{
-		Format:   "json",
+		Format:   protocol.FormatJSON,
 		Filename: filePrefix + "{{ .Timestamp}}.{{ .Format}}",
 	}
-	err := e.Export(context.Background(), nil, featureEvents)
+	err := e.Export(context.Background(), slog.New(slog.DiscardHandler), featureEvents)
 	require.NoError(t, err)
 
 	// check that a file exist

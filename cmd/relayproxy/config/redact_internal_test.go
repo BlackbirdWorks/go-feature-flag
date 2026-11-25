@@ -11,7 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	visibleVersion = "visible-version"
 )
 
 const secretMarker = "SECRETMARKER"
@@ -101,7 +106,11 @@ func fillLeaves(target reflect.Value, counter *int) {
 				fillLeaves(target.Field(i), counter)
 			}
 		}
-	default:
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan,
+		reflect.Func, reflect.Interface, reflect.UnsafePointer:
+		// no string leaf to fill
 	}
 }
 
@@ -161,8 +170,8 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	// values that are not in a secret field but are in a map under a sensitive key.
 	conf.EvaluationContextEnrichment = map[string]any{"apiKey": secretMarker + "-enrichment", "env": "prod"}
 	conf.OtelConfig.Resource.Attributes = map[string]string{"service.token": secretMarker + "-otel"}
-	conf.Version = "visible-version"
-	conf.LogLevel = "debug"
+	conf.Version = visibleVersion
+	conf.LogLevel = fixtures.LogLevelDebug
 
 	return conf
 }
@@ -185,7 +194,7 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 				slog.Any("newConfig", conf))
 
 			assert.NotContains(t, buf.String(), secretMarker)
-			assert.Contains(t, buf.String(), "visible-version", "the non-secret part of the config must be logged")
+			assert.Contains(t, buf.String(), visibleVersion, "the non-secret part of the config must be logged")
 			assert.Contains(t, buf.String(), RedactedValue)
 		})
 	}
@@ -206,17 +215,17 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 		l := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		l.Debug("config", slog.Any("config", conf))
 		assert.NotContains(t, buf.String(), secretMarker)
-		assert.Contains(t, buf.String(), "visible-version")
+		assert.Contains(t, buf.String(), visibleVersion)
 	})
 }
 
 func TestRedactedKeepsPlainValues(t *testing.T) {
 	t.Parallel()
 
-	conf := &Config{LogLevel: "debug", Version: "1.0"}
+	conf := &Config{LogLevel: fixtures.LogLevelDebug, Version: "1.0"}
 	conf.AuthorizedKeys.Admin = []string{"a-secret-admin"}
 	redacted := conf.Redacted()
-	assert.Equal(t, "debug", redacted["loglevel"])
+	assert.Equal(t, fixtures.LogLevelDebug, redacted["loglevel"])
 	assert.Equal(t, RedactedValue, redacted["authorizedkeys"])
 	assert.Nil(t, (*Config)(nil).Redacted())
 }

@@ -15,11 +15,11 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -28,18 +28,21 @@ var (
 
 var _ Manager = (*ManagerImpl)(nil)
 
+// Manager caches the flag configurations and gives access to the flags.
 type Manager interface {
-	UpdateCache(newFlags map[string]dto.DTO, log *fflog.FFLogger, notifyChanges bool) error
+	UpdateCache(newFlags map[string]dto.DTO, log *slog.Logger, notifyChanges bool) error
 	Close()
-	GetFlag(key string) (flag.Flag, error)
+	GetFlag(key string) (*flagdef.InternalFlag, error)
 	// AllFlags returns a snapshot of the flags that the caller is free to change.
-	AllFlags() (map[string]flag.Flag, error)
+	AllFlags() (map[string]flagdef.Flag, error)
 	// AllFlagsReadOnly returns the flags of the cache without copying them (cheap): the caller must only
 	// read them, and must not keep them or hand them to code that does not.
-	AllFlagsReadOnly() (map[string]flag.Flag, error)
+	AllFlagsReadOnly() (map[string]flagdef.Flag, error)
 	GetLatestUpdateDate() time.Time
 }
 
+// ManagerImpl is the default Manager implementation, which keeps the flags in memory.
+//
 //nolint:govet // fieldalignment: the original order is 3-5% faster on GetFlag (cache-line layout, measured)
 type ManagerImpl struct {
 	// inMemoryCache is the current flag cache: it is replaced as a whole by UpdateCache, so the
@@ -49,12 +52,12 @@ type ManagerImpl struct {
 	mutex                           sync.RWMutex
 	notificationService             notification.Service
 	latestUpdate                    time.Time
-	logger                          *fflog.FFLogger
+	logger                          *slog.Logger
 	persistentFlagConfigurationFile string
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
 	// service validates the flags that are loaded, and owns the parses of their queries.
-	service *flag.Service
+	service *flagdef.Service
 }
 
 // Option customizes the ManagerImpl that New creates.
@@ -62,16 +65,19 @@ type Option func(*ManagerImpl)
 
 // WithService makes the manager validate its flags with svc, which the caller owns (and closes).
 // By default the manager creates a Service of its own.
-func WithService(svc *flag.Service) Option {
+func WithService(svc *flagdef.Service) Option {
 	return func(m *ManagerImpl) { m.service = svc }
 }
 
+// New returns a cache manager configured with the given options.
 func New(
 	notificationService notification.Service,
 	persistentFlagConfigurationFile string,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	opts ...Option,
 ) *ManagerImpl {
+	logger = internal.LoggerOrDiscard(logger)
+
 	mgr := &ManagerImpl{
 		logger:                          logger,
 		mutex:                           sync.RWMutex{},
@@ -83,7 +89,7 @@ func New(
 	}
 
 	if mgr.service == nil {
-		mgr.service = flag.NewService()
+		mgr.service = flagdef.NewService()
 	}
 
 	mgr.inMemoryCache.Store(NewInMemoryCache(mgr.service, logger))
@@ -91,6 +97,7 @@ func New(
 	return mgr
 }
 
+// ConvertToFlagStruct converts the flag configuration DTOs to internal flags.
 func ConvertToFlagStruct(
 	loadedFlags []byte,
 	fileFormat string,
@@ -117,15 +124,16 @@ func ConvertToFlagStruct(
 	return newFlags, nil
 }
 
+// UpdateCache replaces the cached flags with the flags of the new configuration.
 func (c *ManagerImpl) UpdateCache(
 	newFlags map[string]dto.DTO,
-	log *fflog.FFLogger,
+	log *slog.Logger,
 	notifyChanges bool,
 ) error {
 	newCache := NewInMemoryCache(c.service, c.logger)
 	newCache.Init(newFlags)
 	newCacheFlags := newCache.All()
-	oldCacheFlags := map[string]flag.Flag{}
+	oldCacheFlags := map[string]flagdef.Flag{}
 
 	c.mutex.Lock()
 	old := c.inMemoryCache.Swap(newCache)
@@ -148,6 +156,7 @@ func (c *ManagerImpl) UpdateCache(
 	return nil
 }
 
+// Close releases the resources of the cache manager.
 func (c *ManagerImpl) Close() {
 	// Wait for the in-flight persistence goroutines: nothing must write the persistent flag
 	// configuration file after Close() returned. This cannot deadlock nor race with a new
@@ -163,8 +172,8 @@ func (c *ManagerImpl) Close() {
 	}
 }
 
-//nolint:ireturn // implements cache.Manager, returns the flag.Flag stored in the cache
-func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
+// GetFlag returns the cached flag with the given key, or an error if the flag does not exist.
+func (c *ManagerImpl) GetFlag(key string) (*flagdef.InternalFlag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -173,7 +182,8 @@ func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	return current.getFlag(key)
 }
 
-func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
+// AllFlags returns a copy of all the cached flags.
+func (c *ManagerImpl) AllFlags() (map[string]flagdef.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -182,7 +192,8 @@ func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 	return current.All(), nil
 }
 
-func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
+// AllFlagsReadOnly returns all the cached flags without copying them, and callers must not modify them.
+func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flagdef.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -191,6 +202,7 @@ func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
 	return current.shared(), nil
 }
 
+// GetLatestUpdateDate returns the time of the last cache update.
 func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -202,7 +214,7 @@ func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 // It is useful to have a fallback in case of a problem with the retrievers, such as a network issue.
 //
 // The persistence is done in a goroutine to not block the main thread.
-func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
+func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flagdef.Flag) {
 	c.persistWg.Go(func() {
 		_, statErr := os.Stat(c.persistentFlagConfigurationFile)
 		if !os.IsNotExist(statErr) && cmp.Equal(oldCache, newCache) {
@@ -218,7 +230,7 @@ func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 			return
 		}
 
-		err = os.WriteFile(c.persistentFlagConfigurationFile, data, 0600)
+		err = os.WriteFile(c.persistentFlagConfigurationFile, data, 0o600)
 		if err != nil {
 			c.logger.Error("Error while writing flags to file", slog.Any("error", err.Error()))
 

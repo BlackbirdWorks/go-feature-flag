@@ -1,5 +1,6 @@
 package model
 
+// OFREPBulkEvaluateSuccessResponse is the response body of a successful OFREP bulk evaluation.
 type OFREPBulkEvaluateSuccessResponse struct {
 	Flags        []OFREPFlagBulkEvaluateSuccessResponse `json:"flags"`
 	EventStreams []OFREPEventStream                     `json:"eventStreams,omitempty"`
@@ -13,8 +14,9 @@ type OFREPEventStream struct {
 	InactivityDelaySec int    `json:"inactivityDelaySec,omitempty"`
 }
 
+// OFREPFlagBulkEvaluateSuccessResponse is the result of one flag in an OFREP bulk evaluation.
 type OFREPFlagBulkEvaluateSuccessResponse struct {
-	OFREPEvaluateSuccessResponse `json:",inline"`
+	OFREPEvaluateSuccessResponse
 
 	ErrorCode    string `json:"errorCode,omitempty"`
 	ErrorDetails string `json:"errorDetails,omitempty"`

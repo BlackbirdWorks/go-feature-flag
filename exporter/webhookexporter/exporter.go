@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -14,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/signer"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -68,7 +68,7 @@ type webhookPayload struct {
 // Export is sending a collection of events in a webhook call.
 func (f *Exporter) Export(
 	ctx context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	f.init.Do(func() {
@@ -135,6 +135,6 @@ func (f *Exporter) Export(
 
 // IsBulk return false if we should directly send the data as soon as it is produce
 // and true if we collect the data to send them in bulk.
-func (f *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }

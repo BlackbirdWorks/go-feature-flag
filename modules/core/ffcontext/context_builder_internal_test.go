@@ -4,6 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	attributesKey      = "attributes"
+	randomTargetingKey = "random-targetingKey"
 )
 
 func TestNewUser(t *testing.T) {
@@ -16,43 +23,43 @@ func TestNewUser(t *testing.T) {
 	}{
 		{
 			name: "Builder with only targetingKey",
-			got:  NewEvaluationContextBuilder("random-targetingKey").Build(),
+			got:  NewEvaluationContextBuilder(randomTargetingKey).Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes:   map[string]any{},
 			},
 		},
 		{
 			name: "Builder with attributes attribute",
-			got: NewEvaluationContextBuilder("random-targetingKey").
-				AddCustom("test", "attributes").
+			got: NewEvaluationContextBuilder(randomTargetingKey).
+				AddCustom(fixtures.PlaceholderTest, attributesKey).
 				Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					"test": "attributes",
+					fixtures.PlaceholderTest: attributesKey,
 				},
 			},
 		},
 		{
 			name: "Builder with attributes attribute",
-			got: NewEvaluationContextBuilder("random-targetingKey").
+			got: NewEvaluationContextBuilder(randomTargetingKey).
 				Anonymous(true).
-				AddCustom("test", "attributes").
+				AddCustom(fixtures.PlaceholderTest, attributesKey).
 				Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					"test":             "attributes",
-					anonymousAttribute: true,
+					fixtures.PlaceholderTest: attributesKey,
+					anonymousAttribute:       true,
 				},
 			},
 		},
 		{
 			name: "NewUser with targetingKey",
-			got:  NewEvaluationContext("random-targetingKey"),
+			got:  NewEvaluationContext(randomTargetingKey),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes:   map[string]any{},
 			},
 		},
@@ -66,9 +73,9 @@ func TestNewUser(t *testing.T) {
 		},
 		{
 			name: "NewAnonymousUser with targetingKey",
-			got:  NewAnonymousEvaluationContext("random-targetingKey"),
+			got:  NewAnonymousEvaluationContext(randomTargetingKey),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
 					anonymousAttribute: true,
 				},

@@ -1,5 +1,5 @@
 # Mirrors BlackbirdWorks/gopherstack .golangci.yml (golangci-lint v2.15.0, the
-# version pinned there in Taskfile.yml): same linters, same settings, same
+# version pinned in the Makefile as GOLANGCI_LINT_VERSION): same linters, same settings, same
 # thresholds, same formatters (goimports + golines, 120 columns).
 #
 # Deliberate differences from gopherstack:
@@ -17,7 +17,7 @@
 # This file is licensed under the terms of the MIT license https://opensource.org/license/mit
 # Copyright (c) 2021-2025 Marat Reimers
 
-## Golden config for golangci-lint v2.9.0
+## Golden config for golangci-lint v2.15.0
 #
 # This is the best config for golangci-lint based on my experience and opinion.
 # It is very strict, but not extremely strict.
@@ -32,17 +32,21 @@ run:
   # Cap concurrency to avoid memory/GC thrashing when loading SSA across
   # 200+ packages and large AWS SDK v2 dependency graphs.
   concurrency: 8
-  timeout: 55m
+  timeout: 10m
   # semaphore: build tags used by this repo (docker integration tests, benchmarks).
   build-tags:
     - docker
     - bench
 
 issues:
+  # Maximum count of issues per linter.
+  # Set to 0 to disable.
+  # Default: 50
+  max-issues-per-linter: 0
   # Maximum count of issues with the same text.
   # Set to 0 to disable.
   # Default: 3
-  max-same-issues: 50
+  max-same-issues: 0
 
 formatters:
   enable:
@@ -203,12 +207,9 @@ linters:
     - nlreturn # a blank line before return and branch statements
     - paralleltest # t.Parallel() in the tests
     - prealloc # slice declarations that could be preallocated
+    - tagliatelle # struct tags follow their wire and config formats
     - thelper # test helpers call t.Helper() first
     - unqueryvet # SELECT * in SQL queries
-
-  # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
-  disable:
-    - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
 
   settings:
     forbidigo:
@@ -227,7 +228,7 @@ linters:
     cyclop:
       # The maximal code complexity to report.
       # Default: 10
-      max-complexity: 15
+      max-complexity: 13
       # The maximal average package complexity.
       # If it's higher than 0.0 (float) the check is enabled.
       # Default: 0.0
@@ -273,9 +274,9 @@ linters:
             - "$all"
           deny:
             - pkg: go.uber.org/zap
-              desc: Use log/slog, the logger is built by cmdhelpers/log (zap was removed, see issue #36)
+              desc: Use log/slog, the logger is built by cmdhelpers/cmdlog (zap was removed, see issue #36)
             - pkg: github.com/jsternberg/zap-logfmt
-              desc: Use log/slog, cmdhelpers/log writes the logfmt format itself
+              desc: Use log/slog, cmdhelpers/cmdlog writes the logfmt format itself
             - pkg: github.com/samber/slog-zap
               desc: Use log/slog, there is no zap logger to bridge to
         "no echo, gin, swaggo":
@@ -297,18 +298,13 @@ linters:
         "non-main files":
           files:
             - "!**/main.go"
-            # The stdlib *log.Logger is part of the public API of Config.Logger, Retriever and
-            # Exporter (and of their test doubles); a later change replaces it with log/slog.
-            # Until then these files are the only exceptions.
-            - "!${base-path}/config.go"
-            - "!${base-path}/config_logger_internal_test.go"
+            # The stdlib *log.Logger is still part of the public API of the deprecated legacy
+            # Retriever and Exporter interfaces (and of their test doubles).
             - "!${base-path}/exporter/data_exporter.go"
             - "!${base-path}/exporter/exporter.go"
             - "!${base-path}/retriever/retriever.go"
-            - "!${base-path}/testutils/mock/exporter_mock.go"
-            - "!${base-path}/testutils/mock/mockretriever/initializable_retriever_legacy.go"
-            - "!${base-path}/utils/fflog/log.go"
-            - "!${base-path}/utils/fflog/log_test.go"
+            - "!${base-path}/testhelpers/mock/exporter_mock.go"
+            - "!${base-path}/testhelpers/mock/mockretriever/initializable_retriever_legacy.go"
           deny:
             - pkg: log$
               desc: Use log/slog instead, see https://go.dev/blog/slog
@@ -332,7 +328,7 @@ linters:
         - mapliteral
       # Presence of a default case in switch statements satisfies exhaustiveness.
       # Default: false
-      default-signifies-exhaustive: true
+      default-signifies-exhaustive: false
 
     # Scoped per Issue #59: a full-repo run measured 6,350 findings (5,981 in minimal
     # test literals and 369 in production code), so exhaustruct_v5 is enforced only on
@@ -406,31 +402,34 @@ linters:
       # Checks the number of statements in a function.
       # If lower than 0, disable the check.
       # Default: 40
-      statements: 50
+      statements: 40
 
     gochecksumtype:
       # Presence of `default` case in switch statements satisfies exhaustiveness, if all members are not listed.
       # Default: true
       default-signifies-exhaustive: false
 
+    gocyclo:
+      # Minimal code complexity to report.
+      # Default: 30
+      min-complexity: 13
+
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
       min-complexity: 20
 
+    goconst:
+      # Minimal occurrences count of string constant to report.
+      # Default: 3
+      min-occurrences: 3
+
     gocritic:
-      # Settings passed to gocritic.
-      # The settings key is the name of a supported gocritic checker.
-      # The list of supported checkers can be found at https://go-critic.com/overview.
-      settings:
-        captLocal:
-          # Whether to restrict checker to params only.
-          # Default: true
-          paramsOnly: false
-        underef:
-          # Whether to skip (*x).method() calls where x is a pointer receiver.
-          # Default: true
-          skipRecvDeref: false
+      # Enable all checks (the default set plus the opinionated ones).
+      enable-all: true
+      # Checks to disable.
+      disabled-checks:
+        - unnamedResult # contradicts nonamedreturns, which forbids named results
 
     godoclint:
       # List of rules to enable in addition to the default set.
@@ -443,17 +442,11 @@ linters:
         # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#require-stdlib-doclink
         - require-stdlib-doclink
 
-    gosec:
-      # kept from the previous configuration
-      excludes:
-        - G304
-
     gomoddirectives:
       replace-local: true
       replace-allow-list:
         # fix for Athena v3 parquet query issue - https://github.com/xitongsys/parquet-go/issues/547
         - github.com/xitongsys/parquet-go
-        - github.com/apache/thrift
 
     govet:
       # Enable all analyzers.
@@ -520,10 +513,25 @@ linters:
       # Default: false
       require-specific: true
 
+    prealloc:
+      # Report preallocation suggestions only on simple loops that have no returns/breaks/continues/gotos in them.
+      simple: true
+      # Report preallocation suggestions on range loops.
+      range-loops: true
+      # Report preallocation suggestions on for loops.
+      for-loops: true
+
     perfsprint:
-      # Optimizes into strings concatenation.
-      # Default: true
-      strconcat: false
+      # Enable every optimization.
+      integer-format: true
+      int-conversion: true
+      error-format: true
+      err-error: true
+      errorf: true
+      sprintf1: true
+      strconcat: true
+      bool-format: true
+      hex-format: true
 
     reassign:
       # Patterns for global variable names that are checked for reassignment.
@@ -532,11 +540,34 @@ linters:
       patterns:
         - ".*"
 
-    rowserrcheck:
-      # database/sql is always checked.
-      # Default: []
-      packages:
-        - github.com/jmoiron/sqlx
+    revive:
+      # Enable every rule, then disable the ones owned by another linter or rejected on purpose.
+      enable-all-rules: true
+      rules:
+        - name: line-length-limit
+          disabled: true # owned by lll and golines
+        - name: add-constant
+          disabled: true # owned by mnd and goconst
+        - name: cognitive-complexity
+          disabled: true # owned by gocognit
+        - name: function-length
+          disabled: true # owned by funlen
+        - name: cyclomatic
+          disabled: true # owned by cyclop
+        - name: unchecked-type-assertion
+          disabled: true # owned by forcetypeassert and errcheck
+        - name: confusing-results
+          disabled: true # contradicts nonamedreturns
+        - name: flag-parameter
+          disabled: true # taste, no idiom behind it
+        - name: nested-structs
+          disabled: true # taste, no idiom behind it
+        - name: comments-density
+          disabled: true # taste, no idiom behind it
+        - name: call-to-gc
+          disabled: true # taste, no idiom behind it
+        - name: enforce-switch-style
+          disabled: true # taste, no idiom behind it
 
     sloglint:
       # Enforce not using global loggers.
@@ -560,6 +591,8 @@ linters:
       # part of the log output that pipelines parse (camelCase and snake_case both exist), and renaming one is a
       # compatibility break, see docs for the logging output.
       attr-only: true
+      # Enforce using static values for log messages.
+      static-msg: true
 
     staticcheck:
       # SAxxxx checks in https://staticcheck.dev/docs/configuration/options/#checks
@@ -567,9 +600,6 @@ linters:
       # Default: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
       checks:
         - all
-        # Incorrect or missing package comment.
-        # https://staticcheck.dev/docs/checks/#ST1000
-        - -ST1000
         # Use consistent method receiver names.
         # https://staticcheck.dev/docs/checks/#ST1016
         - -ST1016
@@ -578,9 +608,13 @@ linters:
         - -QF1008
 
     testifylint:
-      # go-require (no require.* off the test goroutine) is in the default set; kept explicit.
-      enable:
-        - go-require
+      # Enable all checkers (go-require included).
+      enable-all: true
+
+    unparam:
+      # Inspect exported functions.
+      # Default: false
+      check-exported: true
 
     usetesting:
       # Enable/disable `os.TempDir()` detections.
@@ -614,8 +648,8 @@ linters:
       # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
       - (^|/)internal/koanfhttpprovider($|/)
       # files carried from upstream (UPSTREAM.md): kept verbatim so they can be re-synced
-      - (^|/)modules/core/flag/query_jsonlogic_cache\.go$
-      - (^|/)modules/core/flag/query_jsonlogic_cache_internal_test\.go$
+      - (^|/)modules/core/flagdef/query_jsonlogic_cache\.go$
+      - (^|/)modules/core/flagdef/query_jsonlogic_cache_internal_test\.go$
       # antlr-generated files in rules/parser carry a "Code generated" header and are
       # skipped by the default generated: lax; hand-written files there are linted.
     presets:
@@ -624,22 +658,13 @@ linters:
     rules:
       # documentation stubs of the OpenAPI document (long example lines, never executed)
       - path: 'cmd/relayproxy/modeldocs/'
-        linters: [ lll, revive, godot, gochecknoglobals ]
-      - text: 'should have a package comment'
-        linters: [ revive ]
-      - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
-        linters: [ revive ]
+        linters: [ lll, godot, gochecknoglobals ]
       - path: '_test\.go'
         linters:
-          - ireturn
           - exhaustruct_v5
-          - bodyclose
           - cyclop
           - dupl
-          - errcheck
           - funlen
           - gocognit
-          - goconst
           - gosec
-          - noctx
           - wrapcheck

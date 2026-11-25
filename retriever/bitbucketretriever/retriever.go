@@ -54,7 +54,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	if r.BitBucketToken != "" {
-		header.Add("Authorization", fmt.Sprintf("Bearer %s", r.BitBucketToken))
+		header.Add("Authorization", "Bearer "+r.BitBucketToken)
 	}
 
 	if (r.rateLimitRemaining <= 0) && clock.Now().Before(r.rateLimitReset) {

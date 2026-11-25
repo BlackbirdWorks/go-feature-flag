@@ -42,15 +42,15 @@ func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 				}
 			}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent](cfgs, time.Hour, nil)
+			mgr := exporter.NewManager[*exporter.FeatureEvent](cfgs, time.Hour, nil)
 
-			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent])
 			require.True(t, ok)
 
 			total := 0
 
 			for _, n := range tt.handoffs {
-				asyncMgr.QueueEvents(make([]exporter.FeatureEvent, n))
+				asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, n))
 				total += n
 			}
 

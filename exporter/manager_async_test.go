@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,12 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 type batchAdder interface {
-	AddAll([]testutils.ExportableMockEvent)
+	AddAll([]testhelpers.ExportableMockEvent)
 }
 
 func Test_EventStore_AddAll(t *testing.T) {
@@ -42,15 +42,15 @@ func Test_EventStore_AddAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
+			store := exporter.NewEventStoreWithLimit[testhelpers.ExportableMockEvent](time.Hour, tt.limit, nil)
 			defer store.Stop()
 
 			store.AddConsumer("c")
 
 			for _, n := range tt.batches {
-				batch := make([]testutils.ExportableMockEvent, n)
+				batch := make([]testhelpers.ExportableMockEvent, n)
 				for i := range batch {
-					batch[i] = testutils.NewExportableMockEvent("e")
+					batch[i] = testhelpers.NewExportableMockEvent("e")
 				}
 
 				ba, ok := store.(batchAdder)
@@ -78,7 +78,7 @@ type countingExporter struct {
 }
 
 func (c *countingExporter) IsBulk() bool { return c.bulk }
-func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, evts []exporter.ExportableEvent) error {
+func (c *countingExporter) Export(_ context.Context, _ *slog.Logger, evts []exporter.ExportableEvent) error {
 	c.calls.Add(1)
 
 	if c.fail {
@@ -129,16 +129,16 @@ func Test_Manager_QueueEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: tt.exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQueued,
 			}}, time.Hour, nil)
-			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent])
 			require.True(t, ok)
 
 			total := 0
 
 			for range tt.batches {
-				batch := make([]exporter.FeatureEvent, tt.batchSize)
+				batch := make([]*exporter.FeatureEvent, tt.batchSize)
 				asyncMgr.QueueEvents(batch)
 
 				total += tt.batchSize
@@ -160,7 +160,7 @@ func Test_Manager_QueueEvents(t *testing.T) {
 				assert.Positive(t, dc.DroppedEvents())
 			}
 			// events queued after Stop are only stored: no goroutine is started
-			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 3))
+			asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, 3))
 		})
 	}
 }

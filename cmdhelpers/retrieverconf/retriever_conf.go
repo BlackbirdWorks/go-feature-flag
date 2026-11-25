@@ -86,9 +86,9 @@ type RetrieverConf struct {
 
 // IsValid validates the configuration of the retriever.
 func (c *RetrieverConf) IsValid() error {
-	err := c.Kind.IsValid()
-	if err != nil {
-		return err
+	kindErr := c.Kind.IsValid()
+	if kindErr != nil {
+		return kindErr
 	}
 
 	switch c.Kind {
@@ -139,7 +139,15 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		if c.Path == "" {
 			return missingProperty("path", string(c.Kind))
 		}
-	default:
+	case HTTPRetriever,
+		GitHubRetriever,
+		GitlabRetriever,
+		KubernetesRetriever,
+		MongoDBRetriever,
+		RedisRetriever,
+		BitbucketRetriever,
+		AzBlobStorageRetriever,
+		PostgreSQLRetriever:
 		// not a storage retriever
 	}
 
@@ -286,18 +294,30 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 type RetrieverKind string
 
 const (
-	HTTPRetriever          RetrieverKind = "http"
-	GitHubRetriever        RetrieverKind = "github"
-	GitlabRetriever        RetrieverKind = "gitlab"
-	S3Retriever            RetrieverKind = "s3"
-	FileRetriever          RetrieverKind = "file"
+	// HTTPRetriever is the kind of retriever that retrieves flags over HTTP.
+	HTTPRetriever RetrieverKind = "http"
+	// GitHubRetriever is the kind of retriever that retrieves flags from GitHub repositories.
+	GitHubRetriever RetrieverKind = "github"
+	// GitlabRetriever is the kind of retriever that retrieves flags from GitLab repositories.
+	GitlabRetriever RetrieverKind = "gitlab"
+	// S3Retriever is the kind of retriever that retrieves flags from Amazon S3.
+	S3Retriever RetrieverKind = "s3"
+	// FileRetriever is the kind of retriever that retrieves flags from local files.
+	FileRetriever RetrieverKind = "file"
+	// GoogleStorageRetriever is the kind of retriever that retrieves flags from Google Cloud Storage.
 	GoogleStorageRetriever RetrieverKind = "googleStorage"
-	KubernetesRetriever    RetrieverKind = "configmap"
-	MongoDBRetriever       RetrieverKind = "mongodb"
-	RedisRetriever         RetrieverKind = "redis"
-	BitbucketRetriever     RetrieverKind = "bitbucket"
+	// KubernetesRetriever is the kind of retriever that retrieves flags from Kubernetes resources.
+	KubernetesRetriever RetrieverKind = "configmap"
+	// MongoDBRetriever is the kind of retriever that retrieves flags from MongoDB.
+	MongoDBRetriever RetrieverKind = "mongodb"
+	// RedisRetriever is the kind of retriever that retrieves flags from Redis.
+	RedisRetriever RetrieverKind = "redis"
+	// BitbucketRetriever is the kind of retriever that retrieves flags from Bitbucket.
+	BitbucketRetriever RetrieverKind = "bitbucket"
+	// AzBlobStorageRetriever is the kind of retriever that retrieves flags from Azure Blob Storage.
 	AzBlobStorageRetriever RetrieverKind = "azureBlobStorage"
-	PostgreSQLRetriever    RetrieverKind = "postgresql"
+	// PostgreSQLRetriever is the kind of retriever that retrieves flags from PostgreSQL.
+	PostgreSQLRetriever RetrieverKind = "postgresql"
 )
 
 // IsValid is checking if the value is part of the enum.
@@ -314,9 +334,9 @@ func (r RetrieverKind) IsValid() error {
 
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.
 func (c *RetrieverConf) validateS3Retriever() error {
-	err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive)
-	if err != nil {
-		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
+	validateErr := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive)
+	if validateErr != nil {
+		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", validateErr, c.Kind)
 	}
 
 	return nil

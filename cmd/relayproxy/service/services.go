@@ -5,6 +5,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
+// Services holds the services used by the relay proxy.
 type Services struct {
 	// MonitoringService is the service in charge of managing the monitoring
 	MonitoringService Monitoring
@@ -15,5 +16,5 @@ type Services struct {
 	// FlagsetManager is the service in charge of managing the flagsets
 	FlagsetManager FlagsetManager
 	// Metrics is the service containing all the prometheus metrics
-	Metrics metric.Metrics
+	Metrics *metric.Metrics
 }

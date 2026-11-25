@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // RedactedValue replaces every value that may be a secret when the configuration is logged.
@@ -54,7 +54,6 @@ func fieldClassification() map[string]bool {
 		"config.ValidateFlagsEndpoint.MaxJSONBodySize": plainField,
 		"config.Config.DisableVersionHeader":           plainField, // a boolean
 		"config.Config.AuthorizedKeys":                 secretField,
-		"config.Config.APIKeys":                        secretField,
 		// FlagSet
 		"config.FlagSet.APIKeys": secretField,
 		// APIKeys (admin / evaluation keys)
@@ -147,7 +146,7 @@ func isOwnType(t reflect.Type) bool {
 	return strings.HasPrefix(t.PkgPath(), modulePathPrefix)
 }
 
-func koanfName(field reflect.StructField) string {
+func koanfName(field *reflect.StructField) string {
 	name, _, _ := strings.Cut(field.Tag.Get("koanf"), ",")
 	if name == "" {
 		name, _, _ = strings.Cut(field.Tag.Get("mapstructure"), ",")
@@ -181,27 +180,26 @@ func redactStruct(val reflect.Value, depth int) map[string]any {
 
 		if IsSecretField(typeName, field.Name) {
 			if isZeroValue(val.Field(i)) {
-				out[koanfName(field)] = nil
+				out[koanfName(&field)] = nil
 			} else {
-				out[koanfName(field)] = RedactedValue
+				out[koanfName(&field)] = RedactedValue
 			}
 
 			continue
 		}
 
-		out[koanfName(field)] = redactValue(val.Field(i), depth+1)
+		out[koanfName(&field)] = redactValue(val.Field(i), depth+1)
 	}
 
 	return out
 }
 
 func isZeroValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Slice, reflect.Map:
+	if kind := v.Kind(); kind == reflect.Slice || kind == reflect.Map {
 		return v.Len() == 0
-	default:
-		return v.IsZero()
 	}
+
+	return v.IsZero()
 }
 
 // redactValue converts a value to a generic structure that is safe to log.
@@ -210,49 +208,72 @@ func redactValue(val reflect.Value, depth int) any {
 		return nil
 	}
 
-	switch val.Kind() {
-	case reflect.Pointer, reflect.Interface:
+	switch kind := val.Kind(); {
+	case isIndirectKind(kind):
 		if val.IsNil() {
 			return nil
 		}
 
 		return redactValue(val.Elem(), depth+1)
-	case reflect.Struct:
+	case kind == reflect.Struct:
 		if !isOwnType(val.Type()) {
 			return opaqueValue
 		}
 
 		return redactStruct(val, depth)
-	case reflect.Slice, reflect.Array:
-		out := make([]any, 0, val.Len())
-		for i := range val.Len() {
-			out = append(out, redactValue(val.Index(i), depth+1))
-		}
-
-		return out
-	case reflect.Map:
-		out := make(map[string]any, val.Len())
-
-		iter := val.MapRange()
-		for iter.Next() {
-			key := fmt.Sprint(iter.Key().Interface())
-			if sensitiveNamePattern.MatchString(key) {
-				out[key] = RedactedValue
-
-				continue
-			}
-
-			out[key] = redactValue(iter.Value(), depth+1)
-		}
-
-		return out
-	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
-		return opaqueValue
-	default:
-		if val.CanInterface() {
-			return val.Interface()
-		}
-
+	case isSequenceKind(kind):
+		return redactSlice(val, depth)
+	case kind == reflect.Map:
+		return redactMap(val, depth)
+	case isOpaqueKind(kind):
 		return opaqueValue
 	}
+
+	if val.CanInterface() {
+		return val.Interface()
+	}
+
+	return opaqueValue
+}
+
+// redactSlice redacts every element of a slice or an array.
+func redactSlice(val reflect.Value, depth int) []any {
+	out := make([]any, 0, val.Len())
+	for i := range val.Len() {
+		out = append(out, redactValue(val.Index(i), depth+1))
+	}
+
+	return out
+}
+
+// redactMap redacts the values of a map, and the ones whose key looks sensitive entirely.
+func redactMap(val reflect.Value, depth int) map[string]any {
+	out := make(map[string]any, val.Len())
+
+	iter := val.MapRange()
+	for iter.Next() {
+		key := fmt.Sprint(iter.Key().Interface())
+		if sensitiveNamePattern.MatchString(key) {
+			out[key] = RedactedValue
+
+			continue
+		}
+
+		out[key] = redactValue(iter.Value(), depth+1)
+	}
+
+	return out
+}
+
+func isSequenceKind(kind reflect.Kind) bool {
+	return kind == reflect.Slice || kind == reflect.Array
+}
+
+// isOpaqueKind reports the kinds that have no loggable content.
+func isOpaqueKind(kind reflect.Kind) bool {
+	return kind == reflect.Func || kind == reflect.Chan || kind == reflect.UnsafePointer
+}
+
+func isIndirectKind(kind reflect.Kind) bool {
+	return kind == reflect.Pointer || kind == reflect.Interface
 }

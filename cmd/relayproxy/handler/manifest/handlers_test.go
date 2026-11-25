@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -38,7 +39,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 
 	conf := &config.Config{
 		PollingInterval: 10000,
-		FileFormat:      "yaml",
+		FileFormat:      protocol.FormatYAML,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
 				Kind: retrieverconf.FileRetriever,
@@ -58,7 +59,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 
 	defer flagsetManager.Close()
 
-	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{})
+	ctrl := manifest.NewManifest(flagsetManager, &metric.Metrics{})
 	out, err := ctrl.GetManifest(t.Context(), &manifest.Input{})
 	require.NoError(t, err)
 	assert.Equal(
@@ -129,7 +130,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset1",
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -141,7 +142,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset2",
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -167,7 +168,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{})
+			ctrl := manifest.NewManifest(flagsetManager, &metric.Metrics{})
 			out, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{
 				Request: controller.NewRequest(tt.apiKey, ""),
 			})
@@ -205,7 +206,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	t.Parallel()
 
-	ctrl := manifest.NewManifest(nil, metric.Metrics{})
+	ctrl := manifest.NewManifest(nil, &metric.Metrics{})
 	_, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{})
 
 	require.Error(t, handlerErr, "handler should return an error when flagset manager is nil")

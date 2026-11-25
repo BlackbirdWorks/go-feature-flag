@@ -5,6 +5,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	xEqOneAndY = "x eq 1  and y eq 2"
+	xEqAB      = `x eq "a  b"`
 )
 
 func TestIssue41RuleValidator(t *testing.T) {
@@ -94,30 +101,30 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		{
 			name:  "leading space",
 			rule:  ` env eq "pro"`,
-			input: obj{"env": "pro"},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
 			name:  "trailing CRLF",
 			rule:  "env eq \"pro\"\r\n",
-			input: obj{"env": "pro"},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
 			name:  "CRLF only",
 			rule:  "env eq \"pro\"\r",
-			input: obj{"env": "pro"},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
 			name:  "double space before and evaluates both sides",
-			rule:  `x eq 1  and y eq 2`,
+			rule:  xEqOneAndY,
 			input: obj{"x": 1, "y": 2},
 			want:  true,
 		},
 		{
 			name:  "double space before and is not a prefix of the left clause",
-			rule:  `x eq 1  and y eq 2`,
+			rule:  xEqOneAndY,
 			input: obj{"x": 1, "y": 99},
 			want:  false,
 		},
@@ -129,14 +136,14 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		},
 		{
 			name:  "spaces inside string are preserved",
-			rule:  `x eq "a  b"`,
+			rule:  xEqAB,
 			input: obj{"x": "a  b"},
 			want:  true,
 		},
 		{
 			name:  "trailing spaces and newline",
 			rule:  "env eq \"pro\"  \n",
-			input: obj{"env": "pro"},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 	}
@@ -162,9 +169,9 @@ func TestNormalizeRuleInput(t *testing.T) {
 		rule string
 		want string
 	}{
-		{name: "collapses double spaces", rule: "x eq 1  and y eq 2", want: `x eq 1 and y eq 2`},
+		{name: "collapses double spaces", rule: xEqOneAndY, want: `x eq 1 and y eq 2`},
 		{name: "trims space and CRLF", rule: " env eq \"pro\" \r\n", want: `env eq "pro"`},
-		{name: "keeps spaces inside strings", rule: `x eq "a  b"`, want: `x eq "a  b"`},
+		{name: "keeps spaces inside strings", rule: xEqAB, want: xEqAB},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

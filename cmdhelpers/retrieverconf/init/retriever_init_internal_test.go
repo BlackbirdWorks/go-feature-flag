@@ -19,6 +19,15 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	expectedRedisretrieverRetriever = "expected *redisretriever.Retriever"
+	httpsGofeatureflagOrgMy         = "https://gofeatureflag.org/my-flag-test.yaml"
+	main                            = "main"
+	myBucketName                    = "my-bucket-name"
+	test                            = "test:"
 )
 
 type initRetrieverCase struct {
@@ -41,10 +50,10 @@ func runInitRetrieverTests(t *testing.T, tests []initRetrieverCase) {
 			tt.wantErr(t, err)
 
 			if err == nil {
-				assert.IsType(t, tt.wantType, got)
+				assert.IsType(t, tt.wantType, got.Retriever)
 
 				if !tt.skipCompleteValidation {
-					assert.Equal(t, tt.want, got)
+					assert.Equal(t, tt.want, got.Retriever)
 				}
 			}
 		})
@@ -59,15 +68,15 @@ func Test_InitRetriever(t *testing.T) {
 			name:    "Convert Github Retriever",
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Path:           "testdata/flag-config.yaml",
+				Kind:           fixtures.KindGitHub,
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Path:           fixtures.FlagConfigYAMLPath,
 				Timeout:        20,
 			},
 			want: &githubretriever.Retriever{
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Branch:         "main",
-				FilePath:       "testdata/flag-config.yaml",
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Branch:         main,
+				FilePath:       fixtures.FlagConfigYAMLPath,
 				GithubToken:    "",
 				Timeout:        20 * time.Millisecond,
 			},
@@ -77,17 +86,17 @@ func Test_InitRetriever(t *testing.T) {
 			name:    "Convert Github Retriever with token",
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Path:           "testdata/flag-config.yaml",
+				Kind:           fixtures.KindGitHub,
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Path:           fixtures.FlagConfigYAMLPath,
 				Timeout:        20,
-				AuthToken:      "xxx",
+				AuthToken:      fixtures.PlaceholderXxx,
 			},
 			want: &githubretriever.Retriever{
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Branch:         "main",
-				FilePath:       "testdata/flag-config.yaml",
-				GithubToken:    "xxx",
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Branch:         main,
+				FilePath:       fixtures.FlagConfigYAMLPath,
+				GithubToken:    fixtures.PlaceholderXxx,
 				Timeout:        20 * time.Millisecond,
 			},
 			wantType: &githubretriever.Retriever{},
@@ -96,17 +105,17 @@ func Test_InitRetriever(t *testing.T) {
 			name:    "Convert Github Retriever with deprecated token",
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Path:           "testdata/flag-config.yaml",
+				Kind:           fixtures.KindGitHub,
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Path:           fixtures.FlagConfigYAMLPath,
 				Timeout:        20,
-				GithubToken:    "xxx", //nolint:staticcheck // SA1019: the test covers the deprecated setting
+				GithubToken:    fixtures.PlaceholderXxx, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			},
 			want: &githubretriever.Retriever{
-				RepositorySlug: "thomaspoignant/go-feature-flag",
-				Branch:         "main",
-				FilePath:       "testdata/flag-config.yaml",
-				GithubToken:    "xxx",
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
+				Branch:         main,
+				FilePath:       fixtures.FlagConfigYAMLPath,
+				GithubToken:    fixtures.PlaceholderXxx,
 				Timeout:        20 * time.Millisecond,
 			},
 			wantType: &githubretriever.Retriever{},
@@ -115,18 +124,18 @@ func Test_InitRetriever(t *testing.T) {
 			name:    "Convert Github Retriever with BaseURL",
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "myorg/myrepo",
-				Path:           "config/flags.yaml",
+				Kind:           fixtures.KindGitHub,
+				RepositorySlug: fixtures.RepoMyOrg,
+				Path:           fixtures.ConfigFlagsYAML,
 				Timeout:        20,
-				AuthToken:      "xxx",
+				AuthToken:      fixtures.PlaceholderXxx,
 				BaseURL:        "https://github.acme.com/api/v3",
 			},
 			want: &githubretriever.Retriever{
-				RepositorySlug: "myorg/myrepo",
-				Branch:         "main",
-				FilePath:       "config/flags.yaml",
-				GithubToken:    "xxx",
+				RepositorySlug: fixtures.RepoMyOrg,
+				Branch:         main,
+				FilePath:       fixtures.ConfigFlagsYAML,
+				GithubToken:    fixtures.PlaceholderXxx,
 				BaseURL:        "https://github.acme.com/api/v3",
 				Timeout:        20 * time.Millisecond,
 			},
@@ -136,16 +145,16 @@ func Test_InitRetriever(t *testing.T) {
 			name:    "Convert Github Retriever with BaseURL and trailing slash",
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "myorg/myrepo",
-				Path:           "config/flags.yaml",
+				Kind:           fixtures.KindGitHub,
+				RepositorySlug: fixtures.RepoMyOrg,
+				Path:           fixtures.ConfigFlagsYAML,
 				Timeout:        20,
 				BaseURL:        "https://github.acme.com/api/v3/",
 			},
 			want: &githubretriever.Retriever{
-				RepositorySlug: "myorg/myrepo",
-				Branch:         "main",
-				FilePath:       "config/flags.yaml",
+				RepositorySlug: fixtures.RepoMyOrg,
+				Branch:         main,
+				FilePath:       fixtures.ConfigFlagsYAML,
 				GithubToken:    "",
 				BaseURL:        "https://github.acme.com/api/v3/",
 				Timeout:        20 * time.Millisecond,
@@ -159,14 +168,14 @@ func Test_InitRetriever(t *testing.T) {
 				Kind:           "gitlab",
 				BaseURL:        "http://localhost",
 				Path:           "flag-config.yaml",
-				RepositorySlug: "thomaspoignant/go-feature-flag",
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
 				Timeout:        20,
 			},
 			want: &gitlabretriever.Retriever{
 				BaseURL:        "http://localhost",
-				Branch:         "main",
+				Branch:         main,
 				FilePath:       "flag-config.yaml",
-				RepositorySlug: "thomaspoignant/go-feature-flag",
+				RepositorySlug: fixtures.RepoGoFeatureFlag,
 				GitlabToken:    "",
 				Timeout:        20 * time.Millisecond,
 			},
@@ -184,9 +193,9 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind: "file",
-				Path: "testdata/flag-config.yaml",
+				Path: fixtures.FlagConfigYAMLPath,
 			},
-			want:     &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			want:     &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			wantType: &fileretriever.Retriever{},
 		},
 		{
@@ -194,12 +203,12 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind:   "s3",
-				Bucket: "my-bucket-name",
-				Item:   "testdata/flag-config.yaml",
+				Bucket: myBucketName,
+				Item:   fixtures.FlagConfigYAMLPath,
 			},
 			want: &s3retrieverv2.Retriever{
-				Bucket: "my-bucket-name",
-				Item:   "testdata/flag-config.yaml",
+				Bucket: myBucketName,
+				Item:   fixtures.FlagConfigYAMLPath,
 			},
 			wantType:               &s3retrieverv2.Retriever{},
 			skipCompleteValidation: true,
@@ -209,13 +218,13 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind:      "s3",
-				Bucket:    "my-bucket-name",
+				Bucket:    myBucketName,
 				Prefix:    "flags/",
 				Pattern:   "*.yaml",
 				Recursive: true,
 			},
 			want: &s3retrieverv2.Retriever{
-				Bucket:    "my-bucket-name",
+				Bucket:    myBucketName,
 				Prefix:    "flags/",
 				Pattern:   "*.yaml",
 				Recursive: true,
@@ -228,10 +237,10 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind: "http",
-				URL:  "https://gofeatureflag.org/my-flag-test.yaml",
+				URL:  httpsGofeatureflagOrgMy,
 			},
 			want: &httpretriever.Retriever{
-				URL:     "https://gofeatureflag.org/my-flag-test.yaml",
+				URL:     httpsGofeatureflagOrgMy,
 				Method:  http.MethodGet,
 				Body:    "",
 				Header:  nil,
@@ -244,13 +253,13 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind:               "http",
-				URL:                "https://gofeatureflag.org/my-flag-test.yaml",
+				URL:                httpsGofeatureflagOrgMy,
 				HTTPClientCertPath: "/certs/client.crt",
 				HTTPClientKeyPath:  "/certs/client.key",
 				HTTPCACertPath:     "/certs/ca.crt",
 			},
 			want: &httpretriever.Retriever{
-				URL:            "https://gofeatureflag.org/my-flag-test.yaml",
+				URL:            httpsGofeatureflagOrgMy,
 				Method:         http.MethodGet,
 				Body:           "",
 				Header:         nil,
@@ -266,12 +275,12 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind:   "googleStorage",
-				Bucket: "my-bucket-name",
-				Object: "testdata/flag-config.yaml",
+				Bucket: myBucketName,
+				Object: fixtures.FlagConfigYAMLPath,
 			},
 			want: &gcstorageretriever.Retriever{
-				Bucket:  "my-bucket-name",
-				Object:  "testdata/flag-config.yaml",
+				Bucket:  myBucketName,
+				Object:  fixtures.FlagConfigYAMLPath,
 				Options: nil,
 			},
 			wantType: &gcstorageretriever.Retriever{},
@@ -288,17 +297,17 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &retrieverconf.RetrieverConf{
 				Kind:           "bitbucket",
-				RepositorySlug: "gofeatureflag/config-repo",
-				Path:           "flags/config.goff.yaml",
-				AuthToken:      "XXX_BITBUCKET_TOKEN",
-				BaseURL:        "https://api.bitbucket.goff.org",
+				RepositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				Path:           fixtures.FlagsConfigGoffYAML,
+				AuthToken:      fixtures.BitbucketTokenEnv,
+				BaseURL:        fixtures.BitbucketAPIURL,
 			},
 			want: &bitbucketretriever.Retriever{
-				RepositorySlug: "gofeatureflag/config-repo",
-				Branch:         "main",
-				FilePath:       "flags/config.goff.yaml",
-				BitBucketToken: "XXX_BITBUCKET_TOKEN",
-				BaseURL:        "https://api.bitbucket.goff.org",
+				RepositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				Branch:         main,
+				FilePath:       fixtures.FlagsConfigGoffYAML,
+				BitBucketToken: fixtures.BitbucketTokenEnv,
+				BaseURL:        fixtures.BitbucketAPIURL,
 				Timeout:        10000000000,
 			},
 			wantType: &bitbucketretriever.Retriever{},
@@ -309,17 +318,17 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			conf: &retrieverconf.RetrieverConf{
 				Kind:           "bitbucket",
 				Branch:         "develop",
-				RepositorySlug: "gofeatureflag/config-repo",
-				Path:           "flags/config.goff.yaml",
-				AuthToken:      "XXX_BITBUCKET_TOKEN",
-				BaseURL:        "https://api.bitbucket.goff.org",
+				RepositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				Path:           fixtures.FlagsConfigGoffYAML,
+				AuthToken:      fixtures.BitbucketTokenEnv,
+				BaseURL:        fixtures.BitbucketAPIURL,
 			},
 			want: &bitbucketretriever.Retriever{
-				RepositorySlug: "gofeatureflag/config-repo",
+				RepositorySlug: fixtures.RepoGoFeatureFlagConfig,
 				Branch:         "develop",
-				FilePath:       "flags/config.goff.yaml",
-				BitBucketToken: "XXX_BITBUCKET_TOKEN",
-				BaseURL:        "https://api.bitbucket.goff.org",
+				FilePath:       fixtures.FlagsConfigGoffYAML,
+				BitBucketToken: fixtures.BitbucketTokenEnv,
+				BaseURL:        fixtures.BitbucketAPIURL,
 				Timeout:        10000000000,
 			},
 			wantType: &bitbucketretriever.Retriever{},
@@ -330,12 +339,12 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 			conf: &retrieverconf.RetrieverConf{
 				Kind:    "postgresql",
 				URI:     "postgresql://user:password@localhost:5432/database",
-				Table:   "flags",
+				Table:   fixtures.FlagsDir,
 				Columns: map[string]string{"flagset": "settings"},
 			},
 			want: &postgresqlretriever.Retriever{
 				URI:     "postgresql://user:password@localhost:5432/database",
-				Table:   "flags",
+				Table:   fixtures.FlagsDir,
 				Columns: map[string]string{"flagset": "settings"},
 			},
 			wantType: &postgresqlretriever.Retriever{},
@@ -361,18 +370,18 @@ func Test_InitRetriever_Redis(t *testing.T) {
 					Password: "secret",
 					DB:       1,
 				},
-				RedisPrefix: "test:",
+				RedisPrefix: test,
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
 
 				redisRet, ok := r.(*redisretriever.Retriever)
-				require.True(t, ok, "expected *redisretriever.Retriever")
+				require.True(t, ok, expectedRedisretrieverRetriever)
 				assert.Equal(t, "localhost:6379", redisRet.Options.Addr)
 				assert.Equal(t, "secret", redisRet.Options.Password)
 				assert.Equal(t, 1, redisRet.Options.DB)
-				assert.Equal(t, "test:", redisRet.Prefix)
+				assert.Equal(t, test, redisRet.Prefix)
 			},
 		},
 		{
@@ -392,7 +401,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 				t.Helper()
 
 				redisRet, ok := r.(*redisretriever.Retriever)
-				require.True(t, ok, "expected *redisretriever.Retriever")
+				require.True(t, ok, expectedRedisretrieverRetriever)
 				assert.Equal(t, "redis.example.com:6380", redisRet.Options.Addr)
 				assert.Equal(t, "newsecret", redisRet.Options.Password)
 				assert.Equal(t, 2, redisRet.Options.DB)
@@ -408,17 +417,17 @@ func Test_InitRetriever_Redis(t *testing.T) {
 					Addr:     "new:6380",
 					Password: "new-secret",
 				},
-				RedisPrefix: "test:",
+				RedisPrefix: test,
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
 
 				redisRet, ok := r.(*redisretriever.Retriever)
-				require.True(t, ok, "expected *redisretriever.Retriever")
+				require.True(t, ok, expectedRedisretrieverRetriever)
 				assert.Equal(t, "new:6380", redisRet.Options.Addr)
 				assert.Equal(t, "new-secret", redisRet.Options.Password)
-				assert.Equal(t, "test:", redisRet.Prefix)
+				assert.Equal(t, test, redisRet.Prefix)
 			},
 		},
 		{
@@ -443,7 +452,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 				t.Helper()
 
 				redisRet, ok := r.(*redisretriever.Retriever)
-				require.True(t, ok, "expected *redisretriever.Retriever")
+				require.True(t, ok, expectedRedisretrieverRetriever)
 				assert.Equal(t, "redis:6379", redisRet.Options.Addr)
 				assert.Equal(t, "pass", redisRet.Options.Password)
 				assert.Equal(t, 3, redisRet.Options.DB)
@@ -467,11 +476,11 @@ func Test_InitRetriever_Redis(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				assert.NotNil(t, got)
-				assert.IsType(t, &redisretriever.Retriever{}, got)
+				assert.NotNil(t, got.Retriever)
+				assert.IsType(t, &redisretriever.Retriever{}, got.Retriever)
 
 				if tt.validateRetriever != nil {
-					tt.validateRetriever(t, got)
+					tt.validateRetriever(t, got.Retriever)
 				}
 			}
 		})
@@ -496,12 +505,12 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 			t.Parallel()
 
 			got, err := Retriever(&retrieverconf.RetrieverConf{
-				Kind: retrieverconf.PostgreSQLRetriever, URI: "postgres://localhost/db", Table: "flags",
+				Kind: retrieverconf.PostgreSQLRetriever, URI: "postgres://localhost/db", Table: fixtures.FlagsDir,
 			}, tt.opts...)
 
 			require.NoError(t, err)
 
-			pg, ok := got.(*postgresqlretriever.Retriever)
+			pg, ok := got.Retriever.(*postgresqlretriever.Retriever)
 			require.True(t, ok)
 			assert.Same(t, tt.wantPools, pg.Pools)
 		})

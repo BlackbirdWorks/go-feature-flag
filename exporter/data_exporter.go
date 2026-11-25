@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 var (
@@ -23,6 +23,7 @@ const (
 	defaultMaxEventInMemory = int64(100000)
 )
 
+// DataExporter is an exporter that receives the evaluation events of type T.
 type DataExporter[T ExportableEvent] interface {
 	// Start is launching the ticker to periodically flush the data
 	Start()
@@ -37,6 +38,8 @@ type DataExporter[T ExportableEvent] interface {
 	// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush()
 	GetMaxEventInMemory() int64
 }
+
+// Config is the configuration of an exporter.
 type Config struct {
 	Exporter         CommonExporter
 	FlushInterval    time.Duration
@@ -49,7 +52,7 @@ type Config struct {
 
 type dataExporterImpl[T ExportableEvent] struct {
 	eventStore EventStore[T]
-	logger     *fflog.FFLogger
+	logger     *slog.Logger
 	daemonChan chan struct{}
 	ticker     *time.Ticker
 	consumerID string
@@ -62,7 +65,7 @@ type dataExporterImpl[T ExportableEvent] struct {
 // NewDataExporter create a new DataExporter with the given exporter and his consumer information to consume the data
 // from the shared event store.
 func NewDataExporter[T ExportableEvent](exporter Config, consumerID string,
-	eventStore EventStore[T], logger *fflog.FFLogger) DataExporter[T] {
+	eventStore EventStore[T], logger *slog.Logger) DataExporter[T] {
 	if exporter.FlushInterval == 0 {
 		exporter.FlushInterval = defaultFlushInterval
 	}
@@ -74,7 +77,7 @@ func NewDataExporter[T ExportableEvent](exporter Config, consumerID string,
 	return &dataExporterImpl[T]{
 		consumerID: consumerID,
 		eventStore: eventStore,
-		logger:     logger,
+		logger:     internal.LoggerOrDiscard(logger),
 		exporter:   exporter,
 		daemonChan: make(chan struct{}),
 		ticker:     time.NewTicker(exporter.FlushInterval),
@@ -119,17 +122,17 @@ func (d *dataExporterImpl[T]) Stop() {
 
 // Flush is sending the data to the exporter.
 func (d *dataExporterImpl[T]) Flush() {
-	_ = d.flush()
+	_ = d.flushQueue()
 }
 
 // flush is Flush, it also returns the error of the flush (the manager uses it to back off).
-func (d *dataExporterImpl[T]) flush() error {
+func (d *dataExporterImpl[T]) flushQueue() error {
 	store := d.eventStore
 
 	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)
 	if err != nil {
 		if d != nil && d.logger != nil {
-			d.logger.Error(err.Error())
+			d.logger.Error("error while exporting the pending events", slog.String("error", err.Error()))
 		}
 
 		return fmt.Errorf("process pending events: %w", err)
@@ -165,34 +168,9 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 
 	switch exp := d.exporter.Exporter.(type) {
 	case DeprecatedExporterV1:
-		var legacyLogger *log.Logger
-		if d.logger != nil {
-			legacyLogger = d.logger.GetLogLogger(slog.LevelError)
-		}
-
-		switch events := any(events).(type) {
-		case []FeatureEvent:
-			// use dc exporter as a DeprecatedExporterV1
-			err := exp.Export(ctx, legacyLogger, events)
-			d.logger.WarnContext(ctx, "You are using an exporter with the old logger."+
-				"Please update your custom exporter to comply to the new Exporter interface.")
-
-			if err != nil {
-				return fmt.Errorf("error while exporting data (deprecated): %w", err)
-			}
-		default:
-			return errTryingToSendUnknown
-		}
+		return d.sendEventsV1(ctx, exp, events)
 	case DeprecatedExporterV2:
-		switch events := any(events).(type) {
-		case []FeatureEvent:
-			err := exp.Export(ctx, d.logger, events)
-			if err != nil {
-				return fmt.Errorf("error while exporting data: %w", err)
-			}
-		default:
-			return errTryingToSendUnknownObject
-		}
+		return d.sendEventsV2(ctx, exp, events)
 	case Exporter:
 		exportableEvents := make([]ExportableEvent, len(events))
 		for i, event := range events {
@@ -203,8 +181,47 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 		if err != nil {
 			return fmt.Errorf("error while exporting data: %w", err)
 		}
+
+		return nil
 	default:
 		return errThisIsNotA
+	}
+}
+
+// sendEventsV1 sends the events to an exporter using the legacy logger.
+func (d *dataExporterImpl[T]) sendEventsV1(ctx context.Context, exp DeprecatedExporterV1, events []T) error {
+	var legacyLogger *log.Logger
+	if d.logger != nil {
+		legacyLogger = slog.NewLogLogger(d.logger.Handler(), slog.LevelError)
+	}
+
+	featureEvents, ok := any(events).([]*FeatureEvent)
+	if !ok {
+		return errTryingToSendUnknown
+	}
+
+	// use dc exporter as a DeprecatedExporterV1
+	err := exp.Export(ctx, legacyLogger, featureEvents)
+	d.logger.WarnContext(ctx, "You are using an exporter with the old logger."+
+		"Please update your custom exporter to comply to the new Exporter interface.")
+
+	if err != nil {
+		return fmt.Errorf("error while exporting data (deprecated): %w", err)
+	}
+
+	return nil
+}
+
+// sendEventsV2 sends the events to an exporter of the deprecated v2 interface.
+func (d *dataExporterImpl[T]) sendEventsV2(ctx context.Context, exp DeprecatedExporterV2, events []T) error {
+	featureEvents, ok := any(events).([]*FeatureEvent)
+	if !ok {
+		return errTryingToSendUnknownObject
+	}
+
+	err := exp.Export(ctx, d.logger, featureEvents)
+	if err != nil {
+		return fmt.Errorf("error while exporting data: %w", err)
 	}
 
 	return nil

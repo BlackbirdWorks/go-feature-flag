@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestFloatOperationOperandErrors pins how operand type errors surface per operator. A mistyped operand
@@ -24,33 +26,33 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 		{
 			name:     "float ge on a string reports the error",
 			rule:     `x ge 1.5`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": fixtures.UserKeyAbc},
 			wantErr:  false,
 			wantDebg: true,
 		},
 		{
 			name:     "int le on a string reports the error",
 			rule:     `x le 2`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": fixtures.UserKeyAbc},
 			wantDebg: true,
 		},
 		{
 			name:     "float le on a string reports the error",
 			rule:     `x le 1.5`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": fixtures.UserKeyAbc},
 			wantDebg: true,
 		},
 		{
 			name:     "not float le on a string is true, with a debug error",
 			rule:     `not (x le 1.5)`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": fixtures.UserKeyAbc},
 			want:     true,
 			wantDebg: true,
 		},
 		{
 			name:     "not float ge on a string is true, with a debug error",
 			rule:     `not (x ge 1.5)`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": fixtures.UserKeyAbc},
 			want:     true,
 			wantDebg: true,
 		},
@@ -71,7 +73,7 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantDebg, eval.LastDebugErr() != nil, "debug error")
+			assert.Equal(t, tt.wantDebg, eval.LastDebugErr() != nil, debugError)
 		})
 	}
 }

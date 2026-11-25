@@ -1,8 +1,9 @@
 package metric
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -35,6 +36,7 @@ const (
 // FlagNotFoundLabelValue is the value of the flag_name label used for the evaluation of flags that do not exist.
 const FlagNotFoundLabelValue = "FLAG_NOT_FOUND"
 
+// MetricsOpts holds the options used to create the metrics.
 type MetricsOpts struct {
 	// Version is the version that semaphore_build_info reports (the one of the binary, set at build
 	// time, when empty).
@@ -195,7 +197,7 @@ func newMetricCounterVecs() metricCounterVecs {
 
 func registerMetricCollectors(
 	reg *prom.Registry,
-	counters metricCounters,
+	counters *metricCounters,
 	counterVecs metricCounterVecs,
 	version string,
 ) error {
@@ -232,7 +234,7 @@ func registerMetricCollectors(
 }
 
 // NewMetrics is the constructor for the custom metrics.
-func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
+func NewMetrics(opts ...MetricsOpts) (*Metrics, error) {
 	// default opts
 	metricsOpts := &MetricsOpts{
 		EnableBulkMetricFlagNames: false,
@@ -247,12 +249,12 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	counters := newMetricCounters()
 	counterVecs := newMetricCounterVecs()
 
-	err := registerMetricCollectors(customRegistry, counters, counterVecs, metricsOpts.Version)
+	err := registerMetricCollectors(customRegistry, &counters, counterVecs, metricsOpts.Version)
 	if err != nil {
-		return Metrics{}, err
+		return &Metrics{}, err
 	}
 
-	return Metrics{
+	return &Metrics{
 		opts:                     *metricsOpts,
 		flagEvaluationCounter:    *counterVecs.flagEvaluationCounter,
 		allFlagCounter:           counters.allFlagCounter,
@@ -273,6 +275,13 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	}, nil
 }
 
+// Enabled reports whether the metrics are set up: the zero value, or no Metrics at all, means that no metric is
+// recorded or served.
+func (m *Metrics) Enabled() bool {
+	return m != nil && m.Registry != nil
+}
+
+// IncFlagEvaluation increments the evaluation counter of the named flag.
 func (m *Metrics) IncFlagEvaluation(flagName string) {
 	if m.flagEvaluationCounter.MetricVec != nil {
 		labels := prom.Labels{flagNameLabel: flagName}
@@ -367,6 +376,7 @@ func (m *Metrics) IncGetManifestCall() {
 	}
 }
 
+// ShouldCollectBulkMetrics reports whether per-flag-name metrics are collected for bulk evaluations.
 func (m *Metrics) ShouldCollectBulkMetrics() bool {
 	return m.opts.EnableBulkMetricFlagNames && m.allFlagCounterWithFlag.MetricVec != nil
 }
@@ -374,24 +384,32 @@ func (m *Metrics) ShouldCollectBulkMetrics() bool {
 // Gatherer returns what the /metrics endpoint serves. With exposeLegacy it also serves every series of
 // the SubSystem under its LegacySubSystem name (semaphore_flag_evaluations_total is also exposed as
 // gofeatureflag_flag_evaluations_total), so the dashboards and alerts of GO Feature Flag keep working.
-//
-//nolint:ireturn // selects between the registry and the legacy gatherer at runtime
-func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
-	if !exposeLegacy {
-		return m.Registry
+func (m *Metrics) Gatherer(exposeLegacy bool) MetricsGatherer {
+	return MetricsGatherer{
+		source:       m.Registry,
+		exposeLegacy: exposeLegacy,
+	}
+}
+
+// MetricsGatherer gathers the source once and, when exposeLegacy is enabled, serves its families with, next to
+// each family of the SubSystem, a copy named with the LegacySubSystem prefix. Both names carry the values of the
+// same collection.
+type MetricsGatherer struct {
+	source       prom.Gatherer
+	exposeLegacy bool
+}
+
+// Gather returns the metric families from the source, adding LegacySubSystem copies when exposeLegacy is enabled.
+func (g MetricsGatherer) Gather() ([]*dto.MetricFamily, error) {
+	families, err := g.source.Gather()
+	if !g.exposeLegacy {
+		if err != nil {
+			return families, fmt.Errorf("gathering the metrics: %w", err)
+		}
+
+		return families, nil
 	}
 
-	return legacyGatherer{source: m.Registry}
-}
-
-// legacyGatherer gathers the source once and serves its families with, next to each family of the SubSystem,
-// a copy named with the LegacySubSystem prefix. Both names so carry the values of the same collection.
-type legacyGatherer struct {
-	source prom.Gatherer
-}
-
-func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
-	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
 	out := make([]*dto.MetricFamily, 0, len(families)*metricsPerFamily)
 
@@ -411,7 +429,7 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 		out = append(out, clone)
 	}
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
-	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
+	slices.SortFunc(out, func(a, b *dto.MetricFamily) int { return cmp.Compare(a.GetName(), b.GetName()) })
 
 	if err != nil {
 		// the families that were gathered before the failure are still returned, as prom.Gatherers does.

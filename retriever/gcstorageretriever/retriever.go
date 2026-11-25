@@ -28,6 +28,7 @@ type Retriever struct {
 	md5 []byte
 }
 
+// SetOptions sets the client options used to connect to Google Cloud Storage.
 func (retriever *Retriever) SetOptions(options []option.ClientOption) {
 	retriever.Options = options
 }

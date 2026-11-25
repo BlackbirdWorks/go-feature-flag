@@ -10,8 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	hostnameKey         = "hostname"
+	httpValidComWebhook = "http://valid.com/webhook"
 )
 
 type webhookExportFields struct {
@@ -19,11 +24,11 @@ type webhookExportFields struct {
 	Headers     map[string][]string
 	EndpointURL string
 	Secret      string
-	httpClient  testutils.HTTPClientMock
+	httpClient  testhelpers.HTTPClientMock
 }
 
 type webhookExportArgs struct {
-	logger        *fflog.FFLogger
+	logger        *slog.Logger
 	featureEvents []exporter.ExportableEvent
 }
 
@@ -44,7 +49,8 @@ type webhookExportCase struct {
 func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -85,14 +91,14 @@ func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 func TestWebhook_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := Exporter{}
-	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
+	exp := Exporter{}
+	assert.True(t, exp.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestWebhook_Export(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	runWebhookExportTests(t, []webhookExportCase{
 		{
 			name: "Invalid EndpointURL",
@@ -104,35 +110,35 @@ func TestWebhook_Export(t *testing.T) {
 		{
 			name: "valid without signature",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
+				EndpointURL: httpValidComWebhook,
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{hostnameKey: hostnameKey},
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -145,36 +151,36 @@ func TestWebhook_Export(t *testing.T) {
 		{
 			name: "valid with signature",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				EndpointURL: httpValidComWebhook,
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{hostnameKey: hostnameKey},
+				Secret:      fixtures.SecretValue,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -190,40 +196,40 @@ func TestWebhook_Export(t *testing.T) {
 func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	runWebhookExportTests(t, []webhookExportCase{
 		{
 			name: "http error while calling webhook",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 400, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				EndpointURL: httpValidComWebhook,
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 400, ForceError: false},
+				Meta:        map[string]string{hostnameKey: hostnameKey},
+				Secret:      fixtures.SecretValue,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -232,35 +238,35 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 		{
 			name: "error in the during the Do call",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: true},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				EndpointURL: httpValidComWebhook,
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: true},
+				Meta:        map[string]string{hostnameKey: hostnameKey},
+				Secret:      fixtures.SecretValue,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -269,36 +275,36 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 		{
 			name: "expect exporter to send custom headers",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
+				EndpointURL: httpValidComWebhook,
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{hostnameKey: hostnameKey},
 				Headers:     map[string][]string{"Authorization": {"Bearer auth_token"}},
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+					&exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -323,7 +329,7 @@ func TestWebhook_Export_impossibleToParse(t *testing.T) {
 
 	err := f.Export(
 		context.Background(),
-		&fflog.FFLogger{LeveledLogger: slog.Default()},
+		slog.Default(),
 		[]exporter.ExportableEvent{},
 	)
 	assert.EqualError(

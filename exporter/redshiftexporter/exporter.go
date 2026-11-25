@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,7 +22,6 @@ import (
 	smithyjson "github.com/aws/smithy-go/encoding/json"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -233,7 +233,7 @@ type batch struct {
 // Each group of up to maxStatementsPerBatch INSERT statements (and maxBatchBytes) runs in a single transaction.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	rows, eventType, err := buildRows(ctx, logger, events)
@@ -258,7 +258,7 @@ func (e *Exporter) Export(
 	rows, skippedKeys := prepareRows(columns, rows, len(insertPrefix(table, columns)))
 	if len(skippedKeys) > 0 {
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they are too large for Redshift",
-			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys))
+			slog.Int("count", len(skippedKeys)), slog.Any("keys", uniqueKeys(skippedKeys)))
 	}
 
 	if len(rows) == 0 {
@@ -286,7 +286,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk returns true because events are inserted in batches.
-func (e *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
@@ -519,19 +519,20 @@ func (e *Exporter) interval() time.Duration {
 
 // statementResult reports if the statement is completed and its error if it did not succeed.
 func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (bool, error) {
-	switch output.Status {
-	case types.StatusStringFinished:
+	if output.Status == types.StatusStringFinished {
 		return true, nil
-	case types.StatusStringFailed, types.StatusStringAborted:
+	}
+
+	if output.Status == types.StatusStringFailed || output.Status == types.StatusStringAborted {
 		stmtErr := fmt.Errorf("%w: statement %s %s", errRedshiftExporter, aws.ToString(id), output.Status)
 		if detail := statementError(output); detail != "" {
 			stmtErr = fmt.Errorf("%w: %s", stmtErr, detail)
 		}
 
 		return true, stmtErr
-	default:
-		return false, nil
 	}
+
+	return false, nil
 }
 
 // statementError returns the error of a statement, or the one of the sub-statement that failed.
@@ -553,7 +554,7 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 // Events this exporter does not handle are skipped. Events that cannot be converted to JSON
 // (e.g. a NaN value) are skipped with a warning: a failed export is retried with the same
 // events, so a single invalid event would block the exporter forever.
-func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row, string, error) {
+func buildRows(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) ([]row, string, error) {
 	rows := make([]row, 0, len(events))
 	eventType := ""
 
@@ -570,10 +571,10 @@ func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.Ex
 		)
 
 		switch evt := event.(type) {
-		case exporter.FeatureEvent:
+		case *exporter.FeatureEvent:
 			values, err = featureEventRow(evt)
 			rowType = featureEventType
-		case exporter.TrackingEvent:
+		case *exporter.TrackingEvent:
 			values, err = trackingEventRow(evt)
 			rowType = trackingEventType
 		default:
@@ -603,7 +604,8 @@ func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.Ex
 
 	if len(skippedKeys) > 0 {
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they cannot be converted to JSON",
-			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys), "error", firstErr.Error())
+			slog.Int("count", len(skippedKeys)), slog.Any("keys", uniqueKeys(skippedKeys)),
+			slog.String("error", firstErr.Error()))
 	}
 
 	return rows, eventType, nil
@@ -617,7 +619,7 @@ func columnsForEventType(eventType string) []column {
 	return featureEventColumns()
 }
 
-func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
+func featureEventRow(event *exporter.FeatureEvent) ([]string, error) {
 	value, err := json.Marshal(event.Value)
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event value: %w", err)
@@ -643,7 +645,7 @@ func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 	}, nil
 }
 
-func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
+func trackingEventRow(event *exporter.TrackingEvent) ([]string, error) {
 	trackingDetails, err := json.Marshal(event.TrackingDetails)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tracking details: %w", err)
@@ -682,7 +684,7 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 				r.values[i] = truncateUTF8(r.values[i], c.maxBytes)
 			case superColumn:
 				tooLarge = tooLarge || len(r.values[i]) > maxSuperBytes
-			default:
+			case bigintColumn, booleanColumn:
 				// fixed-size values: nothing to truncate or to check
 			}
 		}

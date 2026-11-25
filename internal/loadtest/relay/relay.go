@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/notifier"
@@ -57,11 +57,11 @@ type Relay struct {
 	wsSvc  stream.WebsocketService
 	sink   *httptest.Server
 	server *api.Server
+	// Services are the relay proxy services, usable to build handlers in-process.
+	Services service.Services
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
 	dir     string
-	// Services are the relay proxy services, usable to build handlers in-process.
-	Services service.Services
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.
@@ -99,24 +99,18 @@ func Start(opts Options) (_ *Relay, err error) {
 	}()
 
 	if opts.Listen {
-		// The listener stays bound until the server serves on it: closing it to reuse its port would let
-		// another test (or an outgoing connection) take the port before the server binds it.
-		listener, err = (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+		var port int
+
+		listener, port, err = listenLoopback()
 		if err != nil {
-			return nil, fmt.Errorf("listen on loopback: %w", err)
+			return nil, err
 		}
 
-		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", errUnexpectedListenerAddr, listener.Addr())
-		}
-
-		port := tcpAddr.Port
 		conf.Server.Port = port
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
 
-	logger := log.NewDefault()
+	logger := cmdlog.NewDefault()
 
 	metrics, err := metric.NewMetrics()
 	if err != nil {
@@ -138,7 +132,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		Metrics:           metrics,
 	}
 	if opts.Listen {
-		s := api.New(conf, r.Services, logger.Slog, api.WithListener(listener))
+		s := api.New(conf, &r.Services, logger.Slog, api.WithListener(listener))
 
 		r.server = &s
 		go s.StartWithContext(context.Background())
@@ -146,13 +140,31 @@ func Start(opts Options) (_ *Relay, err error) {
 		listener = nil
 		r.BaseURL = baseURL
 
-		waitHealthyErr := waitHealthy(baseURL)
-		if waitHealthyErr != nil {
-			return nil, waitHealthyErr
+		err = waitHealthy(baseURL)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return r, nil
+}
+
+// listenLoopback binds a free loopback port. The listener stays bound until the server serves on it: closing it
+// to reuse its port would let another test (or an outgoing connection) take the port before the server binds it.
+func listenLoopback() (net.Listener, int, error) {
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, 0, fmt.Errorf("listen on loopback: %w", err)
+	}
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+
+		return nil, 0, fmt.Errorf("%w: %T", errUnexpectedListenerAddr, listener.Addr())
+	}
+
+	return listener, tcpAddr.Port, nil
 }
 
 func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
@@ -246,7 +258,7 @@ func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
 			}
 
 			w.WriteHeader(http.StatusOK)
-		default:
+		case loadtest.ExporterDiscard:
 			w.WriteHeader(http.StatusOK)
 		}
 	}
@@ -263,7 +275,7 @@ func waitHealthy(baseURL string) error {
 	for {
 		var resp *http.Response
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", http.NoBody)
 		if err == nil {
 			resp, err = client.Do(req)
 		}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 var (
@@ -84,7 +85,7 @@ func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 			refusal := helper.NewHTTPError(http.StatusUnauthorized, err.Error())
 			reqlog.RecordError(hctx.Context(), refusal)
 			// the headers first: setting the status sends them.
-			hctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+			hctx.SetHeader(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			hctx.SetStatus(http.StatusUnauthorized)
 			_ = json.NewEncoder(hctx.BodyWriter()).Encode(helper.ErrorBody{Message: refusal.Message})
 
@@ -117,7 +118,7 @@ func (k KeyAuth) authenticate(
 		return ctx, helper.ErrUnauthorized
 	}
 
-	key, err := bearerToken(values(helper.AuthorizationHeader))
+	key, err := bearerToken(values(protocol.HeaderAuthorization))
 	if err != nil {
 		return ctx, err
 	}
@@ -137,9 +138,9 @@ func bearerToken(values []string) (string, error) {
 	}
 
 	for _, value := range values {
-		if len(value) > len(helper.BearerPrefix) &&
-			strings.EqualFold(value[:len(helper.BearerPrefix)], helper.BearerPrefix) {
-			return value[len(helper.BearerPrefix):], nil
+		if len(value) > len(protocol.BearerPrefix) &&
+			strings.EqualFold(value[:len(protocol.BearerPrefix)], protocol.BearerPrefix) {
+			return value[len(protocol.BearerPrefix):], nil
 		}
 	}
 

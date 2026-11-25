@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"fmt"
@@ -18,11 +18,11 @@ import (
 // AllFlags is the controller for the /v1/allflags endpoint.
 type AllFlags struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
 // NewAllFlags initializes the controller for the /v1/allflags endpoint.
-func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) *AllFlags {
+func NewAllFlags(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *AllFlags {
 	return &AllFlags{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,

@@ -14,8 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	semaphoreFlagLoaded = "semaphore_flag_loaded"
 )
 
 var (
@@ -35,7 +40,7 @@ func newFileClient(t *testing.T, content string) (*ffclient.GoFeatureFlag, strin
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "flags.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 	})
@@ -85,7 +90,7 @@ semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
 semaphore_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
 semaphore_flag_loaded{disabled="false",flag_name="other-flag",flagset="team-b"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), semaphoreFlagLoaded))
 }
 
 func TestFlagLoaded_DisabledReflectsScheduledStepsAndExperimentation(t *testing.T) {
@@ -172,7 +177,7 @@ experiment-over-with-nested-bucketing-key:
 	metrics, err := NewMetrics()
 	require.NoError(t, err)
 	require.NoError(t, metrics.RegisterFlagLoaded(fakeFlagsetSource{
-		flagsets: map[string]*ffclient.GoFeatureFlag{"default": client},
+		flagsets: map[string]*ffclient.GoFeatureFlag{fixtures.FlagsetDefault: client},
 	}))
 
 	expected := `
@@ -188,7 +193,7 @@ semaphore_flag_loaded{disabled="false",flag_name="percentage-with-nested-bucketi
 semaphore_flag_loaded{disabled="true",flag_name="scheduled-off-with-bucketing-key",flagset="default"} 1
 semaphore_flag_loaded{disabled="true",flag_name="experiment-over-with-nested-bucketing-key",flagset="default"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), semaphoreFlagLoaded))
 }
 
 func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
@@ -198,9 +203,9 @@ func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
 	metrics, err := NewMetrics()
 	require.NoError(t, err)
 	require.NoError(t, metrics.RegisterFlagLoaded(fakeFlagsetSource{
-		flagsets: map[string]*ffclient.GoFeatureFlag{"default": client},
+		flagsets: map[string]*ffclient.GoFeatureFlag{fixtures.FlagsetDefault: client},
 	}))
-	count, err := testutil.GatherAndCount(metrics.Registry, "semaphore_flag_loaded")
+	count, err := testutil.GatherAndCount(metrics.Registry, semaphoreFlagLoaded)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
@@ -218,7 +223,7 @@ flag-on:
 # TYPE semaphore_flag_loaded gauge
 semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="default"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), semaphoreFlagLoaded))
 }
 
 func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
@@ -232,12 +237,12 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 		{name: "source error", source: fakeFlagsetSource{err: errNoFlagsetsConfigured}, wantSeries: 0},
 		{
 			name:       "nil flagset",
-			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}},
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{fixtures.FlagsetDefault: nil}},
 			wantSeries: 0,
 		},
 		{
 			name:       "cache not initialized",
-			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": {}}},
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{fixtures.FlagsetDefault: {}}},
 			wantSeries: 0,
 		},
 	}
@@ -248,7 +253,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 			m, err := NewMetrics()
 			require.NoError(t, err)
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
-			count, err := testutil.GatherAndCount(m.Registry, "semaphore_flag_loaded")
+			count, err := testutil.GatherAndCount(m.Registry, semaphoreFlagLoaded)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantSeries, count)
 		})
@@ -259,15 +264,15 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 	t.Parallel()
 
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
-	targetFlag := &flag.InternalFlag{
+	targetFlag := &flagdef.InternalFlag{
 		Variations: &map[string]*any{"enabled": new(any(true))},
 		Disable:    new(true),
-		Scheduled: &[]flag.ScheduledStep{{
+		Scheduled: &[]flagdef.ScheduledStep{{
 			Disable: new(false),
 			Date:    new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 	}
-	assert.True(t, isEffectivelyDisabled(flag.NewService(), "no-default-rule", targetFlag))
+	assert.True(t, isEffectivelyDisabled(flagdef.NewService(), "no-default-rule", targetFlag))
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
@@ -293,14 +298,14 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 				created, err := NewMetrics()
 				require.NoError(t, err)
 
-				metrics = &created
+				metrics = created
 			}
 
 			before := metricFamilyNames(t, metrics)
 
 			assert.Equal(t, tt.wantErr, metrics.RegisterFlagLoaded(tt.source))
 			assert.Equal(t, before, metricFamilyNames(t, metrics), "nothing must be registered")
-			assert.Equal(t, tt.wantRegistered, slices.Contains(metricFamilyNames(t, metrics), "semaphore_flag_loaded"))
+			assert.Equal(t, tt.wantRegistered, slices.Contains(metricFamilyNames(t, metrics), semaphoreFlagLoaded))
 		})
 	}
 }
@@ -347,7 +352,7 @@ semaphore_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
 	assert.NotPanics(t, func() {
 		assert.NoError(
 			t,
-			testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), "semaphore_flag_loaded"),
+			testutil.GatherAndCompare(metrics.Registry, strings.NewReader(expected), semaphoreFlagLoaded),
 		)
 	})
 }

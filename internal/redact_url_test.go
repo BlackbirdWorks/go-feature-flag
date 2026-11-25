@@ -15,6 +15,12 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 )
 
+const (
+	get                     = "Get"
+	parseREDACTEDInvalidURL = `parse "[REDACTED]": invalid URL`
+	secretmarker            = "SECRETMARKER"
+)
+
 var (
 	errBoom                  = errors.New("boom")
 	errFailedToParseLocation = errors.New("failed to parse Location header")
@@ -36,7 +42,15 @@ func TestRedactURLError(t *testing.T) {
 	)
 	require.Error(t, parseErr)
 
-	_, doErr := http.Get(closedURL + "/SECRETMARKER-token")
+	req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, closedURL+"/SECRETMARKER-token", http.NoBody)
+	require.NoError(t, reqErr)
+
+	resp, doErr := http.DefaultClient.Do(req)
+
+	if resp != nil {
+		require.NoError(t, resp.Body.Close())
+	}
+
 	require.Error(t, doErr)
 
 	tests := []struct {
@@ -45,7 +59,7 @@ func TestRedactURLError(t *testing.T) {
 		wantMessage string
 		wantSame    bool
 	}{
-		{name: "url.Parse error", err: parseErr, wantMessage: `parse "[REDACTED]": invalid URL`},
+		{name: "url.Parse error", err: parseErr, wantMessage: parseREDACTEDInvalidURL},
 		{name: "http client error", err: doErr, wantMessage: `Get "[REDACTED]": dial tcp`},
 		{
 			name: "url.Error from a custom client", wantMessage: `Post "[REDACTED]": boom`,
@@ -53,13 +67,13 @@ func TestRedactURLError(t *testing.T) {
 		},
 		{
 			name: "wrapped url.Error", wantMessage: `Get "[REDACTED]": EOF`,
-			err: fmt.Errorf("wrapped: %w", &url.Error{Op: "Get", URL: secretURL, Err: io.EOF}),
+			err: fmt.Errorf("wrapped: %w", &url.Error{Op: get, URL: secretURL, Err: io.EOF}),
 		},
 		{
 			name:        "malformed redirect location",
 			wantMessage: `Get "[REDACTED]": invalid Location header`,
 			err: &url.Error{
-				Op:  "Get",
+				Op:  get,
 				URL: secretURL,
 				Err: fmt.Errorf(
 					"%w %q: invalid character",
@@ -72,7 +86,7 @@ func TestRedactURLError(t *testing.T) {
 			name:        "cause quoting an url",
 			wantMessage: `Get "[REDACTED]": bad [REDACTED] here`,
 			err: &url.Error{
-				Op:  "Get",
+				Op:  get,
 				URL: secretURL,
 				Err: errBadHTTPSUSECRETMARKER,
 			},
@@ -96,7 +110,7 @@ func TestRedactURLError(t *testing.T) {
 				return
 			}
 
-			assert.NotContains(t, got.Error(), "SECRETMARKER")
+			assert.NotContains(t, got.Error(), secretmarker)
 			assert.Contains(t, got.Error(), tt.wantMessage)
 
 			if tt.wantSame {
@@ -132,7 +146,7 @@ func TestRedactURL(t *testing.T) {
 
 			got := internal.RedactURL(tt.raw)
 			assert.Equal(t, tt.want, got)
-			assert.NotContains(t, got, "SECRETMARKER")
+			assert.NotContains(t, got, secretmarker)
 		})
 	}
 }
@@ -149,35 +163,35 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 		{
 			name:        "password parsed as invalid port",
 			raw:         "https://user:SECRETMARKER",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
 		{
 			name:        "invalid port with path",
 			raw:         "https://h:99999SECRETMARKER/p",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
 		{
 			name:        "invalid escape in path",
 			raw:         "https://u:p@h/%zzSECRETMARKER",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
 		{
 			name:        "invalid escape in user info",
 			raw:         "https://u%zzSECRETMARKER:p@h",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
-		{name: "control character", raw: "https://h/\x7fSECRETMARKER", wantMessage: `parse "[REDACTED]": invalid URL`},
-		{name: "missing scheme", raw: "://SECRETMARKER", wantMessage: `parse "[REDACTED]": invalid URL`},
+		{name: "control character", raw: "https://h/\x7fSECRETMARKER", wantMessage: parseREDACTEDInvalidURL},
+		{name: "missing scheme", raw: "://SECRETMARKER", wantMessage: parseREDACTEDInvalidURL},
 		{
 			name:        "colon in first path segment",
 			raw:         "1http://SECRETMARKER",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
-		{name: "unclosed ipv6 host", raw: "https://[::1SECRETMARKER/", wantMessage: `parse "[REDACTED]": invalid URL`},
+		{name: "unclosed ipv6 host", raw: "https://[::1SECRETMARKER/", wantMessage: parseREDACTEDInvalidURL},
 		{
 			name:        "invalid host character",
 			raw:         "https://h{}SECRETMARKER",
-			wantMessage: `parse "[REDACTED]": invalid URL`,
+			wantMessage: parseREDACTEDInvalidURL,
 		},
 	}
 	for _, tt := range tests {
@@ -186,9 +200,9 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 
 			_, parseErr := url.Parse(tt.raw)
 			require.Error(t, parseErr)
-			require.Contains(t, parseErr.Error(), "SECRETMARKER", "the shape must make url.Parse quote the input")
+			require.Contains(t, parseErr.Error(), secretmarker, "the shape must make url.Parse quote the input")
 
-			_, reqErr := http.NewRequest(http.MethodGet, tt.raw, nil)
+			_, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, http.NoBody)
 			require.Error(t, reqErr)
 
 			assert.Equal(t, tt.wantMessage, internal.RedactURLError(parseErr).Error())
@@ -196,8 +210,8 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			for _, in := range []error{parseErr, reqErr, fmt.Errorf("wrapped: %w", parseErr)} {
 				got := internal.RedactURLError(in)
 				require.Error(t, got)
-				assert.NotContains(t, got.Error(), "SECRETMARKER")
-				assert.NotContains(t, fmt.Sprintf("%v %+v %#v", got, got, got), "SECRETMARKER")
+				assert.NotContains(t, got.Error(), secretmarker)
+				assert.NotContains(t, fmt.Sprintf("%v %+v %#v", got, got, got), secretmarker)
 				assert.Contains(t, got.Error(), internal.RedactedURL)
 			}
 		})

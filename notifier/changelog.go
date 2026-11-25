@@ -2,9 +2,10 @@ package notifier
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/luci/go-render/render"
@@ -41,7 +42,7 @@ func FlagChanges(before, after any) ([]FieldChange, error) {
 		})
 	}
 
-	sort.SliceStable(changes, func(i, j int) bool { return changes[i].Path < changes[j].Path })
+	slices.SortStableFunc(changes, func(a, b FieldChange) int { return cmp.Compare(a.Path, b.Path) })
 
 	return changes, nil
 }

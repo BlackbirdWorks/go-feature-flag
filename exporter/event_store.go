@@ -84,6 +84,7 @@ func NewEventStoreWithLimit[T ExportableEvent](
 	return store
 }
 
+// EventList is a list of evaluation events of type T.
 type EventList[T ExportableEvent] struct {
 	Events        []T
 	InitialOffset int64
@@ -117,6 +118,7 @@ type EventStore[T ExportableEvent] interface {
 	Stop()
 }
 
+// EventStoreItem is an item of the event store that wraps one event of type T.
 type EventStoreItem[T ExportableEvent] struct {
 	Data   T
 	Offset int64
@@ -399,8 +401,8 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 	return nil
 }
 
-// cleanQueue removes all events that have been consumed by all consumers.
-func (e *eventStoreImpl[T]) cleanQueue() {
+// purgeQueue removes all events that have been consumed by all consumers.
+func (e *eventStoreImpl[T]) purgeQueue() {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
@@ -410,10 +412,10 @@ func (e *eventStoreImpl[T]) cleanQueue() {
 // CleanQueue releases the events that every consumer has already processed. It is also done
 // periodically; calling it after a successful flush keeps the memory of a healthy store small.
 func (e *eventStoreImpl[T]) CleanQueue() {
-	e.cleanQueue()
+	e.purgeQueue()
 }
 
-// cleanQueueLocked is cleanQueue for a caller that holds the mutex.
+// cleanQueueLocked is purgeQueue for a caller that holds the mutex.
 func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	if len(e.events) == 0 {
 		// nothing to remove
@@ -471,7 +473,7 @@ func (e *eventStoreImpl[T]) periodicCleanQueue() {
 	for {
 		select {
 		case <-ticker.C:
-			e.cleanQueue()
+			e.purgeQueue()
 		case <-e.stopPeriodicCleaning:
 			return
 		}

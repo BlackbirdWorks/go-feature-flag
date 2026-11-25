@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // maxPooledBody is the largest request buffer that goes back to the pool: a bigger one would pin its memory.
@@ -21,7 +23,7 @@ var bodyBuffers = sync.Pool{
 func IsJSON(contentType string) bool {
 	base, _, _ := strings.Cut(contentType, ";")
 
-	return strings.TrimSpace(base) == MIMEApplicationJSON
+	return strings.TrimSpace(base) == protocol.MIMEApplicationJSON
 }
 
 // BindBody decodes the JSON body of the request in target. An empty body leaves target untouched, another
@@ -31,7 +33,7 @@ func BindBody(r *http.Request, target any) error {
 		return nil
 	}
 
-	if !IsJSON(r.Header.Get(HeaderContentType)) {
+	if !IsJSON(r.Header.Get(protocol.HeaderContentType)) {
 		return NewHTTPError(http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
 	}
 

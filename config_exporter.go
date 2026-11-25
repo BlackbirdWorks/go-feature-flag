@@ -6,11 +6,14 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+// ExporterEventType is the type of event sent by an exporter.
 type ExporterEventType = string
 
 const (
+	// TrackingEventExporter is the event type of tracking events sent to the exporters.
 	TrackingEventExporter ExporterEventType = "tracking"
-	FeatureEventExporter  ExporterEventType = "feature"
+	// FeatureEventExporter is the event type of feature events sent to the exporters.
+	FeatureEventExporter ExporterEventType = "feature"
 )
 
 // DataExporter is the configuration of your export target.

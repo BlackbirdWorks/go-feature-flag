@@ -1,7 +1,9 @@
 package cache_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -11,8 +13,13 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	flagOne = "flag-1"
+	hacked  = "hacked"
 )
 
 // Test_AllFlags_ReturnsDetachedFlags checks that the flags returned by the public snapshot
@@ -23,26 +30,26 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 
 	tests := []struct {
 		want   any
-		mutate func(f *flag.InternalFlag)
-		read   func(f flag.Flag) any
+		mutate func(f *flagdef.InternalFlag)
+		read   func(f flagdef.Flag) any
 		name   string
 	}{
 		{
 			name: "disable the flag in the snapshot",
-			mutate: func(f *flag.InternalFlag) {
+			mutate: func(f *flagdef.InternalFlag) {
 				d := true
 				f.Disable = &d
 			},
-			read: func(f flag.Flag) any { return f.IsDisable() },
+			read: func(f flagdef.Flag) any { return f.IsDisable() },
 			want: false,
 		},
 		{
 			name: "change the version in the snapshot",
-			mutate: func(f *flag.InternalFlag) {
-				v := "hacked"
+			mutate: func(f *flagdef.InternalFlag) {
+				v := hacked
 				f.Version = &v
 			},
-			read: func(f flag.Flag) any { return f.GetVersion() },
+			read: func(f flagdef.Flag) any { return f.GetVersion() },
 			want: "",
 		},
 	}
@@ -50,25 +57,25 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			f, ok := snap["flag-1"].(*flag.InternalFlag)
+			f, ok := snap[flagOne].(*flagdef.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
 			delete(snap, "flag-2")
 
-			live, err := mgr.GetFlag("flag-1")
+			live, err := mgr.GetFlag(flagOne)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, tt.read(live))
 
 			again, err := mgr.AllFlags()
 			require.NoError(t, err)
 			assert.Len(t, again, 3)
-			assert.Equal(t, tt.want, tt.read(again["flag-1"]))
+			assert.Equal(t, tt.want, tt.read(again[flagOne]))
 		})
 	}
 }
@@ -78,7 +85,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	t.Parallel()
 
-	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 	flags := benchFlagsMap(t, 5)
 	require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
@@ -93,12 +100,12 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 
 				for _, f := range snap {
 					d := true
-					if iflag, ok := f.(*flag.InternalFlag); assert.True(t, ok) {
+					if iflag, ok := f.(*flagdef.InternalFlag); assert.True(t, ok) {
 						iflag.Disable = &d
 					}
 				}
 
-				live, getFlagErr := mgr.GetFlag("flag-1")
+				live, getFlagErr := mgr.GetFlag(flagOne)
 				if getFlagErr == nil {
 					_ = live.IsDisable()
 				}
@@ -112,7 +119,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 
 	wg.Wait()
 
-	live, err := mgr.GetFlag("flag-1")
+	live, err := mgr.GetFlag(flagOne)
 	require.NoError(t, err)
 	assert.False(t, live.IsDisable())
 }
@@ -148,12 +155,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		mutate func(t *testing.T, f *flag.InternalFlag)
+		mutate func(t *testing.T, f *flagdef.InternalFlag)
 		name   string
 		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
 		wantLiveChanged bool
 	}{
-		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			v := *(*f.Variations)["A"]
@@ -164,15 +171,15 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			nested, ok := kSlice[2].(map[string]any)
 			require.True(t, ok)
 
-			nested["deep"] = "hacked"
-			kSlice[0] = "hacked"
+			nested["deep"] = hacked
+			kSlice[0] = hacked
 		}},
-		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
-			x := any("hacked")
+		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
+			x := any(hacked)
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
-		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			owner, ok := (*f.Metadata)["owner"].(map[string]any)
@@ -180,30 +187,30 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
 
-			team[0] = "hacked"
+			team[0] = hacked
 		}},
-		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
+		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
 			r := &(*f.Rules)[0]
-			*r.Query = "hacked"
-			*r.VariationResult = "hacked"
+			*r.Query = hacked
+			*r.VariationResult = hacked
 			(*r.Percentages)["A"] = 1
 			*r.ProgressiveRollout.End.Percentage = 5
-			*r.ProgressiveRollout.End.Variation = "hacked"
-			*r.Name = "hacked"
+			*r.ProgressiveRollout.End.Variation = hacked
+			*r.Name = hacked
 		}},
 		{
 			name:            "default rule",
 			wantLiveChanged: false,
-			mutate:          func(_ *testing.T, f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
+			mutate:          func(_ *testing.T, f *flagdef.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
 		},
 		{
 			name:            "experimentation",
 			wantLiveChanged: false,
-			mutate: func(_ *testing.T, f *flag.InternalFlag) {
+			mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
 				*f.Experimentation.Start = f.Experimentation.End.Add(1)
 			},
 		},
-		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			step := &(*f.Scheduled)[0]
@@ -212,7 +219,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
 
-			team[0] = "hacked"
+			team[0] = hacked
 			(*step.Variations)["A"] = nil
 			*step.Date = step.Date.Add(1)
 		}},
@@ -224,9 +231,9 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			var flags map[string]dto.DTO
 			require.NoError(t, yaml.Unmarshal([]byte(nestedFlagYAML), &flags))
 
-			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
-			live, err := mgr.GetFlag("nested")
+			live, err := mgr.GetFlag(fixtures.NestedKey)
 			require.NoError(t, err)
 			before, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -234,18 +241,18 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			iflag, ok := snap["nested"].(*flag.InternalFlag)
+			iflag, ok := snap[fixtures.NestedKey].(*flagdef.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
 
-			live, err = mgr.GetFlag("nested")
+			live, err = mgr.GetFlag(fixtures.NestedKey)
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
 				tt.wantLiveChanged,
-				string(before) != string(after),
+				!bytes.Equal(before, after),
 				"the live flag is not changed through the snapshot",
 			)
 		})
@@ -257,18 +264,18 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	t.Parallel()
 
-	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 	mgr.Close()
 	_, err := mgr.AllFlagsReadOnly()
 	require.Error(t, err)
 
-	mgr = cache.New(nil, "", &fflog.FFLogger{})
+	mgr = cache.New(nil, "", slog.New(slog.DiscardHandler))
 	require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 	shared, err := mgr.AllFlagsReadOnly()
 	require.NoError(t, err)
 	require.Len(t, shared, 3)
 
-	live, err := mgr.GetFlag("flag-1")
+	live, err := mgr.GetFlag(flagOne)
 	require.NoError(t, err)
-	assert.Same(t, live, shared["flag-1"])
+	assert.Same(t, live, shared[flagOne])
 }

@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	eventName = "event"
 )
 
 func TestTrackingEvent_FormatInCSV(t *testing.T) {
@@ -23,14 +28,14 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              "tracking",
-				ContextKind:       "anonymousUser",
-				UserKey:           "ABCD",
+				Kind:              fixtures.KindTracking,
+				ContextKind:       fixtures.UserKeyAnonymous,
+				UserKey:           fixtures.UserKeyABCD,
 				CreationDate:      1617970547,
-				Key:               "random-key",
-				EvaluationContext: map[string]any{"targetingKey": "ABCD"},
+				Key:               fixtures.UserKeyRandom,
+				EvaluationContext: map[string]any{fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD},
 				TrackingDetails: map[string]any{
-					"event": "123",
+					eventName: fixtures.Numeric123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -41,14 +46,17 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event with evaluation context attributes",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              "tracking",
-				ContextKind:       "anonymousUser",
-				UserKey:           "ABCD",
-				CreationDate:      1617970547,
-				Key:               "random-key",
-				EvaluationContext: map[string]any{"targetingKey": "ABCD", "toto": 123},
+				Kind:         fixtures.KindTracking,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
+				CreationDate: 1617970547,
+				Key:          fixtures.UserKeyRandom,
+				EvaluationContext: map[string]any{
+					fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD,
+					fixtures.PlaceholderToto:       123,
+				},
 				TrackingDetails: map[string]any{
-					"event": "123",
+					eventName: fixtures.Numeric123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -85,14 +93,14 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              "tracking",
-				ContextKind:       "anonymousUser",
-				UserKey:           "ABCD",
+				Kind:              fixtures.KindTracking,
+				ContextKind:       fixtures.UserKeyAnonymous,
+				UserKey:           fixtures.UserKeyABCD,
 				CreationDate:      1617970547,
-				Key:               "random-key",
-				EvaluationContext: map[string]any{"targetingKey": "ABCD"},
+				Key:               fixtures.UserKeyRandom,
+				EvaluationContext: map[string]any{fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD},
 				TrackingDetails: map[string]any{
-					"event": "123",
+					eventName: fixtures.Numeric123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
@@ -102,14 +110,17 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event with evaluation context attributes",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              "tracking",
-				ContextKind:       "anonymousUser",
-				UserKey:           "ABCD",
-				CreationDate:      1617970547,
-				Key:               "random-key",
-				EvaluationContext: map[string]any{"targetingKey": "ABCD", "toto": 123},
+				Kind:         fixtures.KindTracking,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
+				CreationDate: 1617970547,
+				Key:          fixtures.UserKeyRandom,
+				EvaluationContext: map[string]any{
+					fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD,
+					fixtures.PlaceholderToto:       123,
+				},
 				TrackingDetails: map[string]any{
-					"event": "123",
+					eventName: fixtures.Numeric123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
@@ -140,22 +151,22 @@ func TestTrackingEvent_GetKey(t *testing.T) {
 		want          string
 	}{
 		{
-			name: "return existing key",
+			name: returnExistingKey,
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         "tracking",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         fixtures.KindTracking,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
+				Key:          fixtures.UserKeyRandom,
 			},
-			want: "random-key",
+			want: fixtures.UserKeyRandom,
 		},
 		{
 			name: "empty key",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         "tracking",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         fixtures.KindTracking,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
 				Key:          "",
 			},
@@ -180,15 +191,15 @@ func TestTrackingEvent_GetUserKey(t *testing.T) {
 		want          string
 	}{
 		{
-			name: "return existing key",
+			name: returnExistingKey,
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         "tracking",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         fixtures.KindTracking,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
+				Key:          fixtures.UserKeyRandom,
 			},
-			want: "ABCD",
+			want: fixtures.UserKeyABCD,
 		},
 	}
 	for _, tt := range tests {

@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"errors"
@@ -20,7 +20,21 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
+)
+
+const (
+	badRequest                    = "Bad Request"
+	tenDigitsPattern              = `\d{10}`
+	fixedTimestamp                = "1652273630"
+	handlerShouldReturnAn         = "handler should return an error"
+	impossibleTheExpectedWantBody = "Impossible the expected wantBody file %s"
+	invalidHTTPCode               = "Invalid HTTP Code"
+	invalidJSONFormat             = "Invalid json format"
+	invalidResponseWantBody       = "Invalid response wantBody"
+	requestWantBodyFileMissing    = "request wantBody file missing %s"
+	validFlag                     = "valid flag"
 )
 
 const testdataDir = "../../testdata/semaphore"
@@ -47,7 +61,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 		want want
 	}{
 		{
-			name: "valid flag",
+			name: validFlag,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/valid_request.json",
 				configFlagsLocation: configFlagsLocation,
@@ -58,14 +72,14 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			},
 		},
 		{
-			name: "Invalid json format",
+			name: invalidJSONFormat,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/invalid_json_request.json",
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
 				handlerErr: true,
-				errorMsg:   "Bad Request",
+				errorMsg:   badRequest,
 				errorCode:  http.StatusBadRequest,
 			},
 		},
@@ -139,9 +153,9 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -149,17 +163,17 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 
 			if tt.args.bodyFile != "" {
 				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, readFileErr, requestWantBodyFileMissing, tt.args.bodyFile)
 
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
-				require.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, handlerShouldReturnAn)
 
 				he := &helper.HTTPError{}
 
@@ -177,13 +191,13 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
 			// replace the timestamps in the response
-			regex := regexp.MustCompile(`\d{10}`)
-			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
+			regex := regexp.MustCompile(tenDigitsPattern)
+			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
-			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
-			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
+			require.NoError(t, err, impossibleTheExpectedWantBody, tt.want.bodyFile)
+			assert.Equal(t, tt.want.httpCode, rec.Code, invalidHTTPCode)
+			assert.JSONEq(t, string(wantBody), replacedStr, invalidResponseWantBody)
 		})
 	}
 }
@@ -191,7 +205,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 	t.Parallel()
 
-	const configFlagsLocation = testdataDir + "/config_flags.yaml"
+	const configFlagsLocation = testdataDir + configFlagsYaml
 
 	type want struct {
 		bodyFile   string
@@ -212,7 +226,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 		want want
 	}{
 		{
-			name: "valid flag",
+			name: validFlag,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/valid_request.json",
 				configFlagsLocation: configFlagsLocation,
@@ -223,14 +237,14 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			},
 		},
 		{
-			name: "Invalid json format",
+			name: invalidJSONFormat,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/invalid_json_request.json",
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
 				handlerErr: true,
-				errorMsg:   "Bad Request",
+				errorMsg:   badRequest,
 				errorCode:  http.StatusBadRequest,
 			},
 		},
@@ -284,9 +298,9 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -294,18 +308,18 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 
 			if tt.args.bodyFile != "" {
 				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, readFileErr, requestWantBodyFileMissing, tt.args.bodyFile)
 
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set("Content-Type", "application/json")
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.Header.Set("Authorization", "Bearer test-api-key")
 			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
-				require.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, handlerShouldReturnAn)
 
 				he := &helper.HTTPError{}
 
@@ -323,13 +337,13 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
 			// replace the timestamps in the response
-			regex := regexp.MustCompile(`\d{10}`)
-			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
+			regex := regexp.MustCompile(tenDigitsPattern)
+			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
-			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
-			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
+			require.NoError(t, err, impossibleTheExpectedWantBody, tt.want.bodyFile)
+			assert.Equal(t, tt.want.httpCode, rec.Code, invalidHTTPCode)
+			assert.JSONEq(t, string(wantBody), replacedStr, invalidResponseWantBody)
 		})
 	}
 }

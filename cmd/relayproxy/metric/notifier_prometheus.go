@@ -4,16 +4,19 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+// NotifierPrometheus records flag changes as Prometheus metrics.
 type NotifierPrometheus struct {
-	metricsService Metrics
+	metricsService *Metrics
 }
 
-func NewPrometheusNotifier(metricsService Metrics) *NotifierPrometheus {
+// NewPrometheusNotifier returns a notifier that records flag changes in metricsService.
+func NewPrometheusNotifier(metricsService *Metrics) *NotifierPrometheus {
 	return &NotifierPrometheus{
 		metricsService: metricsService,
 	}
 }
 
+// Notify records the flag changes of diff in the metrics.
 func (n *NotifierPrometheus) Notify(diff notifier.DiffCache) error {
 	if !diff.HasDiff() {
 		return nil
@@ -35,3 +38,6 @@ func (n *NotifierPrometheus) Notify(diff notifier.DiffCache) error {
 
 	return nil
 }
+
+// compile-time check of the interface implemented by the type.
+var _ notifier.Notifier = (*NotifierPrometheus)(nil)

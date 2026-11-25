@@ -21,7 +21,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
+)
+
+const (
+	serverError = "Server error"
 )
 
 var errNotInitialized = errors.New("not initialized")
@@ -29,7 +35,7 @@ var errNotInitialized = errors.New("not initialized")
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0e0e0e0e-01"
 
 // failingMonitoring is a monitoring service whose info endpoint fails.
-func failingMonitoring() service.Monitoring {
+func failingMonitoring() *mock.MockMonitoringService {
 	return &mock.MockMonitoringService{
 		HealthResponse: model.HealthResponse{Initialized: true},
 		InfoError:      errNotInitialized,
@@ -50,15 +56,22 @@ func Test_Tracing(t *testing.T) {
 		wantStatus int
 		wantError  bool
 	}{
-		{name: "huma operation", method: http.MethodGet, path: "/health", wantName: "GET /health", wantRoute: "/health",
-			wantRecord: "Success", wantStatus: http.StatusOK},
+		{
+			name:       "huma operation",
+			method:     http.MethodGet,
+			path:       healthPath,
+			wantName:   getHealthRoute,
+			wantRoute:  healthPath,
+			wantRecord: fixtures.LogMessageSuccess,
+			wantStatus: http.StatusOK,
+		},
 		{
 			name:       "huma operation failing",
 			method:     http.MethodGet,
-			path:       "/info",
+			path:       info,
 			wantName:   "GET /info",
-			wantRoute:  "/info",
-			wantRecord: "Server error",
+			wantRoute:  info,
+			wantRecord: serverError,
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
@@ -69,14 +82,14 @@ func Test_Tracing(t *testing.T) {
 			body:       `{"evaluationContext":{"key":"u"}}`,
 			wantName:   "POST /v1/feature/{flagKey}/eval",
 			wantRoute:  "/v1/feature/{flagKey}/eval",
-			wantRecord: "Server error",
+			wantRecord: serverError,
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
 		{
 			name:       "no route",
 			method:     http.MethodGet,
-			path:       "/nope",
+			path:       nope,
 			wantName:   "GET /",
 			wantRoute:  "/",
 			wantRecord: "Client error",
@@ -97,11 +110,11 @@ func Test_Tracing(t *testing.T) {
 			conf.LogLevel = "debug"
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			// without a flag set manager the endpoints that need one answer 500: the span of a failure is checked.
-			srv := api.New(conf, service.Services{MonitoringService: failingMonitoring()}, logger,
+			srv := api.New(conf, &service.Services{MonitoringService: failingMonitoring()}, logger,
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
-			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.Header.Set("Traceparent", traceparent)
 
 			rec := httptest.NewRecorder()

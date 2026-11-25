@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"bufio"
@@ -21,9 +21,16 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	dataKey          = "data"
+	getStreamV1Route = "GET /stream/v1/sse/flag/change"
 )
 
 var (
@@ -47,16 +54,16 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
-func (m *mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
+func (*mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
 	return nil, assert.AnError
 }
 
-func (m *mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
+func (*mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
 	return nil, assert.AnError
 }
-func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
-func (m *mockFlagsetManagerSSE) Close()                           {}
-func (m *mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
+func (*mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
+func (*mockFlagsetManagerSSE) Close()                           {}
+func (*mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
 func Test_SSE_FlagChange(t *testing.T) {
 	t.Parallel()
@@ -70,20 +77,20 @@ func Test_SSE_FlagChange(t *testing.T) {
 			name: "update single flag",
 			flagChange: notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
-					"my-flag": {
-						Before: &flag.InternalFlag{
+					fixtures.FlagKeyMy: {
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: new("A")},
+							DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: new("B")},
+							DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 						},
 					},
 				},
@@ -93,20 +100,20 @@ func Test_SSE_FlagChange(t *testing.T) {
 		{
 			name: "add and delete flags at the same time",
 			flagChange: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Deleted: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("A")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 					},
 				},
-				Added: map[string]flag.Flag{
-					"flag-2": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-2": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"B": new(any(false)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("B")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 					},
 				},
 			},
@@ -134,19 +141,19 @@ func Test_SSE_FlagChange(t *testing.T) {
 			})
 
 			flagsetMgr := &mockFlagsetManagerSSE{
-				flagsetName: "default",
+				flagsetName: fixtures.FlagsetDefault,
 				isDefault:   true,
 			}
 
 			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 			e := http.NewServeMux()
-			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+			e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 			srv := httptest.NewServer(e)
 			defer srv.Close()
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-				srv.URL+"/stream/v1/sse/flag/change", nil)
+				srv.URL+"/stream/v1/sse/flag/change", http.NoBody)
 			require.NoError(t, err)
 
 			resp, err := (&http.Client{}).Do(req)
@@ -155,7 +162,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
-			assert.Contains(t, resp.Header.Get("Content-Type"), "text/event-stream")
+			assert.Contains(t, resp.Header.Get(protocol.HeaderContentType), "text/event-stream")
 
 			select {
 			case <-subscribed:
@@ -165,14 +172,14 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 			before := clock.Now().Unix()
 
-			require.NoError(t, sseService.BroadcastFlagChanges("default", tt.flagChange))
+			require.NoError(t, sseService.BroadcastFlagChanges(fixtures.FlagsetDefault, tt.flagChange))
 
 			event := readSSEEvent(t, resp)
 			assert.NotEmpty(t, event["id"], "events should have an id")
 			assert.Equal(t, "message", event["event"])
 
 			var got model.OFREPSSEEvent
-			require.NoError(t, json.Unmarshal([]byte(event["data"]), &got))
+			require.NoError(t, json.Unmarshal([]byte(event[dataKey]), &got))
 			assert.Equal(t, tt.wantEvent, got.Type)
 			assert.GreaterOrEqual(t, got.LastModified, before)
 		})
@@ -198,19 +205,19 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	})
 
 	flagsetMgr := &mockFlagsetManagerSSE{
-		flagsetName: "flagsetA",
+		flagsetName: fixtures.FlagsetCamel,
 		isDefault:   false,
 	}
 
 	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 	e := http.NewServeMux()
-	e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+	e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 	srv := httptest.NewServer(e)
 	defer srv.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", nil)
+		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", http.NoBody)
 	require.NoError(t, err)
 
 	resp, err := (&http.Client{}).Do(req)
@@ -228,15 +235,15 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 
 	// Broadcast to flagsetB -- the client on flagsetA should NOT receive it.
 	require.NoError(t, sseService.BroadcastFlagChanges("flagsetB", notifier.DiffCache{
-		Added: map[string]flag.Flag{"wrong-flag": &flag.InternalFlag{}},
+		Added: map[string]flagdef.Flag{wrongFlag: &flagdef.InternalFlag{}},
 	}))
 
 	// Broadcast to flagsetA -- the client should receive this one.
 	// The event id is a timestamp, so it tells us which broadcast was received.
 	afterWrongBroadcast := clock.Now().UnixNano()
 
-	require.NoError(t, sseService.BroadcastFlagChanges("flagsetA", notifier.DiffCache{
-		Added: map[string]flag.Flag{"right-flag": &flag.InternalFlag{}},
+	require.NoError(t, sseService.BroadcastFlagChanges(fixtures.FlagsetCamel, notifier.DiffCache{
+		Added: map[string]flagdef.Flag{rightFlag: &flagdef.InternalFlag{}},
 	}))
 
 	event := readSSEEvent(t, resp)
@@ -244,7 +251,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, id, afterWrongBroadcast,
 		"client should only receive the event of its own flagset")
-	assert.Contains(t, event["data"], model.OFREPSSEEventTypeRefetchEvaluation)
+	assert.Contains(t, event[dataKey], model.OFREPSSEEventTypeRefetchEvaluation)
 }
 
 // readSSEEvent reads the next SSE event of the response and returns its fields.
@@ -269,7 +276,7 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 		}
 	}
 
-	require.NotEmpty(t, fields["data"], "should have received an SSE data line")
+	require.NotEmpty(t, fields[dataKey], "should have received an SSE data line")
 
 	return fields
 }
@@ -312,7 +319,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 
 			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr)
 			e := http.NewServeMux()
-			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+			e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 			srv := httptest.NewServer(e)
 			defer srv.Close()
@@ -325,7 +332,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 
 			resp, err := (&http.Client{}).Do(req)

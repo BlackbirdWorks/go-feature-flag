@@ -1,4 +1,4 @@
-package go_integration_tests
+package integrationtests_test
 
 import (
 	"context"
@@ -9,6 +9,26 @@ import (
 	gofeatureflag "github.com/open-feature/go-sdk-contrib/providers/go-feature-flag/pkg"
 	of "github.com/open-feature/go-sdk/openfeature"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	pullRequestLinkKey              = "pr_link"
+	metadataDescriptionText         = "this is a test"
+	flagBoolTargetingMatch          = "bool_targeting_match"
+	variationTrue                   = "True"
+	descriptionKey                  = "description"
+	cacheableMetadataKey            = "gofeatureflag_cacheable"
+	issueLinkPull916                = "https://github.com/thomaspoignant/go-feature-flag/pull/916"
+	variationSdkDefault             = "SdkDefault"
+	flagStringKey                   = "string_key"
+	testNameFlagNotExists           = "should error if flag does not exists"
+	flagNotExists                   = "does_not_exists"
+	errFlagNotExists                = "flag for key 'does_not_exists' does not exist"
+	relayProxyURL                   = "http://localhost:1031/"
+	flagsetDefault                  = "default"
+	testNameStringTypeMismatch      = "should error if we expect a string and got another type"
+	flagBooleanSemverTargetingMatch = "boolean_semver_targeting_match"
 )
 
 func defaultEvaluationCtx() of.EvaluationContext {
@@ -39,41 +59,45 @@ func withOverrides(base of.EvaluationContext, overrides map[string]any) of.Evalu
 	newAttributes := make(map[string]any, len(base.Attributes()))
 	maps.Copy(newAttributes, base.Attributes())
 	maps.Copy(newAttributes, overrides)
+
 	return of.NewEvaluationContext("d45e303a-38c2-11ed-a261-0242ac120002", newAttributes)
 }
 
 func TestProvider_module_BooleanEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue bool
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid boolean flag with TARGETING_MATCH reason",
 			args: args{
-				flag:         "bool_targeting_match",
+				flag:         flagBoolTargetingMatch,
 				defaultValue: false,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.BooleanEvaluationDetails{
 				Value: true,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -92,14 +116,14 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 					FlagKey:  "disabled_bool",
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "SdkDefault",
+						Variant:      variationSdkDefault,
 						Reason:       of.DisabledReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -108,14 +132,14 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 		{
 			name: "should error if we expect a boolean and got another type",
 			args: args{
-				flag:         "string_key",
+				flag:         flagStringKey,
 				defaultValue: false,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.BooleanEvaluationDetails{
 				Value: false,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "string_key",
+					FlagKey:  flagStringKey,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -128,22 +152,22 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 			},
 		},
 		{
-			name: "should error if flag does not exists",
+			name: testNameFlagNotExists,
 			args: args{
-				flag:         "does_not_exists",
+				flag:         flagNotExists,
 				defaultValue: false,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.BooleanEvaluationDetails{
 				Value: false,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "does_not_exists",
+					FlagKey:  flagNotExists,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
 						Reason:       of.ErrorReason,
 						ErrorCode:    of.FlagNotFoundCode,
-						ErrorMessage: "flag for key 'does_not_exists' does not exist",
+						ErrorMessage: errFlagNotExists,
 						FlagMetadata: map[string]any{},
 					},
 				},
@@ -152,14 +176,16 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
 				tt.args.flag,
@@ -168,11 +194,12 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -181,37 +208,40 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_StringEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue string
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
-		name string
-		args args
 		want of.StringEvaluationDetails
+		args args
+		name string
 	}{
 		{
 			name: "should resolve a valid string flag with TARGETING_MATCH reason",
 			args: args{
-				flag:         "string_key",
-				defaultValue: "default",
+				flag:         flagStringKey,
+				defaultValue: flagsetDefault,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.StringEvaluationDetails{
 				Value: "CC0000",
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "string_key",
+					FlagKey:  flagStringKey,
 					FlagType: of.String,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -221,39 +251,39 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 			name: "should use string default value if the flag is disabled",
 			args: args{
 				flag:         "disabled_string",
-				defaultValue: "default",
+				defaultValue: flagsetDefault,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.StringEvaluationDetails{
-				Value: "default",
+				Value: flagsetDefault,
 				EvaluationDetails: of.EvaluationDetails{
 					FlagKey:  "disabled_string",
 					FlagType: of.String,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "SdkDefault",
+						Variant:      variationSdkDefault,
 						Reason:       of.DisabledReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "should error if we expect a string and got another type",
+			name: testNameStringTypeMismatch,
 			args: args{
-				flag:         "bool_targeting_match",
-				defaultValue: "default",
+				flag:         flagBoolTargetingMatch,
+				defaultValue: flagsetDefault,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.StringEvaluationDetails{
-				Value: "default",
+				Value: flagsetDefault,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.String,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -266,22 +296,22 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 			},
 		},
 		{
-			name: "should error if flag does not exists",
+			name: testNameFlagNotExists,
 			args: args{
-				flag:         "does_not_exists",
-				defaultValue: "default",
+				flag:         flagNotExists,
+				defaultValue: flagsetDefault,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.StringEvaluationDetails{
-				Value: "default",
+				Value: flagsetDefault,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "does_not_exists",
+					FlagKey:  flagNotExists,
 					FlagType: of.String,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
 						Reason:       of.ErrorReason,
 						ErrorCode:    of.FlagNotFoundCode,
-						ErrorMessage: "flag for key 'does_not_exists' does not exist",
+						ErrorMessage: errFlagNotExists,
 						FlagMetadata: map[string]any{},
 					},
 				},
@@ -291,7 +321,7 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 			name: "should resolve a targeting match if rule contains filed from evaluationContextEnrichment",
 			args: args{
 				flag:         "flag-use-evaluation-context-enrichment",
-				defaultValue: "default",
+				defaultValue: flagsetDefault,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.StringEvaluationDetails{
@@ -303,7 +333,7 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 						Variant: "A",
 						Reason:  of.TargetingMatchReason,
 						FlagMetadata: map[string]any{
-							"gofeatureflag_cacheable": true,
+							cacheableMetadataKey: true,
 						},
 					},
 				},
@@ -312,22 +342,25 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.StringValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -336,15 +369,18 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_FloatEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue float64
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.FloatEvaluationDetails
 		name string
 		args args
-		want of.FloatEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid float flag with TARGETING_MATCH reason",
@@ -359,14 +395,14 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 					FlagKey:  "double_key",
 					FlagType: of.Float,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -385,30 +421,30 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 					FlagKey:  "disabled_float",
 					FlagType: of.Float,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "SdkDefault",
+						Variant:      variationSdkDefault,
 						Reason:       of.DisabledReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "should error if we expect a string and got another type",
+			name: testNameStringTypeMismatch,
 			args: args{
-				flag:         "bool_targeting_match",
+				flag:         flagBoolTargetingMatch,
 				defaultValue: 123.45,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.FloatEvaluationDetails{
 				Value: 123.45,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Float,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -421,22 +457,22 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 			},
 		},
 		{
-			name: "should error if flag does not exists",
+			name: testNameFlagNotExists,
 			args: args{
-				flag:         "does_not_exists",
+				flag:         flagNotExists,
 				defaultValue: 123.45,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.FloatEvaluationDetails{
 				Value: 123.45,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "does_not_exists",
+					FlagKey:  flagNotExists,
 					FlagType: of.Float,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
 						Reason:       of.ErrorReason,
 						ErrorCode:    of.FlagNotFoundCode,
-						ErrorMessage: "flag for key 'does_not_exists' does not exist",
+						ErrorMessage: errFlagNotExists,
 						FlagMetadata: map[string]any{},
 					},
 				},
@@ -445,22 +481,25 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.FloatValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -469,15 +508,18 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_IntEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue int64
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.IntEvaluationDetails
 		name string
 		args args
-		want of.IntEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid float flag with TARGETING_MATCH reason",
@@ -492,14 +534,14 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 					FlagKey:  "integer_key",
 					FlagType: of.Int,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -518,30 +560,30 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 					FlagKey:  "disabled_int",
 					FlagType: of.Int,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "SdkDefault",
+						Variant:      variationSdkDefault,
 						Reason:       of.DisabledReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "should error if we expect a string and got another type",
+			name: testNameStringTypeMismatch,
 			args: args{
-				flag:         "bool_targeting_match",
+				flag:         flagBoolTargetingMatch,
 				defaultValue: 123,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.IntEvaluationDetails{
 				Value: 123,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Int,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -554,22 +596,22 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 			},
 		},
 		{
-			name: "should error if flag does not exists",
+			name: testNameFlagNotExists,
 			args: args{
-				flag:         "does_not_exists",
+				flag:         flagNotExists,
 				defaultValue: 123,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.IntEvaluationDetails{
 				Value: 123,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "does_not_exists",
+					FlagKey:  flagNotExists,
 					FlagType: of.Int,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
 						Reason:       of.ErrorReason,
 						ErrorCode:    of.FlagNotFoundCode,
-						ErrorMessage: "flag for key 'does_not_exists' does not exist",
+						ErrorMessage: errFlagNotExists,
 						FlagMetadata: map[string]any{},
 					},
 				},
@@ -578,22 +620,25 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.IntValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -602,15 +647,18 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_ObjectEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
-		flag         string
-		defaultValue any
 		evalCtx      of.EvaluationContext
+		defaultValue any
+		flag         string
 	}
+
 	tests := []struct {
-		name string
-		args args
 		want of.InterfaceEvaluationDetails
+		args args
+		name string
 	}{
 		{
 			name: "should resolve a valid interface flag with TARGETING_MATCH reason",
@@ -630,14 +678,14 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 					FlagKey:  "object_key",
 					FlagType: of.Object,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -656,36 +704,36 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 					FlagKey:  "disabled_interface",
 					FlagType: of.Object,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "SdkDefault",
+						Variant:      variationSdkDefault,
 						Reason:       of.DisabledReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "should error if flag does not exists",
+			name: testNameFlagNotExists,
 			args: args{
-				flag:         "does_not_exists",
+				flag:         flagNotExists,
 				defaultValue: nil,
 				evalCtx:      defaultEvaluationCtx(),
 			},
 			want: of.InterfaceEvaluationDetails{
 				Value: nil,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "does_not_exists",
+					FlagKey:  flagNotExists,
 					FlagType: of.Object,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
 						Reason:       of.ErrorReason,
 						ErrorCode:    of.FlagNotFoundCode,
-						ErrorMessage: "flag for key 'does_not_exists' does not exist",
+						ErrorMessage: errFlagNotExists,
 						FlagMetadata: map[string]any{},
 					},
 				},
@@ -694,22 +742,25 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.ObjectValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -718,13 +769,16 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 }
 
 func TestProvider_apikey_relay_proxy(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		apiKey string
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid flag with an apiKey",
@@ -734,17 +788,17 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 			want: of.BooleanEvaluationDetails{
 				Value: true,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/916",
+							descriptionKey:       metadataDescriptionText,
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   issueLinkPull916,
 						},
 					},
 				},
@@ -758,7 +812,7 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 			want: of.BooleanEvaluationDetails{
 				Value: false,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -776,7 +830,7 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 			want: of.BooleanEvaluationDetails{
 				Value: false,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "bool_targeting_match",
+					FlagKey:  flagBoolTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "",
@@ -791,28 +845,31 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       "http://localhost:1032/",
 				APIKey:         tt.args.apiKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
-				"bool_targeting_match",
+				flagBoolTargetingMatch,
 				false,
 				defaultEvaluationCtx(),
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -821,36 +878,39 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 }
 
 func TestProvider_rules_semverEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue bool
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve with TARGETING_MATCH reason for valid semver match",
 			args: args{
-				flag:    "boolean_semver_targeting_match",
+				flag:    flagBooleanSemverTargetingMatch,
 				evalCtx: defaultEvaluationCtx(),
 			},
 			want: of.BooleanEvaluationDetails{
 				Value: true,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "boolean_semver_targeting_match",
+					FlagKey:  flagBooleanSemverTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
-						Variant:      "True",
+						Variant:      variationTrue,
 						Reason:       of.TargetingMatchReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a semver matching test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/4764",
+							descriptionKey:       "this is a semver matching test",
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   "https://github.com/thomaspoignant/go-feature-flag/pull/4764",
 						},
 					},
 				},
@@ -859,7 +919,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 		{
 			name: "should resolve flag with DEFAULT reason for invalid semver match",
 			args: args{
-				flag: "boolean_semver_targeting_match",
+				flag: flagBooleanSemverTargetingMatch,
 				evalCtx: withOverrides(defaultEvaluationCtx(), map[string]any{
 					"version": "10.0.0-2",
 				}),
@@ -867,7 +927,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 			want: of.BooleanEvaluationDetails{
 				Value: false,
 				EvaluationDetails: of.EvaluationDetails{
-					FlagKey:  "boolean_semver_targeting_match",
+					FlagKey:  flagBooleanSemverTargetingMatch,
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "False",
@@ -875,9 +935,9 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{
-							"description":             "this is a semver matching test",
-							"gofeatureflag_cacheable": true,
-							"pr_link":                 "https://github.com/thomaspoignant/go-feature-flag/pull/4764",
+							descriptionKey:       "this is a semver matching test",
+							cacheableMetadataKey: true,
+							pullRequestLinkKey:   "https://github.com/thomaspoignant/go-feature-flag/pull/4764",
 						},
 					},
 				},
@@ -886,14 +946,16 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-				Endpoint:       "http://localhost:1031/",
+				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
 				tt.args.flag,
@@ -902,11 +964,12 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)

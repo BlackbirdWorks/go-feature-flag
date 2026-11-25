@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 var _ exporter.Exporter = &Exporter{}
 
 const (
-	formatJSON = "json"
+	// Mb is the number of bytes in a megabyte.
 	//nolint:varnamelen // exported constant kept for compatibility
 	Mb = 1024 * 1024
 
@@ -42,12 +42,13 @@ const (
 )
 
 // DefaultPartitionKey is the partition key function used when none is configured.
-func DefaultPartitionKey(context context.Context, _ exporter.ExportableEvent) string {
-	context.Value("feature")
+func DefaultPartitionKey(ctx context.Context, _ exporter.ExportableEvent) string {
+	ctx.Value("feature")
 
 	return "default"
 }
 
+// MessageSender sends encoded messages to Kinesis.
 type MessageSender interface {
 	SendMessages(
 		ctx context.Context,
@@ -55,10 +56,12 @@ type MessageSender interface {
 	) (*kinesis.PutRecordsOutput, error)
 }
 
+// DefaultKinesisSender sends messages to Kinesis with the AWS SDK.
 type DefaultKinesisSender struct {
 	*kinesis.Client
 }
 
+// SendMessages sends the messages to Kinesis.
 func (k *DefaultKinesisSender) SendMessages(
 	ctx context.Context,
 	msgs *kinesis.PutRecordsInput,
@@ -71,6 +74,7 @@ func (k *DefaultKinesisSender) SendMessages(
 	return out, nil
 }
 
+// Exporter sends evaluation events to Amazon Kinesis.
 type Exporter struct {
 	sender MessageSender
 	// AwsConfig is the AWS SDK configuration object we will use to
@@ -92,8 +96,10 @@ type Exporter struct {
 	init           sync.Once
 }
 
+// PartitionKeyFunc returns the partition key of an evaluation event.
 type PartitionKeyFunc = func(context.Context, exporter.ExportableEvent) string
 
+// Settings holds the configuration of the Kinesis exporter.
 type Settings struct {
 	StreamName      *string
 	StreamArn       *string
@@ -101,8 +107,10 @@ type Settings struct {
 	ExplicitHashKey *string
 }
 
+// Option changes the settings of the Kinesis exporter.
 type Option = func(Settings) Settings
 
+// WithPartitionKey sets the function that computes the partition key of an event.
 func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 	return func(s Settings) Settings {
 		s.PartitionKey = partitionKey
@@ -111,6 +119,7 @@ func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 	}
 }
 
+// WithExplicitHashKey sets the explicit hash key of the records.
 func WithExplicitHashKey(hashKey string) Option {
 	return func(s Settings) Settings {
 		s.ExplicitHashKey = &hashKey
@@ -119,6 +128,7 @@ func WithExplicitHashKey(hashKey string) Option {
 	}
 }
 
+// WithStreamName sets the name of the Kinesis stream.
 func WithStreamName(streamName string) Option {
 	return func(settings Settings) Settings {
 		if streamName == "" {
@@ -132,6 +142,7 @@ func WithStreamName(streamName string) Option {
 	}
 }
 
+// WithStreamArn sets the ARN of the Kinesis stream.
 func WithStreamArn(streamArn string) Option {
 	return func(settings Settings) Settings {
 		if streamArn == "" {
@@ -145,6 +156,7 @@ func WithStreamArn(streamArn string) Option {
 	}
 }
 
+// NewSettings returns the Kinesis exporter settings with the options applied.
 func NewSettings(options ...Option) *Settings {
 	settings := Settings{
 		StreamName:      nil,
@@ -159,9 +171,10 @@ func NewSettings(options ...Option) *Settings {
 	return &settings
 }
 
+// Export sends the events to Kinesis.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	err := e.initializeProducer(ctx)
@@ -178,7 +191,7 @@ func (e *Exporter) Export(
 		}
 
 		if len(formattedEvent) >= Mb {
-			logger.ErrorContext(ctx, "format: Event is too large, skipping", "size", len(formattedEvent))
+			logger.ErrorContext(ctx, "format: Event is too large, skipping", slog.Int("size", len(formattedEvent)))
 
 			continue
 		}
@@ -316,7 +329,7 @@ func distinctCodes(failures []types.PutRecordsResultEntry) string {
 		codes = append(codes, c)
 	}
 
-	sort.Strings(codes)
+	slices.Sort(codes)
 
 	return strings.Join(codes, ", ")
 }
@@ -328,8 +341,8 @@ func backoff(attempt int) time.Duration {
 	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
 }
 
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (e *Exporter) IsBulk() bool {
+// IsBulk returns false: this exporter sends each event on its own as a Kinesis record, it does not batch events.
+func (*Exporter) IsBulk() bool {
 	return false
 }
 
@@ -377,7 +390,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 // rejected events; duplicates are limited to the retries-exhausted case.
 func (e *Exporter) sendChunk(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	input *kinesis.PutRecordsInput,
 ) error {
 	pending := input.Records
@@ -398,7 +411,7 @@ func (e *Exporter) sendChunk(
 		}
 
 		logger.WarnContext(ctx, "send: some records were rejected by Kinesis",
-			"failed", len(retry), "total", total, "attempt", attempt)
+			slog.Int("failed", len(retry)), slog.Int("total", total), slog.Int("attempt", attempt))
 
 		if attempt >= maxAttempts {
 			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
@@ -433,16 +446,11 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 }
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
-func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
-	switch e.Format {
-	case formatJSON:
-		fallthrough
-	default:
-		b, err := json.Marshal(event)
-		if err != nil {
-			return nil, fmt.Errorf("marshal kinesis event: %w", err)
-		}
-
-		return b, nil
+func (*Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
+	b, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kinesis event: %w", err)
 	}
+
+	return b, nil
 }

@@ -71,7 +71,7 @@ func (c *ExporterConf) IsValid() error {
 		return err
 	}
 
-	if len(c.ParquetCompressionCodec) > 0 {
+	if c.ParquetCompressionCodec != "" {
 		_, codecErr := parquet.CompressionCodecFromString(c.ParquetCompressionCodec)
 		if codecErr != nil {
 			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, codecErr)
@@ -110,7 +110,14 @@ func (c *ExporterConf) validateStorage() error {
 		if c.EndpointURL == "" {
 			return invalidExporterf("no \"endpointUrl\" property found for kind \"%s\"", c.Kind)
 		}
-	default:
+	case LogExporter,
+		SQSExporter,
+		KafkaExporter,
+		PubSubExporter,
+		BigQueryExporter,
+		RedshiftExporter,
+		AzureExporter,
+		OpenTelemetryExporter:
 		// the other kinds are checked after the parquet codec
 	}
 
@@ -136,7 +143,15 @@ func (c *ExporterConf) validateMessaging() error {
 		if c.ProjectID == "" || c.DatasetID == "" {
 			return invalidExporterf("\"projectID\" and \"datasetID\" are required for kind \"%s\"", c.Kind)
 		}
-	default:
+	case FileExporter,
+		WebhookExporter,
+		LogExporter,
+		S3Exporter,
+		KinesisExporter,
+		GoogleStorageExporter,
+		RedshiftExporter,
+		AzureExporter,
+		OpenTelemetryExporter:
 		// the other kinds have nothing more to check here
 	}
 
@@ -189,21 +204,35 @@ func (c *ExporterConf) isValidRedshift() error {
 	return nil
 }
 
+// ExporterKind is the kind of exporter configured in the relay proxy.
 type ExporterKind string
 
 const (
-	FileExporter          ExporterKind = "file"
-	WebhookExporter       ExporterKind = "webhook"
-	LogExporter           ExporterKind = "log"
-	S3Exporter            ExporterKind = "s3"
-	KinesisExporter       ExporterKind = "kinesis"
+	// FileExporter is the kind of exporter that writes events to local files.
+	FileExporter ExporterKind = "file"
+	// WebhookExporter is the kind of exporter that posts events to a webhook.
+	WebhookExporter ExporterKind = "webhook"
+	// LogExporter is the kind of exporter that writes events to the logs.
+	LogExporter ExporterKind = "log"
+	// S3Exporter is the kind of exporter that uploads events to Amazon S3.
+	S3Exporter ExporterKind = "s3"
+	// KinesisExporter is the kind of exporter that sends events to Amazon Kinesis.
+	KinesisExporter ExporterKind = "kinesis"
+	// GoogleStorageExporter is the kind of exporter that writes events to Google Cloud Storage.
 	GoogleStorageExporter ExporterKind = "googleStorage"
-	SQSExporter           ExporterKind = "sqs"
-	KafkaExporter         ExporterKind = "kafka"
-	PubSubExporter        ExporterKind = "pubsub"
-	BigQueryExporter      ExporterKind = "bigquery"
-	RedshiftExporter      ExporterKind = "redshift"
-	AzureExporter         ExporterKind = "azureBlobStorage"
+	// SQSExporter is the kind of exporter that sends events to Amazon SQS.
+	SQSExporter ExporterKind = "sqs"
+	// KafkaExporter is the kind of exporter that publishes events to Kafka.
+	KafkaExporter ExporterKind = "kafka"
+	// PubSubExporter is the kind of exporter that publishes events to Google Pub/Sub.
+	PubSubExporter ExporterKind = "pubsub"
+	// BigQueryExporter is the kind of exporter that writes events to BigQuery.
+	BigQueryExporter ExporterKind = "bigquery"
+	// RedshiftExporter is the kind of exporter that loads events into Amazon Redshift.
+	RedshiftExporter ExporterKind = "redshift"
+	// AzureExporter is the kind of exporter that writes events to Azure Blob Storage.
+	AzureExporter ExporterKind = "azureBlobStorage"
+	// OpenTelemetryExporter is the kind of exporter that sends events as OpenTelemetry logs.
 	OpenTelemetryExporter ExporterKind = "opentelemetry"
 )
 

@@ -16,8 +16,7 @@ wait_relay_proxy () {
 
 # build and launch relay proxies
 # we are launching 2 relay proxies because one is authenticated and the other is not.
-make vendor
-make build-relayproxy
+task build-relayproxy
 ./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy.yaml &
 RELAY_PROXY_PID=$!
 ./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy-authenticated.yaml &
@@ -46,8 +45,6 @@ echo "------------- GO PROVIDER TESTS ------------------------------------------
 echo "------------------------------------------------------------------------------------------------"
 CURRENT_FOLDER=$(pwd)
 cd openfeature/provider_tests/go-integration-tests
-GOWORK=off go mod vendor
-GOWORK=off go mod tidy
 GOWORK=off go test . -tags=integration
 cd "${CURRENT_FOLDER}"
 

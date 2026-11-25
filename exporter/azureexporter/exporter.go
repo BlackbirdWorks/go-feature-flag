@@ -13,7 +13,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -29,6 +28,7 @@ var (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter sends evaluation events to Azure Blob Storage.
 type Exporter struct {
 	// Container is the name of your Azure Blob Storage Container similar to Buckets in S3.
 	Container string
@@ -49,9 +49,10 @@ type Exporter struct {
 	ServiceURL string
 }
 
+// Export writes the events to Azure Blob Storage.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	if f.AccountName == "" {
@@ -114,7 +115,8 @@ func (f *Exporter) Export(
 	return nil
 }
 
-func (f *Exporter) IsBulk() bool {
+// IsBulk returns true: events are buffered and written to Azure blob storage in batches, one file per flush.
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
@@ -158,7 +160,7 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 func (f *Exporter) uploadFile(
 	ctx context.Context,
 	client *azblob.Client,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	fileHandle *os.File,
 	outputDir, fileName string,
 ) error {

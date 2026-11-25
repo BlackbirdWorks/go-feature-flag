@@ -18,7 +18,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
@@ -50,22 +51,22 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			t.Parallel()
 
 			logger := slog.New(slog.DiscardHandler)
-			ln, port := testutils.ListenLocal(t)
+			ln, port := testhelpers.ListenLocal(t)
 			opts := []api.Option{api.WithListener(ln)}
 			monitoringPort := 0
 
 			if tt.dedicatedMonitoring {
 				var monitoringLn net.Listener
 
-				monitoringLn, monitoringPort = testutils.ListenLocal(t)
+				monitoringLn, monitoringPort = testhelpers.ListenLocal(t)
 				opts = append(opts, api.WithMonitoringListener(monitoringLn))
 			}
 
 			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
-						Path: "../../../testdata/flag-config.yaml",
+						Kind: fixtures.KindFile,
+						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
 				Server: config.Server{
@@ -78,11 +79,11 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
-			apiServer := newTestServer(t, cfg, service.Services{
+			apiServer := newTestServer(t, cfg, &service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
-				Metrics:           metric.Metrics{},
+				Metrics:           &metric.Metrics{},
 			}, logger, opts...)
 
 			portToCheck := port
@@ -93,8 +94,11 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			go apiServer.StartWithContext(context.Background())
 			defer apiServer.Stop(context.Background())
 
-			waitForServer(t, fmt.Sprintf("http://localhost:%d", portToCheck))
-			resp, err := http.Get(fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck))
+			waitForServer(t, fmt.Sprintf(httpLocalhostD, portToCheck))
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+				fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck), http.NoBody)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
 
 			defer func() { _ = resp.Body.Close() }()
@@ -136,18 +140,20 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			conf.DisableVersionHeader = tt.disableVersionHeader
 			baseURL, monitoringURL := startTestServer(t, conf, true)
 
-			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+"/health", nil)
+			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+healthPath, nil)
+			t.Cleanup(func() { require.NoError(t, monitoringResp.Body.Close()) })
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				monitoringResp.Header.Get("X-Gofeatureflag-Version"),
+				monitoringResp.Header.Get(xGofeatureflagVersion),
 				"monitoring server")
 
-			apiResp := doRequest(t, http.MethodGet, baseURL+"/v1/flag/change", nil)
+			apiResp := doRequest(t, http.MethodGet, baseURL+v1FlagChange, nil)
+			t.Cleanup(func() { require.NoError(t, apiResp.Body.Close()) })
 			assert.Equal(t, http.StatusOK, apiResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				apiResp.Header.Get("X-Gofeatureflag-Version"),
+				apiResp.Header.Get(xGofeatureflagVersion),
 				"api server")
 		})
 	}

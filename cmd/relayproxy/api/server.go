@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -17,29 +16,32 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
+// AuthMiddlewareType is the kind of authentication middleware of the API.
 type AuthMiddlewareType = string
 
 const (
-	UserAuth  AuthMiddlewareType = "USER"
+	// UserAuth is the authentication middleware that checks user API keys.
+	UserAuth AuthMiddlewareType = "USER"
+	// AdminAuth is the authentication middleware that checks the admin API key.
 	AdminAuth AuthMiddlewareType = "ADMIN"
 )
 
 // New is used to create a new instance of the API server.
-func New(config *config.Config,
-	services service.Services,
+func New(cfg *config.Config,
+	services *service.Services,
 	logger *slog.Logger,
 	opts ...Option,
 ) Server {
 	stopRequested := make(chan struct{})
 
 	srv := Server{
-		config:        config,
-		services:      services,
+		config:        cfg,
+		services:      *services,
 		logger:        logger,
-		exit:          func() { os.Exit(1) },
+		exit:          func() {},
 		otelService:   opentelemetry.NewOtelService(),
 		stopRequested: stopRequested,
 		stop:          sync.OnceFunc(func() { close(stopRequested) }),
@@ -51,7 +53,7 @@ func New(config *config.Config,
 	}
 	// the metrics (Go runtime and HTTP server) are set up before the routes: the middleware gets the meter provider
 	// of the service when it is built.
-	err := srv.otelService.InitMetrics(context.Background(), config)
+	err := srv.otelService.InitMetrics(context.Background(), cfg)
 	if err != nil {
 		logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
@@ -80,8 +82,9 @@ func WithMonitoringListener(l net.Listener) Option {
 	return func(s *Server) { s.monitoringListener = l }
 }
 
-// WithExit sets what the server does after it logged a fatal error (a failed bind, ...). The default exits the
-// process with the status 1, a test replaces it to end the goroutine of the server only.
+// WithExit sets what the server does after it logged a fatal error (a failed bind, ...). The default does nothing
+// more: the server stops serving and the caller decides. The relay proxy exits the process with the status 1, a
+// test ends the goroutine of the server only.
 func WithExit(exit func()) Option {
 	return func(s *Server) { s.exit = exit }
 }

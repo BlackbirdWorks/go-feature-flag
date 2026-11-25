@@ -2,11 +2,13 @@ package parser
 
 import "slices"
 
+// IntOperation compares integer operands.
 type IntOperation struct {
 	NullOperation
 }
 
-func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
+// EQ reports whether two integer operands are equal.
+func (o *IntOperation) EQ(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -15,7 +17,8 @@ func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
 	return l == r, nil
 }
 
-func (o *IntOperation) NE(left Operand, right Operand) (bool, error) {
+// NE reports whether two integer operands are not equal.
+func (o *IntOperation) NE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -24,7 +27,8 @@ func (o *IntOperation) NE(left Operand, right Operand) (bool, error) {
 	return l != r, nil
 }
 
-func (o *IntOperation) GT(left Operand, right Operand) (bool, error) {
+// GT reports whether the left operand is greater than the right operand.
+func (o *IntOperation) GT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -33,7 +37,8 @@ func (o *IntOperation) GT(left Operand, right Operand) (bool, error) {
 	return l > r, nil
 }
 
-func (o *IntOperation) LT(left Operand, right Operand) (bool, error) {
+// LT reports whether the left operand is less than the right operand.
+func (o *IntOperation) LT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -42,7 +47,8 @@ func (o *IntOperation) LT(left Operand, right Operand) (bool, error) {
 	return l < r, nil
 }
 
-func (o *IntOperation) GE(left Operand, right Operand) (bool, error) {
+// GE reports whether the left operand is greater than or equal to the right operand.
+func (o *IntOperation) GE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -51,7 +57,8 @@ func (o *IntOperation) GE(left Operand, right Operand) (bool, error) {
 	return l >= r, nil
 }
 
-func (o *IntOperation) LE(left Operand, right Operand) (bool, error) {
+// LE reports whether the left operand is less than or equal to the right operand.
+func (o *IntOperation) LE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -60,7 +67,8 @@ func (o *IntOperation) LE(left Operand, right Operand) (bool, error) {
 	return l <= r, nil
 }
 
-func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
+// IN reports whether the left operand is one of the values in the right operand.
+func (*IntOperation) IN(left, right Operand) (bool, error) {
 	leftVal, ok := left.(int)
 	if !ok {
 		return false, newInvalidOperandError(left, leftVal)
@@ -78,7 +86,7 @@ func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
 	return false, nil
 }
 
-func (o *IntOperation) get(left Operand, right Operand) (int, int, error) {
+func (*IntOperation) get(left, right Operand) (int, int, error) {
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}

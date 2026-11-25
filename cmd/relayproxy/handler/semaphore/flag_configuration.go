@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"context"
@@ -13,37 +13,44 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
+// FlagConfigurationAPICtrl serves the flag configuration API of the relay proxy.
 type FlagConfigurationAPICtrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
-func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metric.Metrics) *FlagConfigurationAPICtrl {
+// NewAPIFlagConfiguration returns the controller that serves the flag configuration API.
+func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *FlagConfigurationAPICtrl {
 	return &FlagConfigurationAPICtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
 }
 
+// FlagConfigurationRequest is the request body of the flag configuration API.
 type FlagConfigurationRequest struct {
 	Flags []string `json:"flags" required:"false"`
 }
 
+// FlagConfigurationError is the error code returned by the flag configuration API.
 type FlagConfigurationError = string
 
 const (
-	FlagConfigErrorInvalidRequest  FlagConfigurationError = "INVALID_REQUEST"
+	// FlagConfigErrorInvalidRequest is the error code of a request that cannot be parsed.
+	FlagConfigErrorInvalidRequest FlagConfigurationError = "INVALID_REQUEST"
+	// FlagConfigErrorRetrievingFlags is the error code returned when the flags cannot be retrieved.
 	FlagConfigErrorRetrievingFlags FlagConfigurationError = "RETRIEVING_FLAGS_ERROR"
 )
 
+// FlagConfigurationResponse is the response body of the flag configuration API.
 type FlagConfigurationResponse struct {
-	Flags                       map[string]flag.Flag `json:"flags,omitempty"`
-	EvaluationContextEnrichment map[string]any       `json:"evaluationContextEnrichment,omitempty"`
-	ErrorCode                   string               `json:"errorCode,omitempty"`
-	ErrorDetails                string               `json:"errorDetails,omitempty"`
+	Flags                       map[string]flagdef.Flag `json:"flags,omitempty"`
+	EvaluationContextEnrichment map[string]any          `json:"evaluationContextEnrichment,omitempty"`
+	ErrorCode                   string                  `json:"errorCode,omitempty"`
+	ErrorDetails                string                  `json:"errorDetails,omitempty"`
 }
 
 // FlagConfigurationInput is the request of the flag configuration endpoint.
@@ -110,7 +117,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 
 	// filter if we have a list of flags in the request.
 	if len(reqBody.Flags) > 0 {
-		tmpFlags := map[string]flag.Flag{}
+		tmpFlags := map[string]flagdef.Flag{}
 
 		for _, flagKey := range reqBody.Flags {
 			if _, ok := flags[flagKey]; ok {

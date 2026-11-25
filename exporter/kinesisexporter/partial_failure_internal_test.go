@@ -16,7 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	internalFailure                        = "InternalFailure"
+	provisionedThroughputExceededException = "ProvisionedThroughputExceededException"
 )
 
 // scriptedSender answers each PutRecords call using fail(callIndex, recordIndex) which returns
@@ -62,7 +67,7 @@ func (s *scriptedSender) SendMessages(
 func testEvents(n int) []exporter.ExportableEvent {
 	evs := make([]exporter.ExportableEvent, n)
 	for i := range evs {
-		evs[i] = &exporter.FeatureEvent{Kind: "feature", Key: fmt.Sprintf("flag-%d", i)}
+		evs[i] = &exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fmt.Sprintf("flag-%d", i)}
 	}
 
 	return evs
@@ -95,7 +100,7 @@ func noSleep(context.Context, time.Duration) error { return nil }
 func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	t.Run("all succeed", func(t *testing.T) {
 		t.Parallel()
@@ -119,7 +124,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 		failing := map[string]bool{encoded(t, 1)[0]: true, encoded(t, 3)[0]: true}
 		sender := &scriptedSender{fail: func(call, _ int, data string) string {
 			if call == 0 && failing[data] {
-				return "ProvisionedThroughputExceededException"
+				return provisionedThroughputExceededException
 			}
 
 			return ""
@@ -144,9 +149,9 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 		sender := &scriptedSender{fail: func(_, i int, _ string) string {
 			switch i {
 			case 0:
-				return "InternalFailure"
+				return internalFailure
 			case 1:
-				return "ProvisionedThroughputExceededException"
+				return provisionedThroughputExceededException
 			}
 
 			return ""
@@ -154,8 +159,8 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 		err := newTestExporter(sender, noSleep).Export(context.Background(), logger, testEvents(3))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "2 of 3 records failed")
-		assert.Contains(t, err.Error(), "InternalFailure")
-		assert.Contains(t, err.Error(), "ProvisionedThroughputExceededException")
+		assert.Contains(t, err.Error(), internalFailure)
+		assert.Contains(t, err.Error(), provisionedThroughputExceededException)
 		require.Len(t, sender.calls, maxAttempts)
 		assert.Equal(t, encoded(t, 0, 1), sender.calls[1])
 		assert.Equal(t, encoded(t, 0, 1), sender.calls[2])
@@ -164,7 +169,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Run("context cancelled during backoff", func(t *testing.T) {
 		t.Parallel()
 
-		sender := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
+		sender := &scriptedSender{fail: func(int, int, string) string { return internalFailure }}
 		ctx, cancel := context.WithCancel(context.Background())
 		sleep := func(ctx context.Context, _ time.Duration) error {
 			cancel()
@@ -179,7 +184,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Run("real backoff honours context", func(t *testing.T) {
 		t.Parallel()
 
-		s := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
+		s := &scriptedSender{fail: func(int, int, string) string { return internalFailure }}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
@@ -191,7 +196,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	tests := []struct {
 		name   string
@@ -264,9 +269,9 @@ func (s *responseSender) SendMessages(
 func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	ok := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
-	bad := types.PutRecordsResultEntry{ErrorCode: aws.String("InternalFailure")}
+	bad := types.PutRecordsResultEntry{ErrorCode: aws.String(internalFailure)}
 
 	tests := []struct {
 		name string
@@ -379,7 +384,7 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 func TestExporter_UnverifiableResponsesNeverAcknowledged(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	s := &responseSender{respond: func(int, *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
 		return nil, nil //nolint:nilnil // the test feeds the exporter an unverifiable (nil) response on purpose
 	}}

@@ -1,6 +1,6 @@
 //go:build docker
 
-package azblobretriever_test
+package azblobstorageretriever_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/azure/azurite"
 
 	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const containerName = "testcontainer"
@@ -39,7 +39,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 				Container:   containerName,
 				AccountName: azurite.AccountName,
 				AccountKey:  azurite.AccountKey,
-				Object:      "flag-config.yaml",
+				Object:      fixtures.FlagConfigFile,
 			},
 		},
 		{
@@ -48,7 +48,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 				Container:   containerName,
 				AccountName: azurite.AccountName,
 				AccountKey:  azurite.AccountKey,
-				Object:      "flag-config.yaml",
+				Object:      fixtures.FlagConfigFile,
 			},
 			want:    "./testdata/flag-config.yaml",
 			wantErr: false,
@@ -85,7 +85,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 			require.NoError(t, err)
 
 			tt.retriever.ServiceURL = fmt.Sprintf("%s/%s", blobURL, azurite.AccountName)
-			err = tt.retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
+			err = tt.retriever.Init(context.Background(), slog.Default())
 			require.NoError(t, err)
 
 			defer func() {
@@ -114,9 +114,9 @@ func TestInit(t *testing.T) {
 		retriever := azblobretriever.Retriever{
 			Container:  containerName,
 			AccountKey: azurite.AccountKey,
-			Object:     "flag-config.yaml",
+			Object:     fixtures.FlagConfigFile,
 		}
-		err := retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
+		err := retriever.Init(context.Background(), slog.Default())
 		assert.EqualError(t, err, "unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
 	})
 
@@ -127,7 +127,7 @@ func TestInit(t *testing.T) {
 			Container:   containerName,
 			AccountName: azurite.AccountName,
 			AccountKey:  azurite.AccountKey,
-			Object:      "flag-config.yaml",
+			Object:      fixtures.FlagConfigFile,
 		}
 		got, err := retriever.Retrieve(context.Background())
 		assert.Nil(t, got)
@@ -145,11 +145,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			"0.0.0.0",
+			fixtures.UnspecifiedAddress,
 			"--queueHost",
-			"0.0.0.0",
+			fixtures.UnspecifiedAddress,
 			"--tableHost",
-			"0.0.0.0",
+			fixtures.UnspecifiedAddress,
 			"--skipApiVersionCheck",
 		),
 	)
@@ -168,8 +168,8 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	_, err = client.CreateContainer(context.TODO(), containerName, nil)
 	require.NoError(t, err)
 
-	blobName := "flag-config.yaml"
-	blob, err := os.ReadFile(fmt.Sprintf("./testdata/%s", blobName))
+	blobName := fixtures.FlagConfigFile
+	blob, err := os.ReadFile("./testdata/" + blobName)
 	require.NoError(t, err)
 
 	_, err = client.UploadStream(context.TODO(), containerName, blobName, strings.NewReader(string(blob)), nil)

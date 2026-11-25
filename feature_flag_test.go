@@ -13,19 +13,30 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
+)
+
+const (
+	fooFlag              = "foo-flag"
+	sdkDefaultUpper      = "SDKdefault"
+	flagConfigSecondFile = "testdata/flag-config-2nd-file.yaml"
+	unknownFlag          = "unknown-flag"
+	userShouldHaveTest   = "User should have test flag"
+	userShouldUseDefault = "User should use default value if flag does not exists"
 )
 
 func TestStartWithoutRetriever(t *testing.T) {
 	t.Parallel()
 
-	got, err := ffclient.New(ffclient.Config{
+	got, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 	})
@@ -41,33 +52,33 @@ func TestStartWithoutRetriever(t *testing.T) {
 func TestMultipleRetrievers(t *testing.T) {
 	t.Parallel()
 
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 		Retrievers: []retriever.Retriever{
-			&fileretriever.Retriever{Path: "testdata/flag-config-2nd-file.yaml"},
-			&fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			&fileretriever.Retriever{Path: flagConfigSecondFile},
+			&fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		},
 	})
 	require.NoError(t, err)
 
 	defer client.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	flagRes1, err := client.BoolVariationDetails("foo-flag", user, false)
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	flagRes1, err := client.BoolVariationDetails(fooFlag, user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes1.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
 
-	flagRes2, err := client.BoolVariationDetails("test-flag", user, false)
+	flagRes2, err := client.BoolVariationDetails(fixtures.FlagKeyTest, user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
 }
 func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	t.Parallel()
 
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 		Retriever:       &fileretriever.Retriever{Path: "testdata/multiple_files/config-1.yaml"},
@@ -79,16 +90,16 @@ func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 
 	defer client.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	flagRes1, err := client.BoolVariationDetails("my-flag", user, false)
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	flagRes1, err := client.BoolVariationDetails(fixtures.FlagKeyMy, user, false)
 	require.NoError(t, err)
 	assert.False(t, flagRes1.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
 
 	flagRes2, err := client.BoolVariationDetails("my-3rd-flag", user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
 }
 
 func TestValidUseCase(t *testing.T) {
@@ -96,9 +107,9 @@ func TestValidUseCase(t *testing.T) {
 
 	cliExport := mock.Exporter{Bulk: false}
 	// Valid use case
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
-		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
 		DataExporters: []ffclient.DataExporter{
 			{
@@ -118,12 +129,12 @@ func TestValidUseCase(t *testing.T) {
 
 	defer client.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	hasTestFlag, _ := client.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	hasTestFlag, _ := client.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
-	hasUnknownFlag, _ := client.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	hasUnknownFlag, _ := client.BoolVariation(unknownFlag, user, false)
+	assert.False(t, hasUnknownFlag, userShouldUseDefault)
 	assert.NotEqual(t, time.Time{}, client.GetCacheRefreshDate())
 
 	allFlags := client.AllFlagsState(user)
@@ -135,7 +146,7 @@ func TestValidUseCase(t *testing.T) {
 	client.SetOffline(false)
 	assert.False(t, client.IsOffline())
 	assert.True(t, client.ForceRefresh())
-	client.Track("toto", user, map[string]any{"key": "value"})
+	client.Track("toto", user, map[string]any{"key": fixtures.MetadataValue})
 	assert.Len(t, cliExport.ExportedEvents, 1)
 }
 
@@ -143,7 +154,7 @@ func TestValidUseCaseToml(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.toml"},
 		LeveledLogger:   slog.Default(),
@@ -153,34 +164,34 @@ func TestValidUseCaseToml(t *testing.T) {
 
 	defer gffClient.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	hasTestFlag, _ := gffClient.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
-	hasUnknownFlag, _ := gffClient.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	hasUnknownFlag, _ := gffClient.BoolVariation(unknownFlag, user, false)
+	assert.False(t, hasUnknownFlag, userShouldUseDefault)
 }
 
 func TestValidUseCaseJson(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.json"},
 		LeveledLogger:   slog.Default(),
-		FileFormat:      "json",
+		FileFormat:      protocol.FormatJSON,
 	})
 	require.NoError(t, err)
 
 	defer gffClient.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	hasTestFlag, _ := gffClient.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
-	hasUnknownFlag, _ := gffClient.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	hasUnknownFlag, _ := gffClient.BoolVariation(unknownFlag, user, false)
+	assert.False(t, hasUnknownFlag, userShouldUseDefault)
 	assert.NotEqual(t, time.Time{}, gffClient.GetCacheRefreshDate())
 }
 
@@ -188,40 +199,40 @@ func TestValidUseCaseMultilineQueryJson(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/flag-config-multiline-query.json",
 		},
 		LeveledLogger: slog.Default(),
-		FileFormat:    "json",
+		FileFormat:    protocol.FormatJSON,
 	})
 	require.NoError(t, err)
 
 	defer gffClient.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
-	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
+	hasTestFlag, _ := gffClient.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
-	hasUnknownFlag, _ := gffClient.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	hasUnknownFlag, _ := gffClient.BoolVariation(unknownFlag, user, false)
+	assert.False(t, hasUnknownFlag, userShouldUseDefault)
 	assert.NotEqual(t, time.Time{}, gffClient.GetCacheRefreshDate())
 }
 
 func Test2GoFeatureFlagInstance(t *testing.T) {
 	t.Parallel()
 
-	gffClient1, err := ffclient.New(ffclient.Config{
+	gffClient1, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
-		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
 	})
 	require.NoError(t, err)
 
 	defer gffClient1.Close()
 
-	gffClient2, err2 := ffclient.New(ffclient.Config{
+	gffClient2, err2 := ffclient.New(&ffclient.Config{
 		PollingInterval: 10 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/test-instance2.yaml"},
 		LeveledLogger:   slog.Default(),
@@ -230,15 +241,15 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 
 	defer gffClient2.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 
 	// Client1 is supposed to have the flag at true
-	hasTestFlagClient1, _ := gffClient1.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlagClient1, "User should have test flag")
+	hasTestFlagClient1, _ := gffClient1.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.True(t, hasTestFlagClient1, userShouldHaveTest)
 
 	// Client2 is supposed to have the flag at true
-	hasTestFlagClient2, _ := gffClient2.BoolVariation("test-flag", user, false)
-	assert.False(t, hasTestFlagClient2, "User should have test flag")
+	hasTestFlagClient2, _ := gffClient2.BoolVariation(fixtures.FlagKeyTest, user, false)
+	assert.False(t, hasTestFlagClient2, userShouldHaveTest)
 }
 
 func TestUpdateFlag(t *testing.T) {
@@ -260,7 +271,7 @@ test-flag:
 	flagFile, _ := os.CreateTemp(t.TempDir(), "")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
-	gffClient1, _ := ffclient.New(ffclient.Config{
+	gffClient1, _ := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: flagFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -268,8 +279,8 @@ test-flag:
 	defer gffClient1.Close()
 
 	flagValue, _ := gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.True(t, flagValue)
@@ -290,8 +301,8 @@ test-flag:
 	_ = os.WriteFile(flagFile.Name(), []byte(updatedFileContent), os.ModePerm)
 
 	flagValue, _ = gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.True(t, flagValue)
@@ -299,8 +310,8 @@ test-flag:
 	// the poller (every second) picks the new content up
 	require.Eventually(t, func() bool {
 		got, evalErr := gffClient1.BoolVariation(
-			"test-flag",
-			ffcontext.NewEvaluationContext("random-key"),
+			fixtures.FlagKeyTest,
+			ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 			false,
 		)
 
@@ -327,7 +338,7 @@ test-flag:
 	flagFile, _ := os.CreateTemp(t.TempDir(), "impossible")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
-	gffClient1, _ := ffclient.New(ffclient.Config{
+	gffClient1, _ := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: flagFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -335,15 +346,15 @@ test-flag:
 	defer gffClient1.Close()
 
 	flagValue, _ := gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.True(t, flagValue)
 
 	flagValue, _ = gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.True(t, flagValue)
@@ -353,8 +364,8 @@ test-flag:
 	time.Sleep(2 * time.Second)
 
 	flagValue, _ = gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.True(t, flagValue)
@@ -379,7 +390,7 @@ test-flag:
 	tempDir := t.TempDir()
 
 	flagFilePath := tempDir + "_FlagFileUnreachable.yaml"
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval:         1 * time.Second,
 		Retriever:               &fileretriever.Retriever{Path: flagFilePath},
 		LeveledLogger:           slog.Default(),
@@ -390,11 +401,11 @@ test-flag:
 	defer gff.Close()
 
 	flagValue, _ := gff.StringVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
-		"SDKdefault",
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
+		sdkDefaultUpper,
 	)
-	assert.Equal(t, "SDKdefault", flagValue, "should use the SDK default value")
+	assert.Equal(t, sdkDefaultUpper, flagValue, "should use the SDK default value")
 
 	err = os.WriteFile(flagFilePath, []byte(initialFileContent), os.ModePerm)
 	require.NoError(t, err)
@@ -402,9 +413,9 @@ test-flag:
 	// the poller picks the file up once it exists
 	require.Eventually(t, func() bool {
 		flagValue, _ = gff.StringVariation(
-			"test-flag",
-			ffcontext.NewEvaluationContext("random-key"),
-			"SDKdefault",
+			fixtures.FlagKeyTest,
+			ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
+			sdkDefaultUpper,
 		)
 
 		return flagValue == "true"
@@ -415,7 +426,7 @@ test-flag:
 func TestInvalidConf(t *testing.T) {
 	t.Parallel()
 
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/invalid-flag-config.json"},
 		LeveledLogger:   slog.Default(),
@@ -435,7 +446,7 @@ func TestInvalidConf(t *testing.T) {
 func TestInvalidConfAndRetrieverError(t *testing.T) {
 	t.Parallel()
 
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/invalid-flag-config.json",
@@ -447,14 +458,18 @@ func TestInvalidConfAndRetrieverError(t *testing.T) {
 
 	defer gff.Close()
 	// nothing could be loaded: the flag is unknown and the default value is returned
-	got, err := gff.BoolVariationDetails("test-flag", ffcontext.NewEvaluationContext("random-key"), false)
+	got, err := gff.BoolVariationDetails(
+		fixtures.FlagKeyTest,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
+		false,
+	)
 	require.EqualError(t, err, "flag test-flag is not present or disabled")
 	assert.Equal(t, model.VariationResult[bool]{
 		TrackEvents:   true,
 		VariationType: "SdkDefault",
 		Failed:        true,
-		Reason:        flag.ReasonError,
-		ErrorCode:     flag.ErrorCodeFlagNotFound,
+		Reason:        flagdef.ReasonError,
+		ErrorCode:     flagdef.ErrorCodeFlagNotFound,
 		Value:         false,
 	}, got)
 }
@@ -463,7 +478,7 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config-big.yaml"},
 	})
@@ -471,12 +486,12 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 
 	defer gff.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 	hasTestFlag, _ := gff.BoolVariation("test-flag99", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
-	hasUnknownFlag, _ := gff.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	hasUnknownFlag, _ := gff.BoolVariation(unknownFlag, user, false)
+	assert.False(t, hasUnknownFlag, userShouldUseDefault)
 }
 
 func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
@@ -491,15 +506,15 @@ func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
 	require.NoError(t, err)
 
 	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverReady)
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
 	})
 	require.NoError(t, err)
 
-	user := ffcontext.NewEvaluationContext("random-key")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 	hasTestFlag, _ := gff.BoolVariation("flag-xxxx-123", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
+	assert.True(t, hasTestFlag, userShouldHaveTest)
 
 	gff.Close()
 
@@ -518,7 +533,7 @@ func TestInitializableRetrieverWithRetrieverNotReady(t *testing.T) {
 	require.NoError(t, err)
 
 	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverNotReady)
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
 	})
@@ -526,7 +541,7 @@ func TestInitializableRetrieverWithRetrieverNotReady(t *testing.T) {
 
 	defer gff.Close()
 
-	user := ffcontext.NewEvaluationContext("random-key")
+	user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 	hasTestFlag, _ := gff.BoolVariation("flag-xxxx-123", user, false)
 	assert.False(t, hasTestFlag, "Should resolve to default value if retriever is not ready")
 }
@@ -569,9 +584,9 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gff, err := ffclient.New(ffclient.Config{
+			gff, err := ffclient.New(&ffclient.Config{
 				PollingInterval: tt.fields.pollingInterval,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				Offline:         tt.offline,
 			})
 			require.NoError(t, err)
@@ -607,9 +622,9 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 func TestGoFeatureFlag_SetOffline(t *testing.T) {
 	t.Parallel()
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
-		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
 		Offline:         false,
 	})
@@ -660,9 +675,9 @@ func Test_GetPollingInterval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			goff, err := ffclient.New(ffclient.Config{
+			goff, err := ffclient.New(&ffclient.Config{
 				PollingInterval: tt.pollingInterval,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMillis, goff.GetPollingInterval())
@@ -680,12 +695,12 @@ func Test_ForceRefreshCache(t *testing.T) {
 	assert.NoError(t, tempFile.Close())
 	defer func() { _ = os.Remove(tempFile.Name()) }()
 
-	content, err := os.ReadFile("testdata/flag-config.yaml")
+	content, err := os.ReadFile(fixtures.FlagConfigYAMLPath)
 	require.NoError(t, err)
 	err = os.WriteFile(tempFile.Name(), content, os.ModePerm)
 	require.NoError(t, err)
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 15 * time.Minute,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -698,7 +713,7 @@ func Test_ForceRefreshCache(t *testing.T) {
 	refreshTime := gffClient.GetCacheRefreshDate()
 
 	// modify the file to trigger a refresh
-	newContent, err := os.ReadFile("testdata/flag-config-2nd-file.yaml")
+	newContent, err := os.ReadFile(flagConfigSecondFile)
 	require.NoError(t, err)
 	err = os.WriteFile(tempFile.Name(), newContent, os.ModePerm)
 	require.NoError(t, err)
@@ -763,11 +778,11 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 		_ = os.Remove(persistFile.Name())
 	})
 
-	content, err := os.ReadFile("testdata/flag-config.yaml")
+	content, err := os.ReadFile(fixtures.FlagConfigYAMLPath)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configFile1.Name(), content, os.ModePerm))
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval:                 pollingInterval,
 		Retriever:                       &fileretriever.Retriever{Path: configFile1.Name()},
 		LeveledLogger:                   slog.Default(),
@@ -792,7 +807,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 		"the initial flag configuration was never persisted on disk")
 
 	// 2. Modifying the configuration file
-	content2, err := os.ReadFile("testdata/flag-config-2nd-file.yaml")
+	content2, err := os.ReadFile(flagConfigSecondFile)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configFile1.Name(), content2, os.ModePerm))
 
@@ -807,7 +822,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 			return false
 		}
 
-		if _, hasFooFlag := flags["foo-flag"]; !hasFooFlag {
+		if _, hasFooFlag := flags[fooFlag]; !hasFooFlag {
 			return false
 		}
 
@@ -830,7 +845,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	require.NoError(t, os.Remove(configFile2.Name()))
 	t.Cleanup(func() { _ = os.Remove(configFile2.Name()) })
 
-	gffClient2, err := ffclient.New(ffclient.Config{
+	gffClient2, err := ffclient.New(&ffclient.Config{
 		PollingInterval:                 pollingInterval,
 		Retriever:                       &fileretriever.Retriever{Path: configFile2.Name()},
 		LeveledLogger:                   slog.Default(),
@@ -844,8 +859,8 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// 5. Checking that the flags have been loaded from the persistent file. The fallback is
 	// done synchronously by ffclient.New (retrievePersistentLocalDisk), nothing to wait for.
 	details, _ := gffClient2.BoolVariationDetails(
-		"foo-flag",
-		ffcontext.NewEvaluationContext("random-key"),
+		fooFlag,
+		ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 		false,
 	)
 	assert.NotEqual(t, "ERROR", details.Reason)
@@ -887,7 +902,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 func TestUseCustomBucketingKey(t *testing.T) {
 	t.Parallel()
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/flag-config-custom-bucketingkey.yaml",
@@ -901,19 +916,19 @@ func TestUseCustomBucketingKey(t *testing.T) {
 		t.Parallel()
 
 		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
-			"my-flag",
-			ffcontext.NewEvaluationContext("random-key"),
-			"default",
+			fixtures.FlagKeyMy,
+			ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
+			fixtures.FlagsetDefault,
 		)
 		require.NoError(t, stringVariationDetailsErr)
 
 		want := model.VariationResult[string]{
-			Value:         "default",
+			Value:         fixtures.FlagsetDefault,
 			TrackEvents:   true,
 			VariationType: "SdkDefault",
 			Failed:        true,
-			Reason:        flag.ReasonError,
-			ErrorCode:     flag.ErrorCodeTargetingKeyMissing,
+			Reason:        flagdef.ReasonError,
+			ErrorCode:     flagdef.ErrorCodeTargetingKeyMissing,
 			ErrorDetails:  "impossible to find bucketingKey in context: nested key not found: teamId",
 		}
 		assert.Equal(t, want, got)
@@ -923,11 +938,11 @@ func TestUseCustomBucketingKey(t *testing.T) {
 		t.Parallel()
 
 		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
-			"my-flag",
-			ffcontext.NewEvaluationContextBuilder("random-key").
+			fixtures.FlagKeyMy,
+			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyRandom).
 				AddCustom("teamId", "team-123").
 				Build(),
-			"default",
+			fixtures.FlagsetDefault,
 		)
 		require.NoError(t, stringVariationDetailsErr)
 
@@ -936,7 +951,7 @@ func TestUseCustomBucketingKey(t *testing.T) {
 			TrackEvents:   true,
 			VariationType: "variation_A",
 			Failed:        false,
-			Reason:        flag.ReasonStatic,
+			Reason:        flagdef.ReasonStatic,
 			Cacheable:     true,
 		}
 		assert.Equal(t, want, got)
@@ -956,7 +971,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			name: "DisableNotifierOnInit is true",
 			config: &ffclient.Config{
 				PollingInterval:       60 * time.Second,
-				Retriever:             &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:             &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				DisableNotifierOnInit: true,
 			},
 			expectedNotifyCalled: false,
@@ -965,7 +980,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			name: "DisableNotifierOnInit is false",
 			config: &ffclient.Config{
 				PollingInterval:       60 * time.Second,
-				Retriever:             &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:             &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				DisableNotifierOnInit: false,
 			},
 			expectedNotifyCalled: true,
@@ -974,7 +989,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			name: "DisableNotifierOnInit is not set",
 			config: &ffclient.Config{
 				PollingInterval: 60 * time.Second,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			},
 			expectedNotifyCalled: true,
 		},
@@ -987,7 +1002,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			mockNotifier := &mock.Notifier{}
 			tt.config.Notifiers = []notifier.Notifier{mockNotifier}
 
-			gffClient, err := ffclient.New(*tt.config)
+			gffClient, err := ffclient.New(tt.config)
 			require.NoError(t, err)
 
 			defer gffClient.Close()
@@ -1001,7 +1016,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 func TestStartWithNegativeIntervalToDisablePolling(t *testing.T) {
 	t.Parallel()
 
-	content, err := os.ReadFile("testdata/flag-config.yaml")
+	content, err := os.ReadFile(fixtures.FlagConfigYAMLPath)
 	require.NoError(t, err)
 
 	// copy of the file
@@ -1013,7 +1028,7 @@ func TestStartWithNegativeIntervalToDisablePolling(t *testing.T) {
 	err = os.WriteFile(tempFile.Name(), content, os.ModePerm)
 	require.NoError(t, err)
 
-	goff, err := ffclient.New(ffclient.Config{
+	goff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: -1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -1023,7 +1038,7 @@ func TestStartWithNegativeIntervalToDisablePolling(t *testing.T) {
 	cacheRefresh := goff.GetCacheRefreshDate()
 
 	// modify the file to trigger a refresh
-	newContent, err := os.ReadFile("testdata/flag-config-2nd-file.yaml")
+	newContent, err := os.ReadFile(flagConfigSecondFile)
 	require.NoError(t, err)
 	err = os.WriteFile(tempFile.Name(), newContent, os.ModePerm)
 	require.NoError(t, err)
@@ -1068,8 +1083,8 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gff, err := ffclient.New(ffclient.Config{
-				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			gff, err := ffclient.New(&ffclient.Config{
+				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				EvaluationContextEnrichment: tt.enrichment,
 			})
 			require.NoError(t, err)
@@ -1096,9 +1111,9 @@ func TestGoFeatureFlag_SetOfflineWithContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: 1 * time.Second,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
 			require.NoError(t, err)
 
@@ -1128,17 +1143,17 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			first, err := ffclient.New(ffclient.Config{
+			first, err := ffclient.New(&ffclient.Config{
 				Offline:   tt.offline,
-				Retriever: &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever: &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
 			require.NoError(t, err)
 
 			defer first.Close()
 
-			second, err := ffclient.New(ffclient.Config{
+			second, err := ffclient.New(&ffclient.Config{
 				Offline:   tt.offline,
-				Retriever: &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever: &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
 			require.NoError(t, err)
 

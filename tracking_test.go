@@ -10,14 +10,19 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+)
+
+const (
+	evalContextUUID = "1668d845-051d-4dd9-907a-7ebe6aa2c9da"
 )
 
 func TestValidTrackingEvent(t *testing.T) {
 	t.Parallel()
 
 	exp := mock.TrackingEventExporter{Bulk: false}
-	goff, err := ffclient.New(ffclient.Config{
+	goff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 500 * time.Millisecond,
 		Retriever:       &fileretriever.Retriever{Path: "./testdata/flag-config.yaml"},
 		DataExporters: []ffclient.DataExporter{
@@ -33,28 +38,28 @@ func TestValidTrackingEvent(t *testing.T) {
 
 	goff.Track(
 		"my-feature-flag",
-		ffcontext.NewEvaluationContextBuilder("1668d845-051d-4dd9-907a-7ebe6aa2c9da").
+		ffcontext.NewEvaluationContextBuilder(evalContextUUID).
 			AddCustom("admin", true).
-			AddCustom("anonymous", true).
+			AddCustom(fixtures.Anonymous, true).
 			Build(),
-		map[string]any{"additional data": "value"},
+		map[string]any{"additional data": fixtures.MetadataValue},
 	)
 
 	assert.Len(t, exp.ExportedEvents, 1)
-	assert.Equal(t, "1668d845-051d-4dd9-907a-7ebe6aa2c9da", exp.ExportedEvents[0].UserKey)
+	assert.Equal(t, evalContextUUID, exp.ExportedEvents[0].UserKey)
 	assert.Equal(t, "my-feature-flag", exp.ExportedEvents[0].Key)
 	assert.Equal(
 		t,
 		map[string]any{
-			"targetingKey": "1668d845-051d-4dd9-907a-7ebe6aa2c9da",
-			"admin":        true,
-			"anonymous":    true,
+			"targetingKey":     evalContextUUID,
+			"admin":            true,
+			fixtures.Anonymous: true,
 		},
 		exp.ExportedEvents[0].EvaluationContext,
 	)
 	assert.Equal(
 		t,
-		map[string]any{"additional data": "value"},
+		map[string]any{"additional data": fixtures.MetadataValue},
 		exp.ExportedEvents[0].TrackingDetails,
 	)
 }

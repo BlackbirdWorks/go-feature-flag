@@ -8,8 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // An invalid configuration reload is logged at debug level together with the configuration:
@@ -24,7 +25,12 @@ func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *te
 		mongoURI     = "mongodb://user:SECRETMARKER-mongo@host/db"
 	)
 
-	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "flags.yaml", AuthToken: token, URI: mongoURI}
+	retriever := &retrieverconf.RetrieverConf{
+		Kind:      fixtures.KindFile,
+		Path:      "flags.yaml",
+		AuthToken: token,
+		URI:       mongoURI,
+	}
 	flagSet := func(name string) config.FlagSet {
 		return config.FlagSet{
 			Name:      name,

@@ -9,6 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	filenameFormatKey                  = "filenameFormat"
+	flagVariation                      = "flag-variation"
+	kindContextKindUserKeyCreationDate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{" +
+		"{ .CreationDate}};{{ .Key}};{{ .Variation}};"
+	randomName    = "random-name"
+	valueDefaultN = "{{ .Value}};{{ .Default}}\n"
 )
 
 func Test_ParseTemplate(t *testing.T) {
@@ -27,19 +38,19 @@ func Test_ParseTemplate(t *testing.T) {
 		{
 			name: "Invalid template",
 			args: args{
-				template: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
+				template: kindContextKindUserKeyCreationDate +
 					"{{ .Value}};{{ .Default}",
-				defaultTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
-					"{{ .Value}};{{ .Default}}\n",
+				defaultTemplate: kindContextKindUserKeyCreationDate +
+					valueDefaultN,
 			},
 			wantErr: true,
 		},
 		{
 			name: "Valid template",
 			args: args{
-				template: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};",
-				defaultTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
-					"{{ .Value}};{{ .Default}}\n",
+				template: kindContextKindUserKeyCreationDate,
+				defaultTemplate: kindContextKindUserKeyCreationDate +
+					valueDefaultN,
 			},
 			wantErr: false,
 		},
@@ -47,8 +58,8 @@ func Test_ParseTemplate(t *testing.T) {
 			name: "empty template use default",
 			args: args{
 				template: "",
-				defaultTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
-					"{{ .Value}};{{ .Default}}\n",
+				defaultTemplate: kindContextKindUserKeyCreationDate +
+					valueDefaultN,
 			},
 			wantErr: true,
 		},
@@ -57,14 +68,14 @@ func Test_ParseTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			defaultT, _ := template.New("random-name").Parse(tt.args.defaultTemplate)
+			defaultT, _ := template.New(randomName).Parse(tt.args.defaultTemplate)
 
 			assert.NotPanics(
 				t,
-				func() { exporter.ParseTemplate("random-name", tt.args.template, tt.args.defaultTemplate) },
+				func() { exporter.ParseTemplate(randomName, tt.args.template, tt.args.defaultTemplate) },
 			)
 
-			got := exporter.ParseTemplate("random-name", tt.args.template, tt.args.defaultTemplate)
+			got := exporter.ParseTemplate(randomName, tt.args.template, tt.args.defaultTemplate)
 
 			if tt.wantErr {
 				assert.Equal(t, defaultT, got, "If template invalid we should use default template")
@@ -97,24 +108,24 @@ func TestComputeFilename(t *testing.T) {
 			name: "Nothing to template",
 			args: args{
 				template: exporter.ParseTemplate(
-					"filenameFormat",
-					"flag-variation",
-					"flag-variation",
+					filenameFormatKey,
+					flagVariation,
+					flagVariation,
 				),
-				format: "json",
+				format: protocol.FormatJSON,
 			},
-			want:    "flag-variation",
+			want:    flagVariation,
 			wantErr: assert.NoError,
 		},
 		{
 			name: "With extension",
 			args: args{
 				template: exporter.ParseTemplate(
-					"filenameFormat",
+					filenameFormatKey,
 					"flag-variation.{{ .Format }}",
-					"flag-variation",
+					flagVariation,
 				),
-				format: "json",
+				format: protocol.FormatJSON,
 			},
 			want:    "flag-variation.json",
 			wantErr: assert.NoError,
@@ -123,11 +134,11 @@ func TestComputeFilename(t *testing.T) {
 			name: "Multiple templates",
 			args: args{
 				template: exporter.ParseTemplate(
-					"filenameFormat",
+					filenameFormatKey,
 					"flag-variation-{{ .Hostname}}.{{ .Format}}",
-					"flag-variation",
+					flagVariation,
 				),
-				format: "json",
+				format: protocol.FormatJSON,
 			},
 			want:    "flag-variation-" + hostname + ".json",
 			wantErr: assert.NoError,
@@ -163,7 +174,7 @@ func TestFormatEventInCSV(t *testing.T) {
 
 	type args struct {
 		csvTemplate *template.Template
-		event       exporter.FeatureEvent
+		event       *exporter.FeatureEvent
 	}
 
 	tests := []struct {
@@ -180,16 +191,16 @@ func TestFormatEventInCSV(t *testing.T) {
 					exporter.DefaultCsvTemplate,
 					exporter.DefaultCsvTemplate,
 				),
-				event: exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+				event: &exporter.FeatureEvent{
+					Kind:         fixtures.KindFeature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       "SERVER",
+					Source:       fixtures.SourceServer,
 				},
 			},
 			want:    "feature;anonymousUser;ABCD;1617970547;random-key;Default;YO;false;SERVER\n",
@@ -225,7 +236,7 @@ func TestFormatEventInJSON(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		event exporter.FeatureEvent
+		event *exporter.FeatureEvent
 	}
 
 	tests := []struct {
@@ -236,16 +247,16 @@ func TestFormatEventInJSON(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			args: args{event: exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+			args: args{event: &exporter.FeatureEvent{
+				Kind:         fixtures.KindFeature,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          fixtures.UserKeyRandom,
+				Variation:    fixtures.VariationDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       "SERVER",
+				Source:       fixtures.SourceServer,
 			}},
 			want: "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":161797" +
 				"0547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\"," +

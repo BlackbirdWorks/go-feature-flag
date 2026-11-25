@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -29,6 +28,7 @@ const (
 	spanName          = "feature_flag.evaluate"
 )
 
+// Exporter sends evaluation events as OpenTelemetry logs.
 type Exporter struct {
 	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
 	tracerProvider trace.TracerProvider
@@ -39,22 +39,21 @@ type Exporter struct {
 	once       sync.Once
 }
 
+// Export sends the events as OpenTelemetry logs.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	if logger == nil {
-		logger = &fflog.FFLogger{
-			// Noop logger to avoid any logging and nil issues
-			LeveledLogger: slog.New(slog.DiscardHandler),
-		}
+		// Noop logger to avoid any logging and nil issues
+		logger = slog.New(slog.DiscardHandler)
 	}
 
 	e.init()
 
 	for _, evt := range events {
-		featureEvent, ok := evt.(exporter.FeatureEvent)
+		featureEvent, ok := evt.(*exporter.FeatureEvent)
 		if !ok {
 			continue
 		}
@@ -65,7 +64,9 @@ func (e *Exporter) Export(
 	return nil
 }
 
-func (e *Exporter) IsBulk() bool {
+// IsBulk returns false: this exporter sends each event on its own as an OpenTelemetry log record,
+// it does not batch events.
+func (*Exporter) IsBulk() bool {
 	return false
 }
 
@@ -85,7 +86,7 @@ func (e *Exporter) init() {
 	})
 }
 
-func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *fflog.FFLogger) {
+func (e *Exporter) createSpan(ctx context.Context, event *exporter.FeatureEvent, logger *slog.Logger) {
 	startTime := time.Unix(event.CreationDate, 0)
 
 	_, span := e.tracer.Start(
@@ -114,7 +115,11 @@ func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, 
 		b, err := json.Marshal(event.Value)
 		if err != nil {
 			if logger != nil {
-				logger.DebugContext(ctx, "failed to marshal feature flag value for otel attribute", "error", err)
+				logger.DebugContext(
+					ctx,
+					"failed to marshal feature flag value for otel attribute",
+					slog.Any("error", err),
+				)
 			}
 		} else {
 			attributes = append(attributes, attribute.String("feature_flag.value", string(b)))

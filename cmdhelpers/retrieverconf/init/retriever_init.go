@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/redis/go-redis/v9"
 	"k8s.io/client-go/rest"
 
@@ -44,34 +44,24 @@ func wrapFactory[T retriever.Retriever](
 
 // factoryFor returns the factory function of a retriever kind.
 func factoryFor(kind retrieverconf.RetrieverKind) (retrieverFactory, bool) {
-	switch kind {
-	case retrieverconf.GitHubRetriever:
-		return wrapFactory(createGitHubRetriever), true
-	case retrieverconf.GitlabRetriever:
-		return wrapFactory(createGitlabRetriever), true
-	case retrieverconf.BitbucketRetriever:
-		return wrapFactory(createBitbucketRetriever), true
-	case retrieverconf.FileRetriever:
-		return wrapFactory(createFileRetriever), true
-	case retrieverconf.S3Retriever:
-		return wrapFactory(createS3Retriever), true
-	case retrieverconf.HTTPRetriever:
-		return wrapFactory(createHTTPRetriever), true
-	case retrieverconf.GoogleStorageRetriever:
-		return wrapFactory(createGoogleStorageRetriever), true
-	case retrieverconf.KubernetesRetriever:
-		return wrapFactory(createKubernetesRetriever), true
-	case retrieverconf.MongoDBRetriever:
-		return wrapFactory(createMongoDBRetriever), true
-	case retrieverconf.RedisRetriever:
-		return wrapFactory(createRedisRetriever), true
-	case retrieverconf.AzBlobStorageRetriever:
-		return wrapFactory(createAzBlobStorageRetriever), true
-	case retrieverconf.PostgreSQLRetriever:
-		return wrapFactory(createPostgreSQLRetriever), true
-	default:
-		return nil, false
+	factories := map[retrieverconf.RetrieverKind]retrieverFactory{
+		retrieverconf.GitHubRetriever:        wrapFactory(createGitHubRetriever),
+		retrieverconf.GitlabRetriever:        wrapFactory(createGitlabRetriever),
+		retrieverconf.BitbucketRetriever:     wrapFactory(createBitbucketRetriever),
+		retrieverconf.FileRetriever:          wrapFactory(createFileRetriever),
+		retrieverconf.S3Retriever:            wrapFactory(createS3Retriever),
+		retrieverconf.HTTPRetriever:          wrapFactory(createHTTPRetriever),
+		retrieverconf.GoogleStorageRetriever: wrapFactory(createGoogleStorageRetriever),
+		retrieverconf.KubernetesRetriever:    wrapFactory(createKubernetesRetriever),
+		retrieverconf.MongoDBRetriever:       wrapFactory(createMongoDBRetriever),
+		retrieverconf.RedisRetriever:         wrapFactory(createRedisRetriever),
+		retrieverconf.AzBlobStorageRetriever: wrapFactory(createAzBlobStorageRetriever),
+		retrieverconf.PostgreSQLRetriever:    wrapFactory(createPostgreSQLRetriever),
 	}
+
+	factory, ok := factories[kind]
+
+	return factory, ok
 }
 
 // Option customizes InitRetriever.
@@ -88,11 +78,14 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 	return func(o *options) { o.postgresPools = pools }
 }
 
+// Built is the retriever that Retriever built: the implementation of the kind of the configuration.
+type Built struct {
+	retriever.Retriever
+}
+
 // Retriever initialize the retriever based on the configuration.
-//
-//nolint:ireturn // factory: selects the retriever implementation from the kind at runtime
 func Retriever(
-	conf *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, opts ...Option) (Built, error) {
 	var parsedOpts options
 	for _, opt := range opts {
 		opt(&parsedOpts)
@@ -105,19 +98,19 @@ func Retriever(
 
 	factory, exists := factoryFor(conf.Kind)
 	if !exists {
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
+		return Built{}, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
 	}
 
 	r, err := factory(conf, retrieverTimeout)
 	if err != nil {
-		return nil, err
+		return Built{}, err
 	}
 
 	if pg, ok := r.(*postgresqlretriever.Retriever); ok && parsedOpts.postgresPools != nil {
 		pg.Pools = parsedOpts.postgresPools
 	}
 
-	return r, nil
+	return Built{Retriever: r}, nil
 }
 
 // Factory functions for each retriever type.
@@ -189,7 +182,7 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*file
 }
 
 func createS3Retriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*s3retrieverv2.Retriever, error) {
-	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
+	awsConfig, err := awsconf.LoadDefaultConfig(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}

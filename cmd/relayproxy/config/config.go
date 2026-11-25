@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Config is the configuration of the relay proxy.
 type Config struct {
 	// apiKeySet is the internal representation of an API keys list configured
 	// we store them in a set to be
@@ -87,14 +88,11 @@ type Config struct {
 	// evaluation response so that providers can subscribe to changes instead of polling.
 	// It is enabled when OfrepEventStream.BaseURL is set.
 	OfrepEventStream OfrepEventStream `koanf:"ofrepeventstream" mapstructure:"ofrepEventStream"`
-	// Deprecated: use AuthorizedKeys instead
-	// APIKeys list of API keys that authorized to use endpoints
-	APIKeys []string `koanf:"apikeys" mapstructure:"apiKeys"`
 	// Server is the server configuration, including host, port, and unix socket
 	Server Server `koanf:"server" mapstructure:"server"`
 	// CommonFlagSet is the common flag set for the relay proxy
 	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
-	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
+	CommonFlagSet `koanf:",squash"`
 	// Endpoints (optional) configures the endpoints of the relay proxy.
 	Endpoints Endpoints `koanf:"endpoints" mapstructure:"endpoints"`
 	// MonitoringPort (optional) is the port we are using to expose the metrics and healthchecks
@@ -112,7 +110,6 @@ type Config struct {
 	// mutex is used to protect the configuration from concurrent access during runtime
 	// it applies to the following fields:
 	// - AuthorizedKeys
-	// - APIKeys
 	// - FlagSets
 	// - apiKeysSet
 	// - forceAuthenticatedRequests
@@ -182,7 +179,7 @@ func (c *Config) IsDebugEnabled() bool {
 		return false
 	}
 
-	return strings.ToLower(c.LogLevel) == "debug"
+	return strings.EqualFold(c.LogLevel, "debug")
 }
 
 // IsUsingFlagsets returns true if the configuration is using flagsets.
@@ -191,14 +188,6 @@ func (c *Config) IsUsingFlagsets() bool {
 	defer c.mutex.RUnlock()
 
 	return len(c.FlagSets) > 0
-}
-
-// Deprecated: use SetAuthorizedKeys instead.
-func (c *Config) SetAPIKeys(apiKeys []string) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.APIKeys = apiKeys
 }
 
 // SetAuthorizedKeys sets the authorized keys for the configuration.
@@ -218,15 +207,4 @@ func (c *Config) GetAuthorizedKeys() APIKeys {
 		Admin:      append([]string(nil), c.AuthorizedKeys.Admin...),
 		Evaluation: append([]string(nil), c.AuthorizedKeys.Evaluation...),
 	}
-}
-
-// GetAPIKeys returns a copy of the APIKeys with proper synchronization.
-func (c *Config) GetAPIKeys() []string {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	// Return a copy to avoid external modification
-	result := make([]string, len(c.APIKeys))
-	copy(result, c.APIKeys)
-
-	return result
 }

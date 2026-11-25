@@ -8,9 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
+// DefaultExporterCleanQueueInterval is the interval at which the exporter queues are cleaned.
 const DefaultExporterCleanQueueInterval = 1 * time.Minute
 
 // DefaultQueuedEventsFactor is the default hard limit of events kept in memory by a manager,
@@ -26,6 +27,7 @@ const DefaultMinQueuedEvents = 50000
 // dropLogInterval is the minimum delay between two warnings about dropped events.
 const dropLogInterval = 10 * time.Second
 
+// Manager collects evaluation events and sends them to the exporters.
 type Manager[T ExportableEvent] interface {
 	AddEvent(event T)
 	Start()
@@ -50,7 +52,7 @@ type managerImpl[T ExportableEvent] struct {
 	stopCh     chan struct{}
 	eventStore *EventStore[T]
 	flushEnded chan struct{}
-	logger     *fflog.FFLogger
+	logger     *slog.Logger
 	// background flushes (QueueEvent), one goroutine at most per consumer
 	flushRunning []atomic.Bool
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
@@ -80,16 +82,21 @@ const flushWaitBudget = 200 * time.Millisecond
 // The periodic flush (FlushInterval) is not affected.
 const flushRetryBackoff = 1 * time.Second
 
+// NewManager returns a manager that sends evaluation events to the exporters.
 func NewManager[T ExportableEvent](exporters []Config,
-	exporterCleanQueueInterval time.Duration, logger *fflog.FFLogger,
+	exporterCleanQueueInterval time.Duration, logger *slog.Logger,
 ) Manager[T] {
 	if exporterCleanQueueInterval == 0 {
 		// default value for the exporterCleanQueueDuration is 1 minute
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval
 	}
 
-	mgr := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
-		dropSignal: make(chan struct{}, 1)}
+	mgr := &managerImpl[T]{
+		logger:     internal.LoggerOrDiscard(logger),
+		flushEnded: make(chan struct{}),
+		stopCh:     make(chan struct{}),
+		dropSignal: make(chan struct{}, 1),
+	}
 
 	var maxQueued int64
 
@@ -119,9 +126,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 
 		evStore.AddConsumer(consumerID)
 		// the store is sized for the most demanding consumer: the others keep their own limit.
-		if l, ok := evStore.(interface {
-			SetConsumerLimit(consumerID string, limit int64)
-		}); ok {
+		if l, ok := evStore.(consumerLimiter); ok {
 			l.SetConsumerLimit(consumerID, limits[index])
 		}
 	}
@@ -163,10 +168,8 @@ func (m *managerImpl[T]) reportDrops() {
 			return
 		}
 
-		if m.logger != nil {
-			m.logger.Error("the exporter is not keeping up, events are dropped",
-				slog.Int64("totalDroppedEvents", m.DroppedEvents()))
-		}
+		m.logger.Error("the exporter is not keeping up, events are dropped",
+			slog.Int64("totalDroppedEvents", m.DroppedEvents()))
 
 		timer := time.NewTimer(dropLogInterval)
 		select {
@@ -218,7 +221,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 	m.triggerFlushes(store, async)
 }
 
-func (m *managerImpl[T]) addAll(store EventStore[T], events []T) {
+func (*managerImpl[T]) addAll(store EventStore[T], events []T) {
 	if batch, ok := store.(interface{ AddAll([]T) }); ok {
 		batch.AddAll(events)
 
@@ -279,29 +282,7 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	ended := m.flushEnded
 	m.flushEndedMu.Unlock()
 
-	// the room is made by the consumers that hold the most events: wait if one of them is flushing.
-	counts := make([]int64, len(m.consumers))
-	most := int64(-1)
-
-	for i, c := range m.consumers {
-		count, err := store.GetPendingEventCount(c.GetConsumerID())
-		if err != nil {
-			count = -1
-		}
-
-		counts[i] = count
-		most = max(most, count)
-	}
-
-	var waitFor []int
-
-	for i, count := range counts {
-		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
-			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
-			waitFor = append(waitFor, i)
-		}
-	}
-
+	waitFor := m.consumersToWaitFor(store)
 	if len(waitFor) == 0 {
 		return false
 	}
@@ -334,6 +315,34 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	}
 }
 
+// consumersToWaitFor returns the indexes of the consumers that hold the most pending events and are flushing
+// without being stalled or backing off: the room is made by them.
+func (m *managerImpl[T]) consumersToWaitFor(store EventStore[T]) []int {
+	counts := make([]int64, len(m.consumers))
+	most := int64(-1)
+
+	for i, c := range m.consumers {
+		count, err := store.GetPendingEventCount(c.GetConsumerID())
+		if err != nil {
+			count = -1
+		}
+
+		counts[i] = count
+		most = max(most, count)
+	}
+
+	var waitFor []int
+
+	for i, count := range counts {
+		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
+			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
+			waitFor = append(waitFor, i)
+		}
+	}
+
+	return waitFor
+}
+
 // signalFlushEnded wakes up the handoffs waiting in waitForRoom.
 func (m *managerImpl[T]) signalFlushEnded(i int) {
 	m.flushStalled[i].Store(false)
@@ -358,7 +367,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 
 		count, err := store.GetPendingEventCount(consumer.GetConsumerID())
 		if err != nil {
-			m.logger.Error("error while fetching pending events", err)
+			m.logger.Error("error while fetching pending events", slog.Any("error", err))
 
 			continue
 		}
@@ -419,14 +428,14 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	consumer := m.consumers[i]
 
-	flusher, ok := consumer.(interface{ flush() error })
+	flusher, ok := consumer.(interface{ flushQueue() error })
 	if !ok {
 		consumer.Flush()
 
 		return
 	}
 
-	err := flusher.flush()
+	err := flusher.flushQueue()
 	if err != nil {
 		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
@@ -464,4 +473,9 @@ func (m *managerImpl[T]) Stop() {
 	// so we stop its periodic cleaning goroutine to avoid leaking it (and the events it retains)
 	// for the lifetime of the process.
 	(*m.eventStore).Stop()
+}
+
+// consumerLimiter is implemented by event stores that limit the events kept for each consumer.
+type consumerLimiter interface {
+	SetConsumerLimit(consumerID string, limit int64)
 }

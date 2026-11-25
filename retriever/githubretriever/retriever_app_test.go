@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,9 +30,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	areAllRequired = "are all required"
+	ghpToken       = "ghp_token"
+	invalidBaseURL = "invalid base URL"
 )
 
 var (
@@ -151,7 +160,7 @@ func generateTestKey(t *testing.T) (*rsa.PrivateKey, string) {
 // newAppRetriever returns a retriever configured for GitHub App auth.
 func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retriever {
 	r := &githubretriever.Retriever{
-		RepositorySlug: "myorg/myrepo",
+		RepositorySlug: fixtures.RepoMyOrg,
 		FilePath:       "flags/config.yaml",
 		AppID:          testAppID,
 		InstallationID: testInstallationID,
@@ -167,7 +176,7 @@ func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retrieve
 func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 	t.Helper()
 
-	jwt, ok := strings.CutPrefix(authorization, "Bearer ")
+	jwt, ok := strings.CutPrefix(authorization, protocol.BearerPrefix)
 	require.True(t, ok, "access_tokens must be called with a Bearer JWT")
 
 	parts := strings.Split(jwt, ".")
@@ -241,7 +250,7 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 			mock := &appMockHTTP{}
 			r := newAppRetriever(pemStr, mock)
 			tt.configure(t, r)
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 
 			got, err := r.Retrieve(context.Background())
 			require.NoError(t, err)
@@ -254,12 +263,12 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 			assert.Equal(t, http.MethodPost, tokenReq.Method)
 			assert.Equal(t, tt.wantTokenURL, tokenReq.URL.String())
 			assert.Equal(t, "application/vnd.github+json", tokenReq.Header.Get("Accept"))
-			assertAppJWT(t, tokenReq.Header.Get("Authorization"), &key.PublicKey)
+			assertAppJWT(t, tokenReq.Header.Get(protocol.HeaderAuthorization), &key.PublicKey)
 
 			// Contents request must carry the installation token as a Bearer token
 			assert.Equal(t, http.MethodGet, contentsReq.Method)
 			assert.Contains(t, contentsReq.URL.Path, "/repos/myorg/myrepo/contents/flags/config.yaml")
-			assert.Equal(t, "Bearer ghs_token_1", contentsReq.Header.Get("Authorization"))
+			assert.Equal(t, "Bearer ghs_token_1", contentsReq.Header.Get(protocol.HeaderAuthorization))
 		})
 	}
 }
@@ -301,7 +310,7 @@ func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
 
 			assert.Equal(t, tt.wantMints, mock.tokenCalls)
 			lastReq := mock.recordedReqs[len(mock.recordedReqs)-1]
-			assert.Equal(t, tt.wantLastToken, lastReq.Header.Get("Authorization"))
+			assert.Equal(t, tt.wantLastToken, lastReq.Header.Get(protocol.HeaderAuthorization))
 		})
 	}
 }
@@ -319,7 +328,7 @@ func TestGitHubAppAuth_401TriggersRetry(t *testing.T) {
 
 	// Requests: access_tokens (first mint) → contents (401) → access_tokens (re-mint) → contents (200)
 	require.Len(t, mock.recordedReqs, 4)
-	assert.Equal(t, "Bearer ghs_token_2", mock.recordedReqs[3].Header.Get("Authorization"))
+	assert.Equal(t, "Bearer ghs_token_2", mock.recordedReqs[3].Header.Get(protocol.HeaderAuthorization))
 }
 
 func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
@@ -398,9 +407,9 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 			wantErr: "connection reset",
 		},
 		{
-			name:      "invalid base URL",
+			name:      invalidBaseURL,
 			configure: func(r *githubretriever.Retriever) { r.BaseURL = ":invalid:url" },
-			wantErr:   "invalid base URL",
+			wantErr:   invalidBaseURL,
 		},
 		{
 			name:      "private key is not PEM",
@@ -455,7 +464,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 		},
 		{
 			name:      "token auth",
-			retriever: &githubretriever.Retriever{GithubToken: "ghp_token"},
+			retriever: &githubretriever.Retriever{GithubToken: ghpToken},
 		},
 		{
 			name:      "app auth",
@@ -464,22 +473,22 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 		{
 			name:      "app ID only",
 			retriever: &githubretriever.Retriever{AppID: testAppID},
-			wantErr:   "are all required",
+			wantErr:   areAllRequired,
 		},
 		{
 			name:      "missing installation ID",
 			retriever: &githubretriever.Retriever{AppID: testAppID, PrivateKey: pemStr},
-			wantErr:   "are all required",
+			wantErr:   areAllRequired,
 		},
 		{
 			name:      "missing private key",
 			retriever: &githubretriever.Retriever{AppID: testAppID, InstallationID: testInstallationID},
-			wantErr:   "are all required",
+			wantErr:   areAllRequired,
 		},
 		{
 			name: "token and app fields",
 			retriever: &githubretriever.Retriever{
-				GithubToken:    "ghp_token",
+				GithubToken:    ghpToken,
 				AppID:          testAppID,
 				InstallationID: testInstallationID,
 				PrivateKey:     pemStr,
@@ -503,7 +512,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 			r := tt.retriever
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)

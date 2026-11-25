@@ -13,10 +13,12 @@
     "kind": "log"
   },
   "enableSwagger": true,
-  "apiKeys": [
-    "apikey1",
-    "apikey2"
-  ],
+  "authorizedKeys": {
+    "evaluation": [
+      "apikey1",
+      "apikey2"
+    ]
+  },
   "logLevel": "",
   "debug": true
 }

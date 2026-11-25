@@ -13,10 +13,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -105,6 +104,7 @@ type evaluateFlags struct {
 	checkMode      bool
 }
 
+// NewEvaluateCmd returns the command that evaluates a flag for a given context.
 func NewEvaluateCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
 	flags := &evaluateFlags{}
@@ -249,26 +249,28 @@ func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) err
 	}
 
 	if flags.checkMode {
-		return runCheck(cmd, retrieverConf)
+		return runCheck(cmd, &retrieverConf)
 	}
 
-	return runEvaluate(cmd, args, flags.evalFlagFormat, retrieverConf, flags.evalFlag, flags.evalCtx)
+	return runEvaluate(cmd, args, flags.evalFlagFormat, &retrieverConf, flags.evalFlag, flags.evalCtx)
 }
 
 func runEvaluate(
 	cmd *cobra.Command,
 	_ []string,
 	flagFormat string,
-	retrieverConf retrieverconf.RetrieverConf,
+	retrieverConf *retrieverconf.RetrieverConf,
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverInit.Retriever(&retrieverConf)
+	built, err := retrieverinit.Retriever(retrieverConf)
 	if err != nil {
 		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	r := built.Retriever
+
+	logger := slog.Default()
 
 	tryInitializeStandardErr := tryInitializeStandard(
 		context.Background(),
@@ -283,7 +285,7 @@ func runEvaluate(
 		context.Background(),
 		r,
 		logger,
-		utils.DefaultFlagSetName,
+		stringsx.DefaultFlagSetName,
 	)
 	if tryInitializeWithFlagsetErr != nil {
 		return tryInitializeWithFlagsetErr
@@ -314,7 +316,7 @@ func runEvaluate(
 
 func runCheck(
 	cmd *cobra.Command,
-	retrieverConf retrieverconf.RetrieverConf) error {
+	retrieverConf *retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
 	//nolint:musttag,gosec // G117: CLI --check-mode outputs the parsed retriever config as JSON
@@ -329,7 +331,7 @@ func runCheck(
 	return nil
 }
 
-func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger) error {
+func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *slog.Logger) error {
 	if r, ok := r.(retriever.InitializableRetriever); ok {
 		err := r.Init(ctx, logger)
 		if err != nil {
@@ -341,7 +343,7 @@ func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *f
 }
 
 func tryInitializeWithFlagset(
-	ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger, flagset string) error {
+	ctx context.Context, r retriever.Retriever, logger *slog.Logger, flagset string) error {
 	if r, ok := r.(retriever.InitializableRetrieverWithFlagset); ok {
 		err := r.Init(ctx, logger, &flagset)
 		if err != nil {

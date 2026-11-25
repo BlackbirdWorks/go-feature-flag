@@ -1,10 +1,11 @@
 package ofrep
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -17,13 +18,14 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
+// EvaluateCtrl serves the OFREP evaluation requests of the relay proxy.
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 	eventStream    config.OfrepEventStream
 	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
 	legacyMetadataOnly bool
@@ -38,9 +40,10 @@ func WithLegacyMetadataOnly(legacyOnly bool) Option {
 	return func(h *EvaluateCtrl) { h.legacyMetadataOnly = legacyOnly }
 }
 
+// NewOFREPEvaluate returns the controller that evaluates flags through the OFREP API.
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
-	metrics metric.Metrics,
+	metrics *metric.Metrics,
 	eventStream config.OfrepEventStream,
 	opts ...Option,
 ) EvaluateCtrl {
@@ -60,7 +63,7 @@ func NewOFREPEvaluate(
 func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	flagKey := r.PathValue("flagKey")
 	if flagKey == "" {
-		return writeJSON(w, http.StatusBadRequest, NewEvaluateError(flagKey, flag.ErrorCodeGeneral,
+		return writeJSON(w, http.StatusBadRequest, NewEvaluateError(flagKey, flagdef.ErrorCodeGeneral,
 			"No key provided in the URL"))
 	}
 
@@ -71,7 +74,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		return writeJSON(
 			w,
 			http.StatusBadRequest,
-			NewEvaluateError(flagKey, flag.ErrorCodeInvalidContext, err.Error()),
+			NewEvaluateError(flagKey, flagdef.ErrorCodeInvalidContext, err.Error()),
 		)
 	}
 
@@ -102,20 +105,20 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	var defaultValue any
 
 	flagValue, _ := flagset.RawVariation(flagKey, evalCtx, defaultValue)
-	if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
+	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
 	} else {
 		h.metrics.IncFlagEvaluation(flagKey)
 	}
 
-	if flagValue.Reason == flag.ReasonError {
+	if flagValue.Reason == flagdef.ReasonError {
 		httpStatus := http.StatusBadRequest
-		if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
+		if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 			httpStatus = http.StatusNotFound
 		}
 
 		return writeJSON(w, httpStatus, NewEvaluateError(flagKey, flagValue.ErrorCode,
-			fmt.Sprintf("Error while evaluating the flag: %s", flagKey)))
+			"Error while evaluating the flag: "+flagKey))
 	}
 
 	span.SetAttributes(
@@ -200,7 +203,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		flagNames = append(flagNames, key)
 
 		value := val.Value
-		if val.Reason == flag.ReasonError {
+		if val.Reason == flagdef.ReasonError {
 			value = nil
 		}
 
@@ -217,8 +220,8 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 
 	h.metrics.IncAllFlag(flagNames...)
 
-	sort.Slice(response.Flags, func(i, j int) bool {
-		return response.Flags[i].Key < response.Flags[j].Key
+	slices.SortFunc(response.Flags, func(a, b model.OFREPFlagBulkEvaluateSuccessResponse) int {
+		return cmp.Compare(a.Key, b.Key)
 	})
 
 	span.SetAttributes(
@@ -272,7 +275,7 @@ func assertOFREPEvaluateRequest(
 	ofrepEvalReq *model.OFREPEvalFlagRequest,
 ) *model.OFREPCommonResponseError {
 	if ofrepEvalReq.Context == nil {
-		return NewOFREPCommonError(flag.ErrorCodeInvalidContext,
+		return NewOFREPCommonError(flagdef.ErrorCodeInvalidContext,
 			"Semaphore requires an evaluation context in the request.")
 	}
 
@@ -286,7 +289,7 @@ func assertOFREPEvaluateRequest(
 func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffcontext.EvaluationContext, error) {
 	if req == nil || req.Context == nil {
 		return ffcontext.EvaluationContext{}, NewOFREPCommonError(
-			flag.ErrorCodeInvalidContext,
+			flagdef.ErrorCodeInvalidContext,
 			"Semaphore has received an invalid context.")
 	}
 
@@ -301,7 +304,7 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 	}
 
 	// Create evaluation context (empty targeting key is allowed)
-	evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctx)
+	evalCtx := evalcore.ConvertEvaluationCtxFromRequest(targetingKey, ctx)
 
 	return evalCtx, nil
 }

@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"sync"
 	"testing"
@@ -14,21 +15,25 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	regionName = "region"
 )
 
 type collectingExporter struct {
-	events []exporter.FeatureEvent
+	events []*exporter.FeatureEvent
 	mu     sync.Mutex
 }
 
-func (c *collectingExporter) IsBulk() bool { return true }
-func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (*collectingExporter) IsBulk() bool { return true }
+func (c *collectingExporter) Export(_ context.Context, _ *slog.Logger, ev []exporter.ExportableEvent) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, e := range ev {
-		if fe, ok := e.(exporter.FeatureEvent); ok {
+		if fe, ok := e.(*exporter.FeatureEvent); ok {
 			c.events = append(c.events, fe)
 		}
 	}
@@ -42,7 +47,9 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 	t.Parallel()
 
 	meta := func(region string) map[string]any {
-		return map[string]any{"gofeatureflag": map[string]any{"exporterMetadata": map[string]any{"region": region}}}
+		return map[string]any{
+			fixtures.GoFeatureFlagOrg: map[string]any{"exporterMetadata": map[string]any{regionName: region}},
+		}
 	}
 
 	tests := []struct {
@@ -55,40 +62,47 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 		{
 			name:         "no enrichment",
 			callerCustom: meta("us"),
-			wantMetadata: map[string]any{"region": "us"},
-			wantKind:     "user",
+			wantMetadata: map[string]any{regionName: "us"},
+			wantKind:     fixtures.ContextKindUser,
 		},
 		{
 			name:         "enriched metadata, caller has none",
 			enrichment:   meta("eu"),
-			wantMetadata: map[string]any{"region": "eu"},
-			wantKind:     "user",
+			wantMetadata: map[string]any{regionName: "eu"},
+			wantKind:     fixtures.ContextKindUser,
 		},
 		{name: "enriched metadata wins over the caller's", enrichment: meta("eu"), callerCustom: meta("us"),
-			wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
-		{name: "enriched anonymous", enrichment: map[string]any{"anonymous": true}, wantKind: "anonymousUser"},
-		{name: "unrelated enrichment changes nothing", enrichment: map[string]any{"env": "prod"},
-			callerCustom: meta("us"), wantMetadata: map[string]any{"region": "us"}, wantKind: "user"},
+			wantMetadata: map[string]any{regionName: "eu"}, wantKind: fixtures.ContextKindUser},
+		{name: "enriched anonymous", enrichment: map[string]any{fixtures.Anonymous: true}, wantKind: "anonymousUser"},
+		{
+			name:       "unrelated enrichment changes nothing",
+			enrichment: map[string]any{"env": fixtures.EnvProd},
+			callerCustom: meta(
+				"us",
+			),
+			wantMetadata: map[string]any{regionName: "us"},
+			wantKind:     fixtures.ContextKindUser,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			exp := &collectingExporter{}
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval:             time.Hour,
-				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				EvaluationContextEnrichment: tt.enrichment,
 				DataExporter:                ffclient.DataExporter{Exporter: exp, FlushInterval: time.Hour},
 			})
 			require.NoError(t, err)
 
-			ctx := ffcontext.NewEvaluationContext("user")
+			ctx := ffcontext.NewEvaluationContext(fixtures.ContextKindUser)
 			for k, v := range tt.callerCustom {
 				ctx.AddCustomAttribute(k, v)
 			}
 
-			_, err = client.BoolVariation("test-flag", ctx, false)
+			_, err = client.BoolVariation(fixtures.FlagKeyTest, ctx, false)
 			require.NoError(t, err)
 			client.Close()
 

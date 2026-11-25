@@ -8,7 +8,7 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
@@ -53,7 +53,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 		FileFormat:            e.fileFormat,
 	}
 
-	goff, err := ffclient.New(cfg)
+	goff, err := ffclient.New(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initializing the evaluation client: %w", err)
 	}
@@ -79,7 +79,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) 
 		targetingKey = ""
 	}
 
-	convertedEvaluationCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctxAsMap)
+	convertedEvaluationCtx := evalcore.ConvertEvaluationCtxFromRequest(targetingKey, ctxAsMap)
 
 	return convertedEvaluationCtx, nil
 }
@@ -104,7 +104,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 }
 
 // evaluateFlags evaluates the flags.
-func (e evaluate) evaluateFlags(
+func (evaluate) evaluateFlags(
 	goff *ffclient.GoFeatureFlag,
 	listFlags []string,
 	convertedEvaluationCtx ffcontext.Context) (map[string]model.RawVarResult, error) {

@@ -7,11 +7,13 @@ import (
 	helper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
 
+// Linter checks a flag configuration file for errors.
 type Linter struct {
 	InputFile   string
 	InputFormat string
 }
 
+// Lint returns the errors found in the flag configuration file.
 func (l *Linter) Lint() []error {
 	flags, err := helper.LoadConfigFile(
 		l.InputFile,

@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestFlagChanges(t *testing.T) {
@@ -16,85 +17,85 @@ func TestFlagChanges(t *testing.T) {
 
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
-	baseFlag := func() *flag.InternalFlag {
-		return &flag.InternalFlag{
+	baseFlag := func() *flagdef.InternalFlag {
+		return &flagdef.InternalFlag{
 			Variations: &map[string]*any{
-				"on":  new(any(true)),
-				"off": new(any(false)),
+				"on":                  new(any(true)),
+				fixtures.VariationOff: new(any(false)),
 			},
-			DefaultRule: &flag.Rule{VariationResult: new("off")},
-			Metadata:    &map[string]any{"team": "payments"},
+			DefaultRule: &flagdef.Rule{VariationResult: new(fixtures.VariationOff)},
+			Metadata:    &map[string]any{"team": payments},
 		}
 	}
 
 	tests := []struct {
 		name   string
-		update func(f *flag.InternalFlag)
+		update func(f *flagdef.InternalFlag)
 		want   []notifier.FieldChange
 	}{
 		{
 			name:   "should show a disabled flag without pointer syntax",
-			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
-			want:   []notifier.FieldChange{{Path: "Disable", From: "null", To: "true"}},
+			update: func(f *flagdef.InternalFlag) { f.Disable = new(true) },
+			want:   []notifier.FieldChange{{Path: disable, From: fixtures.NullLiteral, To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
-			update: func(f *flag.InternalFlag) {
-				f.Rules = &[]flag.Rule{{
-					Name:            new("beta"),
+			update: func(f *flagdef.InternalFlag) {
+				f.Rules = &[]flagdef.Rule{{
+					Name:            new(beta),
 					Query:           new(`country eq "FR"`),
 					VariationResult: new("on"),
 				}}
 			},
 			want: []notifier.FieldChange{{
 				Path: "Rules",
-				From: "null",
+				From: fixtures.NullLiteral,
 				To:   `[{"name":"beta","query":"country eq \"FR\"","variation":"on"}]`,
 			}},
 		},
 		{
 			name: "should show a percentage rollout sorted by path",
-			update: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{Percentages: &map[string]float64{"on": 10, "off": 90}}
+			update: func(f *flagdef.InternalFlag) {
+				f.DefaultRule = &flagdef.Rule{Percentages: &map[string]float64{"on": 10, fixtures.VariationOff: 90}}
 			},
 			want: []notifier.FieldChange{
-				{Path: "DefaultRule.Percentages", From: "null", To: `{"off":90,"on":10}`},
-				{Path: "DefaultRule.VariationResult", From: `"off"`, To: "null"},
+				{Path: "DefaultRule.Percentages", From: fixtures.NullLiteral, To: `{"off":90,"on":10}`},
+				{Path: "DefaultRule.VariationResult", From: `"off"`, To: fixtures.NullLiteral},
 			},
 		},
 		{
 			name: "should show dates as RFC 3339",
-			update: func(f *flag.InternalFlag) {
-				f.Experimentation = &flag.ExperimentationRollout{Start: &start, End: &end}
+			update: func(f *flagdef.InternalFlag) {
+				f.Experimentation = &flagdef.ExperimentationRollout{Start: &start, End: &end}
 			},
 			want: []notifier.FieldChange{{
 				Path: "Experimentation",
-				From: "null",
+				From: fixtures.NullLiteral,
 				To:   `{"start":"2026-10-05T09:00:00Z","end":"2026-10-12T09:00:00Z"}`,
 			}},
 		},
 		{
 			name: "should report a metadata key that was added",
-			update: func(f *flag.InternalFlag) {
-				f.Metadata = &map[string]any{"team": "payments", "owner": "jane"}
+			update: func(f *flagdef.InternalFlag) {
+				f.Metadata = &map[string]any{"team": payments, owner: fixtures.UserJane}
 			},
-			want: []notifier.FieldChange{{Path: "Metadata.owner", From: "null", To: `"jane"`}},
+			want: []notifier.FieldChange{{Path: "Metadata.owner", From: fixtures.NullLiteral, To: `"jane"`}},
 		},
 		{
 			name:   "should report a metadata key that was removed",
-			update: func(f *flag.InternalFlag) { f.Metadata = &map[string]any{} },
-			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: "null"}},
+			update: func(f *flagdef.InternalFlag) { f.Metadata = &map[string]any{} },
+			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: fixtures.NullLiteral}},
 		},
 		{
 			name: "should report a variation that was added",
-			update: func(f *flag.InternalFlag) {
-				(*f.Variations)["beta"] = new(any("blue"))
+			update: func(f *flagdef.InternalFlag) {
+				(*f.Variations)[beta] = new(any("blue"))
 			},
-			want: []notifier.FieldChange{{Path: "Variations.beta", From: "null", To: `"blue"`}},
+			want: []notifier.FieldChange{{Path: "Variations.beta", From: fixtures.NullLiteral, To: `"blue"`}},
 		},
 		{
 			name:   "should return nothing when the flag did not change",
-			update: func(_ *flag.InternalFlag) {},
+			update: func(_ *flagdef.InternalFlag) {},
 			want:   []notifier.FieldChange{},
 		},
 	}
@@ -114,8 +115,8 @@ func TestFlagChanges(t *testing.T) {
 func TestFlagChanges_error(t *testing.T) {
 	t.Parallel()
 
-	before := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
-	after := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
+	before := &flagdef.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
+	after := &flagdef.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	got, err := notifier.FlagChanges(before, after)
 	require.ErrorContains(t, err, "impossible to compute flag changes")
 	assert.Nil(t, got)
@@ -129,9 +130,9 @@ func TestReadableValue(t *testing.T) {
 		value any
 		want  string
 	}{
-		{name: "nil", value: nil, want: "null"},
+		{name: "nil", value: nil, want: fixtures.NullLiteral},
 		{name: "string pointer", value: new("on"), want: `"on"`},
-		{name: "map", value: map[string]float64{"on": 50, "off": 50}, want: `{"off":50,"on":50}`},
+		{name: "map", value: map[string]float64{"on": 50, fixtures.VariationOff: 50}, want: `{"off":50,"on":50}`},
 		{name: "keeps HTML characters as typed", value: "a < b && c", want: `"a < b && c"`},
 		{name: "falls back to Go syntax when JSON cannot encode the value", value: make(chan int), want: "(chan int)"},
 	}

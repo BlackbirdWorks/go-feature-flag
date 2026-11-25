@@ -2,16 +2,12 @@ package ffclient
 
 import (
 	"errors"
-	"fmt"
-	"log"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -30,13 +26,9 @@ type Config struct {
 	Retriever retriever.Retriever
 	// internalLogger is the logger used by the library everywhere
 	// this logger is a superset of the logging system to be able to migrate easily to slog.
-	internalLogger *fflog.FFLogger
+	internalLogger *slog.Logger
 	// offlineMutex is a mutex to protect the Offline field.
 	offlineMutex *sync.RWMutex
-	// Deprecated: Use LeveledLogger instead
-	// Logger (optional) logger use by the library
-	// Default: No log
-	Logger *log.Logger
 	// LeveledLogger (optional) logger use by the library
 	// Default: No log
 	LeveledLogger *slog.Logger
@@ -122,23 +114,10 @@ func (c *Config) Initialize() {
 	}
 
 	// initialize internal logger
-	c.internalLogger = &fflog.FFLogger{
-		LeveledLogger: c.LeveledLogger,
-		LegacyLogger:  c.Logger,
+	c.internalLogger = c.LeveledLogger
+	if c.internalLogger == nil {
+		c.internalLogger = slog.New(slog.DiscardHandler)
 	}
-}
-
-// legacyWriter sends what a slog handler writes through a *[log.Logger], so that the records follow the output, the
-// flags and the lock of the legacy logger (SetOutput included).
-type legacyWriter struct{ logger *log.Logger }
-
-func (w legacyWriter) Write(msg []byte) (int, error) {
-	err := w.logger.Output(0, strings.TrimSuffix(string(msg), "\n"))
-	if err != nil {
-		return 0, fmt.Errorf("write legacy log: %w", err)
-	}
-
-	return len(msg), nil
 }
 
 // adjustPollingInterval is a function that will check the polling interval and set it to the minimum value if it is
@@ -216,15 +195,8 @@ func (c *Config) IsOffline() bool {
 	return c.Offline
 }
 
-// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
-// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
+// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration. It is nil
+// (no logging) when the configuration has none.
 func (c *Config) serviceLogger() *slog.Logger {
-	switch {
-	case c.LeveledLogger != nil:
-		return c.LeveledLogger
-	case c.Logger != nil:
-		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
-	default:
-		return nil
-	}
+	return c.LeveledLogger
 }

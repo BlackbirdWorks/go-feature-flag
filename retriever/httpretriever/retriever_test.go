@@ -10,8 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+)
+
+const (
+	httpLocalhostExampleFile = "http://localhost.example/file"
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {
@@ -36,69 +42,36 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
 			name: "Success with context",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
 				withCtx:    true,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
 			name: "Success with default method",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				body:       "",
 				header:     nil,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
@@ -108,7 +81,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/httpError",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -119,7 +92,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/error",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -130,7 +103,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},

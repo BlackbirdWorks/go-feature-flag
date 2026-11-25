@@ -16,9 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -72,10 +72,16 @@ Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
 func main() {
+	os.Exit(run(func() { os.Exit(1) }))
+}
+
+// run starts the relay proxy and returns the exit code of the process. exit ends the process, the server calls it
+// after a fatal error.
+func run(exit func()) int {
 	if versionRequested(os.Args[1:]) {
 		fmt.Print(versionText()) //nolint:forbidigo // --version output on stdout
 
-		return
+		return 0
 	}
 
 	// Init pFlag for config file
@@ -83,82 +89,74 @@ func main() {
 	_ = flagSet.Parse(os.Args[1:])
 
 	// Init logger
-	logger := log.NewDefault()
+	logger := cmdlog.NewDefault()
 
 	// Loading the configuration in viper
 	proxyConf, err := config.New(flagSet, logger.Slog, version)
 	if err != nil {
-		fatal(logger.Slog, "error while reading configuration", log.Err(err))
+		logFatal(logger.Slog, "error while reading configuration", cmdlog.Err(err))
+
+		return 1
 	}
 	defer func() {
 		stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher()
 		if stopConfigChangeWatcherErr != nil {
 			logger.Slog.LogAttrs(context.Background(), slog.LevelError,
 				"error while stopping the configuration watcher",
-				log.Err(stopConfigChangeWatcherErr),
+				cmdlog.Err(stopConfigChangeWatcherErr),
 			)
 		}
 	}()
 
 	isValidErr := proxyConf.IsValid()
 	if isValidErr != nil {
-		fatal(logger.Slog, "configuration error", log.Err(isValidErr))
+		logFatal(logger.Slog, "configuration error", cmdlog.Err(isValidErr))
+
+		return 1
 	}
 
-	if !proxyConf.HideBanner {
-		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
-	}
+	printBanner(proxyConf)
 
 	// Update the logger's format and level from the config
 	updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel)
 	if updateErr != nil {
-		fatal(logger.Slog, "configuration error", log.Err(updateErr))
+		logFatal(logger.Slog, "configuration error", cmdlog.Err(updateErr))
+
+		return 1
 	}
 
-	// Surface whether the binary is running with FIPS 140-3 validated crypto.
-	// True only for builds produced with GOFIPS140 (see `make build-relayproxy-fips`).
-	logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
+	logCryptoMode(logger.Slog)
 
-	// Init swagger
+	return serve(proxyConf, logger.Slog, exit)
+}
 
-	// Initialize metrics
-	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{
-		Version:                   version,
-		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
-	})
-	if err != nil {
-		logger.Slog.LogAttrs(
-			context.Background(),
-			slog.LevelError,
-			"impossible to initialize prometheus metrics",
-			log.Err(err),
-		)
-	}
+// serve wires up services and runs the HTTP server until shutdown.
+func serve(proxyConf *config.Config, logger *slog.Logger, exit func()) int {
+	metricsV2 := newMetrics(logger, proxyConf)
 
-	// Init services
 	wsService := stream.NewWebsocketService(stream.WithFlagDetails(!proxyConf.DisableFlagDetailsInStream))
 	sseService := stream.NewSSEService()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger.Slog, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger, []notifier.Notifier{
 		prometheusNotifier,
 	}, sseService, wsService)
 	if err != nil {
-		logger.Slog.LogAttrs(context.Background(), slog.LevelError,
+		logger.LogAttrs(context.Background(), slog.LevelError,
 			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
-			log.Err(err),
+			cmdlog.Err(err),
 		)
 
-		return
+		return 0
 	}
 
 	registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager)
 	if registerFlagLoadedErr != nil {
-		logger.Slog.LogAttrs(
+		logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
 			"impossible to register the flag_loaded metric",
-			log.Err(registerFlagLoadedErr),
+			cmdlog.Err(registerFlagLoadedErr),
 		)
 	}
 
@@ -172,17 +170,53 @@ func main() {
 	// Init API server
 	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
 	opentelemetry.ExportEnvironment(proxyConf)
-	apiServer := api.New(proxyConf, services, logger.Slog, api.WithGlobalTelemetry())
+	apiServer := api.New(proxyConf, &services, logger, api.WithGlobalTelemetry(), api.WithExit(exit))
 
-	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
+	defer shutdown(logger, &apiServer, wsService, sseService, flagsetManager)
 
 	apiServer.StartWithContext(context.Background())
+
+	return 0
 }
 
-// fatal logs the message at the fatal level and exits the process.
-func fatal(logger *slog.Logger, msg string, attrs ...slog.Attr) {
-	logger.LogAttrs(context.Background(), log.LevelFatal, msg, attrs...)
-	os.Exit(1)
+// logCryptoMode surfaces whether the binary is running with FIPS 140-3 validated crypto.
+// True only for builds produced with GOFIPS140 (see `make build-relayproxy-fips`).
+func logCryptoMode(logger *slog.Logger) {
+	logger.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
+}
+
+// printBanner prints the startup banner on stdout, unless the configuration hides it.
+func printBanner(proxyConf *config.Config) {
+	if !proxyConf.HideBanner {
+		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
+	}
+}
+
+// newMetrics initializes the metrics. When it fails, the error is logged and the metrics stay unset.
+func newMetrics(logger *slog.Logger, proxyConf *config.Config) *metric.Metrics {
+	metrics, err := metric.NewMetrics(metric.MetricsOpts{
+		Version:                   version,
+		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
+	})
+	if err != nil {
+		logger.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
+	}
+
+	return metrics
+}
+
+// logFatal logs the message at the fatal level.
+func logFatal(logger *slog.Logger, msg string, attrs ...slog.Attr) {
+	logger.LogAttrs(
+		context.Background(),
+		cmdlog.LevelFatal,
+		"fatal error in relay proxy",
+		append([]slog.Attr{slog.String("reason", msg)}, attrs...)...)
 }
 
 // shutdown stops the relay proxy: streaming clients disconnect first, then the HTTP server stops,

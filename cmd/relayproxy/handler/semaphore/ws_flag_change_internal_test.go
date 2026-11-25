@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"context"
@@ -34,8 +34,9 @@ func newWSConnPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Cleanup(srv.Close)
 
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
-	client, _, err := websocket.DefaultDialer.Dial(url, nil)
+	client, resp, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 	server := <-serverConnCh
 

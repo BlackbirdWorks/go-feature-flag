@@ -100,7 +100,7 @@ hostname or IP, and requires no MinIO-side configuration:
 awsConfig, _ := config.LoadDefaultConfig(context.Background(),
     config.WithBaseEndpoint("http://minio:9000"))
 
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
         Bucket:    "my-featureflag-bucket",

@@ -23,19 +23,27 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+)
+
+const (
+	emptyEventsBody     = `{"events":[]}`
+	openAPIVersion      = "3.1.0"
+	swaggerOpenapiJSON  = "/swagger/openapi.json"
+	versionNineNineNine = "v9.9.9"
 )
 
 // newDocsServer builds a server with the Swagger UI enabled and returns its API handler.
 func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 	t.Helper()
 	conf := testConfig(t)
-	conf.Version = "v9.9.9"
+	conf.Version = versionNineNineNine
 	conf.Swagger.Enabled = true
 	conf.Server.MonitoringPort = monitoringPort
 	flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
-	srv := api.New(conf, service.Services{
+	srv := api.New(conf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		FlagsetManager:    flagsetManager,
 	}, newTestLogger(t).Slog)
@@ -72,16 +80,16 @@ func Test_Swagger(t *testing.T) {
 	}{
 		{
 			name:      "one listener",
-			wantPaths: []string{"/health", "/info", "/metrics", "/v1/allflags", "/admin/v1/flags/validate"},
+			wantPaths: []string{healthPath, info, metricsPath, v1Allflags, adminV1Flags},
 		},
 		{
 			name: "dedicated monitoring listener", monitoringPort: 18080,
-			wantPaths: []string{"/health", "/info", "/metrics", "/v1/allflags", "/admin/v1/flags/validate"},
+			wantPaths: []string{healthPath, info, metricsPath, v1Allflags, adminV1Flags},
 		},
 		{
 			name:       "first requests",
 			concurrent: 8,
-			wantPaths:  []string{"/health", "/v1/allflags", "/admin/v1/flags/validate"},
+			wantPaths:  []string{healthPath, v1Allflags, adminV1Flags},
 		},
 	}
 	for _, tt := range tests {
@@ -93,9 +101,9 @@ func Test_Swagger(t *testing.T) {
 				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
 				// downgrades are 3.0
 				documents := []struct{ path, wantVersion string }{
-					{"/swagger/openapi.json", "3.1.0"},
+					{swaggerOpenapiJSON, openAPIVersion},
 					{"/swagger/openapi-3.0.json", "3.0.3"},
-					{"/swagger/openapi.yaml", "3.1.0"},
+					{"/swagger/openapi.yaml", openAPIVersion},
 					{"/swagger/openapi-3.0.yaml", "3.0.3"},
 				}
 
@@ -141,7 +149,7 @@ func Test_Swagger(t *testing.T) {
 						require.NoError(t, yaml.Unmarshal([]byte(bodies[path][0]), &doc), path)
 					}
 
-					assert.Equal(t, "v9.9.9", doc.Info.Version, path)
+					assert.Equal(t, versionNineNineNine, doc.Info.Version, path)
 					assert.Equal(t, document.wantVersion, doc.OpenAPI, path)
 
 					for _, p := range tt.wantPaths {
@@ -159,14 +167,14 @@ func Test_Swagger(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(
 				rec,
-				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/openapi.json", nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, swaggerOpenapiJSON, nil),
 			)
 			require.Equal(t, http.StatusOK, rec.Code)
 
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
-			assert.Equal(t, "v9.9.9", doc.Info.Version)
-			assert.Equal(t, "3.1.0", doc.OpenAPI)
+			assert.Equal(t, versionNineNineNine, doc.Info.Version)
+			assert.Equal(t, openAPIVersion, doc.OpenAPI)
 			assert.Empty(t, doc.Servers)
 
 			for _, path := range tt.wantPaths {
@@ -241,13 +249,15 @@ func (c *watchedConn) SetReadDeadline(t time.Time) error {
 type deadlineRecorder struct {
 	*httptest.ResponseRecorder
 
+	// err is returned by SetReadDeadline: nil when the connection accepts the deadline.
+	err       error
 	deadlines []time.Time
 }
 
 func (d *deadlineRecorder) SetReadDeadline(deadline time.Time) error {
 	d.deadlines = append(d.deadlines, deadline)
 
-	return nil
+	return d.err
 }
 
 // Test_Upload checks the read of the body on the routes that read their own body (the data collector and the flag
@@ -269,12 +279,12 @@ func Test_Upload(t *testing.T) {
 		wantDeadline bool // a deadline of the length of the timeout is set, else it is cleared
 		wantEnded    bool // the stalled upload is ended by the server
 	}{
-		{name: "collector timeout", path: "/v1/data/collector", timeout: 100 * time.Millisecond,
+		{name: "collector timeout", path: v1DataCollector, timeout: 100 * time.Millisecond,
 			wantDeadline: true, wantEnded: true},
-		{name: "configuration timeout", path: "/v1/flag/configuration", timeout: 100 * time.Millisecond,
+		{name: "configuration timeout", path: v1FlagConfiguration, timeout: 100 * time.Millisecond,
 			wantDeadline: true, wantEnded: true},
-		{name: "collector no timeout", path: "/v1/data/collector"},
-		{name: "configuration no timeout", path: "/v1/flag/configuration"},
+		{name: "collector no timeout", path: v1DataCollector},
+		{name: "configuration no timeout", path: v1FlagConfiguration},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -285,15 +295,15 @@ func Test_Upload(t *testing.T) {
 			flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(flagsetManager.Close)
-			srv := api.New(conf, service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
+			srv := api.New(conf, &service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
 				api.WithReadTimeout(tt.timeout))
 			req := httptest.NewRequestWithContext(
 				t.Context(),
 				http.MethodPost,
 				tt.path,
-				strings.NewReader(`{"events":[]}`),
+				strings.NewReader(emptyEventsBody),
 			)
-			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 			// real time on purpose: huma sets the deadline from the real clock, and the network deadlines are enforced
@@ -331,11 +341,15 @@ func Test_Upload(t *testing.T) {
 
 				return watched
 			}, api.WithReadTimeout(tt.timeout))
-			resp, err := http.Post(
+			postReq, err := http.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
 				base+tt.path,
-				"application/json",
-				strings.NewReader(`{"events":[]}`),
+				strings.NewReader(emptyEventsBody),
 			)
+			require.NoError(t, err)
+			postReq.Header.Set("Content-Type", protocol.MIMEApplicationJSON)
+			resp, err := http.DefaultClient.Do(postReq)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -353,7 +367,7 @@ func Test_Upload(t *testing.T) {
 			baseURL := startGoldenServer(t, testConfig(t), api.WithReadTimeout(tt.timeout))
 			conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(
 				t.Context(),
-				"tcp",
+				protocol.NetworkTCP,
 				baseURL[len("http://"):],
 			)
 			require.NoError(t, err)

@@ -4,6 +4,7 @@ package redisretriever_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,10 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	testcontainerRedis "github.com/testcontainers/testcontainers-go/modules/redis"
+	testcontainerredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
 	ret "github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
+)
+
+const (
+	flag1Json = "flag1.json"
 )
 
 func Test_Redis_Retrieve(t *testing.T) {
@@ -30,19 +35,19 @@ func Test_Redis_Retrieve(t *testing.T) {
 	}{
 		{
 			name:        "flags with prefix",
-			flagsToLoad: []string{"flag1.json", "flag2.json"},
+			flagsToLoad: []string{flag1Json, "flag2.json"},
 			prefix:      "goff:",
 			wantErr:     assert.NoError,
 		},
 		{
 			name:        "flags without prefix",
-			flagsToLoad: []string{"flag1.json", "flag2.json"},
+			flagsToLoad: []string{flag1Json, "flag2.json"},
 			prefix:      "",
 			wantErr:     assert.NoError,
 		},
 		{
 			name:        "flags with invalid json",
-			flagsToLoad: []string{"flag1.json", " flag2.json", "invalid-json.json"},
+			flagsToLoad: []string{flag1Json, " flag2.json", "invalid-json.json"},
 			prefix:      "",
 			wantErr:     assert.Error,
 		},
@@ -59,7 +64,7 @@ func Test_Redis_Retrieve(t *testing.T) {
 				Prefix:  tt.prefix,
 			}
 
-			err := retriever.Init(context.TODO(), nil)
+			err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
 
 			defer func() {
@@ -99,12 +104,12 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 	ctx := context.TODO()
 
 	//nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
-	redisContainer, err := testcontainerRedis.RunContainer(
+	redisContainer, err := testcontainerredis.RunContainer(
 		ctx,
 		testcontainers.WithImage("docker.io/redis:7"),
-		testcontainerRedis.WithSnapshotting(10, 1),
-		testcontainerRedis.WithLogLevel(testcontainerRedis.LogLevelVerbose),
-		testcontainerRedis.WithConfigFile(filepath.Join("testdata", "redis.conf")),
+		testcontainerredis.WithSnapshotting(10, 1),
+		testcontainerredis.WithLogLevel(testcontainerredis.LogLevelVerbose),
+		testcontainerredis.WithConfigFile(filepath.Join("testdata", "redis.conf")),
 	)
 	testcontainers.CleanupContainer(t, redisContainer)
 	require.NoError(t, err)
@@ -149,7 +154,7 @@ func TestRedisStatus(t *testing.T) {
 func TestRedisShutdown(t *testing.T) {
 	t.Parallel()
 
-	options := startRedisAndAddData(t, []string{"flag1.json"}, "")
+	options := startRedisAndAddData(t, []string{flag1Json}, "")
 
 	t.Run("should close connection successfully", func(t *testing.T) {
 		t.Parallel()
@@ -158,7 +163,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
@@ -186,7 +191,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
@@ -235,7 +240,7 @@ func TestRedisShutdown(t *testing.T) {
 		}
 
 		// Init should fail and set error status
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.Error(t, err)
 		assert.Equal(t, ret.RetrieverError, retriever.Status())
 
@@ -252,7 +257,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 

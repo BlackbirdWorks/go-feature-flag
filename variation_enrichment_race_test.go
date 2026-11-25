@@ -11,6 +11,11 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	team = "team"
 )
 
 // the evaluation context enrichment (and the environment) is shared by all the evaluations:
@@ -28,23 +33,27 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 		environment    string
 	}{
 		{
-			name: "enrichment and environment", environment: "prod", enrichment: map[string]any{"team": "a"},
-			wantCustom: map[string]any{"plan": "free"}, wantEnrichment: map[string]any{"team": "a"},
+			name: "enrichment and environment", environment: fixtures.EnvProd, enrichment: map[string]any{team: "a"},
+			wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}, wantEnrichment: map[string]any{team: "a"},
 		},
-		{name: "environment only", environment: "prod", wantCustom: map[string]any{"plan": "free"}},
 		{
-			name: "enrichment only", enrichment: map[string]any{"team": "a"},
-			wantCustom: map[string]any{"plan": "free"}, wantEnrichment: map[string]any{"team": "a"},
+			name:        "environment only",
+			environment: fixtures.EnvProd,
+			wantCustom:  map[string]any{fixtures.AttrPlan: fixtures.PlanFree},
 		},
-		{name: "nothing", wantCustom: map[string]any{"plan": "free"}},
+		{
+			name: "enrichment only", enrichment: map[string]any{team: "a"},
+			wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}, wantEnrichment: map[string]any{team: "a"},
+		},
+		{name: "nothing", wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval:             time.Hour,
-				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				Environment:                 tt.environment,
 				EvaluationContextEnrichment: tt.enrichment,
 			})
@@ -52,13 +61,15 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 
 			defer client.Close()
 
-			shared := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "free").Build()
+			shared := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanFree).
+				Build()
 
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
 					for range 100 {
-						_, _ = client.BoolVariation("test-flag", shared, false)
+						_, _ = client.BoolVariation(fixtures.FlagKeyTest, shared, false)
 						_ = client.AllFlagsState(shared)
 					}
 				})

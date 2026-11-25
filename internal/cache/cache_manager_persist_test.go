@@ -15,7 +15,10 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+const (
+	persistYaml = "persist.yaml"
 )
 
 func persistFlags(t *testing.T) map[string]dto.DTO {
@@ -48,7 +51,7 @@ func TestCacheManagerPersist(t *testing.T) {
 	}{
 		{
 			name:        "the flags are written to the persistent file",
-			fileInDir:   func(dir string) string { return filepath.Join(dir, "persist.yaml") },
+			fileInDir:   func(dir string) string { return filepath.Join(dir, persistYaml) },
 			flags:       persistFlags,
 			wantMessage: "Flags cache persisted to file",
 			wantContent: func(t *testing.T, path string) {
@@ -61,7 +64,7 @@ func TestCacheManagerPersist(t *testing.T) {
 		},
 		{
 			name:        "an unchanged cache does not rewrite the file",
-			fileInDir:   func(dir string) string { return filepath.Join(dir, "persist.yaml") },
+			fileInDir:   func(dir string) string { return filepath.Join(dir, persistYaml) },
 			existing:    true,
 			flags:       func(*testing.T) map[string]dto.DTO { return map[string]dto.DTO{} },
 			wantMessage: "No change in the cache, skipping the persist",
@@ -75,7 +78,7 @@ func TestCacheManagerPersist(t *testing.T) {
 		},
 		{
 			name:        "a file that cannot be written is logged",
-			fileInDir:   func(dir string) string { return filepath.Join(dir, "missing-dir", "persist.yaml") },
+			fileInDir:   func(dir string) string { return filepath.Join(dir, "missing-dir", persistYaml) },
 			flags:       persistFlags,
 			wantMessage: "Error while writing flags to file",
 			wantContent: func(t *testing.T, path string) {
@@ -96,7 +99,7 @@ func TestCacheManagerPersist(t *testing.T) {
 			}
 
 			handler := slogassert.New(t, slog.LevelDebug, nil)
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(handler)}
+			logger := slog.New(handler)
 			m := cache.New(notification.NewService([]notifier.Notifier{}), path, logger)
 
 			require.NoError(t, m.UpdateCache(tt.flags(t), logger, false))

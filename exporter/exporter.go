@@ -3,8 +3,7 @@ package exporter
 import (
 	"context"
 	"log"
-
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"log/slog"
 )
 
 // DeprecatedExporterV1 is an interface to describe how an exporter looks like.
@@ -13,18 +12,22 @@ import (
 type DeprecatedExporterV1 interface {
 	CommonExporter
 	// Export will send the data to the exporter.
-	Export(ctx context.Context, logger *log.Logger, events []FeatureEvent) error
+	Export(ctx context.Context, logger *log.Logger, events []*FeatureEvent) error
 }
 
+// DeprecatedExporterV2 is the previous exporter interface, kept for compatibility.
 type DeprecatedExporterV2 interface {
 	CommonExporter
-	Export(ctx context.Context, logger *fflog.FFLogger, events []FeatureEvent) error
+	Export(ctx context.Context, logger *slog.Logger, events []*FeatureEvent) error
 }
 
+// Exporter sends evaluation events to a destination.
 type Exporter interface {
 	CommonExporter
-	Export(ctx context.Context, logger *fflog.FFLogger, events []ExportableEvent) error
+	Export(ctx context.Context, logger *slog.Logger, events []ExportableEvent) error
 }
+
+// CommonExporter is the interface shared by the exporters.
 type CommonExporter interface {
 	// IsBulk return false if we should directly send the data as soon as it is produce
 	// and true if we collect the data to send them in bulk.

@@ -3,6 +3,7 @@ package ffclient
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,28 +12,27 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // GoFeatureFlag is the main object of the library
 // it contains the cache, the config, the updater and the exporter.
 type GoFeatureFlag struct {
-	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
-	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
+	trackingEventDataExporter exporter.Manager[*exporter.TrackingEvent]
+	featureEventDataExporter  exporter.Manager[*exporter.FeatureEvent]
 	retrieverManager          *retriever.Manager
 	// eventWorkerStop is closed by Close to ask the worker to drain the queue and exit.
 	eventWorkerStop chan struct{}
 	// evaluationService owns the caches of the flag evaluation (parsed queries, scheduled rollouts, ...).
 	// It is created with the client, shared by the cache that validates the flags and by the
 	// evaluations, and released by Close.
-	evaluationService *flag.Service
+	evaluationService *flagdef.Service
 	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
-	eventQueue chan exporter.FeatureEvent
+	eventQueue chan *exporter.FeatureEvent
 	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
 	enrichment map[string]any
 	// dropSignal asks reportDrops to write the warning about the dropped events.
@@ -55,20 +55,23 @@ const DefaultEventQueueSize = 65536
 
 // New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
-func New(config Config) (*GoFeatureFlag, error) {
+func New(config *Config) (*GoFeatureFlag, error) {
 	return NewWithContext(context.Background(), config)
 }
 
 // NewWithContext creates a new semaphore instance using ctx to initialize the configured retrievers.
-func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) {
+//
+// The configuration is copied: defaults are set on the copy, the given Config is left as it is.
+func NewWithContext(ctx context.Context, given *Config) (*GoFeatureFlag, error) {
 	ctx = internal.ContextOrBackground(ctx)
 
+	config := *given
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
 		config:            config,
 		evalExporterWg:    sync.WaitGroup{},
-		evaluationService: flag.NewService(flag.WithLogger(config.serviceLogger())),
+		evaluationService: flagdef.NewService(flagdef.WithLogger(config.serviceLogger())),
 	}
 
 	if config.Offline {
@@ -78,14 +81,14 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 		return goFF, nil
 	}
 
-	retrieverManager, err := initializeRetrieverManager(ctx, config, goFF.evaluationService)
+	retrieverManager, err := initializeRetrieverManager(ctx, &config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
 		return nil, err
 	}
 
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
-		config, goFF.config.internalLogger)
+		&config, goFF.config.internalLogger)
 	goFF.startEventWorker(ctx)
 	config.internalLogger.DebugContext(ctx, "Semaphore is initialized")
 
@@ -93,7 +96,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 }
 
 // initializeNotificationService is a function that will initialize the notification service with the notifiers.
-func initializeNotificationService(config Config) *notification.ServiceImpl {
+func initializeNotificationService(config *Config) *notification.ServiceImpl {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
 
@@ -105,7 +108,7 @@ const errInitRetrieversFormat = "impossible to initialize the retrievers, please
 
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(
-	ctx context.Context, config Config, evaluationService *flag.Service,
+	ctx context.Context, config *Config, evaluationService *flagdef.Service,
 ) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
@@ -141,8 +144,8 @@ func initializeRetrieverManager(
 	return manager, nil
 }
 
-func initializeDataExporters(config Config, logger *fflog.FFLogger) (
-	exporter.Manager[exporter.FeatureEvent], exporter.Manager[exporter.TrackingEvent],
+func initializeDataExporters(config *Config, logger *slog.Logger) (
+	exporter.Manager[*exporter.FeatureEvent], exporter.Manager[*exporter.TrackingEvent],
 ) {
 	exporters := config.GetDataExporters()
 	featureEventExporterConfigs := make([]exporter.Config, 0)
@@ -166,16 +169,16 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 		}
 	}
 
-	var trackingEventManager exporter.Manager[exporter.TrackingEvent]
+	var trackingEventManager exporter.Manager[*exporter.TrackingEvent]
 	if len(trackingEventExporterConfigs) > 0 {
-		trackingEventManager = exporter.NewManager[exporter.TrackingEvent](
+		trackingEventManager = exporter.NewManager[*exporter.TrackingEvent](
 			trackingEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		trackingEventManager.Start()
 	}
 
-	var featureEventManager exporter.Manager[exporter.FeatureEvent]
+	var featureEventManager exporter.Manager[*exporter.FeatureEvent]
 	if len(featureEventExporterConfigs) > 0 {
-		featureEventManager = exporter.NewManager[exporter.FeatureEvent](
+		featureEventManager = exporter.NewManager[*exporter.FeatureEvent](
 			featureEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		featureEventManager.Start()
 	}
@@ -239,7 +242,7 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 // EvaluationService returns the evaluation service of the client: the owner of the caches that
 // evaluating (and validating) its flags uses. Pass it in flag.Context.Service when you evaluate the
 // flags that GetFlagsFromCache returns. It is never nil.
-func (g *GoFeatureFlag) EvaluationService() *flag.Service {
+func (g *GoFeatureFlag) EvaluationService() *flagdef.Service {
 	return g.evaluationService
 }
 

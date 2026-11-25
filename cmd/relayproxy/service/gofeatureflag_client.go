@@ -9,12 +9,12 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/IBM/sarama"
-	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	awsconf "github.com/aws/aws-sdk-go-v2/config"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
 	"github.com/blackbirdworks/semaphore/exporter/bigqueryexporter"
@@ -34,9 +34,9 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/microsoftteamsnotifier"
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 var (
@@ -54,13 +54,13 @@ type clientOptions struct {
 	// postgresPools shares the connection pools of the PostgreSQL retrievers of the clients created with it.
 	postgresPools *postgresqlretriever.PoolRegistry
 	// newClient builds the engine client. It defaults to ffclient.New and is replaced only by tests.
-	newClient func(ffclient.Config) (*ffclient.GoFeatureFlag, error)
+	newClient func(*ffclient.Config) (*ffclient.GoFeatureFlag, error)
 	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
 	defaultExporterCleanQueueInterval time.Duration
 }
 
 // withClientFactory replaces the function building the engine client (tests observe the configuration it receives).
-func withClientFactory(f func(ffclient.Config) (*ffclient.GoFeatureFlag, error)) clientOption {
+func withClientFactory(f func(*ffclient.Config) (*ffclient.GoFeatureFlag, error)) clientOption {
 	return func(o *clientOptions) { o.newClient = f }
 }
 
@@ -98,12 +98,12 @@ func (o *clientOptions) ensurePostgresPools() {
 }
 
 // retrieverOptions are the options that the retrievers of a client are created with.
-func (o *clientOptions) retrieverOptions() []retrieverInit.Option {
+func (o *clientOptions) retrieverOptions() []retrieverinit.Option {
 	if o.postgresPools == nil {
 		return nil
 	}
 
-	return []retrieverInit.Option{retrieverInit.WithPostgresPools(o.postgresPools)}
+	return []retrieverinit.Option{retrieverinit.WithPostgresPools(o.postgresPools)}
 }
 
 // withSharedBucketRegistry sets the registry providing the retrievers of the flagsets with
@@ -112,20 +112,49 @@ func withSharedBucketRegistry(r *sharedBucketRegistry) clientOption {
 	return func(o *clientOptions) { o.sharedRegistry = r }
 }
 
+// NewGoFeatureFlagClient returns a feature flag client configured for the relay proxy.
 func NewGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
 	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 ) (*ffclient.GoFeatureFlag, error) {
-	return newGoFeatureFlagClient(cFlagSet, logger, notifiers)
+	return createGoFeatureFlagClient(cFlagSet, logger, notifiers)
 }
 
-func newGoFeatureFlagClient(
+// collectNotifiers builds the notifiers of the flagset and appends the given ones.
+func collectNotifiers(
+	cFlagSet *config.FlagSet, logger *slog.Logger, extra []notifier.Notifier,
+) ([]notifier.Notifier, error) {
+	var err error
+
+	notif := make([]notifier.Notifier, 0, len(extra))
+	if cFlagSet.Notifiers != nil {
+		notif, err = initNotifier(cFlagSet.Notifiers, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
+	// fixed in version v1.46.0
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
+	fixNotifiers := cFlagSet.FixNotifiers
+	if len(notif) == 0 && fixNotifiers != nil {
+		notif, err = initNotifier(fixNotifiers, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// end of backward compatibility for the notifier field in version v1.66.0
+	return append(notif, extra...), nil
+}
+
+func createGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
 	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 	opts ...clientOption,
-) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
+) (_ *ffclient.GoFeatureFlag, retErr error) {
 	var err error
 
 	if cFlagSet == nil {
@@ -149,33 +178,20 @@ func newGoFeatureFlagClient(
 	}
 	// If the client can't be created, the shared-poller retrievers must leave their shared group,
 	// otherwise their item stays registered forever. Their Shutdown is idempotent.
-	defer releaseSharedPollerRetrievers(retrievers, &retErr)
+	defer func() { releaseSharedPollerRetrievers(retrievers, retErr) }()
 
 	exporters, err := initDataExporters(cFlagSet)
 	if err != nil {
 		return nil, err
 	}
 
-	notif := make([]notifier.Notifier, 0, len(notifiers))
-	if cFlagSet.Notifiers != nil {
-		notif, err = initNotifier(cFlagSet.Notifiers, logger)
-		if err != nil {
-			return nil, err
-		}
+	notif, err := collectNotifiers(cFlagSet, logger, notifiers)
+	if err != nil {
+		return nil, err
 	}
 
-	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
-	// fixed in version v1.46.0
-	//nolint:staticcheck // SA1019: the deprecated setting is still supported
-	fixNotifiers := cFlagSet.FixNotifiers
-	if len(notif) == 0 && fixNotifiers != nil {
-		notif, err = initNotifier(fixNotifiers, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// end of backward compatibility for the notifier field in version v1.66.0
-	notif = append(notif, notifiers...)
+	// the client keeps the name: it must not point into the configuration, which changes at runtime.
+	flagSetName := cFlagSet.Name
 
 	clientCfg := ffclient.Config{
 		PollingInterval:                 clientPollingInterval(cFlagSet),
@@ -190,7 +206,7 @@ func newGoFeatureFlagClient(
 		DisableNotifierOnInit:           cFlagSet.DisableNotifierOnInit,
 		EvaluationContextEnrichment:     cFlagSet.EvaluationContextEnrichment,
 		PersistentFlagConfigurationFile: cFlagSet.PersistentFlagConfigurationFile,
-		Name:                            &cFlagSet.Name,
+		Name:                            &flagSetName,
 	}
 
 	newClient := options.newClient
@@ -198,7 +214,7 @@ func newGoFeatureFlagClient(
 		newClient = ffclient.New
 	}
 
-	client, err := newClient(clientCfg)
+	client, err := newClient(&clientCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -249,8 +265,8 @@ func firstSharedRetriever(retrievers []retriever.Retriever) (*releasingRetriever
 
 // releaseSharedPollerRetrievers makes the shared-poller retrievers leave their shared group when the client
 // creation failed, otherwise their item stays registered forever. Their Shutdown is idempotent.
-func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *error) {
-	if *retErr == nil {
+func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr error) {
+	if retErr == nil {
 		return
 	}
 
@@ -264,7 +280,7 @@ func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *err
 // initLeveledLogger initializes the leveled logger
 // it will add the flagset name as a contextual attribute if it is not the default flagset.
 func initLeveledLogger(c *config.FlagSet, logger *slog.Logger) *slog.Logger {
-	if c.Name != "" && c.Name != utils.DefaultFlagSetName {
+	if c.Name != "" && c.Name != stringsx.DefaultFlagSetName {
 		return logger.With(slog.String("flagset", c.Name))
 	}
 
@@ -275,7 +291,7 @@ func initLeveledLogger(c *config.FlagSet, logger *slog.Logger) *slog.Logger {
 // the `retriever` and `retrievers` fields. The registry provides the retriever of the flagsets with
 // enableSharedPollerPerBucket, it is required for them.
 func initRetrieversWithRegistry(
-	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverInit.Option,
+	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverinit.Option,
 ) ([]retriever.Retriever, error) {
 	retrievers := make([]retriever.Retriever, 0)
 
@@ -293,22 +309,22 @@ func initRetrieversWithRegistry(
 	}
 	// if the retriever is set, we add it to the retrievers
 	if proxyConf.Retriever != nil {
-		currentRetriever, err := retrieverInit.Retriever(proxyConf.Retriever, retrieverOpts...)
+		currentRetriever, err := retrieverinit.Retriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("init retriever: %w", err)
 		}
 
-		retrievers = append(retrievers, currentRetriever)
+		retrievers = append(retrievers, currentRetriever.Retriever)
 	}
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
-		for _, r := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.Retriever(&r, retrieverOpts...)
+		for i := range *proxyConf.Retrievers {
+			currentRetriever, err := retrieverinit.Retriever(&(*proxyConf.Retrievers)[i], retrieverOpts...)
 			if err != nil {
 				return nil, fmt.Errorf("init retriever: %w", err)
 			}
 
-			retrievers = append(retrievers, currentRetriever)
+			retrievers = append(retrievers, currentRetriever.Retriever)
 		}
 	}
 
@@ -330,8 +346,8 @@ func initDataExporters(proxyConf *config.FlagSet) ([]ffclient.DataExporter, erro
 	}
 
 	if proxyConf.Exporters != nil {
-		for _, e := range *proxyConf.Exporters {
-			currentExporter, err := initDataExporter(&e)
+		for i := range *proxyConf.Exporters {
+			currentExporter, err := initDataExporter(&(*proxyConf.Exporters)[i])
 			if err != nil {
 				return nil, err
 			}
@@ -367,12 +383,12 @@ func initDataExporter(expConf *config.ExporterConf) (ffclient.DataExporter, erro
 		ExporterEventType: exporterEventType,
 	}
 
-	var err error
-
-	dataExp.Exporter, err = createExporter(expConf)
+	built, err := createExporter(expConf)
 	if err != nil {
 		return ffclient.DataExporter{}, err
 	}
+
+	dataExp.Exporter = built.CommonExporter
 
 	return dataExp, nil
 }
@@ -404,66 +420,71 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
-//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
-func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, error) {
+// builtExporter is the exporter that createExporter built: the implementation of the kind of the configuration.
+type builtExporter struct {
+	exporter.CommonExporter
+}
+
+// createExporter builds the exporter of the configuration.
+func createExporter(expConf *config.ExporterConf) (builtExporter, error) {
 	defaults := newExporterDefaults(expConf)
 
 	switch expConf.Kind {
 	case config.WebhookExporter:
-		return &webhookexporter.Exporter{
+		return builtExporter{CommonExporter: &webhookexporter.Exporter{
 			EndpointURL: expConf.EndpointURL,
 			Secret:      expConf.Secret,
 			Meta:        expConf.Meta,
 			Headers:     expConf.Headers,
-		}, nil
+		}}, nil
 	case config.FileExporter:
-		return &fileexporter.Exporter{
+		return builtExporter{CommonExporter: &fileexporter.Exporter{
 			Format:                  defaults.format,
 			OutputDir:               expConf.OutputDir,
 			Filename:                defaults.filename,
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
-		}, nil
+		}}, nil
 	case config.LogExporter:
-		return &logsexporter.Exporter{
+		return builtExporter{CommonExporter: &logsexporter.Exporter{
 			LogFormat: valueOrDefault(expConf.LogFormat, config.DefaultExporter().LogFormat),
-		}, nil
+		}}, nil
 	case config.S3Exporter, config.KinesisExporter, config.SQSExporter, config.RedshiftExporter:
 		return createAWSExporter(expConf, defaults)
 	case config.GoogleStorageExporter:
-		return &gcstorageexporter.Exporter{
+		return builtExporter{CommonExporter: &gcstorageexporter.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
 			Path:                    expConf.Path,
 			Filename:                defaults.filename,
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
-		}, nil
+		}}, nil
 	case config.KafkaExporter:
 		settings, err := setKafkaConfig(expConf.Kafka)
 		if err != nil {
-			return nil, err
+			return builtExporter{}, err
 		}
 
-		return &kafkaexporter.Exporter{
+		return builtExporter{CommonExporter: &kafkaexporter.Exporter{
 			Format:   defaults.format,
 			Settings: settings,
-		}, nil
+		}}, nil
 	case config.PubSubExporter:
-		return &pubsubexporterv2.Exporter{
+		return builtExporter{CommonExporter: &pubsubexporterv2.Exporter{
 			ProjectID: expConf.ProjectID,
 			Topic:     expConf.Topic,
-		}, nil
+		}}, nil
 	case config.BigQueryExporter:
-		return &bigqueryexporter.Exporter{
+		return builtExporter{CommonExporter: &bigqueryexporter.Exporter{
 			ProjectID:         expConf.ProjectID,
 			DatasetID:         expConf.DatasetID,
 			TableName:         expConf.TableName,
 			GoogleCredentials: []byte(expConf.GoogleCredentials),
 			AutoMigrate:       expConf.AutoMigrate,
-		}, nil
+		}}, nil
 	case config.AzureExporter:
-		return &azureexporter.Exporter{
+		return builtExporter{CommonExporter: &azureexporter.Exporter{
 			Container:               expConf.Container,
 			Format:                  defaults.format,
 			Path:                    expConf.Path,
@@ -472,33 +493,30 @@ func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, erro
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AccountKey:              expConf.AccountKey,
 			AccountName:             expConf.AccountName,
-		}, nil
+		}}, nil
 	case config.OpenTelemetryExporter:
-		return &opentelemetryexporter.Exporter{
+		return builtExporter{CommonExporter: &opentelemetryexporter.Exporter{
 			TracerName: expConf.TracerName,
-		}, nil
+		}}, nil
 	default:
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, expConf.Kind)
+		return builtExporter{}, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, expConf.Kind)
 	}
 }
 
 // createAWSExporter builds the exporters that load the default AWS configuration.
-//
-//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
-func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (exporter.CommonExporter, error) {
-	var awsOpts []func(*awsConf.LoadOptions) error
+func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (builtExporter, error) {
+	var awsOpts []func(*awsconf.LoadOptions) error
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {
-		awsOpts = append(awsOpts, awsConf.WithRegion(expConf.AwsRegion))
+		awsOpts = append(awsOpts, awsconf.WithRegion(expConf.AwsRegion))
 	}
 
-	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
+	awsConfig, err := awsconf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("load AWS default config: %w", err)
+		return builtExporter{}, fmt.Errorf("load AWS default config: %w", err)
 	}
 
-	switch expConf.Kind {
-	case config.S3Exporter:
-		return &s3exporterv2.Exporter{
+	if expConf.Kind == config.S3Exporter {
+		return builtExporter{CommonExporter: &s3exporterv2.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
 			S3Path:                  expConf.Path,
@@ -506,33 +524,38 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AwsConfig:               &awsConfig,
-		}, nil
-	case config.KinesisExporter:
-		return &kinesisexporter.Exporter{
+		}}, nil
+	}
+
+	if expConf.Kind == config.KinesisExporter {
+		return builtExporter{CommonExporter: &kinesisexporter.Exporter{
 			Format:    defaults.format,
 			AwsConfig: &awsConfig,
 			Settings: kinesisexporter.NewSettings(
 				kinesisexporter.WithStreamArn(expConf.StreamArn),
 				kinesisexporter.WithStreamName(expConf.StreamName),
 			),
-		}, nil
-	case config.SQSExporter:
-		return &sqsexporter.Exporter{
+		}}, nil
+	}
+
+	if expConf.Kind == config.SQSExporter {
+		return builtExporter{CommonExporter: &sqsexporter.Exporter{
 			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,
-		}, nil
-	default: // config.RedshiftExporter, the only other kind routed here
-		return &redshiftexporter.Exporter{
-			ClusterIdentifier: expConf.ClusterIdentifier,
-			WorkgroupName:     expConf.WorkgroupName,
-			Database:          expConf.Database,
-			DBUser:            expConf.DBUser,
-			SecretArn:         expConf.SecretArn,
-			TableName:         expConf.TableName,
-			AwsConfig:         &awsConfig,
-			AutoMigrate:       expConf.AutoMigrate,
-		}, nil
+		}}, nil
 	}
+
+	// config.RedshiftExporter, the only other kind routed here
+	return builtExporter{CommonExporter: &redshiftexporter.Exporter{
+		ClusterIdentifier: expConf.ClusterIdentifier,
+		WorkgroupName:     expConf.WorkgroupName,
+		Database:          expConf.Database,
+		DBUser:            expConf.DBUser,
+		SecretArn:         expConf.SecretArn,
+		TableName:         expConf.TableName,
+		AwsConfig:         &awsConfig,
+		AutoMigrate:       expConf.AutoMigrate,
+	}}, nil
 }
 
 // setKafkaConfig set the kafka configuration based on the default configuration

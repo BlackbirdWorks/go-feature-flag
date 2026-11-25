@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // DTO is representing all the fields we can have in a flag.
@@ -29,19 +29,19 @@ type DTO struct {
 
 	// Rules is the list of Rule for this flag.
 	// This an optional field.
-	Rules *[]flag.Rule `json:"targeting,omitempty" jsonschema:"title=targeting,description=List of rule to target a subset of the users based on the evaluation context." toml:"targeting,omitempty" yaml:"targeting,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Rules *[]flagdef.Rule `json:"targeting,omitempty" jsonschema:"title=targeting,description=List of rule to target a subset of the users based on the evaluation context." toml:"targeting,omitempty" yaml:"targeting,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// BucketingKey defines a source for a dynamic targeting key
 	BucketingKey *string `json:"bucketingKey,omitempty" toml:"bucketingKey,omitempty" yaml:"bucketingKey,omitempty"`
 
 	// DefaultRule is the rule applied after checking that any other rules
 	// matched the user.
-	DefaultRule *flag.Rule `json:"defaultRule,omitempty" jsonschema:"required,title=defaultRule,description=How do we evaluate the flag if the user is not part of any of the targeting rule." toml:"defaultRule,omitempty" yaml:"defaultRule,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	DefaultRule *flagdef.Rule `json:"defaultRule,omitempty" jsonschema:"required,title=defaultRule,description=How do we evaluate the flag if the user is not part of any of the targeting rule." toml:"defaultRule,omitempty" yaml:"defaultRule,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Scheduled is your struct to configure an update on some fields of your flag over time.
 	// You can add several steps that updates the flag, this is typically used if you want to gradually add more user
 	// in your flag.
-	Scheduled *[]flag.ScheduledStep `json:"scheduledRollout,omitempty" jsonschema:"title=scheduledRollout,description=Configure an update on some fields of your flag over time." toml:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Scheduled *[]flagdef.ScheduledStep `json:"scheduledRollout,omitempty" jsonschema:"title=scheduledRollout,description=Configure an update on some fields of your flag over time." toml:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Experimentation is your struct to configure an experimentation.
 	// It will allow you to configure a start date and an end date for your flag.
@@ -53,11 +53,11 @@ type DTO struct {
 }
 
 // Convert is converting the DTO into a flag.InternalFlag.
-func (d *DTO) Convert() flag.InternalFlag {
+func (d *DTO) Convert() flagdef.InternalFlag {
 	var empty DTO
 	if d == nil || empty == *d {
-		return flag.InternalFlag{}
+		return flagdef.InternalFlag{}
 	}
 
-	return ConvertDtoToInternalFlag(*d)
+	return ConvertDtoToInternalFlag(d)
 }

@@ -97,12 +97,14 @@ func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.server.ServeHTTP(w, r)
 }
 
+// SetOnSubscribe sets the callback called when a client subscribes to a stream.
 func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
 	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
 		fn(streamID)
 	}
 }
 
+// Close closes all the SSE streams.
 func (s *SSEServiceImpl) Close() {
 	s.closeOnce.Do(func() { close(s.done) })
 	s.server.Close()

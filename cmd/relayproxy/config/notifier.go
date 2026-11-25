@@ -13,6 +13,7 @@ var (
 	errInvalidNotifierKind              = errors.New("invalid notifier: kind")
 )
 
+// NotifierConf is the configuration of a notifier.
 type NotifierConf struct {
 	Kind NotifierKind `koanf:"kind" mapstructure:"kind"`
 	// Deprecated: Use WebhookURL instead
@@ -24,6 +25,7 @@ type NotifierConf struct {
 	WebhookURL      string              `koanf:"webhookurl"      mapstructure:"webhookUrl"`
 }
 
+// IsValid returns an error if the notifier configuration is invalid.
 func (c *NotifierConf) IsValid() error {
 	err := c.Kind.IsValid()
 	if err != nil {
@@ -57,13 +59,18 @@ func (c *NotifierConf) IsValid() error {
 	return nil
 }
 
+// NotifierKind is the kind of notifier configured in the relay proxy.
 type NotifierKind string
 
 const (
-	SlackNotifier          NotifierKind = "slack"
+	// SlackNotifier is the kind of notifier that sends flag changes to Slack.
+	SlackNotifier NotifierKind = "slack"
+	// MicrosoftTeamsNotifier is the kind of notifier that sends flag changes to Microsoft Teams.
 	MicrosoftTeamsNotifier NotifierKind = "microsoftteams"
-	WebhookNotifier        NotifierKind = "webhook"
-	DiscordNotifier        NotifierKind = "discord"
+	// WebhookNotifier is the kind of notifier that posts flag changes to a webhook.
+	WebhookNotifier NotifierKind = "webhook"
+	// DiscordNotifier is the kind of notifier that sends flag changes to Discord.
+	DiscordNotifier NotifierKind = "discord"
 )
 
 // IsValid is checking if the value is part of the enum.

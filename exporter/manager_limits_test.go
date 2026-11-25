@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // outageExporter fails until recovered is set, then counts what it receives.
@@ -19,8 +19,8 @@ type outageExporter struct {
 	events    atomic.Int64
 }
 
-func (e *outageExporter) IsBulk() bool { return true }
-func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (*outageExporter) IsBulk() bool { return true }
+func (e *outageExporter) Export(_ context.Context, _ *slog.Logger, ev []exporter.ExportableEvent) error {
 	if !e.recovered.Load() {
 		return assert.AnError
 	}
@@ -58,18 +58,18 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 			t.Parallel()
 			// the small exporter is down: its events wait for it to recover (final flush).
 			small, large := &outageExporter{}, &countingExporter{bulk: true}
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
-			am, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			am, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent])
 			require.True(t, ok)
 
 			for range tt.events {
 				if tt.async {
-					am.QueueEvents(make([]exporter.FeatureEvent, 1))
+					am.QueueEvents(make([]*exporter.FeatureEvent, 1))
 				} else {
-					mgr.AddEvent(exporter.FeatureEvent{})
+					mgr.AddEvent(&exporter.FeatureEvent{})
 				}
 			}
 

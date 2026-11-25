@@ -2,6 +2,7 @@ package cache_test
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,8 +13,11 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+)
+
+const (
+	flagFive = "flag-5"
 )
 
 func benchFlags(b *testing.B, n int) map[string]dto.DTO {
@@ -48,28 +52,28 @@ func BenchmarkGetFlag(b *testing.B) {
 	for _, numFlags := range []int{10, 1000} {
 		flags := benchFlags(b, numFlags)
 		b.Run(fmt.Sprintf("flags=%d/serial", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for range b.N {
-				_, err := cacheMgr.GetFlag("flag-5")
+				_, err := cacheMgr.GetFlag(flagFive)
 				if err != nil {
 					require.NoError(b, err)
 				}
 			}
 		})
 		b.Run(fmt.Sprintf("flags=%d/parallel", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					_, err := cacheMgr.GetFlag("flag-5")
+					_, err := cacheMgr.GetFlag(flagFive)
 					if err != nil {
 						assert.NoError(b, err)
 
@@ -79,7 +83,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			})
 		})
 		b.Run(fmt.Sprintf("flags=%d/parallel-with-updates", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			var (
@@ -94,12 +98,12 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
-				var cachedFlag flag.Flag
+				var cachedFlag flagdef.Flag
 
 				for pb.Next() {
 					var err error
 
-					cachedFlag, err = cacheMgr.GetFlag("flag-5")
+					cachedFlag, err = cacheMgr.GetFlag(flagFive)
 					if err != nil {
 						assert.NoError(b, err)
 

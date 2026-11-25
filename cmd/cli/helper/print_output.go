@@ -11,29 +11,39 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
+// Level is the severity of a line of command output.
 type Level = string
 
 const (
-	WarnLevel    Level = "WARNING"
-	InfoLevel    Level = "INFO"
-	ErrorLevel   Level = "ERROR"
+	// WarnLevel is the severity of a warning line of command output.
+	WarnLevel Level = "WARNING"
+	// InfoLevel is the severity of an informational line of command output.
+	InfoLevel Level = "INFO"
+	// ErrorLevel is the severity of an error line of command output.
+	ErrorLevel Level = "ERROR"
+	// DefaultLevel is the severity of an output line when none is given.
 	DefaultLevel Level = "DEFAULT"
 )
 
+// OutputLine is a line of command output with its severity.
 type OutputLine struct {
 	Text  string
 	Level Level
 }
+
+// Output collects the lines printed by a command.
 type Output struct {
 	Lines []OutputLine
 }
 
+// Add appends a line with the given level to the output and returns it.
 func (o *Output) Add(line string, level Level) Output {
 	o.Lines = append(o.Lines, OutputLine{Text: line, Level: level})
 
 	return *o
 }
 
+// PrintLines writes the collected lines to the output of the command.
 func (o *Output) PrintLines(cmd *cobra.Command) {
 	for _, line := range o.Lines {
 		var outputText string
@@ -81,6 +91,6 @@ func LegacyWarner() *legacy.Warner {
 // default logger replaced after the warner was built is still honoured.
 func LegacyWarnerTo(logger func() *slog.Logger) *legacy.Warner {
 	return legacy.NewWarner(func(kind, message string) {
-		logger().Warn(message, slog.String("legacyName", kind))
+		logger().Warn("legacy name used", slog.String("legacyName", kind), slog.String("detail", message))
 	})
 }

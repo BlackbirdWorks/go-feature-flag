@@ -6,12 +6,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	debugError   = "debug error"
+	orOperator   = " or "
+	yInOneToFive = `y IN [1, 2, 3, 4, 5]`
 )
 
 func benchConditions() []string {
 	return []string{
-		`x eq 1`,
-		`y IN [1, 2, 3, 4, 5]`,
+		xEqOne,
+		yInOneToFive,
 		`z in ["abcd", "efghijkl", "asdoihadoihasoihsaoasihasdoihdadoiahsdoihdasodha", "asdoisahdadoihasdoisdwoqeioheqcnac"]`,
 		`(a > 123 or b <= 456)`,
 		`(aa == 123123131.1232313131312312 or bb == 1231.1312313123123131231)`,
@@ -27,7 +35,7 @@ func logicalRule(conds []string, depth int) string {
 		parts[i] = strings.Repeat("(", depth) + c + strings.Repeat(")", depth)
 	}
 
-	return strings.Join(parts, " or ")
+	return strings.Join(parts, orOperator)
 }
 
 // bigRule repeats conditions 100 times, each wrapped in three parentheses.
@@ -78,7 +86,8 @@ func benchNewAndProcess(b *testing.B, rule string) {
 
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
-		ev.Process(benchInput)
+		_, err := ev.Process(benchInput)
+		require.NoError(b, err)
 	}
 }
 
@@ -97,7 +106,8 @@ func BenchmarkLogicalExpressionBigTreeCached(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		eval.Process(benchInput)
+		_, err := eval.Process(benchInput)
+		require.NoError(b, err)
 		eval.Reset()
 	}
 }
@@ -118,8 +128,8 @@ func BenchmarkProcess(b *testing.B) {
 		want      bool
 		wantDebug bool
 	}{
-		{name: "IntEq", rule: `x eq 1`},
-		{name: "IntIn", rule: `y IN [1, 2, 3, 4, 5]`},
+		{name: "IntEq", rule: xEqOne},
+		{name: "IntIn", rule: yInOneToFive},
 		{name: "StringEq", rule: `z eq "asdada"`, want: true},
 		{
 			name: "StringIn",
@@ -128,9 +138,9 @@ func BenchmarkProcess(b *testing.B) {
 		},
 		{name: "FloatCmp", rule: `aa == 123123131.1232313131312312`},
 		{name: "Version", rule: `jh gt 1.2.0`, want: true},
-		{name: "Nested", rule: `u.plan eq "pro" and u.age gt 18`, want: true},
+		{name: "Nested", rule: uPlanEqProAnd, want: true},
 		{name: "Logical", rule: `(x eq 1 or y eq 2) and (z eq "nope" or b > 100)`},
-		{name: "Mixed", rule: strings.Join(benchConditions(), " or ")},
+		{name: "Mixed", rule: strings.Join(benchConditions(), orOperator)},
 		{name: "DebugErr/TypeMismatch", rule: `z gt 123`, wantDebug: true},
 		{name: "DebugErr/Missing", rule: `missing eq "x"`, wantDebug: true},
 	}
@@ -140,12 +150,13 @@ func BenchmarkProcess(b *testing.B) {
 			got, err := eval.Process(benchInput)
 			require.NoError(b, err)
 			require.Equal(b, tt.want, got)
-			require.Equal(b, tt.wantDebug, eval.LastDebugErr() != nil, "debug error")
+			require.Equal(b, tt.wantDebug, eval.LastDebugErr() != nil, debugError)
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for range b.N {
-				eval.Process(benchInput)
+				_, procErr := eval.Process(benchInput)
+				require.NoError(b, procErr)
 			}
 		})
 	}
@@ -162,7 +173,8 @@ func BenchmarkProcessParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			ev.Process(items)
+			_, err := ev.Process(items)
+			assert.NoError(b, err)
 		}
 	})
 }
@@ -189,15 +201,15 @@ func newBenchInput() map[string]any {
 		"b":  123131,
 		"aa": 123123.123131232113,
 		"bb": 1.5,
-		"jh": "1.2.3",
+		"jh": fixtures.VersionOneTwoThree,
 		"kl": "1.5",
-		"u":  map[string]any{"plan": "pro", "age": 31},
+		"u":  map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31},
 	}
 }
 
 // BenchmarkNewEvaluator measures construction only (parse and validate).
 func BenchmarkNewEvaluator(b *testing.B) {
-	rule := strings.Join(benchConditions(), " or ")
+	rule := strings.Join(benchConditions(), orOperator)
 
 	b.ReportAllocs()
 
@@ -209,7 +221,7 @@ func BenchmarkNewEvaluator(b *testing.B) {
 // BenchmarkEvaluate measures the one-shot Evaluate helper.
 func BenchmarkEvaluate(b *testing.B) {
 	benchInput := newBenchInput()
-	rule := strings.Join(benchConditions(), " or ")
+	rule := strings.Join(benchConditions(), orOperator)
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -223,14 +235,15 @@ func BenchmarkEvaluate(b *testing.B) {
 // Process call, i.e. what any one-use evaluator pays.
 func BenchmarkNewEvaluatorFirstProcess(b *testing.B) {
 	benchInput := newBenchInput()
-	rule := strings.Join(benchConditions(), " or ")
+	rule := strings.Join(benchConditions(), orOperator)
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
-		ev.Process(benchInput)
+		_, err := ev.Process(benchInput)
+		require.NoError(b, err)
 	}
 }
 
@@ -246,7 +259,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 		wantDebug bool
 	}{
 		{name: "semver ordering", jh: "1.10.0", want: true},
-		{name: "not a semver", jh: "abc", wantDebug: true},
+		{name: "not a semver", jh: fixtures.UserKeyAbc, wantDebug: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -257,7 +270,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 			got, err := ev.Process(map[string]any{"jh": tt.jh})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantDebug, ev.LastDebugErr() != nil, "debug error")
+			assert.Equal(t, tt.wantDebug, ev.LastDebugErr() != nil, debugError)
 		})
 	}
 }
@@ -275,7 +288,7 @@ func TestBenchmarkRules(t *testing.T) {
 		rule string
 	}{
 		{name: "logical", rule: logicalRule(benchConditions(), 0)},
-		{name: "nested", rule: logicalRule(benchConditions(), 3)},
+		{name: fixtures.NestedKey, rule: logicalRule(benchConditions(), 3)},
 		{name: "big", rule: bigRule()},
 	}
 	for _, tt := range tests {

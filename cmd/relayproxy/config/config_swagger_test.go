@@ -8,6 +8,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
+const (
+	legacyHostCom        = "legacy-host.com"
+	swaggerAPIExampleCom = "swagger-api.example.com:8080"
+)
+
 func TestConfigIsSwaggerEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -66,10 +71,10 @@ func TestConfigIsSwaggerEnabled(t *testing.T) {
 			config: &config.Config{
 				Swagger: config.Swagger{
 					Enabled: true,
-					Host:    "example.com",
+					Host:    exampleCom,
 				},
 				EnableSwagger: false,
-				Host:          "legacy-host.com",
+				Host:          legacyHostCom,
 			},
 			want:        true,
 			description: "Should return true when Swagger.Enabled is true, regardless of EnableSwagger",
@@ -101,7 +106,7 @@ func TestConfigSwaggerHost(t *testing.T) {
 				Swagger: config.Swagger{
 					Host: "swagger.example.com",
 				},
-				Host: "legacy-host.com",
+				Host: legacyHostCom,
 			},
 			want:        "swagger.example.com",
 			description: "Should return Swagger.Host when it is set, ignoring deprecated Host field",
@@ -112,9 +117,9 @@ func TestConfigSwaggerHost(t *testing.T) {
 				Swagger: config.Swagger{
 					Host: "",
 				},
-				Host: "legacy-host.com",
+				Host: legacyHostCom,
 			},
-			want:        "legacy-host.com",
+			want:        legacyHostCom,
 			description: "Should return deprecated Host field when Swagger.Host is empty",
 		},
 		{
@@ -125,7 +130,7 @@ func TestConfigSwaggerHost(t *testing.T) {
 				},
 				Host: "",
 			},
-			want:        "localhost",
+			want:        localhost,
 			description: "Should return 'localhost' as default when both are empty",
 		},
 		{
@@ -134,26 +139,26 @@ func TestConfigSwaggerHost(t *testing.T) {
 				Swagger: config.Swagger{},
 				Host:    "",
 			},
-			want:        "localhost",
+			want:        localhost,
 			description: "Should return 'localhost' when both fields are empty strings",
 		},
 		{
 			name: "Swagger.Host is set with special characters",
 			config: &config.Config{
 				Swagger: config.Swagger{
-					Host: "swagger-api.example.com:8080",
+					Host: swaggerAPIExampleCom,
 				},
 			},
-			want:        "swagger-api.example.com:8080",
+			want:        swaggerAPIExampleCom,
 			description: "Should return Swagger.Host as-is, including special characters",
 		},
 		{
 			name: "Swagger.Host is empty and Host is set",
 			config: &config.Config{
 				Swagger: config.Swagger{},
-				Host:    "swagger-api.example.com:8080",
+				Host:    swaggerAPIExampleCom,
 			},
-			want:        "swagger-api.example.com:8080",
+			want:        swaggerAPIExampleCom,
 			description: "Should return Swagger.Host as-is, including special characters",
 		},
 	}

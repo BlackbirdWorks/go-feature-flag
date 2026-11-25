@@ -6,7 +6,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sort"
+	"log/slog"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,7 +20,18 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
+)
+
+const (
+	fileAJSON = "f/a.json"
+	flagA     = "flag-a"
+	flagB     = "flag-b"
+	flagC     = "flag-c"
+	flagD     = "flag-d"
+	flagRoot  = "flag-root"
+	flagsJSON = "flags.json"
 )
 
 func flagJSON(key, value string) []byte {
@@ -41,7 +53,7 @@ func flagKeys(t *testing.T, content []byte) []string {
 		keys = append(keys, k)
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	return keys
 }
@@ -60,7 +72,7 @@ func TestE2E_SingleItem(t *testing.T) {
 		useMissing  bool // read from a bucket that does not exist
 	}{
 		{
-			name: "small json item", key: "flags.json",
+			name: "small json item", key: flagsJSON,
 			content: flagJSON("f1", "v1"), wantContent: flagJSON("f1", "v1"),
 		},
 		{
@@ -105,7 +117,7 @@ func TestE2E_SingleItem(t *testing.T) {
 			}
 
 			r := &s3retrieverv2.Retriever{Bucket: bucket, Item: item, AwsConfig: &cfg}
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 			assert.Equal(t, retriever.RetrieverReady, r.Status())
 
@@ -150,12 +162,12 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 			put:  flagJSON("f2", "v3"), want: flagJSON("f2", "v3"),
 		},
 	}
-	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: "flags.json", AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: flagsJSON, AwsConfig: &cfg}
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 	// steps are sequential by nature: each one depends on the previous object version.
 	for _, s := range steps {
-		srv.PutObject(t, bucket, "flags.json", s.put)
+		srv.PutObject(t, bucket, flagsJSON, s.put)
 
 		got, err := r.Retrieve(context.Background())
 		require.NoError(t, err, s.name)
@@ -169,7 +181,7 @@ func TestE2E_Retriever_NotFoundBeforeCreation(t *testing.T) {
 	bucket := srv.CreateBucket(t, "late")
 	cfg := srv.MustAwsConfig(t)
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: "late.json", AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	_, err := r.Retrieve(context.Background())
 	require.Error(t, err)
 
@@ -185,13 +197,13 @@ func TestE2E_FolderMode(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	objects := map[string][]byte{
-		"flags/a.yaml":          flagYAML("flag-a", "1"),
-		"flags/b.yaml":          flagYAML("flag-b", "1"),
+		fixtures.FlagsAYAML:     flagYAML(flagA, "1"),
+		fixtures.FlagsBYAML:     flagYAML(flagB, "1"),
 		"flags/notes.txt":       []byte("not a flag file"),
-		"flags/sub/c.yaml":      flagYAML("flag-c", "1"),
-		"flags/sub/deep/d.yaml": flagYAML("flag-d", "1"),
+		fixtures.FlagsSubCYAML:  flagYAML(flagC, "1"),
+		"flags/sub/deep/d.yaml": flagYAML(flagD, "1"),
 		"other/e.yaml":          flagYAML("flag-e", "1"),
-		"root.yaml":             flagYAML("flag-root", "1"),
+		"root.yaml":             flagYAML(flagRoot, "1"),
 	}
 
 	tests := []struct {
@@ -202,41 +214,46 @@ func TestE2E_FolderMode(t *testing.T) {
 		wantKeys  []string
 		recursive bool
 	}{
-		{name: "prefix direct children only", prefix: "flags/", wantKeys: []string{"flag-a", "flag-b"}},
-		{name: "prefix without trailing slash", prefix: "flags", wantKeys: []string{"flag-a", "flag-b"}},
+		{name: "prefix direct children only", prefix: fixtures.FlagsDirSlash, wantKeys: []string{flagA, flagB}},
+		{name: "prefix without trailing slash", prefix: fixtures.FlagsDir, wantKeys: []string{flagA, flagB}},
 		{
 			name:      "prefix recursive",
-			prefix:    "flags/",
+			prefix:    fixtures.FlagsDirSlash,
 			recursive: true,
-			wantKeys:  []string{"flag-a", "flag-b", "flag-c", "flag-d"},
+			wantKeys:  []string{flagA, flagB, flagC, flagD},
 		},
 		{
 			name:      "pattern restricts file names",
-			prefix:    "flags/",
+			prefix:    fixtures.FlagsDirSlash,
 			pattern:   "a.*",
 			recursive: true,
-			wantKeys:  []string{"flag-a"},
+			wantKeys:  []string{flagA},
 		},
 		{
 			name:      "pattern matches basename in sub folders",
-			prefix:    "flags/",
+			prefix:    fixtures.FlagsDirSlash,
 			pattern:   "[cd].yaml",
 			recursive: true,
-			wantKeys:  []string{"flag-c", "flag-d"},
+			wantKeys:  []string{flagC, flagD},
 		},
-		{name: "pattern without match gives empty set", prefix: "flags/", pattern: "zzz*.yaml", wantKeys: []string{}},
-		{name: "root prefix not recursive", prefix: "", pattern: "*.yaml", wantKeys: []string{"flag-root"}},
+		{
+			name:     "pattern without match gives empty set",
+			prefix:   fixtures.FlagsDirSlash,
+			pattern:  "zzz*.yaml",
+			wantKeys: []string{},
+		},
+		{name: "root prefix not recursive", prefix: "", pattern: fixtures.YAMLGlob, wantKeys: []string{flagRoot}},
 		{
 			name:      "root prefix recursive",
 			prefix:    "/",
-			pattern:   "*.yaml",
+			pattern:   fixtures.YAMLGlob,
 			recursive: true,
-			wantKeys:  []string{"flag-a", "flag-b", "flag-c", "flag-d", "flag-e", "flag-root"},
+			wantKeys:  []string{flagA, flagB, flagC, flagD, "flag-e", flagRoot},
 		},
 		{name: "unknown prefix gives empty set", prefix: "nothing/", wantKeys: []string{}},
 		{
 			name:    "pattern with slash is rejected",
-			prefix:  "flags/",
+			prefix:  fixtures.FlagsDirSlash,
 			pattern: "sub/*.yaml",
 			wantErr: "impossible to init S3 retriever v2",
 		},
@@ -255,7 +272,7 @@ func TestE2E_FolderMode(t *testing.T) {
 				Bucket: bucket, Prefix: tt.prefix, Pattern: tt.pattern, Recursive: tt.recursive, AwsConfig: &cfg,
 			}
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -292,27 +309,27 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "dirchg")
 	cfg := srv.MustAwsConfig(t)
-	srv.PutObject(t, bucket, "f/a.json", flagJSON("flag-a", "v1"))
+	srv.PutObject(t, bucket, fileAJSON, flagJSON(flagA, "v1"))
 
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Prefix: "f/", Pattern: "*.json", AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 
 	got, err := r.Retrieve(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"flag-a"}, flagKeys(t, got))
+	assert.Equal(t, []string{flagA}, flagKeys(t, got))
 
 	// a new file appears and the first one is modified
-	srv.PutObject(t, bucket, "f/b.json", flagJSON("flag-b", "v1"))
-	srv.PutObject(t, bucket, "f/a.json", flagJSON("flag-a", "v2"))
+	srv.PutObject(t, bucket, "f/b.json", flagJSON(flagB, "v1"))
+	srv.PutObject(t, bucket, fileAJSON, flagJSON(flagA, "v2"))
 
 	got, err = r.Retrieve(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"flag-a", "flag-b"}, flagKeys(t, got))
+	assert.Equal(t, []string{flagA, flagB}, flagKeys(t, got))
 	assert.Contains(t, string(got), `"a":"v2"`)
 
 	// a flag defined in two files is an error
-	srv.PutObject(t, bucket, "f/c.json", flagJSON("flag-a", "dup"))
+	srv.PutObject(t, bucket, "f/c.json", flagJSON(flagA, "dup"))
 
 	_, err = r.Retrieve(context.Background())
 	require.Error(t, err)
@@ -321,11 +338,11 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	// a deleted file disappears from the merged set
 	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, "f/c.json"))
 	require.NoError(t, err)
-	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, "f/a.json"))
+	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, fileAJSON))
 	require.NoError(t, err)
 	got, err = r.Retrieve(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"flag-b"}, flagKeys(t, got))
+	assert.Equal(t, []string{flagB}, flagKeys(t, got))
 }
 
 func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
@@ -343,20 +360,20 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 	}{
 		{
 			name:           "same folder",
-			prefixA:        "flags/",
-			prefixB:        "flags/",
-			wantA:          string(flagJSON("flag-a", "a1")),
-			wantB:          string(flagJSON("flag-b", "b1")),
-			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			prefixA:        fixtures.FlagsDirSlash,
+			prefixB:        fixtures.FlagsDirSlash,
+			wantA:          string(flagJSON(flagA, "a1")),
+			wantB:          string(flagJSON(flagB, "b1")),
+			wantBUpdated:   string(flagJSON(flagB, "b2")),
 			wantRefreshedA: 0,
 		},
 		{
 			name:           "different folders",
 			prefixA:        "team-a/",
 			prefixB:        "team-b/",
-			wantA:          string(flagJSON("flag-a", "a1")),
-			wantB:          string(flagJSON("flag-b", "b1")),
-			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			wantA:          string(flagJSON(flagA, "a1")),
+			wantB:          string(flagJSON(flagB, "b1")),
+			wantBUpdated:   string(flagJSON(flagB, "b2")),
 			wantRefreshedA: 0,
 		},
 	}
@@ -366,19 +383,19 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			bucket := srv.CreateBucket(t, "shared")
 			cfg := srv.MustAwsConfig(t)
 			keyA, keyB := tt.prefixA+"a.json", tt.prefixB+"b.json"
-			srv.PutObject(t, bucket, keyA, flagJSON("flag-a", "a1"))
-			srv.PutObject(t, bucket, keyB, flagJSON("flag-b", "b1"))
+			srv.PutObject(t, bucket, keyA, flagJSON(flagA, "a1"))
+			srv.PutObject(t, bucket, keyB, flagJSON(flagB, "b1"))
 			// an unrelated object under the listing prefix must not be downloaded or break anything
 			srv.PutObject(t, bucket, tt.prefixA+"unrelated.txt", []byte("hello"))
 
-			group, err := s3retrieverv2.NewSharedItems(context.Background(), s3retrieverv2.SharedItemsOptions{
+			group, err := s3retrieverv2.NewSharedItems(context.Background(), &s3retrieverv2.SharedItemsOptions{
 				Bucket: bucket, AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
 
 			retA, retB := group.Retriever(keyA), group.Retriever(keyB)
-			require.NoError(t, retA.Init(context.Background(), nil))
-			require.NoError(t, retB.Init(context.Background(), nil))
+			require.NoError(t, retA.Init(context.Background(), slog.New(slog.DiscardHandler)))
+			require.NoError(t, retB.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() {
 				_ = retA.Shutdown(context.Background())
 				_ = retB.Shutdown(context.Background())
@@ -413,7 +430,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			group.SetRefresh(retA, refresh(retA, &refreshedA))
 			group.SetRefresh(retB, refresh(retB, &refreshedB))
 
-			srv.PutObject(t, bucket, keyB, flagJSON("flag-b", "b2"))
+			srv.PutObject(t, bucket, keyB, flagJSON(flagB, "b2"))
 			require.Eventually(t, func() bool { return refreshedB.Load() >= 1 }, 15*time.Second, 100*time.Millisecond)
 			assert.Equal(t, tt.wantRefreshedA, refreshedA.Load(), "unchanged item must not be refreshed")
 
@@ -463,13 +480,13 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
-			group, err := s3retrieverv2.NewSharedItems(context.Background(), s3retrieverv2.SharedItemsOptions{
+			group, err := s3retrieverv2.NewSharedItems(context.Background(), &s3retrieverv2.SharedItemsOptions{
 				Bucket: tt.bucket(t), AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
 
 			r := group.Retriever(tt.item)
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 
 			got, err := r.Retrieve(context.Background())

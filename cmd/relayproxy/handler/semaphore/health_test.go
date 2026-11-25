@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"encoding/json"
@@ -46,7 +46,7 @@ func Test_health_Handler(t *testing.T) {
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + "/config_flags.yaml",
+					Path: testdataDir + configFlagsYaml,
 				},
 			}
 
@@ -57,7 +57,7 @@ func Test_health_Handler(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
 			srv := service.NewMonitoring(flagsetManager)
 			healthCtrl := controller.NewHealth(srv)
@@ -65,7 +65,7 @@ func Test_health_Handler(t *testing.T) {
 			out, res := healthCtrl.Handle(t.Context(), &struct{}{})
 
 			if tt.want.handlerErr {
-				assert.Error(t, res, "handler should return an error")
+				assert.Error(t, res, handlerShouldReturnAn)
 
 				return
 			}

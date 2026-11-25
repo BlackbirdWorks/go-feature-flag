@@ -1,0 +1,420 @@
+version: '3'
+
+vars:
+  GOCMD: go
+  DOCKERCMD: docker
+  ALL_GO_MOD_DIRS: ./ ./openfeature/provider_tests/go-integration-tests/
+  GO_TAG_SETS: none docker,bench
+  GOLANGCI_LINT_VERSION: '2.15.0'
+  TEST_PKG_SCRIPT: .github/ci-scripts/test-pkgs.sh
+  COVERAGE_SCRIPT: .github/ci-scripts/coverage.py
+  GROUP: '{{.GROUP | default (env "GROUP") | default "all"}}'
+  GOTESTFLAGS: '{{.GOTESTFLAGS | default (env "GOTESTFLAGS")}}'
+  COVERPROFILE: '{{.COVERPROFILE | default (env "COVERPROFILE")}}'
+  COVERPKG: '{{.COVERPKG | default (env "COVERPKG")}}'
+  TEST_LOG: '{{.TEST_LOG | default (env "TEST_LOG")}}'
+  FUZZTIME: '{{.FUZZTIME | default (env "FUZZTIME") | default "10s"}}'
+  COVERAGE_MIN: '{{.COVERAGE_MIN | default (env "COVERAGE_MIN")}}'
+  MODULE: '{{.MODULE | default (env "MODULE")}}'
+  DIR: '{{.DIR | default (env "DIR")}}'
+  RELAYPROXY_IMAGE: '{{.RELAYPROXY_IMAGE | default (env "RELAYPROXY_IMAGE") | default "semaphore:local"}}'
+  RELAYPROXY_IMAGE_VERSION: '{{.RELAYPROXY_IMAGE_VERSION | default (env "RELAYPROXY_IMAGE_VERSION") | default "localdev"}}'
+  GOFIPS140_VERSION:
+    sh: tr -d '[:space:]' < .fips-version
+  GOWORK_VAL: '{{if eq (env "CI") "true"}}off{{else}}{{env "GOWORK"}}{{end}}'
+
+tasks:
+  default:
+    desc: Show available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  create-out-dir:
+    internal: true
+    cmds:
+      - mkdir -p out/bin out/contrib
+
+  build:
+    desc: Build all binaries and put the output in out/bin/
+    deps: [build-modules, build-relayproxy, build-jsonschema-generator, build-cli]
+
+  build-modules:
+    desc: Run build command to build all modules in the workspace
+    cmds:
+      - |
+        echo "Building all modules in the workspace..."
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          echo "→ Building $module"
+          (cd "$module" && CGO_ENABLED=0 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} build ./...)
+        done
+
+  build-relayproxy:
+    desc: Build the relay proxy in out/bin/
+    deps: [create-out-dir]
+    cmds:
+      - CGO_ENABLED=0 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} build -o out/bin/semaphore ./cmd/relayproxy/
+
+  build-relayproxy-fips:
+    desc: Build the relay proxy in FIPS 140-3 mode in out/bin/
+    deps: [create-out-dir]
+    cmds:
+      - CGO_ENABLED=0 GOFIPS140="{{.GOFIPS140_VERSION}}" GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} build -o out/bin/semaphore-fips ./cmd/relayproxy/
+
+  build-relayproxy-docker:
+    desc: Build a local docker image of the relay proxy from source
+    cmds:
+      - '{{.DOCKERCMD}} build -f cmd/relayproxy/Dockerfile.local --build-arg VERSION="{{.RELAYPROXY_IMAGE_VERSION}}" -t "{{.RELAYPROXY_IMAGE}}" .'
+
+  build-cli:
+    desc: Build the cli in out/bin/
+    deps: [create-out-dir]
+    cmds:
+      - CGO_ENABLED=0 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} build -o out/bin/semaphore-cli ./cmd/cli/
+
+  build-jsonschema-generator:
+    desc: Build the jsonschema-generator in out/bin/
+    deps: [create-out-dir]
+    cmds:
+      - CGO_ENABLED=0 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} build -o out/bin/jsonschema-generator ./cmd/jsonschema-generator/
+
+  clean:
+    desc: Remove build related files
+    cmds:
+      - rm -fr ./bin ./out ./release
+      - rm -f ./junit-report.xml checkstyle-report.xml ./coverage.xml ./profile.cov yamllint-checkstyle.xml ./coverage-*.cov.tmp
+      - rm -rf vendor
+      - rm -f go.work.sum go.work
+
+  vendor:
+    desc: Copy all packages needed to support builds and tests in the vendor directory
+    deps: [tidy]
+    cmds:
+      - |
+        if [ -n "$CI" ]; then
+          GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} mod vendor
+        else
+          GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} work vendor
+        fi
+
+  tidy:
+    desc: Run go mod tidy for all modules in the workspace
+    cmds:
+      - |
+        if [ -z "$CI" ]; then
+          GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} work sync
+        fi
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          echo "→ Tidying $module"
+          (cd "$module" && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} mod tidy)
+        done
+
+  tidy-check:
+    desc: Check that go.mod and go.sum are tidy
+    deps: [tidy]
+    cmds:
+      - git diff --exit-code --quiet go.mod go.sum
+
+  verify:
+    desc: Run go mod verify for all modules to validate checksums match go.sum
+    cmds:
+      - |
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          echo "→ Verifying $module"
+          (cd "$module" && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} mod verify)
+        done
+
+  workspace-init:
+    desc: Initialize a local go.work workspace
+    cmds:
+      - |
+        {{.GOCMD}} work init
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          {{.GOCMD}} work use "$module"
+        done
+        {{.GOCMD}} work edit -replace cloud.google.com/go/compute=cloud.google.com/go/compute@v1.12.0
+        {{.GOCMD}} work sync
+
+  watch-relayproxy:
+    desc: Launch the relay proxy in watch mode
+    cmds:
+      - |
+        docker run -it --rm -w /go/src/github.com/blackbirdworks/semaphore/ \
+          -v "$(pwd):/go/src/github.com/blackbirdworks/semaphore" \
+          -v "$(pwd)/cmd/relayproxy/testdata/config/valid-file.yaml:/semaphore/semaphore-proxy.yaml" \
+          -p 1031:1031 cosmtrek/air \
+          --build.cmd "GOWORK={{.GOWORK_VAL}} go build -o out/bin/semaphore ./cmd/relayproxy/" \
+          --build.bin "./out/bin/semaphore"
+
+  test:
+    desc: Run every test type (unit, integration, e2e); one coverage/log file per suite
+    cmds:
+      - task: test-unit
+      - |
+        cp="{{.COVERPROFILE}}"
+        tl="{{.TEST_LOG}}"
+        [ -n "$cp" ] && cp="${cp%.*}-integration.${cp##*.}"
+        [ -n "$tl" ] && tl="${tl%.*}-integration.${tl##*.}"
+        task test-integration COVERPROFILE="$cp" TEST_LOG="$tl"
+      - |
+        cp="{{.COVERPROFILE}}"
+        tl="{{.TEST_LOG}}"
+        [ -n "$cp" ] && cp="${cp%.*}-e2e.${cp##*.}"
+        [ -n "$tl" ] && tl="${tl%.*}-e2e.${tl##*.}"
+        task test-e2e COVERPROFILE="$cp" TEST_LOG="$tl"
+
+  test-unit:
+    desc: Run the unit tests (no docker); one coverage/log file
+    cmds:
+      - |
+        cp="{{.COVERPROFILE}}"
+        tl="{{.TEST_LOG}}"
+        [ -n "$cp" ] && cp="${cp%.*}-unit-root.${cp##*.}"
+        [ -n "$tl" ] && tl="${tl%.*}-unit-root.${tl##*.}"
+        task test-unit-root COVERPROFILE="$cp" TEST_LOG="$tl"
+
+  test-unit-root:
+    desc: Run the root module unit tests with the race detector (GROUP=cmd|plugins|rest|all)
+    cmds:
+      - |
+        set -eo pipefail
+        pkgs=$({{.TEST_PKG_SCRIPT}} "unit-{{.GROUP}}")
+        [ -n "$pkgs" ] || { echo "no packages in group {{.GROUP}}"; exit 1; }
+        cover_flags=""
+        if [ -n "{{.COVERPROFILE}}" ]; then
+          mkdir -p "$(dirname "{{.COVERPROFILE}}")"
+          abs_cp="$(cd "$(dirname "{{.COVERPROFILE}}")" && pwd)/$(basename "{{.COVERPROFILE}}")"
+          cover_flags="-covermode=atomic -coverprofile=$abs_cp"
+          if [ -n "{{.COVERPKG}}" ]; then
+            cover_flags="$cover_flags -coverpkg={{.COVERPKG}}"
+          fi
+        fi
+        run_cmd() {
+          CGO_ENABLED=1 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test {{.GOTESTFLAGS}} -v -race $cover_flags $pkgs
+        }
+        if [ -n "{{.TEST_LOG}}" ]; then
+          mkdir -p "$(dirname "{{.TEST_LOG}}")"
+          abs_tl="$(cd "$(dirname "{{.TEST_LOG}}")" && pwd)/$(basename "{{.TEST_LOG}}")"
+          run_cmd 2>&1 | tee "$abs_tl"
+        else
+          run_cmd
+        fi
+
+  test-integration:
+    desc: Run the testcontainers integration tests (needs docker)
+    cmds:
+      - |
+        set -eo pipefail
+        pkgs=$({{.TEST_PKG_SCRIPT}} integration)
+        [ -n "$pkgs" ] || { echo "no integration packages found"; exit 1; }
+        cover_flags=""
+        if [ -n "{{.COVERPROFILE}}" ]; then
+          mkdir -p "$(dirname "{{.COVERPROFILE}}")"
+          abs_cp="$(cd "$(dirname "{{.COVERPROFILE}}")" && pwd)/$(basename "{{.COVERPROFILE}}")"
+          cover_flags="-covermode=atomic -coverprofile=$abs_cp"
+          if [ -n "{{.COVERPKG}}" ]; then
+            cover_flags="$cover_flags -coverpkg={{.COVERPKG}}"
+          fi
+        fi
+        run_cmd() {
+          CGO_ENABLED=1 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test {{.GOTESTFLAGS}} -v -race -tags=docker -skip 'E2E' $cover_flags $pkgs
+        }
+        if [ -n "{{.TEST_LOG}}" ]; then
+          mkdir -p "$(dirname "{{.TEST_LOG}}")"
+          abs_tl="$(cd "$(dirname "{{.TEST_LOG}}")" && pwd)/$(basename "{{.TEST_LOG}}")"
+          run_cmd 2>&1 | tee "$abs_tl"
+        else
+          run_cmd
+        fi
+
+  test-e2e:
+    desc: Run the gopherstack e2e tests (needs docker)
+    cmds:
+      - |
+        set -eo pipefail
+        pkgs=$({{.TEST_PKG_SCRIPT}} e2e)
+        [ -n "$pkgs" ] || { echo "no e2e packages found"; exit 1; }
+        cover_flags=""
+        if [ -n "{{.COVERPROFILE}}" ]; then
+          mkdir -p "$(dirname "{{.COVERPROFILE}}")"
+          abs_cp="$(cd "$(dirname "{{.COVERPROFILE}}")" && pwd)/$(basename "{{.COVERPROFILE}}")"
+          cover_flags="-covermode=atomic -coverprofile=$abs_cp"
+          if [ -n "{{.COVERPKG}}" ]; then
+            cover_flags="$cover_flags -coverpkg={{.COVERPKG}}"
+          fi
+        fi
+        run_cmd() {
+          CGO_ENABLED=1 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test {{.GOTESTFLAGS}} -v -race -tags=docker -run 'E2E' $cover_flags $pkgs
+        }
+        if [ -n "{{.TEST_LOG}}" ]; then
+          mkdir -p "$(dirname "{{.TEST_LOG}}")"
+          abs_tl="$(cd "$(dirname "{{.TEST_LOG}}")" && pwd)/$(basename "{{.TEST_LOG}}")"
+          run_cmd 2>&1 | tee "$abs_tl"
+        else
+          run_cmd
+        fi
+
+  test-shards-check:
+    desc: Fail if the CI test groups do not cover every package
+    cmds:
+      - '{{.TEST_PKG_SCRIPT}} check'
+
+  fuzz:
+    desc: Run every fuzz test for a bounded time (FUZZTIME=10s)
+    cmds:
+      - 'FUZZTIME="{{.FUZZTIME}}" GOWORK_ENV="{{if eq (env "CI") "true"}}GOWORK=off{{end}}" GOCMD="{{.GOCMD}}" .github/ci-scripts/fuzz.sh {{.ALL_GO_MOD_DIRS}}'
+
+  fuzz-list:
+    desc: Print "<module> <dir>" for every package with fuzz tests
+    silent: true
+    cmds:
+      - '.github/ci-scripts/fuzz.sh --list {{.ALL_GO_MOD_DIRS}}'
+
+  fuzz-dir:
+    desc: Fuzz one package (MODULE=./ DIR=./internal/cache FUZZTIME=10s)
+    preconditions:
+      - sh: 'test -n "{{.MODULE}}" && test -n "{{.DIR}}"'
+        msg: 'usage: task fuzz-dir MODULE=<module> DIR=<dir>'
+    cmds:
+      - 'FUZZTIME="{{.FUZZTIME}}" GOWORK_ENV="{{if eq (env "CI") "true"}}GOWORK=off{{end}}" GOCMD="{{.GOCMD}}" .github/ci-scripts/fuzz.sh --dir "{{.MODULE}}" "{{.DIR}}"'
+
+  provider-tests:
+    desc: Run the integration tests for the OpenFeature Providers
+    cmds:
+      - ./openfeature/provider_tests/integration_tests.sh
+
+  coverage:
+    desc: Run every test suite with coverage, merge the profiles and report line coverage (needs docker)
+    cmds:
+      - task: clean-coverage
+      - mkdir -p coverage
+      - task test COVERPROFILE=coverage/all.out
+      - task: coverage-report
+
+  clean-coverage:
+    desc: Remove the coverage/ directory
+    cmds:
+      - rm -rf coverage
+
+  coverage-report:
+    desc: Merge the profiles found in coverage/ and report line coverage
+    cmds:
+      - |
+        mkdir -p coverage/report
+        min_flag=""
+        if [ -n "{{.COVERAGE_MIN}}" ]; then
+          min_flag="--min {{.COVERAGE_MIN}}"
+        fi
+        python3 "{{.COVERAGE_SCRIPT}}" $(find coverage -maxdepth 2 -name '*.out' -not -path 'coverage/report/*' -not -path 'coverage/coverage-report/*') \
+          --merged coverage/report/merged.out --cobertura coverage/report/cobertura.xml \
+          --summary coverage/report/summary.md --top 40 --check-codecov codecov.yml \
+          $min_flag
+        GOWORK=off {{.GOCMD}} tool cover -func=coverage/report/merged.out > /dev/null || { echo "merged profile is not readable by go tool cover"; exit 1; }
+
+  test-ci-scripts:
+    desc: Run the unit tests of the CI helper scripts (.github/ci-scripts, python3 stdlib)
+    cmds:
+      - python3 -B -m unittest discover -s .github/ci-scripts -p 'test_*.py'
+
+  bench:
+    desc: Launch the benchmark test
+    cmds:
+      - 'GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench -bench Benchmark -cpu 2 -run=^$$'
+
+  lint-install:
+    internal: true
+    cmds:
+      - |
+        mkdir -p ./bin
+        if ./bin/golangci-lint version 2>/dev/null | grep -q "version {{.GOLANGCI_LINT_VERSION}} "; then
+          echo "golangci-lint v{{.GOLANGCI_LINT_VERSION}} already installed"
+        else
+          curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b ./bin "v{{.GOLANGCI_LINT_VERSION}}"
+        fi
+
+  lint-run:
+    internal: true
+    preconditions:
+      - sh: 'test -n "{{.MODULE}}"'
+        msg: 'usage: task lint-module MODULE=<dir>'
+    cmds:
+      - echo "→ Linting {{.MODULE}}"
+      - 'cd "{{.MODULE}}" && "{{.ROOT_DIR}}/bin/golangci-lint" run --timeout=10m --config "{{.ROOT_DIR}}/.golangci.yml" ./...'
+
+  lint-module:
+    desc: Lint one module (MODULE=./)
+    deps: [lint-install]
+    cmds:
+      - task: lint-run
+        vars:
+          MODULE: '{{.MODULE}}'
+
+  lint:
+    desc: Use golangci-lint and mulint on all the modules of the project
+    deps: [lint-install]
+    cmds:
+      - |
+        rc=0
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          echo "→ Linting $module"
+          (cd "$module" && "{{.ROOT_DIR}}/bin/golangci-lint" run --timeout=10m --config "{{.ROOT_DIR}}/.golangci.yml" ./...) || rc=1
+        done
+        mulint=$(GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} tool -n mulint-vet) && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} vet -vettool="$mulint" -tags=docker,bench ./... || rc=1
+        exit "$rc"
+
+  vet:
+    desc: Run go vet on all the modules, with and without the build tags
+    cmds:
+      - |
+        rc=0
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          for tags in {{.GO_TAG_SETS}}; do
+            echo "→ go vet $module (tags: $tags)"
+            (cd "$module" && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} vet -tags="$tags" ./...) || rc=1
+          done
+        done
+        exit "$rc"
+
+  fix-check:
+    desc: Fail if go fix would rewrite any module, with and without the build tags
+    cmds:
+      - |
+        rc=0
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          for tags in {{.GO_TAG_SETS}}; do
+            echo "→ go fix -diff $module (tags: $tags)"
+            (cd "$module" && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} fix -diff -tags="$tags" ./...) || rc=1
+          done
+        done
+        if [ "$rc" -ne 0 ]; then
+          echo "go fix would change the code: run 'task fix'"
+        fi
+        exit "$rc"
+
+  fix:
+    desc: Apply go fix on all the modules, with and without the build tags
+    cmds:
+      - |
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          for tags in {{.GO_TAG_SETS}}; do
+            echo "→ go fix $module (tags: $tags)"
+            (cd "$module" && GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} fix -tags="$tags" ./...) || exit 1
+          done
+        done
+
+  vuln-check:
+    desc: Run govulncheck on all modules in the workspace
+    cmds:
+      - |
+        which govulncheck > /dev/null 2>&1 || {{.GOCMD}} install golang.org/x/vuln/cmd/govulncheck@latest
+        for module in {{.ALL_GO_MOD_DIRS}}; do
+          echo "→ Checking vulnerabilities in $module"
+          (cd "$module" && GOWORK="{{.GOWORK_VAL}}" govulncheck ./...) || exit 1
+        done
+
+  vuln-check-relayproxy:
+    desc: Run govulncheck on the relay proxy only
+    cmds:
+      - |
+        which govulncheck > /dev/null 2>&1 || {{.GOCMD}} install golang.org/x/vuln/cmd/govulncheck@latest
+        GOWORK="{{.GOWORK_VAL}}" govulncheck ./cmd/relayproxy/...

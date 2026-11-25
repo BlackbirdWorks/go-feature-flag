@@ -1,11 +1,10 @@
-package controller_test
+package semaphore_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
 
 // TestMain pins the clock once for the whole package to a stepping clock (the SSE event ids tell the broadcasts
@@ -13,5 +12,5 @@ import (
 // dates with clock.Now, and the fixtures are built relative to clocktest.Instant.
 func TestMain(m *testing.M) {
 	clocktest.FreezeStepping(time.Microsecond)
-	os.Exit(m.Run())
+	m.Run()
 }

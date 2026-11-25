@@ -1,44 +1,55 @@
 package parser
 
+// NullOperation compares operands that may be null.
 type NullOperation struct {
 }
 
-func (o *NullOperation) EQ(left Operand, _ Operand) (bool, error) {
+// EQ reports whether the left operand is nil.
+func (*NullOperation) EQ(left, _ Operand) (bool, error) {
 	return left == nil, nil
 }
 
-func (o *NullOperation) NE(left Operand, _ Operand) (bool, error) {
+// NE reports whether the left operand is not nil.
+func (*NullOperation) NE(left, _ Operand) (bool, error) {
 	return left != nil, nil
 }
 
-func (o *NullOperation) GT(_ Operand, _ Operand) (bool, error) {
+// GT always returns ErrInvalidOperation because null operands cannot be ordered.
+func (*NullOperation) GT(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) LT(_ Operand, _ Operand) (bool, error) {
+// LT always returns ErrInvalidOperation because null operands cannot be ordered.
+func (*NullOperation) LT(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) GE(_ Operand, _ Operand) (bool, error) {
+// GE always returns ErrInvalidOperation because null operands cannot be ordered.
+func (*NullOperation) GE(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) LE(_ Operand, _ Operand) (bool, error) {
+// LE always returns ErrInvalidOperation because null operands cannot be ordered.
+func (*NullOperation) LE(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) CO(_ Operand, _ Operand) (bool, error) {
+// CO always returns ErrInvalidOperation because null operands cannot be searched.
+func (*NullOperation) CO(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) SW(_ Operand, _ Operand) (bool, error) {
+// SW always returns ErrInvalidOperation because null operands cannot be searched.
+func (*NullOperation) SW(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) EW(_ Operand, _ Operand) (bool, error) {
+// EW always returns ErrInvalidOperation because null operands cannot be searched.
+func (*NullOperation) EW(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }
 
-func (o *NullOperation) IN(_ Operand, _ Operand) (bool, error) {
+// IN always returns ErrInvalidOperation because null operands cannot be searched.
+func (*NullOperation) IN(_, _ Operand) (bool, error) {
 	return false, ErrInvalidOperation
 }

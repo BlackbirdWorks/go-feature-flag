@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // RawHandler is the handler of an endpoint that is served without huma: it reads the request and writes the
@@ -30,7 +31,7 @@ func NewRequest(apiKey, contentType string) Request {
 // Resolve implements huma.Resolver.
 func (r *Request) Resolve(ctx huma.Context) []error {
 	r.apiKey = helper.APIKeyFromHeaders(ctx.Header)
-	r.contentType = ctx.Header(helper.ContentTypeHeader)
+	r.contentType = ctx.Header(protocol.HeaderContentType)
 
 	return nil
 }
@@ -58,3 +59,6 @@ func BodyOpts(operation *huma.Operation, readTimeout time.Duration) {
 	operation.SkipValidateBody = true
 	operation.SkipValidateParams = true
 }
+
+// compile-time check of the interface implemented by the type.
+var _ huma.Resolver = (*Request)(nil)

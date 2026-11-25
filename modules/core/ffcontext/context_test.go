@@ -8,6 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	acme                = "acme"
+	exporterMetadataKey = "exporterMetadata"
+	flagListKey         = "flagList"
+	oldKey              = "old"
 )
 
 func TestUserAddCustomAttribute(t *testing.T) {
@@ -34,11 +42,11 @@ func TestUserAddCustomAttribute(t *testing.T) {
 			name: "add valid element",
 			user: ffcontext.NewEvaluationContext("123"),
 			args: args{
-				name:  "test",
-				value: "test",
+				name:  fixtures.PlaceholderTest,
+				value: fixtures.PlaceholderTest,
 			},
 			want: map[string]any{
-				"test": "test",
+				fixtures.PlaceholderTest: fixtures.PlaceholderTest,
 			},
 		},
 	}
@@ -62,9 +70,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 	}{
 		{
 			name: "context goff specifics as map[string]string",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]string{
-					"currentDateTime": time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC).
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]string{
+					fixtures.CurrentDateTime: time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC).
 						Format(time.RFC3339),
 				}).
 				Build(),
@@ -75,9 +83,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics as map[string]interface and date as time.Time",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC),
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC),
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
@@ -87,9 +95,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics as map[string]interface and date as *time.Time",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": new(
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: new(
 						time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC),
 					),
 				}).
@@ -101,9 +109,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics as map[string]interface",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC).
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC).
 						Format(time.RFC3339),
 				}).
 				Build(),
@@ -114,8 +122,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics nil",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", nil).
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, nil).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
 				UsedLegacyKey:   true,
@@ -124,15 +132,15 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "no context goff specifics",
-			ctx:  ffcontext.NewEvaluationContextBuilder("my-targetingKey").Build(),
+			ctx:  ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).Build(),
 			want: ffcontext.GoffContextSpecifics{
 				CurrentDateTime: nil,
 			},
 		},
 		{
 			name: "context goff specifics as GoffContextSpecifics type",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, ffcontext.GoffContextSpecifics{
 					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				}).
 				Build(),
@@ -143,50 +151,50 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics as GoffContextSpecifics type contains flagList",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, ffcontext.GoffContextSpecifics{
 					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
-					FlagList:        []string{"flag1", "flag2"},
+					FlagList:        []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
 				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
-				FlagList:        []string{"flag1", "flag2"},
+				FlagList:        []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 			},
 		},
 		{
 			name: "context goff specifics as map[string]interface type contains flagList",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
 						Format(time.RFC3339),
-					"flagList": []string{"flag1", "flag2"},
+					flagListKey: []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
 				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
-				FlagList:        []string{"flag1", "flag2"},
+				FlagList:        []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 			},
 		},
 		{
 			name: "context goff specifics only flagList",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"flagList": []string{"flag1", "flag2"},
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					flagListKey: []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
 				UsedLegacyKey: true,
-				FlagList:      []string{"flag1", "flag2"},
+				FlagList:      []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 			},
 		},
 		{
 			name: "context goff specifics with exporter metadata",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"exporterMetadata": map[string]any{
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					exporterMetadataKey: map[string]any{
 						"toto": 123,
 						"titi": 123.45,
 						"tutu": true,
@@ -206,9 +214,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics with invalid date string",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": "invalid-date-format",
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: "invalid-date-format",
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
@@ -218,9 +226,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics with currentDateTime as other type",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": 12345,
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					fixtures.CurrentDateTime: 12345,
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
@@ -230,21 +238,21 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics with flagList as []interface{} with non-string elements",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"flagList": []any{"flag1", 123, "flag2", true, "flag3"},
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					flagListKey: []any{fixtures.FlagKeyOne, 123, fixtures.FlagKeyTwo, true, "flag3"},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
 				UsedLegacyKey: true,
-				FlagList:      []string{"flag1", "flag2", "flag3"},
+				FlagList:      []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo, "flag3"},
 			},
 		},
 		{
 			name: "context goff specifics with flagList as other type",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"flagList": "not-a-list",
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					flagListKey: "not-a-list",
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
@@ -254,9 +262,9 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 		},
 		{
 			name: "context goff specifics with exporterMetadata as other type",
-			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
-				AddCustom("gofeatureflag", map[string]any{
-					"exporterMetadata": "not-a-map",
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.TargetingKeyMy).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+					exporterMetadataKey: "not-a-map",
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
@@ -286,14 +294,14 @@ func TestEvaluationContextMarshalJSON(t *testing.T) {
 	}{
 		{
 			name:     "marshal with empty attributes",
-			context:  ffcontext.NewEvaluationContext("test-key"),
+			context:  ffcontext.NewEvaluationContext(fixtures.UserKeyTest),
 			expected: `{"targetingKey":"test-key","attributes":{}}`,
 		},
 		{
 			name: "marshal with attributes",
-			context: ffcontext.NewEvaluationContextBuilder("test-key").
-				AddCustom("attr1", "value1").
-				AddCustom("attr2", 123).
+			context: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyTest).
+				AddCustom(fixtures.Attr1, fixtures.ValueOne).
+				AddCustom(fixtures.Attr2, 123).
 				Build(),
 			expected: `{"targetingKey":"test-key","attributes":{"attr1":"value1","attr2":123}}`,
 		},
@@ -320,45 +328,45 @@ func TestEvaluationContextToMap(t *testing.T) {
 	}{
 		{
 			name:     "empty attributes",
-			context:  ffcontext.NewEvaluationContext("test-key"),
-			expected: map[string]any{"targetingKey": "test-key"},
+			context:  ffcontext.NewEvaluationContext(fixtures.UserKeyTest),
+			expected: map[string]any{fixtures.TargetingKeyAttribute: fixtures.UserKeyTest},
 		},
 		{
 			name: "attributes with values",
-			context: ffcontext.NewEvaluationContextBuilder("test-key").
-				AddCustom("attr1", "value1").
-				AddCustom("attr2", 123).
+			context: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyTest).
+				AddCustom(fixtures.Attr1, fixtures.ValueOne).
+				AddCustom(fixtures.Attr2, 123).
 				Build(),
 			expected: map[string]any{
-				"targetingKey": "test-key",
-				"attr1":        "value1",
-				"attr2":        123,
+				fixtures.TargetingKeyAttribute: fixtures.UserKeyTest,
+				fixtures.Attr1:                 fixtures.ValueOne,
+				fixtures.Attr2:                 123,
 			},
 		},
 		{
 			name: "attributes with nested map",
-			context: ffcontext.NewEvaluationContextBuilder("test-key").
+			context: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyTest).
 				AddCustom("nested", map[string]any{
-					"key1": "value1",
+					"key1": fixtures.ValueOne,
 					"key2": 42,
 				}).
 				Build(),
 			expected: map[string]any{
-				"targetingKey": "test-key",
+				fixtures.TargetingKeyAttribute: fixtures.UserKeyTest,
 				"nested": map[string]any{
-					"key1": "value1",
+					"key1": fixtures.ValueOne,
 					"key2": 42,
 				},
 			},
 		},
 		{
 			name: "attributes with nil value",
-			context: ffcontext.NewEvaluationContextBuilder("test-key").
-				AddCustom("attr1", nil).
+			context: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyTest).
+				AddCustom(fixtures.Attr1, nil).
 				Build(),
 			expected: map[string]any{
-				"targetingKey": "test-key",
-				"attr1":        nil,
+				fixtures.TargetingKeyAttribute: fixtures.UserKeyTest,
+				fixtures.Attr1:                 nil,
 			},
 		},
 	}
@@ -379,40 +387,40 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	t.Run("targetingKey is not leaked into the context attributes", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := ffcontext.NewEvaluationContext("user-123")
-		ctx.AddCustomAttribute("company", "acme")
+		ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyNumbered)
+		ctx.AddCustomAttribute(fixtures.UserCompany, acme)
 
 		_ = ctx.ToMap()
 
-		assert.Equal(t, map[string]any{"company": "acme"}, ctx.GetCustom(),
+		assert.Equal(t, map[string]any{fixtures.UserCompany: acme}, ctx.GetCustom(),
 			"ToMap() must not add targetingKey to the context's attributes")
 	})
 
 	t.Run("mutating the returned map does not leak back into the context", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := ffcontext.NewEvaluationContext("user-123")
-		ctx.AddCustomAttribute("company", "acme")
+		ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyNumbered)
+		ctx.AddCustomAttribute(fixtures.UserCompany, acme)
 
 		m := ctx.ToMap()
 		m["injected"] = true
 
 		assert.NotContains(t, ctx.GetCustom(), "injected",
 			"mutating the map returned by ToMap() must not reach back into the context")
-		assert.Equal(t, map[string]any{"company": "acme"}, ctx.GetCustom())
+		assert.Equal(t, map[string]any{fixtures.UserCompany: acme}, ctx.GetCustom())
 	})
 
 	t.Run("multiple calls are stable and leave the context untouched", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := ffcontext.NewEvaluationContext("user-123")
-		ctx.AddCustomAttribute("company", "acme")
+		ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyNumbered)
+		ctx.AddCustomAttribute(fixtures.UserCompany, acme)
 
 		first := ctx.ToMap()
 		second := ctx.ToMap()
 
 		assert.Equal(t, first, second, "successive ToMap() calls must return equal maps")
-		assert.Equal(t, map[string]any{"company": "acme"}, ctx.GetCustom())
+		assert.Equal(t, map[string]any{fixtures.UserCompany: acme}, ctx.GetCustom())
 	})
 }
 
@@ -432,7 +440,7 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 		{
 			name: "semaphore key",
 			attributes: map[string]any{
-				ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate},
+				ffcontext.ReservedKey: map[string]any{flagListKey: []any{"a"}, fixtures.CurrentDateTime: newDate},
 			},
 			wantFlags: []string{"a"},
 			wantDate:  newDate,
@@ -440,7 +448,10 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 		{
 			name: "legacy key only",
 			attributes: map[string]any{
-				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate},
+				ffcontext.LegacyReservedKey: map[string]any{
+					flagListKey:              []any{"b"},
+					fixtures.CurrentDateTime: legacyDate,
+				},
 			},
 			wantFlags: []string{"b"},
 			wantDate:  legacyDate,
@@ -449,25 +460,25 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 			name: "both keys, semaphore wins field by field",
 			attributes: map[string]any{
 				ffcontext.LegacyReservedKey: map[string]any{
-					"flagList": []any{
-						"old",
+					flagListKey: []any{
+						oldKey,
 					},
-					"currentDateTime":  legacyDate,
-					"exporterMetadata": map[string]any{"k": "legacy"},
+					fixtures.CurrentDateTime: legacyDate,
+					exporterMetadataKey:      map[string]any{"k": fixtures.Legacy},
 				},
-				ffcontext.ReservedKey: map[string]any{"flagList": []any{"new"}, "currentDateTime": newDate},
+				ffcontext.ReservedKey: map[string]any{flagListKey: []any{"new"}, fixtures.CurrentDateTime: newDate},
 			},
 			wantFlags: []string{"new"},
 			wantDate:  newDate,
-			wantMeta:  map[string]any{"k": "legacy"},
+			wantMeta:  map[string]any{"k": fixtures.Legacy},
 		},
 		{
 			name: "an explicit empty flagList and exporterMetadata of semaphore win over the legacy ones",
 			attributes: map[string]any{
 				ffcontext.LegacyReservedKey: map[string]any{
-					"flagList": []any{"old"}, "exporterMetadata": map[string]any{"k": "legacy"},
+					flagListKey: []any{oldKey}, exporterMetadataKey: map[string]any{"k": fixtures.Legacy},
 				},
-				ffcontext.ReservedKey: map[string]any{"flagList": []any{}, "exporterMetadata": map[string]any{}},
+				ffcontext.ReservedKey: map[string]any{flagListKey: []any{}, exporterMetadataKey: map[string]any{}},
 			},
 			wantFlags: []string{},
 			wantMeta:  map[string]any{},
@@ -475,24 +486,24 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 		{
 			name: "an explicit empty typed flagList of semaphore wins over the legacy one",
 			attributes: map[string]any{
-				ffcontext.LegacyReservedKey: map[string]any{"flagList": []string{"old"}},
-				ffcontext.ReservedKey:       map[string]any{"flagList": []string{}},
+				ffcontext.LegacyReservedKey: map[string]any{flagListKey: []string{oldKey}},
+				ffcontext.ReservedKey:       map[string]any{flagListKey: []string{}},
 			},
 			wantFlags: []string{},
 		},
 		{
 			name: "a flagList of semaphore that is not a list does not hide the legacy one",
 			attributes: map[string]any{
-				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"old"}},
-				ffcontext.ReservedKey:       map[string]any{"flagList": "x"},
+				ffcontext.LegacyReservedKey: map[string]any{flagListKey: []any{oldKey}},
+				ffcontext.ReservedKey:       map[string]any{flagListKey: "x"},
 			},
-			wantFlags: []string{"old"},
+			wantFlags: []string{oldKey},
 		},
 		{
 			name: "string maps are read under both keys",
 			attributes: map[string]any{
-				ffcontext.LegacyReservedKey: map[string]string{"currentDateTime": legacyDate},
-				ffcontext.ReservedKey:       map[string]string{"flagList": "ignored-not-a-list"},
+				ffcontext.LegacyReservedKey: map[string]string{fixtures.CurrentDateTime: legacyDate},
+				ffcontext.ReservedKey:       map[string]string{flagListKey: "ignored-not-a-list"},
 			},
 			wantDate: legacyDate,
 		},
@@ -535,7 +546,7 @@ func mustParse(t *testing.T, s string) time.Time {
 func TestHasReservedKey(t *testing.T) {
 	t.Parallel()
 	assert.True(t, ffcontext.HasReservedKey(map[string]any{"semaphore": 1}))
-	assert.True(t, ffcontext.HasReservedKey(map[string]any{"gofeatureflag": 1}))
+	assert.True(t, ffcontext.HasReservedKey(map[string]any{fixtures.GoFeatureFlagOrg: 1}))
 	assert.False(t, ffcontext.HasReservedKey(map[string]any{"x": 1}))
 	assert.False(t, ffcontext.HasReservedKey(nil))
 }

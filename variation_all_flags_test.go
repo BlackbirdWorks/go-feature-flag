@@ -13,9 +13,17 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	offline                       = "offline"
+	testdataFfclientAllFlags      = "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml"
+	testdataFfclientGetFlagstates = "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml"
+	timestamp                     = "timestamp"
 )
 
 // compareJSONWithTimestampHandling compares expected and actual JSON while handling timestamp fields properly
@@ -54,8 +62,8 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 			require.True(t, ok, "actual flag %s should be a map", flagName)
 
 			// Verify timestamp exists and is reasonable
-			require.Contains(t, actualFlagObj, "timestamp", "timestamp should exist in flag %s", flagName)
-			actualTimestamp, ok := actualFlagObj["timestamp"].(float64)
+			require.Contains(t, actualFlagObj, timestamp, "timestamp should exist in flag %s", flagName)
+			actualTimestamp, ok := actualFlagObj[timestamp].(float64)
 			require.True(t, ok, "timestamp should be a number for flag %s", flagName)
 			require.NotEqual(t, 0, actualTimestamp, "timestamp should not be zero for flag %s", flagName)
 
@@ -70,7 +78,7 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 			)
 
 			// Normalize timestamps to compare structure
-			expectedFlagObj["timestamp"] = actualFlagObj["timestamp"]
+			expectedFlagObj[timestamp] = actualFlagObj[timestamp]
 		}
 	}
 
@@ -99,7 +107,7 @@ func TestAllFlagsState(t *testing.T) {
 			name: "Valid multiple types",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 				LeveledLogger: slog.Default(),
 			},
@@ -111,7 +119,7 @@ func TestAllFlagsState(t *testing.T) {
 			name: "module not init",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			wantValid:    false,
@@ -119,11 +127,11 @@ func TestAllFlagsState(t *testing.T) {
 			initModule:   false,
 		},
 		{
-			name: "offline",
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			wantValid:    true,
@@ -147,17 +155,17 @@ func TestAllFlagsState(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 			}
 
-			user := ffcontext.NewEvaluationContext("random-key")
+			user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 			allFlagsState := goff.AllFlagsState(user)
 			assert.Equal(t, tt.wantValid, allFlagsState.IsValid())
 
@@ -188,14 +196,14 @@ func TestGetFlagStates(t *testing.T) {
 			name: "Valid multiple flags",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientGetFlagstates,
 				},
 			},
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").
-				AddCustom("gofeatureflag", map[string]any{
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Numeric123).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
 					"flagList": []string{"test-flag1", "test-flag4"},
 				}).
 				Build(),
@@ -204,14 +212,14 @@ func TestGetFlagStates(t *testing.T) {
 			name: "empty list of flags in context",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientGetFlagstates,
 				},
 			},
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").
-				AddCustom("gofeatureflag", map[string]any{
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Numeric123).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
 					"flagList": []string{},
 				}).
 				Build(),
@@ -220,20 +228,20 @@ func TestGetFlagStates(t *testing.T) {
 			name: "no field in the context",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientGetFlagstates,
 				},
 			},
 			wantValid:         true,
 			wantJSONFile:      "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:        true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").Build(),
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Numeric123).Build(),
 		},
 		{
-			name: "offline",
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			wantValid:    true,
@@ -258,13 +266,13 @@ func TestGetFlagStates(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 			}
 
@@ -300,7 +308,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 			name: "Valid multiple types",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			initModule: true,
@@ -311,18 +319,18 @@ func TestAllFlagsFromCache(t *testing.T) {
 			name: "module not init",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			initModule: false,
 			wantErr:    assert.NoError,
 		},
 		{
-			name: "offline",
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{
-					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
+					Path: testdataFfclientAllFlags,
 				},
 			},
 			initModule: true,
@@ -338,7 +346,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
@@ -349,7 +357,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				assert.Len(t, flags, tt.wantFlags)
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 
 				_, getFlagsFromCacheErr := goff.GetFlagsFromCache()
@@ -371,13 +379,13 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
     - date: 2999-01-01T00:00:00Z
       defaultRule: {variation: B}
 `), 0o600))
-	goff, err := ffclient.New(ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
+	goff, err := ffclient.New(&ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
 	require.NoError(t, err)
 
 	defer goff.Close()
 
-	steps := func(flags map[string]flag.Flag) *[]flag.ScheduledStep {
-		f, ok := flags["scheduled"].(*flag.InternalFlag)
+	steps := func(flags map[string]flagdef.Flag) *[]flagdef.ScheduledStep {
+		f, ok := flags["scheduled"].(*flagdef.InternalFlag)
 		require.True(t, ok)
 		require.NotNil(t, f.Scheduled)
 

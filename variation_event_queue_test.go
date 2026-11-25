@@ -3,6 +3,7 @@ package ffclient_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -16,7 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -31,7 +32,7 @@ type queueTestExporter struct {
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
-func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
+func (e *queueTestExporter) Export(_ context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
 	if e.block != nil {
 		<-e.block
 	}
@@ -57,7 +58,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events 
 func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	t.Parallel()
 
-	const flagFile = "testdata/flag-config.yaml"
+	const flagFile = fixtures.FlagConfigYAMLPath
 	// goroutineRatio: the growth must be under 1/10 of the evaluations (>= 500 for 5000 evaluations),
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
@@ -114,7 +115,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 				}
 			}
 			before := runtime.NumGoroutine()
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: flagFile},
 				EventQueueSize:  tt.queueSize,
@@ -132,7 +133,11 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			for range 4 {
 				wg.Go(func() {
 					for range tt.evals / 4 {
-						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation(
+							fixtures.FlagKeyTest,
+							ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
+							false,
+						)
 
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)

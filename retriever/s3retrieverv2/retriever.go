@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -49,7 +49,7 @@ type Retriever struct {
 	// loader is the folder mode engine, set by Init (nil in single file mode). It is atomic so
 	// that OutputFormat can read it without waiting for a Retrieve holding mu.
 	loader atomic.Pointer[folderloader.Loader]
-	logger *fflog.FFLogger
+	logger *slog.Logger
 	status retriever.Status
 	// Pattern is an optional glob (see path.Match) matched against the file name only (the last
 	// element of the key, not the whole path) of each object found in folder mode (ex: "*.yaml").
@@ -85,7 +85,7 @@ type Retriever struct {
 // Pattern, Recursive) and the logger are unchanged, otherwise it starts clean.
 // The S3 clients are only built once: AwsConfig and S3ClientOptions changed after a first Init
 // are ignored until Shutdown.
-func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
+func (s *Retriever) Init(ctx context.Context, logger *slog.Logger) error {
 	ctx = internal.ContextOrBackground(ctx)
 
 	s.status = retriever.RetrieverNotReady
@@ -212,6 +212,7 @@ func (s *Retriever) OutputFormat() string {
 	return ""
 }
 
+// SetDownloader sets the downloader used to fetch objects from S3.
 func (s *Retriever) SetDownloader(downloader DownloaderAPI) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -229,8 +230,8 @@ func (s *Retriever) SetLister(lister ListerAPI) {
 
 // initLoader creates the folder loader, or keeps the current one if the settings did not change.
 // The caller must hold s.mu.
-func (s *Retriever) initLoader(logger *fflog.FFLogger) {
-	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, folderloader.Options{
+func (s *Retriever) initLoader(logger *slog.Logger) {
+	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, &folderloader.Options{
 		Prefix: s.Prefix, Pattern: s.Pattern, Recursive: s.Recursive,
 		Logger: logger, Location: s.Bucket, LocationKey: "bucket", Provider: "S3",
 	}))

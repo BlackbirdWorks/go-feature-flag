@@ -6,11 +6,17 @@ import (
 	"github.com/blang/semver/v4"
 )
 
+const (
+	parsingTheVersionQ = "parsing the version %q: %w"
+)
+
+// VersionOperation compares semantic version operands.
 type VersionOperation struct {
 	NullOperation
 }
 
-func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
+// EQ reports whether two versions are equal.
+func (v *VersionOperation) EQ(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -19,7 +25,8 @@ func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
 	return leftVer.EQ(rightVer), nil
 }
 
-func (v *VersionOperation) NE(left Operand, right Operand) (bool, error) {
+// NE reports whether two versions are not equal.
+func (v *VersionOperation) NE(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -28,7 +35,8 @@ func (v *VersionOperation) NE(left Operand, right Operand) (bool, error) {
 	return leftVer.NE(rightVer), nil
 }
 
-func (v *VersionOperation) LT(left Operand, right Operand) (bool, error) {
+// LT reports whether the left version is lower than the right one.
+func (v *VersionOperation) LT(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -37,7 +45,8 @@ func (v *VersionOperation) LT(left Operand, right Operand) (bool, error) {
 	return leftVer.LT(rightVer), nil
 }
 
-func (v *VersionOperation) GT(left Operand, right Operand) (bool, error) {
+// GT reports whether the left version is higher than the right one.
+func (v *VersionOperation) GT(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -46,7 +55,8 @@ func (v *VersionOperation) GT(left Operand, right Operand) (bool, error) {
 	return leftVer.GT(rightVer), nil
 }
 
-func (v *VersionOperation) LE(left Operand, right Operand) (bool, error) {
+// LE reports whether the left version is lower than or equal to the right one.
+func (v *VersionOperation) LE(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -55,7 +65,8 @@ func (v *VersionOperation) LE(left Operand, right Operand) (bool, error) {
 	return leftVer.LE(rightVer), nil
 }
 
-func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
+// GE reports whether the left version is higher than or equal to the right one.
+func (v *VersionOperation) GE(left, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
 		return false, err
@@ -64,7 +75,7 @@ func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
 	return leftVer.GE(rightVer), nil
 }
 
-func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, semver.Version, error) {
+func (*VersionOperation) get(left, right Operand) (semver.Version, semver.Version, error) {
 	var leftVer, rightVer semver.Version
 
 	leftVal, ok := left.(string)
@@ -81,12 +92,12 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 
 	leftVer, err = semver.Make(leftVal)
 	if err != nil {
-		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", leftVal, err)
+		return leftVer, rightVer, fmt.Errorf(parsingTheVersionQ, leftVal, err)
 	}
 
 	rightVer, err = semver.Make(rightVal)
 	if err != nil {
-		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", rightVal, err)
+		return leftVer, rightVer, fmt.Errorf(parsingTheVersionQ, rightVal, err)
 	}
 
 	return leftVer, rightVer, nil

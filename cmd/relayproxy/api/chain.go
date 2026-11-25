@@ -17,7 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // This file is the one place where the middleware that wrap a whole listener are assembled. They are plain
@@ -105,10 +105,9 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 		s.accessLog(),
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
+		middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()),
 	)
-
-	chain = append(chain, middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()))
-	if s.services.Metrics != (metric.Metrics{}) {
+	if s.services.Metrics.Enabled() {
 		prom, err := middleware.Prometheus(middleware.PrometheusConfig{
 			Subsystem:  metric.SubSystem,
 			Registerer: s.services.Metrics.Registry,

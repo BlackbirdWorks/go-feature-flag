@@ -9,6 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	dottedName = "x.y"
 )
 
 var (
@@ -29,7 +35,7 @@ func TestNestedError(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "nested",
+			name:     fixtures.NestedKey,
 			err:      newNestedError(newNestedError(base, "a"), "b"),
 			original: base,
 			want:     `{"err":"{\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
@@ -41,18 +47,21 @@ func TestNestedError(t *testing.T) {
 			want:     `{"err":"wrapped: {\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
 		},
 		{
-			name:     "vals",
-			err:      newNestedError(base, "m").Set(ErrVals{"attr_path": "x.y", "rule_operand": []int{1, 2}}),
+			name: "vals",
+			err: newNestedError(
+				base,
+				"m",
+			).Set(ErrVals{errValAttrPath: dottedName, errValRuleOperand: []int{1, 2}}),
 			original: base,
 			want:     `{"attr_path":"x.y","err":"some random error","msg":"m","rule_operand":[1,2]}`,
-			wantVals: ErrVals{"attr_path": "x.y", "rule_operand": []int{1, 2}},
+			wantVals: ErrVals{errValAttrPath: dottedName, errValRuleOperand: []int{1, 2}},
 		},
 		{
 			name:     "vals named err and msg are overridden",
-			err:      newNestedError(base, "m").Set(ErrVals{"err": "e", "msg": "x"}),
+			err:      newNestedError(base, "m").Set(ErrVals{errKey: "e", msgKey: "x"}),
 			original: base,
 			want:     `{"err":"some random error","msg":"m"}`,
-			wantVals: ErrVals{"err": "e", "msg": "x"},
+			wantVals: ErrVals{errKey: "e", msgKey: "x"},
 		},
 	}
 	for _, tt := range tests {
@@ -82,7 +91,7 @@ func TestNestedError(t *testing.T) {
 func TestEvaluatorPanic(t *testing.T) {
 	t.Parallel()
 
-	eval, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(xEqOne)
 	require.NoError(t, err)
 
 	eval.testHookPanic = func() {

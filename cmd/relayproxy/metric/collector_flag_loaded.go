@@ -9,7 +9,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 const flagLoadedEvaluationKey = "semaphore-flag-loaded-metric"
@@ -76,18 +76,18 @@ func (c *flagLoadedCollector) Collect(metricsCh chan<- prom.Metric) {
 }
 
 // isEffectivelyDisabled evaluates the flag so scheduled steps and experimentation windows are taken into account.
-func isEffectivelyDisabled(svc *flag.Service, flagName string, targetFlag flag.Flag) bool {
+func isEffectivelyDisabled(svc *flagdef.Service, flagName string, targetFlag flagdef.Flag) bool {
 	ctx := ffcontext.NewEvaluationContext(flagLoadedEvaluationKey)
-	if internal, ok := targetFlag.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
+	if internal, ok := targetFlag.(*flagdef.InternalFlag); ok && internal.GetBucketingKey() != "" {
 		addNestedAttribute(ctx, internal.GetBucketingKey(), flagLoadedEvaluationKey)
 	}
 
-	_, details := targetFlag.Value(flagName, ctx, flag.Context{Service: svc})
-	if details.Reason == flag.ReasonError {
+	_, details := targetFlag.Value(flagName, ctx, flagdef.Context{Service: svc})
+	if details.Reason == flagdef.ReasonError {
 		return targetFlag.IsDisable()
 	}
 
-	return details.Reason == flag.ReasonDisabled
+	return details.Reason == flagdef.ReasonDisabled
 }
 
 // addNestedAttribute sets a dotted key such as "company.id" as nested maps, the shape GetNestedFieldValue reads.

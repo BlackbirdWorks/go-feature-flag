@@ -7,7 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
+)
+
+const (
+	apiGatewayV1Name           = "APIGatewayV1"
+	apiVOne                    = "/api/v1"
+	deprecated                 = "deprecated"
+	exampleCom                 = "example.com"
+	expectedDeprecationWarning = "expected deprecation warning"
+	localhost                  = "localhost"
+	nilLoggerDoesNot           = "nil logger does not panic"
 )
 
 func TestConfig_EffectiveMonitoringPort(t *testing.T) {
@@ -65,7 +75,7 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 			wantDeprecationWarned: false,
 		},
 		{
-			name: "nil logger does not panic",
+			name: nilLoggerDoesNot,
 			config: &config.Config{
 				MonitoringPort: 8080,
 				Server: config.Server{
@@ -99,8 +109,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 			assert.Equal(t, tt.wantPort, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {
-				assert.Equal(t, 1, observedLogs.Len(), "expected deprecation warning")
-				assert.Contains(t, observedLogs.All()[0].Message, "deprecated")
+				assert.Equal(t, 1, observedLogs.Len(), expectedDeprecationWarning)
+				assert.Contains(t, observedLogs.All()[0].Message, deprecated)
 			} else if observedLogs != nil {
 				assert.Equal(t, 0, observedLogs.Len(), "expected no deprecation warning")
 			}
@@ -135,22 +145,22 @@ func TestConfig_ServerHost(t *testing.T) {
 			wantHost: "0.0.0.0",
 		},
 		{
-			name: "localhost",
+			name: localhost,
 			config: &config.Config{
 				Server: config.Server{
-					Host: "localhost",
+					Host: localhost,
 				},
 			},
-			wantHost: "localhost",
+			wantHost: localhost,
 		},
 		{
 			name: "custom domain",
 			config: &config.Config{
 				Server: config.Server{
-					Host: "example.com",
+					Host: exampleCom,
 				},
 			},
-			wantHost: "example.com",
+			wantHost: exampleCom,
 		},
 	}
 
@@ -219,7 +229,7 @@ func TestConfig_ServerPort(t *testing.T) {
 			wantDeprecationWarned: false,
 		},
 		{
-			name: "nil logger does not panic",
+			name: nilLoggerDoesNot,
 			config: &config.Config{
 				Server: config.Server{
 					Port: 8080,
@@ -253,8 +263,8 @@ func TestConfig_ServerPort(t *testing.T) {
 			assert.Equal(t, tt.wantPort, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {
-				assert.Equal(t, 1, observedLogs.Len(), "expected deprecation warning")
-				assert.Contains(t, observedLogs.All()[0].Message, "deprecated")
+				assert.Equal(t, 1, observedLogs.Len(), expectedDeprecationWarning)
+				assert.Contains(t, observedLogs.All()[0].Message, deprecated)
 			} else if observedLogs != nil {
 				assert.Equal(t, 0, observedLogs.Len(), "expected no deprecation warning")
 			}
@@ -337,7 +347,7 @@ func TestConfig_ServerMode(t *testing.T) {
 			wantDeprecationWarned: false,
 		},
 		{
-			name: "nil logger does not panic",
+			name: nilLoggerDoesNot,
 			config: &config.Config{
 				Server: config.Server{
 					Mode: "",
@@ -370,8 +380,8 @@ func TestConfig_ServerMode(t *testing.T) {
 			assert.Equal(t, tt.wantMode, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {
-				assert.GreaterOrEqual(t, observedLogs.Len(), 1, "expected deprecation warning")
-				assert.Contains(t, observedLogs.All()[0].Message, "deprecated")
+				assert.GreaterOrEqual(t, observedLogs.Len(), 1, expectedDeprecationWarning)
+				assert.Contains(t, observedLogs.All()[0].Message, deprecated)
 			}
 		})
 	}
@@ -425,7 +435,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 				Server: config.Server{
 					LambdaAdapter: "",
 				},
-				AwsLambdaAdapter: "APIGatewayV1",
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterAPIGatewayV1,
 			wantDeprecationWarned: true,
@@ -436,7 +446,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 				Server: config.Server{
 					LambdaAdapter: config.LambdaAdapterALB,
 				},
-				AwsLambdaAdapter: "APIGatewayV1",
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterALB,
 			wantDeprecationWarned: false,
@@ -453,12 +463,12 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 			wantDeprecationWarned: false,
 		},
 		{
-			name: "nil logger does not panic",
+			name: nilLoggerDoesNot,
 			config: &config.Config{
 				Server: config.Server{
 					LambdaAdapter: "",
 				},
-				AwsLambdaAdapter: "APIGatewayV1",
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterAPIGatewayV1,
 			wantDeprecationWarned: false,
@@ -486,8 +496,8 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 			assert.Equal(t, tt.wantAdapter, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {
-				assert.GreaterOrEqual(t, observedLogs.Len(), 1, "expected deprecation warning")
-				assert.Contains(t, observedLogs.All()[0].Message, "deprecated")
+				assert.GreaterOrEqual(t, observedLogs.Len(), 1, expectedDeprecationWarning)
+				assert.Contains(t, observedLogs.All()[0].Message, deprecated)
 			}
 		})
 	}
@@ -506,11 +516,11 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "base path from server config",
 			config: &config.Config{
 				Server: config.Server{
-					AwsAPIGatewayBasePath: "/api/v1",
+					AwsAPIGatewayBasePath: apiVOne,
 				},
 				AwsAPIGatewayBasePath: "",
 			},
-			wantBasePath:          "/api/v1",
+			wantBasePath:          apiVOne,
 			wantDeprecationWarned: false,
 		},
 		{
@@ -530,7 +540,7 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 				Server: config.Server{
 					AwsAPIGatewayBasePath: "/api/v2",
 				},
-				AwsAPIGatewayBasePath: "/api/v1",
+				AwsAPIGatewayBasePath: apiVOne,
 			},
 			wantBasePath:          "/api/v2",
 			wantDeprecationWarned: false,
@@ -558,7 +568,7 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			wantDeprecationWarned: false,
 		},
 		{
-			name: "nil logger does not panic",
+			name: nilLoggerDoesNot,
 			config: &config.Config{
 				Server: config.Server{
 					AwsAPIGatewayBasePath: "",
@@ -591,8 +601,8 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			assert.Equal(t, tt.wantBasePath, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {
-				assert.GreaterOrEqual(t, observedLogs.Len(), 1, "expected deprecation warning")
-				assert.Contains(t, observedLogs.All()[0].Message, "deprecated")
+				assert.GreaterOrEqual(t, observedLogs.Len(), 1, expectedDeprecationWarning)
+				assert.Contains(t, observedLogs.All()[0].Message, deprecated)
 			}
 		})
 	}

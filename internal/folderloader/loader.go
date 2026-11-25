@@ -10,17 +10,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -54,8 +55,8 @@ type Store interface {
 
 // Options are the settings of a Loader.
 type Options struct {
-	// Logger is used for the warnings, it can be nil.
-	Logger *fflog.FFLogger
+	// Logger is used for the warnings, nothing is logged when it is nil.
+	Logger *slog.Logger
 	// Prefix is the folder to load. Leading "/" are trimmed and a trailing "/" is added if missing.
 	// "" and "/" are the root.
 	Prefix string
@@ -82,6 +83,8 @@ type cachedFile struct {
 // A Loader is not safe for concurrent use: the caller must serialize the calls.
 type Loader struct {
 	store Store
+	// logger is the logger of the options, or one that discards everything.
+	logger *slog.Logger
 	// format is the format of the last Load, read by OutputFormat.
 	format  atomic.Value
 	cache   map[string]cachedFile
@@ -91,8 +94,10 @@ type Loader struct {
 }
 
 // New creates a Loader reading the files from store.
-func New(store Store, opts Options) *Loader {
-	return &Loader{store: store, opts: opts, prefix: normalizePrefix(opts.Prefix)}
+func New(store Store, opts *Options) *Loader {
+	return &Loader{
+		store: store, opts: *opts, prefix: normalizePrefix(opts.Prefix), logger: internal.LoggerOrDiscard(opts.Logger),
+	}
 }
 
 // normalizePrefix returns the prefix as sent to the store: keys never start with "/", so leading
@@ -123,8 +128,8 @@ func normalizeVersion(v string) string {
 // output format are kept (ex: when a retriever is initialized again with the same settings).
 // Otherwise it returns a new Loader on store, which starts clean because the selection of files
 // changed. The store of l is kept as is when l is reused, it must be equivalent to store.
-func Reuse(l *Loader, store Store, opts Options) *Loader {
-	if l != nil && l.opts == opts {
+func Reuse(l *Loader, store Store, opts *Options) *Loader {
+	if l != nil && l.opts == *opts {
 		return l
 	}
 
@@ -164,8 +169,9 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	}
 
 	if len(keys) == 0 {
-		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
-			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
+		l.logger.LogAttrs(ctx, slog.LevelWarn, "no supported file matches the prefix, the flag set is empty",
+			slog.String("loader", l.logPrefix()), slog.String(l.locationKey(), l.opts.Location),
+			slog.String("prefix", l.prefix), slog.String("pattern", l.opts.Pattern))
 	}
 
 	refreshCacheErr := l.refreshCache(ctx, keys, files)
@@ -221,7 +227,7 @@ func sortedKeys(files map[string]string) []string {
 		keys = append(keys, k)
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	return keys
 }
@@ -349,11 +355,13 @@ func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 		}
 	}
 
-	sort.Strings(newKeys)
+	slices.Sort(newKeys)
 
 	for _, key := range newKeys {
-		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
-			"(supported: .json, .yaml, .yml, .toml)", l.locationKey(), l.opts.Location, "key", key)
+		l.logger.LogAttrs(ctx, slog.LevelWarn,
+			"file skipped because of its unsupported extension (supported: .json, .yaml, .yml, .toml)",
+			slog.String("loader", l.logPrefix()), slog.String(l.locationKey(), l.opts.Location),
+			slog.String("key", key))
 	}
 
 	l.skipped = skipped

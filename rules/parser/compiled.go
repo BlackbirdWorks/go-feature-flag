@@ -12,6 +12,10 @@ import (
 )
 
 const (
+	trueLiteral = "true"
+)
+
+const (
 	// versionDots is the number of dots of a semantic version: the last number has no dot after it.
 	versionDots = 2
 )
@@ -150,7 +154,7 @@ func (st *evalState) resolve(path []string) {
 			return
 		}
 
-		m := assertType[map[string]any](item)
+		m := assertMap(item)
 		st.stack.push(m[name])
 	}
 
@@ -166,7 +170,7 @@ func (st *evalState) resolve(path []string) {
 		return
 	}
 
-	m := assertType[map[string]any](item)
+	m := assertMap(item)
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -215,49 +219,37 @@ func (n *compareNode) setRight(state *evalState) {
 
 	switch n.valKind {
 	case valueInts:
-		var list []int
-		if state.rightOp == nil {
-			list = []int{}
-		} else {
-			list = assertType[[]int](state.rightOp)
-		}
-
-		list = append(list, assertType[[]int](n.listOp)...)
-		state.rightOp = list
+		state.rightOp = appendList(state.rightOp, assertInts(n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueDoubles:
-		var list []float64
-		if state.rightOp == nil {
-			list = []float64{}
-		} else {
-			list = assertType[[]float64](state.rightOp)
-		}
-
-		list = append(list, assertType[[]float64](n.listOp)...)
-		state.rightOp = list
+		state.rightOp = appendList(state.rightOp, assertFloats(n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueStrings:
-		var list []string
-		if state.rightOp == nil {
-			list = []string{}
-		} else {
-			list = assertType[[]string](state.rightOp)
-		}
-
-		list = append(list, assertType[[]string](n.listValue())...)
-		state.rightOp = list
-	default:
+		state.rightOp = appendList(state.rightOp, assertStrings(n.listValue()))
+	case valueConst:
 		state.rightOp = n.rightOp
 		if n.valErr != nil {
 			state.err = cloneErr(n.valErr)
 		}
 	}
+}
+
+// appendList returns the list held by current (an empty one when there is none) followed by add.
+func appendList[T any](current any, add []T) []T {
+	var list []T
+	if current == nil {
+		list = []T{}
+	} else {
+		list = assertSlice[T](current)
+	}
+
+	return append(list, add...)
 }
 
 func (n *compareNode) evalCompare(state *evalState) bool {
@@ -433,15 +425,14 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
 		cmpNode.attrPath = val.AttrPath().GetText()
 		cmpNode.opType = val.op.GetTokenType()
-		operation := compileValue(cmpNode, val.Value(), src)
+		isVersion := compileValue(cmpNode, val.Value(), src)
 
-		cmpNode.apply = applyFor(operation, cmpNode.opType)
 		if cmpNode.apply == nil {
 			panic(fmt.Sprintf("no operation for operator token %d", cmpNode.opType))
 		}
 
-		if _, ok := operation.(*VersionOperation); ok {
-			ruleVersion := assertType[string](cmpNode.rightOp)
+		if isVersion {
+			ruleVersion := assertString(cmpNode.rightOp)
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
 
@@ -548,7 +539,7 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 
 		leftVer, err = semver.Make(leftVal)
 		if err != nil {
-			return false, fmt.Errorf("parsing the version %q: %w", leftVal, err)
+			return false, fmt.Errorf(parsingTheVersionQ, leftVal, err)
 		}
 	}
 
@@ -643,23 +634,24 @@ func validBuild(build string) bool {
 	return true
 }
 
-// compileValue pre-parses the right-hand side of a comparison into target and
-// returns the Operation the visitor would have selected for it.
-//
-//nolint:ireturn // factory: selects the operation implementation from the value kind at runtime
-func compileValue(target *compareNode, v IValueContext, src *sourceText) Operation {
+// compileValue pre-parses the right-hand side of a comparison into target, wires
+// target.apply for target.opType, and reports whether the comparison is a version
+// comparison.
+func compileValue(target *compareNode, v IValueContext, src *sourceText) bool {
+	var operation Operation
+
+	isVersion := false
+
 	switch ctx := v.(type) {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
-		target.rightOp = ctx.GetText() == "true"
-
-		return &BoolOperation{}
+		target.rightOp = ctx.GetText() == trueLiteral
+		operation = &BoolOperation{}
 	case *NullContext:
-		return &NullOperation{}
+		operation = &NullOperation{}
 	case *StringContext:
 		target.rightOp = getString(ctx.GetText())
-
-		return &StringOperation{}
+		operation = &StringOperation{}
 	case *DoubleContext:
 		// an unparsable double leaves the operand nil without an error
 		val, err := strconv.ParseFloat(ctx.GetText(), 64)
@@ -667,11 +659,11 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 			target.rightOp = val
 		}
 
-		return &FloatOperation{}
+		operation = &FloatOperation{}
 	case *VersionContext:
 		target.rightOp = ctx.VERSION().GetText()
-
-		return &VersionOperation{}
+		operation = &VersionOperation{}
+		isVersion = true
 	case *LongContext:
 		val, err := strconv.Atoi(ctx.GetText())
 		if err != nil {
@@ -680,22 +672,26 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 			target.rightOp = val
 		}
 
-		return &IntOperation{}
+		operation = &IntOperation{}
 	case *ListOfIntsContext:
 		target.compileInts(ctx)
 
-		return &IntOperation{}
+		operation = &IntOperation{}
 	case *ListOfDoublesContext:
 		target.compileDoubles(ctx)
 
-		return &FloatOperation{}
+		operation = &FloatOperation{}
 	case *ListOfStringsContext:
 		target.compileStrings(ctx, src)
 
-		return &StringOperation{}
+		operation = &StringOperation{}
+	default:
+		operation = &NullOperation{}
 	}
 
-	return &NullOperation{}
+	target.apply = applyFor(operation, target.opType)
+
+	return isVersion
 }
 
 // compileInts pre-parses an int list into n, with a hash index when it is long.

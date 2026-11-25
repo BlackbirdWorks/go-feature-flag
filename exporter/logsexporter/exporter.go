@@ -3,17 +3,18 @@ package logsexporter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"text/template"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
 
 const defaultLoggerFormat = "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\""
 
+// Exporter writes evaluation events to the logs.
 type Exporter struct {
 	logTemplate *template.Template
 	// Format is the template configuration of the output format of your log.
@@ -32,7 +33,7 @@ type Exporter struct {
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	f.initTemplates.Do(func() {
@@ -50,12 +51,13 @@ func (f *Exporter) Export(
 			return fmt.Errorf("format log event: %w", err)
 		}
 
-		logger.InfoContext(ctx, string(log))
+		logger.InfoContext(ctx, "feature event", slog.String("event", string(log)))
 	}
 
 	return nil
 }
 
-func (f *Exporter) IsBulk() bool {
+// IsBulk returns false: this exporter sends each event on its own as a log line, it does not batch events.
+func (*Exporter) IsBulk() bool {
 	return false
 }

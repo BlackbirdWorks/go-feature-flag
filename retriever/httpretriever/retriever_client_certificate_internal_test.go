@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io/fs"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"os"
@@ -20,10 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	retrieverpkg "github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
-func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithClientCertificate(t *testing.T) {
 	t.Parallel()
 
 	certFile, keyFile := createClientCertificateFiles(t)
@@ -34,10 +35,10 @@ func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
 		Timeout:        2 * time.Second,
 	}
 
-	client, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.NoError(t, err)
 
-	httpClient, ok := client.(*http.Client)
+	httpClient, ok := retriever.httpClient.(*http.Client)
 	require.True(t, ok)
 	assert.Equal(t, 2*time.Second, httpClient.Timeout)
 
@@ -48,7 +49,7 @@ func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 }
 
-func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithCACertificate(t *testing.T) {
 	t.Parallel()
 
 	caCertFile, _ := createClientCertificateFiles(t)
@@ -57,10 +58,10 @@ func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
 		CACertPath: caCertFile,
 	}
 
-	client, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.NoError(t, err)
 
-	httpClient, ok := client.(*http.Client)
+	httpClient, ok := retriever.httpClient.(*http.Client)
 	require.True(t, ok)
 	assert.Equal(t, 10*time.Second, httpClient.Timeout)
 
@@ -71,7 +72,7 @@ func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 }
 
-func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 	t.Parallel()
 
 	caCertFile, _ := createClientCertificateFiles(t)
@@ -81,7 +82,7 @@ func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 		baseTransport: unsupportedTransport{},
 	}
 
-	err := retriever.Init(context.Background(), nil)
+	err := retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 	require.Error(t, err)
 	assert.Equal(
 		t,
@@ -91,22 +92,22 @@ func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 	assert.Equal(t, retrieverpkg.RetrieverError, retriever.Status())
 }
 
-func TestRetriever_getHTTPClient_WithoutClientCertificateConfiguration(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithoutClientCertificateConfiguration(t *testing.T) {
 	t.Parallel()
 
 	retriever := Retriever{
 		Timeout: 2 * time.Second,
 	}
 
-	client, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.NoError(t, err)
 
-	httpClient, ok := client.(*http.Client)
+	httpClient, ok := retriever.httpClient.(*http.Client)
 	require.True(t, ok)
 	assert.Equal(t, 2*time.Second, httpClient.Timeout)
 }
 
-func TestRetriever_getHTTPClient_CacheGeneratedHTTPClient(t *testing.T) {
+func TestRetriever_ensureHTTPClient_CacheGeneratedHTTPClient(t *testing.T) {
 	t.Parallel()
 
 	caCertFile, _ := createClientCertificateFiles(t)
@@ -114,12 +115,14 @@ func TestRetriever_getHTTPClient_CacheGeneratedHTTPClient(t *testing.T) {
 		CACertPath: caCertFile,
 	}
 
-	client, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.NoError(t, err)
 
-	cachedClient, err := retriever.getHTTPClient()
+	client := retriever.httpClient
+
+	err = retriever.ensureHTTPClient()
 	require.NoError(t, err)
-	assert.Same(t, client, cachedClient)
+	assert.Same(t, client, retriever.httpClient)
 }
 
 func TestRetriever_Init(t *testing.T) {
@@ -132,13 +135,16 @@ func TestRetriever_Init(t *testing.T) {
 
 	assert.Equal(t, retrieverpkg.RetrieverNotReady, retriever.Status())
 
-	err := retriever.Init(context.Background(), nil)
+	err := retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	assert.Equal(t, retrieverpkg.RetrieverReady, retriever.Status())
 
-	client, err := retriever.getHTTPClient()
+	client := retriever.httpClient
+	require.NotNil(t, client)
+
+	err = retriever.ensureHTTPClient()
 	require.NoError(t, err)
-	assert.Same(t, retriever.httpClient, client)
+	assert.Same(t, client, retriever.httpClient)
 
 	err = retriever.Shutdown(context.Background())
 	require.NoError(t, err)
@@ -146,7 +152,7 @@ func TestRetriever_Init(t *testing.T) {
 	assert.Nil(t, retriever.httpClient)
 }
 
-func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithInvalidClientCertificate(t *testing.T) {
 	t.Parallel()
 
 	certFile, keyFile := createClientCertificateFiles(t)
@@ -157,22 +163,22 @@ func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
 		ClientKeyPath:  keyFile,
 	}
 
-	_, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.EqualError(t, err, "loading the client key pair: tls: failed to find any PEM data in key input")
 }
 
-func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithMissingCACertificate(t *testing.T) {
 	t.Parallel()
 
 	retriever := Retriever{
 		CACertPath: filepath.Join(t.TempDir(), "missing-ca.crt"),
 	}
 
-	_, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
-func TestRetriever_getHTTPClient_WithInvalidCACertificate(t *testing.T) {
+func TestRetriever_ensureHTTPClient_WithInvalidCACertificate(t *testing.T) {
 	t.Parallel()
 
 	caCertFile := filepath.Join(t.TempDir(), "invalid-ca.crt")
@@ -182,7 +188,7 @@ func TestRetriever_getHTTPClient_WithInvalidCACertificate(t *testing.T) {
 		CACertPath: caCertFile,
 	}
 
-	_, err := retriever.getHTTPClient()
+	err := retriever.ensureHTTPClient()
 	require.Error(t, err)
 	assert.Equal(t, "failed to parse CA certificate", err.Error())
 }
@@ -273,7 +279,7 @@ func TestRetriever_SetBaseTransport(t *testing.T) {
 			r := Retriever{CACertPath: caCertFile}
 			r.SetBaseTransport(tt.transport)
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)

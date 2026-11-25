@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,7 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -84,12 +84,12 @@ type Retriever struct {
 
 // installationTokenResponse is the JSON body returned by the access_tokens endpoint.
 type installationTokenResponse struct {
-	ExpiresAt time.Time `json:"expires_at"`
+	ExpiresAt time.Time `json:"expires_at"` //nolint:tagliatelle // GitHub REST API (installation access token)
 	Token     string    `json:"token"`
 }
 
 // Init validates the authentication configuration.
-func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *Retriever) Init(_ context.Context, _ *slog.Logger) error {
 	r.status = retriever.RetrieverNotReady
 
 	err := r.validateAppAuth()
@@ -151,28 +151,11 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.fetch(ctx, requestURL, token)
+	resp, err := r.fetchWithRetry(ctx, requestURL, token)
 	if err != nil {
 		return nil, err
 	}
 
-	// On a 401 with App auth, the cached token may have just expired.
-	// Invalidate it and retry once with a fresh token.
-	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
-		_ = resp.Body.Close()
-
-		r.invalidateCachedToken()
-
-		token, err = r.resolveToken(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err = r.fetch(ctx, requestURL, token)
-		if err != nil {
-			return nil, err
-		}
-	}
 	defer func() { _ = resp.Body.Close() }()
 
 	checkResponseErrorErr := r.checkResponseError(resp, requestURL)
@@ -192,6 +175,30 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client
+}
+
+// fetchWithRetry fetches the URL. On a 401 with App auth, the cached token may have just expired: it is
+// invalidated and the request is retried once with a fresh token.
+func (r *Retriever) fetchWithRetry(ctx context.Context, requestURL, token string) (*http.Response, error) {
+	resp, err := r.fetch(ctx, requestURL, token)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
+		_ = resp.Body.Close()
+
+		r.invalidateCachedToken()
+
+		token, err = r.resolveToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return r.fetch(ctx, requestURL, token)
+	}
+
+	return resp, nil
 }
 
 // validateAppAuth checks that GitHub App fields are either all unset, or complete,
@@ -366,13 +373,13 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 }
 
 // buildHeaders constructs the HTTP headers for the GitHub API request.
-func (r *Retriever) buildHeaders(token string) http.Header {
+func (*Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
 	header.Add("X-Github-Api-Version", "2022-11-28")
 
 	if token != "" {
-		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+		header.Add("Authorization", "Bearer "+token)
 	}
 
 	return header
@@ -431,7 +438,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 }
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
-func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
+func (*Retriever) checkResponseError(resp *http.Response, rawURL string) error {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
@@ -443,7 +450,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 		}
 
 		return fmt.Errorf("%w %s failed with code %d. GitHub Headers: %v",
-			errRequestTo, url, resp.StatusCode, ghHeaders)
+			errRequestTo, rawURL, resp.StatusCode, ghHeaders)
 	}
 
 	return nil
@@ -467,3 +474,6 @@ func (r *Retriever) updateRateLimit(headers http.Header) {
 		}
 	}
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetriever = (*Retriever)(nil)

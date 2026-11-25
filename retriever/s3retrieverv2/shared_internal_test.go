@@ -18,13 +18,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	nestedPrefix = "a/b/"
+	dFlagsYaml   = "d/flags.yaml"
+)
+
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func TestNewSharedItems_DefaultConfigError(t *testing.T) {
 	t.Setenv("AWS_PROFILE", "this-profile-does-not-exist")
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
 	//nolint:staticcheck // a nil context is tolerated on purpose
-	_, err := NewSharedItems(nil, SharedItemsOptions{Bucket: "b"})
+	_, err := NewSharedItems(nil, &SharedItemsOptions{Bucket: "b"})
 	assert.ErrorContains(t, err, "impossible to init shared S3 items")
 }
 
@@ -45,7 +50,7 @@ func (emptyBucket) DownloadObject(
 
 func TestSharedItems_etagOf(t *testing.T) {
 	t.Parallel()
-	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), &SharedItemsOptions{
 		Bucket: "b", Lister: emptyBucket{}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
@@ -64,9 +69,9 @@ func TestSharedItems_listingPrefix(t *testing.T) {
 		keys []string
 	}{
 		{name: "no key", want: ""},
-		{name: "single key", keys: []string{"a/b/flags.yaml"}, want: "a/b/"},
-		{name: "same prefix", keys: []string{"a/b/1.yaml", "a/b/2.yaml"}, want: "a/b/"},
-		{name: "cut at the last slash", keys: []string{"a/b/flags1.yaml", "a/b/flags2.yaml"}, want: "a/b/"},
+		{name: "single key", keys: []string{"a/b/flags.yaml"}, want: nestedPrefix},
+		{name: "same prefix", keys: []string{"a/b/1.yaml", "a/b/2.yaml"}, want: nestedPrefix},
+		{name: "cut at the last slash", keys: []string{"a/b/flags1.yaml", "a/b/flags2.yaml"}, want: nestedPrefix},
 		{name: "sibling prefixes", keys: []string{"project-1/dev/f.yaml", "project-1/prod/f.yaml"}, want: "project-1/"},
 		{name: "partial segment is not a prefix", keys: []string{"proj-a/f.yaml", "proj-b/f.yaml"}, want: ""},
 		{name: "no common prefix", keys: []string{"a/f.yaml", "b/f.yaml"}, want: ""},
@@ -97,7 +102,7 @@ func (u unrelatedBucket) ListObjectsV2(
 	context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
 	out := &s3.ListObjectsV2Output{
-		Contents: []s3types.Object{{Key: aws.String("d/flags.yaml"), ETag: aws.String(`"x"`)}},
+		Contents: []s3types.Object{{Key: aws.String(dFlagsYaml), ETag: aws.String(`"x"`)}},
 	}
 	for i := range u.n {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(fmt.Sprintf("d/other-%d", i))})
@@ -108,16 +113,16 @@ func (u unrelatedBucket) ListObjectsV2(
 
 func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 	t.Parallel()
-	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), &SharedItemsOptions{
 		Bucket: "b", Lister: unrelatedBucket{n: 5000}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
-	_, err = group.etagOf(t.Context(), group.Retriever("d/flags.yaml").item)
+	_, err = group.etagOf(t.Context(), group.Retriever(dFlagsYaml).item)
 	require.NoError(t, err)
 	group.mu.Lock()
 	defer group.mu.Unlock()
 
-	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, group.listing)
+	assert.Equal(t, map[string]string{dFlagsYaml: "x"}, group.listing)
 }
 
 // tokenLister returns truncated pages following a token policy.

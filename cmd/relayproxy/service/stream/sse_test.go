@@ -17,9 +17,14 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	streamFlagsetA = "?stream=flagsetA"
 )
 
 func TestSSEService_BroadcastAndReceive(t *testing.T) {
@@ -34,15 +39,15 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	}{
 		{
 			name:             "client receives event from its own stream",
-			subscribeFlagset: "flagsetA",
-			broadcastFlagset: "flagsetA",
+			subscribeFlagset: fixtures.FlagsetCamel,
+			broadcastFlagset: fixtures.FlagsetCamel,
 			diff: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("A")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 					},
 				},
 			},
@@ -50,11 +55,11 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 		},
 		{
 			name:             "client does not receive event from a different stream",
-			subscribeFlagset: "flagsetA",
+			subscribeFlagset: fixtures.FlagsetCamel,
 			broadcastFlagset: "flagsetB",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"flag-2": &flag.InternalFlag{},
+				Deleted: map[string]flagdef.Flag{
+					"flag-2": &flagdef.InternalFlag{},
 				},
 			},
 			expectReceive: false,
@@ -75,7 +80,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			defer srv.Close()
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-				srv.URL+"?stream="+tt.subscribeFlagset, nil)
+				srv.URL+"?stream="+tt.subscribeFlagset, http.NoBody)
 			require.NoError(t, err)
 
 			subscribed := make(chan struct{}, 1)
@@ -189,10 +194,11 @@ func TestSSEService_Close(t *testing.T) {
 					}
 				})
 
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream=flagsetA", nil)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+streamFlagsetA, http.NoBody)
 				require.NoError(t, err)
 				resp, err := (&http.Client{}).Do(req)
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 				body = resp.Body
 
@@ -202,8 +208,6 @@ func TestSSEService_Close(t *testing.T) {
 					require.Fail(t, "timed out waiting for the SSE client to subscribe")
 				}
 			}
-
-			defer func() { _ = body.Close() }()
 
 			sseService.Close()
 
@@ -231,7 +235,7 @@ func TestSSEService_Comments(t *testing.T) {
 	}{
 		{
 			name:              "connected comment is the first bytes of the body",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: 0,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,
@@ -239,7 +243,7 @@ func TestSSEService_Comments(t *testing.T) {
 		},
 		{
 			name:              "heartbeat comments are sent periodically",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: 50 * time.Millisecond,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,
@@ -247,7 +251,7 @@ func TestSSEService_Comments(t *testing.T) {
 		},
 		{
 			name:              "negative interval disables the heartbeat",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: -1,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,
@@ -277,7 +281,7 @@ func TestSSEService_Comments(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
 			defer srv.Close()
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, http.NoBody)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)

@@ -10,9 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	httpsHooksSlackCom = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 )
 
 func TestSlackNotifier_Notify(t *testing.T) {
@@ -43,105 +48,105 @@ func TestSlackNotifier_Notify(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results.json",
 			},
 			args: args{
-				url:        "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsHooksSlackCom,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						"test-flag3": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Added: map[string]flagdef.Flag{
+						"test-flag3": &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
-									Name:  new("rule1"),
+									Name:  new(fixtures.RuleOne),
 									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
-										"False": 95,
-										"True":  5,
+										fixtures.VariationFalse: 95,
+										fixtures.VariationTrue:  5,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any("default")),
-								"False":   new(any("false")),
-								"True":    new(any("test")),
+								fixtures.VariationDefault: new(any("default")),
+								fixtures.VariationFalse:   new(any("false")),
+								fixtures.VariationTrue:    new(any("test")),
 							},
-							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+							DefaultRule: &flagdef.Rule{
+								Name:            new(fixtures.RuleDefault),
+								VariationResult: new(fixtures.VariationDefault),
 							},
 							TrackEvents: new(true),
 							Disable:     new(false),
 							Version:     new("1.1"),
-							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 						},
 					},
-					Deleted: map[string]flag.Flag{
-						"test-flag": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Deleted: map[string]flagdef.Flag{
+						fixtures.FlagKeyTest: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
-									Name:  new("rule1"),
+									Name:  new(fixtures.RuleOne),
 									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtures.VariationFalse: 0,
+										fixtures.VariationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtures.VariationDefault: new(any(false)),
+								fixtures.VariationFalse:   new(any(false)),
+								fixtures.VariationTrue:    new(any(true)),
 							},
-							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
-							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
+							DefaultRule: &flagdef.Rule{
+								Name:            new(fixtures.RuleDefault),
+								VariationResult: new(fixtures.VariationDefault),
 							},
 						},
 					},
 					Updated: map[string]notifier.DiffUpdated{
 						"test-flag2": {
-							Before: &flag.InternalFlag{
+							Before: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any(false)),
-									"False":   new(any(false)),
-									"True":    new(any(true)),
+									fixtures.VariationDefault: new(any(false)),
+									fixtures.VariationFalse:   new(any(false)),
+									fixtures.VariationTrue:    new(any(true)),
 								},
-								DefaultRule: &flag.Rule{
-									Name: new("defaultRule"),
+								DefaultRule: &flagdef.Rule{
+									Name: new(fixtures.RuleDefault),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtures.VariationFalse: 0,
+										fixtures.VariationTrue:  100,
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
-								Experimentation: &flag.ExperimentationRollout{
+								Experimentation: &flagdef.ExperimentationRollout{
 									Start: new(time.Unix(1095379400, 0).UTC()),
 									End:   new(time.Unix(1095371000, 0).UTC()),
 								},
 							},
-							After: &flag.InternalFlag{
+							After: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any("strDefault")),
-									"False":   new(any("strFalse")),
-									"True":    new(any("strTrue")),
+									fixtures.VariationDefault: new(any("strDefault")),
+									fixtures.VariationFalse:   new(any("strFalse")),
+									fixtures.VariationTrue:    new(any("strTrue")),
 								},
-								Rules: &[]flag.Rule{
+								Rules: &[]flagdef.Rule{
 									{
-										Name:  new("rule1"),
+										Name:  new(fixtures.RuleOne),
 										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
-											"False": 20,
-											"True":  80,
+											fixtures.VariationFalse: 20,
+											fixtures.VariationTrue:  80,
 										},
 									},
 								},
-								DefaultRule: &flag.Rule{
-									Name:            new("defaultRule"),
-									VariationResult: new("Default"),
+								DefaultRule: &flagdef.Rule{
+									Name:            new(fixtures.RuleDefault),
+									VariationResult: new(fixtures.VariationDefault),
 								},
 								Disable:     new(true),
 								TrackEvents: new(false),
 								Version:     new("1.1"),
-								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 							},
 						},
 					},
@@ -155,7 +160,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 				errMsg: "error: (Slack Notifier) while calling slack webhook, statusCode = 400",
 			},
 			args: args{
-				url:        "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsHooksSlackCom,
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
 			},
@@ -167,7 +172,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 				errMsg: "error: (Slack Notifier) error: while calling webhook: random error",
 			},
 			args: args{
-				url:        "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsHooksSlackCom,
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 				forceError: true,
@@ -202,7 +207,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockHTTPClient := &testutils.HTTPClientMock{
+			mockHTTPClient := &testhelpers.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
 			}
@@ -230,14 +235,14 @@ func TestSlackNotifier_Notify(t *testing.T) {
 }
 
 // otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestConvertUpdatedFlagsToSlackMessage_diffError(t *testing.T) {
 	t.Parallel()
 
 	broken := otherFlag{}
 	attachments := convertUpdatedFlagsToSlackMessage(notifier.DiffCache{
-		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},
+		Updated: map[string]notifier.DiffUpdated{fixtures.FlagKeyTest: {Before: broken, After: broken}},
 	})
 	assert.Len(t, attachments, 1)
 	assert.Contains(t, attachments[0].Text, notifier.ChangesUnavailable)
@@ -260,9 +265,9 @@ func TestConvertUpdatedFlagsToSlackMessage_escapesSlackControlCharacters(t *test
 			t.Parallel()
 
 			attachments := convertUpdatedFlagsToSlackMessage(notifier.DiffCache{
-				Updated: map[string]notifier.DiffUpdated{"test-flag": {
-					Before: &flag.InternalFlag{},
-					After:  &flag.InternalFlag{Metadata: &map[string]any{"owner": tt.value}},
+				Updated: map[string]notifier.DiffUpdated{fixtures.FlagKeyTest: {
+					Before: &flagdef.InternalFlag{},
+					After:  &flagdef.InternalFlag{Metadata: &map[string]any{"owner": tt.value}},
 				}},
 			})
 			require.Len(t, attachments, 1)

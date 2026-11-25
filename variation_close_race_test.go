@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,7 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // gatedContext blocks the blockAt-th call of ExtractGOFFProtectedFields (0: never) until gate is
@@ -45,11 +46,11 @@ type finalFlushHookExporter struct {
 	once         sync.Once
 }
 
-func (e *finalFlushHookExporter) IsBulk() bool { return true }
-func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (*finalFlushHookExporter) IsBulk() bool { return true }
+func (e *finalFlushHookExporter) Export(ctx context.Context, _ *slog.Logger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
 
-	return nil
+	return ctx.Err()
 }
 
 // An evaluation that is still running when the client is closed (a request that obtained a flag
@@ -75,7 +76,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			calls := &atomic.Int64{}
 			newCtx := func(blockAt int64, reached, gate chan struct{}) ffcontext.Context {
 				return gatedContext{
-					Context: ffcontext.NewEvaluationContext("user"),
+					Context: ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
 					calls:   calls, blockAt: blockAt, reached: reached, gate: gate,
 				}
 			}
@@ -92,9 +93,9 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 				}
 			}
 			second := &queueTestExporter{bulk: tt.bulk}
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: time.Hour,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				DataExporters: []ffclient.DataExporter{
 					{Exporter: hook, FlushInterval: time.Hour},
 					{Exporter: second, FlushInterval: time.Hour},
@@ -105,7 +106,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			// 1. a first evaluation, to learn how many calls build an event, and to have something to flush.
 			calls.Store(0)
 
-			_, _ = client.BoolVariation("test-flag", newCtx(0, nil, nil), false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, newCtx(0, nil, nil), false)
 			perEvaluation := calls.Load()
 			require.Positive(t, perEvaluation)
 
@@ -115,7 +116,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			go func() {
 				defer close(lateDone)
 
-				_, _ = client.BoolVariation("test-flag", newCtx(perEvaluation, reached, gate), false)
+				_, _ = client.BoolVariation(fixtures.FlagKeyTest, newCtx(perEvaluation, reached, gate), false)
 			}()
 
 			select {

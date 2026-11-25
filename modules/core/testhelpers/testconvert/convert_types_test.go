@@ -1,0 +1,278 @@
+package testconvert_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+const (
+	resultShouldNotBe     = "Result should not be nil"
+	valueShouldMatchInput = "Value should match input"
+)
+
+func TestBool(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input bool
+		want  bool
+	}{
+		{
+			name:  "true value",
+			input: true,
+			want:  true,
+		},
+		{
+			name:  "false value",
+			input: false,
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
+		})
+	}
+}
+
+func TestString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "non-empty string",
+			input: "test-value",
+			want:  "test-value",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "string with special characters",
+			input: "test@123!$%",
+			want:  "test@123!$%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
+		})
+	}
+}
+
+func TestInt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{
+			name:  "positive integer",
+			input: 42,
+			want:  42,
+		},
+		{
+			name:  "zero",
+			input: 0,
+			want:  0,
+		},
+		{
+			name:  "negative integer",
+			input: -100,
+			want:  -100,
+		},
+		{
+			name:  "large integer",
+			input: 999999999,
+			want:  999999999,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
+		})
+	}
+}
+
+func TestFloat64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input float64
+		want  float64
+	}{
+		{
+			name:  "positive float",
+			input: 3.14,
+			want:  3.14,
+		},
+		{
+			name:  "zero",
+			input: 0.0,
+			want:  0.0,
+		},
+		{
+			name:  "negative float",
+			input: -2.5,
+			want:  -2.5,
+		},
+		{
+			name:  "large float",
+			input: 123456.789,
+			want:  123456.789,
+		},
+		{
+			name:  "small float",
+			input: 0.000001,
+			want:  0.000001,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.InDelta(t, tt.want, *result, 0, valueShouldMatchInput)
+		})
+	}
+}
+
+func TestTime(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	zeroTime := time.Time{}
+	fixedTime := time.Date(2023, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	tests := []struct {
+		input time.Time
+		want  time.Time
+		name  string
+	}{
+		{
+			name:  "current time",
+			input: now,
+			want:  now,
+		},
+		{
+			name:  "zero time",
+			input: zeroTime,
+			want:  zeroTime,
+		},
+		{
+			name:  "fixed time",
+			input: fixedTime,
+			want:  fixedTime,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
+		})
+	}
+}
+
+func TestInterface(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input any
+		want  any
+		name  string
+	}{
+		{
+			name:  "string value",
+			input: "test-string",
+			want:  "test-string",
+		},
+		{
+			name:  "int value",
+			input: 42,
+			want:  42,
+		},
+		{
+			name:  "bool value true",
+			input: true,
+			want:  true,
+		},
+		{
+			name:  "bool value false",
+			input: false,
+			want:  false,
+		},
+		{
+			name:  "float64 value",
+			input: 3.14,
+			want:  3.14,
+		},
+		{
+			name:  "nil value",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name:  "map value",
+			input: map[string]any{"key": "value"},
+			want:  map[string]any{"key": "value"},
+		},
+		{
+			name:  "slice value",
+			input: []any{1, 2, 3},
+			want:  []any{1, 2, 3},
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "zero int",
+			input: 0,
+			want:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := new(tt.input)
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
+		})
+	}
+}

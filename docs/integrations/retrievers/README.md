@@ -47,7 +47,7 @@ To achieve this, you need to implement the [`InitializableRetrieverWithFlagset`]
 ```go
 type InitializableRetrieverWithFlagset interface {
   Retrieve(ctx context.Context) ([]byte, error)
-  Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error
+  Init(ctx context.Context, logger *slog.Logger, flagset *string) error
   Shutdown(ctx context.Context) error
   Status() retriever.Status
 }

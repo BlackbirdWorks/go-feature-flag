@@ -9,7 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -31,7 +31,7 @@ func (m *mockWebsocketService) Close() {
 	m.nbConnection = 0
 }
 
-func (m *mockWebsocketService) WaitForCleanup(_ time.Duration) error {
+func (*mockWebsocketService) WaitForCleanup(_ time.Duration) error {
 	// Mock implementation - just return nil immediately
 	return nil
 }
@@ -48,49 +48,49 @@ func TestNotify(t *testing.T) {
 	mockService := &mockWebsocketService{}
 
 	// Create the notifierWebsocket instance with the mock service
-	notifierWS := proxynotifier.NewNotifierWebsocket(mockService, "my-flagset")
+	notifierWS := proxynotifier.NewNotifierWebsocket(mockService, myFlagset)
 
 	// Prepare the input data
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{
-			"flag-1": &flag.InternalFlag{
+		Deleted: map[string]flagdef.Flag{
+			"flag-1": &flagdef.InternalFlag{
 				Variations: &map[string]*any{
 					"A": new(any(true)),
 					"B": new(any(false)),
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new("A"),
 				},
 			},
 		},
-		Added: map[string]flag.Flag{
-			"flag-2": &flag.InternalFlag{
+		Added: map[string]flagdef.Flag{
+			"flag-2": &flagdef.InternalFlag{
 				Variations: &map[string]*any{
 					"A": new(any(true)),
 					"B": new(any(false)),
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new("A"),
 				},
 			},
 		},
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
-				Before: &flag.InternalFlag{
+				Before: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"A": new(any(true)),
 						"B": new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("A"),
 					},
 				},
-				After: &flag.InternalFlag{
+				After: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"A": new(any(true)),
 						"B": new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("B"),
 					},
 				},
@@ -104,5 +104,5 @@ func TestNotify(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	assert.Equal(t, diff, mockService.internalDiff)
-	assert.Equal(t, "my-flagset", mockService.flagsetName)
+	assert.Equal(t, myFlagset, mockService.flagsetName)
 }

@@ -171,7 +171,7 @@ func TestMetrics_RenamedMetricsKeepTheirLegacyNames(t *testing.T) {
 
 			m, err := metric.NewMetrics(metric.MetricsOpts{EnableBulkMetricFlagNames: true})
 			require.NoError(t, err)
-			tt.inc(&m)
+			tt.inc(m)
 
 			families, err := m.Gatherer(true).Gather()
 			require.NoError(t, err)

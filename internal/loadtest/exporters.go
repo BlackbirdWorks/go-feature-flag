@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -58,10 +58,10 @@ func NewExporter(mode ExporterMode) *Exporter {
 }
 
 // IsBulk implements exporter.CommonExporter.
-func (e *Exporter) IsBulk() bool { return true }
+func (*Exporter) IsBulk() bool { return true }
 
 // Export implements exporter.Exporter.
-func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
+func (e *Exporter) Export(ctx context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
 	switch e.Mode {
 	case ExporterFailing:
 		e.Failures.Add(1)

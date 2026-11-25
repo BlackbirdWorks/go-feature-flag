@@ -36,6 +36,7 @@ func toInt(operand Operand) (int, error) {
 	return 0, newInvalidOperandError(operand, exp)
 }
 
+// Operand is a value that an operation compares, such as a string, number or boolean.
 type Operand any
 
 // The error text is observable by callers (it is wrapped into the query validation error and logged),
@@ -53,6 +54,7 @@ const (
 	errValAttrPath      = "attr_path"
 )
 
+// InvalidOperandError reports an operand whose type does not match the operation.
 type InvalidOperandError struct {
 	Val     any
 	typeObj any
@@ -73,6 +75,7 @@ func (e *InvalidOperandError) Error() string {
 	)
 }
 
+// Operation compares two operands with the query operators.
 type Operation interface {
 	EQ(left Operand, right Operand) (bool, error)
 	NE(left Operand, right Operand) (bool, error)

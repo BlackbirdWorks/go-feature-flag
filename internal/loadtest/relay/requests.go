@@ -61,18 +61,23 @@ func (e Endpoint) EmitsEvents() bool {
 
 // Path returns the URL path of the endpoint for a flag key.
 func (e Endpoint) Path(flagKey string) string {
-	switch e {
-	case SemaphoreEval:
+	if e == SemaphoreEval {
 		return "/v1/feature/" + flagKey + "/eval"
-	case SemaphoreAllFlags:
-		return "/v1/allflags"
-	case OFREPEval:
-		return "/ofrep/v1/evaluate/flags/" + flagKey
-	case OFREPBulk:
-		return "/ofrep/v1/evaluate/flags"
-	default:
-		return ""
 	}
+
+	if e == SemaphoreAllFlags {
+		return "/v1/allflags"
+	}
+
+	if e == OFREPEval {
+		return "/ofrep/v1/evaluate/flags/" + flagKey
+	}
+
+	if e == OFREPBulk {
+		return "/ofrep/v1/evaluate/flags"
+	}
+
+	return ""
 }
 
 // Body returns a request body with a realistic evaluation context (10 attributes) for the user i.
@@ -81,14 +86,15 @@ func (e Endpoint) Body(i int) string {
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
 
-	switch e {
-	case SemaphoreEval:
+	if e == SemaphoreEval {
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)
-	case SemaphoreAllFlags:
-		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}}}`, user, custom)
-	default:
-		return fmt.Sprintf(`{"context":{"targetingKey":"user-%d",%s}}`, user, custom)
 	}
+
+	if e == SemaphoreAllFlags {
+		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}}}`, user, custom)
+	}
+
+	return fmt.Sprintf(`{"context":{"targetingKey":"user-%d",%s}}`, user, custom)
 }
 
 // NewRequest builds the HTTP request (without a URL host) for the endpoint.

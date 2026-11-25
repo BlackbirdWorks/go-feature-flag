@@ -14,7 +14,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"go.opentelemetry.io/otel/trace"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // skipURL is what we use as a default.
@@ -106,20 +106,15 @@ type RequestRecord struct {
 // LogRequest logs a request at the level of its status: server errors are errors, client errors warnings,
 // the rest is debug. Nothing is built when the level is disabled.
 func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
-	var (
-		level slog.Level
-		msg   string
-	)
+	var level slog.Level
 
 	switch n := r.Status; {
 	case n >= http.StatusInternalServerError:
-		level, msg = slog.LevelError, "Server error"
+		level = slog.LevelError
 	case n >= http.StatusBadRequest:
-		level, msg = slog.LevelWarn, "Client error"
-	case n >= http.StatusMultipleChoices:
-		level, msg = slog.LevelDebug, "Redirection"
+		level = slog.LevelWarn
 	default:
-		level, msg = slog.LevelDebug, "Success"
+		level = slog.LevelDebug
 	}
 
 	if !logger.Enabled(ctx, level) {
@@ -135,7 +130,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		)
 	}
 
-	logger.LogAttrs(ctx, level, msg,
+	attrs := []slog.Attr{
 		cmdlog.Err(r.Err),
 		slog.String("remote_ip", r.RemoteIP),
 		slog.String("latency", r.Latency.String()),
@@ -145,7 +140,18 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		slog.Int64("size", r.Size),
 		slog.String("user_agent", r.UserAgent),
 		slog.String("request_id", r.RequestID),
-	)
+	}
+
+	switch n := r.Status; {
+	case n >= http.StatusInternalServerError:
+		logger.LogAttrs(ctx, level, "Server error", attrs...)
+	case n >= http.StatusBadRequest:
+		logger.LogAttrs(ctx, level, "Client error", attrs...)
+	case n >= http.StatusMultipleChoices:
+		logger.LogAttrs(ctx, level, "Redirection", attrs...)
+	default:
+		logger.LogAttrs(ctx, level, "Success", attrs...)
+	}
 }
 
 // redactAPIKey masks the apiKey query parameter value so it never reaches the logs.

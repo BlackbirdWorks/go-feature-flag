@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // firstFailsExporter blocks its first Export until release is closed, then fails it; the following
@@ -23,8 +23,8 @@ type firstFailsExporter struct {
 	mu       sync.Mutex
 }
 
-func (e *firstFailsExporter) IsBulk() bool { return true }
-func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (*firstFailsExporter) IsBulk() bool { return true }
+func (e *firstFailsExporter) Export(_ context.Context, _ *slog.Logger, _ []exporter.ExportableEvent) error {
 	e.mu.Lock()
 	e.starts = append(e.starts, time.Now())
 	n := len(e.starts)
@@ -72,13 +72,13 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			t.Parallel()
 
 			exp := &firstFailsExporter{release: make(chan struct{}), started: make(chan struct{})}
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: 1000,
 			}}, time.Hour, nil)
-			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent])
 			require.True(t, ok)
 
-			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, tt.firstBatch))
+			asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, tt.firstBatch))
 
 			select {
 			case <-exp.started:
@@ -86,14 +86,14 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 				require.Fail(t, "the export did not start")
 			}
 			// the export is blocked: the next batch asks for another flush
-			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, tt.queued))
+			asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, tt.queued))
 			close(exp.release)
 
 			// keep feeding events until the exporter is called a second time.
 			var second time.Time
 
 			require.Eventually(t, func() bool {
-				asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 10))
+				asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, 10))
 				exp.mu.Lock()
 				defer exp.mu.Unlock()
 

@@ -14,7 +14,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -26,6 +25,7 @@ var (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter writes evaluation events to Google Cloud Storage.
 type Exporter struct {
 	// Bucket is the name of your S3 Bucket.
 	Bucket string
@@ -55,14 +55,15 @@ type Exporter struct {
 	Options []option.ClientOption
 }
 
-func (f *Exporter) IsBulk() bool {
+// IsBulk returns true: events are buffered and written to Google Cloud Storage in batches, one file per flush.
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	// Init google storage client

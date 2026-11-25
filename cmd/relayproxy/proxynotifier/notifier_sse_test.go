@@ -17,9 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/notifier"
+)
+
+const (
+	myFlagset = "my-flagset"
 )
 
 func TestNotifierSSE_Notify(t *testing.T) {
@@ -33,7 +37,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 	}{
 		{
 			name:        "empty diff refetches the evaluations",
-			flagsetName: "my-flagset",
+			flagsetName: myFlagset,
 			diff:        notifier.DiffCache{},
 			wantEvent: model.OFREPSSEEvent{
 				Type:         model.OFREPSSEEventTypeRefetchEvaluation,
@@ -42,14 +46,14 @@ func TestNotifierSSE_Notify(t *testing.T) {
 		},
 		{
 			name:        "diff with added flag refetches the evaluations, the diff is not sent",
-			flagsetName: "my-flagset",
+			flagsetName: myFlagset,
 			diff: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("A")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 					},
 				},
 			},
@@ -82,7 +86,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 				}
 			})
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream="+tt.flagsetName, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream="+tt.flagsetName, http.NoBody)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)

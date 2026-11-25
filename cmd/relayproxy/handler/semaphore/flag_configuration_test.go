@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"errors"
@@ -18,7 +18,18 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
+)
+
+const (
+	configurationFlagsYaml    = "/configuration_flags.yaml"
+	flagset1ApiKey            = "flagset1-api-key"
+	impossibleToCreateFlagset = "impossible to create flagset manager"
+	invalidAPIKey             = "invalid-api-key"
+	requestsEmptyJSON         = "requests/empty.json"
+	requestsFilterFlagsJSON   = "requests/filter-flags.json"
+	requestsInvalidJSONJSON   = "requests/invalid-json.json"
 )
 
 const mockConfigFlagsLocation = testdataDir + "/configuration/"
@@ -38,7 +49,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 	}{
 		{
 			name:        "Test with empty body",
-			requestBody: mockConfigFlagsLocation + "requests/empty.json",
+			requestBody: mockConfigFlagsLocation + requestsEmptyJSON,
 			want: want{
 				statusCode:   http.StatusOK,
 				bodyLocation: mockConfigFlagsLocation + "responses/empty.json",
@@ -54,7 +65,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 		},
 		{
 			name:        "Filter flags",
-			requestBody: mockConfigFlagsLocation + "requests/filter-flags.json",
+			requestBody: mockConfigFlagsLocation + requestsFilterFlagsJSON,
 			want: want{
 				statusCode:   http.StatusOK,
 				bodyLocation: mockConfigFlagsLocation + "responses/filter-flags.json",
@@ -62,7 +73,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 		},
 		{
 			name:        "Invalid JSON",
-			requestBody: mockConfigFlagsLocation + "requests/invalid-json.json",
+			requestBody: mockConfigFlagsLocation + requestsInvalidJSONJSON,
 			want: want{
 				statusCode: http.StatusBadRequest,
 			},
@@ -77,7 +88,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + "/configuration_flags.yaml",
+					Path: testdataDir + configurationFlagsYaml,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: config.LogExporter,
@@ -91,9 +102,9 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
@@ -101,7 +112,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 			// Call the handler
 			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest("", "application/json"),
+				Request: controller.NewRequest("", protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 			require.NoError(t, handlerErr)
@@ -121,7 +132,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 	t.Parallel()
 
 	const (
-		configFlagsLocation  = testdataDir + "/configuration_flags.yaml"
+		configFlagsLocation  = testdataDir + configurationFlagsYaml
 		configFlagsLocation2 = testdataDir + "/config_flags_v2.yaml"
 	)
 
@@ -138,8 +149,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 	}{
 		{
 			name:        "Test with empty body for flagset1",
-			requestBody: mockConfigFlagsLocation + "requests/empty.json",
-			apiKey:      "flagset1-api-key",
+			requestBody: mockConfigFlagsLocation + requestsEmptyJSON,
+			apiKey:      flagset1ApiKey,
 			want: want{
 				statusCode:   http.StatusOK,
 				bodyLocation: mockConfigFlagsLocation + "responses/empty.json",
@@ -147,7 +158,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 		},
 		{
 			name:        "Test with empty body for flagset2",
-			requestBody: mockConfigFlagsLocation + "requests/empty.json",
+			requestBody: mockConfigFlagsLocation + requestsEmptyJSON,
 			apiKey:      "flagset2-api-key",
 			want: want{
 				statusCode:   http.StatusOK,
@@ -156,8 +167,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 		},
 		{
 			name:        "Filter flags for flagset1",
-			requestBody: mockConfigFlagsLocation + "requests/filter-flags.json",
-			apiKey:      "flagset1-api-key",
+			requestBody: mockConfigFlagsLocation + requestsFilterFlagsJSON,
+			apiKey:      flagset1ApiKey,
 			want: want{
 				statusCode:   http.StatusOK,
 				bodyLocation: mockConfigFlagsLocation + "responses/filter-flags.json",
@@ -165,16 +176,16 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 		},
 		{
 			name:        "Invalid JSON",
-			requestBody: mockConfigFlagsLocation + "requests/invalid-json.json",
-			apiKey:      "flagset1-api-key",
+			requestBody: mockConfigFlagsLocation + requestsInvalidJSONJSON,
+			apiKey:      flagset1ApiKey,
 			want: want{
 				statusCode: http.StatusBadRequest,
 			},
 		},
 		{
 			name:        "API key not linked to a flagset",
-			requestBody: mockConfigFlagsLocation + "requests/empty.json",
-			apiKey:      "invalid-api-key",
+			requestBody: mockConfigFlagsLocation + requestsEmptyJSON,
+			apiKey:      invalidAPIKey,
 			want: want{
 				statusCode: http.StatusBadRequest,
 			},
@@ -197,7 +208,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 						Exporter: &config.ExporterConf{
 							Kind: config.LogExporter,
 						},
-						APIKeys: []string{"flagset1-api-key"},
+						APIKeys: []string{flagset1ApiKey},
 					},
 					{
 						Name: "flagset2",
@@ -220,9 +231,9 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
@@ -230,11 +241,11 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			// Call the handler, with the API key if provided
 			out, err := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 
-			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
+			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == invalidAPIKey {
 				require.Error(t, err, "handler should return an error for invalid API key")
 
 				he := &helper.HTTPError{}
@@ -275,9 +286,9 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 				Name: "flagset1",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + "/configuration_flags.yaml",
+					Path: testdataDir + configurationFlagsYaml,
 				},
-				APIKeys: []string{"flagset1-api-key"},
+				APIKeys: []string{flagset1ApiKey},
 			},
 		},
 	}
@@ -288,7 +299,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 		nil,
 		nil,
 	)
-	require.NoError(t, err, "impossible to create flagset manager")
+	require.NoError(t, err, impossibleToCreateFlagset)
 	t.Cleanup(func() { flagsetManager.Close() })
 
 	tests := []struct {
@@ -301,28 +312,28 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 		{
 			name:           "successful request",
 			flagsetManager: flagsetManager,
-			requestBody:    mockConfigFlagsLocation + "requests/filter-flags.json",
-			apiKey:         "flagset1-api-key",
+			requestBody:    mockConfigFlagsLocation + requestsFilterFlagsJSON,
+			apiKey:         flagset1ApiKey,
 			wantStatusCode: http.StatusOK,
 		},
 		{
 			name:           "invalid request body",
 			flagsetManager: flagsetManager,
-			requestBody:    mockConfigFlagsLocation + "requests/invalid-json.json",
-			apiKey:         "flagset1-api-key",
+			requestBody:    mockConfigFlagsLocation + requestsInvalidJSONJSON,
+			apiKey:         flagset1ApiKey,
 			wantStatusCode: http.StatusBadRequest,
 		},
 		{
 			name:           "API key not linked to a flagset",
 			flagsetManager: flagsetManager,
-			requestBody:    mockConfigFlagsLocation + "requests/empty.json",
-			apiKey:         "invalid-api-key",
+			requestBody:    mockConfigFlagsLocation + requestsEmptyJSON,
+			apiKey:         invalidAPIKey,
 			wantStatusCode: http.StatusBadRequest,
 		},
 		{
 			name:           "flagset manager not initialized",
 			flagsetManager: nil,
-			requestBody:    mockConfigFlagsLocation + "requests/empty.json",
+			requestBody:    mockConfigFlagsLocation + requestsEmptyJSON,
 			wantStatusCode: http.StatusInternalServerError,
 		},
 	}
@@ -338,7 +349,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
 			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 

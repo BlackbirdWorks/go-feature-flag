@@ -26,7 +26,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	abcde                  = "abcde"
+	arnAwsSecretsmanagerUs = "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff"
+	big                    = "big"
+	bigFlag                = "big-flag"
+	createTableSQL         = "CREATE TABLE"
+	countOne               = "count=1"
+	didNotComplete         = "did not complete"
+	jsonParseP             = "JSON_PARSE(:p"
+	secretUser             = "secret-user"
+	unsupportedType        = "unsupported type"
 )
 
 var (
@@ -49,20 +62,20 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
-		DBUser:            "goff_writer",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
+		DBUser:            fixtures.GoffWriter,
 		TableName:         "feature_table",
 		client:            client,
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
-			Kind:         "feature",
-			ContextKind:  "user",
-			UserKey:      "user-key",
+		&exporter.FeatureEvent{
+			Kind:         fixtures.KindFeature,
+			ContextKind:  fixtures.ContextKindUser,
+			UserKey:      fixtures.UserKeyUser,
 			CreationDate: 1617970547,
-			Key:          "flag-key",
-			Variation:    "variation-a",
+			Key:          fixtures.FlagKeyGeneric,
+			Variation:    fixtures.VariationA,
 			Value:        map[string]any{"enabled": true},
 			Default:      false,
 			Version:      "v1",
@@ -71,14 +84,14 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
 	input := client.executed[0]
-	assert.Equal(t, "my-cluster", aws.ToString(input.ClusterIdentifier))
-	assert.Equal(t, "analytics", aws.ToString(input.Database))
-	assert.Equal(t, "goff_writer", aws.ToString(input.DbUser))
+	assert.Equal(t, fixtures.MyCluster, aws.ToString(input.ClusterIdentifier))
+	assert.Equal(t, fixtures.DatabaseAnalytics, aws.ToString(input.Database))
+	assert.Equal(t, fixtures.GoffWriter, aws.ToString(input.DbUser))
 	assert.Nil(t, input.WorkgroupName)
 	assert.Nil(t, input.SecretArn)
 	assert.Equal(t, types.ExecutionModeTransaction, input.ExecutionMode)
@@ -88,11 +101,11 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 			`(:p0, :p1, :p2, 1617970547, :p3, :p4, JSON_PARSE(:p5), FALSE, :p6, '', JSON_PARSE(:p7))`,
 	}, input.Sqls)
 	assert.Equal(t, map[string]string{
-		"p0": "feature",
-		"p1": "user",
-		"p2": "user-key",
-		"p3": "flag-key",
-		"p4": "variation-a",
+		"p0": fixtures.KindFeature,
+		"p1": fixtures.ContextKindUser,
+		"p2": fixtures.UserKeyUser,
+		"p3": fixtures.FlagKeyGeneric,
+		"p4": fixtures.VariationA,
 		"p5": `{"enabled":true}`,
 		"p6": "v1",
 		"p7": `{"provider":"go"}`,
@@ -105,42 +118,42 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
-		WorkgroupName: "my-workgroup",
-		Database:      "analytics",
-		SecretArn:     "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
+		WorkgroupName: fixtures.MyWorkgroup,
+		Database:      fixtures.DatabaseAnalytics,
+		SecretArn:     arnAwsSecretsmanagerUs,
 		client:        client,
 	}
 	events := []exporter.ExportableEvent{
-		exporter.TrackingEvent{
-			Kind:              "tracking",
-			ContextKind:       "user",
-			UserKey:           "user-key",
+		&exporter.TrackingEvent{
+			Kind:              fixtures.KindTracking,
+			ContextKind:       fixtures.ContextKindUser,
+			UserKey:           fixtures.UserKeyUser,
 			CreationDate:      1617970547,
-			Key:               "checkout",
+			Key:               fixtures.TrackingEventKey,
 			TrackingDetails:   map[string]any{"amount": 42},
 			EvaluationContext: map[string]any{"country": "FR"},
 		},
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
 	input := client.executed[0]
 	assert.Nil(t, input.ClusterIdentifier)
 	assert.Nil(t, input.DbUser)
-	assert.Equal(t, "my-workgroup", aws.ToString(input.WorkgroupName))
-	assert.Equal(t, "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff", aws.ToString(input.SecretArn))
+	assert.Equal(t, fixtures.MyWorkgroup, aws.ToString(input.WorkgroupName))
+	assert.Equal(t, arnAwsSecretsmanagerUs, aws.ToString(input.SecretArn))
 	assert.Equal(t, []string{
 		`INSERT INTO "tracking_events" ("kind", "context_kind", "user_key", "creation_date", "key", ` +
 			`"tracking_details", "evaluation_context") VALUES ` +
 			`(:p0, :p1, :p2, 1617970547, :p3, JSON_PARSE(:p4), JSON_PARSE(:p5))`,
 	}, input.Sqls)
 	assert.Equal(t, map[string]string{
-		"p0": "tracking",
-		"p1": "user",
-		"p2": "user-key",
-		"p3": "checkout",
+		"p0": fixtures.KindTracking,
+		"p1": fixtures.ContextKindUser,
+		"p2": fixtures.UserKeyUser,
+		"p3": fixtures.TrackingEventKey,
 		"p4": `{"amount":42}`,
 		"p5": `{"country":"FR"}`,
 	}, paramsMap(input.Parameters))
@@ -150,9 +163,9 @@ func TestExporter_DefaultTableName(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := e.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -165,14 +178,14 @@ func TestExporter_QuotesTableName(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	// "order" is a reserved word, it must be quoted to be used as a table name
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
 		TableName:         "goff.order",
 		AutoMigrate:       true,
 		client:            client,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
@@ -205,13 +218,13 @@ func TestExporter_ValuesAreSentAsParameters(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	malicious := "x'); DROP TABLE feature_flag_evaluations; --"
 	event := newFeatureEvent(0)
 	event.UserKey = malicious
 	event.Key = malicious
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -241,7 +254,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 
 				for i := range 10 {
 					event := newFeatureEvent(i)
-					event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
+					event.Metadata = map[string]any{big: strings.Repeat("a", maxStatementBytes/4)}
 					events = append(events, event)
 				}
 
@@ -256,9 +269,9 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+			e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
-			err := e.Export(context.TODO(), nil, tt.events)
+			err := e.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, len(tt.wantStatements))
@@ -285,7 +298,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 
 				for _, sql := range input.Sqls {
 					assert.LessOrEqual(t, len(sql), maxStatementBytes)
-					rows += strings.Count(sql, "JSON_PARSE(:p") / 2
+					rows += strings.Count(sql, jsonParseP) / 2
 				}
 			}
 
@@ -297,7 +310,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 func TestBuildBatches_LimitsStatementsPerBatch(t *testing.T) {
 	t.Parallel()
 
-	values := []string{"tracking", "", "", "0", "k", "null", "null"}
+	values := []string{fixtures.KindTracking, "", "", "0", "k", "null", "null"}
 
 	rows := make([]row, 0, maxRowsPerStatement*maxStatementsPerBatch+1)
 	for range cap(rows) {
@@ -318,16 +331,16 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	events := make([]exporter.ExportableEvent, 0, 60)
 
 	for i := range 60 {
 		event := newFeatureEvent(i)
-		event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
+		event.Metadata = map[string]any{big: strings.Repeat("a", maxStatementBytes/4)}
 		events = append(events, event)
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Greater(t, len(client.executed), 1)
@@ -340,7 +353,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 		size := 0
 		for _, sql := range input.Sqls {
 			size += len(sql)
-			rows += strings.Count(sql, "JSON_PARSE(:p") / 2
+			rows += strings.Count(sql, jsonParseP) / 2
 		}
 
 		for _, p := range input.Parameters {
@@ -358,7 +371,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	event := newFeatureEvent(0)
 	event.UserKey = strings.Repeat("a", 511) + "é" // 513 bytes, "é" is 2 bytes
 	event.Key = strings.Repeat("k", 300)           // 300 bytes
@@ -366,7 +379,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	event.Version = "v1\xff"                       // invalid UTF-8
 	event.Default = true
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -388,8 +401,8 @@ func TestTruncateUTF8(t *testing.T) {
 		maxBytes int
 	}{
 		{name: "shorter than max", value: "abc", maxBytes: 5, want: "abc"},
-		{name: "exact size", value: "abcde", maxBytes: 5, want: "abcde"},
-		{name: "ascii", value: "abcdef", maxBytes: 5, want: "abcde"},
+		{name: "exact size", value: abcde, maxBytes: 5, want: abcde},
+		{name: "ascii", value: "abcdef", maxBytes: 5, want: abcde},
 		{name: "cut in a 2 bytes rune", value: "abcdé", maxBytes: 5, want: "abcd"},
 		{name: "cut in a 4 bytes rune", value: "a😀", maxBytes: 4, want: "a"},
 		{name: "multibyte runes fit", value: "éé", maxBytes: 4, want: "éé"},
@@ -423,15 +436,15 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			oversize: func(e *exporter.FeatureEvent) {
 				e.Value = strings.Repeat("a", maxSuperBytes)
 			},
-			wantRows: 2, wantSkipped: "count=1",
+			wantRows: 2, wantSkipped: countOne,
 		},
 		{
 			name: "row larger than a statement",
 			oversize: func(e *exporter.FeatureEvent) {
 				e.Value = strings.Repeat("a", 60000)
-				e.Metadata = map[string]any{"big": strings.Repeat("b", 60000)}
+				e.Metadata = map[string]any{big: strings.Repeat("b", 60000)}
 			},
-			wantRows: 2, wantSkipped: "count=1",
+			wantRows: 2, wantSkipped: countOne,
 		},
 	}
 	for _, tt := range tests {
@@ -439,45 +452,54 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+			exp := &Exporter{
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
+				client:            client,
+			}
 
 			var logs bytes.Buffer
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
 			oversized := newFeatureEvent(1)
-			oversized.Key = "big-flag"
-			oversized.UserKey = "secret-user"
-			tt.oversize(&oversized)
+			oversized.Key = bigFlag
+			oversized.UserKey = secretUser
+			tt.oversize(oversized)
 
 			err := exp.Export(context.TODO(), logger,
 				[]exporter.ExportableEvent{newFeatureEvent(0), oversized, newFeatureEvent(2)})
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, 1)
-			assert.Equal(t, tt.wantRows, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
-			assert.NotContains(t, strings.Join(client.executed[0].Sqls, ""), "big-flag")
+			assert.Equal(t, tt.wantRows, strings.Count(client.executed[0].Sqls[0], jsonParseP)/2)
+			assert.NotContains(t, strings.Join(client.executed[0].Sqls, ""), bigFlag)
 
 			for _, p := range client.executed[0].Parameters {
-				assert.NotEqual(t, "big-flag", aws.ToString(p.Value))
+				assert.NotEqual(t, bigFlag, aws.ToString(p.Value))
 			}
 
 			assert.Contains(t, logs.String(), "level=WARN")
 			assert.Contains(t, logs.String(), tt.wantSkipped)
-			assert.Contains(t, logs.String(), "big-flag")
-			assert.NotContains(t, logs.String(), "secret-user")
+			assert.Contains(t, logs.String(), bigFlag)
+			assert.NotContains(t, logs.String(), secretUser)
 		})
 	}
 }
 
-func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
+func TestExporter_SkipsAllRowsWithDiscardingLogger(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", AutoMigrate: true, client: client}
+	exp := &Exporter{
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
+		AutoMigrate:       true,
+		client:            client,
+	}
 	event := newFeatureEvent(0)
 	event.Value = strings.Repeat("a", maxSuperBytes)
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	assert.Empty(t, client.executed)
@@ -486,20 +508,20 @@ func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
 func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	t.Parallel()
 
-	featureEvents := func(bad exporter.FeatureEvent) []exporter.ExportableEvent {
-		bad.Key = "bad-flag"
-		bad.UserKey = "secret-user"
+	featureEvents := func(bad *exporter.FeatureEvent) []exporter.ExportableEvent {
+		bad.Key = fixtures.FlagKeyBad
+		bad.UserKey = secretUser
 
 		return []exporter.ExportableEvent{newFeatureEvent(0), bad, newFeatureEvent(2)}
 	}
-	trackingEvents := func(bad exporter.TrackingEvent) []exporter.ExportableEvent {
-		bad.Key = "bad-flag"
-		bad.UserKey = "secret-user"
+	trackingEvents := func(bad *exporter.TrackingEvent) []exporter.ExportableEvent {
+		bad.Key = fixtures.FlagKeyBad
+		bad.UserKey = secretUser
 
 		return []exporter.ExportableEvent{
-			exporter.TrackingEvent{Key: "checkout"},
+			&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 			bad,
-			exporter.TrackingEvent{Key: "checkout"},
+			&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 		}
 	}
 
@@ -510,27 +532,33 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	}{
 		{
 			name:    "feature value NaN",
-			events:  featureEvents(exporter.FeatureEvent{Value: math.NaN()}),
+			events:  featureEvents(&exporter.FeatureEvent{Value: math.NaN()}),
 			wantErr: "unsupported value: NaN",
 		},
 		{
 			name:    "feature value unsupported type",
-			events:  featureEvents(exporter.FeatureEvent{Value: make(chan int)}),
-			wantErr: "unsupported type",
+			events:  featureEvents(&exporter.FeatureEvent{Value: make(chan int)}),
+			wantErr: unsupportedType,
 		},
 		{
-			name:    "feature metadata unsupported type",
-			events:  featureEvents(exporter.FeatureEvent{Metadata: map[string]any{"bad": make(chan int)}}),
-			wantErr: "unsupported type",
+			name: "feature metadata unsupported type",
+			events: featureEvents(
+				&exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}},
+			),
+			wantErr: unsupportedType,
 		},
 		{
-			name:    "tracking details unsupported type",
-			events:  trackingEvents(exporter.TrackingEvent{TrackingDetails: map[string]any{"bad": make(chan int)}}),
-			wantErr: "unsupported type",
+			name: "tracking details unsupported type",
+			events: trackingEvents(
+				&exporter.TrackingEvent{TrackingDetails: map[string]any{fixtures.BadContent: make(chan int)}},
+			),
+			wantErr: unsupportedType,
 		},
 		{
-			name:    "tracking evaluation context infinity",
-			events:  trackingEvents(exporter.TrackingEvent{EvaluationContext: map[string]any{"bad": math.Inf(1)}}),
+			name: "tracking evaluation context infinity",
+			events: trackingEvents(
+				&exporter.TrackingEvent{EvaluationContext: map[string]any{fixtures.BadContent: math.Inf(1)}},
+			),
 			wantErr: "unsupported value: +Inf",
 		},
 	}
@@ -539,29 +567,33 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+			exp := &Exporter{
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
+				client:            client,
+			}
 
 			var logs bytes.Buffer
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
 
 			err := exp.Export(context.TODO(), logger, tt.events)
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, 1)
 			// the 2 valid events are exported, without the invalid one
-			assert.Equal(t, 2, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
+			assert.Equal(t, 2, strings.Count(client.executed[0].Sqls[0], jsonParseP)/2)
 
 			for _, p := range client.executed[0].Parameters {
-				assert.NotEqual(t, "bad-flag", aws.ToString(p.Value))
+				assert.NotEqual(t, fixtures.FlagKeyBad, aws.ToString(p.Value))
 			}
 
 			assert.Contains(t, logs.String(), "level=WARN")
 			assert.Contains(t, logs.String(), "cannot be converted to JSON")
-			assert.Contains(t, logs.String(), "count=1")
-			assert.Contains(t, logs.String(), "bad-flag")
+			assert.Contains(t, logs.String(), countOne)
+			assert.Contains(t, logs.String(), fixtures.FlagKeyBad)
 			assert.Contains(t, logs.String(), tt.wantErr)
-			assert.NotContains(t, logs.String(), "secret-user")
+			assert.NotContains(t, logs.String(), secretUser)
 		})
 	}
 }
@@ -570,12 +602,17 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", AutoMigrate: true, client: client}
+	exp := &Exporter{
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
+		AutoMigrate:       true,
+		client:            client,
+	}
 
-	err := e.Export(
+	err := exp.Export(
 		context.TODO(),
-		nil,
-		[]exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
+		slog.New(slog.DiscardHandler),
+		[]exporter.ExportableEvent{&exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
 	)
 
 	require.NoError(t, err)
@@ -603,7 +640,9 @@ func TestExporter_AutoMigrate(t *testing.T) {
 		{
 			name:        "tracking table",
 			autoMigrate: true,
-			events:      []exporter.ExportableEvent{exporter.TrackingEvent{Kind: "tracking", Key: "checkout"}},
+			events: []exporter.ExportableEvent{
+				&exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
+			},
 			wantCreate: `CREATE TABLE IF NOT EXISTS "tracking_events" ("kind" VARCHAR(50), ` +
 				`"context_kind" VARCHAR(50), "user_key" VARCHAR(512), "creation_date" BIGINT, "key" VARCHAR(256), ` +
 				`"tracking_details" SUPER, "evaluation_context" SUPER)`,
@@ -620,19 +659,19 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 			client := &mockRedshiftDataClient{}
 			exp := &Exporter{
-				ClusterIdentifier: "my-cluster",
-				Database:          "analytics",
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
 				AutoMigrate:       tt.autoMigrate,
 				client:            client,
 			}
 
-			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
-			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
+			require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
 
 			var creates []string
 
 			for _, input := range client.executed {
-				if strings.HasPrefix(input.Sqls[0], "CREATE TABLE") {
+				if strings.HasPrefix(input.Sqls[0], createTableSQL) {
 					creates = append(creates, input.Sqls...)
 					assert.Nil(t, input.Parameters)
 				}
@@ -657,15 +696,15 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 		executeErrs: []error{errCreateFailed},
 	}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 	}
 	events := []exporter.ExportableEvent{newFeatureEvent(0)}
 
-	require.ErrorContains(t, exp.Export(context.TODO(), nil, events), "create failed")
-	require.NoError(t, exp.Export(context.TODO(), nil, events))
+	require.ErrorContains(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events), "create failed")
+	require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events))
 
 	require.Len(t, client.executed, 3)
 	assert.True(t, strings.HasPrefix(client.executed[1].Sqls[0], "CREATE TABLE IF NOT EXISTS"))
@@ -757,7 +796,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 			name:       "describe errors until the deadline",
 			client:     &mockRedshiftDataClient{describeErr: errThrottled},
 			timeout:    30 * time.Millisecond,
-			wantErr:    []string{"did not complete", "last describe statement error: throttled"},
+			wantErr:    []string{didNotComplete, "last describe statement error: throttled"},
 			wantErrIs:  context.DeadlineExceeded,
 			wantCancel: true,
 		},
@@ -768,7 +807,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				afterCancel: []types.StatusString{types.StatusStringStarted, types.StatusStringAborted},
 			},
 			timeout:    30 * time.Millisecond,
-			wantErr:    []string{"did not complete"},
+			wantErr:    []string{didNotComplete},
 			wantErrIs:  context.DeadlineExceeded,
 			wantCancel: true,
 		},
@@ -779,7 +818,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				longPoll: true,
 			},
 			timeout:    30 * time.Millisecond,
-			wantErr:    []string{"did not complete"},
+			wantErr:    []string{didNotComplete},
 			notWantErr: []string{"last describe statement error"},
 			wantErrIs:  context.DeadlineExceeded,
 			wantCancel: true,
@@ -791,7 +830,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				cancelErr: errCancelDenied,
 			},
 			timeout:    30 * time.Millisecond,
-			wantErr:    []string{"did not complete", "cancel statement: cancel denied"},
+			wantErr:    []string{didNotComplete, "cancel statement: cancel denied"},
 			wantErrIs:  context.DeadlineExceeded,
 			wantCancel: true,
 		},
@@ -812,15 +851,19 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 			t.Parallel()
 
 			exp := &Exporter{
-				ClusterIdentifier: "my-cluster",
-				Database:          "analytics",
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
 				client:            tt.client,
 				pollInterval:      time.Millisecond,
 				statementTimeout:  tt.timeout,
 				cancelTimeout:     20 * time.Millisecond,
 			}
 
-			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+			err := exp.Export(
+				context.TODO(),
+				slog.New(slog.DiscardHandler),
+				[]exporter.ExportableEvent{newFeatureEvent(0)},
+			)
 
 			if len(tt.wantErr) == 0 {
 				require.NoError(t, err)
@@ -861,8 +904,8 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 	// every transaction takes 100ms, the export takes longer than the timeout of a single transaction
 	client := &mockRedshiftDataClient{finishAfter: 100 * time.Millisecond}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 		pollInterval:      time.Millisecond,
@@ -870,11 +913,11 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 		cancelTimeout:     20 * time.Millisecond,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
-	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], "CREATE TABLE"))
+	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], createTableSQL))
 	assert.True(t, strings.HasPrefix(client.executed[1].Sqls[0], "INSERT INTO"))
 	assert.Empty(t, client.cancelled)
 }
@@ -887,20 +930,20 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 		afterCancel: []types.StatusString{types.StatusStringAborted},
 	}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 		pollInterval:      time.Millisecond,
 		statementTimeout:  30 * time.Millisecond,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// the migration has been cancelled, no insert has been sent
 	require.Len(t, client.executed, 1)
-	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], "CREATE TABLE"))
+	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], createTableSQL))
 	assert.Len(t, client.cancelled, 1)
 }
 
@@ -909,8 +952,8 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 
 	client := &mockRedshiftDataClient{statuses: []types.StatusString{types.StatusStringStarted}}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
 		client:            client,
 		pollInterval:      time.Hour,
 		cancelTimeout:     20 * time.Millisecond,
@@ -918,7 +961,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := exp.Export(ctx, nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Len(t, client.cancelled, 1)
@@ -943,7 +986,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			// no database configured: an empty batch must not even validate the config
 			e := &Exporter{client: client}
 
-			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, e.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
 			assert.Len(t, client.executed, tt.wantStatements)
 		})
 	}
@@ -962,40 +1005,49 @@ func TestExporter_ExportErrors(t *testing.T) {
 	}{
 		{
 			name:     "missing database",
-			exporter: &Exporter{ClusterIdentifier: "my-cluster"},
+			exporter: &Exporter{ClusterIdentifier: fixtures.MyCluster},
 			events:   featureEvents,
 			wantErr:  "redshift exporter: Database is required",
 		},
 		{
 			name:     "missing cluster and workgroup",
-			exporter: &Exporter{Database: "analytics"},
+			exporter: &Exporter{Database: fixtures.DatabaseAnalytics},
 			events:   featureEvents,
 			wantErr:  "redshift exporter: one of ClusterIdentifier or WorkgroupName is required",
 		},
 		{
-			name:     "both cluster and workgroup",
-			exporter: &Exporter{Database: "analytics", ClusterIdentifier: "my-cluster", WorkgroupName: "my-workgroup"},
-			events:   featureEvents,
-			wantErr:  "redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive",
+			name: "both cluster and workgroup",
+			exporter: &Exporter{
+				Database:          fixtures.DatabaseAnalytics,
+				ClusterIdentifier: fixtures.MyCluster,
+				WorkgroupName:     fixtures.MyWorkgroup,
+			},
+			events:  featureEvents,
+			wantErr: "redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive",
 		},
 		{
 			name: "invalid table name",
 			exporter: &Exporter{
-				Database: "analytics", ClusterIdentifier: "my-cluster", TableName: "events; DROP TABLE users",
+				Database:          fixtures.DatabaseAnalytics,
+				ClusterIdentifier: fixtures.MyCluster,
+				TableName:         "events; DROP TABLE users",
 			},
 			events:  featureEvents,
 			wantErr: `redshift exporter: invalid table name "events; DROP TABLE users"`,
 		},
 		{
 			name:     "mixed event types",
-			exporter: &Exporter{Database: "analytics", ClusterIdentifier: "my-cluster"},
-			events:   []exporter.ExportableEvent{newFeatureEvent(0), exporter.TrackingEvent{Key: "checkout"}},
-			wantErr:  "redshift exporter received mixed event types",
+			exporter: &Exporter{Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster},
+			events: []exporter.ExportableEvent{
+				newFeatureEvent(0),
+				&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
+			},
+			wantErr: "redshift exporter received mixed event types",
 		},
 		{
 			name: "execute statement error",
 			exporter: &Exporter{
-				Database: "analytics", ClusterIdentifier: "my-cluster",
+				Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster,
 				client: &mockRedshiftDataClient{executeErrs: []error{errAccessDenied}},
 			},
 			events:  featureEvents,
@@ -1010,7 +1062,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 				tt.exporter.client = &mockRedshiftDataClient{}
 			}
 
-			err := tt.exporter.Export(context.TODO(), nil, tt.events)
+			err := tt.exporter.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
@@ -1050,17 +1102,17 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 		statusError: "permission denied",
 	}
 	exp := &Exporter{
-		ClusterIdentifier: "my-cluster",
-		Database:          "analytics",
-		DBUser:            "goff_writer",
-		SecretArn:         "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
+		ClusterIdentifier: fixtures.MyCluster,
+		Database:          fixtures.DatabaseAnalytics,
+		DBUser:            fixtures.GoffWriter,
+		SecretArn:         arnAwsSecretsmanagerUs,
 		client:            client,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "goff_writer")
+	assert.NotContains(t, err.Error(), fixtures.GoffWriter)
 	assert.NotContains(t, err.Error(), "secretsmanager")
 }
 
@@ -1236,7 +1288,7 @@ func (m *mockRedshiftDataClient) CancelStatement(
 	return &redshiftdata.CancelStatementOutput{Status: aws.Bool(true)}, nil
 }
 
-func (m *mockRedshiftDataClient) statementID(n int) *string {
+func (*mockRedshiftDataClient) statementID(n int) *string {
 	return aws.String(fmt.Sprintf("00000000-0000-0000-0000-%012d", n))
 }
 
@@ -1244,7 +1296,7 @@ func (m *mockRedshiftDataClient) lastStatementID() *string {
 	return m.statementID(len(m.executed))
 }
 
-var paramRegex = regexp.MustCompile(`:p[0-9]+`)
+var paramRegex = regexp.MustCompile(`:p\d+`)
 
 func paramsMap(params []types.SqlParameter) map[string]string {
 	res := make(map[string]string, len(params))
@@ -1255,14 +1307,14 @@ func paramsMap(params []types.SqlParameter) map[string]string {
 	return res
 }
 
-func newFeatureEvent(i int) exporter.FeatureEvent {
-	return exporter.FeatureEvent{
-		Kind:         "feature",
-		ContextKind:  "user",
+func newFeatureEvent(i int) *exporter.FeatureEvent {
+	return &exporter.FeatureEvent{
+		Kind:         fixtures.KindFeature,
+		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      fmt.Sprintf("user-%d", i),
 		CreationDate: 1617970547,
-		Key:          "flag-key",
-		Variation:    "variation-a",
+		Key:          fixtures.FlagKeyGeneric,
+		Variation:    fixtures.VariationA,
 		Value:        true,
 		Version:      "v1",
 		Source:       "SERVER",
@@ -1273,7 +1325,7 @@ func newFeatureEvent(i int) exporter.FeatureEvent {
 func newSmallEvents(n int) []exporter.ExportableEvent {
 	events := make([]exporter.ExportableEvent, 0, n)
 	for range n {
-		events = append(events, exporter.TrackingEvent{Key: "k"})
+		events = append(events, &exporter.TrackingEvent{Key: "k"})
 	}
 
 	return events

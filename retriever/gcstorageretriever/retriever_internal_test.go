@@ -9,7 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestRetriever_Retrieve(t *testing.T) {
@@ -18,7 +19,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 	ctx := context.Background()
 
 	bucketFiles := map[string]string{
-		"testdata/flag-config.yaml": "flag-config.yaml",
+		fixtures.FlagConfigYAMLPath: fixtures.FlagConfigFile,
 	}
 
 	bucketName := "flags"
@@ -52,9 +53,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: fixtures.FlagConfigFile,
 			},
-			want: "testdata/flag-config.yaml",
+			want: fixtures.FlagConfigYAMLPath,
 		},
 		{
 			name: "get content from cache",
@@ -64,9 +65,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: fixtures.FlagConfigFile,
 			},
-			want:          "testdata/flag-config.yaml",
+			want:          fixtures.FlagConfigYAMLPath,
 			wantFromCache: true,
 		},
 		{
@@ -75,14 +76,14 @@ func TestRetriever_Retrieve(t *testing.T) {
 				bucket: bucketName,
 				files:  bucketFiles,
 				updatedFiles: map[string]string{
-					"testdata/flag-config-updated.yaml": "flag-config.yaml",
+					"testdata/flag-config-updated.yaml": fixtures.FlagConfigFile,
 				},
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: fixtures.FlagConfigFile,
 			},
-			want:            "testdata/flag-config.yaml",
+			want:            fixtures.FlagConfigYAMLPath,
 			wantWhenUpdated: "testdata/flag-config-updated.yaml",
 			wantUpdated:     true,
 		},
@@ -103,7 +104,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockedStorage := testutils.NewMockedGCS(t)
+			mockedStorage := testhelpers.NewMockedGCS(t)
 			mockedStorage.WithFiles(t, tt.storage.bucket, tt.storage.files)
 
 			retriever := &Retriever{

@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 func sampleText() string {
@@ -56,8 +57,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "gofeatureflag/config-repo",
-				filePath:       "flags/config.goff.yaml",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				filePath:       fixtures.FlagsConfigGoffYAML,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -66,8 +67,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "Success with context",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "gofeatureflag/config-repo",
-				filePath:       "flags/config.goff.yaml",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				filePath:       fixtures.FlagsConfigGoffYAML,
 				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
@@ -77,7 +78,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "HTTP Error",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "gofeatureflag/config-repo",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
 				filePath:       "flags/error",
 			},
 			wantErr: true,
@@ -95,7 +96,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "Error missing file path",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "gofeatureflag/config-repo",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
 				filePath:       "",
 			},
 			wantErr: true,
@@ -104,8 +105,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "Rate limiting",
 			fields: fields{
 				httpClient:     mock.HTTP{RateLimit: true, EndRatelimit: endRatelimit},
-				repositorySlug: "gofeatureflag/config-repo",
-				filePath:       "flags/config.goff.yaml",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				filePath:       fixtures.FlagsConfigGoffYAML,
 			},
 			wantErr: true,
 			errMsg: "request to https://api.bitbucket.org/2.0/repositories/gofeatureflag/config-repo/src/main/flags/config" +
@@ -121,8 +122,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			name: "Use Bitbucket token",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "gofeatureflag/config-repo",
-				filePath:       "flags/config.goff.yaml",
+				repositorySlug: fixtures.RepoGoFeatureFlagConfig,
+				filePath:       fixtures.FlagsConfigGoffYAML,
 				bitbucketToken: "XXX_BITBUCKET_TOKEN",
 			},
 			want:    []byte(sampleText()),
