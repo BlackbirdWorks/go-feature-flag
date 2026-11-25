@@ -17,6 +17,7 @@ func BenchmarkBuildHash(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				_ = utils.BuildHash("my-flag", tt.key, 100000)
 			}

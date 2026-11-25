@@ -75,10 +75,12 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
 	}
 	proxyConf.ForceReloadAPIKeys()
+
 	log := newTestLogger(t)
 
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(wsService.Close)
+
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
 	realManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, sseService, wsService)
@@ -95,7 +97,9 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		Metrics: metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
+
 	t.Cleanup(func() { srv.Stop(context.Background()) })
+
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
@@ -115,6 +119,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		{name: "websocket", method: http.MethodGet, path: "/stream/v1/ws/flag/change", keyInQuery: true},
 		{name: "sse", method: http.MethodGet, path: "/stream/v1/sse/flag/change", keyInQuery: true},
 	}
+
 	keys := []struct {
 		name string
 		key  string
@@ -127,6 +132,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		for _, keyCase := range keys {
 			t.Run(endpoint.name+" with "+keyCase.name, func(t *testing.T) {
 				t.Parallel()
+
 				if endpoint.keyInQuery && keyCase.want == http.StatusOK {
 					t.Skip("a stream stays open when the key is accepted")
 				}
@@ -135,6 +141,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				if endpoint.keyInQuery {
 					target += "?apiKey=" + url.QueryEscape(keyCase.key)
 				}
+
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(),
 					endpoint.method,
@@ -143,12 +150,16 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				)
 				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
+
 				if !endpoint.keyInQuery {
 					req.Header.Set("X-Api-Key", keyCase.key)
 				}
+
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
 				require.NoError(t, requestWithContextErr)
+
 				defer func() { _ = resp.Body.Close() }()
+
 				body, requestWithContextErr := io.ReadAll(resp.Body)
 				require.NoError(t, requestWithContextErr)
 
@@ -191,6 +202,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
+
 	log := newTestLogger(t)
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
@@ -202,7 +214,9 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		Metrics:           metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
+
 	t.Cleanup(func() { srv.Stop(context.Background()) })
+
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
@@ -214,22 +228,29 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		"new-key":      {http.StatusOK, http.StatusUnauthorized},
 	}
 	done := make(chan struct{})
-	var unexpected, requests atomic.Int64
-	var wg, firstRequests sync.WaitGroup
+
+	var (
+		unexpected, requests atomic.Int64
+		wg, firstRequests    sync.WaitGroup
+	)
 	firstRequests.Add(len(wantStatuses))
+
 	for key, want := range wantStatuses {
 		wg.Go(func() {
 			client := &http.Client{}
+
 			var once sync.Once
 			// the reloads start once every worker is sending requests (or gave up)
 			signalFirst := func() { once.Do(firstRequests.Done) }
 			defer signalFirst()
+
 			for {
 				select {
 				case <-done:
 					return
 				default:
 				}
+
 				req, requestErr := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
 					strings.NewReader(`{"context":{"targetingKey":"user-1"}}`))
 				if requestErr != nil {
@@ -237,37 +258,47 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 
 					return
 				}
+
 				req.Header.Set("X-Api-Key", key)
 				req.Header.Set("Content-Type", "application/json")
+
 				resp, requestErr := client.Do(req)
 				if requestErr != nil {
 					unexpected.Add(1)
 
 					return
 				}
+
 				_, _ = io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
+
 				requests.Add(1)
 				signalFirst()
+
 				if !slices.Contains(want, resp.StatusCode) {
 					unexpected.Add(1)
 				}
 			}
 		})
 	}
+
 	firstRequests.Wait()
+
 	for i := range 301 {
 		// Every reload overlaps requests: wait for one that completes after it started.
 		completedBefore := requests.Load()
+
 		if i%2 == 0 {
 			manager.OnConfigChange(&config.Config{FlagSets: stateTwo()})
 		} else {
 			manager.OnConfigChange(&config.Config{FlagSets: stateOne()})
 		}
+
 		for requests.Load() == completedBefore && unexpected.Load() == 0 {
 			runtime.Gosched()
 		}
 	}
+
 	close(done)
 	wg.Wait()
 
@@ -279,6 +310,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	_, errOld := manager.FlagSet("old-key")
 	_, errNew := manager.FlagSet("new-key")
 	nameRotating, errRotating := manager.FlagSetName("rotating-key")
+
 	assert.Error(t, errOld) //nolint:testifylint // assert on purpose: the three results are checked together
 	assert.NoError(t, errNew)
 	assert.NoError(t, errRotating)

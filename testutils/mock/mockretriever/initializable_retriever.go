@@ -35,6 +35,7 @@ func (m *InitializableRetriever) Retrieve(_ context.Context) ([]byte, error) {
 
 func (m *InitializableRetriever) Init(_ context.Context, logger *fflog.FFLogger) error {
 	m.InitCalled = true
+
 	m.ReceivedLogger = logger
 	if m.InitShouldFail {
 		return errInitializationFailed

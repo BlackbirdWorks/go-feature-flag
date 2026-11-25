@@ -23,6 +23,7 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 	dir := b.TempDir()
 	path := filepath.Join(dir, "flags.yaml")
 	require.NoError(b, os.WriteFile(path, []byte(yaml), 0o600))
+
 	cfg := ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
@@ -34,6 +35,7 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 			Exporter:         loadtest.NewExporter(loadtest.ExporterDiscard),
 		}
 	}
+
 	c, err := ffclient.New(cfg)
 	require.NoError(b, err)
 
@@ -66,6 +68,7 @@ func benchContext(i int) ffcontext.Context {
 
 func evalOne(client *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Context) error {
 	var err error
+
 	switch typ {
 	case "string":
 		_, err = client.StringVariation(key, ctx, "x")
@@ -81,6 +84,7 @@ func evalOne(client *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Cont
 // BenchmarkScenarios evaluates every scenario/type with event tracking OFF and ON, sequentially.
 func BenchmarkScenarios(b *testing.B) {
 	client := getScenarioClient(b)
+
 	for _, scenario := range loadtest.Scenarios() {
 		for _, typ := range loadtest.Types() {
 			for _, track := range []bool{false, true} {
@@ -89,10 +93,12 @@ func BenchmarkScenarios(b *testing.B) {
 				if typ != "bool" && scenario != "norule" && scenario != "rule" {
 					continue
 				}
+
 				key := loadtest.FlagKey(scenario, typ, track)
 				name := fmt.Sprintf("%s/%s/track=%t", scenario, typ, track)
 				b.Run(name, func(b *testing.B) {
 					b.ReportAllocs()
+
 					for i := range b.N {
 						require.NoError(b, evalOne(client, key, typ, benchContext(i)))
 					}
@@ -105,6 +111,7 @@ func BenchmarkScenarios(b *testing.B) {
 // BenchmarkScenariosParallel is the same matrix as BenchmarkScenarios using all cores.
 func BenchmarkScenariosParallel(b *testing.B) {
 	client := getScenarioClient(b)
+
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
 			key := loadtest.FlagKey(sc, "bool", track)
@@ -114,6 +121,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 					i := 0
 					for pb.Next() {
 						i++
+
 						err := evalOne(client, key, "bool", benchContext(i))
 						if err != nil {
 							assert.NoError(b, err)
@@ -133,6 +141,7 @@ func BenchmarkAllFlagsState(b *testing.B) {
 		client := newBenchClient(b, loadtest.ManyFlagsYAML(numFlags), false)
 		b.Run(fmt.Sprintf("flags=%d", numFlags), func(b *testing.B) {
 			b.ReportAllocs()
+
 			for i := range b.N {
 				s := client.AllFlagsState(benchContext(i))
 				require.Len(b, s.GetFlags(), numFlags, "expected %d flags", numFlags)
@@ -157,12 +166,14 @@ func BenchmarkAllFlagsState(b *testing.B) {
 func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 	client := getScenarioClient(b)
 	ctx := benchContext(5)
+
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
 			key := loadtest.FlagKey(sc, "bool", track)
 			name := fmt.Sprintf("%s/track=%t", sc, track)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
+
 				for range b.N {
 					require.NoError(b, evalOne(client, key, "bool", ctx))
 				}

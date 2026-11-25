@@ -37,6 +37,7 @@ func (o *Output) Add(line string, level Level) Output {
 func (o *Output) PrintLines(cmd *cobra.Command) {
 	for _, line := range o.Lines {
 		var outputText string
+
 		writer := cmd.OutOrStdout()
 
 		switch line.Level {
@@ -50,6 +51,7 @@ func (o *Output) PrintLines(cmd *cobra.Command) {
 		default:
 			outputText = pterm.Sprint(line.Text)
 		}
+
 		_, err := fmt.Fprintln(writer, outputText)
 		if err != nil {
 			PrintFatalAndExit(err)

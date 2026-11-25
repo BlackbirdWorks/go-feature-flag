@@ -100,8 +100,11 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var got map[string]any
-			var err error
+			var (
+				got map[string]any
+				err error
+			)
+
 			require.NotPanics(t, func() { got, err = loadArrayEnv(tt.key, "v", tt.config) })
 
 			if tt.wantErr {
@@ -110,6 +113,7 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})

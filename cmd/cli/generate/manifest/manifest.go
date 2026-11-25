@@ -29,6 +29,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 	if flagManifestDestination == "" {
 		return Manifest{}, errFlagManifestDestinationIs
 	}
+
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,
 		configFormat,
@@ -49,10 +50,12 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 // Generate the manifest file.
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
+
 	flags := make(map[string]flag.InternalFlag)
 	for k, v := range m.dtos {
 		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
 	}
+
 	output := helper.Output{}
 
 	definitions, err := manifest.GenerateDefinitionFromInternalFlags(
@@ -60,6 +63,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	for _, rec := range captured {
 		output.Add(rec.message, slogLevelToOutputLevel(rec.level))
 	}
+
 	if err != nil {
 		//nolint:wrapcheck // CLI manifest preserves definition generation error
 		return output, err
@@ -68,6 +72,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	manifest := model.FlagManifest{
 		Flags: definitions,
 	}
+
 	definitionsJSON, err := m.toJSON(manifest)
 	if err != nil {
 		return output, err

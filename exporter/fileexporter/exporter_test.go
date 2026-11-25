@@ -79,6 +79,7 @@ func runFileExportTests(t *testing.T, tests []fileExportCase) {
 				CsvTemplate:             tt.fields.CsvTemplate,
 				ParquetCompressionCodec: tt.fields.ParquetCompressionCodec,
 			}
+
 			err := fileExp.Export(context.Background(), tt.args.logger, tt.args.events)
 			if tt.wantErr {
 				assert.Error(t, err, "export method should error")
@@ -602,6 +603,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 				if runtime.GOOS == "windows" {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
+
 				err := os.MkdirAll(fields.OutputDir, 0755)
 				require.NoError(t, err)
 				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
@@ -609,6 +611,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
+
 				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -652,6 +655,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
+
 				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -702,14 +706,19 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 // FeatureEvent records it contains.
 func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureEvent {
 	t.Helper()
+
 	fr, err := local.NewLocalFileReader(filePath)
 	require.NoError(t, err)
+
 	defer fr.Close()
-	pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+
+	parquetReader, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 	require.NoError(t, err)
-	defer pr.ReadStop()
-	gotFeatureEvents := make([]exporter.FeatureEvent, pr.GetNumRows())
-	err = pr.Read(&gotFeatureEvents)
+
+	defer parquetReader.ReadStop()
+
+	gotFeatureEvents := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
+	err = parquetReader.Read(&gotFeatureEvents)
 	assert.NoError(t, err)
 
 	return gotFeatureEvents
@@ -719,14 +728,19 @@ func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureE
 // TrackingEvent records it contains.
 func readParquetTrackingEvents(t *testing.T, filePath string) []exporter.TrackingEvent {
 	t.Helper()
+
 	fr, err := local.NewLocalFileReader(filePath)
 	require.NoError(t, err)
+
 	defer fr.Close()
-	pr, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
+
+	parquetReader, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
 	require.NoError(t, err)
-	defer pr.ReadStop()
-	gotTrackingEvents := make([]exporter.TrackingEvent, pr.GetNumRows())
-	err = pr.Read(&gotTrackingEvents)
+
+	defer parquetReader.ReadStop()
+
+	gotTrackingEvents := make([]exporter.TrackingEvent, parquetReader.GetNumRows())
+	err = parquetReader.Read(&gotTrackingEvents)
 	assert.NoError(t, err)
 
 	return gotTrackingEvents
@@ -743,12 +757,14 @@ func assertExportOutput(
 	expectedTrackingEvents []exporter.TrackingEvent,
 ) {
 	t.Helper()
+
 	if format == "parquet" {
 		if eventType == "tracking" {
 			assert.ElementsMatch(t, expectedTrackingEvents, readParquetTrackingEvents(t, filePath))
 
 			return
 		}
+
 		assert.ElementsMatch(t, expectedFeatureEvents, readParquetFeatureEvents(t, filePath))
 
 		return
@@ -793,6 +809,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	require.NoError(t, err)
 
 	countFileWithPrefix := 0
+
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), filePrefix) {
 			countFileWithPrefix++
@@ -800,5 +817,6 @@ func TestExportWithoutOutputDir(t *testing.T) {
 			require.NoError(t, removeErr)
 		}
 	}
+
 	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")
 }

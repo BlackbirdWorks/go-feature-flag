@@ -63,6 +63,7 @@ func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	rightVal, ok := right.([]float64)
 	if !ok {
 		return false, newInvalidOperandError(right, rightVal)
@@ -81,10 +82,12 @@ func (o *FloatOperation) get(left Operand, right Operand) (float64, float64, err
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}
+
 	leftVal, err := toFloat(left)
 	if err != nil {
 		return 0, 0, err
 	}
+
 	rightVal, err := toFloat(right)
 
 	return leftVal, rightVal, err

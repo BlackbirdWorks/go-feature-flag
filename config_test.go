@@ -116,6 +116,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 		Retriever       retriever.Retriever
 		PollingInterval time.Duration
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -200,6 +201,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 			}
 			got, err := c.GetRetrievers()
 			assert.Equal(t, tt.wantErr, err != nil)
+
 			if err == nil {
 				assert.Equal(t, tt.want, reflect.ValueOf(got[0]).Type().String())
 			}
@@ -225,6 +227,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		DataExporters []ffClient.DataExporter
 		DataExporter  ffClient.DataExporter
 	}
+
 	tests := []struct {
 		name   string
 		want   []ffClient.DataExporter
@@ -328,6 +331,7 @@ func TestNewWithContext(t *testing.T) {
 	t.Parallel()
 
 	const key = contextKey("trace-id")
+
 	tests := []struct {
 		wantInitVal     any
 		wantRetrieveVal any
@@ -356,6 +360,7 @@ func TestNewWithContext(t *testing.T) {
 			t.Parallel()
 
 			rec := &contextRecordingRetriever{key: key}
+
 			var initCtx, closeCtx context.Context
 			if !tt.nilCtx {
 				initCtx = context.WithValue(t.Context(), key, tt.initVal)

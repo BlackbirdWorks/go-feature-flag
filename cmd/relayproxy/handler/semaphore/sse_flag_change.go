@@ -32,6 +32,7 @@ func NewSSEFlagChange(
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
 func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	apiKey := r.URL.Query().Get("apiKey")
+
 	flagsetName, err := helper.RequestFlagSetName(r.Context(), h.flagsetManager, apiKey)
 	if err != nil {
 		return helper.NewHTTPError(http.StatusBadRequest, err.Error())

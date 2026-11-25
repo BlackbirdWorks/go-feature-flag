@@ -17,12 +17,15 @@ func CORS() Func {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			hdr := w.Header()
 			hdr.Add("Vary", "Origin")
+
 			if r.Header.Get("Origin") == "" {
 				next.ServeHTTP(w, r)
 
 				return
 			}
+
 			hdr.Set("Access-Control-Allow-Origin", "*")
+
 			if r.Method != http.MethodOptions || r.Header.Get("Access-Control-Request-Method") == "" {
 				next.ServeHTTP(w, r)
 
@@ -32,9 +35,11 @@ func CORS() Func {
 			hdr.Add("Vary", "Access-Control-Request-Method")
 			hdr.Add("Vary", "Access-Control-Request-Headers")
 			hdr.Set("Access-Control-Allow-Methods", allowMethods)
+
 			if requested := r.Header.Get("Access-Control-Request-Headers"); requested != "" {
 				hdr.Set("Access-Control-Allow-Headers", requested)
 			}
+
 			w.WriteHeader(http.StatusNoContent)
 		})
 	}

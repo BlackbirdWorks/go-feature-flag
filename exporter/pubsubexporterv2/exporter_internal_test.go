@@ -47,6 +47,7 @@ func TestExporter_Export(t *testing.T) {
 		options               []option.ClientOption
 		enableMessageOrdering bool
 	}
+
 	tests := []struct {
 		name    string
 		events  []exporter.ExportableEvent
@@ -204,6 +205,7 @@ func TestExporter_Export(t *testing.T) {
 			t.Parallel()
 
 			server, client := newTestClient(ctx, t, projectID, topic)
+
 			newClientFunc := func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
 				return client, nil
 			}
@@ -249,17 +251,20 @@ func assertMessages(
 	messages []*pstest.Message,
 ) {
 	t.Helper()
+
 	events := make([]exporter.FeatureEvent, len(messages))
 	for i, message := range messages {
 		assert.Equal(t, map[string]string{"emitter": "GO Feature Flag"}, message.Attributes,
 			"message should have associated emitter attribute")
 
 		var event exporter.FeatureEvent
+
 		err := json.Unmarshal(message.Data, &event)
 		require.NoError(t, err)
 
 		events[i] = event
 	}
+
 	assert.ElementsMatchf(t, expectedEvents, events, "events should match in any order")
 }
 
@@ -269,6 +274,7 @@ func assertPublisherSettings(
 	publisher *pubsub.Publisher,
 ) {
 	t.Helper()
+
 	if expectedSettings != nil {
 		assert.Equal(t, *expectedSettings, publisher.PublishSettings)
 	} else {
@@ -288,6 +294,7 @@ func newTestClient(
 	t.Helper()
 
 	server := pstest.NewServer()
+
 	t.Cleanup(func() { server.Close() })
 
 	conn, err := grpc.NewClient(

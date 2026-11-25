@@ -41,10 +41,12 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
 	}
 	proxyConf.ForceReloadAPIKeys()
+
 	log := newTestLogger(t)
 
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(wsService.Close)
+
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, sseService, wsService)
@@ -59,11 +61,14 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		Metrics:           metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
+
 	t.Cleanup(func() { srv.Stop(context.Background()) })
+
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
 	const evalBody = `{"context":{"targetingKey":"user-1"}}`
+
 	endpoints := []struct {
 		name   string
 		method string
@@ -103,6 +108,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		for _, keyCase := range keys {
 			t.Run(endpoint.name+" with "+keyCase.name+" key", func(t *testing.T) {
 				t.Parallel()
+
 				if endpoint.keyInQuery && keyCase.skipStreams {
 					t.Skip("a stream stays open when the key is accepted")
 				}
@@ -111,16 +117,21 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 				if endpoint.keyInQuery {
 					target += "?apiKey=" + url.QueryEscape(keyCase.key)
 				}
+
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(), endpoint.method, target, strings.NewReader(endpoint.body))
 				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
+
 				if !endpoint.keyInQuery {
 					req.Header.Set("X-Api-Key", keyCase.key)
 				}
+
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
 				require.NoError(t, requestWithContextErr)
+
 				defer func() { _ = resp.Body.Close() }()
+
 				body, requestWithContextErr := io.ReadAll(resp.Body)
 				require.NoError(t, requestWithContextErr)
 

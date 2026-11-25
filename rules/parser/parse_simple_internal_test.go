@@ -59,6 +59,7 @@ func runVersionTests(t *testing.T, tests []testCase) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
 			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)

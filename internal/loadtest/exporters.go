@@ -76,6 +76,7 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 			return ctx.Err()
 		}
 	}
+
 	e.Batches.Add(1)
 	e.Events.Add(int64(len(events)))
 

@@ -14,6 +14,7 @@ func TestHash(t *testing.T) {
 	type args struct {
 		s string
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -42,6 +43,7 @@ func TestBuildHash(t *testing.T) {
 		bucketingKey  string
 		maxPercentage uint32
 	}
+
 	tests := []struct {
 		name string
 		args args

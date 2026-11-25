@@ -24,12 +24,14 @@ func TestSlackNotifier_Notify(t *testing.T) {
 		statusCode int
 		forceError bool
 	}
+
 	type expected struct {
 		errMsg    string
 		bodyPath  string
 		signature string
 		err       bool
 	}
+
 	tests := []struct {
 		name     string
 		expected expected
@@ -216,6 +218,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 				assert.ErrorContains(t, err, tt.expected.errMsg)
 			} else {
 				require.NoError(t, err)
+
 				hostname, _ := os.Hostname()
 				content, _ := os.ReadFile(tt.expected.bodyPath)
 				expectedContent := strings.ReplaceAll(string(content), "{{hostname}}", hostname)

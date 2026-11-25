@@ -110,6 +110,7 @@ func (f FeatureEvent) GetCreationDate() int64 {
 
 func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
+
 	err := csvTemplate.Execute(&buf, struct {
 		FeatureEvent
 
@@ -130,6 +131,7 @@ func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event JSON: %w", err)
 	}
+
 	b = append(b, []byte("\n")...)
 
 	return b, nil
@@ -140,6 +142,7 @@ func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
 		return "", errNoValueToConvert
 	}
+
 	b, err := json.Marshal(f.Value)
 	if err != nil {
 		return "", fmt.Errorf("marshal feature event value for parquet: %w", err)

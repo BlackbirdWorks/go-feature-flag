@@ -92,10 +92,12 @@ type appMockHTTP struct {
 func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.recordedReqs = append(m.recordedReqs, req)
 
 	if strings.HasSuffix(req.URL.Path, "/access_tokens") {
 		m.tokenCalls++
+
 		body := m.tokenBody
 		if body == nil {
 			body = tokenResponse(
@@ -111,9 +113,11 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 	if m.first401ThenOK && m.contentsCalls == 1 {
 		return newResponse(http.StatusUnauthorized, nil), nil
 	}
+
 	if m.first401ThenOK && m.retryErr != nil {
 		return nil, m.retryErr
 	}
+
 	resp := newResponse(http.StatusOK, []byte(flagBody))
 	resp.Header.Set("X-Ratelimit-Remaining", "4999")
 	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(clocktest.Instant().Add(time.Hour).Unix(), 10))
@@ -132,8 +136,10 @@ func newResponse(status int, body []byte) *http.Response {
 // generateTestKey generates a throwaway RSA key for tests and returns it with its PEM encoding.
 func generateTestKey(t *testing.T) (*rsa.PrivateKey, string) {
 	t.Helper()
+
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
+
 	pemBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
@@ -160,8 +166,10 @@ func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retrieve
 // RS256 signature from the app key, iss = app ID, iat backdated ~60s, exp within 10 minutes.
 func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 	t.Helper()
+
 	jwt, ok := strings.CutPrefix(authorization, "Bearer ")
 	require.True(t, ok, "access_tokens must be called with a Bearer JWT")
+
 	parts := strings.Split(jwt, ".")
 	require.Len(t, parts, 3)
 
@@ -171,12 +179,15 @@ func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	require.NoError(t, err)
+
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
 	require.NoError(t, rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig), "JWT signature must verify")
 
 	var claims struct{ Iss, Iat, Exp int64 }
 	decodeJWTPart(t, parts[1], &claims)
+
 	now := clocktest.Instant().Unix()
+
 	assert.Equal(t, testAppID, claims.Iss)
 	assert.InDelta(t, now-60, claims.Iat, 5, "iat should be backdated ~60s")
 	assert.Greater(t, claims.Exp, now)
@@ -185,6 +196,7 @@ func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 
 func decodeJWTPart(t *testing.T, part string, v any) {
 	t.Helper()
+
 	b, err := base64.RawURLEncoding.DecodeString(part)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(b, v))
@@ -318,7 +330,9 @@ func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
 	r := newAppRetriever(pemStr, mock)
 
 	const workers = 10
+
 	var wg sync.WaitGroup
+
 	errs := make(chan error, workers)
 	for range workers {
 		wg.Go(func() {
@@ -326,12 +340,14 @@ func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
 			errs <- err
 		})
 	}
+
 	wg.Wait()
 	close(errs)
 
 	for err := range errs {
 		require.NoError(t, err)
 	}
+
 	assert.Equal(t, 1, mock.tokenCalls, "installation token should be minted only once")
 	assert.Equal(t, workers, mock.contentsCalls)
 }
@@ -405,6 +421,7 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 			wantErr: "failed to read private key file",
 		},
 	}
+
 	_, pemStr := generateTestKey(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -426,6 +443,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 	t.Parallel()
 
 	_, pemStr := generateTestKey(t)
+
 	tests := []struct {
 		name      string
 		retriever *githubretriever.Retriever
@@ -493,6 +511,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, retriever.RetrieverReady, r.Status())
 

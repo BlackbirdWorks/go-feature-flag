@@ -17,6 +17,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 	if g == nil {
 		return flagstate.AllFlags{}
 	}
+
 	if g.config.Offline {
 		return flagstate.NewAllFlags()
 	}
@@ -31,12 +32,14 @@ func (g *GoFeatureFlag) GetFlagStates(
 	// Evaluate only the flags in flagsToEvaluate
 	if len(flagsToEvaluate) != 0 {
 		flagStates := flagstate.NewAllFlags()
+
 		for _, key := range flagsToEvaluate {
 			currentFlag, err := g.retrieverManager.GetFlag(key)
 			if err != nil {
 				// We ignore flags in error
 				continue
 			}
+
 			flagStates.AddFlag(
 				key,
 				flagstate.FromFlagEvaluation(key, evaluationCtx, flagCtx, currentFlag),
@@ -52,6 +55,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 	if err != nil {
 		return flagstate.AllFlags{}
 	}
+
 	allFlags := flagstate.NewAllFlags()
 	for key, currentFlag := range flags {
 		allFlags.AddFlag(

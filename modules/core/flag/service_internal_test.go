@@ -18,6 +18,7 @@ import (
 
 func countEntries(entries *sync.Map) int {
 	count := 0
+
 	entries.Range(func(_, _ any) bool {
 		count++
 
@@ -54,6 +55,7 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			first, other := NewService(), NewService()
 			flg := newFlagWithQueries(tt.query)
 			require.NoError(t, flg.IsValid(first))
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "pro").Build()
 			_, err := (*flg.Rules)[0].Evaluate(first, "user", ctx, "flag", false)
 			require.NoError(t, err)
@@ -100,6 +102,7 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
 			flg := &InternalFlag{
 				Variations:      &map[string]*any{"on": new(any(true))},
@@ -121,6 +124,7 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 			// another Service has its own warn-once state
 			other := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
 			_, _ = flg.Value("flag", ctx, Context{Service: other})
+
 			assert.Equal(t, 2*tt.wantWarnings, strings.Count(buf.String(), "legacy name"))
 		})
 	}
@@ -142,10 +146,12 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			opt := WithLogger(slog.New(slog.NewTextHandler(&buf, nil)))
 			if tt.logger != nil {
 				opt = WithLogger(tt.logger)
 			}
+
 			svc := NewService(opt)
 			// a nikunjy query that does not parse is logged by the evaluation
 			r := Rule{Query: new(`plan eq`), VariationResult: new("on")}
@@ -161,6 +167,7 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 	t.Parallel()
 
 	const query = `plan eq "kept-after-close"`
+
 	tests := []struct {
 		// cleanup runs the cleanup of the rule list validated before the reset, for the epoch given.
 		cleanup func(c *nikunjyEvaluatorCache, epoch uint64)
@@ -182,6 +189,7 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 			wantAfterEarlierEpoch: 1, wantAfterCurrentEpoch: 0,
 			cleanup: func(evalCache *nikunjyEvaluatorCache, epoch uint64) {
 				var keys []uint64
+
 				evalCache.byKey.Range(func(k, _ any) bool {
 					if key, ok := k.(uint64); ok {
 						keys = append(keys, key)
@@ -204,6 +212,7 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 			first := newFlagWithQueries(query)
 			require.NoError(t, first.IsValid(svc))
 			svc.Close()
+
 			rebuilt := newFlagWithQueries(query)
 			require.NoError(t, rebuilt.IsValid(svc))
 			require.Equal(t, 1, tt.count(evalCache), "the rebuilt rule list is cached")
@@ -245,6 +254,7 @@ func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
 			start, end := clocktest.Instant().Add(-time.Hour), clocktest.Instant().Add(time.Hour)
 			flg := &InternalFlag{

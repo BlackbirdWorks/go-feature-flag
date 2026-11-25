@@ -99,6 +99,7 @@ func NewConfigLoader(
 	for _, opt := range opts {
 		opt(&configLoader)
 	}
+
 	if configLoader.warner == nil {
 		configLoader.warner = legacy.NewWarner(func(kind, message string) {
 			log.LogAttrs(context.Background(), slog.LevelWarn, message, slog.String("legacyName", kind))
@@ -126,16 +127,19 @@ func NewConfigLoader(
 func (c *Loader) AddConfigChangeCallback(callback func(newConfig *Config)) {
 	c.callbacksMutex.Lock()
 	defer c.callbacksMutex.Unlock()
+
 	c.callbacks = append(c.callbacks, callback)
 }
 
 // ToConfig returns the configuration.
 func (c *Loader) ToConfig() (*Config, error) {
 	proxyConf := &Config{}
+
 	errUnmarshal := c.k.Unmarshal("", proxyConf)
 	if errUnmarshal != nil {
 		return nil, fmt.Errorf("unmarshal config: %w", errUnmarshal)
 	}
+
 	switch {
 	case len(proxyConf.FlagSets) > 0:
 		// IsValid rejects local flagSets when studio is also set
@@ -146,6 +150,7 @@ func (c *Loader) ToConfig() (*Config, error) {
 	default:
 		proxyConf.flagSetMode = flagSetModeNone
 	}
+
 	processExporters(proxyConf)
 
 	return proxyConf, nil
@@ -168,6 +173,7 @@ func (c *Loader) StopWatchChanges() error {
 	if c.fileProvider != nil {
 		errs = append(errs, c.fileProvider.Unwatch())
 	}
+
 	if c.studioProvider != nil {
 		errs = append(errs, c.studioProvider.Unwatch())
 	}
@@ -241,6 +247,7 @@ func (c *Loader) startWatchChanges() {
 			)
 		}
 	}
+
 	if c.studioProvider != nil {
 		errWatch := c.studioProvider.Watch(onChange)
 		if errWatch != nil {
@@ -305,9 +312,11 @@ func (c *Loader) reloadConfigAndNotify() {
 		studioParser:   c.studioParser,
 	}
 	newConfig.loadConfig()
+
 	if newConfig.studioLoadErr != nil {
 		return
 	}
+
 	modifiedConfig, err := newConfig.ToConfig()
 	if err != nil {
 		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading new config", cmdlog.Err(err))
@@ -317,6 +326,7 @@ func (c *Loader) reloadConfigAndNotify() {
 
 	c.callbacksMutex.RLock()
 	defer c.callbacksMutex.RUnlock()
+
 	for _, callback := range c.callbacks {
 		callback(modifiedConfig)
 	}
@@ -325,6 +335,7 @@ func (c *Loader) reloadConfigAndNotify() {
 // loadPosflag loads the flags from the command line.
 func (c *Loader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 	posflagProvider := posflag.Provider(cmdLineFlagSet, ".", c.k)
+
 	errBindFlag := c.k.Load(posflagProvider, nil)
 	if errBindFlag != nil {
 		c.log.LogAttrs(
@@ -357,6 +368,7 @@ func (c *Loader) loadConfigFile() {
 
 	parser := selectParserForFile(c.configFilePath)
 	c.fileProvider = file.Provider(c.configFilePath)
+
 	errBindFile := c.k.Load(c.fileProvider, parser)
 	if errBindFile != nil {
 		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading file", cmdlog.Err(errBindFile))
@@ -375,6 +387,7 @@ func (c *Loader) loadEnvVariables() {
 			"envVariablePrefix %q is a legacy GO Feature Flag prefix, it still works, "+
 				"%s is the Semaphore prefix and is always accepted", prefix, EnvVariablePrefix))
 	}
+
 	_ = c.k.Load(c.mapEnvVariablesProvider(prefix, c.log), nil)
 	if prefix != EnvVariablePrefix {
 		_ = c.k.Load(c.mapEnvVariablesProvider(EnvVariablePrefix, c.log), nil)
@@ -394,21 +407,26 @@ func (c *Loader) loadStudioFlagSets() {
 		if err != nil || conf.Studio.URL == "" {
 			return
 		}
+
 		c.studioParser = conf.Studio.parser()
 		c.studioProvider = conf.Studio.provider(c.studioParser, c.log)
 	}
 
 	studio := koanf.New(".")
+
 	var studioConf struct {
 		FlagSets []FlagSet `koanf:"flagsets"`
 	}
+
 	err := studio.Load(c.studioProvider, c.studioParser)
 	if err == nil {
 		err = studio.Unmarshal("", &studioConf)
 	}
+
 	if err == nil {
 		err = (&Config{FlagSets: studioConf.FlagSets}).validateFlagSets()
 	}
+
 	if err != nil {
 		// Polling may already have accepted this document. Retry it even if its
 		// ETag and content are unchanged, since this reload could not use it.
@@ -418,6 +436,7 @@ func (c *Loader) loadStudioFlagSets() {
 
 		return
 	}
+
 	c.studioFlagSets = studioConf.FlagSets
 }
 
@@ -454,14 +473,17 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 
 		return inputFilePath, nil
 	}
+
 	for _, location := range locations {
 		for _, filename := range []string{configFileName, legacyConfigFileName} {
 			for _, ext := range supportedExtensions {
 				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
+
 				_, err := os.Stat(configFile)
 				if err != nil {
 					continue
 				}
+
 				if filename == legacyConfigFileName {
 					warner.Warn(legacy.KindConfigFile, fmt.Sprintf(
 						"the configuration file %s uses the legacy name %s, it is still accepted, "+
@@ -496,6 +518,7 @@ func processExporters(proxyConf *Config) {
 	if proxyConf.Exporters == nil {
 		return
 	}
+
 	for i := range *proxyConf.Exporters {
 		addresses := (*proxyConf.Exporters)[i].Kafka.Addresses
 		if len(addresses) == 0 || (len(addresses) == 1 && strings.Contains(addresses[0], ",")) {

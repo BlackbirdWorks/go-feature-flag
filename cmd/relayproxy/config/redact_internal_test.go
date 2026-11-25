@@ -23,16 +23,19 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 		t.Kind() == reflect.Map {
 		t = t.Elem()
 	}
+
 	if t.Kind() != reflect.Struct || !isOwnType(t) || seen[t] {
 		return
 	}
+
 	seen[t] = true
-	for f := range t.Fields() {
-		if !f.IsExported() {
+	for field := range t.Fields() {
+		if !field.IsExported() {
 			continue
 		}
-		out[t.String()+"."+f.Name] = f
-		ownStructFields(f.Type, seen, out)
+
+		out[t.String()+"."+field.Name] = field
+		ownStructFields(field.Type, seen, out)
 	}
 }
 
@@ -47,6 +50,7 @@ func allConfigFields() map[string]reflect.StructField {
 // to the configuration without taking an explicit decision (secret or plain) in fieldClassification.
 func TestEverySensitiveLookingFieldIsClassified(t *testing.T) {
 	t.Parallel()
+
 	fields := allConfigFields()
 	require.Greater(t, len(fields), 50)
 
@@ -54,13 +58,16 @@ func TestEverySensitiveLookingFieldIsClassified(t *testing.T) {
 		if !sensitiveNamePattern.MatchString(f.Name) {
 			continue
 		}
+
 		_, classified := fieldClassification()[name]
 		assert.Truef(t, classified,
 			"field %s looks sensitive: classify it in fieldClassification (secretField or plainField)", name)
 	}
+
 	for name := range fieldClassification() {
 		f, exists := fields[name]
 		assert.Truef(t, exists, "fieldClassification has an entry for the unknown field %s", name)
+
 		if exists {
 			assert.Truef(t, sensitiveNamePattern.MatchString(f.Name),
 				"field %s does not look sensitive, remove it from fieldClassification", name)
@@ -84,6 +91,7 @@ func fillLeaves(target reflect.Value, counter *int) {
 		target.Set(reflect.MakeMap(target.Type()))
 		key := reflect.New(target.Type().Key()).Elem()
 		fillLeaves(key, counter)
+
 		val := reflect.New(target.Type().Elem()).Elem()
 		fillLeaves(val, counter)
 		target.SetMapIndex(key, val)
@@ -103,34 +111,41 @@ func fillSecretFields(val reflect.Value, counter *int, filled map[string]bool) {
 		if val.IsNil() {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
+
 		val = val.Elem()
 	}
+
 	if val.Kind() == reflect.Slice {
 		val.Set(reflect.MakeSlice(val.Type(), 1, 1))
 		fillSecretFields(val.Index(0), counter, filled)
 
 		return
 	}
+
 	if val.Kind() != reflect.Struct || !isOwnType(val.Type()) {
 		return
 	}
+
 	for i := range val.NumField() {
 		field := val.Type().Field(i)
 		if !field.IsExported() {
 			continue
 		}
+
 		if IsSecretField(val.Type().String(), field.Name) {
 			fillLeaves(val.Field(i), counter)
 			filled[val.Type().String()+"."+field.Name] = true
 
 			continue
 		}
+
 		fillSecretFields(val.Field(i), counter, filled)
 	}
 }
 
 func newConfigWithSecrets(t *testing.T) *Config {
 	t.Helper()
+
 	conf := &Config{}
 	n := 0
 	filled := map[string]bool{}
@@ -160,7 +175,9 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 	for _, format := range []string{"json", "logfmt"} {
 		t.Run("logger "+format, func(t *testing.T) {
 			t.Parallel()
+
 			var buf bytes.Buffer
+
 			logger, err := cmdlog.New(format, conf.LogLevel, cmdlog.WithWriter(&buf))
 			require.NoError(t, err)
 			// same call as the flagset manager does when a new configuration is invalid.
@@ -175,6 +192,7 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 
 	t.Run("fmt verbs", func(t *testing.T) {
 		t.Parallel()
+
 		for _, format := range []string{"%v", "%+v", "%#v", "%s"} {
 			assert.NotContains(t, fmt.Sprintf(format, conf), secretMarker, format)
 		}
@@ -182,7 +200,9 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 
 	t.Run("slog", func(t *testing.T) {
 		t.Parallel()
+
 		var buf bytes.Buffer
+
 		l := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		l.Debug("config", slog.Any("config", conf))
 		assert.NotContains(t, buf.String(), secretMarker)
@@ -192,6 +212,7 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 
 func TestRedactedKeepsPlainValues(t *testing.T) {
 	t.Parallel()
+
 	conf := &Config{LogLevel: "debug", Version: "1.0"}
 	conf.AuthorizedKeys.Admin = []string{"a-secret-admin"}
 	redacted := conf.Redacted()
@@ -202,6 +223,7 @@ func TestRedactedKeepsPlainValues(t *testing.T) {
 
 func TestOfrepEventStreamErrorsDoNotContainTheURL(t *testing.T) {
 	t.Parallel()
+
 	for _, baseURL := range []string{
 		"ftp://user:SECRETMARKER-pw@example.com",
 		"https://user:SECRETMARKER-pw@example.com?x=1",

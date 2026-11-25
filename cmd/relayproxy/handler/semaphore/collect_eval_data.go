@@ -64,12 +64,14 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	defer span.End()
 
 	reqBody := new(model.CollectEvalDataRequest)
+
 	bindErr := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
 	if bindErr != nil {
 		return nil, helper.NewHTTPError(
 			http.StatusBadRequest,
 			fmt.Sprintf("collectEvalData: invalid input data %v", bindErr))
 	}
+
 	if reqBody.Events == nil {
 		return nil, helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")
 	}
@@ -87,6 +89,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	logger := logging.FromContext(ctx)
 	counterTracking := 0
 	counterEvaluation := 0
+
 	for i, event := range reqBody.Events {
 		// Check if context is cancelled before processing each event, to avoid
 		// long delays on large payloads.
@@ -118,7 +121,9 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 
 				continue
 			}
+
 			flagset.CollectTrackingEventData(trackingEv)
+
 			counterTracking++
 		default:
 			featureEv, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
@@ -132,7 +137,9 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 
 				continue
 			}
+
 			flagset.CollectEventData(featureEv)
+
 			counterEvaluation++
 		}
 	}
@@ -154,14 +161,17 @@ func convertTrackingEvent(
 	logger *slog.Logger,
 ) (exporter.TrackingEvent, error) {
 	var trackingEv exporter.TrackingEvent
+
 	marshalled, err := json.Marshal(event)
 	if err != nil {
 		return exporter.TrackingEvent{}, fmt.Errorf("marshal tracking event: %w", err)
 	}
+
 	err = json.Unmarshal(marshalled, &trackingEv)
 	if err != nil {
 		return exporter.TrackingEvent{}, fmt.Errorf("unmarshal tracking event: %w", err)
 	}
+
 	trackingEv.CreationDate = formatCreationDate(ctx, trackingEv.CreationDate, logger)
 
 	return trackingEv, nil
@@ -173,16 +183,20 @@ func convertFeatureEvent(
 	metadata exporter.FeatureEventMetadata,
 	logger *slog.Logger) (exporter.FeatureEvent, error) {
 	var featureEv exporter.FeatureEvent
+
 	err := mapstructure.Decode(event, &featureEv)
 	if err != nil {
 		return exporter.FeatureEvent{}, fmt.Errorf("decode feature event: %w", err)
 	}
+
 	if featureEv.Source == "" {
 		featureEv.Source = "PROVIDER_CACHE"
 	}
+
 	if metadata != nil {
 		featureEv.Metadata = metadata
 	}
+
 	featureEv.CreationDate = formatCreationDate(ctx, featureEv.CreationDate, logger)
 
 	return featureEv, nil

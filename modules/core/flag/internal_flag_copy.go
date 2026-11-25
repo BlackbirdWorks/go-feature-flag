@@ -31,22 +31,25 @@ func copyPtr[T any](p *T) *T {
 	if p == nil {
 		return nil
 	}
+
 	v := *p
 
 	return &v
 }
 
-func copyVariations(v *map[string]*any) *map[string]*any {
-	if v == nil {
+func copyVariations(variations *map[string]*any) *map[string]*any {
+	if variations == nil {
 		return nil
 	}
-	out := make(map[string]*any, len(*v))
-	for name, value := range *v {
+
+	out := make(map[string]*any, len(*variations))
+	for name, value := range *variations {
 		if value == nil {
 			out[name] = nil
 
 			continue
 		}
+
 		c := deepCopyValue(*value)
 		out[name] = &c
 	}
@@ -54,12 +57,13 @@ func copyVariations(v *map[string]*any) *map[string]*any {
 	return &out
 }
 
-func copyMetadata(m *map[string]any) *map[string]any {
-	if m == nil {
+func copyMetadata(metadata *map[string]any) *map[string]any {
+	if metadata == nil {
 		return nil
 	}
-	out := make(map[string]any, len(*m))
-	for k, v := range *m {
+
+	out := make(map[string]any, len(*metadata))
+	for k, v := range *metadata {
 		out[k] = deepCopyValue(v)
 	}
 
@@ -70,6 +74,7 @@ func copyRules(rules *[]Rule) *[]Rule {
 	if rules == nil {
 		return nil
 	}
+
 	out := make([]Rule, len(*rules))
 	for i := range *rules {
 		out[i] = *(*rules)[i].deepCopy()
@@ -82,6 +87,7 @@ func copyScheduled(steps *[]ScheduledStep) *[]ScheduledStep {
 	if steps == nil {
 		return nil
 	}
+
 	out := make([]ScheduledStep, len(*steps))
 	for i := range *steps {
 		out[i] = ScheduledStep{
@@ -97,15 +103,18 @@ func (r *Rule) deepCopy() *Rule {
 	if r == nil {
 		return nil
 	}
+
 	copied := *r
 	copied.Name = copyPtr(r.Name)
 	copied.Query = copyPtr(r.Query)
 	copied.VariationResult = copyPtr(r.VariationResult)
+
 	copied.Disable = copyPtr(r.Disable)
 	if r.Percentages != nil {
 		p := maps.Clone(*r.Percentages)
 		copied.Percentages = &p
 	}
+
 	if r.ProgressiveRollout != nil {
 		copied.ProgressiveRollout = &ProgressiveRollout{
 			Initial: r.ProgressiveRollout.Initial.deepCopy(),
@@ -157,12 +166,14 @@ func deepCopyValue(val any) any {
 
 		return out
 	}
+
 	reflVal := reflect.ValueOf(val)
 	switch reflVal.Kind() {
 	case reflect.Map:
 		if reflVal.IsNil() {
 			return val
 		}
+
 		out := reflect.MakeMapWithSize(reflVal.Type(), reflVal.Len())
 		for it := reflVal.MapRange(); it.Next(); {
 			out.SetMapIndex(it.Key(), copyReflected(it.Value()))
@@ -173,6 +184,7 @@ func deepCopyValue(val any) any {
 		if reflVal.IsNil() {
 			return val
 		}
+
 		out := reflect.MakeSlice(reflVal.Type(), reflVal.Len(), reflVal.Len())
 		for i := range reflVal.Len() {
 			out.Index(i).Set(copyReflected(reflVal.Index(i)))
@@ -188,6 +200,7 @@ func copyReflected(val reflect.Value) reflect.Value {
 	if !val.CanInterface() || (val.Kind() == reflect.Interface && val.IsNil()) {
 		return val
 	}
+
 	c := deepCopyValue(val.Interface())
 	if c == nil {
 		return reflect.Zero(val.Type())

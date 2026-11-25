@@ -90,7 +90,9 @@ func NewManager[T ExportableEvent](exporters []Config,
 
 	mgr := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
 		dropSignal: make(chan struct{}, 1)}
+
 	var maxQueued int64
+
 	limits := make([]int64, len(exporters))
 	for idx, exporter := range exporters {
 		limit := exporter.MaxQueuedEvents
@@ -99,18 +101,22 @@ func NewManager[T ExportableEvent](exporters []Config,
 			if maxEvents == 0 {
 				maxEvents = defaultMaxEventInMemory
 			}
+
 			limit = max(maxEvents*DefaultQueuedEventsFactor, DefaultMinQueuedEvents)
 		}
 		// the store is shared: it must be able to hold what its most demanding consumer asks for.
 		limits[idx] = limit
 		maxQueued = max(maxQueued, limit)
 	}
+
 	evStore := NewEventStoreWithLimit[T](exporterCleanQueueInterval, maxQueued, mgr.onDrop)
+
 	consumers := make([]DataExporter[T], len(exporters))
 	for index, exporter := range exporters {
 		consumerID := uuid.New().String()
 		exp := NewDataExporter(exporter, consumerID, evStore, logger)
 		consumers[index] = exp
+
 		evStore.AddConsumer(consumerID)
 		// the store is sized for the most demanding consumer: the others keep their own limit.
 		if l, ok := evStore.(interface {
@@ -119,15 +125,19 @@ func NewManager[T ExportableEvent](exporters []Config,
 			l.SetConsumerLimit(consumerID, limits[index])
 		}
 	}
+
 	mgr.consumers = consumers
 	mgr.eventStore = &evStore
+
 	mgr.flushThresholds = make([]int64, len(consumers))
 	for idx, consumer := range consumers {
 		mgr.flushThresholds[idx] = min(consumer.GetMaxEventInMemory(), limits[idx])
 	}
+
 	mgr.nextFlushAfter = make([]atomic.Int64, len(consumers))
 	mgr.flushRunning = make([]atomic.Bool, len(consumers))
 	mgr.flushAgain = make([]atomic.Bool, len(consumers))
+
 	mgr.flushStalled = make([]atomic.Bool, len(consumers))
 	go mgr.reportDrops()
 
@@ -152,10 +162,12 @@ func (m *managerImpl[T]) reportDrops() {
 		case <-m.stopCh:
 			return
 		}
+
 		if m.logger != nil {
 			m.logger.Error("the exporter is not keeping up, events are dropped",
 				slog.Int64("totalDroppedEvents", m.DroppedEvents()))
 		}
+
 		timer := time.NewTimer(dropLogInterval)
 		select {
 		case <-timer.C:
@@ -186,6 +198,7 @@ func (m *managerImpl[T]) QueueEvents(events []T) {
 	if len(events) == 0 {
 		return
 	}
+
 	m.addEvents(events, true)
 }
 
@@ -200,6 +213,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 
 		return
 	}
+
 	m.addAll(store, events)
 	m.triggerFlushes(store, async)
 }
@@ -210,6 +224,7 @@ func (m *managerImpl[T]) addAll(store EventStore[T], events []T) {
 
 		return
 	}
+
 	for _, event := range events {
 		store.Add(event)
 	}
@@ -226,23 +241,30 @@ func (m *managerImpl[T]) addEventsWaiting(
 	// The wait budget and the flush back-off below measure real elapsed time (they pace goroutines
 	// and tickers), so they use the real clock rather than clock.Now.
 	deadline := time.Now().Add(flushWaitBudget)
+
 	rest := events
 	for len(rest) > 0 {
 		added := fit.AddWhileRoom(rest)
 		rest = rest[added:]
+
 		m.triggerFlushes(store, true)
+
 		if len(rest) == 0 || added > 0 {
 			continue
 		}
+
 		if !m.waitForRoom(store, deadline) {
 			// the flush we would have waited for may have ended since the last attempt.
 			if added = fit.AddWhileRoom(rest); added == 0 {
 				break
 			}
+
 			rest = rest[added:]
+
 			m.triggerFlushes(store, true)
 		}
 	}
+
 	if len(rest) > 0 {
 		m.addAll(store, rest)
 		m.triggerFlushes(store, true)
@@ -260,37 +282,46 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	// the room is made by the consumers that hold the most events: wait if one of them is flushing.
 	counts := make([]int64, len(m.consumers))
 	most := int64(-1)
+
 	for i, c := range m.consumers {
 		count, err := store.GetPendingEventCount(c.GetConsumerID())
 		if err != nil {
 			count = -1
 		}
+
 		counts[i] = count
 		most = max(most, count)
 	}
+
 	var waitFor []int
+
 	for i, count := range counts {
 		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
 			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
 			waitFor = append(waitFor, i)
 		}
 	}
+
 	if len(waitFor) == 0 {
 		return false
 	}
+
 	markStalled := func() {
 		for _, i := range waitFor {
 			m.flushStalled[i].Store(true)
 		}
 	}
+
 	remaining := time.Until(deadline)
 	if remaining <= 0 {
 		markStalled()
 
 		return false
 	}
+
 	timer := time.NewTimer(remaining)
 	defer timer.Stop()
+
 	select {
 	case <-ended:
 		return true
@@ -320,6 +351,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 
 			continue
 		}
+
 		if time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
 			continue
 		}
@@ -330,6 +362,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 
 			continue
 		}
+
 		if count >= m.flushThresholds[i] {
 			m.flush(i, async, true)
 		}
@@ -343,15 +376,20 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 
 		return
 	}
+
 	m.stopMu.RLock()
 	defer m.stopMu.RUnlock()
+
 	if m.stopped {
 		return
 	}
+
 	m.flushAgain[i].Store(true)
+
 	if !m.flushRunning[i].CompareAndSwap(false, true) {
 		return // the running goroutine will see flushAgain
 	}
+
 	m.flushWg.Go(func() {
 		for {
 			for m.flushAgain[i].Swap(false) {
@@ -360,11 +398,14 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 				if checkProgress && time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
 					continue
 				}
+
 				m.flushNow(i, checkProgress)
 				m.signalFlushEnded(i)
 			}
+
 			m.flushRunning[i].Store(false)
 			m.signalFlushEnded(i)
+
 			if !m.flushAgain[i].Load() || !m.flushRunning[i].CompareAndSwap(false, true) {
 				return
 			}
@@ -377,12 +418,14 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 // delayed by flushRetryBackoff; a successful flush lifts the delay.
 func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	consumer := m.consumers[i]
+
 	flusher, ok := consumer.(interface{ flush() error })
 	if !ok {
 		consumer.Flush()
 
 		return
 	}
+
 	err := flusher.flush()
 	if err != nil {
 		if checkProgress {
@@ -391,6 +434,7 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 
 		return
 	}
+
 	m.nextFlushAfter[i].Store(0)
 }
 
@@ -406,10 +450,13 @@ func (m *managerImpl[T]) Stop() {
 	already := m.stopped
 	m.stopped = true
 	m.stopMu.Unlock()
+
 	if !already {
 		close(m.stopCh)
 	}
+
 	m.flushWg.Wait()
+
 	for _, consumer := range m.consumers {
 		consumer.Stop()
 	}

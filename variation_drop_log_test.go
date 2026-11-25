@@ -41,6 +41,7 @@ func (g *dropGatedSink) WithGroup(string) slog.Handler      { return g }
 // the warning about the dropped events is written by a goroutine of the client.
 func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		queueSize  int
@@ -54,17 +55,21 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			sink := &dropGatedSink{
 				inner: slog.DiscardHandler, gate: make(chan struct{}), entered: make(chan struct{}),
 			}
 			released := false
+
 			release := func() {
 				if !released {
 					released = true
+
 					close(sink.gate)
 				}
 			}
 			defer release()
+
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
@@ -78,6 +83,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 			counters := make([]atomic.Int64, tt.evaluators)
 			stop := make(chan struct{})
+
 			var wg sync.WaitGroup
 			for i := range counters {
 				wg.Go(func() {
@@ -87,11 +93,14 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 							return
 						default:
 						}
+
 						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+
 						counters[i].Add(1)
 					}
 				})
 			}
+
 			defer func() {
 				close(stop)
 				release()
@@ -101,6 +110,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 			require.Eventually(t, func() bool { return client.DroppedEvents() > 0 }, time.Minute, time.Millisecond,
 				"the queue never overflowed")
+
 			before := make([]int64, len(counters))
 			for i := range counters {
 				before[i] = counters[i].Load()

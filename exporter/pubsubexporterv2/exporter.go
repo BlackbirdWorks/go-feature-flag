@@ -91,6 +91,7 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	if e.PublishSettings != nil {
 		publisher.PublishSettings = *e.PublishSettings
 	}
+
 	publisher.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = publisher

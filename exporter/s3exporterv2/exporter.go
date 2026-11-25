@@ -66,6 +66,7 @@ func (f *Exporter) Export(
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if f.s3Uploader == nil {
 		initErr := f.initializeUploader(ctx)
 		if initErr != nil {
@@ -89,6 +90,7 @@ func (f *Exporter) Export(
 		CsvTemplate:             f.CsvTemplate,
 		ParquetCompressionCodec: f.ParquetCompressionCodec,
 	}
+
 	err = fileExporter.Export(ctx, logger, events)
 	if err != nil {
 		return fmt.Errorf("export events to temp file for S3: %w", err)
@@ -99,6 +101,7 @@ func (f *Exporter) Export(
 	if err != nil {
 		return fmt.Errorf("read temp dir for S3 export: %w", err)
 	}
+
 	for _, file := range files {
 		// read file
 		fileHandle, openErr := os.Open(outputDir + "/" + file.Name())
@@ -111,6 +114,7 @@ func (f *Exporter) Export(
 
 			continue
 		}
+
 		uploadFileErr := f.uploadFile(ctx, logger, fileHandle, file.Name())
 		if uploadFileErr != nil {
 			return uploadFileErr
@@ -126,6 +130,7 @@ func (f *Exporter) IsBulk() bool {
 
 func (f *Exporter) initializeUploader(ctx context.Context) error {
 	var initErr error
+
 	f.init.Do(func() {
 		if f.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
@@ -134,6 +139,7 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 
 				return
 			}
+
 			f.AwsConfig = &cfg
 		}
 
@@ -168,6 +174,7 @@ func (f *Exporter) uploadFile(
 	if result.Location != nil {
 		location = *result.Location
 	}
+
 	logger.InfoContext(ctx, "[S3Exporter] file uploaded.", slog.String("location", location))
 
 	return nil

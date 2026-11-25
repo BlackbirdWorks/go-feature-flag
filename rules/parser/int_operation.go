@@ -63,6 +63,7 @@ func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
 	if !ok {
 		return false, newInvalidOperandError(left, leftVal)
 	}
+
 	rightVal, ok := right.([]int)
 	if !ok {
 		return false, newInvalidOperandError(right, rightVal)
@@ -81,10 +82,12 @@ func (o *IntOperation) get(left Operand, right Operand) (int, int, error) {
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}
+
 	leftVal, err := toInt(left)
 	if err != nil {
 		return 0, 0, err
 	}
+
 	rightVal, err := toInt(right)
 	if err != nil {
 		return 0, 0, err

@@ -74,6 +74,7 @@ func (f *Exporter) Export(
 	if f.Format == "" {
 		f.Format = "json"
 	}
+
 	f.Format = strings.ToLower(f.Format)
 
 	// Get the filename
@@ -84,6 +85,7 @@ func (f *Exporter) Export(
 
 	// Handle empty OutputDir and remove trailing slash
 	outputDir := strings.TrimRight(f.OutputDir, "/")
+
 	var filePath string
 	if outputDir == "" {
 		filePath = filename
@@ -94,6 +96,7 @@ func (f *Exporter) Export(
 		if mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
+
 		filePath = filepath.Join(outputDir, filename)
 	}
 
@@ -117,9 +120,12 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		return fmt.Errorf("open export file %s: %w", filePath, err)
 	}
 	defer func() { _ = file.Close() }()
+
 	for _, event := range events {
-		var line []byte
-		var innerErr error
+		var (
+			line     []byte
+			innerErr error
+		)
 
 		// Convert the line in the right format
 		switch f.Format {
@@ -135,6 +141,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		if innerErr != nil {
 			return fmt.Errorf("impossible to format the event in %s: %w", f.Format, innerErr)
 		}
+
 		_, errWrite := file.Write(line)
 		if errWrite != nil {
 			return fmt.Errorf("error while writing the export file: %w", errWrite)
@@ -147,6 +154,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEvent) error {
 	parquetFeatureEvents := make([]exporter.FeatureEvent, 0)
 	parquetTrackingEvents := make([]exporter.TrackingEvent, 0)
+
 	for _, event := range events {
 		switch ev := any(event).(type) {
 		case exporter.FeatureEvent:
@@ -157,6 +165,7 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 			// do nothing
 		}
 	}
+
 	if len(parquetTrackingEvents) > 0 {
 		return f.writeParquetTrackingEvent(filePath, parquetTrackingEvents)
 	}
@@ -178,6 +187,7 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 	}
 
 	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
+
 	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
 	if compressionCodecFromStringErr == nil {
 		pqWriter.CompressionType = ct
@@ -188,7 +198,9 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 		if convertValueForParquetErr != nil {
 			return fmt.Errorf("convert event value for parquet: %w", convertValueForParquetErr)
 		}
+
 		event.Value = eventValue
+
 		convertValueForParquetErr = pqWriter.Write(event)
 		if convertValueForParquetErr != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", convertValueForParquetErr)
@@ -220,6 +232,7 @@ func (f *Exporter) writeParquetTrackingEvent(
 	}
 
 	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
+
 	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
 	if compressionCodecFromStringErr == nil {
 		pqWriter.CompressionType = ct

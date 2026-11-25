@@ -112,8 +112,10 @@ func (c *Config) Redacted() map[string]any {
 	if c == nil {
 		return nil
 	}
+
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	out, _ := redactValue(reflect.ValueOf(c), 0).(map[string]any)
 
 	return out
@@ -150,6 +152,7 @@ func koanfName(field reflect.StructField) string {
 	if name == "" {
 		name, _, _ = strings.Cut(field.Tag.Get("mapstructure"), ",")
 	}
+
 	if name == "" {
 		name = field.Name
 	}
@@ -160,6 +163,7 @@ func koanfName(field reflect.StructField) string {
 func redactStruct(val reflect.Value, depth int) map[string]any {
 	t := val.Type()
 	typeName := t.String()
+
 	out := make(map[string]any, t.NumField())
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -174,6 +178,7 @@ func redactStruct(val reflect.Value, depth int) map[string]any {
 				continue
 			}
 		}
+
 		if IsSecretField(typeName, field.Name) {
 			if isZeroValue(val.Field(i)) {
 				out[koanfName(field)] = nil
@@ -183,6 +188,7 @@ func redactStruct(val reflect.Value, depth int) map[string]any {
 
 			continue
 		}
+
 		out[koanfName(field)] = redactValue(val.Field(i), depth+1)
 	}
 
@@ -203,6 +209,7 @@ func redactValue(val reflect.Value, depth int) any {
 	if !val.IsValid() || depth > maxRedactDepth {
 		return nil
 	}
+
 	switch val.Kind() {
 	case reflect.Pointer, reflect.Interface:
 		if val.IsNil() {
@@ -225,6 +232,7 @@ func redactValue(val reflect.Value, depth int) any {
 		return out
 	case reflect.Map:
 		out := make(map[string]any, val.Len())
+
 		iter := val.MapRange()
 		for iter.Next() {
 			key := fmt.Sprint(iter.Key().Interface())
@@ -233,6 +241,7 @@ func redactValue(val reflect.Value, depth int) any {
 
 				continue
 			}
+
 			out[key] = redactValue(iter.Value(), depth+1)
 		}
 

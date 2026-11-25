@@ -43,6 +43,7 @@ func LoadConfigFile(
 	if defaultLocations == nil {
 		defaultLocations = DefaultLocations()
 	}
+
 	fileNames := flagFileNames()
 	supportedExtensions := []string{
 		"yaml",
@@ -59,14 +60,17 @@ func LoadConfigFile(
 
 		return readConfigFile(inputFilePath, configFormat)
 	}
+
 	for _, location := range defaultLocations {
 		for _, filename := range fileNames {
 			for _, ext := range supportedExtensions {
 				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
+
 				_, err := os.Stat(configFile)
 				if err != nil {
 					continue
 				}
+
 				if filename != fileNames[0] {
 					warner.Warn(legacy.KindFlagFile, fmt.Sprintf(
 						"the flag file %s uses the legacy name %s, it is still accepted, rename it to %s.%s",
@@ -88,6 +92,7 @@ func readConfigFile(configFile, configFormat string) (map[string]dto.DTO, error)
 	if err != nil {
 		return nil, fmt.Errorf("read config file %s: %w", configFile, err)
 	}
+
 	flags, err := ParseConfig(dat, configFormat)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", configFile, err)

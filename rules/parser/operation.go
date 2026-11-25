@@ -13,6 +13,7 @@ func toFloat(operand Operand) (float64, error) {
 	case float64:
 		return val, nil
 	}
+
 	var exp float64
 
 	return 0, newInvalidOperandError(operand, exp)
@@ -29,6 +30,7 @@ func toInt(operand Operand) (int, error) {
 	case int64:
 		return int(val), nil
 	}
+
 	var exp int
 
 	return 0, newInvalidOperandError(operand, exp)

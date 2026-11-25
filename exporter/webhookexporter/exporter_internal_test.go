@@ -55,6 +55,7 @@ func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 				httpClient:  &tt.fields.httpClient,
 				Headers:     tt.fields.Headers,
 			}
+
 			err := webhookExp.Export(context.Background(), tt.args.logger, tt.args.featureEvents)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -63,6 +64,7 @@ func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 			}
 
 			require.NoError(t, err)
+
 			if tt.expected.bodyFilePath != "" {
 				c, readFileErr := os.ReadFile(tt.expected.bodyFilePath)
 				require.NoError(t, readFileErr)

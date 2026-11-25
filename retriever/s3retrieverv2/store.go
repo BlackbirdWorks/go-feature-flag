@@ -24,10 +24,13 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 	if prefix != "" {
 		input.Prefix = aws.String(prefix)
 	}
+
 	if !recursive {
 		input.Delimiter = aws.String("/")
 	}
+
 	var res []folderloader.Entry
+
 	paginator := s3.NewListObjectsV2Paginator(s.r.lister, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -35,6 +38,7 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 			//nolint:wrapcheck // folderloader.Load wraps store.List error with S3 provider and prefix context
 			return nil, err
 		}
+
 		for _, obj := range page.Contents {
 			res = append(res, folderloader.Entry{Key: aws.ToString(obj.Key), Version: aws.ToString(obj.ETag)})
 		}

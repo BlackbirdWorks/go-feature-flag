@@ -155,15 +155,19 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
+
 	keys := sortedKeys(files)
+
 	checkFormatsErr := checkFormats(keys)
 	if checkFormatsErr != nil {
 		return nil, checkFormatsErr
 	}
+
 	if len(keys) == 0 {
 		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
+
 	refreshCacheErr := l.refreshCache(ctx, keys, files)
 	if refreshCacheErr != nil {
 		return nil, refreshCacheErr
@@ -173,10 +177,12 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	format := "json" // an empty flag set is "{}", valid in JSON
 	if len(keys) > 0 {
 		format = formatOf(keys[0])
 	}
+
 	l.format.Store(format)
 
 	return marshalFlags(format, merged)
@@ -214,6 +220,7 @@ func sortedKeys(files map[string]string) []string {
 	for k := range files {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	return keys
@@ -232,6 +239,7 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 			working[key] = c
 		}
 	}
+
 	defer func() { l.cache = working }()
 
 	for _, key := range keys {
@@ -239,17 +247,21 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 		if c, ok := working[key]; ok && c.version != "" && sameVersion(c.version, files[key]) {
 			continue
 		}
+
 		content, version, err := l.store.Get(ctx, key)
 		if err != nil {
 			return fmt.Errorf("unable to download item%s %q, %w", l.from(), key, err)
 		}
+
 		flags, err := parseFile(key, content)
 		if err != nil {
 			return err
 		}
+
 		if version == "" {
 			version = files[key]
 		}
+
 		working[key] = cachedFile{version: version, flags: flags}
 	}
 
@@ -260,11 +272,13 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 func (l *Loader) mergeFlags(keys []string) (map[string]dto.DTO, error) {
 	merged := make(map[string]dto.DTO)
 	origin := make(map[string]string)
+
 	for _, key := range keys {
 		for flagKey, flag := range l.cache[key].flags {
 			if prev, dup := origin[flagKey]; dup {
 				return nil, fmt.Errorf("%w %q found in files %q and %q", errDuplicateFlag, flagKey, prev, key)
 			}
+
 			origin[flagKey] = key
 			merged[flagKey] = flag
 		}
@@ -276,8 +290,11 @@ func (l *Loader) mergeFlags(keys []string) (map[string]dto.DTO, error) {
 // marshalFlags encodes the flags in the given format. The encoding is the same family as the one
 // used to decode the files, which keeps the value types (ex: big integers) intact.
 func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
-	var out []byte
-	var err error
+	var (
+		out []byte
+		err error
+	)
+
 	switch format {
 	case "yaml":
 		out, err = yaml.Marshal(flags)
@@ -288,6 +305,7 @@ func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
 	default:
 		out, err = json.Marshal(flags)
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal the merged flags: %w", err)
 	}
@@ -303,8 +321,10 @@ func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 		//nolint:wrapcheck // caller Load wraps list errors with provider and prefix context
 		return nil, err
 	}
+
 	res := make(map[string]string)
 	skipped := make(map[string]struct{})
+
 	for _, entry := range entries {
 		switch {
 		case !l.isEligible(entry.Key):
@@ -314,6 +334,7 @@ func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 			res[entry.Key] = entry.Version
 		}
 	}
+
 	l.warnSkipped(ctx, skipped)
 
 	return res, nil
@@ -328,11 +349,14 @@ func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 			newKeys = append(newKeys, key)
 		}
 	}
+
 	sort.Strings(newKeys)
+
 	for _, key := range newKeys {
 		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
 			"(supported: .json, .yaml, .yml, .toml)", l.locationKey(), l.opts.Location, "key", key)
 	}
+
 	l.skipped = skipped
 }
 
@@ -341,9 +365,11 @@ func (l *Loader) isEligible(key string) bool {
 	if key == "" || strings.HasSuffix(key, "/") {
 		return false
 	}
+
 	if l.opts.Pattern == "" {
 		return true
 	}
+
 	ok, _ := path.Match(l.opts.Pattern, path.Base(key))
 
 	return ok
@@ -366,6 +392,7 @@ func formatOf(key string) string {
 // extension, the others are skipped by list.
 func checkFormats(keys []string) error {
 	var firstKey, firstFormat string
+
 	for _, key := range keys {
 		extFormat := formatOf(key)
 		if firstFormat == "" {
@@ -373,6 +400,7 @@ func checkFormats(keys []string) error {
 
 			continue
 		}
+
 		if extFormat != firstFormat {
 			return fmt.Errorf("%w: %q is %s but %q is %s", errAllTheFilesUnder,
 				firstKey, firstFormat, key, extFormat)
@@ -388,6 +416,7 @@ func parseFile(key string, content []byte) (map[string]dto.DTO, error) {
 	if len(bytes.TrimSpace(content)) == 0 {
 		return map[string]dto.DTO{}, nil
 	}
+
 	flags, err := cache.ConvertToFlagStruct(content, formatOf(key))
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse file %q: %w", key, err)

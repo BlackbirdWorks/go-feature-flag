@@ -32,6 +32,7 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 	if params.QueueUrl != nil && strings.HasSuffix(*params.QueueUrl, "error") {
 		return nil, errRandomError
 	}
+
 	s.messages = append(s.messages, *params)
 
 	return nil, nil //nolint:nilnil // mock SQS client: the exporter ignores the output
@@ -52,6 +53,7 @@ func TestExporterExport(t *testing.T) {
 		AwsConfig  *aws.Config
 		sqsService SQSSendMessageAPIMock
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -150,6 +152,7 @@ func TestExporterExport(t *testing.T) {
 			}
 
 			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+
 			err := sqsExp.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -158,6 +161,7 @@ func TestExporterExport(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
 			want := make([]sqs.SendMessageInput, len(tt.events))
 			for index, event := range tt.events {
 				messageBody, _ := json.Marshal(event)
@@ -173,6 +177,7 @@ func TestExporterExport(t *testing.T) {
 					},
 				}
 			}
+
 			assert.Equal(t, want, tt.fields.sqsService.messages)
 		})
 	}

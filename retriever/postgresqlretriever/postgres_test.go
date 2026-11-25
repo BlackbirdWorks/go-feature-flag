@@ -42,10 +42,12 @@ func TestGetPool_MultipleURIsAndReuse(t *testing.T) {
 		Started:          true,
 	})
 	require.NoError(t, err)
+
 	defer pgContainer.Terminate(ctx)
 
 	endpoint, err := pgContainer.Endpoint(ctx, "")
 	require.NoError(t, err)
+
 	baseURI := "postgres://postgres:password@" + endpoint + "/postgres?sslmode=disable"
 
 	// Different URIs

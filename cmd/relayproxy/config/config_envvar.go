@@ -49,23 +49,29 @@ func (p *environProvider) ReadBytes() ([]byte, error) {
 // Read returns the variables that start with the prefix, mapped with the callback, as a nested map.
 func (p *environProvider) Read() (map[string]any, error) {
 	envMap := make(map[string]any)
+
 	var skipped []string
+
 	for _, kv := range p.environ() {
 		name, value, _ := strings.Cut(kv, "=")
 		if !strings.HasPrefix(name, p.prefix) {
 			continue
 		}
+
 		if p.skip != nil && p.skip(strings.TrimPrefix(name, p.prefix), value) {
 			skipped = append(skipped, name)
 
 			continue
 		}
+
 		key, mapped := p.cb(name, value)
 		if key == "" {
 			continue
 		}
+
 		envMap[key] = mapped
 	}
+
 	if p.skipped != nil && len(skipped) > 0 {
 		slices.Sort(skipped)
 		p.skipped(skipped)
@@ -153,6 +159,7 @@ func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) *envir
 				strings.HasPrefix(key, "FLAGSETS"),
 				strings.HasPrefix(key, "EXPORTERS"):
 				configMap := c.k.Raw()
+
 				modifiedConfigMap, err := loadArrayEnv(key, val, configMap)
 				if err != nil {
 					log.LogAttrs(context.Background(), slog.LevelError,
@@ -203,6 +210,7 @@ func loadArrayEnv(envKey, val string, configMap map[string]any) (map[string]any,
 	if len(paths) < minArrayEnvPaths {
 		return configMap, fmt.Errorf("%w %q: expected <ARRAY>_<INDEX>_<FIELD>", errEnvironmentVariable, envKey)
 	}
+
 	prefixKey := paths[0]
 
 	configArray, ok := configMap[prefixKey].([]any)
@@ -216,6 +224,7 @@ func loadArrayEnv(envKey, val string, configMap map[string]any) (map[string]any,
 	if err != nil {
 		return configMap, fmt.Errorf("environment variable %q: invalid index %q: %w", envKey, paths[1], err)
 	}
+
 	if index < 0 {
 		return configMap, fmt.Errorf("%w %q: negative index %d", errEnvironmentVariable, envKey, index)
 	}
@@ -224,6 +233,7 @@ func loadArrayEnv(envKey, val string, configMap map[string]any) (map[string]any,
 	if err != nil {
 		return configMap, fmt.Errorf("environment variable %q: %w", envKey, err)
 	}
+
 	keys := paths[2:]
 
 	if shouldHandleRecursively(prefixKey, keys) {
@@ -282,6 +292,7 @@ func handleRecursiveConfig(
 	prefixKey string,
 ) (map[string]any, error) {
 	recursiveKey := strings.Join(keys, "_")
+
 	modifiedNestedConfig, err := loadArrayEnv(recursiveKey, val, configItem)
 	if err != nil {
 		return configMap, err
@@ -391,6 +402,7 @@ func expandArray(configArray []any, index int) []any {
 // The expected format is "key1=value1,key2=value2,...".
 func (c *Loader) parseOtelResourceAttributes(attributes string, log *slog.Logger) {
 	configMap := c.k.Raw()
+
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {
 		otel = make(map[string]any)

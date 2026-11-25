@@ -14,15 +14,19 @@ import (
 func retainedHeapKiB(tb testing.TB, rule string) (float64, *Evaluator) {
 	tb.Helper()
 	runtime.GC()
+
 	var memBefore, memAfter runtime.MemStats
 	runtime.ReadMemStats(&memBefore)
+
 	eval, err := NewEvaluator(rule)
 	require.NoError(tb, err)
 	_, err = eval.Process(map[string]any{})
 	require.NoError(tb, err)
+
 	for range 3 {
 		runtime.GC()
 	}
+
 	runtime.ReadMemStats(&memAfter)
 
 	return float64(int64(memAfter.HeapAlloc)-int64(memBefore.HeapAlloc)) / 1024, eval
@@ -64,6 +68,7 @@ func TestInSetSize(t *testing.T) {
 			assert.Equal(t, tt.wantIntSet, cmp.intSet != nil, "int hash set")
 
 			var bytes, slots int
+
 			switch {
 			case cmp.strSet != nil:
 				slots = len(cmp.strSet.tab)
@@ -73,6 +78,7 @@ func TestInSetSize(t *testing.T) {
 				slots = len(cmp.intSet.tab)
 				bytes = 4 * slots
 			}
+
 			assert.GreaterOrEqual(t, slots, tt.n*3/2, "at least 1.5 slots per element")
 			assert.LessOrEqual(t, slots, 4*tt.n, "at most 4 slots per element (power of two over 1.5n)")
 			assert.LessOrEqual(t, float64(bytes)/float64(tt.n), tt.wantMaxPerElem, "bytes per element")
@@ -95,11 +101,14 @@ func BenchmarkInSetHeap(b *testing.B) {
 	}
 	for _, bench := range benches {
 		b.Run(bench.name, func(b *testing.B) {
-			var kib float64
-			var eval *Evaluator
+			var (
+				kib  float64
+				eval *Evaluator
+			)
 			for range b.N {
 				kib, eval = retainedHeapKiB(b, bench.rule)
 			}
+
 			b.ReportMetric(kib, "retained-KiB")
 			b.ReportMetric(float64(len(bench.rule))/1024, "rule-text-KiB")
 			runtime.KeepAlive(eval)

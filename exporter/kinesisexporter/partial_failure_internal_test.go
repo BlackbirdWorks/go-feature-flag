@@ -32,12 +32,15 @@ func (s *scriptedSender) SendMessages(
 ) (*kinesis.PutRecordsOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	call := len(s.calls)
 	datas := make([]string, 0, len(input.Records))
 	out := &kinesis.PutRecordsOutput{}
 	failed := int32(0)
+
 	for i, r := range input.Records {
 		datas = append(datas, string(r.Data))
+
 		res := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
 		if code := s.fail(call, i, string(r.Data)); code != "" {
 			res = types.PutRecordsResultEntry{
@@ -45,9 +48,12 @@ func (s *scriptedSender) SendMessages(
 			}
 			failed++
 		}
+
 		out.Records = append(out.Records, res)
 	}
+
 	out.FailedRecordCount = &failed
+
 	s.calls = append(s.calls, datas)
 
 	return out, nil
@@ -64,10 +70,12 @@ func testEvents(n int) []exporter.ExportableEvent {
 
 func encoded(t *testing.T, idx ...int) []string {
 	t.Helper()
+
 	out := make([]string, 0, len(idx))
 	for _, i := range idx {
 		b, err := json.Marshal(testEvents(i + 1)[i])
 		require.NoError(t, err)
+
 		out = append(out, string(b))
 	}
 
@@ -86,10 +94,12 @@ func noSleep(context.Context, time.Duration) error { return nil }
 
 func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 
 	t.Run("all succeed", func(t *testing.T) {
 		t.Parallel()
+
 		s := &scriptedSender{fail: func(int, int, string) string { return "" }}
 		err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(3))
 		require.NoError(t, err)
@@ -98,6 +108,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 	t.Run("empty input", func(t *testing.T) {
 		t.Parallel()
+
 		s := &scriptedSender{fail: func(int, int, string) string { return "" }}
 		require.NoError(t, newTestExporter(s, noSleep).Export(context.Background(), logger, nil))
 		assert.Empty(t, s.calls)
@@ -113,7 +124,9 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 			return ""
 		}}
+
 		var sleeps []time.Duration
+
 		sleep := func(_ context.Context, d time.Duration) error {
 			sleeps = append(sleeps, d)
 
@@ -127,6 +140,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 	t.Run("persistent failure returns counts and codes", func(t *testing.T) {
 		t.Parallel()
+
 		sender := &scriptedSender{fail: func(_, i int, _ string) string {
 			switch i {
 			case 0:
@@ -149,6 +163,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 	t.Run("context cancelled during backoff", func(t *testing.T) {
 		t.Parallel()
+
 		sender := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
 		ctx, cancel := context.WithCancel(context.Background())
 		sleep := func(ctx context.Context, _ time.Duration) error {
@@ -163,9 +178,11 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 	t.Run("real backoff honours context", func(t *testing.T) {
 		t.Parallel()
+
 		s := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
+
 		err := newTestExporter(s, nil).Export(ctx, logger, testEvents(1))
 		require.ErrorIs(t, err, context.Canceled)
 	})
@@ -173,7 +190,9 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+
 	tests := []struct {
 		name   string
 		want   []int
@@ -186,12 +205,15 @@ func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			s := &scriptedSender{fail: func(int, int, string) string { return "" }}
 			require.NoError(t, newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(tt.events)))
+
 			got := make([]int, 0, len(s.calls))
 			for _, c := range s.calls {
 				got = append(got, len(c))
 			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -199,12 +221,15 @@ func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 
 func TestChunkRecords_ByteLimit(t *testing.T) {
 	t.Parallel()
+
 	big := make([]byte, 900*1024)
 	key := "k"
+
 	recs := make([]types.PutRecordsRequestEntry, 0, 7)
 	for range 7 {
 		recs = append(recs, types.PutRecordsRequestEntry{Data: big, PartitionKey: &key})
 	}
+
 	chunks := chunkRecords(recs)
 	require.Len(t, chunks, 2)
 	assert.Len(t, chunks[0], 5)
@@ -223,11 +248,14 @@ func (s *responseSender) SendMessages(
 ) (*kinesis.PutRecordsOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	call := len(s.calls)
+
 	datas := make([]string, 0, len(input.Records))
 	for _, r := range input.Records {
 		datas = append(datas, string(r.Data))
 	}
+
 	s.calls = append(s.calls, datas)
 
 	return s.respond(call, input)
@@ -235,6 +263,7 @@ func (s *responseSender) SendMessages(
 
 func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	ok := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
 	bad := types.PutRecordsResultEntry{ErrorCode: aws.String("InternalFailure")}
@@ -319,13 +348,15 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			sender := &responseSender{
-				respond: func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
+				respond: func(call int, req *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
 					if call == 0 {
-						return tt.first(in), nil
+						return tt.first(req), nil
 					}
+
 					out := &kinesis.PutRecordsOutput{FailedRecordCount: aws.Int32(0)}
-					for range in.Records {
+					for range req.Records {
 						out.Records = append(out.Records, ok)
 					}
 
@@ -334,10 +365,12 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 			}
 			err := newTestExporter(sender, noSleep).Export(context.Background(), logger, testEvents(2))
 			require.NoError(t, err)
+
 			want := make([][]string, 0, len(tt.wantCalls))
 			for _, idx := range tt.wantCalls {
 				want = append(want, encoded(t, idx...))
 			}
+
 			assert.Equal(t, want, sender.calls)
 		})
 	}
@@ -345,6 +378,7 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 
 func TestExporter_UnverifiableResponsesNeverAcknowledged(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	s := &responseSender{respond: func(int, *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
 		return nil, nil //nolint:nilnil // the test feeds the exporter an unverifiable (nil) response on purpose

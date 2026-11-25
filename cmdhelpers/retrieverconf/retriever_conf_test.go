@@ -26,6 +26,7 @@ func runRetrieverConfValidTests(t *testing.T, tests []retrieverConfValidCase) {
 			c := tt.fields
 			err := c.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
+
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())
 			}
@@ -619,6 +620,7 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 			c := tt.fields
 			err := c.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
+
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())
 			}

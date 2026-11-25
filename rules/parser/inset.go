@@ -52,6 +52,7 @@ func (s *strSet) has(target string) bool {
 		if e == 0 {
 			return false
 		}
+
 		if s.at(e-1) == target {
 			return true
 		}
@@ -80,8 +81,11 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 	if len(tokens) >= math.MaxUint32 {
 		return nil
 	}
+
 	ends := make([]uint32, 1, len(tokens)+1)
+
 	var b strings.Builder
+
 	if text, ok := src.ascii(tokens[0]); ok {
 		// ASCII input: rune indexes are byte indexes, so slice the source
 		// text and copy once instead of one GetText allocation per element.
@@ -89,10 +93,13 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 		for _, t := range tokens {
 			total += max(t.GetStop()-t.GetStart()-1, 0)
 		}
+
 		if total >= math.MaxUint32 {
 			return nil
 		}
+
 		b.Grow(total)
+
 		for _, t := range tokens {
 			b.WriteString(getString(text[t.GetStart() : t.GetStop()+1]))
 			ends = append(ends, uint32(b.Len())) //nolint:gosec // G115: b.Len() <= total < MaxUint32, checked above
@@ -100,29 +107,36 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 	} else {
 		strs := make([]string, len(tokens))
 		total := 0
+
 		for i, t := range tokens {
 			strs[i] = getString(t.GetText())
 			total += len(strs[i])
 		}
+
 		if total >= math.MaxUint32 {
 			return nil
 		}
+
 		b.Grow(total)
+
 		for _, v := range strs {
 			b.WriteString(v)
 			ends = append(ends, uint32(b.Len())) //nolint:gosec // G115: b.Len() <= total < MaxUint32, checked above
 		}
 	}
+
 	set := &strSet{seed: maphash.MakeSeed(), data: b.String(), ends: ends}
 	size := tableSize(len(tokens))
 	set.tab = make([]uint32, size)
 	set.mask = uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
+
 	seed := set.seed
 	for i := range tokens {
 		j := maphash.String(seed, set.at(uint32(i))) & set.mask
 		for set.tab[j] != 0 {
 			j = (j + 1) & set.mask
 		}
+
 		set.tab[j] = uint32(i + 1)
 	}
 
@@ -171,6 +185,7 @@ func (s *intSet) has(target int) bool {
 		if e == 0 {
 			return false
 		}
+
 		if s.ints[e-1] == target {
 			return true
 		}
@@ -181,11 +196,13 @@ func newIntSet(ints []int) *intSet {
 	size := tableSize(len(ints))
 	set := &intSet{ints: ints, tab: make([]uint32, size), shift: uint(wordBits - bits.Len(uint(size-1)))}
 	mask := uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
+
 	for i, v := range ints {
 		j := set.slot(v)
 		for set.tab[j] != 0 {
 			j = (j + 1) & mask
 		}
+
 		set.tab[j] = uint32(i + 1)
 	}
 

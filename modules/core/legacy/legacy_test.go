@@ -11,6 +11,7 @@ import (
 
 func TestWarnerLogsOncePerKind(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name  string
 		kinds []string
@@ -23,16 +24,22 @@ func TestWarnerLogsOncePerKind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var mu sync.Mutex
-			var got []string
+
+			var (
+				mu  sync.Mutex
+				got []string
+			)
+
 			w := legacy.NewWarner(func(kind, _ string) {
 				mu.Lock()
 				defer mu.Unlock()
+
 				got = append(got, kind)
 			})
 			for _, k := range tt.kinds {
 				w.Warn(k, "legacy name")
 			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -40,25 +47,31 @@ func TestWarnerLogsOncePerKind(t *testing.T) {
 
 func TestWarnerConcurrentUse(t *testing.T) {
 	t.Parallel()
+
 	var mu sync.Mutex
+
 	count := 0
 	w := legacy.NewWarner(func(_, _ string) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		count++
 	})
+
 	var wg sync.WaitGroup
 	for range 50 {
 		wg.Go(func() {
 			w.Warn("k", "m")
 		})
 	}
+
 	wg.Wait()
 	assert.Equal(t, 1, count)
 }
 
 func TestWarnerWithoutDestination(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		warner *legacy.Warner
 		name   string
@@ -78,9 +91,12 @@ func TestWarnerWithoutDestination(t *testing.T) {
 
 func TestWarnersDoNotShareState(t *testing.T) {
 	t.Parallel()
+
 	var first, second []string
+
 	w1 := legacy.NewWarner(func(kind, _ string) { first = append(first, kind) })
 	w2 := legacy.NewWarner(func(kind, _ string) { second = append(second, kind) })
+
 	w1.Warn("k", "m")
 	w2.Warn("k", "m")
 	w1.Warn("k", "m")
@@ -88,12 +104,15 @@ func TestWarnersDoNotShareState(t *testing.T) {
 	assert.Equal(t, []string{"k"}, second)
 }
 
-// panics reports whether f panics.
-func panics(f func()) bool {
+// panics reports whether call panics.
+func panics(call func()) bool {
 	panicked := true
+
 	func() {
 		defer func() { _ = recover() }()
-		f()
+
+		call()
+
 		panicked = false
 	}()
 

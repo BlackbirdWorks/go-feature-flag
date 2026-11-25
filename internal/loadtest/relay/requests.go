@@ -43,6 +43,7 @@ func ParseEndpoint(name string) (Endpoint, error) {
 	case "goff-allflags":
 		name = string(SemaphoreAllFlags)
 	}
+
 	for _, e := range Endpoints() {
 		if string(e) == name {
 			return e, nil
@@ -79,6 +80,7 @@ func (e Endpoint) Body(i int) string {
 	user := i % distinctUsers
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
+
 	switch e {
 	case SemaphoreEval:
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)

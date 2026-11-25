@@ -35,6 +35,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	t.Parallel()
 
 	base := clocktest.Instant()
+
 	tests := []struct {
 		name        string
 		wantVar     string
@@ -52,6 +53,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			svc := NewService()
 			flg := scheduledFlag(base)
 			before := *flg.Scheduled
+
 			runParallel(200, func(int) {
 				ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
@@ -60,6 +62,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 				assert.Equal(t, tt.wantVar == "A", v == "a")
 				assert.Equal(t, tt.wantVar, d.Variant)
 			})
+
 			res, err := flg.applyScheduledRolloutSteps(svc, base.Add(tt.offset))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantVersion, res.GetVersion())
@@ -74,16 +77,19 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 // the memoized flags must not outlive the flag they were built for.
 func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	t.Parallel()
+
 	svc := NewService()
 	f := scheduledFlag(clocktest.Instant())
 	key := weak.Make(f.Scheduled)
 	_, err := f.applyScheduledRolloutSteps(svc, clocktest.Instant())
 	require.NoError(t, err)
+
 	_, ok := svc.scheduled.entries.Load(key)
 	require.True(t, ok)
 	// f is not used past this point, so the flag (and its Scheduled) is unreachable and collectable.
 	assert.Eventually(t, func() bool {
 		runtime.GC()
+
 		_, stillThere := svc.scheduled.entries.Load(key)
 
 		return !stillThere
@@ -94,6 +100,7 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 // result of the next evaluations (the flag is memoized and shared).
 func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		mutate func(t *testing.T, v any)
 		value  func() any
@@ -107,11 +114,14 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			wantSecond: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
 			mutate: func(t *testing.T, v any) {
 				t.Helper()
+
 				m, ok := v.(map[string]any)
 				require.True(t, ok)
+
 				m["theme"] = "dark"
 				nested, ok := m["nested"].(map[string]any)
 				require.True(t, ok)
+
 				nested["a"] = "changed"
 			},
 		},
@@ -121,14 +131,18 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			wantSecond: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
 			mutate: func(t *testing.T, v any) {
 				t.Helper()
+
 				arr, ok := v.([]any)
 				require.True(t, ok)
+
 				arr[0] = "changed"
 				elem1, ok := arr[1].(map[string]any)
 				require.True(t, ok)
+
 				elem1["k"] = "changed"
 				elem2, ok := arr[2].([]any)
 				require.True(t, ok)
+
 				elem2[0] = "changed"
 			},
 		},
@@ -136,6 +150,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			base := clocktest.Instant()
 			val := tt.value()
 			flg := &InternalFlag{
@@ -149,6 +164,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			first, _ := flg.Value("flag", ctx, Context{Service: NewService()})
 			tt.mutate(t, first)
+
 			second, _ := flg.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.wantSecond(), second)
 		})

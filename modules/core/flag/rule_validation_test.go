@@ -370,6 +370,7 @@ func TestRule_validatePercentages(t *testing.T) {
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
+
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
 			}
@@ -386,6 +387,7 @@ func runValidateProgressiveRolloutTests(t *testing.T, tests []validateProgressiv
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
+
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
 			}
@@ -895,6 +897,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
+
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
 			}
@@ -1048,6 +1051,7 @@ func TestRule_isQueryValid(t *testing.T) {
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
+
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
 			}
@@ -1263,6 +1267,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
+
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
 			}

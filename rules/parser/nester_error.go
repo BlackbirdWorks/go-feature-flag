@@ -39,6 +39,7 @@ func (e *NestedError) Error() string {
 	vals := e.Vals.Dupe()
 	vals["err"] = e.Err.Error()
 	vals["msg"] = e.Msg
+
 	data, err := json.Marshal(vals)
 	if err != nil {
 		return fmt.Sprintf("%s: %s", e.Msg, e.Err.Error())
@@ -51,6 +52,7 @@ func (e *NestedError) Set(vals ErrVals) *NestedError {
 	if e.Vals == nil {
 		e.Vals = make(ErrVals)
 	}
+
 	e.Vals.Merge(vals.Dupe())
 
 	return e

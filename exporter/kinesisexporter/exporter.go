@@ -124,6 +124,7 @@ func WithStreamName(streamName string) Option {
 		if streamName == "" {
 			return settings
 		}
+
 		settings.StreamArn = nil
 		settings.StreamName = &streamName
 
@@ -136,6 +137,7 @@ func WithStreamArn(streamArn string) Option {
 		if streamArn == "" {
 			return settings
 		}
+
 		settings.StreamArn = &streamArn
 		settings.StreamName = nil
 
@@ -171,7 +173,6 @@ func (e *Exporter) Export(
 
 	for _, event := range featureEvents {
 		formattedEvent, formatMessageErr := e.formatMessage(event)
-
 		if formatMessageErr != nil {
 			return fmt.Errorf("format: %w", formatMessageErr)
 		}
@@ -208,14 +209,17 @@ func (e *Exporter) Export(
 	}
 
 	var errs []error
+
 	for _, chunk := range chunkRecords(records) {
 		chunkInput := *input
 		chunkInput.Records = chunk
+
 		sendChunkErr := e.sendChunk(ctx, logger, &chunkInput)
 		if sendChunkErr != nil {
 			if ctx.Err() != nil {
 				return sendChunkErr
 			}
+
 			errs = append(errs, sendChunkErr)
 		}
 	}
@@ -227,20 +231,24 @@ func (e *Exporter) Export(
 // (500 records and 5 MiB per call, partition keys included in the size).
 func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRequestEntry {
 	var chunks [][]types.PutRecordsRequestEntry
+
 	newChunk := func() []types.PutRecordsRequestEntry {
 		return make([]types.PutRecordsRequestEntry, 0, min(len(records), maxRecordsPerCall))
 	}
 	current := newChunk()
 	size := 0
+
 	for _, r := range records {
 		recSize := len(r.Data) + len(aws.ToString(r.PartitionKey))
 		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+recSize > maxBytesPerCall) {
 			chunks = append(chunks, current)
 			current, size = newChunk(), 0
 		}
+
 		current = append(current, r)
 		size += recSize
 	}
+
 	if len(current) > 0 {
 		chunks = append(chunks, current)
 	}
@@ -265,6 +273,7 @@ func rejectedRecords(
 			ErrorCode:    aws.String("UnverifiableResponse"),
 			ErrorMessage: aws.String("response does not match the request"),
 		}
+
 		failures := make([]types.PutRecordsResultEntry, len(pending))
 		for i := range failures {
 			failures[i] = unknown
@@ -273,12 +282,16 @@ func rejectedRecords(
 		return pending, failures
 	}
 
-	var retry []types.PutRecordsRequestEntry
-	var failures []types.PutRecordsResultEntry
+	var (
+		retry    []types.PutRecordsRequestEntry
+		failures []types.PutRecordsResultEntry
+	)
+
 	for i, res := range output.Records {
 		if res.ErrorCode == nil && res.ErrorMessage == nil && res.SequenceNumber != nil {
 			continue
 		}
+
 		retry = append(retry, pending[i])
 		failures = append(failures, res)
 	}
@@ -288,17 +301,21 @@ func rejectedRecords(
 
 func distinctCodes(failures []types.PutRecordsResultEntry) string {
 	set := map[string]struct{}{}
+
 	for _, f := range failures {
 		code := aws.ToString(f.ErrorCode)
 		if code == "" {
 			code = "Unknown"
 		}
+
 		set[code] = struct{}{}
 	}
+
 	codes := make([]string, 0, len(set))
 	for c := range set {
 		codes = append(codes, c)
 	}
+
 	sort.Strings(codes)
 
 	return strings.Join(codes, ", ")
@@ -318,6 +335,7 @@ func (e *Exporter) IsBulk() bool {
 
 func (e *Exporter) initializeProducer(ctx context.Context) error {
 	var initErr error
+
 	e.init.Do(func() {
 		if e.Settings == nil {
 			e.Settings = NewSettings()
@@ -330,8 +348,10 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 
 				return
 			}
+
 			e.AwsConfig = &cfg
 		}
+
 		if e.sender == nil {
 			e.sender = &DefaultKinesisSender{
 				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
@@ -366,14 +386,17 @@ func (e *Exporter) sendChunk(
 	for attempt := 1; ; attempt++ {
 		req := *input
 		req.Records = pending
+
 		output, err := e.sender.SendMessages(ctx, &req)
 		if err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
+
 		retry, failures := rejectedRecords(pending, output)
 		if len(retry) == 0 {
 			return nil
 		}
+
 		logger.WarnContext(ctx, "send: some records were rejected by Kinesis",
 			"failed", len(retry), "total", total, "attempt", attempt)
 
@@ -381,7 +404,9 @@ func (e *Exporter) sendChunk(
 			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
 				len(retry), total, attempt, distinctCodes(failures))
 		}
+
 		pending = retry
+
 		waitErr := e.wait(ctx, backoff(attempt))
 		if waitErr != nil {
 			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
@@ -395,8 +420,10 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 	if e.sleep != nil {
 		return e.sleep(ctx, d)
 	}
+
 	t := time.NewTimer(d)
 	defer t.Stop()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

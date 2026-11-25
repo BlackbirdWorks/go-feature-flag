@@ -24,12 +24,15 @@ func largeInQueryVariant(n int, prefix string) string {
 	var builder strings.Builder
 	builder.Grow(n*16 + 16)
 	builder.WriteString(`key in [`)
+
 	for i := range n {
 		if i > 0 {
 			builder.WriteString(", ")
 		}
+
 		fmt.Fprintf(&builder, `"%suser-%07d"`, prefix, i)
 	}
+
 	builder.WriteString(`]`)
 
 	return builder.String()
@@ -39,6 +42,7 @@ func largeInQueryVariant(n int, prefix string) string {
 // cache does when it loads a configuration.
 func newValidatedFlag(b *testing.B, svc *flag.Service, query string) *flag.InternalFlag {
 	b.Helper()
+
 	flg := &flag.InternalFlag{
 		Variations: &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 		Rules: &[]flag.Rule{{
@@ -57,7 +61,9 @@ func newValidatedFlag(b *testing.B, svc *flag.Service, query string) *flag.Inter
 // its own copy of the text, as every flag parsed from a configuration file does.
 func sharedBy100Flags(b *testing.B, svc *flag.Service) []*flag.InternalFlag {
 	b.Helper()
+
 	query := largeInQuery()
+
 	flags := make([]*flag.InternalFlag, 100)
 	for i := range flags {
 		flags[i] = newValidatedFlag(b, svc, strings.Clone(query))
@@ -68,9 +74,12 @@ func sharedBy100Flags(b *testing.B, svc *flag.Service) []*flag.InternalFlag {
 
 func benchValue(b *testing.B, svc *flag.Service, flags []*flag.InternalFlag, key string) {
 	b.Helper()
+
 	ctx := ffcontext.NewEvaluationContext(key)
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		flags[i%len(flags)].Value("flag", ctx, flag.Context{Service: svc})
 	}
@@ -101,10 +110,12 @@ func BenchmarkInternalFlagValue_LargeIn300kSharedBy100Flags(b *testing.B) {
 // different 300000 ids lists, round-robin (100 lists need too much memory).
 func BenchmarkInternalFlagValue_LargeIn300kDifferentIn10Flags(b *testing.B) {
 	svc := flag.NewService()
+
 	flags := make([]*flag.InternalFlag, 10)
 	for i := range flags {
 		flags[i] = newValidatedFlag(b, svc, largeInQueryVariant(300000, fmt.Sprintf("list%d-", i)))
 	}
+
 	benchValue(b, svc, flags, "someone-else")
 }
 
@@ -114,6 +125,7 @@ func BenchmarkInternalFlagValue_LargeIn300kParallel(b *testing.B) {
 	svc := flag.NewService()
 	flags := sharedBy100Flags(b, svc)
 	ctx := ffcontext.NewEvaluationContext("someone-else")
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -129,6 +141,7 @@ func BenchmarkInternalFlagValue_LargeIn300kParallel(b *testing.B) {
 // while the previous configuration is still loaded.
 func benchReload(b *testing.B, ids int) {
 	b.Helper()
+
 	svc := flag.NewService()
 	query := largeInQueryVariant(ids, "")
 	load := func() []*flag.InternalFlag {
@@ -140,11 +153,14 @@ func benchReload(b *testing.B, ids int) {
 		return flags
 	}
 	previous := load()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		// The loader builds the flags from the file before validating them.
 		b.StopTimer()
+
 		next := make([]*flag.InternalFlag, 100)
 		for j := range next {
 			next[j] = &flag.InternalFlag{
@@ -157,12 +173,16 @@ func benchReload(b *testing.B, ids int) {
 				DefaultRule: &flag.Rule{VariationResult: new("off")},
 			}
 		}
+
 		b.StartTimer()
+
 		for _, f := range next {
 			require.NoError(b, f.IsValid(svc))
 		}
+
 		previous = next
 	}
+
 	_ = previous
 }
 
@@ -173,12 +193,14 @@ func BenchmarkInternalFlagIsValid_Reload100FlagsSharing20kIn(b *testing.B)   { b
 // not regress.
 func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 	svc := flag.NewService()
-	f := newValidatedFlag(b, svc, `key eq "user-1" and plan eq "pro"`)
+	flg := newValidatedFlag(b, svc, `key eq "user-1" and plan eq "pro"`)
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
-		f.Value("flag", ctx, flag.Context{Service: svc})
+		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -189,8 +211,10 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 	svc := flag.NewService()
 	flg := newValidatedFlag(b, svc, largeInQuery())
 	ctx := ffcontext.NewEvaluationContext("someone-else")
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		if i%10 == 0 {
 			b.StopTimer()
@@ -198,6 +222,7 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 			runtime.GC()
 			b.StartTimer()
 		}
+
 		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
@@ -231,22 +256,31 @@ func smallQueries(n int) []string {
 // typical configuration file. The flags are built outside the measure.
 func benchLoad(b *testing.B, count int) {
 	b.Helper()
+
 	svc := flag.NewService()
 	queries := smallQueries(count)
+
 	var keep []*flag.InternalFlag
+
 	b.ReportAllocs()
+
 	for range b.N {
 		b.StopTimer()
+
 		flags := make([]*flag.InternalFlag, count)
 		for j := range flags {
 			flags[j] = newSmallFlag(j, strings.Clone(queries[j]))
 		}
+
 		b.StartTimer()
+
 		for _, flg := range flags {
 			require.NoError(b, flg.IsValid(svc))
 		}
+
 		keep = flags
 	}
+
 	_ = keep
 }
 
@@ -258,14 +292,18 @@ func BenchmarkInternalFlagIsValid_Load10000SmallFlags(b *testing.B) { benchLoad(
 func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 	svc := flag.NewService()
 	queries := smallQueries(10000)
+
 	flags := make([]*flag.InternalFlag, len(queries))
 	for i := range flags {
 		flags[i] = newSmallFlag(i, queries[i])
 		require.NoError(b, flags[i].IsValid(svc))
 	}
+
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		flags[i%len(flags)].Value("flag", ctx, flag.Context{Service: svc})
 	}
@@ -275,7 +313,9 @@ func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 	svc := flag.NewService()
 	flg := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
 	require.NoError(b, flg.IsValid(svc))
+
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -289,9 +329,12 @@ func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 	svc := flag.NewService()
 	flg := newSmallFlag(0, "")
 	require.NoError(b, flg.IsValid(svc))
+
 	ctx := ffcontext.NewEvaluationContext("user-1")
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
@@ -301,9 +344,12 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	svc := flag.NewService()
 	flg := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
 	require.NoError(b, flg.IsValid(svc))
+
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
@@ -318,8 +364,10 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 		VariationResult: new("on"),
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _ = r.Evaluate(svc, "user-1", ctx, "flag", false)
 	}
@@ -339,9 +387,12 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 		Date: &past,
 	}}
 	require.NoError(b, flg.IsValid(svc))
+
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
@@ -350,6 +401,7 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 func heapInUse() float64 {
 	runtime.GC()
 	runtime.GC()
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -362,6 +414,7 @@ func heapInUse() float64 {
 func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 	svc := flag.NewService()
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
+
 	for range b.N {
 		base := heapInUse()
 		load := func(generation int) []*flag.InternalFlag {
@@ -376,10 +429,13 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 		}
 		current := load(0)
 		afterLoad := heapInUse() - base
+
 		for g := 1; g <= 30; g++ {
 			current = load(g)
 		}
+
 		afterReloads := heapInUse() - base
+
 		b.ReportMetric(afterLoad, "heap-load-B")
 		b.ReportMetric(afterReloads, "heap-reloads-B")
 		runtime.KeepAlive(current)
@@ -391,17 +447,22 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 func BenchmarkHeap_LargeListReloads(b *testing.B) {
 	svc := flag.NewService()
 	ctx := ffcontext.NewEvaluationContext("someone-else")
+
 	for range b.N {
 		base := heapInUse()
+
 		var current []*flag.InternalFlag
+
 		for g := range 8 {
 			query := largeInQueryVariant(20000, fmt.Sprintf("gen%d-", g))
+
 			current = make([]*flag.InternalFlag, 5)
 			for j := range current {
 				current[j] = newValidatedFlag(b, svc, strings.Clone(query))
 				current[j].Value("flag", ctx, flag.Context{Service: svc})
 			}
 		}
+
 		b.ReportMetric(heapInUse()-base, "heap-B")
 		runtime.KeepAlive(current)
 	}

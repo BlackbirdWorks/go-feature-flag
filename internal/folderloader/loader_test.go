@@ -61,21 +61,27 @@ type fakeStore struct {
 func (f *fakeStore) List(_ context.Context, prefix string, recursive bool) ([]folderloader.Entry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.listPrefixes = append(f.listPrefixes, prefix)
+
 	f.listRecurse = append(f.listRecurse, recursive)
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
+
 	var res []folderloader.Entry
+
 	for key, content := range f.files {
 		rest, ok := strings.CutPrefix(key, prefix)
 		if !ok || (!recursive && strings.Contains(strings.TrimSuffix(rest, "/"), "/")) {
 			continue
 		}
+
 		v := f.version(content)
 		if f.listVersion != "" {
 			v = f.listVersion
 		}
+
 		res = append(res, folderloader.Entry{Key: key, Version: v})
 	}
 
@@ -86,26 +92,33 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	if f.beforeGet != nil {
 		f.beforeGet(key)
 	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.getCalls == nil {
 		f.getCalls = map[string]int{}
 	}
+
 	f.getCalls[key]++
 	if f.getErr != nil {
 		return nil, "", f.getErr
 	}
+
 	err := f.getErrKeys[key]
 	if err != nil {
 		return nil, "", err
 	}
+
 	content, ok := f.files[key]
 	if !ok {
 		return nil, "", fmt.Errorf("%w: %s", errNoSuchKey, key)
 	}
+
 	if f.getNoVersion {
 		return []byte(content), "", nil
 	}
+
 	if f.getVersion != "" {
 		return []byte(content), f.getVersion, nil
 	}
@@ -116,29 +129,35 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 func (f *fakeStore) put(key, content string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.files == nil {
 		f.files = map[string]string{}
 	}
+
 	f.files[key] = content
 }
 
 func (f *fakeStore) del(key string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	delete(f.files, key)
 }
 
 func (f *fakeStore) setGetErrKey(key string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.getErrKeys == nil {
 		f.getErrKeys = map[string]error{}
 	}
+
 	if err == nil {
 		delete(f.getErrKeys, key)
 
 		return
 	}
+
 	f.getErrKeys[key] = err
 }
 
@@ -181,6 +200,7 @@ type loadCase struct {
 
 func TestLoader_Load(t *testing.T) {
 	t.Parallel()
+
 	tests := slices.Concat(
 		folderListingCases(),
 		cacheAndVersionCases(),
@@ -416,10 +436,12 @@ func cacheAndVersionCases() []loadCase {
 			name: "file replaced between list and download is downloaded again on the next poll",
 			setup: func(store *fakeStore) {
 				store.put("f/a.yaml", yamlA)
+
 				swapped := false
 				store.beforeGet = func(key string) {
 					if !swapped {
 						swapped = true
+
 						store.put(key, yamlB)
 					}
 				}
@@ -628,16 +650,19 @@ func errorAndEmptyCases() []loadCase {
 // as the decoding of the original file.
 func roundTripCases(t *testing.T) []loadCase {
 	t.Helper()
+
 	files := []string{
 		"flag-config.yaml", "flag-config.json", "flag-config.toml",
 		"flag-config-multiline-query.json", "flag-config-scheduled-v0.yaml",
 		"flag-config-3rd-file.yaml", "flag-config-custom-bucketingkey.yaml", "flag-config-rollouts.toml",
 	}
+
 	cases := make([]loadCase, 0, len(files))
 	for _, fileName := range files {
 		local := "../../testdata/" + fileName
 		content, err := os.ReadFile(local)
 		require.NoError(t, err)
+
 		cases = append(cases, loadCase{
 			name:  "round trip " + fileName,
 			setup: func(s *fakeStore) { s.put("f/"+fileName, string(content)) },
@@ -651,8 +676,10 @@ func roundTripCases(t *testing.T) []loadCase {
 
 func runLoadCase(t *testing.T, testCase loadCase) {
 	t.Helper()
+
 	store := &fakeStore{}
 	testCase.setup(store)
+
 	logs := &bytes.Buffer{}
 	testCase.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 	ldr := folderloader.New(store, testCase.opts)
@@ -661,6 +688,7 @@ func runLoadCase(t *testing.T, testCase loadCase) {
 		if currStep.mutate != nil {
 			currStep.mutate(store)
 		}
+
 		got, err := ldr.Load(t.Context())
 		if currStep.wantErr != "" {
 			require.ErrorContains(t, err, currStep.wantErr, "step %d", i)
@@ -668,24 +696,30 @@ func runLoadCase(t *testing.T, testCase loadCase) {
 			require.NoError(t, err, "step %d", i)
 			checkOutput(t, ldr.OutputFormat(), currStep, got, i)
 		}
+
 		if currStep.wantFormat != "" {
 			assert.Equal(t, currStep.wantFormat, ldr.OutputFormat(), "step %d", i)
 		}
+
 		for k, n := range currStep.wantGets {
 			assert.Equal(t, n, store.calls(k), "Get calls of %s at step %d", k, i)
 		}
+
 		checkLogs(t, logs, currStep, i)
 	}
 }
 
 func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
 	t.Helper()
+
 	if currStep.wantLog != "" {
 		assert.Contains(t, logs.String(), currStep.wantLog, "step %d", i)
 	}
+
 	if currStep.wantNoLog != "" {
 		assert.NotContains(t, logs.String(), currStep.wantNoLog, "step %d", i)
 	}
+
 	if currStep.wantLogCountOf != "" {
 		assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), "step %d", i)
 	}
@@ -693,29 +727,38 @@ func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
 
 func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) {
 	t.Helper()
+
 	if currStep.wantContent != "" {
 		assert.Equal(t, currStep.wantContent, string(got), "step %d", i)
 	}
+
 	flags, err := cache.ConvertToFlagStruct(got, format)
 	require.NoError(t, err, "step %d", i)
+
 	if currStep.wantFlags != nil {
 		keys := make([]string, 0, len(flags))
 		for k := range flags {
 			keys = append(keys, k)
 		}
+
 		assert.ElementsMatch(t, currStep.wantFlags, keys, "step %d", i)
 	}
+
 	if len(currStep.wantSameAs) > 0 {
 		want := map[string]dto.DTO{}
+
 		for _, f := range currStep.wantSameAs {
 			content, rErr := os.ReadFile(f)
 			require.NoError(t, rErr)
+
 			parsed, pErr := cache.ConvertToFlagStruct(content, strings.TrimPrefix(filepath.Ext(f), "."))
 			require.NoError(t, pErr)
 			maps.Copy(want, parsed)
 		}
+
 		assert.Equal(t, want, flags, "step %d", i)
 	}
+
 	if currStep.check != nil {
 		currStep.check(t, flags)
 	}
@@ -726,6 +769,7 @@ func variationOf(flags map[string]dto.DTO, flagName, variation string) any {
 	if !ok || f.Variations == nil {
 		return nil
 	}
+
 	v := (*f.Variations)[variation]
 	if v == nil {
 		return nil
@@ -736,6 +780,7 @@ func variationOf(flags map[string]dto.DTO, flagName, variation string) any {
 
 func TestLoader_Load_Provider(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		opts        folderloader.Options
@@ -765,6 +810,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			logs := &bytes.Buffer{}
 			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 
@@ -779,9 +825,11 @@ func TestLoader_Load_Provider(t *testing.T) {
 
 			_, err = folderloader.New(&fakeStore{}, tt.opts).Load(t.Context())
 			require.NoError(t, err)
+
 			for _, w := range tt.wantLogs {
 				assert.Contains(t, logs.String(), w)
 			}
+
 			for _, w := range tt.wantNotLogs {
 				assert.NotContains(t, logs.String(), w)
 			}
@@ -791,6 +839,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 
 func TestLoader_Load_StorePrefix(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name          string
 		prefix        string
@@ -806,6 +855,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			s := &fakeStore{}
 			l := folderloader.New(s, folderloader.Options{Prefix: tt.prefix, Recursive: tt.recursive})
 			_, err := l.Load(t.Context())
@@ -818,6 +868,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 
 func TestLoader_OutputFormat(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		pattern string
@@ -839,6 +890,7 @@ func TestLoader_OutputFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			s := &fakeStore{files: tt.files}
 			l := folderloader.New(s, folderloader.Options{Prefix: "f/", Pattern: tt.pattern})
 			assert.Equal(t, tt.want, l.OutputFormat())
@@ -851,9 +903,11 @@ func TestLoader_OutputFormat(t *testing.T) {
 
 func TestLoader_Reset(t *testing.T) {
 	t.Parallel()
+
 	store := &fakeStore{}
 	store.put("f/a.yaml", yamlA)
 	store.put("f/readme.txt", "hello")
+
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 	ldr := folderloader.New(store, folderloader.Options{Prefix: "f/", Logger: logger})
@@ -862,6 +916,7 @@ func TestLoader_Reset(t *testing.T) {
 		_, err := ldr.Load(t.Context())
 		require.NoError(t, err)
 	}
+
 	assert.Equal(t, 1, store.calls("f/a.yaml"))
 	assert.Equal(t, 1, strings.Count(logs.String(), "key=f/readme.txt"))
 
@@ -875,8 +930,10 @@ func TestLoader_Reset(t *testing.T) {
 
 func TestReuse(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{}
 	base := folderloader.Options{Prefix: "f/", Pattern: "a.*", Recursive: true, Logger: logger, Location: "b"}
+
 	tests := []struct {
 		opts      func(o folderloader.Options) folderloader.Options
 		name      string
@@ -912,6 +969,7 @@ func TestReuse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			store := &fakeStore{}
 			store.put("f/a.yaml", yamlA)
 			store.put("g/a.yaml", yamlA)
@@ -923,18 +981,22 @@ func TestReuse(t *testing.T) {
 			if !tt.nilLoader {
 				prev = old
 			}
+
 			opts := base
 			if tt.opts != nil {
 				opts = tt.opts(base)
 			}
+
 			got := folderloader.Reuse(prev, store, opts)
 			require.NotNil(t, got)
+
 			if tt.wantSame {
 				assert.Same(t, old, got)
 				assert.Equal(t, "yaml", got.OutputFormat())
 
 				return
 			}
+
 			assert.NotSame(t, old, got)
 			// a new loader starts with an empty cache: the file is downloaded again
 			_, err = got.Load(t.Context())

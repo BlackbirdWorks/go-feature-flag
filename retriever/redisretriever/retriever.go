@@ -40,6 +40,7 @@ func (r *Retriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
 
 		return fmt.Errorf("ping Redis: %w", err)
 	}
+
 	r.client = client
 	r.status = retriever.RetrieverReady
 
@@ -75,6 +76,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 
 		return fmt.Errorf("close Redis client: %w", err)
 	}
+
 	r.status = retriever.RetrieverNotReady
 
 	return nil
@@ -87,16 +89,19 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	var flagsData = make(map[string]any)
+
 	iter := r.client.Scan(ctx, 0, r.Prefix+"*", 0).Iterator()
 	for iter.Next(ctx) {
 		key := iter.Val()
 		keyWithoutPrefix := strings.Replace(key, r.Prefix, "", 1)
+
 		value, err := r.client.Get(ctx, key).Result()
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving flag '%s': %w", key, err)
 		}
 
 		var flagData any
+
 		unmarshalErr := json.Unmarshal([]byte(value), &flagData)
 		if unmarshalErr != nil {
 			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, unmarshalErr)
@@ -104,6 +109,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		flagsData[keyWithoutPrefix] = flagData
 	}
+
 	err := iter.Err()
 	if err != nil {
 		return nil, fmt.Errorf("error iterating through Redis keys: %w", err)

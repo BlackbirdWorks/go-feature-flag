@@ -43,6 +43,7 @@ func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.Go
 	if flagsetManager == nil {
 		return nil, NewHTTPError(http.StatusInternalServerError, "flagset manager is not initialized")
 	}
+
 	flagset, err := flagsetManager.FlagSet(apiKey)
 	if err != nil {
 		return nil, NewHTTPError(http.StatusBadRequest, "error while getting flagset: "+err.Error())

@@ -49,6 +49,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 	server := sse.New()
 	server.AutoReplay = false
 	server.AutoStream = true
+
 	svc := &SSEServiceImpl{
 		server:        server,
 		activeStreams: map[string]int{},
@@ -65,6 +66,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 // providers re-fetch their evaluations when they receive the event.
 func (s *SSEServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
 	now := clock.Now()
+
 	data, err := json.Marshal(model.OFREPSSEEvent{
 		Type:         model.OFREPSSEEventTypeRefetchEvaluation,
 		LastModified: now.Unix(),
@@ -72,6 +74,7 @@ func (s *SSEServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 	if err != nil {
 		return fmt.Errorf("sse: failed to marshal OFREP event for stream %q: %w", flagsetName, err)
 	}
+
 	s.server.Publish(flagsetName, &sse.Event{
 		ID:    []byte(strconv.FormatInt(now.UnixNano(), 10)),
 		Event: []byte("message"),
@@ -83,12 +86,14 @@ func (s *SSEServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	streamID := r.URL.Query().Get("stream")
+
 	s.trackStream(streamID, 1)
 	defer s.trackStream(streamID, -1)
 
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}
 	}
+
 	s.server.ServeHTTP(w, r)
 }
 
@@ -106,6 +111,7 @@ func (s *SSEServiceImpl) Close() {
 func (s *SSEServiceImpl) trackStream(streamID string, delta int) {
 	s.muActiveStreams.Lock()
 	defer s.muActiveStreams.Unlock()
+
 	s.activeStreams[streamID] += delta
 	if s.activeStreams[streamID] <= 0 {
 		delete(s.activeStreams, streamID)
@@ -117,17 +123,20 @@ func (s *SSEServiceImpl) trackStream(streamID string, delta int) {
 func (s *SSEServiceImpl) sendHeartbeats(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-s.done:
 			return
 		case <-ticker.C:
 			s.muActiveStreams.Lock()
+
 			streamIDs := make([]string, 0, len(s.activeStreams))
 			for streamID := range s.activeStreams {
 				streamIDs = append(streamIDs, streamID)
 			}
 			s.muActiveStreams.Unlock()
+
 			for _, streamID := range streamIDs {
 				s.server.TryPublish(streamID, &sse.Event{Comment: []byte("heartbeat")})
 			}
@@ -156,5 +165,6 @@ func (w *connectedCommentWriter) Flush() {
 		w.sent = true
 		_, _ = io.WriteString(w.ResponseWriter, ": connected\n\n")
 	}
+
 	w.flusher.Flush()
 }

@@ -50,6 +50,7 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 	const wantParseErr = "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)"
 
 	pools := rr.NewPoolRegistry()
+
 	tests := []struct {
 		r       *rr.Retriever
 		name    string

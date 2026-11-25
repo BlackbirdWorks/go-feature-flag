@@ -144,7 +144,9 @@ func bucket(durNs int64) int {
 	if durNs < 1 {
 		durNs = 1
 	}
+
 	bitLen := bits.Len64(uint64(durNs)) - 1
+
 	sub := 0
 	if bitLen >= subBucketBits {
 		sub = int((uint64(durNs) >> (bitLen - subBucketBits)) & subBucketMask)
@@ -166,7 +168,9 @@ func quantile(hist []int64, total int64, q float64) time.Duration {
 	if total == 0 {
 		return 0
 	}
+
 	target := int64(float64(total) * q)
+
 	var cum int64
 	for i, c := range hist {
 		cum += c
@@ -182,36 +186,25 @@ func quantile(hist []int64, total int64, q float64) time.Duration {
 // throughput, the latency, the heap and the goroutine count every Interval. If out is not nil,
 // each sample is written to it as it is taken.
 func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
-	if opts.Interval <= 0 {
-		opts.Interval = defaultSampleInterval
-	}
-	if opts.Workers <= 0 {
-		opts.Workers = runtime.GOMAXPROCS(0)
-	}
-	if opts.HeapTolerance <= 0 {
-		opts.HeapTolerance = 0.25
-	}
-	if opts.HeapMinGrowthBytes == 0 {
-		opts.HeapMinGrowthBytes = defaultHeapMinGrowth
-	}
-	if opts.GoroutineSlack == 0 {
-		opts.GoroutineSlack = 64
-	}
-	if opts.MaxHeapBytes == 0 {
-		opts.MaxHeapBytes = defaultMaxHeap
-	}
+	opts = applySoakDefaults(opts)
+
 	ctx, cancel := context.WithTimeout(ctx, opts.Duration)
 	defer cancel()
+
 	var abortedAt atomic.Int64
 	go watchdog(ctx, cancel, opts.MaxHeapBytes, &abortedAt)
 
 	stats := make([]*workerStats, opts.Workers)
+
 	var wg sync.WaitGroup
+
 	for w := range opts.Workers {
 		stats[w] = &workerStats{}
+
 		wg.Add(1)
 		go func(w int, st *workerStats) {
 			defer wg.Done()
+
 			evalLoop(ctx, t, w, st)
 		}(w, stats[w])
 	}
@@ -219,11 +212,16 @@ func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
 	rep := Report{Name: opts.Name}
 	start := time.Now()
 	last := start
+
 	var lastCount, lastErr int64
+
 	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
+
 	hist := make([]int64, latBuckets)
+
 	var sampleHists [][]int64
+
 loop:
 	for {
 		select {
@@ -231,27 +229,35 @@ loop:
 			break loop
 		case <-ticker.C:
 		}
+
 		now := time.Now()
 		count, errs, nLat := drain(stats, hist)
 		sample := takeSample(now.Sub(start), now.Sub(last), count-lastCount, errs-lastErr, hist, nLat)
 		rep.Samples = append(rep.Samples, sample)
 		sampleHists = append(sampleHists, append([]int64(nil), hist...))
+
 		if out != nil {
 			if len(rep.Samples) == 1 {
 				_, _ = fmt.Fprintln(out, header)
 			}
+
 			_, _ = fmt.Fprintln(out, sample.line())
 		}
+
 		last, lastCount, lastErr = now, count, errs
 	}
+
 	cancel()
 	wg.Wait()
+
 	for _, st := range stats {
 		rep.TotalEval += st.count.Load()
 		rep.TotalErr += st.errs.Load()
 	}
+
 	rep.Extra = t.Extra()
 	judge(&rep, opts)
+
 	rep.Window = summarize(rep.Samples, sampleHists, warmupCount(len(rep.Samples), opts), flagsPerCall(t))
 	if a := abortedAt.Load(); a > 0 {
 		rep.Pass = false
@@ -263,9 +269,39 @@ loop:
 	return rep
 }
 
+// applySoakDefaults fills zero-valued Options fields with default soak parameters.
+func applySoakDefaults(opts Options) Options {
+	if opts.Interval <= 0 {
+		opts.Interval = defaultSampleInterval
+	}
+
+	if opts.Workers <= 0 {
+		opts.Workers = runtime.GOMAXPROCS(0)
+	}
+
+	if opts.HeapTolerance <= 0 {
+		opts.HeapTolerance = 0.25
+	}
+
+	if opts.HeapMinGrowthBytes == 0 {
+		opts.HeapMinGrowthBytes = defaultHeapMinGrowth
+	}
+
+	if opts.GoroutineSlack == 0 {
+		opts.GoroutineSlack = 64
+	}
+
+	if opts.MaxHeapBytes == 0 {
+		opts.MaxHeapBytes = defaultMaxHeap
+	}
+
+	return opts
+}
+
 // takeSample forces a GC and builds the sample of the interval that just ended.
 func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64, nLat int64) Sample {
 	runtime.GC()
+
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
@@ -287,14 +323,17 @@ func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64
 func watchdog(ctx context.Context, cancel context.CancelFunc, maxHeap uint64, abortedAt *atomic.Int64) {
 	sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
 	start := time.Now()
+
 	ticker := time.NewTicker(heapPollInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			metrics.Read(sample)
+
 			if sample[0].Value.Kind() == metrics.KindUint64 && sample[0].Value.Uint64() > maxHeap {
 				abortedAt.Store(int64(time.Since(start)) + 1)
 				cancel()
@@ -310,10 +349,12 @@ func evalLoop(ctx context.Context, t Target, w int, stats *workerStats) {
 	for i := 0; ctx.Err() == nil; i++ {
 		if i%latSample == 0 {
 			start := time.Now()
+
 			err := t.Eval(w, i)
 			if err != nil {
 				stats.errs.Add(1)
 			}
+
 			stats.hist[bucket(time.Since(start).Nanoseconds())].Add(1)
 		} else {
 			err := t.Eval(w, i)
@@ -321,6 +362,7 @@ func evalLoop(ctx context.Context, t Target, w int, stats *workerStats) {
 				stats.errs.Add(1)
 			}
 		}
+
 		stats.count.Add(1)
 	}
 }
@@ -329,11 +371,14 @@ func evalLoop(ctx context.Context, t Target, w int, stats *workerStats) {
 // accumulated since the previous call (nLat is its number of samples).
 func drain(stats []*workerStats, hist []int64) (int64, int64, int64) {
 	var count, errs, nLat int64
+
 	for i := range hist {
 		hist[i] = 0
 	}
+
 	for _, st := range stats {
 		count += st.count.Load()
+
 		errs += st.errs.Load()
 		for i := range st.hist {
 			c := st.hist[i].Swap(0)
@@ -377,17 +422,22 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 	if warm >= len(samples) {
 		return Window{}
 	}
+
 	w := Window{Samples: len(samples) - warm, FlagsPerCall: perCall}
 	merged := make([]int64, latBuckets)
+
 	var total int64
+
 	for i := warm; i < len(samples); i++ {
 		w.CallsPerSec += samples[i].EvalsPerSec
+
 		w.Errors += samples[i].Errors
 		for b, c := range hists[i] {
 			merged[b] += c
 			total += c
 		}
 	}
+
 	w.CallsPerSec /= float64(w.Samples)
 	w.FlagsPerSec = w.CallsPerSec * float64(perCall)
 	w.P50, w.P95, w.P99 = quantile(
@@ -422,15 +472,21 @@ func judge(r *Report, opts Options) {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf("%d of %d evaluations failed", r.TotalErr, r.TotalEval))
 	}
-	n := len(r.Samples)
-	warm := warmupCount(n, opts)
-	if n-warm < minMeasuredSamples {
+
+	sampleCount := len(r.Samples)
+
+	warm := warmupCount(sampleCount, opts)
+	if sampleCount-warm < minMeasuredSamples {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
-			"insufficient samples: %d samples, %d warm-up, need at least 3 measured (increase -duration)", n, warm))
+			"insufficient samples: %d samples, %d warm-up, need at least 3 measured (increase -duration)",
+			sampleCount,
+			warm,
+		))
 
 		return
 	}
+
 	measured := r.Samples[warm:]
 	// The post-GC heap of a healthy exporter is a sawtooth (the events wait for their flush), so
 	// averages, peaks and fitted lines over a handful of samples are noisy: the flush interval and the
@@ -443,7 +499,9 @@ func judge(r *Report, opts Options) {
 		for i, s := range ss {
 			heaps[i] = float64(s.HeapInuse)
 		}
+
 		slices.Sort(heaps)
+
 		mid := len(heaps) / halves
 		if len(heaps)%2 == 1 {
 			return heaps[mid]
@@ -453,6 +511,7 @@ func judge(r *Report, opts Options) {
 	}
 	first, last := median(measured[:half]), median(measured[len(measured)-half:])
 	r.HeapGrowthBytes = last - first
+
 	allowed := max(opts.HeapTolerance*first, float64(opts.HeapMinGrowthBytes))
 	if r.HeapGrowthBytes > allowed {
 		r.Pass = false
@@ -463,10 +522,12 @@ func judge(r *Report, opts Options) {
 	// the baseline is the last warm-up sample, so growth between it and the first measured
 	// sample is counted.
 	base := r.Samples[warm-1].Goroutines
+
 	maxG := base
 	for _, s := range measured {
 		maxG = max(maxG, s.Goroutines)
 	}
+
 	if maxG > base+opts.GoroutineSlack {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
@@ -480,36 +541,45 @@ func (r Report) Summary(w io.Writer) {
 	for _, s := range r.Samples {
 		avg += s.EvalsPerSec
 	}
+
 	if len(r.Samples) > 0 {
 		avg /= float64(len(r.Samples))
 	}
+
 	verdict := "PASS"
 	if !r.Pass {
 		verdict = "FAIL"
 	}
+
 	_, _ = fmt.Fprintf(w,
 		"\n%s: %s memory-stable (mean %.0f evals/s, %d evals, %d errors, heap growth over window %+.1f MiB)\n",
 		r.Name, verdict, avg, r.TotalEval, r.TotalErr, r.HeapGrowthBytes/mib)
 	for _, reason := range r.Reasons {
 		_, _ = fmt.Fprintf(w, "  - %s\n", reason)
 	}
+
 	if r.Window.Samples > 0 {
 		_, _ = fmt.Fprintf(w, "  window (%d samples after warm-up): %.0f calls/s, %.0f flags/s (%d per call), "+
 			"%d errors, latency p50 %.1fus p95 %.1fus p99 %.1fus\n",
 			r.Window.Samples, r.Window.CallsPerSec, r.Window.FlagsPerSec, r.Window.FlagsPerCall, r.Window.Errors,
 			float64(r.Window.P50)/nsPerUs, float64(r.Window.P95)/nsPerUs, float64(r.Window.P99)/nsPerUs)
 	}
+
 	if len(r.Extra) > 0 {
 		keys := make([]string, 0, len(r.Extra))
 		for k := range r.Extra {
 			keys = append(keys, k)
 		}
+
 		sort.Strings(keys)
+
 		tabW := tabwriter.NewWriter(w, 0, 0, tabPadding, ' ', 0)
+
 		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
 			parts = append(parts, fmt.Sprintf("%s=%d", k, r.Extra[k]))
 		}
+
 		_, _ = fmt.Fprintln(tabW, "  target counters: "+strings.Join(parts, " "))
 		_ = tabW.Flush()
 	}

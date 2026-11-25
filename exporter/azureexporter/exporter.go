@@ -80,6 +80,7 @@ func (f *Exporter) Export(
 		CsvTemplate:             f.CsvTemplate,
 		ParquetCompressionCodec: f.ParquetCompressionCodec,
 	}
+
 	err = fileExporter.Export(ctx, logger, featureEvents)
 	if err != nil {
 		return fmt.Errorf("export events to temp file for Azure: %w", err)
@@ -92,6 +93,7 @@ func (f *Exporter) Export(
 
 	for _, file := range files {
 		fileName := file.Name()
+
 		fileHandle, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
 		if openErr != nil {
 			logger.ErrorContext(
@@ -102,6 +104,7 @@ func (f *Exporter) Export(
 
 			continue
 		}
+
 		uploadFileErr := f.uploadFile(ctx, client, logger, fileHandle, outputDir, fileName)
 		if uploadFileErr != nil {
 			return uploadFileErr
@@ -120,6 +123,7 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 	if f.ServiceURL != "" {
 		url = f.ServiceURL
 	}
+
 	if f.AccountKey == "" {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
@@ -133,6 +137,7 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 
 		return client, nil
 	}
+
 	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
 	if err != nil {
 		return nil, fmt.Errorf("create Azure shared key credential: %w", err)

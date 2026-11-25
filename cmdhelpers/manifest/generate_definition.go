@@ -47,11 +47,13 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 
 			continue
 		}
+
 		if internalFlag.Variations == nil {
 			logger.Error(fmt.Sprintf("flag %s ignored: no variations provided", flagName))
 
 			continue
 		}
+
 		flagType, err := helper.FlagTypeFromVariations(*internalFlag.Variations)
 		if err != nil {
 			return definitions, fmt.Errorf("invalid configuration for flag %s: %w", flagName, err)

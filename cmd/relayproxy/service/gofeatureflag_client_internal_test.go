@@ -162,6 +162,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 			if tt.shared != nil {
 				proxyConf = *tt.shared
 			}
+
 			r, err := initRetrieversWithRegistry(&proxyConf, tt.reg)
 			tt.wantErr(t, err)
 			assertRetrieversLen(t, r, tt.wantLen, tt.retrievers)
@@ -174,17 +175,21 @@ func assertRetrieversLen(
 	t *testing.T, r []retriever.Retriever, wantLen int, retrievers *[]retrieverconf.RetrieverConf,
 ) {
 	t.Helper()
+
 	if r == nil {
 		return
 	}
+
 	if retrievers != nil {
 		wantLen += len(*retrievers)
 	}
+
 	assert.Len(t, r, wantLen)
 }
 
 func shutdownReleasing(t *testing.T, r []retriever.Retriever) {
 	t.Helper()
+
 	for _, rr := range r {
 		if sr, ok := rr.(*releasingRetriever); ok {
 			require.NoError(t, sr.Shutdown(t.Context()))
@@ -269,14 +274,17 @@ func Test_initExporters(t *testing.T) {
 			}
 			r, err := initDataExporters(&proxyConf)
 			tt.wantErr(t, err)
+
 			if r != nil {
 				nbExp := 0
 				if tt.exporters != nil {
 					nbExp += len(*tt.exporters)
 				}
+
 				if tt.exporter != nil {
 					nbExp++
 				}
+
 				assert.Len(t, r, nbExp)
 			}
 		})
@@ -538,6 +546,7 @@ func Test_initExporter(t *testing.T) {
 			got, err := initDataExporter(tt.conf)
 			tt.wantErr(t, err)
 			assert.IsType(t, tt.wantType, got.Exporter)
+
 			if err == nil && !tt.skipCompleteValidation {
 				assert.Equal(t, tt.want, got)
 			}
@@ -650,6 +659,7 @@ func Test_initNotifier(t *testing.T) {
 			if !tt.wantErr(t, err, fmt.Sprintf("initNotifier(%v)", tt.args.c)) {
 				return
 			}
+
 			assert.Equalf(t, tt.want, got, "initNotifier(%v)", tt.args.c)
 		})
 	}
@@ -1008,6 +1018,7 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 				assert.NotNil(t, slogLogger, "initLeveledLogger should return a non-nil logger")
 
 				slogLogger.Info("test message")
+
 				logOutput := logBuffer.String()
 
 				assert.Equal(t, tt.wantLog, logOutput)
@@ -1065,6 +1076,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 		Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml",
 	})
 	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		retrievers []retriever.Retriever
@@ -1077,11 +1089,13 @@ func Test_firstSharedRetriever(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, ok := firstSharedRetriever(tt.retrievers)
 			assert.Equal(t, tt.want, ok)
 			assert.Equal(t, tt.want, got != nil)
 		})
 	}
+
 	rel, ok := r.(*releasingRetriever)
 	require.True(t, ok)
 	require.NoError(t, rel.Shutdown(t.Context()))
@@ -1100,6 +1114,7 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
+
 	fs := s3FlagSet("a", "b1", "p/a.yaml")
 	fs.PollingInterval, fs.EnablePollingJitter = 5000, true
 	got, err := NewGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil)
@@ -1109,6 +1124,7 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 
 func Test_exporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name     string
 		flagset  time.Duration
@@ -1128,7 +1144,9 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			fs := &config.FlagSet{ExporterCleanQueueInterval: tt.flagset}
+
 			var o clientOptions
 			withDefaultExporterCleanQueueInterval(tt.fallback)(&o)
 			assert.Equal(t, tt.want, exporterCleanQueueInterval(fs, &o))
@@ -1138,7 +1156,9 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 
 func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
+
 	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/semaphore/configuration_flags.yaml"}
+
 	tests := []struct {
 		name     string
 		flagset  time.Duration
@@ -1152,9 +1172,12 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			fs := &config.FlagSet{Name: "fs",
 				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}
+
 			var got time.Duration
+
 			client, err := newGoFeatureFlagClient(fs, slog.New(slog.DiscardHandler), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),
 				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
@@ -1193,6 +1216,7 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: "flags",
 				})
 			}
+
 			var opts clientOptions
 			opts.ensurePostgresPools()
 

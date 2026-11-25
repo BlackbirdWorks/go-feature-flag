@@ -47,9 +47,11 @@ func (p *ProgressiveRolloutStep) mergeStep(updatedStep *ProgressiveRolloutStep) 
 	if updatedStep.Variation != nil {
 		p.Variation = updatedStep.Variation
 	}
+
 	if updatedStep.Date != nil {
 		p.Date = updatedStep.Date
 	}
+
 	if updatedStep.Percentage != nil {
 		p.Percentage = updatedStep.Percentage
 	}

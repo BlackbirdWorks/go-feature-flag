@@ -191,6 +191,7 @@ func TestExporter_Export(t *testing.T) {
 			}
 
 			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)

@@ -42,6 +42,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	reqBody := new(model.EvalFlagRequest)
+
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
 		//nolint:wrapcheck // helper.BindBody already returns *helper.HTTPError
@@ -53,12 +54,14 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	if assertErr != nil {
 		return assertErr
 	}
+
 	evaluationCtx, err := evaluationContextFromRequest(&reqBody.AllFlagRequest)
 	if err != nil {
 		return err
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "flagEvaluation")
 	defer span.End()
 

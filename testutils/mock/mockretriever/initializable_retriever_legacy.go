@@ -30,6 +30,7 @@ func (m *InitializableRetrieverLegacy) Retrieve(_ context.Context) ([]byte, erro
 
 func (m *InitializableRetrieverLegacy) Init(_ context.Context, logger *log.Logger) error {
 	m.InitCalled = true
+
 	m.ReceivedLogger = logger
 	if m.InitShouldFail {
 		return errInitializationFailed

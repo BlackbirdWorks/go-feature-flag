@@ -62,6 +62,7 @@ func NewService(opts ...ServiceOption) *Service {
 	for _, opt := range opts {
 		opt(svc)
 	}
+
 	svc.legacy = legacy.NewWarner(func(kind, message string) {
 		svc.logger.Warn(message, slog.String("legacyName", kind))
 	})
@@ -78,6 +79,7 @@ func (s *Service) Close() {
 	if s == nil {
 		return
 	}
+
 	s.nikunjy.reset()
 	s.scheduled.entries.Clear()
 	s.compiled.Clear()
@@ -92,6 +94,7 @@ func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
 			ffcontext.LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+
 			ffcontext.ReservedKey+"\" is preferred")
 	}
+
 	if specifics.CurrentDateTime == nil {
 		return clock.Now()
 	}

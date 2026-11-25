@@ -152,6 +152,7 @@ func TestExporter_Export_IgnoreUnsupportedEventTypes(t *testing.T) {
 
 func assertAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expected any) {
 	t.Helper()
+
 	for _, attr := range attrs {
 		if string(attr.Key) == key {
 			require.Equal(t, expected, attr.Value.AsInterface(), "attribute %s mismatch", key)
@@ -159,5 +160,6 @@ func assertAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expec
 			return
 		}
 	}
+
 	require.Failf(t, "attribute not found", "attribute %s not found", key)
 }

@@ -168,6 +168,7 @@ func (c *Config) GetRetrievers() ([]retriever.Retriever, error) {
 	if c.Retriever != nil {
 		retrievers = append(retrievers, c.Retriever)
 	}
+
 	if len(c.Retrievers) > 0 {
 		retrievers = append(retrievers, c.Retrievers...)
 	}
@@ -183,6 +184,7 @@ func (c *Config) GetDataExporters() []DataExporter {
 	if c.DataExporter != (DataExporter{}) {
 		dataExporters = append(dataExporters, c.DataExporter)
 	}
+
 	if len(c.DataExporters) > 0 {
 		dataExporters = append(dataExporters, c.DataExporters...)
 	}
@@ -195,8 +197,10 @@ func (c *Config) SetOffline(control bool) {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
 	}
+
 	c.offlineMutex.Lock()
 	defer c.offlineMutex.Unlock()
+
 	c.Offline = control
 }
 
@@ -205,6 +209,7 @@ func (c *Config) IsOffline() bool {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
 	}
+
 	c.offlineMutex.RLock()
 	defer c.offlineMutex.RUnlock()
 

@@ -69,9 +69,11 @@ func runWebhookNotifierTests(t *testing.T, tests []webhookNotifierCase) {
 				assert.ErrorContains(t, err, tt.expected.errorMsg)
 			} else {
 				require.NoError(t, err)
+
 				content, _ := os.ReadFile(tt.expected.bodyPath)
 				assert.JSONEq(t, string(content), mockHTTPClient.Body)
 				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
+
 				if tt.expected.headers != nil {
 					assert.Equal(t, tt.expected.headers, mockHTTPClient.Headers)
 				}
@@ -338,7 +340,9 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 	err := whNotifier.Notify(diff)
 
 	require.NoError(t, err)
+
 	var m map[string]any
+
 	_ = json.Unmarshal([]byte(mockHTTPClient.Body), &m)
 
 	assert.NotEmpty(t, m["meta"])

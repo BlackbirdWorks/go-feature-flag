@@ -15,6 +15,7 @@ func ListenLocal(t *testing.T) (net.Listener, int) {
 	t.Helper()
 
 	var lc net.ListenConfig
+
 	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })

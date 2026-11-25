@@ -52,6 +52,7 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, in *RetrieverRefreshInpu
 
 	_, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(ctx, "retrieverRefresh")
 	defer span.End()
+
 	forceRefreshStatus := flagset.ForceRefresh()
 	span.SetAttributes(attribute.Bool("retrieverRefresh.refreshed", forceRefreshStatus))
 

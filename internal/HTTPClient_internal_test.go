@@ -14,6 +14,7 @@ func TestNewHTTPClient(t *testing.T) {
 
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	require.True(t, ok)
+
 	transport := defaultTransport.Clone()
 
 	client := NewHTTPClient(2*time.Second, transport)

@@ -72,6 +72,7 @@ func runDescribeChangesTests(t *testing.T, groups ...[]describeChangesCase) {
 					tt.setup(before)
 					tt.setup(after)
 				}
+
 				tt.update(after)
 				got, err := notifier.DescribeChanges(before, after)
 				require.NoError(t, err)
@@ -673,6 +674,7 @@ func TestChangeList(t *testing.T) {
 
 		return list
 	}
+
 	tests := []struct {
 		name      string
 		want      string
@@ -814,6 +816,7 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 					fields = append(fields, field.Name)
 				}
 			}
+
 			assert.ElementsMatch(t, tt.wantHandled, fields)
 		})
 	}
@@ -866,6 +869,7 @@ func TestUpdatedBy(t *testing.T) {
 	withMetadata := func(metadata map[string]any) *flag.InternalFlag {
 		return &flag.InternalFlag{Metadata: &metadata}
 	}
+
 	tests := []struct {
 		name       string
 		flag       flag.Flag

@@ -77,6 +77,7 @@ type step struct {
 
 func TestRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
+
 	tests := slices.Concat([]retrieveCase{
 		{
 			name:  "item mode unchanged",
@@ -268,10 +269,12 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "object replaced between list and download is downloaded again on the next poll",
 			setup: func(mockS3 *testutils.S3PrefixMock) {
 				mockS3.Put("f/a.yaml", yamlA)
+
 				swapped := false
 				mockS3.BeforeDownload = func(key string) {
 					if !swapped {
 						swapped = true
+
 						mockS3.Put(key, yamlB)
 					}
 				}
@@ -316,16 +319,19 @@ func TestRetriever_Retrieve(t *testing.T) {
 // as the decoding of the original file in item mode.
 func roundTripCases(t *testing.T) []retrieveCase {
 	t.Helper()
+
 	files := []string{
 		"flag-config.yaml", "flag-config.json", "flag-config.toml",
 		"flag-config-multiline-query.json", "flag-config-scheduled-v0.yaml",
 		"flag-config-3rd-file.yaml", "flag-config-custom-bucketingkey.yaml",
 	}
+
 	cases := make([]retrieveCase, 0, len(files))
 	for _, fileName := range files {
 		local := "../../testdata/" + fileName
 		content, err := os.ReadFile(local)
 		require.NoError(t, err)
+
 		cases = append(cases, retrieveCase{
 			name:  "round trip " + fileName,
 			setup: func(m *testutils.S3PrefixMock) { m.Put("f/"+fileName, string(content)) },
@@ -339,36 +345,46 @@ func roundTripCases(t *testing.T) []retrieveCase {
 
 func runRetrieveCase(t *testing.T, setup func(*testutils.S3PrefixMock), conf cfg, steps []step) {
 	t.Helper()
+
 	mockS3 := &testutils.S3PrefixMock{}
 	setup(mockS3)
+
 	r := conf.build()
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
+
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 	require.NoError(t, r.Init(t.Context(), logger))
+
 	if conf.noLister {
 		r.SetLister(nil)
 	}
+
 	t.Cleanup(func() { _ = r.Shutdown(t.Context()) })
 
 	for i, currStep := range steps {
 		if currStep.mutate != nil {
 			currStep.mutate(mockS3)
 		}
+
 		results, errs := retrieveN(t, r, currStep)
 		for idx := range results {
 			checkResult(t, r, idx, currStep, results[idx], errs[idx], i)
 		}
+
 		for k, n := range currStep.wantDownloads {
 			assert.Equal(t, n, mockS3.DownloadCalls(k), "downloads of %s at step %d", k, i)
 		}
+
 		if currStep.wantLog != "" {
 			assert.Contains(t, logs.String(), currStep.wantLog, "step %d", i)
 		}
+
 		if currStep.wantNoLog != "" {
 			assert.NotContains(t, logs.String(), currStep.wantNoLog, "step %d", i)
 		}
+
 		if currStep.wantLogCountOf != "" {
 			assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), "step %d", i)
 		}
@@ -378,9 +394,13 @@ func runRetrieveCase(t *testing.T, setup func(*testutils.S3PrefixMock), conf cfg
 // retrieveN calls Retrieve currStep.concurrent times (at least once) at the same time.
 func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byte, []error) {
 	t.Helper()
+
 	calls := max(currStep.concurrent, 1)
+
 	var wg sync.WaitGroup
+
 	results := make([][]byte, calls)
+
 	errs := make([]error, calls)
 	for callIdx := range calls {
 		wg.Go(func() {
@@ -389,9 +409,11 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byt
 
 				return
 			}
+
 			results[callIdx], errs[callIdx] = r.Retrieve(t.Context())
 		})
 	}
+
 	wg.Wait()
 
 	return results, errs
@@ -399,12 +421,15 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byt
 
 func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step, got []byte, err error, i int) {
 	t.Helper()
+
 	if currStep.wantErr != "" {
 		require.ErrorContains(t, err, currStep.wantErr, "step %d", i)
 
 		return
 	}
+
 	require.NoError(t, err, "step %d", i)
+
 	if r.Item != "" {
 		// item mode returns the raw file
 		for _, f := range currStep.wantFlags {
@@ -413,6 +438,7 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step,
 	} else {
 		checkPrefixOutput(t, r.OutputFormat(), currStep, got, i)
 	}
+
 	for _, c := range currStep.wantContains {
 		assert.Contains(t, string(got), c, "step %d", i)
 	}
@@ -420,30 +446,38 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step,
 
 func checkPrefixOutput(t *testing.T, format string, currStep step, got []byte, i int) {
 	t.Helper()
+
 	flags, err := cache.ConvertToFlagStruct(got, format)
 	require.NoError(t, err, "step %d", i)
+
 	if currStep.wantFlags != nil {
 		keys := make([]string, 0, len(flags))
 		for k := range flags {
 			keys = append(keys, k)
 		}
+
 		assert.ElementsMatch(t, currStep.wantFlags, keys, "step %d", i)
 	}
+
 	if len(currStep.wantSameAs) > 0 {
 		want := map[string]dto.DTO{}
+
 		for _, f := range currStep.wantSameAs {
 			content, rErr := os.ReadFile(f)
 			require.NoError(t, rErr)
+
 			parsed, pErr := cache.ConvertToFlagStruct(content, strings.TrimPrefix(filepath.Ext(f), "."))
 			require.NoError(t, pErr)
 			maps.Copy(want, parsed)
 		}
+
 		assert.Equal(t, want, flags, "step %d", i)
 	}
 }
 
 func TestRetriever_Init(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		// noDownloader skips SetDownloader, so Init must build a real client.
@@ -486,10 +520,12 @@ func TestRetriever_Init(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			r := tt.r.build()
 			m := &testutils.S3PrefixMock{}
 			r.SetDownloader(m)
 			r.SetLister(m)
+
 			err := r.Init(t.Context(), nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -497,8 +533,10 @@ func TestRetriever_Init(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, retriever.RetrieverReady, r.Status())
+
 			if tt.wantAwsConfigNil {
 				assert.Nil(t, r.AwsConfig)
 			}
@@ -507,6 +545,7 @@ func TestRetriever_Init(t *testing.T) {
 
 	t.Run("item mode with only a downloader does not need a lister", func(t *testing.T) {
 		t.Parallel()
+
 		r := cfg{Item: "a.yaml"}.build()
 		r.SetDownloader(&testutils.S3PrefixMock{})
 		require.NoError(t, r.Init(t.Context(), nil))
@@ -516,12 +555,15 @@ func TestRetriever_Init(t *testing.T) {
 
 func TestRetriever_Shutdown(t *testing.T) {
 	t.Parallel()
+
 	mockS3 := &testutils.S3PrefixMock{}
 	mockS3.Put("f/a.yaml", yamlA)
 	mockS3.Put("f/readme.txt", "hello")
+
 	r := cfg{Prefix: "f/"}.build()
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
 	require.NoError(t, r.Init(t.Context(), logger))
@@ -547,8 +589,10 @@ func TestRetriever_Shutdown(t *testing.T) {
 
 func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	t.Parallel()
+
 	mockS3 := &testutils.S3PrefixMock{}
 	mockS3.Put("f/a.yaml", yamlA)
+
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
@@ -567,12 +611,14 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 
 func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	t.Parallel()
-	m := &testutils.S3PrefixMock{}
-	m.Put("f/a.yaml", yamlA)
-	m.Put("g/b.yaml", yamlB)
+
+	mock := &testutils.S3PrefixMock{}
+	mock.Put("f/a.yaml", yamlA)
+	mock.Put("g/b.yaml", yamlB)
+
 	r := cfg{Prefix: "f/"}.build()
-	r.SetDownloader(m)
-	r.SetLister(m)
+	r.SetDownloader(mock)
+	r.SetLister(mock)
 	require.NoError(t, r.Init(t.Context(), nil))
 	got, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
@@ -594,8 +640,10 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 
 func TestRetriever_SetLister(t *testing.T) {
 	t.Parallel()
+
 	mockS3 := &testutils.S3PrefixMock{}
 	mockS3.Put("f/a.yaml", yamlA)
+
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
@@ -608,6 +656,7 @@ func TestRetriever_SetLister(t *testing.T) {
 
 func TestRetriever_SetDownloader(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr string
@@ -624,16 +673,20 @@ func TestRetriever_SetDownloader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			mockS3 := &testutils.S3PrefixMock{}
 			mockS3.Put("a.yaml", yamlA)
+
 			r := tt.r.build()
 			r.SetDownloader(mockS3)
+
 			got, err := r.Retrieve(t.Context())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, string(got))
 			assert.Equal(t, 1, mockS3.DownloadCalls("a.yaml"))
@@ -643,6 +696,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 
 func TestRetriever_OutputFormat(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -655,6 +709,7 @@ func TestRetriever_OutputFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			r := tt.r.build()
 			m := &testutils.S3PrefixMock{}
 			r.SetDownloader(m)

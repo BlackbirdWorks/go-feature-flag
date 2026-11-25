@@ -50,16 +50,19 @@ func errorTransformer(exposeError bool) huma.Transformer {
 	return func(ctx huma.Context, _ string, val any) (any, error) {
 		if model, ok := val.(*huma.ErrorModel); ok {
 			ctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+
 			herr := modelError(model)
 			reqlog.RecordError(ctx.Context(), herr)
 			_, body := helper.ErrorResponse(herr, exposeError)
 
 			return body, nil
 		}
+
 		herr, ok := errors.AsType[*helper.HTTPError](asError(val))
 		if !ok {
 			return val, nil
 		}
+
 		_, body := helper.ErrorResponse(herr, exposeError)
 		reqlog.RecordError(ctx.Context(), herr)
 
@@ -80,9 +83,11 @@ func modelError(model *huma.ErrorModel) *helper.HTTPError {
 	if model.Detail != "" {
 		details = append(details, detailError(model.Detail))
 	}
+
 	for _, d := range model.Errors {
 		details = append(details, detailError(d.Message))
 	}
+
 	if len(details) == 0 {
 		return helper.NewHTTPError(model.Status, "")
 	}
@@ -110,6 +115,7 @@ func newHumaAPI(
 		cfg.OpenAPIPath, cfg.DocsPath = "/swagger/openapi", "/swagger/index.html"
 		cfg.DocsRenderer = huma.DocsRendererSwaggerUI
 	}
+
 	cfg.CreateHooks = nil
 	cfg.Formats = map[string]huma.Format{"application/json": jsonFormat(), "json": jsonFormat()}
 	cfg.DefaultFormat = "application/json"

@@ -92,6 +92,7 @@ func (f *Exporter) Export(
 		CsvTemplate:             f.CsvTemplate,
 		ParquetCompressionCodec: f.ParquetCompressionCodec,
 	}
+
 	err = fileExporter.Export(ctx, logger, events)
 	if err != nil {
 		return fmt.Errorf("export events to temp file for GCS: %w", err)
@@ -111,6 +112,7 @@ func (f *Exporter) Export(
 
 			continue
 		}
+
 		uploadFileErr := f.uploadFile(ctx, client, fileHandle, file.Name())
 		if uploadFileErr != nil {
 			return uploadFileErr
@@ -146,6 +148,7 @@ func (f *Exporter) uploadFile(
 	if closeErr != nil && err == nil {
 		err = closeErr
 	}
+
 	if err != nil {
 		return fmt.Errorf(
 			"error: [GCP Exporter] impossible to copy the file from %s to bucket %s: %w",

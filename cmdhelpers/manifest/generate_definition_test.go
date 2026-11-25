@@ -96,6 +96,7 @@ func boolFlagWithExperimentation(
 
 func readGolden(t *testing.T, name string) string {
 	t.Helper()
+
 	data, err := os.ReadFile(filepath.Join("testdata", "generate_definition", name))
 	require.NoError(t, err)
 
@@ -131,6 +132,7 @@ func runGenerateDefinitionTests(t *testing.T, tests []generateDefinitionCase) {
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			actual, mErr := json.MarshalIndent(got, "", "  ")
@@ -139,6 +141,7 @@ func runGenerateDefinitionTests(t *testing.T, tests []generateDefinitionCase) {
 			assert.Equal(t, expected, string(actual))
 
 			assert.ElementsMatch(t, tt.wantLogs, handler.msgs)
+
 			for _, lvl := range handler.levels {
 				assert.Equal(t, slog.LevelWarn, lvl)
 			}

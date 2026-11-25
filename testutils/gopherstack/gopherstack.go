@@ -77,10 +77,12 @@ func Start(ctx context.Context) (*Server, error) {
 
 		return &Server{Endpoint: endpoint}, nil
 	}
+
 	image := Image
 	if v := os.Getenv(EnvImage); v != "" {
 		image = v
 	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		Image:        image,
 		ExposedPorts: []string{Port},
@@ -96,21 +98,25 @@ func Start(ctx context.Context) (*Server, error) {
 
 		return nil, fmt.Errorf("start gopherstack: %w", err)
 	}
+
 	host, err := container.Host(ctx)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
 
 		return nil, fmt.Errorf("get gopherstack host: %w", err)
 	}
+
 	if host == "localhost" {
 		host = "127.0.0.1" // keep an IP host for path-style S3
 	}
+
 	port, err := container.MappedPort(ctx, Port)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
 
 		return nil, fmt.Errorf("get gopherstack mapped port: %w", err)
 	}
+
 	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, port.Port())}
 
 	return &Server{Endpoint: u.String(), container: container}, nil
@@ -119,13 +125,16 @@ func Start(ctx context.Context) (*Server, error) {
 func waitHealthy(ctx context.Context, endpoint string) error {
 	ctx, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
+
 	client := &http.Client{Timeout: probeTimeout}
+
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
 		if err != nil {
 			return fmt.Errorf("create gopherstack health request: %w", err)
 		}
+
 		resp, err := client.Do(req) //nolint:gosec // same endpoint
 		if err == nil {
 			_ = resp.Body.Close()
@@ -133,6 +142,7 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 				return nil
 			}
 		}
+
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("gopherstack at %s is not healthy: %w", endpoint, ctx.Err())
@@ -203,19 +213,24 @@ func (s *Server) SetAwsEnv(t *testing.T) {
 //	func TestMain(m *testing.M) { os.Exit(gopherstack.Main(m)) }
 func Main(m *testing.M) int {
 	ctx := context.Background()
+
 	if os.Getenv(EnvEndpoint) == "" {
 		provider, err := testcontainers.NewDockerProvider()
 		if err != nil || provider.Health(ctx) != nil {
 			return m.Run() // Connect skips the tests
 		}
+
 		_ = provider.Close()
+
 		srv, err := Start(ctx)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "gopherstack:", err)
 
 			return 1
 		}
+
 		defer func() { _ = srv.Terminate() }()
+
 		setenvErr := os.Setenv(EnvEndpoint, srv.Endpoint)
 		if setenvErr != nil {
 			fmt.Fprintln(os.Stderr, "gopherstack:", setenvErr)
@@ -231,6 +246,7 @@ func Main(m *testing.M) int {
 // skipped if there is none, because Docker is not available.
 func Connect(tb testing.TB) *Server {
 	tb.Helper()
+
 	endpoint := strings.TrimRight(os.Getenv(EnvEndpoint), "/")
 	if endpoint == "" {
 		tb.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
@@ -245,10 +261,12 @@ var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)
 // usable as bucket, queue or stream name.
 func UniqueName(tb testing.TB, prefix string) string {
 	tb.Helper()
+
 	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(tb.Name()), "-"), "-")
 	if len(base) > maxNameBase {
 		base = strings.Trim(base[:maxNameBase], "-")
 	}
+
 	suffix := fmt.Sprintf("%08x", randUint32())
 
 	return strings.Trim(prefix+"-"+base, "-") + "-" + suffix

@@ -424,12 +424,16 @@ func TestExporter_ExportErrors(t *testing.T) {
 			if client == nil {
 				client = newMockBigQueryClient()
 			}
+
 			client.ensureInitialized()
+
 			newClientCalled := false
+
 			tableName := tt.tableName
 			if tableName == "" {
 				tableName = "feature-table"
 			}
+
 			exp := &Exporter{
 				ProjectID:   "fake-project",
 				DatasetID:   "fake-dataset",
@@ -441,6 +445,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 					...option.ClientOption,
 				) (bigQueryClient, error) {
 					newClientCalled = true
+
 					if tt.newClientErr != nil {
 						return nil, tt.newClientErr
 					}
@@ -467,6 +472,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 		TableName:     "feature-table",
 		newClientFunc: mockNewClientFunc(client),
 	}
+
 	events := make([]exporter.ExportableEvent, 0, maxRowsPerInsert+3)
 	for i := range maxRowsPerInsert + 3 {
 		events = append(events, exporter.FeatureEvent{
@@ -481,6 +487,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 	err := exp.Export(context.TODO(), nil, events)
 
 	require.NoError(t, err)
+
 	puts := client.inserters["fake-dataset.feature-table"].puts
 	require.Len(t, puts, 2)
 	rows0, ok := puts[0].([]rowSaver)
@@ -495,7 +502,9 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	t.Parallel()
 
 	client := newMockBigQueryClient()
+
 	var callCount atomic.Int32
+
 	exporter := &Exporter{
 		ProjectID: "fake-project",
 		DatasetID: "fake-dataset",
@@ -511,19 +520,23 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	}
 
 	const goroutines = 50
+
 	errs := make(chan error, goroutines)
+
 	var wg sync.WaitGroup
 	for range goroutines {
 		wg.Go(func() {
 			errs <- exporter.initClient(context.TODO())
 		})
 	}
+
 	wg.Wait()
 	close(errs)
 
 	for err := range errs {
 		require.NoError(t, err)
 	}
+
 	assert.Equal(t, int32(1), callCount.Load())
 	assert.Same(t, client, exporter.client)
 }
@@ -551,8 +564,11 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var gotProjectID string
-			var gotClientOptions int
+			var (
+				gotProjectID     string
+				gotClientOptions int
+			)
+
 			client := newMockBigQueryClient()
 			exp := &Exporter{
 				ProjectID:         "fake-project",
@@ -741,6 +757,7 @@ func (m *mockBigQueryClient) Put(ctx context.Context, dataset, table string, src
 
 func (m *mockBigQueryClient) Inserter(dataset, table string) *mockInserter {
 	m.ensureInitialized()
+
 	key := dataset + "." + table
 	if m.inserters[key] == nil {
 		m.inserters[key] = &mockInserter{err: m.putErr}
@@ -761,6 +778,7 @@ func (m *mockBigQueryClient) EnsureTable(
 	if m.ensureTableErr != nil {
 		return m.ensureTableErr
 	}
+
 	m.ensureTableCalls = append(m.ensureTableCalls, ensureTableCall{
 		dataset: dataset,
 		table:   table,
@@ -789,6 +807,7 @@ func (m *mockInserter) Put(_ context.Context, src any) error {
 	if m.err != nil {
 		return m.err
 	}
+
 	m.puts = append(m.puts, src)
 
 	return nil

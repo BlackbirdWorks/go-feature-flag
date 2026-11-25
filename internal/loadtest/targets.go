@@ -42,18 +42,24 @@ func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget,
 	if err != nil {
 		return nil, fmt.Errorf("create soak temp dir: %w", err)
 	}
+
 	path := filepath.Join(dir, "flags.yaml")
+
 	writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600)
 	if writeFileErr != nil {
 		return nil, fmt.Errorf("write soak flag file: %w", writeFileErr)
 	}
+
 	if opts.FlushInterval == 0 {
 		opts.FlushInterval = time.Second
 	}
+
 	if opts.MaxEventInMemory == 0 {
 		opts.MaxEventInMemory = 100000
 	}
+
 	exp := NewExporter(opts.ExporterMode)
+
 	client, err := ffclient.NewWithContext(ctx, ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
@@ -84,6 +90,7 @@ func (l *LibraryTarget) Eval(worker, i int) error {
 		AddCustom("device", "ios").
 		AddCustom("company", "acme").
 		Build()
+
 	_, err := l.client.BoolVariation(l.flagKey, ctx, false)
 	if err != nil {
 		return fmt.Errorf("evaluate bool flag %s: %w", l.flagKey, err)

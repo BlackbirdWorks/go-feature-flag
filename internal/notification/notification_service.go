@@ -39,9 +39,12 @@ func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *fflog
 	if diff.HasDiff() {
 		for _, n := range c.Notifiers {
 			c.waitGroup.Add(1)
+
 			notif := n
+
 			go func() {
 				defer c.waitGroup.Done()
+
 				err := notif.Notify(diff)
 				if err != nil {
 					log.Error("error while calling the notifier", slog.Any("error", err.Error()))
@@ -63,8 +66,10 @@ func (c *ServiceImpl) getDifferences(
 		Added:   map[string]flag.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
 	}
+
 	for key := range oldCache {
 		newFlag, inNewCache := newCache[key]
+
 		oldFlag := oldCache[key]
 		if !inNewCache {
 			diff.Deleted[key] = oldFlag

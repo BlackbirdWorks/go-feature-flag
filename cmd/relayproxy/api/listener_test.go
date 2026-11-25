@@ -102,22 +102,27 @@ func Test_Listener(t *testing.T) {
 			require.NoError(t, err)
 
 			exited := make(chan struct{}, 1)
+
 			opts = append(opts, api.WithExit(func() {
 				select {
 				case exited <- struct{}{}:
 				default:
 				}
+
 				runtime.Goexit()
 			}))
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
+
 			srv := api.New(conf, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				FlagsetManager:    flagsetManager,
 			}, logger, opts...)
 			go func() { srv.StartWithContext(context.Background()) }()
+
 			t.Cleanup(func() {
 				stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
+
 				srv.Stop(stopCtx)
 			})
 
@@ -129,6 +134,7 @@ func Test_Listener(t *testing.T) {
 
 			// the fatal handler was reached for the failure that was provoked, not for another one
 			var fatal []map[string]any
+
 			for _, entry := range logs.All() {
 				if entry.Level == cmdlog.LevelFatal {
 					fields := entry.ContextMap()
@@ -136,6 +142,7 @@ func Test_Listener(t *testing.T) {
 					fatal = append(fatal, fields)
 				}
 			}
+
 			require.Len(t, fatal, 1)
 			assert.Equal(t, tt.wantMessage, fatal[0]["message"])
 			assert.Contains(t, fmt.Sprint(fatal[0]["error"]), tt.wantCause)

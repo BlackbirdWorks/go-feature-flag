@@ -71,23 +71,30 @@ func Start(opts Options) (_ *Relay, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("create relay temp dir: %w", err)
 	}
+
 	r := &Relay{dir: dir}
+
 	defer func() {
 		if err != nil {
 			r.Close() // releases whatever was started and removes the temp dir
 		}
 	}()
+
 	conf, err := buildRelayConfig(r, opts)
 	if err != nil {
 		return nil, err
 	}
-	var baseURL string
-	var listener net.Listener
+
+	var (
+		baseURL  string
+		listener net.Listener
+	)
 	defer func() {
 		if err != nil && listener != nil {
 			_ = listener.Close()
 		}
 	}()
+
 	if opts.Listen {
 		// The listener stays bound until the server serves on it: closing it to reuse its port would let
 		// another test (or an outgoing connection) take the port before the server binds it.
@@ -102,16 +109,20 @@ func Start(opts Options) (_ *Relay, err error) {
 	}
 
 	logger := log.NewDefault()
+
 	metrics, err := metric.NewMetrics()
 	if err != nil {
 		return nil, fmt.Errorf("init relay metrics: %w", err)
 	}
+
 	r.wsSvc = stream.NewWebsocketService()
+
 	flagsetMgr, err := service.NewFlagsetManager(conf, logger.Slog,
 		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, r.wsSvc)
 	if err != nil {
 		return nil, fmt.Errorf("init flagset manager: %w", err)
 	}
+
 	r.Services = service.Services{
 		MonitoringService: service.NewMonitoring(flagsetMgr),
 		WebsocketService:  r.wsSvc,
@@ -120,11 +131,13 @@ func Start(opts Options) (_ *Relay, err error) {
 	}
 	if opts.Listen {
 		s := api.New(conf, r.Services, logger.Slog, api.WithListener(listener))
+
 		r.server = &s
 		go s.StartWithContext(context.Background())
 		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
 		listener = nil
 		r.BaseURL = baseURL
+
 		waitHealthyErr := waitHealthy(baseURL)
 		if waitHealthyErr != nil {
 			return nil, waitHealthyErr
@@ -136,10 +149,12 @@ func Start(opts Options) (_ *Relay, err error) {
 
 func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
 	flagFile := filepath.Join(r.dir, "flags.yaml")
+
 	err := os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("write relay flag file: %w", err)
 	}
+
 	conf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		// the server (and its monitoring port) only listens on the loopback interface
@@ -156,14 +171,17 @@ func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
 	}
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
+
 		flush := opts.FlushIntervalMs
 		if flush == 0 {
 			flush = 1000
 		}
+
 		maxMem := opts.MaxEventInMemory
 		if maxMem == 0 {
 			maxMem = 100000
 		}
+
 		conf.Exporter = &config.ExporterConf{
 			Kind:             config.WebhookExporter,
 			EndpointURL:      r.sink.URL,
@@ -183,16 +201,20 @@ func (r *Relay) Close() {
 	if r.server != nil {
 		r.server.Stop(context.Background())
 	}
+
 	if r.Services.FlagsetManager != nil {
 		r.Services.FlagsetManager.Close()
 	}
+
 	if r.wsSvc != nil {
 		r.wsSvc.Close()
 	}
+
 	if r.sink != nil {
 		r.sink.CloseClientConnections()
 		r.sink.Close()
 	}
+
 	if r.dir != "" {
 		_ = os.RemoveAll(r.dir)
 	}
@@ -201,8 +223,10 @@ func (r *Relay) Close() {
 func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		n, _ := io.Copy(io.Discard, req.Body)
+
 		r.SinkRequests.Add(1)
 		r.SinkBytes.Add(n)
+
 		switch mode {
 		case loadtest.ExporterFailing:
 			w.WriteHeader(http.StatusInternalServerError)
@@ -212,6 +236,7 @@ func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
 			case <-req.Context().Done():
 				return
 			}
+
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusOK)
@@ -226,20 +251,25 @@ const healthRequestTimeout = 5 * time.Second
 func waitHealthy(baseURL string) error {
 	client := &http.Client{Timeout: healthRequestTimeout}
 	deadline := time.Now().Add(readyTimeout)
+
 	for {
 		var resp *http.Response
+
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
 		if err == nil {
 			resp, err = client.Do(req)
 		}
+
 		if err == nil {
 			_ = resp.Body.Close()
 
 			return nil
 		}
+
 		if time.Now().After(deadline) {
 			return fmt.Errorf("relay proxy did not start: %w", err)
 		}
+
 		time.Sleep(readyPollInterval)
 	}
 }

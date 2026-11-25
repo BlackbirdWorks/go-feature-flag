@@ -18,11 +18,15 @@ import (
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
 func recordingWarner() (*legacy.Warner, func() []string) {
-	var mu sync.Mutex
-	var kinds []string
+	var (
+		mu    sync.Mutex
+		kinds []string
+	)
+
 	w := legacy.NewWarner(func(kind, _ string) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		kinds = append(kinds, kind)
 	})
 
@@ -36,6 +40,7 @@ func recordingWarner() (*legacy.Warner, func() []string) {
 
 func TestLocateConfigFileLegacyNames(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		// files to create, as <folder index>/<file name>
@@ -69,12 +74,14 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
+
 			locations := []string{filepath.Join(root, "0") + "/", filepath.Join(root, "1") + "/"}
 			for _, f := range tt.files {
 				path := filepath.Join(root, f)
 				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 				require.NoError(t, os.WriteFile(path, []byte("x: 1"), 0o600))
 			}
+
 			warner, warnings := recordingWarner()
 
 			got, err := locateConfigFileIn("", locations, warner)
@@ -84,6 +91,7 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, filepath.Join(root, tt.wantFile), got)
 			assert.Equal(t, tt.wantWarnings, warnings())
@@ -100,6 +108,7 @@ func TestLocateConfigFileExplicitPath(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 	require.NoError(t, os.WriteFile(path, []byte("x: 1"), 0o600))
+
 	warner, warnings := recordingWarner()
 
 	got, err := locateConfigFileIn(path, nil, warner)
@@ -113,6 +122,7 @@ func TestLocateConfigFileExplicitPath(t *testing.T) {
 
 func TestLoadEnvVariablesPrefixes(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		configPrefix string
@@ -150,7 +160,9 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			warner, warnings := recordingWarner()
+
 			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
@@ -160,6 +172,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 			if tt.configPrefix != "" {
 				require.NoError(t, loader.k.Set("envVariablePrefix", tt.configPrefix))
 			}
+
 			loader.loadEnvVariables()
 			loader.loadEnvVariables() // a reload must not warn again
 
@@ -172,6 +185,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 
 func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 	t.Parallel()
+
 	loader := &Loader{
 		log: slog.New(slog.DiscardHandler),
 		k:   koanf.New("."),
@@ -195,6 +209,7 @@ func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 
 func TestEnvironProviderReadBytesIsNotSupported(t *testing.T) {
 	t.Parallel()
+
 	got, err := (&environProvider{}).ReadBytes()
 	assert.Nil(t, got)
 	assert.EqualError(t, err, "env provider does not support this method")
@@ -202,6 +217,7 @@ func TestEnvironProviderReadBytesIsNotSupported(t *testing.T) {
 
 func TestLegacyCompatibilityOptions(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name               string
 		environ            []string
@@ -215,6 +231,7 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
@@ -231,6 +248,7 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 
 func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		environ []string
@@ -244,6 +262,7 @@ func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
@@ -271,6 +290,7 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 		"SEMAPHORE_PORT_1031_TCP_ADDR=10.0.0.1",
 		"SEMAPHORE_PORT_1031_UDP=udp://10.0.0.1:1031",
 	}
+
 	tests := []struct {
 		name        string
 		environ     []string
@@ -295,6 +315,7 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			core, logs := slogutil.NewObserver(slog.LevelDebug)
 			loader := &Loader{
 				log:         core,
@@ -305,18 +326,24 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 			conf, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantHost, conf.Host)
+
 			if tt.wantPort != "" {
 				assert.Equal(t, 1031, conf.Server.Port)
 			}
+
 			var ignored []string
-			for _, e := range logs.FilterMessage("config: ignoring Kubernetes service link variables").All() {
-				names, ok := e.ContextMap()["names"].([]string)
+
+			for _, entry := range logs.FilterMessage("config: ignoring Kubernetes service link variables").All() {
+				names, ok := entry.ContextMap()["names"].([]string)
 				require.True(t, ok)
+
 				ignored = append(ignored, names...)
-				for k, v := range e.ContextMap() {
+
+				for k, v := range entry.ContextMap() {
 					assert.NotContains(t, fmtAny(v), "10.0.0.1", "values must not be logged (%s)", k)
 				}
 			}
+
 			assert.Equal(t, tt.wantIgnored, ignored)
 		})
 	}

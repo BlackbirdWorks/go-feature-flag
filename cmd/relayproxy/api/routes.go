@@ -46,6 +46,7 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 // mergeOpenAPI adds the operations and the schemas of src to dst.
 func mergeOpenAPI(dst, src *huma.OpenAPI) {
 	maps.Copy(dst.Paths, src.Paths)
+
 	known := dst.Components.Schemas.Map()
 	for name, schema := range src.Components.Schemas.Map() {
 		if _, ok := known[name]; !ok {
@@ -65,6 +66,7 @@ func primeDocs(mux http.Handler) {
 		if err != nil {
 			continue
 		}
+
 		mux.ServeHTTP(discardWriter{header: http.Header{}}, req)
 	}
 }
@@ -91,12 +93,13 @@ func register[I, O any](
 	// huma documents a validation error (422) and a default error on its own: the relay proxy answers neither
 	// (its handlers decode and refuse what they get), the document lists the statuses of the operation only.
 	item := routes.api.OpenAPI().Paths[operation.Path]
-	for _, o := range []*huma.Operation{item.Get, item.Post} {
-		if o != nil && o.OperationID == operation.OperationID {
-			delete(o.Responses, "default")
-			delete(o.Responses, "422")
+	for _, opItem := range []*huma.Operation{item.Get, item.Post} {
+		if opItem != nil && opItem.OperationID == operation.OperationID {
+			delete(opItem.Responses, "default")
+			delete(opItem.Responses, "422")
+
 			for _, status := range errorStatuses {
-				o.Responses[statusKey(status)] = errorResponse(routes.api, http.StatusText(status))
+				opItem.Responses[statusKey(status)] = errorResponse(routes.api, http.StatusText(status))
 			}
 		}
 	}
@@ -143,12 +146,14 @@ func (s *Server) adminKeyAuth() middleware.KeyAuth {
 // for the relay proxy, and their middleware.
 func (s *Server) initRoutes() {
 	routes := s.newRouteSet(s.config.IsSwaggerEnabled())
+
 	swagger := s.config.IsSwaggerEnabled()
 	if swagger {
 		// no server is advertised: the requests of the Swagger UI go to the origin of the page, whatever scheme
 		// and host an ingress serves it with.
 		routes.api.OpenAPI().Info.Version = s.config.Version
 	}
+
 	var monitoring *routeSet
 	if s.config.EffectiveMonitoringPort(s.logger) != 0 {
 		monitoring = s.newRouteSet(false)
@@ -156,13 +161,16 @@ func (s *Server) initRoutes() {
 	} else {
 		s.addMonitoringRoutes(routes)
 	}
+
 	s.addAPIRoutes(routes)
+
 	if swagger {
 		if monitoring != nil {
 			// one document describes the whole API, whether the monitoring endpoints are served by this listener
 			// or by the dedicated one.
 			mergeOpenAPI(routes.api.OpenAPI(), monitoring.api.OpenAPI())
 		}
+
 		primeDocs(routes.mux)
 	}
 
@@ -257,16 +265,20 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 	register(routes, operationInfo(), controller.NewInfo(s.services.MonitoringService).Handle)
 
 	api.OpenAPI().AddOperation(operationMetrics())
+
 	if s.services.Metrics != (metric.Metrics{}) {
 		gatherer := s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)
+
 		h := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{DisableCompression: true})
 		if r, ok := gatherer.(prometheus.Registerer); ok {
 			h = promhttp.InstrumentMetricHandler(r, h)
 		}
+
 		routes.mux.Handle("GET /metrics", h)
 	}
 
 	api.OpenAPI().AddOperation(operationPprof())
+
 	if s.config.IsDebugEnabled() || s.config.EnablePprof {
 		const prefix = "/debug/pprof"
 		for name, handler := range map[string]http.HandlerFunc{
@@ -284,6 +296,7 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 		} {
 			routes.mux.Handle("GET "+prefix+name, handler)
 		}
+
 		routes.mux.Handle("POST "+prefix+"/symbol", http.HandlerFunc(pprof.Symbol))
 	}
 }

@@ -69,6 +69,7 @@ func TestOutput_PrintLines(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			cmd := &cobra.Command{}
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
@@ -82,8 +83,11 @@ func TestOutput_PrintLines(t *testing.T) {
 func TestPrintFatal(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-	var gotCode int
+	var (
+		buf     bytes.Buffer
+		gotCode int
+	)
+
 	called := false
 
 	helper.PrintFatal(pterm.Error.WithWriter(&buf), func(code int) {
@@ -123,6 +127,7 @@ func TestLegacyWarner(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 					if len(groups) == 0 && a.Key == slog.TimeKey {
@@ -132,6 +137,7 @@ func TestLegacyWarner(t *testing.T) {
 					return a
 				},
 			}))
+
 			w := helper.LegacyWarnerTo(func() *slog.Logger { return logger })
 			for _, k := range tt.kinds {
 				w.Warn(k, "legacy name "+k)

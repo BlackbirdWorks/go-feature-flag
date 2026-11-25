@@ -13,6 +13,7 @@ import (
 // rule on "anonymous" must see the configured value (not the one of the caller's context).
 func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		callerAnon any // nil: attribute not set by the caller
 		enrichment map[string]any
@@ -56,6 +57,7 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			targetFlag := &flag.InternalFlag{
 				Variations: &map[string]*any{"A": new(any("a")), "B": new(any("b"))},
 				Rules: &[]flag.Rule{{
@@ -63,20 +65,24 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 				}},
 				DefaultRule: &flag.Rule{VariationResult: new("A")},
 			}
+
 			b := ffcontext.NewEvaluationContextBuilder("user")
 			if tt.callerAnon != nil {
 				b = b.AddCustom("anonymous", tt.callerAnon)
 			}
+
 			ctx := b.Build()
 			got, _ := targetFlag.Value(
 				"flag",
 				ctx,
 				flag.Context{Service: flag.NewService(), EvaluationContextEnrichment: tt.enrichment},
 			)
+
 			want := "a"
 			if tt.wantMatch {
 				want = "b"
 			}
+
 			assert.Equal(t, want, got)
 		})
 	}

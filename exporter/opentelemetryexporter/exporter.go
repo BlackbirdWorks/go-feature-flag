@@ -52,6 +52,7 @@ func (e *Exporter) Export(
 	}
 
 	e.init()
+
 	for _, evt := range events {
 		featureEvent, ok := evt.(exporter.FeatureEvent)
 		if !ok {
@@ -73,17 +74,20 @@ func (e *Exporter) init() {
 		if e.TracerName == "" {
 			e.TracerName = defaultTracerName
 		}
+
 		if e.tracerProvider != nil {
 			e.tracer = e.tracerProvider.Tracer(e.TracerName)
 
 			return
 		}
+
 		e.tracer = otel.Tracer(e.TracerName)
 	})
 }
 
 func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *fflog.FFLogger) {
 	startTime := time.Unix(event.CreationDate, 0)
+
 	_, span := e.tracer.Start(
 		ctx,
 		spanName,
@@ -102,6 +106,7 @@ func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, 
 		attribute.String("feature_flag.version", event.Version),
 		attribute.String("feature_flag.source", event.Source),
 	)
+
 	logger.DebugContext(ctx, "Exporting feature flag evaluation")
 
 	// Value (safe stringification)
@@ -119,6 +124,7 @@ func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, 
 	// Metadata
 	for k, val := range event.Metadata {
 		key := "feature_flag.metadata." + k
+
 		switch value := val.(type) {
 		case bool:
 			attributes = append(attributes, attribute.Bool(key, value))
@@ -147,5 +153,6 @@ func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, 
 	} else {
 		span.SetStatus(codes.Ok, "evaluation successful")
 	}
+
 	logger.DebugContext(ctx, "Feature flag evaluation span status set")
 }

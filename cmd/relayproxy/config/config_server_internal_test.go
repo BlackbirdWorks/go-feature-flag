@@ -10,6 +10,7 @@ import (
 
 func TestValidateServerConfig(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr string
@@ -27,12 +28,14 @@ func TestValidateServerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := (&Config{Server: tt.server}).validateServerConfig()
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}
@@ -40,8 +43,10 @@ func TestValidateServerConfig(t *testing.T) {
 
 func TestValidateExporters(t *testing.T) {
 	t.Parallel()
+
 	valid := ExporterConf{Kind: LogExporter}
 	invalid := ExporterConf{Kind: FileExporter} // no outputDir
+
 	tests := []struct {
 		name      string
 		exporter  *ExporterConf
@@ -58,12 +63,14 @@ func TestValidateExporters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := validateExporters(tt.exporter, tt.exporters)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}
@@ -71,6 +78,7 @@ func TestValidateExporters(t *testing.T) {
 
 func TestAttachConfigChangeCallback(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		config *Config
 		name   string
@@ -85,9 +93,11 @@ func TestAttachConfigChangeCallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.config.AttachConfigChangeCallback(func(*Config) {})
+
 			if tt.config.configLoader != nil {
 				assert.Len(t, tt.config.configLoader.callbacks, tt.wantN)
 			}
+
 			assert.NoError(t, tt.config.StopConfigChangeWatcher())
 		})
 	}

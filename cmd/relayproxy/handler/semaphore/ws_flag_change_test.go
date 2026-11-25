@@ -146,6 +146,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 			e := http.NewServeMux()
 			e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
+
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
@@ -157,6 +158,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			}
 			wsConn, _, err := dialer.DialContext(ctx, url, nil)
 			require.NoError(t, err, "Failed to connect to WebSocket")
+
 			defer func() {
 				wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				_ = wsConn.Close()
@@ -181,16 +183,21 @@ func Test_websocket_flag_change(t *testing.T) {
 func readFirstMessage(wsConn *websocket.Conn) (<-chan []byte, <-chan struct{}) {
 	received := make(chan []byte, 1)
 	firstMsg := make(chan struct{}, 1)
+
 	go func() {
 		first := true
+
 		for {
 			_, msg, err := wsConn.ReadMessage()
 			if err != nil {
 				return
 			}
+
 			if first {
 				first = false
+
 				received <- msg
+
 				firstMsg <- struct{}{}
 			}
 		}
@@ -211,9 +218,12 @@ func broadcastUntilRegistered(
 	firstMsg <-chan struct{},
 ) {
 	t.Helper()
+
 	deadline := time.After(5 * time.Second)
+
 	for {
 		svc.BroadcastFlagChanges("default", diff)
+
 		select {
 		case <-firstMsg:
 			return
@@ -240,6 +250,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	websocketService := stream.NewWebsocketService()
 	defer func() {
 		websocketService.Close()
+
 		cleanupErr := websocketService.WaitForCleanup(5 * time.Second)
 		if cleanupErr != nil {
 			assert.NoError(t, cleanupErr, "websocket service cleanup failed")
@@ -249,6 +260,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
 	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
+
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
@@ -257,6 +269,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, _, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, "Failed to connect to WebSocket")
+
 	defer func() {
 		_ = wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		_ = wsConn.Close()
@@ -266,16 +279,21 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	// signal the first one so we know the connection is registered.
 	clientDone := make(chan struct{})
 	firstMsg := make(chan struct{}, 1)
+
 	go func() {
 		defer close(clientDone)
+
 		first := true
+
 		for {
 			_, _, readMessageErr := wsConn.ReadMessage()
 			if readMessageErr != nil {
 				return
 			}
+
 			if first {
 				first = false
+
 				firstMsg <- struct{}{}
 			}
 		}
@@ -301,8 +319,11 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	// Fire many broadcasts concurrently while the 1s ping loop is running.
 	// This reproduces both concurrency vectors: broadcast vs ping and
 	// broadcast vs broadcast (BroadcastFlagChanges only holds an RLock).
-	const broadcasters = 8
-	const broadcastsEach = 50
+	const (
+		broadcasters   = 8
+		broadcastsEach = 50
+	)
+
 	var wg sync.WaitGroup
 	for range broadcasters {
 		wg.Go(func() {
@@ -311,10 +332,12 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	// Close the connection and make sure the client goroutine stops.
 	_ = wsConn.Close()
+
 	select {
 	case <-clientDone:
 	case <-time.After(5 * time.Second):
@@ -333,6 +356,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	websocketService := stream.NewWebsocketService()
 	defer func() {
 		websocketService.Close()
+
 		cleanupErr := websocketService.WaitForCleanup(5 * time.Second)
 		if cleanupErr != nil {
 			assert.NoError(t, cleanupErr, "websocket service cleanup failed")
@@ -342,6 +366,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
 	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.LegacyHandler, false))
+
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
@@ -349,7 +374,9 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, _, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, "Failed to connect to WebSocket")
+
 	defer func() { _ = wsConn.Close() }()
+
 	require.NoError(t, wsConn.SetReadDeadline(time.Now().Add(10*time.Second)))
 
 	diff := notifier.DiffCache{
@@ -413,22 +440,26 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
+
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
 			url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws?apiKey=key-a"
 			wsConn, _, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 			require.NoError(t, err)
+
 			defer func() { _ = wsConn.Close() }()
 
 			msgs := make(chan string, 64)
 			go func() {
 				defer close(msgs)
+
 				for {
 					_, msg, readMessageErr := wsConn.ReadMessage()
 					if readMessageErr != nil {
 						return
 					}
+
 					msgs <- string(msg)
 				}
 			}()
@@ -439,9 +470,11 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 
 			// Broadcast until a message is received, it proves the connection is registered.
 			deadline := time.After(5 * time.Second)
+
 			registered := false
 			for !registered {
 				websocketService.BroadcastFlagChanges("flagsetA", diff("probe-flag"))
+
 				select {
 				case <-msgs:
 					registered = true
@@ -455,11 +488,13 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			// broadcast reached the client, it would be read before the flagsetA one.
 			websocketService.BroadcastFlagChanges("flagsetB", diff(tt.wantAbsentFlag))
 			websocketService.BroadcastFlagChanges("flagsetA", diff(tt.wantFlag))
+
 			for {
 				select {
 				case msg, ok := <-msgs:
 					require.True(t, ok, "websocket connection closed before receiving the flag change")
 					require.NotContains(t, msg, tt.wantAbsentFlag)
+
 					if strings.Contains(msg, tt.wantFlag) {
 						return
 					}
@@ -523,16 +558,21 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
+
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
 			url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws" + tt.query
+
 			ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
 			if ws != nil {
 				_ = ws.Close()
 			}
+
 			require.ErrorIs(t, err, websocket.ErrBadHandshake)
+
 			defer func() { _ = resp.Body.Close() }()
+
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 		})
 	}

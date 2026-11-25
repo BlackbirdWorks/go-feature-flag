@@ -66,6 +66,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	reqBody := new(model.OFREPEvalFlagRequest)
+
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
@@ -75,6 +76,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 			NewEvaluateError(flagKey, flag.ErrorCodeInvalidContext, err.Error()),
 		)
 	}
+
 	validateErr := assertOFREPEvaluateRequest(reqBody)
 	if validateErr != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
@@ -83,6 +85,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 			Key:                      flagKey,
 		})
 	}
+
 	evalCtx, err := evaluationContextFromOFREPRequest(reqBody)
 	if err != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
@@ -90,6 +93,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "flagEvaluation")
 	defer span.End()
 
@@ -101,6 +105,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 
 	// we set a nil value to the default value to avoid the default value to be used.
 	var defaultValue any
+
 	flagValue, _ := flagset.RawVariation(flagKey, evalCtx, defaultValue)
 	if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
@@ -137,9 +142,11 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		if metadata == nil {
 			metadata = make(map[string]any)
 		}
+
 		if !h.legacyMetadataOnly {
 			metadata[MetadataCacheable] = true
 		}
+
 		metadata[LegacyMetadataCacheable] = true
 	}
 
@@ -156,16 +163,19 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 // BulkEvaluate is the entry point to evaluate in bulk flags using the OpenFeature Remote Evaluation Protocol.
 func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) error {
 	request := new(model.OFREPEvalFlagRequest)
+
 	err := helper.BindBody(r, request)
 	if err != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, NewOFREPCommonError("INVALID_CONTEXT", err.Error()))
 	}
+
 	validateErr := assertOFREPEvaluateRequest(request)
 	if validateErr != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, validateErr)
 	}
+
 	evalCtx, err := evaluationContextFromOFREPRequest(request)
 	if err != nil {
 		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
@@ -178,6 +188,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		EventStreams: nil,
 	}
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
@@ -194,13 +205,16 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	} else {
 		allFlagsResp = flagset.AllFlagsState(evalCtx)
 	}
+
 	flagNames := make([]string, 0, len(allFlagsResp.GetFlags()))
 	for key, val := range allFlagsResp.GetFlags() {
 		flagNames = append(flagNames, key)
+
 		value := val.Value
 		if val.Reason == flag.ReasonError {
 			value = nil
 		}
+
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
 			Key:          key,
 			Value:        value,
@@ -211,6 +225,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 			ErrorDetails: val.ErrorDetails,
 		})
 	}
+
 	h.metrics.IncAllFlag(flagNames...)
 
 	sort.Slice(response.Flags, func(i, j int) bool {
@@ -247,10 +262,12 @@ const ofrepSSEPath = "/stream/v1/sse/flag/change"
 // This URL is sensitive, it must never be logged.
 func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStream {
 	baseURL := h.eventStream.BaseURL
+
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil
 	}
+
 	parsedURL = parsedURL.JoinPath(ofrepSSEPath)
 	if apiKey := helper.APIKey(r); apiKey != "" {
 		parsedURL.RawQuery = url.Values{"apiKey": []string{apiKey}}.Encode()

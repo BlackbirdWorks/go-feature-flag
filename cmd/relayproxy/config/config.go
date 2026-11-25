@@ -163,10 +163,12 @@ type Config struct {
 func New(cmdLineFlagSet *pflag.FlagSet, log *slog.Logger, version string, opts ...LoaderOption) (*Config, error) {
 	// Map environment variables
 	configLoader := NewConfigLoader(cmdLineFlagSet, log, version, true, opts...)
+
 	proxyConf, errUnmarshal := configLoader.ToConfig()
 	if errUnmarshal != nil {
 		return nil, errUnmarshal
 	}
+
 	proxyConf.configLoader = configLoader
 	proxyConf.logger = log
 	proxyConf.preloadAPIKeys()
@@ -195,6 +197,7 @@ func (c *Config) IsUsingFlagsets() bool {
 func (c *Config) SetAPIKeys(apiKeys []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	c.APIKeys = apiKeys
 }
 
@@ -202,6 +205,7 @@ func (c *Config) SetAPIKeys(apiKeys []string) {
 func (c *Config) SetAuthorizedKeys(authorizedKeys APIKeys) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	c.AuthorizedKeys = authorizedKeys
 }
 

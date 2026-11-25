@@ -16,6 +16,7 @@ func TestManifestCmd(t *testing.T) {
 
 	pterm.DisableStyling()
 	pterm.DisableColor()
+
 	tests := []struct {
 		assertError      assert.ErrorAssertionFunc
 		name             string
@@ -70,6 +71,7 @@ func TestManifestCmd(t *testing.T) {
 
 			redirectionStd, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
+
 			defer func() { _ = os.Remove(redirectionStd.Name()) }()
 
 			tt.args = append(tt.args, "--flag_manifest_destination", tmpManifest.Name())

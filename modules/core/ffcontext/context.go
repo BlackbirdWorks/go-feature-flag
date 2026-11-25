@@ -134,6 +134,7 @@ func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 		specifics = readSpecifics(v, specifics)
 		specifics.UsedLegacyKey = true
 	}
+
 	if v, ok := u.attributes[ReservedKey]; ok {
 		specifics = readSpecifics(v, specifics)
 	}
@@ -144,6 +145,7 @@ func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 // readSpecifics returns base with the fields found in v on top of it.
 func readSpecifics(v any, base GoffContextSpecifics) GoffContextSpecifics {
 	found := GoffContextSpecifics{}
+
 	switch typed := v.(type) {
 	case map[string]string:
 		found.addCurrentDateTime(typed["currentDateTime"])
@@ -156,12 +158,15 @@ func readSpecifics(v any, base GoffContextSpecifics) GoffContextSpecifics {
 	case GoffContextSpecifics:
 		found = typed
 	}
+
 	if found.CurrentDateTime != nil {
 		base.CurrentDateTime = found.CurrentDateTime
 	}
+
 	if found.FlagList != nil {
 		base.FlagList = found.FlagList
 	}
+
 	if found.ExporterMetadata != nil {
 		base.ExporterMetadata = found.ExporterMetadata
 	}

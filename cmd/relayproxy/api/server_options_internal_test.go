@@ -71,10 +71,12 @@ func TestNew_Options(t *testing.T) {
 // content), or that both are nil.
 func assertSameListener(t *testing.T, want, got net.Listener) {
 	t.Helper()
+
 	if want == nil {
 		assert.Nil(t, got)
 
 		return
 	}
+
 	assert.Same(t, want, got)
 }

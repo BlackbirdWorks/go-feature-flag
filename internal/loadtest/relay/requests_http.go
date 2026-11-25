@@ -12,6 +12,7 @@ func newJSONRequest(url, body string) (*http.Request, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create JSON HTTP request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	return req, nil

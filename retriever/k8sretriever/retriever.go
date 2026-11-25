@@ -33,6 +33,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		if clientErr != nil {
 			return nil, fmt.Errorf("unable to create client, error: %w", clientErr)
 		}
+
 		s.client = client
 	}
 
@@ -48,6 +49,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			"unable to read from config map %s.%s, error: %w", s.ConfigMapName, s.Namespace, err,
 		)
 	}
+
 	content, ok := configMap.Data[s.Key]
 	if !ok {
 		return nil, fmt.Errorf("%w %s not existing in config map %s.%s", errKey,

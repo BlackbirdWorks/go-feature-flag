@@ -212,6 +212,7 @@ func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	if err != nil {
 		return nil, err
 	}
+
 	rt.requestBody = string(body)
 	req.Body = io.NopCloser(bytes.NewBuffer(body))
 

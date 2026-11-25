@@ -24,6 +24,7 @@ var (
 
 func TestRedactURLError(t *testing.T) {
 	t.Parallel()
+
 	const secretURL = "https://user:SECRETMARKER-pass@hooks.example.com/services/SECRETMARKER-token?key=SECRETMARKER-q"
 
 	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
@@ -34,6 +35,7 @@ func TestRedactURLError(t *testing.T) {
 		"https://{}hooks.example.com/SECRETMARKER-token", //nolint:staticcheck // SA1007: the invalid URL is the point
 	)
 	require.Error(t, parseErr)
+
 	_, doErr := http.Get(closedURL + "/SECRETMARKER-token")
 	require.Error(t, doErr)
 
@@ -86,17 +88,21 @@ func TestRedactURLError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := internal.RedactURLError(tt.err)
 			if tt.err == nil {
 				assert.NoError(t, got)
 
 				return
 			}
+
 			assert.NotContains(t, got.Error(), "SECRETMARKER")
 			assert.Contains(t, got.Error(), tt.wantMessage)
+
 			if tt.wantSame {
 				assert.Equal(t, tt.err, got)
 			}
+
 			if urlErr, ok := errors.AsType[*url.Error](tt.err); ok {
 				assert.ErrorAs(t, got, &urlErr, "the error stays a *url.Error")
 			}
@@ -106,6 +112,7 @@ func TestRedactURLError(t *testing.T) {
 
 func TestRedactURL(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  string
@@ -122,6 +129,7 @@ func TestRedactURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := internal.RedactURL(tt.raw)
 			assert.Equal(t, tt.want, got)
 			assert.NotContains(t, got, "SECRETMARKER")
@@ -131,6 +139,7 @@ func TestRedactURL(t *testing.T) {
 
 func TestRedactURLError_UnparsableURLs(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  string
@@ -174,6 +183,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			_, parseErr := url.Parse(tt.raw)
 			require.Error(t, parseErr)
 			require.Contains(t, parseErr.Error(), "SECRETMARKER", "the shape must make url.Parse quote the input")
@@ -182,6 +192,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			require.Error(t, reqErr)
 
 			assert.Equal(t, tt.wantMessage, internal.RedactURLError(parseErr).Error())
+
 			for _, in := range []error{parseErr, reqErr, fmt.Errorf("wrapped: %w", parseErr)} {
 				got := internal.RedactURLError(in)
 				require.Error(t, got)

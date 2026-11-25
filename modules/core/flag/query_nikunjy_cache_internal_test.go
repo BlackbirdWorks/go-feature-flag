@@ -55,6 +55,7 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 			runtime.GC()
 			runtime.GC()
 			tt.wantErr(t, evalCache.validate(tt.query), "validating a query again must give the same result")
+
 			if tt.wantCached {
 				ev, err := evalCache.get(tt.query)
 				require.NoError(t, err)
@@ -68,33 +69,43 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 	t.Parallel()
 
 	evalCache := newNikunjyEvaluatorCache()
+
 	const query = `group eq "match"`
+
 	expectedEval, err := evalCache.get(query)
 	require.NoError(t, err)
 
 	goroutines := 4 * runtime.GOMAXPROCS(0)
+
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
+
 	for goroutineIdx := range goroutines {
 		go func() {
 			defer wg.Done()
+
 			for i := range 200 {
 				shared, getErr := evalCache.get(query)
 				if !assert.NoError(t, getErr) {
 					return
 				}
+
 				assert.Same(t, expectedEval, shared, "every evaluation must share the cached evaluator")
+
 				wantMatch := (goroutineIdx+i)%2 == 0
+
 				group := "other"
 				if wantMatch {
 					group = "match"
 				}
+
 				ok, getErr := shared.Process(map[string]any{"group": group})
 				assert.NoError(t, getErr)
 				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", goroutineIdx, i)
 			}
 		}()
 	}
+
 	wg.Wait()
 }
 
@@ -105,14 +116,19 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 	variations := map[string]*any{"on": new(any(true))}
 	ctx := ffcontext.NewEvaluationContext("user-1")
 	svc := NewService()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		if i%1000 == 0 {
 			b.StopTimer()
+
 			svc = NewService()
+
 			b.StartTimer()
 		}
+
 		r := Rule{
 			VariationResult: new("on"),
 			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
@@ -169,6 +185,7 @@ func haveRefs(c *nikunjyEvaluatorCache, queries []string, n int) bool {
 // cachedQueries returns the queries that have a cache entry, in their order.
 func cachedQueries(c *nikunjyEvaluatorCache, queries []string) []string {
 	var cached []string
+
 	for _, query := range queries {
 		if _, ok := c.entries.Load(query); ok {
 			cached = append(cached, query)
@@ -196,6 +213,7 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 		added     = `key eq "added-by-reload"`
 		jsonLogic = `{"==": [{"var": "key"}, "json-logic"]}`
 	)
+
 	tests := []struct {
 		name       string
 		oldQueries []string
@@ -231,6 +249,7 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 			queries := slices.Sorted(maps.Keys(tt.wantRefs))
 			oldFlag := newFlagWithQueries(tt.oldQueries...)
 			require.NoError(t, oldFlag.IsValid(svc))
+
 			newFlag := newFlagWithQueries(tt.newQueries...)
 			require.NoError(t, newFlag.IsValid(svc))
 			require.Equal(

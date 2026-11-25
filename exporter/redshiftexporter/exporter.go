@@ -240,6 +240,7 @@ func (e *Exporter) Export(
 	if err != nil {
 		return err
 	}
+
 	if len(rows) == 0 {
 		return nil
 	}
@@ -248,6 +249,7 @@ func (e *Exporter) Export(
 	if validateErr != nil {
 		return validateErr
 	}
+
 	table, columns := e.tableName(eventType), columnsForEventType(eventType)
 	if !IsValidTableName(table) {
 		return fmt.Errorf("%w %q", errRedshiftExporterInvalidTable, table)
@@ -258,6 +260,7 @@ func (e *Exporter) Export(
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they are too large for Redshift",
 			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys))
 	}
+
 	if len(rows) == 0 {
 		return nil
 	}
@@ -266,10 +269,12 @@ func (e *Exporter) Export(
 	if initClientErr != nil {
 		return initClientErr
 	}
+
 	migrateErr := e.migrate(ctx, table, columns)
 	if migrateErr != nil {
 		return migrateErr
 	}
+
 	for _, b := range buildBatches(table, columns, rows) {
 		runErr := e.run(ctx, b.sqls, b.params)
 		if runErr != nil {
@@ -289,9 +294,11 @@ func (e *Exporter) validate() error {
 	if e.Database == "" {
 		return errRedshiftExporterDatabaseIs
 	}
+
 	if e.ClusterIdentifier == "" && e.WorkgroupName == "" {
 		return errRedshiftExporterOneOf
 	}
+
 	if e.ClusterIdentifier != "" && e.WorkgroupName != "" {
 		return errRedshiftExporterClusterIdentifierAnd
 	}
@@ -303,6 +310,7 @@ func (e *Exporter) tableName(eventType string) string {
 	if e.TableName != "" {
 		return e.TableName
 	}
+
 	if eventType == trackingEventType {
 		return defaultTrackingTableName
 	}
@@ -315,6 +323,7 @@ func (e *Exporter) initClient(ctx context.Context) error {
 		if e.client != nil {
 			return
 		}
+
 		if e.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
@@ -322,8 +331,10 @@ func (e *Exporter) initClient(ctx context.Context) error {
 
 				return
 			}
+
 			e.AwsConfig = &cfg
 		}
+
 		e.client = redshiftdata.NewFromConfig(*e.AwsConfig)
 	})
 
@@ -336,8 +347,10 @@ func (e *Exporter) migrate(ctx context.Context, table string, columns []column) 
 	if !e.AutoMigrate {
 		return nil
 	}
+
 	e.migrateMutex.Lock()
 	defer e.migrateMutex.Unlock()
+
 	if e.migrated {
 		return nil
 	}
@@ -346,11 +359,14 @@ func (e *Exporter) migrate(ctx context.Context, table string, columns []column) 
 	for _, c := range columns {
 		definitions = append(definitions, quoteIdentifier(c.name)+" "+c.sqlType)
 	}
+
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", quoteTableName(table), strings.Join(definitions, ", "))
+
 	err := e.run(ctx, []string{sql}, nil)
 	if err != nil {
 		return err
 	}
+
 	e.migrated = true
 
 	return nil
@@ -364,6 +380,7 @@ func (e *Exporter) run(ctx context.Context, sqls []string, params []types.SqlPar
 	if timeout <= 0 {
 		timeout = defaultStatementTimeout
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -376,12 +393,15 @@ func (e *Exporter) run(ctx context.Context, sqls []string, params []types.SqlPar
 	if e.ClusterIdentifier != "" {
 		input.ClusterIdentifier = aws.String(e.ClusterIdentifier)
 	}
+
 	if e.WorkgroupName != "" {
 		input.WorkgroupName = aws.String(e.WorkgroupName)
 	}
+
 	if e.DBUser != "" {
 		input.DbUser = aws.String(e.DBUser)
 	}
+
 	if e.SecretArn != "" {
 		input.SecretArn = aws.String(e.SecretArn)
 	}
@@ -402,6 +422,7 @@ func (e *Exporter) waitForStatement(ctx context.Context, id *string) error {
 	defer ticker.Stop()
 
 	var lastErr error
+
 	for {
 		output, err := e.client.DescribeStatement(ctx, &redshiftdata.DescribeStatementInput{
 			Id:              id,
@@ -411,6 +432,7 @@ func (e *Exporter) waitForStatement(ctx context.Context, id *string) error {
 			if isPermanentAPIError(err) {
 				return fmt.Errorf("redshift exporter: describe statement %s: %w", aws.ToString(id), err)
 			}
+
 			lastErr = err
 		} else if done, statementResultErr := statementResult(id, output); done {
 			return statementResultErr
@@ -432,6 +454,7 @@ func (e *Exporter) cancelStatement(ctx context.Context, id *string, lastErr erro
 	if timeout <= 0 {
 		timeout = defaultCancelTimeout
 	}
+
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 
@@ -444,6 +467,7 @@ func (e *Exporter) cancelStatement(ctx context.Context, id *string, lastErr erro
 	if lastErr != nil && !errors.Is(lastErr, ctx.Err()) {
 		errs = append(errs, fmt.Errorf("last describe statement error: %w", lastErr))
 	}
+
 	if cancelErr != nil {
 		errs = append(errs, fmt.Errorf("cancel statement: %w", cancelErr))
 	}
@@ -455,6 +479,7 @@ func (e *Exporter) cancelStatement(ctx context.Context, id *string, lastErr erro
 func (e *Exporter) finishedAfterCancel(ctx context.Context, id *string) bool {
 	ticker := time.NewTicker(e.interval())
 	defer ticker.Stop()
+
 	for {
 		output, err := e.client.DescribeStatement(ctx, &redshiftdata.DescribeStatementInput{Id: id})
 		if err == nil {
@@ -462,6 +487,7 @@ func (e *Exporter) finishedAfterCancel(ctx context.Context, id *string) bool {
 				return output.Status == types.StatusStringFinished
 			}
 		}
+
 		select {
 		case <-ctx.Done():
 			return false
@@ -513,6 +539,7 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 	if aws.ToString(output.Error) != "" {
 		return aws.ToString(output.Error)
 	}
+
 	for _, sub := range output.SubStatements {
 		if aws.ToString(sub.Error) != "" {
 			return aws.ToString(sub.Error)
@@ -529,12 +556,19 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row, string, error) {
 	rows := make([]row, 0, len(events))
 	eventType := ""
-	var skippedKeys []string
-	var firstErr error
+
+	var (
+		skippedKeys []string
+		firstErr    error
+	)
+
 	for _, event := range events {
-		var values []string
-		var rowType string
-		var err error
+		var (
+			values  []string
+			rowType string
+			err     error
+		)
+
 		switch evt := event.(type) {
 		case exporter.FeatureEvent:
 			values, err = featureEventRow(evt)
@@ -545,22 +579,28 @@ func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.Ex
 		default:
 			continue
 		}
+
 		if eventType == "" {
 			eventType = rowType
 		}
+
 		if eventType != rowType {
 			return nil, "", errRedshiftExporterReceivedMixed
 		}
+
 		if err != nil {
 			skippedKeys = append(skippedKeys, event.GetKey())
+
 			if firstErr == nil {
 				firstErr = err
 			}
 
 			continue
 		}
+
 		rows = append(rows, row{key: event.GetKey(), values: values})
 	}
+
 	if len(skippedKeys) > 0 {
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they cannot be converted to JSON",
 			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys), "error", firstErr.Error())
@@ -582,6 +622,7 @@ func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event value: %w", err)
 	}
+
 	metadata, err := json.Marshal(event.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event metadata: %w", err)
@@ -607,6 +648,7 @@ func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal tracking details: %w", err)
 	}
+
 	evaluationContext, err := json.Marshal(event.EvaluationContext)
 	if err != nil {
 		return nil, fmt.Errorf("marshal evaluation context: %w", err)
@@ -628,9 +670,12 @@ func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
 // row would block the exporter forever. It returns the kept rows and the keys of the skipped ones.
 func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string) {
 	kept := make([]row, 0, len(rows))
+
 	var skippedKeys []string
+
 	for _, r := range rows {
 		tooLarge := false
+
 		for i, c := range columns {
 			switch c.kind {
 			case textColumn:
@@ -641,14 +686,18 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 				// fixed-size values: nothing to truncate or to check
 			}
 		}
+
 		var params []types.SqlParameter
+
 		_, params, r.size = buildRowValues(columns, r.values, paramIndexUpperBound)
+
 		r.paramSize = paramsSize(params)
 		if tooLarge || prefixSize+r.size > maxStatementBytes || r.paramSize > maxBatchParamBytes {
 			skippedKeys = append(skippedKeys, r.key)
 
 			continue
 		}
+
 		kept = append(kept, r)
 	}
 
@@ -663,6 +712,7 @@ func truncateUTF8(value string, maxBytes int) string {
 	if len(value) <= maxBytes {
 		return value
 	}
+
 	cut := maxBytes
 	for cut > 0 && !utf8.RuneStart(value[cut]) {
 		cut--
@@ -673,6 +723,7 @@ func truncateUTF8(value string, maxBytes int) string {
 
 func uniqueKeys(keys []string) []string {
 	seen := make(map[string]struct{}, len(keys))
+
 	unique := make([]string, 0, len(keys))
 	for _, k := range keys {
 		if _, ok := seen[k]; !ok {
@@ -698,8 +749,12 @@ func insertPrefix(table string, columns []column) string {
 // by all the statements of a batch, so they are numbered across the whole batch.
 func buildBatches(table string, columns []column, rows []row) []batch {
 	prefix := insertPrefix(table, columns)
-	var batches []batch
-	var b batch
+
+	var (
+		batches []batch
+		b       batch
+	)
+
 	batchBytes, batchParamBytes := 0, 0
 	for _, rowChunk := range chunkRows(rows, len(prefix)) {
 		if len(b.sqls) > 0 && (len(b.sqls) == maxStatementsPerBatch || batchBytes+rowChunk.size > maxBatchBytes ||
@@ -707,20 +762,26 @@ func buildBatches(table string, columns []column, rows []row) []batch {
 			batches = append(batches, b)
 			b, batchBytes, batchParamBytes = batch{}, 0, 0
 		}
+
 		var sql strings.Builder
 		sql.WriteString(prefix)
+
 		for i, r := range rowChunk.rows {
 			if i > 0 {
 				sql.WriteString(", ")
 			}
+
 			values, params, _ := buildRowValues(columns, r.values, len(b.params))
 			sql.WriteString(values)
+
 			b.params = append(b.params, params...)
 		}
+
 		b.sqls = append(b.sqls, sql.String())
 		batchBytes += rowChunk.size
 		batchParamBytes += rowChunk.paramSize
 	}
+
 	if len(b.sqls) > 0 {
 		batches = append(batches, b)
 	}
@@ -731,6 +792,7 @@ func buildBatches(table string, columns []column, rows []row) []batch {
 // chunkRows splits the rows to stay under the Redshift Data API limits for a single statement.
 func chunkRows(rows []row, prefixSize int) []chunk {
 	var chunks []chunk
+
 	start, size, paramSize := 0, prefixSize, 0
 	for i, r := range rows {
 		nbRows := i - start
@@ -739,12 +801,15 @@ func chunkRows(rows []row, prefixSize int) []chunk {
 			chunks = append(chunks, chunk{rows: rows[start:i], size: size, paramSize: paramSize})
 			start, size, paramSize = i, prefixSize, 0
 		}
+
 		if i > start {
 			size += len(", ")
 		}
+
 		size += r.size
 		paramSize += r.paramSize
 	}
+
 	if start < len(rows) {
 		chunks = append(chunks, chunk{rows: rows[start:], size: size, paramSize: paramSize})
 	}
@@ -775,6 +840,7 @@ func buildRowValues(columns []column, values []string, firstParam int) (string, 
 	placeholders := make([]string, 0, len(columns))
 	params := make([]types.SqlParameter, 0, len(columns))
 	size := 0
+
 	for i, col := range columns {
 		value := values[i]
 		switch {
@@ -790,13 +856,16 @@ func buildRowValues(columns []column, values []string, firstParam int) (string, 
 			name := "p" + strconv.Itoa(firstParam+len(params))
 			params = append(params, types.SqlParameter{Name: aws.String(name), Value: aws.String(value)})
 			size += len(name) + len(value)
+
 			placeholder := ":" + name
 			if col.kind == superColumn {
 				placeholder = "JSON_PARSE(" + placeholder + ")"
 			}
+
 			placeholders = append(placeholders, placeholder)
 		}
 	}
+
 	sql := "(" + strings.Join(placeholders, ", ") + ")"
 
 	return sql, params, size + len(sql)

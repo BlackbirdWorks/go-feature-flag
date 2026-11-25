@@ -65,6 +65,7 @@ func TestRequestFlagSet(t *testing.T) {
 			if tt.authenticate {
 				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, "key")
 				require.True(t, ok)
+
 				ctx = authCtx
 				// the routing changed after the authentication: the resolved flag set is still the one used
 				tt.manager = unrouted
@@ -104,6 +105,7 @@ func TestRequestFlagSetName(t *testing.T) {
 	t.Parallel()
 
 	manager := &namedManager{names: map[string]string{"key": "tenant"}}
+
 	tests := []struct {
 		name         string
 		apiKey       string
@@ -125,14 +127,18 @@ func TestRequestFlagSetName(t *testing.T) {
 			t.Parallel()
 
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
+
 			var served *http.Request
+
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 			logging.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { served = r }),
 				logging.WithLogger(logger)).ServeHTTP(httptest.NewRecorder(), req)
+
 			ctx := served.Context()
 			if tt.authenticate {
 				authCtx, ok := helper.AuthenticateFlagSetName(ctx, manager, tt.apiKey)
 				assert.Equal(t, tt.wantAuth, ok)
+
 				ctx = authCtx
 			}
 
@@ -143,12 +149,15 @@ func TestRequestFlagSetName(t *testing.T) {
 			// the name is added to the logs of the request, once, however it was resolved.
 			logging.FromContext(ctx).InfoContext(ctx, "probe")
 			require.Equal(t, 1, logs.Len())
+
 			var logged []any
+
 			for _, attr := range logs.All()[0].Attrs {
 				if attr.Key == "flagset" {
 					logged = append(logged, attr.Value.Any())
 				}
 			}
+
 			assert.Equal(t, tt.wantLogged, logged)
 		})
 	}

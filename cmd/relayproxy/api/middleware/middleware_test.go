@@ -120,8 +120,11 @@ func TestKeyAuth(t *testing.T) {
 				},
 				Skipper: func() bool { return tt.skip },
 			})
-			var gotKey string
-			var handler http.Handler
+
+			var (
+				gotKey  string
+				handler http.Handler
+			)
 			if tt.entry == "huma" {
 				handler = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
 					gotKey, _ = ctx.Value(key{}).(string)
@@ -134,13 +137,16 @@ func TestKeyAuth(t *testing.T) {
 					newOK().ServeHTTP(w, r)
 				}))
 			}
+
 			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
+
 			rec := serve(handler, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantKey, gotKey)
+
 			if tt.wantBody != "" {
 				assert.Equal(t, tt.wantBody, rec.Body.String())
 			}
@@ -204,6 +210,7 @@ func TestCORS(t *testing.T) {
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
+
 			rec := serve(middleware.CORS()(newOK()), req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantOrigin, rec.Header().Get("Access-Control-Allow-Origin"))
@@ -269,6 +276,7 @@ func TestETag(t *testing.T) {
 			t.Parallel()
 
 			var handler http.Handler
+
 			switch {
 			case tt.entry == "huma" && tt.failing:
 				handler = humaHandler(func(context.Context, *struct{}) (*document, error) {
@@ -292,6 +300,7 @@ func TestETag(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
+
 			switch tt.condition {
 			case "etag":
 				req.Header.Set("If-None-Match", etag)
@@ -300,9 +309,11 @@ func TestETag(t *testing.T) {
 			case "other":
 				req.Header.Set("If-None-Match", `"x"`)
 			}
+
 			rec := serve(handler, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())
+
 			if tt.wantETag {
 				assert.Equal(t, etag, rec.Header().Get("ETag"))
 			} else {
@@ -330,8 +341,11 @@ func TestBodyDump(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var dumped, read string
-			var called bool
+			var (
+				dumped, read string
+				called       bool
+			)
+
 			handler := middleware.BodyDump(
 				func(r *http.Request) bool { return r.URL.Path == "/skip" },
 				func(_ *http.Request, body []byte) { called, dumped = true, string(body) },
@@ -391,8 +405,10 @@ func TestChain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var order bytes.Buffer
-			var mws []middleware.Func
+			var (
+				order bytes.Buffer
+				mws   []middleware.Func
+			)
 			for _, name := range tt.names {
 				mws = append(mws, func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -401,6 +417,7 @@ func TestChain(t *testing.T) {
 					})
 				})
 			}
+
 			serve(middleware.Chain(newOK(), mws...), httptest.NewRequest(http.MethodGet, "/", nil))
 			assert.Equal(t, tt.want, order.String())
 		})
@@ -412,6 +429,7 @@ func TestPrometheus(t *testing.T) {
 	t.Parallel()
 
 	allLabels := []string{"code=418", "host=example.com", "method=GET", "url=/items/:id"}
+
 	tests := []struct {
 		wantSeries   map[string][]string
 		name         string
@@ -432,37 +450,45 @@ func TestPrometheus(t *testing.T) {
 			t.Parallel()
 
 			reg := prometheus.NewRegistry()
+
 			cfg := middleware.PrometheusConfig{Registerer: reg, Subsystem: "sub"}
 			if tt.preRegister {
 				_, err := middleware.Prometheus(cfg)
 				require.NoError(t, err)
 			}
+
 			prom, err := middleware.Prometheus(cfg)
 			if !tt.wantRegister {
 				require.Error(t, err, "the metrics are registered once")
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			serve(prom(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				r.Pattern = "GET /items/{id}"
+
 				w.WriteHeader(http.StatusTeapot)
 				_, _ = w.Write([]byte("tea"))
 			})), httptest.NewRequest(http.MethodGet, "/items/42", nil))
 
 			families, err := reg.Gather()
 			require.NoError(t, err)
+
 			got := map[string][]string{}
+
 			for _, family := range families {
 				for _, m := range family.GetMetric() {
 					labels := make([]string, 0, len(m.GetLabel()))
 					for _, l := range m.GetLabel() {
 						labels = append(labels, l.GetName()+"="+l.GetValue())
 					}
+
 					got[family.GetName()] = labels
 				}
 			}
+
 			assert.Equal(t, tt.wantSeries, got)
 		})
 	}

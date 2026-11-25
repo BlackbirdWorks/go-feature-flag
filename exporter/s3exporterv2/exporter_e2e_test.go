@@ -79,8 +79,10 @@ func TestE2E_Export(t *testing.T) {
 			wantKeyRegex: "^exports/csv/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.csv$`,
 			check: func(t *testing.T, content []byte, n int) {
 				t.Helper()
+
 				lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 				require.Len(t, lines, n)
+
 				for i, line := range lines {
 					assert.Equal(
 						t,
@@ -113,13 +115,18 @@ func TestE2E_Export(t *testing.T) {
 				require.NoError(t, os.WriteFile(f, content, 0o600))
 				fr, err := local.NewLocalFileReader(f)
 				require.NoError(t, err)
+
 				defer func() { _ = fr.Close() }()
-				pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+
+				parquetReader, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 				require.NoError(t, err)
-				defer pr.ReadStop()
-				require.Equal(t, int64(count), pr.GetNumRows())
-				got := make([]exporter.FeatureEvent, pr.GetNumRows())
-				require.NoError(t, pr.Read(&got))
+
+				defer parquetReader.ReadStop()
+
+				require.Equal(t, int64(count), parquetReader.GetNumRows())
+				got := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
+				require.NoError(t, parquetReader.Read(&got))
+
 				for i, e := range got {
 					assert.Equal(t, fmt.Sprintf("user-%d", i), e.UserKey)
 					assert.Equal(t, "my-flag", e.Key)
@@ -150,8 +157,10 @@ func TestE2E_Export(t *testing.T) {
 
 func checkJSON(t *testing.T, content []byte, n int) {
 	t.Helper()
+
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 	require.Len(t, lines, n)
+
 	for i, l := range lines {
 		var e exporter.FeatureEvent
 		require.NoError(t, json.Unmarshal([]byte(l), &e))
@@ -202,5 +211,6 @@ func TestE2E_Export_EachCallCreatesAFile(t *testing.T) {
 		e.Filename = name
 		require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(2)))
 	}
+
 	assert.ElementsMatch(t, []string{"p/one.json", "p/two.json", "p/three.json"}, srv.ListKeys(t, bucket, "p/"))
 }

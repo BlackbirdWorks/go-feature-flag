@@ -74,6 +74,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	defer span.End()
 
 	reqBody := new(FlagConfigurationRequest)
+
 	err := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
 	if err != nil {
 		return &FlagConfigurationOutput{
@@ -111,11 +112,13 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	// filter if we have a list of flags in the request.
 	if len(reqBody.Flags) > 0 {
 		tmpFlags := map[string]flag.Flag{}
+
 		for _, flagKey := range reqBody.Flags {
 			if _, ok := flags[flagKey]; ok {
 				tmpFlags[flagKey] = flags[flagKey]
 			}
 		}
+
 		flags = tmpFlags
 	}
 

@@ -29,6 +29,7 @@ func main() {
 
 	a := map[string]dto.DTO{}
 	d := jsonschema.Reflect(a)
+
 	jsonSchema, err := d.MarshalJSON()
 	if err != nil {
 		log.Fatal("impossible to parse jsonschema", err)
@@ -40,6 +41,7 @@ func main() {
 	}
 
 	fmt.Println("Writing jsonschema to", opts.SchemaLocation) //nolint:forbidigo // command line output
+
 	err = os.WriteFile(opts.SchemaLocation, prettyJSONSchema, 0600)
 	if err != nil {
 		log.Fatalf("impossible to write jsonschema file to %s: %s", opts.SchemaLocation, err)
@@ -49,6 +51,7 @@ func main() {
 // PrettyString will prettify the JSON string.
 func PrettyString(str string) ([]byte, error) {
 	var prettyJSON bytes.Buffer
+
 	err := json.Indent(&prettyJSON, []byte(str), "", "    ")
 	if err != nil {
 		return []byte(""), err

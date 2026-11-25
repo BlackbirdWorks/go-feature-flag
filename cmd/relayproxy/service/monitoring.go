@@ -41,6 +41,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 	if m.flagsetManager == nil {
 		return model.InfoResponse{}, errFlagsetManagerIsNot
 	}
+
 	flagSets, err := m.flagsetManager.AllFlagSets()
 	if err != nil {
 		//nolint:wrapcheck // preserves FlagsetManager.AllFlagSets error message asserted by monitoring tests
@@ -51,6 +52,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 		if m.flagsetManager.Default() == nil {
 			return model.InfoResponse{}, errNoDefaultFlagsetConfigured
 		}
+
 		cacheRefreshDate := m.flagsetManager.Default().GetCacheRefreshDate()
 
 		return model.InfoResponse{
@@ -61,6 +63,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 
 	refreshDates := make(map[string]time.Time, len(flagSets))
 	latestRefreshDate := time.Time{}
+
 	for flagsetName, flagset := range flagSets {
 		refreshDates[flagsetName] = flagset.GetCacheRefreshDate()
 		if refreshDates[flagsetName].After(latestRefreshDate) {

@@ -114,6 +114,7 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	f.websocketService.Register(safeConn, flagsetName)
 	defer f.websocketService.Deregister(safeConn)
+
 	logger := logging.FromContext(r.Context())
 	logger.LogAttrs(
 		r.Context(),

@@ -125,10 +125,12 @@ func (o *StringOperation) get(left Operand, right Operand) (string, string, erro
 	if left == nil {
 		return "", "", ErrEvalOperandMissing
 	}
+
 	leftVal, err := o.getString(left)
 	if err != nil {
 		return "", "", err
 	}
+
 	rightVal, err := o.getString(right)
 	if err != nil {
 		return "", "", err

@@ -56,6 +56,7 @@ func (h *ValidateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 // validate runs the validation and returns the outcome used for the metric alongside the handler error.
 func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
 	const outcomeError = metric.ValidateFlagsOutcomeError
+
 	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
 	if !ok {
 		return outcomeError, helper.NewHTTPError(
@@ -67,7 +68,9 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 	if r.ContentLength > maxSize {
 		return outcomeError, helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
 	}
+
 	body := http.MaxBytesReader(w, r.Body, maxSize)
+
 	data, err := io.ReadAll(body)
 	if err != nil {
 		if _, isMaxBytes := errors.AsType[*http.MaxBytesError](err); isMaxBytes {
@@ -78,6 +81,7 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "validateFlags")
 	defer span.End()
 
@@ -97,12 +101,15 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 			Message: flagErr.Err.Error(),
 		})
 	}
+
 	span.SetAttributes(
 		attribute.Int("validateFlags.flagCount", len(flags)),
 		attribute.Int("validateFlags.invalidCount", len(resp.Errors)),
 	)
+
 	status := http.StatusOK
 	outcome := metric.ValidateFlagsOutcomeValid
+
 	if len(resp.Errors) > 0 {
 		resp.Valid = false
 		status = http.StatusUnprocessableEntity
@@ -128,6 +135,7 @@ func (h *ValidateFlags) formatFromContentType(contentType string) (string, int64
 	if err != nil {
 		return "", 0, false
 	}
+
 	switch mediaType {
 	case "application/json":
 		return "json", int64(h.limits.MaxJSONBodySize), true

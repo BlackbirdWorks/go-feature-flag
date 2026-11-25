@@ -40,6 +40,7 @@ func (g *GoffContextSpecifics) addListFlags(flagList any) {
 	if value, ok := flagList.([]string); ok {
 		g.FlagList = value
 	}
+
 	if value, ok := flagList.([]any); ok {
 		// an explicit empty list is kept as an empty (not nil) list: it is set, an empty list means all the flags.
 		g.FlagList = make([]string, 0, len(value))

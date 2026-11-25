@@ -54,6 +54,7 @@ func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retri
 
 func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		persisted   *string // content of the persistent flag configuration file, nil when there is none
 		name        string
@@ -77,6 +78,7 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			conf := retriever.ManagerConfig{FileFormat: "yaml", StartWithRetrieverError: tt.startAnyway}
 			if tt.withFile {
 				conf.PersistentFlagConfigurationFile = filepath.Join(t.TempDir(), "persist.yaml")
@@ -84,23 +86,29 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 					require.NoError(t, os.WriteFile(conf.PersistentFlagConfigurationFile, []byte(*tt.persisted), 0o600))
 				}
 			}
+
 			mgr := newErrorManager(failingRetriever{}, conf)
+
 			err := mgr.Init(context.Background())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
+
 			defer func() { _ = mgr.Shutdown(context.Background()) }()
 
 			flags, err := mgr.GetFlagsFromCache(context.Background())
 			readOnly, errReadOnly := mgr.GetFlagsFromCacheReadOnly(context.Background())
 			require.NoError(t, errReadOnly)
 			assert.Len(t, readOnly, len(flags))
+
 			if tt.wantFlag {
 				require.NoError(t, err)
 				assert.Contains(t, flags, "test-flag")
+
 				f, getFlagErr := mgr.GetFlag("test-flag")
 				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
@@ -115,6 +123,7 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 
 func TestManagerForceRefresh(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		retriever retriever.Retriever
 		name      string
@@ -126,12 +135,15 @@ func TestManagerForceRefresh(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			mgr := newErrorManager(
 				tt.retriever,
 				retriever.ManagerConfig{FileFormat: "json", StartWithRetrieverError: true},
 			)
+
 			require.NoError(t, mgr.Init(context.Background()))
 			defer func() { _ = mgr.Shutdown(context.Background()) }()
+
 			assert.Equal(t, tt.want, mgr.ForceRefresh(context.Background()))
 		})
 	}
@@ -139,7 +151,9 @@ func TestManagerForceRefresh(t *testing.T) {
 
 func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 	t.Parallel()
+
 	var m *retriever.Manager
+
 	_, err := m.GetFlagsFromCache(context.Background())
 	require.ErrorContains(t, err, "cache is not initialized")
 	_, err = m.GetFlagsFromCacheReadOnly(context.Background())
@@ -148,6 +162,7 @@ func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 
 func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 	t.Parallel()
+
 	m := newErrorManager(&shutdownFailingRetriever{}, retriever.ManagerConfig{FileFormat: "json"})
 	require.NoError(t, m.Init(context.Background()))
 	assert.ErrorContains(t, m.Shutdown(context.Background()), "error while shutting down the retrievers")
@@ -155,6 +170,7 @@ func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 
 func TestManagerInitFailsWhenARetrieverCannotInitialise(t *testing.T) {
 	t.Parallel()
+
 	m := newErrorManager(&initFailingRetriever{}, retriever.ManagerConfig{FileFormat: "json"})
 	assert.ErrorContains(t, m.Init(context.Background()), "error while initializing the retrievers")
 }

@@ -27,6 +27,7 @@ func (c *Config) SwaggerHost() string {
 	if c.Swagger.Host != "" {
 		return c.Swagger.Host
 	}
+
 	if c.Host != "" {
 		return c.Host
 	}

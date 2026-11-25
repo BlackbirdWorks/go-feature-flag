@@ -15,6 +15,7 @@ func TestContains(t *testing.T) {
 		str string
 		s   []string
 	}
+
 	tests := []struct {
 		name string
 		args args

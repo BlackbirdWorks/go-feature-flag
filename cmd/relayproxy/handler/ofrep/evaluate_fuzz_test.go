@@ -27,6 +27,7 @@ import (
 func FuzzOFREPEvaluate(f *testing.F) {
 	requests, err := filepath.Glob(testdataDir + "/ofrep/*.json")
 	require.NoError(f, err)
+
 	for _, file := range requests {
 		content, readFileErr := os.ReadFile(file)
 		require.NoError(f, readFileErr)
@@ -54,8 +55,10 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		if bulk {
 			target = "/ofrep/v1/evaluate/flags"
 		}
+
 		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 

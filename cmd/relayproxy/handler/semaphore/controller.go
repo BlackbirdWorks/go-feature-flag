@@ -49,10 +49,12 @@ func (r *Request) ContentType() string { return r.contentType }
 // who disabled the read timeout of the server asked for it.
 func BodyOpts(operation *huma.Operation, readTimeout time.Duration) {
 	operation.MaxBodyBytes = -1
+
 	operation.BodyReadTimeout = readTimeout
 	if readTimeout <= 0 {
 		operation.BodyReadTimeout = -1
 	}
+
 	operation.SkipValidateBody = true
 	operation.SkipValidateParams = true
 }

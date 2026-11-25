@@ -138,6 +138,7 @@ type consumer struct {
 func (e *eventStoreImpl[T]) AddConsumer(consumerID string) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+
 	e.consumers[consumerID] = &consumer{Offset: e.lastOffset}
 }
 
@@ -148,6 +149,7 @@ func (e *eventStoreImpl[T]) AddConsumer(consumerID string) {
 func (e *eventStoreImpl[T]) SetConsumerLimit(consumerID string, limit int64) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+
 	if c, ok := e.consumers[consumerID]; ok {
 		c.limit = limit
 	}
@@ -160,6 +162,7 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 	e.mutex.RLock()
 	currentConsumer, err := e.getConsumer(consumerID)
 	e.mutex.RUnlock()
+
 	if err != nil {
 		return err
 	}
@@ -198,6 +201,7 @@ func (e *eventStoreImpl[T]) GetTotalEventCount() int64 {
 func (e *eventStoreImpl[T]) GetPendingEventCount(consumerID string) (int64, error) {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
+
 	consumer, err := e.getConsumer(consumerID)
 	if err != nil {
 		return 0, err
@@ -215,12 +219,14 @@ func (e *eventStoreImpl[T]) Add(data T) {
 // AddAll adds several events with a single lock acquisition (see Add for the drop policy).
 func (e *eventStoreImpl[T]) AddAll(data []T) {
 	var dropped int64
+
 	e.mutex.Lock()
 	for _, item := range data {
 		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
 			// the events consumed by everybody but not cleaned yet do not count: release them first.
 			e.cleanQueueLocked()
 		}
+
 		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
 			// a consumer that is behind the others must not make the others lose events: it
 			// gives up its oldest pending event instead (counted as a drop).
@@ -231,11 +237,14 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 				continue
 			}
 		}
+
 		e.lastOffset++
 		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: item})
 	}
+
 	dropped += e.enforceConsumerLimitsLocked()
 	e.mutex.Unlock()
+
 	if dropped > 0 {
 		total := e.dropped.Add(dropped)
 		if e.onDrop != nil {
@@ -249,12 +258,14 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 // WARNING: please call this function only in a function that has locked the mutex first.
 func (e *eventStoreImpl[T]) enforceConsumerLimitsLocked() int64 {
 	var dropped int64
-	for _, c := range e.consumers {
-		if c.limit <= 0 {
+
+	for _, consumer := range e.consumers {
+		if consumer.limit <= 0 {
 			continue
 		}
-		if excess := e.lastOffset - c.Offset - c.limit; excess > 0 {
-			c.Offset += excess
+
+		if excess := e.lastOffset - consumer.Offset - consumer.limit; excess > 0 {
+			consumer.Offset += excess
 			dropped += excess
 		}
 	}
@@ -269,21 +280,26 @@ func (e *eventStoreImpl[T]) enforceConsumerLimitsLocked() int64 {
 func (e *eventStoreImpl[T]) AddWhileRoom(data []T) int {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+
 	room := int64(len(data))
 	if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
 		e.cleanQueueLocked()
 	}
+
 	if e.maxEvents > 0 {
 		room = min(room, e.maxEvents-int64(len(e.events)))
 	}
+
 	for _, c := range e.consumers {
 		if c.limit > 0 {
 			room = min(room, c.limit-(e.lastOffset-c.Offset))
 		}
 	}
+
 	if room <= 0 {
 		return 0
 	}
+
 	for _, d := range data[:room] {
 		e.lastOffset++
 		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
@@ -302,25 +318,32 @@ func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
 	if len(e.events) == 0 || len(e.consumers) < 2 {
 		return 0
 	}
+
 	lowest, highest := int64(math.MaxInt64), int64(math.MinInt64)
 	for _, c := range e.consumers {
 		lowest = min(lowest, c.Offset)
 		highest = max(highest, c.Offset)
 	}
+
 	if lowest == highest {
 		return 0
 	}
+
 	oldest := e.events[0].Offset
+
 	var evicted int64
+
 	for _, c := range e.consumers {
 		if c.Offset == lowest && c.Offset < oldest {
 			c.Offset = oldest
 			evicted++
 		}
 	}
+
 	if evicted == 0 {
 		return 0
 	}
+
 	e.cleanQueueLocked()
 
 	return evicted
@@ -338,6 +361,7 @@ func (e *eventStoreImpl[T]) fetchPendingEvents(currentConsumer *consumer) *Event
 	start := sort.Search(len(e.events), func(i int) bool {
 		return e.events[i].Offset > currentConsumer.Offset
 	})
+
 	events := make([]T, 0, len(e.events)-start)
 	for _, event := range e.events[start:] {
 		events = append(events, event.Data)
@@ -379,6 +403,7 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 func (e *eventStoreImpl[T]) cleanQueue() {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+
 	e.cleanQueueLocked()
 }
 
@@ -400,9 +425,11 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	for _, currentConsumer := range e.consumers {
 		consumerMinOffset = min(consumerMinOffset, currentConsumer.Offset)
 	}
+
 	if len(e.consumers) == 0 {
 		return
 	}
+
 	if consumerMinOffset <= minOffset {
 		// nothing to remove
 		return
@@ -414,6 +441,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	if i == len(e.events) || e.events[i].Offset != consumerMinOffset {
 		return
 	}
+
 	removed := i + 1
 	remaining := len(e.events) - removed
 	// A plain reslice keeps the whole backing array (and the removed events it references)
@@ -426,10 +454,12 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 
 		return
 	}
+
 	var zero EventStoreItem[T]
 	for j := range removed {
 		e.events[j] = zero
 	}
+
 	e.events = e.events[removed:]
 }
 
@@ -437,6 +467,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 func (e *eventStoreImpl[T]) periodicCleanQueue() {
 	ticker := time.NewTicker(e.cleanQueueInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:

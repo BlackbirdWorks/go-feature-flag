@@ -43,6 +43,7 @@ func bodyDumpHandler() func(r *http.Request, body []byte) {
 
 	return func(r *http.Request, reqBody []byte) {
 		ctx := r.Context()
+
 		logger := logging.FromContext(ctx)
 		if len(reqBody) <= maxBodyLogSize {
 			logger.LogAttrs(

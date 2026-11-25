@@ -234,11 +234,13 @@ func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
 	if g.featureEventDataExporter == nil {
 		return
 	}
+
 	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
 		m.QueueEvents(events)
 
 		return
 	}
+
 	for _, event := range events {
 		g.featureEventDataExporter.AddEvent(event)
 	}
@@ -266,6 +268,7 @@ func notifyVariation[T model.JSONType](
 		if enrichment := client.evaluationEnrichment(); changesEventFields(enrichment) {
 			ctx = flag.EnrichContext(ctx, enrichment)
 		}
+
 		event := exporter.NewFeatureEvent(
 			ctx,
 			flagKey,
@@ -303,6 +306,7 @@ func getVariation[T model.JSONType](
 			Cacheable:     false,
 		}, errSemaphoreIsNotInitialised
 	}
+
 	if client.config.Offline {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
@@ -356,12 +360,15 @@ func (g *GoFeatureFlag) startEventWorker() {
 	if g.featureEventDataExporter == nil {
 		return
 	}
+
 	size := g.config.EventQueueSize
 	if size <= 0 {
 		size = DefaultEventQueueSize
 	}
+
 	g.eventQueue = make(chan exporter.FeatureEvent, size)
 	g.eventWorkerStop = make(chan struct{})
+
 	g.dropSignal = make(chan struct{}, 1)
 	go g.reportDrops()
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
@@ -381,6 +388,7 @@ const eventBatchSize = 256
 // together, which takes the lock of the exporter's store once per batch instead of once per event.
 func (g *GoFeatureFlag) runEventWorker() {
 	defer g.evalExporterWg.Done()
+
 	batch := make([]exporter.FeatureEvent, 0, eventBatchSize)
 	drain := func() {
 		for len(batch) < eventBatchSize {
@@ -392,19 +400,24 @@ func (g *GoFeatureFlag) runEventWorker() {
 			}
 		}
 	}
+
 	for {
 		select {
 		case event := <-g.eventQueue:
 			batch = append(batch[:0], event)
+
 			drain()
 			g.queueEvents(batch)
 		case <-g.eventWorkerStop:
 			for {
 				batch = batch[:0]
+
 				drain()
+
 				if len(batch) == 0 {
 					return
 				}
+
 				g.queueEvents(batch)
 			}
 		}
@@ -420,7 +433,9 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 
 		return
 	}
+
 	g.eventAdmission.RLock()
+
 	if g.closing {
 		// the client is closing (an evaluation that was running when its flag set was removed, for
 		// example): the workers are draining or gone, hand the event to the exporters directly so
@@ -430,6 +445,7 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 
 		return
 	}
+
 	select {
 	case g.eventQueue <- event:
 		g.eventAdmission.RUnlock()
@@ -457,9 +473,11 @@ func (g *GoFeatureFlag) reportDrops() {
 		case <-g.eventWorkerStop:
 			return
 		}
+
 		g.config.internalLogger.Error(
 			"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
 			slog.Int64("totalDroppedEvents", g.droppedEvents.Load()))
+
 		timer := time.NewTimer(dropLogInterval)
 		select {
 		case <-timer.C:
@@ -478,10 +496,12 @@ func (g *GoFeatureFlag) DroppedEvents() int64 {
 	if g == nil {
 		return 0
 	}
+
 	total := g.droppedEvents.Load()
 	if c, ok := g.featureEventDataExporter.(exporter.DroppedEventsCounter); ok {
 		total += c.DroppedEvents()
 	}
+
 	if c, ok := g.trackingEventDataExporter.(exporter.DroppedEventsCounter); ok {
 		total += c.DroppedEvents()
 	}
@@ -499,8 +519,10 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 			if enrichment == nil {
 				enrichment = make(map[string]any, 1)
 			}
+
 			enrichment["env"] = g.config.Environment
 		}
+
 		g.enrichment = enrichment
 	})
 

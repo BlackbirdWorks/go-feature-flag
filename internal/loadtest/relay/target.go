@@ -46,11 +46,14 @@ func NewTarget(opts Options, endpoint Endpoint, flagKey string, workers int) (*T
 	if err != nil {
 		return nil, err
 	}
+
 	opts.Listen = true
+
 	r, err := Start(opts)
 	if err != nil {
 		return nil, err
 	}
+
 	t := &Target{
 		relay:    r,
 		endpoint: endpoint,
@@ -98,16 +101,21 @@ func countFlags(body []byte) (int, error) {
 	var resp struct {
 		Flags json.RawMessage `json:"flags"`
 	}
+
 	err := json.Unmarshal(body, &resp)
 	if err != nil {
 		return 0, fmt.Errorf("invalid bulk response: %w", err)
 	}
+
 	var asArray []json.RawMessage
+
 	err = json.Unmarshal(resp.Flags, &asArray)
 	if err == nil {
 		return max(1, len(asArray)), nil
 	}
+
 	var asMap map[string]json.RawMessage
+
 	err = json.Unmarshal(resp.Flags, &asMap)
 	if err != nil {
 		return 0, fmt.Errorf("bulk response without flags: %w", err)
@@ -133,6 +141,7 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 	if err != nil {
 		return err
 	}
+
 	if opts.ExporterMode != "" {
 		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
 		if parseErr != nil {
@@ -140,6 +149,7 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 			return parseErr
 		}
 	}
+
 	if !endpoint.EmitsEvents() &&
 		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) {
 		return fmt.Errorf(
@@ -151,6 +161,7 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 			OFREPEval,
 		)
 	}
+
 	if endpoint.EmitsEvents() &&
 		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) &&
 		!tracksEvents(opts.FlagsYAML, flagKey) {
@@ -168,10 +179,12 @@ func tracksEvents(flagsYAML, flagKey string) bool {
 	var flags map[string]struct {
 		TrackEvents *bool `yaml:"trackEvents"`
 	}
+
 	err := yaml.Unmarshal([]byte(flagsYAML), &flags)
 	if err != nil {
 		return true
 	}
+
 	f, ok := flags[flagKey]
 
 	return !ok || f.TrackEvents == nil || *f.TrackEvents
@@ -183,14 +196,17 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 	if endpoint != SemaphoreEval {
 		return nil
 	}
+
 	var evalResp struct {
 		ErrorCode string `json:"errorCode"`
 		Failed    bool   `json:"failed"`
 	}
+
 	err := json.Unmarshal(body, &evalResp)
 	if err != nil {
 		return fmt.Errorf("invalid response: %w", err)
 	}
+
 	if evalResp.Failed {
 		return fmt.Errorf("%w: %s", errEvaluationFailed, evalResp.ErrorCode)
 	}
@@ -204,21 +220,26 @@ func (t *Target) Eval(worker, i int) error {
 	if err != nil {
 		return err
 	}
+
 	resp, err := t.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("execute relay eval request: %w", err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		return fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
 	}
+
 	if want := 1 + btoi(t.h2c); resp.ProtoMajor != want {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		return fmt.Errorf("%w%d, expected HTTP/%d", errResponseProtocolIsHTTP, resp.ProtoMajor, want)
 	}
+
 	if t.endpoint != SemaphoreEval {
 		// the body is never inspected: drain it (to reuse the connection) without buffering it,
 		// a bulk response is large and would distort the memory measurements of the soak
@@ -226,6 +247,7 @@ func (t *Target) Eval(worker, i int) error {
 
 		return nil
 	}
+
 	body, _ := io.ReadAll(resp.Body)
 
 	return checkResponse(t.endpoint, body)
@@ -251,15 +273,19 @@ func (t *Target) countFlagsPerCall() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	resp, err := t.client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("execute relay count request: %w", err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("read relay response body: %w", err)
 	}
+
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
 	}

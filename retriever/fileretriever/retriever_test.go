@@ -42,6 +42,7 @@ func Test_localRetriever_Retrieve(t *testing.T) {
 	type fields struct {
 		path string
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -70,12 +71,14 @@ func Test_localRetriever_Retrieve(t *testing.T) {
 			t.Parallel()
 
 			l := fileretriever.Retriever{Path: tt.fields.path}
+
 			got, err := l.Retrieve(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
 
 				return
 			}
+
 			assert.Equal(t, string(tt.want), string(got))
 		})
 	}

@@ -45,6 +45,7 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 			retErr = recoveredPanicError{info: info}
 		}
 	}()
+
 	tree, err := parseRule(rule)
 	if err != nil {
 		return nil, err
@@ -60,6 +61,7 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	input := antlr.NewInputStream(normalizeRuleInput(rule))
 	lex := NewJsonQueryLexer(input)
 	errListener := &collectingErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
+
 	lex.RemoveErrorListeners()
 	lex.AddErrorListener(errListener)
 	tokens := antlr.NewCommonTokenStream(lex, antlr.TokenDefaultChannel)
@@ -67,10 +69,13 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	p.RemoveErrorListeners()
 	p.AddErrorListener(errListener)
 	tree := p.Query()
+
 	if len(errListener.errs) > 0 {
 		return nil, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
 	}
+
 	consumeTrailingWhitespace(tokens)
+
 	if tokens.LA(1) != antlr.TokenEOF {
 		return nil, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
 	}
@@ -111,8 +116,12 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	}()
 
 	e.once.Do(e.compile)
-	var result bool
-	var err error
+
+	var (
+		result bool
+		err    error
+	)
+
 	switch {
 	case e.root != nil:
 		st := evalState{item: items}
@@ -124,9 +133,11 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	default:
 		err = errInvalidRule2
 	}
+
 	if e.testHookPanic != nil {
 		defer e.testHookPanic()
 	}
+
 	if err != nil {
 		return false, err
 	}
@@ -144,6 +155,7 @@ func (e *Evaluator) setDebugErr(err error) {
 
 		return
 	}
+
 	box := err
 	e.lastDebugErr.Store(&box)
 }
@@ -161,9 +173,11 @@ func (e *Evaluator) compile() {
 			e.root = nil
 		}
 	}()
+
 	if e.tree == nil {
 		return
 	}
+
 	e.root = compileQuery(e.tree)
 	e.tree = nil
 }
@@ -172,6 +186,7 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(e.tree)
 	e.setDebugErr(visitor.debugErr)
+
 	if result == nil || visitor.err != nil {
 		return false, visitor.err
 	}
@@ -184,6 +199,7 @@ func Evaluate(rule string, items map[string]any) bool {
 	if err != nil {
 		return false
 	}
+
 	result, _ := ev.Process(items)
 
 	return result

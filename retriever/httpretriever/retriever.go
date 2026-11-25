@@ -63,12 +63,14 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
+
 	_, err := r.getHTTPClient()
 	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err
 	}
+
 	r.status = retriever.RetrieverReady
 
 	return nil
@@ -103,9 +105,11 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("fetch HTTP flag file: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("%w %s failed with code %d", errRequestTo, internal.RedactURL(r.URL), resp.StatusCode)
 	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read HTTP response body: %w", err)
@@ -120,6 +124,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	}
 
 	var transport http.RoundTripper
+
 	if r.ClientCertPath != "" || r.ClientKeyPath != "" || r.CACertPath != "" {
 		tlsConfig, err := r.tlsConfig()
 		if err != nil {
@@ -130,6 +135,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 		if base == nil {
 			base = http.DefaultTransport
 		}
+
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
 			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
@@ -154,12 +160,14 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	config.Certificates = certificates
 
 	rootCAs, err := r.rootCAs()
 	if err != nil {
 		return nil, err
 	}
+
 	config.RootCAs = rootCAs
 
 	return config, nil
@@ -169,6 +177,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
 		return nil, errClientCertificateAndClient
 	}
+
 	if r.ClientCertPath == "" {
 		return nil, nil
 	}
@@ -193,6 +202,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		//nolint:wrapcheck // preserves system cert pool error directly
 		return nil, err
 	}
+
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
 	}
@@ -202,6 +212,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		//nolint:wrapcheck // preserves os.ReadFile error (and fs.ErrNotExist) asserted by certificate tests
 		return nil, err
 	}
+
 	if !rootCAs.AppendCertsFromPEM(caCert) {
 		return nil, errFailedToParseCA
 	}

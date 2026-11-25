@@ -77,6 +77,7 @@ only-in-%[1]s:
 
 func ofrepCtx(key string, kv ...any) map[string]any {
 	ctxMap := map[string]any{"targetingKey": key}
+
 	for i := 0; i+1 < len(kv); i += 2 {
 		if k, ok := kv[i].(string); ok {
 			ctxMap[k] = kv[i+1]
@@ -88,6 +89,7 @@ func ofrepCtx(key string, kv ...any) map[string]any {
 
 func goffCtx(key string, kv ...any) map[string]any {
 	custom := map[string]any{}
+
 	for i := 0; i+1 < len(kv); i += 2 {
 		if k, ok := kv[i].(string); ok {
 			custom[k] = kv[i+1]
@@ -369,18 +371,23 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 		t.Run(tt.name, func(t *testing.T) {
 			res := postJSON(t, url+tt.path, tt.apiKey, tt.body)
 			require.Equal(t, tt.wantStatus, res.Status, res.Raw)
+
 			if tt.wantStatus == 401 {
 				return
 			}
+
 			isOFREP := strings.HasPrefix(tt.path, "/ofrep/")
 			if tt.wantErrCode != "" {
 				assert.Equal(t, tt.wantErrCode, res.Body["errorCode"], res.Raw)
+
 				if tt.wantStatus != 200 {
 					return
 				}
 			}
+
 			assert.Equal(t, tt.wantValue, res.Body["value"], res.Raw)
 			assert.Equal(t, tt.wantReason, res.Body["reason"], res.Raw)
+
 			if isOFREP {
 				assert.Equal(t, tt.wantVariant, res.Body["variant"], res.Raw)
 			} else {
@@ -476,25 +483,32 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 		t.Run(tt.name, func(t *testing.T) {
 			res := postJSON(t, url+tt.path, tt.apiKey, tt.body)
 			require.Equal(t, tt.wantStatus, res.Status, res.Raw)
+
 			if tt.wantStatus != 200 {
 				return
 			}
+
 			got := map[string]any{}
+
 			if flags, ok := res.Body["flags"].([]any); ok { // OFREP: a list
 				for _, f := range flags {
-					m, isObj := f.(map[string]any)
+					item, isObj := f.(map[string]any)
 					require.True(t, isObj)
-					flagKey, isStr := m["key"].(string)
+
+					flagKey, isStr := item["key"].(string)
 					require.True(t, isStr)
-					got[flagKey] = m["value"]
+
+					got[flagKey] = item["value"]
 				}
 			} else if flagMap, isMap := res.Body["flags"].(map[string]any); isMap { // GOFF: a map
 				for k, f := range flagMap {
-					m, isObj := f.(map[string]any)
+					item, isObj := f.(map[string]any)
 					require.True(t, isObj)
-					got[k] = m["value"]
+
+					got[k] = item["value"]
 				}
 			}
+
 			assert.Equal(t, tt.wantFlags, got, res.Raw)
 		})
 	}
@@ -580,6 +594,7 @@ retriever:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucket := srv.CreateBucket(t, "top")
+
 			for objKey, tag := range tt.objects {
 				switch tag {
 				case "A":
@@ -595,6 +610,7 @@ retriever:
 					srv.PutObject(t, bucket, objKey, []byte(tag))
 				}
 			}
+
 			yaml := strings.ReplaceAll(`
 server:
   port: {{ .Port }}
@@ -610,20 +626,24 @@ authorizedKeys:
 			require.Equal(t, 200, res.Status, res.Raw)
 			assert.Equal(t, tt.wantValue, res.Body["value"])
 			assert.Equal(t, "TARGETING_MATCH", res.Body["reason"])
+
 			if strings.Contains(tt.name, "folder") {
 				res = postJSON(t, url+"/ofrep/v1/evaluate/flags/only-in-B", "top-key", ofrepCtx("u1"))
 				require.Equal(t, 200, res.Status, res.Raw)
 				assert.Equal(t, "B-only", res.Body["value"])
 			}
+
 			assert.Equal(t, 401, postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "nope", ofrepCtx("u1")).Status)
 
 			// update
 			first := ""
+
 			for k, tag := range tt.objects {
 				if tag == "A" {
 					first = k
 				}
 			}
+
 			srv.PutObject(t, bucket, first, e2eFlags("A", "A-on-v2"))
 			require.Eventually(t, func() bool {
 				r := postJSON(t, url+"/v1/feature/rule-flag/eval", "top-key", goffCtx("u1", "group", "admin"))
@@ -701,6 +721,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 		return describeStreamErr == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond)
+
 	sqsClient := sqs.NewFromConfig(cfg)
 	queue, err := sqsClient.CreateQueue(
 		t.Context(),
@@ -714,6 +735,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	// evaluations from the three entry points, each with its own user
 	wantUsers := map[string]string{} // user key -> expected value of rule-flag
+
 	for i := range 4 {
 		u := fmt.Sprintf("ofrep-%d", i)
 		wantUsers[u] = "A-on"
@@ -723,6 +745,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "key-a", ofrepCtx(u, "group", "admin")).Status,
 		)
 	}
+
 	for i := range 3 {
 		u := fmt.Sprintf("goff-%d", i)
 		wantUsers[u] = "A-off"
@@ -736,34 +759,43 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	// assertSink checks that the events read from a sink contain every evaluation made above.
 	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
 		t.Helper()
+
 		var got []sinkEvent
 		// polled on the test goroutine: read uses require, which must not run off it.
 		ticker := time.NewTicker(300 * time.Millisecond)
 		defer ticker.Stop()
+
 		deadline := time.After(30 * time.Second)
+
 		for {
 			got = read(t)
 			users := map[string]bool{}
+
 			for _, e := range got {
 				if e.Key == "rule-flag" {
 					users[e.UserKey] = true
 				}
 			}
+
 			if len(users) >= len(wantUsers) {
 				break
 			}
+
 			select {
 			case <-deadline:
 				require.Fail(t, "not every evaluation reached the sink", "events received: %d", len(got))
 			case <-ticker.C:
 			}
 		}
+
 		seen := map[string]sinkEvent{}
+
 		for _, e := range got {
 			if e.Key == "rule-flag" {
 				seen[e.UserKey] = e
 			}
 		}
+
 		for u, v := range wantUsers {
 			e, ok := seen[u]
 			if assert.True(t, ok, "no event for user %s", u) {
@@ -774,6 +806,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	}
 
 	sqsReceived := map[string]sinkEvent{} // only used by the sqs subtest
+
 	sinks := []struct {
 		read      func(t *testing.T) []sinkEvent
 		wantUsers map[string]string
@@ -783,9 +816,12 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			name: "s3 exporter",
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
+
 				var res []sinkEvent
+
 				for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
 					require.True(t, strings.HasSuffix(k, ".json"), k)
+
 					for line := range strings.SplitSeq(strings.TrimSpace(string(srv.GetObject(t, bucket, k))), "\n") {
 						res = append(res, decodeFeatureEvent(t, []byte(line)))
 					}
@@ -804,7 +840,9 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
 				)
 				require.NoError(t, describeStreamErr)
+
 				var res []sinkEvent
+
 				for _, shard := range desc.StreamDescription.Shards {
 					iter, getShardIteratorErr := kinesisClient.GetShardIterator(
 						t.Context(),
@@ -822,6 +860,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 						&kinesis.GetRecordsInput{ShardIterator: iter.ShardIterator, Limit: aws.Int32(1000)},
 					)
 					require.NoError(t, getShardIteratorErr)
+
 					for _, r := range out.Records {
 						res = append(res, decodeFeatureEvent(t, r.Data))
 					}
@@ -856,6 +895,7 @@ func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[st
 		QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
 	})
 	require.NoError(t, err)
+
 	for _, m := range out.Messages {
 		e := decodeFeatureEvent(t, []byte(aws.ToString(m.Body)))
 		acc[aws.ToString(m.MessageId)] = e
@@ -865,10 +905,12 @@ func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[st
 		)
 		require.NoError(t, deleteMessageErr)
 	}
+
 	res := make([]sinkEvent, 0, len(acc))
 	for _, e := range acc {
 		res = append(res, e)
 	}
+
 	sort.Slice(res, func(i, j int) bool { return res[i].UserKey < res[j].UserKey })
 
 	return res
@@ -876,6 +918,7 @@ func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[st
 
 func decodeFeatureEvent(t *testing.T, b []byte) sinkEvent {
 	t.Helper()
+
 	var e exporter.FeatureEvent
 	require.NoError(t, json.Unmarshal(b, &e), string(b))
 

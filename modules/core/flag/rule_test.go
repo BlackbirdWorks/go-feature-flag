@@ -43,6 +43,7 @@ func runRuleEvaluateTests(t *testing.T, tests []ruleEvaluateCase) {
 			if tt.args.user != nil {
 				key = tt.args.user.GetKey()
 			}
+
 			got, err := tt.rule.Evaluate(
 				flag.NewService(),
 				key,
@@ -58,6 +59,7 @@ func runRuleEvaluateTests(t *testing.T, tests []ruleEvaluateCase) {
 			) {
 				return
 			}
+
 			assert.Equalf(t, tt.want, got, "Evaluate(%v, %v)", tt.args.user, tt.args.isDefault)
 		})
 	}

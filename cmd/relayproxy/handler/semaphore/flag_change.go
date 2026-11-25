@@ -52,17 +52,20 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 	if err != nil {
 		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
+
 	res, err := json.Marshal(flags)
 	if err != nil {
 		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	flagHashes := map[string]uint32{}
+
 	for key, flag := range flags {
 		jsonFlag, marshalErr := json.Marshal(flag)
 		if marshalErr != nil {
 			return nil, helper.NewHTTPError(http.StatusInternalServerError, marshalErr.Error())
 		}
+
 		flagHashes[key] = utils.Hash(string(jsonFlag))
 	}
 

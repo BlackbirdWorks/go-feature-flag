@@ -55,6 +55,7 @@ func (f TrackingEvent) GetCreationDate() int64 {
 
 func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
+
 	err := csvTemplate.Execute(&buf, struct {
 		TrackingEvent
 
@@ -75,6 +76,7 @@ func (f TrackingEvent) FormatInJSON() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal tracking event JSON: %w", err)
 	}
+
 	b = append(b, []byte("\n")...)
 
 	return b, nil

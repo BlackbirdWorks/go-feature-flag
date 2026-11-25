@@ -19,7 +19,9 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 	if v, ok := s.compiled.Load(raw); ok {
 		return v.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
 	}
+
 	trimmed := utils.StrTrim(raw)
+
 	compiled := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
 	if compiled.format == JSONLogicQueryFormat {
 		var rule any
@@ -27,6 +29,7 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 			compiled.jsonLogic = rule
 		}
 	}
+
 	actual, _ := s.compiled.LoadOrStore(raw, compiled)
 
 	return actual.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored

@@ -30,12 +30,15 @@ func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, events []ex
 	if g.started != nil {
 		g.once.Do(func() { close(g.started) })
 	}
+
 	if g.gate != nil {
 		<-g.gate
 	}
+
 	if g.fail {
 		return assert.AnError
 	}
+
 	g.events.Add(int64(len(events)))
 
 	return nil
@@ -45,6 +48,7 @@ func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, events []ex
 // bounded (the events the broken exporter can not take are the ones dropped).
 func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		broken func() *gatedExporter
 		name   string
@@ -76,11 +80,13 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			const (
 				queueLimit = 50
 				perBatch   = 5
 				batches    = 100
 			)
+
 			broken, healthy := tt.broken(), &gatedExporter{}
 			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
 				{Exporter: broken, FlushInterval: time.Hour, MaxEventInMemory: perBatch, MaxQueuedEvents: queueLimit},
@@ -88,14 +94,18 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 			}, time.Hour, nil)
 			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
+
 			released := false
+
 			release := func() {
 				if broken.gate != nil && !released {
 					released = true
+
 					close(broken.gate)
 				}
 			}
 			defer release()
+
 			for b := 1; b <= batches; b++ {
 				if tt.async {
 					asyncMgr.QueueEvents(make([]exporter.FeatureEvent, perBatch))
@@ -109,9 +119,11 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 					}
 				}
 			}
+
 			release()
 			mgr.Stop()
 			assert.Equal(t, tt.wantHealthy, healthy.events.Load(), "the healthy exporter receives everything")
+
 			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
 			assert.Equal(t, tt.wantDropping, dc.DroppedEvents() > 0,
@@ -124,6 +136,7 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 // healthy exporter into one that only exports on the timer.
 func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		maxMem, maxQ int64
@@ -137,7 +150,9 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			exp := &gatedExporter{}
+
 			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
@@ -146,6 +161,7 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 			}
 			// no Stop yet: nothing but the event count can have triggered the flushes.
 			assert.Equal(t, tt.wantExported, exp.events.Load())
+
 			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
 			assert.Zero(t, dc.DroppedEvents())
@@ -159,13 +175,17 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 // successful flush (one second) would still be running and the third batch would not have been exported.
 func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	t.Parallel()
+
 	const threshold = 10
+
 	synctest.Test(t, func(t *testing.T) {
 		exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
+
 		m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
 		}}, time.Hour, nil)
 		defer m.Stop() // also when an assertion fails: the bubble waits for the workers
+
 		asyncMgr, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
 		require.True(t, ok)
 		asyncMgr.QueueEvents(make([]exporter.FeatureEvent, threshold))

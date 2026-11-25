@@ -26,6 +26,7 @@ func (failingClient) Do(req *http.Request) (*http.Response, error) {
 
 func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		url     string
@@ -61,6 +62,7 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			_, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
 			require.EqualError(t, err, tt.wantErr)
 			assert.NotContains(t, err.Error(), "SECRETMARKER")
@@ -76,6 +78,7 @@ func (c redirectRejectingClient) Do(req *http.Request) (*http.Response, error) {
 
 func TestCallHTTPAPI_KeepsResponseOnClientError(t *testing.T) {
 	t.Parallel()
+
 	want := &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {"/next"}}}
 	resp, err := shared.CallHTTPAPI(context.Background(),
 		"https://user:SECRETMARKER@flags.example.com/f", "", "", 0, nil, redirectRejectingClient{resp: want})

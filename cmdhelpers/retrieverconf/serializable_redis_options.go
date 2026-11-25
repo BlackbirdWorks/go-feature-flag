@@ -116,24 +116,31 @@ func (s *SerializableRedisOptions) ToRedisOptions() *redis.Options {
 	if s.MinRetryBackoffMs != 0 {
 		opts.MinRetryBackoff = time.Duration(s.MinRetryBackoffMs) * time.Millisecond
 	}
+
 	if s.MaxRetryBackoffMs != 0 {
 		opts.MaxRetryBackoff = time.Duration(s.MaxRetryBackoffMs) * time.Millisecond
 	}
+
 	if s.DialTimeoutMs != 0 {
 		opts.DialTimeout = time.Duration(s.DialTimeoutMs) * time.Millisecond
 	}
+
 	if s.ReadTimeoutMs != 0 {
 		opts.ReadTimeout = time.Duration(s.ReadTimeoutMs) * time.Millisecond
 	}
+
 	if s.WriteTimeoutMs != 0 {
 		opts.WriteTimeout = time.Duration(s.WriteTimeoutMs) * time.Millisecond
 	}
+
 	if s.PoolTimeoutMs != 0 {
 		opts.PoolTimeout = time.Duration(s.PoolTimeoutMs) * time.Millisecond
 	}
+
 	if s.ConnMaxIdleTimeMs != 0 {
 		opts.ConnMaxIdleTime = time.Duration(s.ConnMaxIdleTimeMs) * time.Millisecond
 	}
+
 	if s.ConnMaxLifetimeMs != 0 {
 		opts.ConnMaxLifetime = time.Duration(s.ConnMaxLifetimeMs) * time.Millisecond
 	}

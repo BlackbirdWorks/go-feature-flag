@@ -71,6 +71,7 @@ func (m *Manager) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	err = m.retrieveFlagsAndUpdateCache(ctx, true)
 	if err != nil {
 		handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err)
@@ -93,6 +94,7 @@ func (m *Manager) StartPolling(ctx context.Context) {
 		// polling is disabled (PollingInterval <= 0), there is nothing to poll.
 		return
 	}
+
 	for {
 		select {
 		case <-m.bgUpdater.ticker.C:
@@ -131,6 +133,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	m.StopPolling()
 
 	onErrorRetriever := make([]Retriever, 0)
+
 	for _, retriever := range m.retrievers {
 		if r, ok := retriever.(CommonInitializableRetriever); ok {
 			err := r.Shutdown(ctx)
@@ -139,6 +142,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			}
 		}
 	}
+
 	if len(onErrorRetriever) > 0 {
 		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
 	}
@@ -259,6 +263,7 @@ func (m *Manager) retrieveFlagsAndUpdateCache(ctx context.Context, isInit bool) 
 	if len(m.onErrorRetriever) > 0 {
 		_ = m.initRetrievers(ctx, m.onErrorRetriever)
 	}
+
 	newFlags, err := retrieve(ctx, m.retrievers, m.config.FileFormat)
 	if err != nil {
 		return err
@@ -321,10 +326,12 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 				" flag configuration file.",
 			slog.String("path", m.config.PersistentFlagConfigurationFile),
 		)
+
 		_, err := os.Stat(m.config.PersistentFlagConfigurationFile)
 		if err == nil {
 			// we found the configuration file on the disk
 			r := &fileretriever.Retriever{Path: m.config.PersistentFlagConfigurationFile}
+
 			newFlags, retrieveErr := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
 			if retrieveErr != nil {
 				return retrieveErr
@@ -332,6 +339,7 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 
 			return m.updateCacheWithRetriever(ctx, newFlags, true)
 		}
+
 		m.logger.WarnContext(ctx, "No persistent flag configuration found",
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
@@ -353,6 +361,7 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	// It has room for one result per retriever: we return on the first error without waiting for the
 	// other retrievers, which must still be able to send their result and return.
 	resultsChan := make(chan Results, len(retrievers))
+
 	var wg sync.WaitGroup
 	wg.Add(len(retrievers))
 
@@ -382,16 +391,19 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 
 				return
 			}
+
 			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, format))
 			resultsChan <- Results{Error: err, Value: convertedFlag, Index: index}
 		}(r, fileFormat, index, ctx)
 	}
 
 	retrieversResults := make([]map[string]dto.DTO, len(retrievers))
+
 	for v := range resultsChan {
 		if v.Error != nil {
 			return nil, v.Error
 		}
+
 		retrieversResults[v.Index] = v.Value
 	}
 

@@ -23,6 +23,7 @@ func Test_evaluate(t *testing.T) {
 		flagKey         string
 		expectedType    string
 	}
+
 	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		errAssertion assert.ErrorAssertionFunc
 		args         args
@@ -184,6 +185,7 @@ func Test_evaluate(t *testing.T) {
 				tt.args.sdkDefaultValue,
 			)
 			tt.errAssertion(t, err)
+
 			if err == nil {
 				assert.Equal(t, tt.want, got)
 			}
@@ -212,6 +214,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		42,
 	)
 	require.Error(t, err)
+
 	want := model.VariationResult[int]{
 		VariationType: flag.VariationSDKDefault,
 		Failed:        true,

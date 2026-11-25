@@ -110,6 +110,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		level slog.Level
 		msg   string
 	)
+
 	switch n := r.Status; {
 	case n >= http.StatusInternalServerError:
 		level, msg = slog.LevelError, "Server error"
@@ -120,6 +121,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 	default:
 		level, msg = slog.LevelDebug, "Success"
 	}
+
 	if !logger.Enabled(ctx, level) {
 		return
 	}
@@ -132,6 +134,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 			slog.String("span_id", sc.SpanID().String()),
 		)
 	}
+
 	logger.LogAttrs(ctx, level, msg,
 		cmdlog.Err(r.Err),
 		slog.String("remote_ip", r.RemoteIP),
@@ -152,9 +155,11 @@ func redactAPIKey(uri string) string {
 	if !found {
 		return uri
 	}
+
 	params := strings.Split(query, "&")
 	for i, p := range params {
 		key, _, _ := strings.Cut(p, "=")
+
 		k, err := url.QueryUnescape(key)
 		if err == nil && k == "apiKey" {
 			params[i] = key + "=REDACTED"

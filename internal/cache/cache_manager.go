@@ -80,9 +80,11 @@ func New(
 	for _, opt := range opts {
 		opt(mgr)
 	}
+
 	if mgr.service == nil {
 		mgr.service = flag.NewService()
 	}
+
 	mgr.inMemoryCache.Store(NewInMemoryCache(mgr.service, logger))
 
 	return mgr
@@ -92,8 +94,11 @@ func ConvertToFlagStruct(
 	loadedFlags []byte,
 	fileFormat string,
 ) (map[string]dto.DTO, error) {
-	var newFlags map[string]dto.DTO
-	var err error
+	var (
+		newFlags map[string]dto.DTO
+		err      error
+	)
+
 	switch strings.ToLower(fileFormat) {
 	case "toml":
 		err = toml.Unmarshal(loadedFlags, &newFlags)
@@ -148,6 +153,7 @@ func (c *ManagerImpl) Close() {
 
 	// Clear the cache
 	c.inMemoryCache.Store(nil)
+
 	if c.notificationService != nil {
 		c.notificationService.Close()
 	}
@@ -199,6 +205,7 @@ func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 
 			return
 		}
+
 		data, err := yaml.Marshal(newCache)
 		if err != nil {
 			c.logger.Error("Error while marshalling flags to persist", slog.Any("error", err.Error()))
@@ -212,6 +219,7 @@ func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 
 			return
 		}
+
 		c.logger.Info(
 			"Flags cache persisted to file",
 			slog.String("file", c.persistentFlagConfigurationFile),

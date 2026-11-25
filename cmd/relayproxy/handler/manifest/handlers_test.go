@@ -55,6 +55,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err, "failed to create flagset manager")
+
 	defer flagsetManager.Close()
 
 	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{})
@@ -173,6 +174,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
+
 				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				assert.True(t, ok, "handler error should be an helper.HTTPError")
@@ -207,6 +209,7 @@ func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	_, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{})
 
 	require.Error(t, handlerErr, "handler should return an error when flagset manager is nil")
+
 	he := &helper.HTTPError{}
 	ok := errors.As(handlerErr, &he)
 	assert.True(t, ok, "handler error should be an helper.HTTPError")

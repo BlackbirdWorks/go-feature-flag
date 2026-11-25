@@ -50,13 +50,16 @@ loglevel: debug`
 
 	cfg, configFile := createTestConfig(t, initialConfig)
 
-	var mu sync.Mutex
-	var callbackCalled bool
-	var receivedConfig *config.Config
+	var (
+		mu             sync.Mutex
+		callbackCalled bool
+		receivedConfig *config.Config
+	)
 
 	callback := func(newConfig *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		callbackCalled = true
 		receivedConfig = newConfig
 	}
@@ -68,6 +71,7 @@ loglevel: debug`
 
 	// Wait for callback to be triggered
 	timeout := time.After(5 * time.Second)
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -153,18 +157,22 @@ loglevel: error`
 
 	cfg, configFile := createTestConfig(t, initialConfig)
 
-	var mu sync.Mutex
-	var callback1Called, callback2Called bool
+	var (
+		mu                               sync.Mutex
+		callback1Called, callback2Called bool
+	)
 
 	callback1 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		callback1Called = true
 	}
 
 	callback2 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		callback2Called = true
 	}
 
@@ -174,6 +182,7 @@ loglevel: error`
 	_ = testutils.CopyContentToExistingTempFile(t, updatedConfig, configFile)
 
 	timeout := time.After(5 * time.Second)
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 

@@ -43,36 +43,45 @@ func (c *Config) IsValid() error {
 	if c == nil {
 		return errEmptyConfig
 	}
+
 	err := validateLogLevel(c.LogLevel)
 	if err != nil {
 		return err
 	}
+
 	err = validateLogFormat(c.LogFormat)
 	if err != nil {
 		return err
 	}
+
 	err = c.validateServerConfig()
 	if err != nil {
 		return err
 	}
+
 	err = c.OfrepEventStream.IsValid()
 	if err != nil {
 		return err
 	}
+
 	err = c.Endpoints.IsValid()
 	if err != nil {
 		return err
 	}
+
 	err = validateExporterCleanQueueInterval(c.ExporterCleanQueueInterval)
 	if err != nil {
 		return err
 	}
+
 	if c.flagSetMode == flagSetModeLocal && c.Studio.URL != "" {
 		return errFlagSetsAndStudioCannot
 	}
+
 	if c.EnableSharedPollerPerBucket {
 		return errEnableSharedPollerPerBucketIsOnlyAvailable
 	}
+
 	if len(c.FlagSets) > 0 {
 		return c.validateFlagSets()
 	}
@@ -116,6 +125,7 @@ func validateLogLevel(logLevel string) error {
 	if logLevel == "" {
 		return nil
 	}
+
 	_, err := cmdlog.ParseLevel(logLevel)
 	if err != nil {
 		//nolint:wrapcheck // preserves log level validation error text
@@ -131,6 +141,7 @@ func (c *Config) validateDefaultMode() error {
 	if err != nil {
 		return err
 	}
+
 	err = validateExporters(c.Exporter, c.Exporters)
 	if err != nil {
 		return err
@@ -160,6 +171,7 @@ func (c *Config) validateFlagSets() error {
 			if owner, exists := ownerByCredential[apiKey]; exists {
 				return fmt.Errorf("%w: %s and %s", errAnAPIKeyIs, owner, flagset.Name)
 			}
+
 			ownerByCredential[apiKey] = flagset.Name
 		}
 
@@ -179,10 +191,12 @@ func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	if err != nil {
 		return err
 	}
+
 	err = validateExporterCleanQueueInterval(flagset.ExporterCleanQueueInterval)
 	if err != nil {
 		return err
 	}
+
 	err = validateSharedPollerPerBucket(flagset)
 	if err != nil {
 		return err
@@ -207,6 +221,7 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 	if retriever == nil && retrievers == nil {
 		return errNoRetrieverAvailableIn
 	}
+
 	if retriever != nil {
 		err := retriever.IsValid()
 		if err != nil {
@@ -235,6 +250,7 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 			return err
 		}
 	}
+
 	if exporters != nil {
 		for i, exporter := range *exporters {
 			err := exporter.IsValid()
@@ -267,13 +283,16 @@ func validateSharedPollerPerBucket(flagset *FlagSet) error {
 	if !flagset.EnableSharedPollerPerBucket {
 		return nil
 	}
+
 	if flagset.Retrievers != nil {
 		return errEnableSharedPollerPerBucketCanTBe
 	}
+
 	r := flagset.Retriever
 	if r == nil || r.Kind != retrieverconf.S3Retriever {
 		return errEnableSharedPollerPerBucketIsOnlySupported
 	}
+
 	if r.Item == "" {
 		return errEnableSharedPollerPerBucketRequiresTheS3
 	}

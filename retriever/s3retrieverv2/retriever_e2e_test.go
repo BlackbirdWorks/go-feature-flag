@@ -32,12 +32,15 @@ func flagYAML(key, value string) []byte {
 
 func flagKeys(t *testing.T, content []byte) []string {
 	t.Helper()
+
 	var m map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(content, &m))
+
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	return keys
@@ -91,13 +94,16 @@ func TestE2E_SingleItem(t *testing.T) {
 			bucket := srv.CreateBucket(t, "ret")
 			srv.PutObject(t, bucket, tt.key, tt.content)
 			cfg := srv.MustAwsConfig(t)
+
 			item := tt.itemToRead
 			if item == "" {
 				item = tt.key
 			}
+
 			if tt.useMissing {
 				bucket = gopherstack.UniqueName(t, "nobucket")
 			}
+
 			r := &s3retrieverv2.Retriever{Bucket: bucket, Item: item, AwsConfig: &cfg}
 			require.NoError(t, r.Init(context.Background(), nil))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
@@ -110,6 +116,7 @@ func TestE2E_SingleItem(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.True(
 				t,
@@ -149,6 +156,7 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 	// steps are sequential by nature: each one depends on the previous object version.
 	for _, s := range steps {
 		srv.PutObject(t, bucket, "flags.json", s.put)
+
 		got, err := r.Retrieve(context.Background())
 		require.NoError(t, err, s.name)
 		assert.Equal(t, string(s.want), string(got), s.name)
@@ -166,6 +174,7 @@ func TestE2E_Retriever_NotFoundBeforeCreation(t *testing.T) {
 	require.Error(t, err)
 
 	srv.PutObject(t, bucket, "late.json", flagJSON("f1", "v1"))
+
 	got, err := r.Retrieve(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, string(flagJSON("f1", "v1")), string(got))
@@ -235,14 +244,17 @@ func TestE2E_FolderMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			bucket := srv.CreateBucket(t, "dir")
 			for k, v := range objects {
 				srv.PutObject(t, bucket, k, v)
 			}
+
 			cfg := srv.MustAwsConfig(t)
 			r := &s3retrieverv2.Retriever{
 				Bucket: bucket, Prefix: tt.prefix, Pattern: tt.pattern, Recursive: tt.recursive, AwsConfig: &cfg,
 			}
+
 			err := r.Init(context.Background(), nil)
 			if tt.wantErr != "" {
 				require.Error(t, err)
@@ -250,6 +262,7 @@ func TestE2E_FolderMode(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 
@@ -262,10 +275,13 @@ func TestE2E_FolderMode(t *testing.T) {
 
 				return
 			}
+
 			assert.Equal(t, "yaml", r.OutputFormat())
+
 			for _, k := range tt.wantKeys {
 				assert.Contains(t, string(got), k+":")
 			}
+
 			assert.Equal(t, len(tt.wantKeys), strings.Count(string(got), "variations:"), "unexpected flags in %s", got)
 		})
 	}
@@ -289,6 +305,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	// a new file appears and the first one is modified
 	srv.PutObject(t, bucket, "f/b.json", flagJSON("flag-b", "v1"))
 	srv.PutObject(t, bucket, "f/a.json", flagJSON("flag-a", "v2"))
+
 	got, err = r.Retrieve(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"flag-a", "flag-b"}, flagKeys(t, got))
@@ -296,6 +313,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 
 	// a flag defined in two files is an error
 	srv.PutObject(t, bucket, "f/c.json", flagJSON("flag-a", "dup"))
+
 	_, err = r.Retrieve(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate flag")
@@ -357,6 +375,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 				Bucket: bucket, AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
+
 			retA, retB := group.Retriever(keyA), group.Retriever(keyB)
 			require.NoError(t, retA.Init(context.Background(), nil))
 			require.NoError(t, retB.Init(context.Background(), nil))
@@ -374,6 +393,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 
 			// the poller refreshes only the item whose object changed
 			var refreshedA, refreshedB atomic.Int32
+
 			refresh := func(r interface {
 				Retrieve(context.Context) ([]byte, error)
 			}, refreshes *atomic.Int32) func() bool {
@@ -382,11 +402,13 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 					if retrieveErr != nil {
 						return false
 					}
+
 					refreshes.Add(1)
 
 					return true
 				}
 			}
+
 			group.SetPoller(s3retrieverv2.PollerConfig{Interval: time.Second})
 			group.SetRefresh(retA, refresh(retA, &refreshedA))
 			group.SetRefresh(retB, refresh(retB, &refreshedB))
@@ -398,6 +420,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			gotB, err = retB.Retrieve(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantBUpdated, string(gotB))
+
 			gotA, err = retA.Retrieve(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantA, string(gotA))
@@ -444,9 +467,11 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 				Bucket: tt.bucket(t), AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
+
 			r := group.Retriever(tt.item)
 			require.NoError(t, r.Init(context.Background(), nil))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
+
 			got, err := r.Retrieve(context.Background())
 			assert.Nil(t, got)
 			require.ErrorContains(t, err, tt.wantErr)

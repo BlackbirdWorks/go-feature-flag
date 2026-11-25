@@ -31,6 +31,7 @@ func runCmdEvaluateTests(t *testing.T, tests []cmdEvaluateCase) {
 			require.NoError(t, err)
 			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(stdOut.Name())
 				_ = os.Remove(stdErr.Name())
@@ -42,6 +43,7 @@ func runCmdEvaluateTests(t *testing.T, tests []cmdEvaluateCase) {
 			cmd.SetArgs(tt.args)
 			err = cmd.Execute()
 			tt.wantErr(t, err)
+
 			if tt.expectedResult != "" {
 				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
 				require.NoError(t, readFileErr)

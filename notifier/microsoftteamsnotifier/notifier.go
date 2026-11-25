@@ -29,11 +29,14 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.MicrosoftTeamsWebhookURL == "" {
 		return errNoWebhookURL
 	}
+
 	msgText := convertToMicrosoftTeamsMessage(diff)
+
 	msg, err := adaptivecard.NewSimpleMessage(msgText, "Semaphore", true)
 	if err != nil {
 		return fmt.Errorf("error: (Microsoft Teams Notifier) create adaptive card message: %w", err)
 	}
+
 	if c.teamsClient == nil {
 		c.teamsClient = goteamsnotify.NewTeamsClient()
 	}
@@ -48,6 +51,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	hostname, _ := os.Hostname()
+
 	var msgText strings.Builder
 	fmt.Fprintf(&msgText, "Changes detected in your feature flag file on: **%s**", hostname)
 
@@ -56,7 +60,9 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	for k := range diffCache.Deleted {
 		deletedKeys = append(deletedKeys, k)
 	}
+
 	sort.Strings(deletedKeys)
+
 	for _, key := range deletedKeys {
 		fmt.Fprintf(&msgText, "\n * ❌ Flag **%s** deleted", key)
 	}
@@ -66,7 +72,9 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	for k := range diffCache.Added {
 		addedKeys = append(addedKeys, k)
 	}
+
 	sort.Strings(addedKeys)
+
 	for _, key := range addedKeys {
 		fmt.Fprintf(&msgText, "\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key]))
 	}
@@ -76,7 +84,9 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	for k := range diffCache.Updated {
 		updatedKeys = append(updatedKeys, k)
 	}
+
 	sort.Strings(updatedKeys)
+
 	for _, key := range updatedKeys {
 		value := diffCache.Updated[key]
 		fmt.Fprintf(&msgText, "\n * ✏️ Flag **%s** updated%s", key, notifier.UpdatedBySuffix(value.After))
@@ -87,6 +97,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 
 			continue
 		}
+
 		if len(changes) > 0 {
 			msgText.WriteString("\n" + notifier.ChangeList(changes, "   * ", 0))
 		}

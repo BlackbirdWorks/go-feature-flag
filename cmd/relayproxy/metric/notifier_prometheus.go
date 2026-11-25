@@ -18,7 +18,9 @@ func (n *NotifierPrometheus) Notify(diff notifier.DiffCache) error {
 	if !diff.HasDiff() {
 		return nil
 	}
+
 	n.metricsService.IncFlagChange()
+
 	for flagName := range diff.Deleted {
 		n.metricsService.IncFlagDeleted(flagName)
 	}

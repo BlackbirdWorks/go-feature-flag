@@ -151,6 +151,7 @@ func main() {
 
 		return
 	}
+
 	registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager)
 	if registerFlagLoadedErr != nil {
 		logger.Slog.LogAttrs(
@@ -160,6 +161,7 @@ func main() {
 			log.Err(registerFlagLoadedErr),
 		)
 	}
+
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
@@ -173,6 +175,7 @@ func main() {
 	apiServer := api.New(proxyConf, services, logger.Slog, api.WithGlobalTelemetry())
 
 	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
+
 	apiServer.StartWithContext(context.Background())
 }
 
@@ -192,8 +195,10 @@ func shutdown(
 	flagsetManager service.FlagsetManager,
 ) {
 	logger.Info("Stopping API server")
+
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
 	wsService.Close()
 	sseService.Close()
 	apiServer.Stop(ctx)

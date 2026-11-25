@@ -31,6 +31,7 @@ func FlagChanges(before, after any) ([]FieldChange, error) {
 	if err != nil {
 		return nil, fmt.Errorf("impossible to compute flag changes: %w", err)
 	}
+
 	changes := make([]FieldChange, 0, len(changelog))
 	for _, change := range changelog {
 		changes = append(changes, FieldChange{
@@ -39,6 +40,7 @@ func FlagChanges(before, after any) ([]FieldChange, error) {
 			To:   ReadableValue(change.To),
 		})
 	}
+
 	sort.SliceStable(changes, func(i, j int) bool { return changes[i].Path < changes[j].Path })
 
 	return changes, nil
@@ -49,8 +51,10 @@ func FlagChanges(before, after any) ([]FieldChange, error) {
 // Characters such as "<" and "&" are kept as typed, not escaped for HTML.
 func ReadableValue(value any) string {
 	var out bytes.Buffer
+
 	encoder := json.NewEncoder(&out)
 	encoder.SetEscapeHTML(false)
+
 	err := encoder.Encode(value)
 	if err == nil {
 		return strings.TrimSuffix(out.String(), "\n")

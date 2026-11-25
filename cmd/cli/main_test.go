@@ -77,6 +77,7 @@ func TestCmdExist(t *testing.T) {
 			t.Parallel()
 
 			cmd := initRootCmd()
+
 			var out bytes.Buffer
 			cmd.SetOut(&out)
 			cmd.SetArgs(tt.args)
@@ -94,6 +95,7 @@ func TestVersionFlag(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			cmd := initRootCmd()
 			cmd.SetOut(&out)
 			cmd.SetArgs([]string{flag})

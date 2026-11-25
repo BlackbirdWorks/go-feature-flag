@@ -11,6 +11,7 @@ import (
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name      string
 		itemName  string
@@ -49,15 +50,18 @@ func TestValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			if tt.itemName == "" {
 				tt.itemName = "item"
 			}
+
 			err := folderloader.Validate(tt.itemName, tt.item, tt.prefix, tt.pattern, tt.recursive)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}

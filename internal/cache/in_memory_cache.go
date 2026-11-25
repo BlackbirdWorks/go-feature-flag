@@ -59,6 +59,7 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
 		flagToAdd := flagDto.Convert()
+
 		err := flagToAdd.IsValid(fc.Service)
 		if err == nil {
 			cache[key] = &flagToAdd
@@ -67,6 +68,7 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 				slog.String("key", key), slog.Any("error", err.Error()))
 		}
 	}
+
 	fc.Flags = cache
 }
 

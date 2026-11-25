@@ -88,6 +88,7 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	if e.PublishSettings != nil {
 		topic.PublishSettings = *e.PublishSettings
 	}
+
 	topic.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = topic

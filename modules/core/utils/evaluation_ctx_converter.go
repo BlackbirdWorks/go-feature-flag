@@ -9,6 +9,7 @@ func ConvertEvaluationCtxFromRequest(
 	custom map[string]any,
 ) ffcontext.EvaluationContext {
 	evalCtx := ffcontext.NewEvaluationContextBuilder(targetingKey)
+
 	for key, rawVal := range custom {
 		switch val := rawVal.(type) {
 		case float64:
@@ -17,6 +18,7 @@ func ConvertEvaluationCtxFromRequest(
 
 				continue
 			}
+
 			evalCtx.AddCustom(key, val)
 		default:
 			evalCtx.AddCustom(key, val)

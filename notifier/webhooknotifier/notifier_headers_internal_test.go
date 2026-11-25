@@ -43,11 +43,13 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
+
 			requests := make(chan *http.Request, 2)
 			results := make(chan error, 2)
 			release := make(chan struct{})
 			client := headerTestHTTPClient(func(req *http.Request) (*http.Response, error) {
 				requests <- req
+
 				select {
 				case <-release:
 					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
@@ -64,10 +66,12 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 
 			// Keep both requests in flight; the second notification must not change the first request.
 			captured := make([]*http.Request, 0, 2)
+
 			for _, key := range []string{"first-flag", "second-flag"} {
 				go func() {
 					results <- whNotifier.Notify(notifier.DiffCache{Added: map[string]flag.Flag{key: &flag.InternalFlag{}}})
 				}()
+
 				select {
 				case req := <-requests:
 					captured = append(captured, req)
@@ -77,6 +81,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 					require.Fail(t, "context done before the notification", ctx.Err().Error())
 				}
 			}
+
 			for _, req := range captured {
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
@@ -84,7 +89,9 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 				assert.Equal(t, tt.wantAuthorization, req.Header.Get("Authorization"))
 			}
+
 			close(release)
+
 			for range captured {
 				select {
 				case err := <-results:
@@ -137,6 +144,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 				httpClient: headerTestHTTPClient(func(req *http.Request) (*http.Response, error) {
 					assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 					assert.Equal(t, original.Values("X-Custom"), req.Header.Values("X-Custom"))
+
 					if tt.secret == "" {
 						assert.Empty(t, req.Header.Get("X-Hub-Signature-256"))
 					} else {

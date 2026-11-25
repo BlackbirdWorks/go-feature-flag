@@ -123,6 +123,7 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		if validateErr != nil {
 			return validateErr
 		}
+
 		if c.Bucket == "" {
 			return err.NewRetrieverConfError("bucket", string(c.Kind))
 		}
@@ -130,6 +131,7 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		if c.Object == "" {
 			return err.NewRetrieverConfError("object", string(c.Kind))
 		}
+
 		if c.Bucket == "" {
 			return err.NewRetrieverConfError("bucket", string(c.Kind))
 		}
@@ -148,9 +150,11 @@ func (c *RetrieverConf) validateHTTPRetriever() error {
 	if c.URL == "" {
 		return err.NewRetrieverConfError("url", string(c.Kind))
 	}
+
 	if c.HTTPClientCertPath != "" && c.HTTPClientKeyPath == "" {
 		return err.NewRetrieverConfError("clientKeyPath", string(c.Kind))
 	}
+
 	if c.HTTPClientCertPath == "" && c.HTTPClientKeyPath != "" {
 		return err.NewRetrieverConfError("clientCertPath", string(c.Kind))
 	}
@@ -163,6 +167,7 @@ func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
 	}
+
 	if c.Table == "" {
 		return err.NewRetrieverConfError("table", string(c.Kind))
 	}
@@ -174,9 +179,11 @@ func (c *RetrieverConf) validateGitRetriever() error {
 	if c.RepositorySlug == "" {
 		return err.NewRetrieverConfError("repositorySlug", string(c.Kind))
 	}
+
 	if c.Path == "" {
 		return err.NewRetrieverConfError("path", string(c.Kind))
 	}
+
 	if c.Kind == GitHubRetriever {
 		return c.validateGitHubAuth()
 	}
@@ -200,9 +207,11 @@ func (c *RetrieverConf) validateGitHubAuth() error {
 		if c.GitHubAppID == 0 {
 			return err.NewRetrieverConfError("githubAppId", string(c.Kind))
 		}
+
 		if c.GitHubInstallationID == 0 {
 			return err.NewRetrieverConfError("githubInstallationId", string(c.Kind))
 		}
+
 		if c.GitHubAppPrivateKey == "" && c.GitHubAppPrivateKeyFile == "" {
 			return err.NewRetrieverConfError(
 				"githubAppPrivateKey or githubAppPrivateKeyFile", string(c.Kind),
@@ -217,9 +226,11 @@ func (c *RetrieverConf) validateKubernetesRetriever() error {
 	if c.ConfigMap == "" {
 		return err.NewRetrieverConfError("configmap", string(c.Kind))
 	}
+
 	if c.Namespace == "" {
 		return err.NewRetrieverConfError("namespace", string(c.Kind))
 	}
+
 	if c.Key == "" {
 		return err.NewRetrieverConfError("key", string(c.Kind))
 	}
@@ -231,9 +242,11 @@ func (c *RetrieverConf) validateMongoDBRetriever() error {
 	if c.Collection == "" {
 		return err.NewRetrieverConfError("collection", string(c.Kind))
 	}
+
 	if c.Database == "" {
 		return err.NewRetrieverConfError("database", string(c.Kind))
 	}
+
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
 	}
@@ -245,6 +258,7 @@ func (c *RetrieverConf) validateRedisRetriever() error {
 	if c.RedisOptions == nil {
 		return err.NewRetrieverConfError("redisOptions", string(c.Kind))
 	}
+
 	if c.RedisOptions.Addr == "" {
 		return err.NewRetrieverConfError("redisOptions.addr", string(c.Kind))
 	}
@@ -256,9 +270,11 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 	if c.AccountName == "" {
 		return err.NewRetrieverConfError("accountName", string(c.Kind))
 	}
+
 	if c.Container == "" {
 		return err.NewRetrieverConfError("container", string(c.Kind))
 	}
+
 	if c.Object == "" {
 		return err.NewRetrieverConfError("object", string(c.Kind))
 	}

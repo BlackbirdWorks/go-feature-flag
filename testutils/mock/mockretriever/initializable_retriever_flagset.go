@@ -32,6 +32,7 @@ func (m *InitializableRetrieverWithFlagset) Retrieve(_ context.Context) ([]byte,
 func (m *InitializableRetrieverWithFlagset) Init(_ context.Context, logger *fflog.FFLogger, flagset *string) error {
 	m.InitCalled = true
 	m.ReceivedLogger = logger
+
 	m.ReceivedFlagset = flagset
 	if m.InitShouldFail {
 		return errInitializationFailed

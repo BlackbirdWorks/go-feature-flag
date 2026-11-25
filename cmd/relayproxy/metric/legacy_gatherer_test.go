@@ -13,6 +13,7 @@ import (
 
 func TestMetrics_Gatherer(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		exposeLegacy bool
@@ -23,6 +24,7 @@ func TestMetrics_Gatherer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			m, err := metric.NewMetrics()
 			require.NoError(t, err)
 			m.IncFlagEvaluation("my-flag")
@@ -30,19 +32,23 @@ func TestMetrics_Gatherer(t *testing.T) {
 
 			families, err := m.Gatherer(tt.exposeLegacy).Gather()
 			require.NoError(t, err)
+
 			names := map[string]float64{}
-			for _, f := range families {
+
+			for _, family := range families {
 				var sum float64
-				for _, metricValue := range f.GetMetric() {
+				for _, metricValue := range family.GetMetric() {
 					sum += metricValue.GetCounter().GetValue()
 				}
-				names[f.GetName()] = sum
+
+				names[family.GetName()] = sum
 			}
 
 			assert.InDelta(t, 1.0, names["semaphore_flag_evaluations_total"], 0)
 			assert.InDelta(t, 1.0, names["semaphore_get_manifest_total"], 0)
 			assert.Contains(t, names, "semaphore_build_info")
 			assert.Contains(t, names, "go_goroutines", "metrics of the Go runtime are never renamed")
+
 			if tt.exposeLegacy {
 				assert.InDelta(t, 1.0, names["gofeatureflag_flag_evaluations_total"], 0)
 				assert.InDelta(t, 1.0, names["gofeatureflag_get_manifest_total"], 0)
@@ -70,6 +76,7 @@ func (c *countingCollector) Collect(ch chan<- prom.Metric) {
 
 func TestMetrics_GathererCollectsOnce(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		exposeLegacy bool
@@ -80,16 +87,20 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m, err := metric.NewMetrics()
-			require.NoError(t, err)
-			collector := &countingCollector{desc: prom.NewDesc("semaphore_counting", "a collection counter", nil, nil)}
-			require.NoError(t, m.Registry.Register(collector))
 
-			families, err := m.Gatherer(tt.exposeLegacy).Gather()
+			metrics, err := metric.NewMetrics()
+			require.NoError(t, err)
+
+			collector := &countingCollector{desc: prom.NewDesc("semaphore_counting", "a collection counter", nil, nil)}
+			require.NoError(t, metrics.Registry.Register(collector))
+
+			families, err := metrics.Gatherer(tt.exposeLegacy).Gather()
 			require.NoError(t, err)
 
 			assert.Equal(t, int64(1), collector.calls.Load(), "a scrape collects once")
+
 			values := map[string]float64{}
+
 			names := make([]string, 0, len(families))
 			for _, f := range families {
 				names = append(names, f.GetName())
@@ -97,8 +108,10 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 					values[f.GetName()] = f.GetMetric()[0].GetGauge().GetValue()
 				}
 			}
+
 			assert.IsIncreasing(t, names, "the families are sorted by name")
 			assert.InDelta(t, 1.0, values["semaphore_counting"], 0)
+
 			if tt.exposeLegacy {
 				assert.InDelta(t, 1.0, values["gofeatureflag_counting"], 0, "both names carry the same collection")
 			}
@@ -108,6 +121,7 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 
 func TestMetrics_RenamedMetricsKeepTheirLegacyNames(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		inc          func(m *metric.Metrics)
@@ -154,12 +168,14 @@ func TestMetrics_RenamedMetricsKeepTheirLegacyNames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			m, err := metric.NewMetrics(metric.MetricsOpts{EnableBulkMetricFlagNames: true})
 			require.NoError(t, err)
 			tt.inc(&m)
 
 			families, err := m.Gatherer(true).Gather()
 			require.NoError(t, err)
+
 			names := map[string]bool{}
 			for _, f := range families {
 				names[f.GetName()] = true

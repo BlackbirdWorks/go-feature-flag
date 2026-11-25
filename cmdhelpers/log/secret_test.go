@@ -36,6 +36,7 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 	t.Parallel()
 
 	sample := newSettings()
+
 	tests := []struct {
 		got  func(t *testing.T) string
 		name string
@@ -46,6 +47,7 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 		{name: "%#v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%#v", sample) }},
 		{name: "json", got: func(t *testing.T) string {
 			t.Helper()
+
 			b, err := json.Marshal(sample)
 			require.NoError(t, err)
 
@@ -53,6 +55,7 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 		}},
 		{name: "yaml", got: func(t *testing.T) string {
 			t.Helper()
+
 			b, err := yaml.Marshal(sample)
 			require.NoError(t, err)
 
@@ -76,6 +79,7 @@ func TestSecretInTheLogs(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New(format, "debug", log.WithWriter(&out))
 			require.NoError(t, err)
 

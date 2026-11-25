@@ -33,6 +33,7 @@ func (r *GCStorageReaderMock) Read(buf []byte) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("read mock GCS file %s: %w", r.FileToRead, err)
 		}
+
 		r.data = data
 	}
 

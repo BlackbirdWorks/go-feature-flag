@@ -96,6 +96,7 @@ func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagNam
 	if svc == nil {
 		return "", errNoService
 	}
+
 	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
@@ -148,6 +149,7 @@ func (q *queryContext) release() {
 func (q *queryContext) jsonOnce() ([]byte, error) {
 	if q.parsedEvalCtxAsBytes == nil {
 		var err error
+
 		q.parsedEvalCtxAsBytes, err = json.Marshal(q.mapOnce())
 		if err != nil {
 			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
@@ -168,16 +170,20 @@ func (q *queryContext) dataOnce() (any, error) {
 
 			return data, nil
 		}
+
 		raw, err := q.jsonOnce()
 		if err != nil {
 			return nil, err
 		}
+
 		var data any
+
 		unmarshalErr := json.Unmarshal(raw, &data)
 		if unmarshalErr != nil {
 			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
 			return nil, unmarshalErr
 		}
+
 		q.parsedEvalCtxAsData = data
 	}
 
@@ -195,6 +201,7 @@ func evaluateNikunjy(eval *parser.Evaluator, query string, queryCtx *queryContex
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
+
 			success = false
 		}
 	}()
@@ -220,6 +227,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	if query == "" {
 		return true
 	}
+
 	mapCtx := queryCtx.mapOnce()
 
 	// Catch any panics that may occur during evaluation
@@ -229,6 +237,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
+
 			success = false
 		}
 	}()
@@ -247,6 +256,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 
 			return false
 		}
+
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
@@ -276,6 +286,7 @@ func (r *Rule) EvaluateProgressiveRollout(
 ) (string, error) {
 	progressiveRolloutMaxPercentage := uint32(maxPercentage * PercentageMultiplier)
 	hashID := utils.BuildHash(flagName, key, progressiveRolloutMaxPercentage)
+
 	variation, err := r.getVariationFromProgressiveRollout(hashID, evaluationDate)
 	if err != nil {
 		return variation, err
@@ -298,10 +309,12 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 	// Map are not ordered in GO, so we have to order the variationNames to be able to compute the same numbers for the
 	// buckets every time we are in this function.
 	var buf [16]string
+
 	names := buf[:0]
 	for k := range percentage {
 		names = append(names, k)
 	}
+
 	slices.Sort(names)
 
 	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
@@ -310,6 +323,7 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 	for _, name := range slices.Backward(names) {
 		sum += percentage[name]
 	}
+
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
 
 	return variationFromBuckets(percentage, names, hash)
@@ -318,6 +332,7 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 // IsDynamic is a function that allows to know if the rule has a dynamic result or not.
 func (r *Rule) IsDynamic() bool {
 	hasPercentage100 := false
+
 	for _, percentage := range r.GetPercentages() {
 		if percentage == maxPercentage {
 			hasPercentage100 = true
@@ -333,17 +348,22 @@ func (r *Rule) IsDynamic() bool {
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
 	last := ""
+
 	for _, name := range slices.Backward(names) {
-		p := percentage[name]
-		end := start + (p * PercentageMultiplier)
+		pct := percentage[name]
+
+		end := start + (pct * PercentageMultiplier)
 		if uint32(start) <= hash && uint32(end) > hash {
 			return name, nil
 		}
-		if p > 0 {
+
+		if pct > 0 {
 			last = name
 		}
+
 		start = end
 	}
+
 	if last != "" {
 		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
 		return last, nil
@@ -377,12 +397,14 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 		if updatedRule.ProgressiveRollout.End != nil {
 			rollout.End.mergeStep(updatedRule.ProgressiveRollout.End)
 		}
+
 		r.ProgressiveRollout = &rollout
 	}
 
 	if updatedRule.Percentages != nil {
 		updatedPercentages := updatedRule.GetPercentages()
 		mergedPercentages := r.GetPercentages()
+
 		for key, percentage := range updatedPercentages {
 			// When you set a negative percentage we are not taking it in consideration.
 			if percentage < 0 {
@@ -390,8 +412,10 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 
 				continue
 			}
+
 			mergedPercentages[key] = percentage
 		}
+
 		r.Percentages = &mergedPercentages
 	}
 }
@@ -486,9 +510,11 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	if !ruleApply {
 		ruleApply = r.evaluateQuery(queryCtx)
 	}
+
 	if !ruleApply || (!isDefault && r.IsDisable()) {
 		return "", errRuleNotApply
 	}
+
 	if r.ProgressiveRollout != nil {
 		if key == "" {
 			return "", errProgressiveRolloutRequiresA
@@ -497,6 +523,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		// only the progressive rollout depends on the date: the clock is not read for the other rules.
 		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
 	}
+
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
 			return "", errPercentageRolloutRequiresA
@@ -504,6 +531,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 
 		return r.EvaluatePercentageRollout(key, flagName)
 	}
+
 	if r.VariationResult != nil {
 		return r.GetVariationResult(), nil
 	}
@@ -554,6 +582,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 	if endPercentage == 0 || endPercentage > 100 {
 		endPercentage = 100
 	}
+
 	endPercentage *= PercentageMultiplier
 	nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
 	percentage := endPercentage - initialPercentage
@@ -585,6 +614,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 func MergeSetOfRules(initialRules, updates []Rule) *[]Rule {
 	collection := initialRules
 	modified := make(map[string]Rule, 0)
+
 	for _, update := range updates {
 		ruleName := update.Name
 		if ruleName != nil {
@@ -593,6 +623,7 @@ func MergeSetOfRules(initialRules, updates []Rule) *[]Rule {
 	}
 
 	mergedUpdates := make([]string, 0)
+
 	for index, rule := range collection {
 		if _, ok := modified[rule.GetName()]; ok {
 			rule.MergeRules(modified[rule.GetName()])
@@ -619,16 +650,19 @@ func cloneRuleForMerge(r Rule) Rule {
 		p := maps.Clone(*r.Percentages)
 		r.Percentages = &p
 	}
+
 	if r.ProgressiveRollout != nil {
 		rollout := *r.ProgressiveRollout
 		if rollout.Initial != nil {
 			initial := *rollout.Initial
 			rollout.Initial = &initial
 		}
+
 		if rollout.End != nil {
 			end := *rollout.End
 			rollout.End = &end
 		}
+
 		r.ProgressiveRollout = &rollout
 	}
 

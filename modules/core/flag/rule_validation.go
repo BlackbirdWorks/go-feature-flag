@@ -59,6 +59,7 @@ func (r *Rule) validate(
 	evaluator := known
 	if evaluator == nil {
 		var queryErr error
+
 		evaluator, queryErr = r.validateQuery(svc, defaultRule)
 		if queryErr != nil {
 			return nil, queryErr
@@ -98,12 +99,15 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 	}
 
 	count := float64(0)
+
 	for variationKey, pct := range percentages {
 		err := r.validateSinglePercentage(pct, fmt.Sprintf("variation %s", variationKey))
 		if err != nil {
 			return err
 		}
+
 		count += pct
+
 		if _, ok := variations[variationKey]; !ok {
 			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, variationKey)
 		}
@@ -144,12 +148,14 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 	}
 
 	initialPct := progRollout.Initial.getPercentage()
+
 	err := r.validateSinglePercentage(initialPct, "initial step percentage")
 	if err != nil {
 		return err
 	}
 
 	endPct := progRollout.End.getPercentage()
+
 	err = r.validateSinglePercentage(endPct, "end step percentage")
 	if err != nil {
 		return err

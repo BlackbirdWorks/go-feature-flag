@@ -43,6 +43,7 @@ func TestClose(t *testing.T) {
 			})
 
 			closed := false
+
 			if tt.backgroundUpdater.updaterChan != nil {
 				select {
 				case <-tt.backgroundUpdater.updaterChan:
@@ -50,6 +51,7 @@ func TestClose(t *testing.T) {
 				default:
 				}
 			}
+
 			assert.Equal(t, tt.wantSignalClosed, closed, "updaterChan is closed")
 		})
 	}

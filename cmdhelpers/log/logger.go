@@ -42,6 +42,7 @@ func NewDefault(opts ...Option) *Logger {
 	for _, opt := range opts {
 		opt(&o)
 	}
+
 	c := newCore(o.out)
 
 	return &Logger{core: c, Slog: slog.New(&handler{core: c})}
@@ -50,6 +51,7 @@ func NewDefault(opts ...Option) *Logger {
 // New builds a logger. An empty format is json, an empty level is info.
 func New(format, level string, opts ...Option) (*Logger, error) {
 	logger := NewDefault(opts...)
+
 	err := logger.Update(format, level)
 	if err != nil {
 		return nil, err
@@ -77,10 +79,12 @@ func (l *Logger) Update(format, level string) error {
 	if err != nil {
 		return err
 	}
+
 	lvl, err := ParseLevel(level)
 	if err != nil {
 		return err
 	}
+
 	l.core.format.Store(int32(parsedFormat))
 	l.core.level.Set(lvl)
 

@@ -16,6 +16,7 @@ import (
 
 func Test_bodyDumpSkipper(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name  string
 		path  string
@@ -36,6 +37,7 @@ func Test_bodyDumpSkipper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			core, _ := slogutil.NewObserver(tt.level)
 			skipper := bodyDumpSkipper(core)
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, tt.path, nil)
@@ -88,6 +90,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 
 	b.Run("small body", func(b *testing.B) {
 		body := []byte(strings.Repeat("x", 100))
+
 		b.ReportAllocs()
 		b.ResetTimer()
 
@@ -98,6 +101,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 
 	b.Run("large body", func(b *testing.B) {
 		body := []byte(strings.Repeat("x", 1024*1024)) // 1MB
+
 		b.ReportAllocs()
 		b.ResetTimer()
 

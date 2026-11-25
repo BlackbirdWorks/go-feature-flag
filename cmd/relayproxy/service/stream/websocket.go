@@ -53,11 +53,13 @@ func NewWebsocketService(opts ...Option) *WebsocketServiceImpl {
 func (w *WebsocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff notifier.DiffCache) {
 	w.mutex.RLock()
 	defer w.mutex.RUnlock()
+
 	payload := flagChangePayload(diff, w.includeFlagDetails)
 	for conn, clientFlagsetName := range w.clients {
 		if clientFlagsetName != flagsetName {
 			continue
 		}
+
 		err := conn.WriteJSON(payload)
 		if err != nil {
 			w.mutex.RUnlock()
@@ -71,6 +73,7 @@ func (w *WebsocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff not
 func (w *WebsocketServiceImpl) Register(c WebsocketConnector, flagsetName string) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	w.clients[c] = flagsetName
 }
 
@@ -78,6 +81,7 @@ func (w *WebsocketServiceImpl) Register(c WebsocketConnector, flagsetName string
 func (w *WebsocketServiceImpl) Deregister(c WebsocketConnector) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	delete(w.clients, c)
 }
 
@@ -85,9 +89,11 @@ func (w *WebsocketServiceImpl) Deregister(c WebsocketConnector) {
 func (w *WebsocketServiceImpl) Close() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	for c := range w.clients {
 		delete(w.clients, c)
 	}
+
 	close(w.closed)
 }
 

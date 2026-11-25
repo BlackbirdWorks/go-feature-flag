@@ -53,9 +53,11 @@ func (k KeyAuth) HTTP() Func {
 
 				return
 			}
+
 			if ctx != r.Context() {
 				r = r.WithContext(ctx)
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -66,6 +68,7 @@ func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 	return func(hctx huma.Context, next func(huma.Context)) {
 		values := func(name string) []string {
 			var out []string
+
 			hctx.EachHeader(func(n, v string) {
 				if strings.EqualFold(n, name) {
 					out = append(out, v)
@@ -74,6 +77,7 @@ func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 
 			return out
 		}
+
 		ctx, err := k.authenticate(hctx.Context(), hctx.Header, values)
 		if err != nil {
 			refusal := helper.NewHTTPError(http.StatusUnauthorized, err.Error())
@@ -85,9 +89,11 @@ func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 
 			return
 		}
+
 		if ctx != hctx.Context() {
 			hctx = huma.WithContext(hctx, ctx)
 		}
+
 		next(hctx)
 	}
 }
@@ -114,6 +120,7 @@ func (k KeyAuth) authenticate(
 	if err != nil {
 		return ctx, err
 	}
+
 	out, ok := k.cfg.Validator(ctx, key)
 	if !ok {
 		return ctx, errKeyInvalid
@@ -127,6 +134,7 @@ func bearerToken(values []string) (string, error) {
 	if len(values) == 0 {
 		return "", errHeaderMissing
 	}
+
 	for _, value := range values {
 		if len(value) > len(helper.BearerPrefix) &&
 			strings.EqualFold(value[:len(helper.BearerPrefix)], helper.BearerPrefix) {

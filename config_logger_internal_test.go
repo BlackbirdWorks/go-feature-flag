@@ -13,6 +13,7 @@ func TestConfig_serviceLogger(t *testing.T) {
 	t.Parallel()
 
 	leveled := slog.New(slog.DiscardHandler)
+
 	tests := []struct {
 		leveled    *slog.Logger
 		name       string
@@ -30,6 +31,7 @@ func TestConfig_serviceLogger(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			config := Config{LeveledLogger: tt.leveled}
 			if tt.legacy {
 				config.Logger = log.New(&buf, "", 0)
@@ -85,19 +87,24 @@ func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
 			t.Parallel()
 
 			var first, second bytes.Buffer
+
 			legacy := log.New(&first, tt.prefix, tt.flags)
 			logger := (&Config{Logger: legacy}).serviceLogger()
 
 			logger.Info("one")
+
 			if tt.redirect {
 				legacy.SetOutput(&second)
 			}
+
 			logger.Info("two")
 
 			assert.Contains(t, first.String(), tt.wantFirst)
+
 			if tt.wantSecond != "" {
 				assert.Contains(t, second.String(), tt.wantSecond)
 			}
+
 			if tt.wantNotFirst != "" {
 				assert.NotContains(t, first.String(), tt.wantNotFirst)
 			}

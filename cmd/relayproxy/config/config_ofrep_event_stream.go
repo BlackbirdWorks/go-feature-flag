@@ -42,6 +42,7 @@ func (o OfrepEventStream) IsValid() error {
 	if o.InactivityDelaySec < 0 {
 		return fmt.Errorf("%w %d", errOfrepEventStreamInactivityDelaySecMustBe, o.InactivityDelaySec)
 	}
+
 	if o.BaseURL == "" {
 		return nil
 	}
@@ -50,9 +51,11 @@ func (o OfrepEventStream) IsValid() error {
 	if err != nil {
 		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
+
 	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
 		return errOfrepEventStreamBaseURLMustBe
 	}
+
 	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
 		return errOfrepEventStreamBaseURLMustNot
 	}

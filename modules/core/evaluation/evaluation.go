@@ -22,7 +22,9 @@ func Evaluate[T model.JSONType](
 	expectedType string,
 	sdkDefaultValue T) (model.VariationResult[T], error) {
 	flagValue, resolutionDetails := targetFlag.Value(flagKey, evaluationCtx, flagCtx)
+
 	var convertedValue any
+
 	switch value := flagValue.(type) {
 	case float64:
 		// this part ensures that we convert float64 value into int if we call IntVariation on a float64 value.
@@ -36,6 +38,7 @@ func Evaluate[T model.JSONType](
 	}
 
 	var typedValue T
+
 	switch val := convertedValue.(type) {
 	case T:
 		typedValue = val

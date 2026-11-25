@@ -347,14 +347,17 @@ func tryInitializeWithFlagset(
 
 func parseHTTPHeaders(headers []string) map[string][]string {
 	result := make(map[string][]string)
+
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", keyValueParts)
 		if len(parts) != keyValueParts {
 			parts = strings.SplitN(h, "=", keyValueParts)
 		}
+
 		if len(parts) != keyValueParts {
 			continue
 		}
+
 		key := strings.TrimSpace(parts[0])
 		val := strings.TrimSpace(parts[1])
 		result[key] = append(result[key], val)
@@ -365,11 +368,13 @@ func parseHTTPHeaders(headers []string) map[string][]string {
 
 func parsePostgresColumns(columns []string) map[string]string {
 	result := make(map[string]string)
+
 	for _, c := range columns {
 		parts := strings.SplitN(c, ":", keyValueParts)
 		if len(parts) != keyValueParts {
 			continue
 		}
+
 		key := strings.TrimSpace(parts[0])
 		val := strings.TrimSpace(parts[1])
 		result[key] = val

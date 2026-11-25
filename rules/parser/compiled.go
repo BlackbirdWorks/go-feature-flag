@@ -110,6 +110,7 @@ func (s *attrStack) push(v any) {
 	} else {
 		s.more = append(s.more, v)
 	}
+
 	s.n++
 }
 
@@ -144,12 +145,15 @@ func (st *evalState) resolve(path []string) {
 		} else {
 			item = st.item
 		}
+
 		if item == nil {
 			return
 		}
+
 		m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		st.stack.push(m[name])
 	}
+
 	var item any
 	if st.stack.n > 0 {
 		item = st.stack.top()
@@ -157,9 +161,11 @@ func (st *evalState) resolve(path []string) {
 	} else {
 		item = st.item
 	}
+
 	if item == nil {
 		return
 	}
+
 	m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	st.leftOp = m[path[last]]
 	st.stack.clear()
@@ -183,6 +189,7 @@ func (n *node) eval(state *evalState) bool {
 
 			return n.right.eval(state)
 		}
+
 		if !left {
 			return left
 		}
@@ -205,6 +212,7 @@ func (n *compareNode) setRight(state *evalState) {
 
 		return
 	}
+
 	switch n.valKind {
 	case valueInts:
 		var list []int
@@ -213,6 +221,7 @@ func (n *compareNode) setRight(state *evalState) {
 		} else {
 			list = state.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
+
 		state.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
@@ -248,22 +257,29 @@ func (n *compareNode) setRight(state *evalState) {
 
 func (n *compareNode) evalCompare(state *evalState) bool {
 	state.resolve(n.path)
+
 	if n.strSet != nil || n.intSet != nil {
 		if r, ok := n.setIN(state); ok {
 			return r
 		}
 	}
+
 	n.setRight(state)
+
 	if state.err != nil {
 		return false
 	}
-	var ret bool
-	var err error
+
+	var (
+		ret bool
+		err error
+	)
 	if n.version != nil {
 		ret, err = n.version.compare(state.leftOp)
 	} else {
 		ret, err = n.apply(state.leftOp, state.rightOp)
 	}
+
 	if err != nil {
 		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
 		// the evaluation path (measured), and this block is inlined on purpose.
@@ -274,9 +290,12 @@ func (n *compareNode) evalCompare(state *evalState) bool {
 			c.typeObj = copyOperand(c.typeObj)
 			err = &c
 		}
+
 		n.setDebugErr(state, err)
+
 		ret = false
 	}
+
 	state.rightOp = nil
 
 	return ret
@@ -305,6 +324,7 @@ func (n *compareNode) setIN(state *evalState) (bool, bool) {
 		state.err != nil {
 		return false, false
 	}
+
 	switch {
 	case n.strSet != nil:
 		left, err := (&StringOperation{}).getString(state.leftOp)
@@ -349,6 +369,7 @@ func (n *compareNode) setDebugErr(state *evalState, err error) {
 		if _, ok := err.(*InvalidOperandError); ok { //nolint:errorlint // see above
 			msg = "operands are not the right value type"
 		}
+
 		state.debugErr = newNestedError(err, msg).Set(ErrVals{
 			errValAttrPath:      n.attrPath,
 			errValObjectOperand: state.leftOp,
@@ -405,12 +426,14 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
 		cmpNode.attrPath = val.AttrPath().GetText()
 		cmpNode.opType = val.op.GetTokenType()
-		op := compileValue(cmpNode, val.Value(), src)
-		cmpNode.apply = applyFor(op, cmpNode.opType)
+		operation := compileValue(cmpNode, val.Value(), src)
+
+		cmpNode.apply = applyFor(operation, cmpNode.opType)
 		if cmpNode.apply == nil {
 			panic(fmt.Sprintf("no operation for operator token %d", cmpNode.opType))
 		}
-		if _, ok := op.(*VersionOperation); ok {
+
+		if _, ok := operation.(*VersionOperation); ok {
 			ruleVersion := cmpNode.rightOp.(string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
@@ -427,10 +450,12 @@ func compileAttrPath(ctx IAttrPathContext) []string {
 	var path []string
 	for {
 		path = append(path, ctx.ATTRNAME().GetText())
+
 		sub := ctx.SubAttr()
 		if sub == nil || sub.IsEmpty() {
 			return path
 		}
+
 		ctx = sub.AttrPath()
 	}
 }
@@ -476,6 +501,7 @@ type versionCompare struct {
 // produced on every Process exactly as before).
 func compileVersionCompare(right string, opType int) *versionCompare {
 	var want func(int) bool
+
 	switch opType {
 	case JsonQueryParserEQ:
 		want = func(c int) bool { return c == 0 }
@@ -492,6 +518,7 @@ func compileVersionCompare(right string, opType int) *versionCompare {
 	default:
 		return nil
 	}
+
 	ver, err := semver.Make(right)
 	if err != nil {
 		return nil
@@ -507,9 +534,11 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 	if !ok {
 		return false, newInvalidOperandError(left, leftVal)
 	}
+
 	leftVer, ok := parsePlainVersion(leftVal)
 	if !ok {
 		var err error
+
 		leftVer, err = semver.Make(leftVal)
 		if err != nil {
 			//nolint:wrapcheck // evaluation hot path: preserves semver error parity with VersionOperation.get
@@ -527,14 +556,17 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 // else (prerelease, errors) reports false so the caller uses semver.Make.
 func parsePlainVersion(raw string) (semver.Version, bool) {
 	var ver semver.Version
+
 	core := raw
 	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
 	if i := strings.IndexByte(raw, '+'); i >= 0 { //nolint:modernize // see above
 		if !validBuild(raw[i+1:]) {
 			return ver, false
 		}
+
 		core = raw[:i]
 	}
+
 	var nums [3]uint64
 	for i := range nums {
 		end := len(core)
@@ -544,15 +576,18 @@ func parsePlainVersion(raw string) (semver.Version, bool) {
 				return ver, false
 			}
 		}
+
 		n, ok := parseVersionNumber(core[:end])
 		if !ok {
 			return ver, false
 		}
+
 		nums[i] = n
 		if i < versionDots {
 			core = core[end+1:]
 		}
 	}
+
 	ver.Major, ver.Minor, ver.Patch = nums[0], nums[1], nums[2]
 
 	return ver, true
@@ -564,11 +599,13 @@ func parseVersionNumber(raw string) (uint64, bool) {
 	if raw == "" || (len(raw) > 1 && raw[0] == '0') {
 		return 0, false
 	}
+
 	for i := range len(raw) {
 		if raw[i] < '0' || raw[i] > '9' {
 			return 0, false
 		}
 	}
+
 	n, err := strconv.ParseUint(raw, 10, 64)
 
 	return n, err == nil
@@ -578,16 +615,20 @@ func parseVersionNumber(raw string) (uint64, bool) {
 // [0-9A-Za-z-], the build metadata semver.Parse accepts.
 func validBuild(build string) bool {
 	start := 0
+
 	for i := 0; i <= len(build); i++ {
 		if i == len(build) || build[i] == '.' {
 			if i == start {
 				return false
 			}
+
 			start = i + 1
 
 			continue
 		}
+
 		c := build[i]
+
 		valid := c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-'
 		if !valid {
 			return false
@@ -655,6 +696,7 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 func (n *compareNode) compileInts(ctx *ListOfIntsContext) {
 	n.valKind = valueInts
 	ints := []int{}
+
 	for sub := ctx.ListInts().SubListOfInts(); ; {
 		val, err := strconv.Atoi(sub.INT().GetText())
 		if err != nil {
@@ -662,14 +704,19 @@ func (n *compareNode) compileInts(ctx *ListOfIntsContext) {
 
 			break
 		}
+
 		ints = append(ints, val)
+
 		next := sub.SubListOfInts()
 		if next == nil || next.IsEmpty() {
 			break
 		}
+
 		sub = next
 	}
+
 	capped := slices.Clip(ints)
+
 	n.listOp = capped
 	if len(ints) >= inSetMinLen && len(ints) < math.MaxUint32 {
 		n.intSet = newIntSet(capped)
@@ -681,6 +728,7 @@ func (n *compareNode) compileInts(ctx *ListOfIntsContext) {
 func (n *compareNode) compileDoubles(ctx *ListOfDoublesContext) {
 	n.valKind = valueDoubles
 	doubles := []float64{}
+
 	for sub := ctx.ListDoubles().SubListOfDoubles(); ; {
 		val, err := strconv.ParseFloat(sub.DOUBLE().GetText(), 64)
 		if err != nil {
@@ -688,13 +736,17 @@ func (n *compareNode) compileDoubles(ctx *ListOfDoublesContext) {
 
 			break
 		}
+
 		doubles = append(doubles, val)
+
 		next := sub.SubListOfDoubles()
 		if next == nil || next.IsEmpty() {
 			break
 		}
+
 		sub = next
 	}
+
 	n.listOp = slices.Clip(doubles)
 }
 
@@ -702,15 +754,19 @@ func (n *compareNode) compileDoubles(ctx *ListOfDoublesContext) {
 // is long enough.
 func (n *compareNode) compileStrings(ctx *ListOfStringsContext, src *sourceText) {
 	n.valKind = valueStrings
+
 	var tokens []antlr.Token
 	for sub := ctx.ListStrings().SubListOfStrings(); ; {
 		tokens = append(tokens, sub.STRING().GetSymbol())
+
 		next := sub.SubListOfStrings()
 		if next == nil || next.IsEmpty() {
 			break
 		}
+
 		sub = next
 	}
+
 	if len(tokens) >= inSetMinLen {
 		if set := newStrSet(tokens, src); set != nil {
 			n.strSet = set
@@ -718,9 +774,11 @@ func (n *compareNode) compileStrings(ctx *ListOfStringsContext, src *sourceText)
 			return
 		}
 	}
+
 	strs := make([]string, len(tokens))
 	for i, t := range tokens {
 		strs[i] = getString(t.GetText())
 	}
+
 	n.listOp = slices.Clip(strs)
 }

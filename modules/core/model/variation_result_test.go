@@ -169,6 +169,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			t.Parallel()
 
 			var jsonStr string
+
 			switch res := tt.result.(type) {
 			case model.VariationResult[bool]:
 				jsonStr = res.ToJSONStr()
@@ -186,10 +187,12 @@ func TestVariationResultToJSONStr(t *testing.T) {
 
 			// Verify JSON is valid and matches expected
 			var gotJSON map[string]any
+
 			err := json.Unmarshal([]byte(jsonStr), &gotJSON)
 			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
+
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
 			require.NoError(t, err, "Expected JSON should be valid")
 
@@ -381,10 +384,12 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 
 			// Verify JSON matches expected
 			var gotJSON map[string]any
+
 			err = json.Unmarshal(jsonBytes, &gotJSON)
 			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
+
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
 			require.NoError(t, err, "Expected JSON should be valid")
 
@@ -393,6 +398,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			// Test JSON deserialization
 			// Note: JSON unmarshaling converts numbers to float64, so we compare JSON strings instead
 			var deserialized model.RawVarResult
+
 			err = json.Unmarshal(jsonBytes, &deserialized)
 			require.NoError(t, err, "JSON unmarshaling should succeed")
 
@@ -453,6 +459,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 			t.Parallel()
 
 			var got model.VariationResult[string]
+
 			err := json.Unmarshal([]byte(tt.jsonStr), &got)
 			if tt.wantErr {
 				assert.Error(t, err)

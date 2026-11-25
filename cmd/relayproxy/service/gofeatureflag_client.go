@@ -127,18 +127,22 @@ func newGoFeatureFlagClient(
 	opts ...clientOption,
 ) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
 	var err error
+
 	if cFlagSet == nil {
 		return nil, errProxyConfigIsEmpty
 	}
+
 	var options clientOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
 
 	options.ensurePostgresPools()
+
 	if options.sharedRegistry == nil {
 		options.sharedRegistry = standaloneSharedRegistry(cFlagSet, logger)
 	}
+
 	retrievers, err := initRetrieversWithRegistry(cFlagSet, options.sharedRegistry, options.retrieverOptions()...)
 	if err != nil {
 		return nil, err
@@ -188,14 +192,17 @@ func newGoFeatureFlagClient(
 		PersistentFlagConfigurationFile: cFlagSet.PersistentFlagConfigurationFile,
 		Name:                            &cFlagSet.Name,
 	}
+
 	newClient := options.newClient
 	if newClient == nil {
 		newClient = ffclient.New
 	}
+
 	client, err := newClient(clientCfg)
 	if err != nil {
 		return nil, err
 	}
+
 	if rr, ok := firstSharedRetriever(retrievers); ok {
 		rr.SetRefresh(client.ForceRefresh)
 	}
@@ -234,6 +241,7 @@ func firstSharedRetriever(retrievers []retriever.Retriever) (*releasingRetriever
 	if len(retrievers) == 0 {
 		return nil, false
 	}
+
 	rr, ok := retrievers[0].(*releasingRetriever)
 
 	return rr, ok
@@ -245,6 +253,7 @@ func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *err
 	if *retErr == nil {
 		return
 	}
+
 	for _, r := range retrievers {
 		if ur, ok := r.(*releasingRetriever); ok {
 			_ = ur.Shutdown(context.Background())
@@ -269,10 +278,12 @@ func initRetrieversWithRegistry(
 	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverInit.Option,
 ) ([]retriever.Retriever, error) {
 	retrievers := make([]retriever.Retriever, 0)
+
 	if proxyConf.EnableSharedPollerPerBucket {
 		if registry == nil {
 			return nil, errEnableSharedPollerPerBucketRequiresAShared
 		}
+
 		r, err := registry.retrieverFor(proxyConf)
 		if err != nil {
 			return nil, err
@@ -286,6 +297,7 @@ func initRetrieversWithRegistry(
 		if err != nil {
 			return nil, fmt.Errorf("init retriever: %w", err)
 		}
+
 		retrievers = append(retrievers, currentRetriever)
 	}
 	// if the retrievers are set, we add them to the retrievers
@@ -295,6 +307,7 @@ func initRetrieversWithRegistry(
 			if err != nil {
 				return nil, fmt.Errorf("init retriever: %w", err)
 			}
+
 			retrievers = append(retrievers, currentRetriever)
 		}
 	}
@@ -306,19 +319,23 @@ func initRetrieversWithRegistry(
 // it handles both the `exporter` and `exporters` fields.
 func initDataExporters(proxyConf *config.FlagSet) ([]ffclient.DataExporter, error) {
 	exporters := make([]ffclient.DataExporter, 0)
+
 	if proxyConf.Exporter != nil {
 		currentExporter, err := initDataExporter(proxyConf.Exporter)
 		if err != nil {
 			return nil, err
 		}
+
 		exporters = append(exporters, currentExporter)
 	}
+
 	if proxyConf.Exporters != nil {
 		for _, e := range *proxyConf.Exporters {
 			currentExporter, err := initDataExporter(&e)
 			if err != nil {
 				return nil, err
 			}
+
 			exporters = append(exporters, currentExporter)
 		}
 	}
@@ -331,6 +348,7 @@ func initDataExporter(expConf *config.ExporterConf) (ffclient.DataExporter, erro
 	if exporterEventType == "" {
 		exporterEventType = config.DefaultExporter().ExporterEventType
 	}
+
 	dataExp := ffclient.DataExporter{
 		FlushInterval: func() time.Duration {
 			if expConf.FlushInterval != 0 {
@@ -350,6 +368,7 @@ func initDataExporter(expConf *config.ExporterConf) (ffclient.DataExporter, erro
 	}
 
 	var err error
+
 	dataExp.Exporter, err = createExporter(expConf)
 	if err != nil {
 		return ffclient.DataExporter{}, err
@@ -468,6 +487,7 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {
 		awsOpts = append(awsOpts, awsConf.WithRegion(expConf.AwsRegion))
 	}
+
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
@@ -524,6 +544,7 @@ func setKafkaConfig(kafkaSettings kafkaexporter.Settings) (kafkaexporter.Setting
 	if kafkaSettings.Config == nil {
 		return merged, nil
 	}
+
 	saramaConfig := sarama.NewConfig()
 	// WithOverride: a value set by the operator wins over the sarama default; a zero value cannot be told from
 	// an unset one, so it keeps the default.
@@ -549,6 +570,7 @@ func setKafkaConfig(kafkaSettings kafkaexporter.Settings) (kafkaexporter.Setting
 			return &kafka.XDGSCRAMClient{HashGeneratorFcn: kafka.SHA512}
 		}
 	}
+
 	merged.Config = saramaConfig
 
 	return merged, nil
@@ -558,6 +580,7 @@ func initNotifier(notifiersConf []config.NotifierConf, logger *slog.Logger) ([]n
 	if notifiersConf == nil {
 		return nil, nil
 	}
+
 	var notifiers []notifier.Notifier
 
 	for _, cNotif := range notifiersConf {
@@ -566,8 +589,10 @@ func initNotifier(notifiersConf []config.NotifierConf, logger *slog.Logger) ([]n
 			if cNotif.WebhookURL == "" &&
 				cNotif.SlackWebhookURL != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
 				logger.Warn("slackWebhookURL field is deprecated, please use webhookURL instead")
+
 				cNotif.WebhookURL = cNotif.SlackWebhookURL //nolint:staticcheck // SA1019: the deprecated setting is still supported
 			}
+
 			notifiers = append(
 				notifiers,
 				&slacknotifier.Notifier{SlackWebhookURL: cNotif.WebhookURL},

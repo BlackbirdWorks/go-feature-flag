@@ -12,6 +12,7 @@ func TestNestedKeyNotFoundError_Error(t *testing.T) {
 	type fields struct {
 		Key string
 	}
+
 	tests := []struct {
 		name   string
 		fields fields

@@ -54,6 +54,7 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, mock.PutRecordsInputs, 1)
 	assert.Len(t, mock.PutRecordsInputs[0].Records, 3)
+
 	for idx := range mock.PutRecordsInputs {
 		assert.Equal(t, mock.PutRecordsInputs[idx].StreamName, exp.Settings.StreamName)
 		assert.Equal(t, mock.PutRecordsInputs[idx].StreamARN, exp.Settings.StreamArn)
@@ -89,6 +90,7 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, mock.PutRecordsInputs, 1)
 	assert.Len(t, mock.PutRecordsInputs[0].Records, 3)
+
 	for idx := range mock.PutRecordsInputs {
 		assert.Equal(t, mock.PutRecordsInputs[idx].StreamName, exp.Settings.StreamName)
 		assert.Equal(t, mock.PutRecordsInputs[idx].StreamARN, exp.Settings.StreamArn)
@@ -297,10 +299,12 @@ func (k *MockKinesisSender) SendMessages(
 ) (*kinesis.PutRecordsOutput, error) {
 	k.PutRecordsInputs = append(k.PutRecordsInputs, msgs)
 	failedRecordCount := int32(0)
+
 	results := make([]types.PutRecordsResultEntry, 0, len(msgs.Records))
 	for range msgs.Records {
 		results = append(results, types.PutRecordsResultEntry{SequenceNumber: aws.String("1")})
 	}
+
 	output := kinesis.PutRecordsOutput{
 		Records:           results,
 		FailedRecordCount: &failedRecordCount,

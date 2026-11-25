@@ -35,6 +35,7 @@ func DescribeChanges(before, after flag.Flag) ([]string, error) {
 // padding with spaces when the text starts or ends with a backtick, as CommonMark specifies.
 func inlineCode(text string) string {
 	longest, run := 0, 0
+
 	for _, r := range text {
 		if r == '`' {
 			run++
@@ -43,10 +44,13 @@ func inlineCode(text string) string {
 			run = 0
 		}
 	}
+
 	if longest == 0 {
 		return "`" + text + "`"
 	}
+
 	fence := strings.Repeat("`", longest+1)
+
 	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
 		text = " " + text + " "
 	}
@@ -61,12 +65,14 @@ func DescribeChangesPlain(before, after flag.Flag) ([]string, error) {
 
 func describeChanges(before, after flag.Flag, code func(string) string) ([]string, error) {
 	b, okBefore := before.(*flag.InternalFlag)
-	a, okAfter := after.(*flag.InternalFlag)
-	if !okBefore || !okAfter || b == nil || a == nil {
+
+	afterFlag, okAfter := after.(*flag.InternalFlag)
+	if !okBefore || !okAfter || b == nil || afterFlag == nil {
 		return nil, fmt.Errorf("%w %T and %T", errImpossibleToDescribeChanges, before, after)
 	}
+
 	d := &describer{code: code}
-	d.flag(b, a)
+	d.flag(b, afterFlag)
 
 	return d.lines, nil
 }
@@ -80,6 +86,7 @@ func UpdatedBy(f flag.Flag) string {
 	if !ok || internalFlag == nil {
 		return ""
 	}
+
 	name, _ := internalFlag.GetMetadata()[UpdatedByMetadataKey].(string)
 
 	return strings.TrimSpace(name)
@@ -98,6 +105,7 @@ func withoutUpdatedBy(metadata map[string]any) map[string]any {
 	if _, ok := metadata[UpdatedByMetadataKey]; !ok {
 		return metadata
 	}
+
 	filtered := maps.Clone(metadata)
 	delete(filtered, UpdatedByMetadataKey)
 
@@ -117,17 +125,21 @@ func ChangeList(changes []string, bullet string, maxLength int) string {
 		for _, change := range changes[:shown] {
 			lines = append(lines, bullet+change)
 		}
+
 		if hidden := len(changes) - shown; hidden > 0 {
 			noun := "changes"
 			if hidden == 1 {
 				noun = "change"
 			}
+
 			lines = append(lines, fmt.Sprintf("…and %d more %s", hidden, noun))
 		}
+
 		text := strings.Join(lines, "\n")
 		if maxLength <= 0 || utf8.RuneCountInString(text) <= maxLength {
 			return text
 		}
+
 		if shown == 0 {
 			return ""
 		}
@@ -155,6 +167,7 @@ func (d *describer) flag(before, after *flag.InternalFlag) {
 	if d.inStep {
 		stepNote = notAppliedInStep
 	}
+
 	d.toggle("Flag", "disable", before.Disable, after.Disable, false, "disabled", "enabled")
 	d.toggle("Event tracking", "trackEvents", before.TrackEvents, after.TrackEvents, true, "turned on", "turned off")
 	d.text("Version", before.Version, after.Version, "")
@@ -163,6 +176,7 @@ func (d *describer) flag(before, after *flag.InternalFlag) {
 	d.targeting(before.GetRules(), after.GetRules())
 	d.defaultRule(before.DefaultRule, after.DefaultRule)
 	d.experimentation(before.Experimentation, after.Experimentation)
+
 	if d.inStep {
 		if ReadableValue(before.Scheduled) != ReadableValue(after.Scheduled) {
 			d.addf("Scheduled rollout changed%s", notAppliedInStep)
@@ -170,6 +184,7 @@ func (d *describer) flag(before, after *flag.InternalFlag) {
 	} else {
 		d.scheduled(before.Scheduled, after.Scheduled)
 	}
+
 	oldMetadata, newMetadata := withoutUpdatedBy(before.GetMetadata()), withoutUpdatedBy(after.GetMetadata())
 	mapChanges(d, "Metadata", oldMetadata, newMetadata, ReadableValue, stepNote)
 }
@@ -186,8 +201,10 @@ func (d *describer) toggle(subject, field string, before, after *bool, defaultVa
 
 			return
 		}
+
 		oldValue = !newValue
 	}
+
 	switch {
 	case oldValue != newValue && newValue:
 		d.addf("%s %s", subject, onTrue)
@@ -219,6 +236,7 @@ func mapChanges[V any](desc *describer, subject string, before, after map[string
 	for _, key := range unionKeys(before, after) {
 		oldValue, inBefore := before[key]
 		newValue, inAfter := after[key]
+
 		name := subject + " " + desc.code(key)
 		switch {
 		case !inBefore && desc.inStep:
@@ -239,6 +257,7 @@ func mapChanges[V any](desc *describer, subject string, before, after map[string
 // Rules without a name, or sharing a name with an earlier rule, are paired by position.
 func (d *describer) targeting(before, after []flag.Rule) {
 	b, afterRules := indexRules(before), indexRules(after)
+
 	renamed := map[ruleKey]ruleKey{}
 	if !d.inStep {
 		renamed = findRenames(b, afterRules)
@@ -251,7 +270,9 @@ func (d *describer) targeting(before, after []flag.Rule) {
 
 			continue
 		}
+
 		oldRule, existed := b.rules[key]
+
 		label := "Targeting rule " + d.ruleLabel(key)
 		switch {
 		case d.inStep && existed:
@@ -264,6 +285,7 @@ func (d *describer) targeting(before, after []flag.Rule) {
 			d.addf("%s added: %s", label, d.describeRule(newRule))
 		}
 	}
+
 	d.removedRules(b, afterRules, renamed)
 	d.reorderedRules(b, afterRules)
 }
@@ -274,10 +296,12 @@ func (d *describer) removedRules(b, afterRules indexedRules, renamed map[ruleKey
 	for _, oldKey := range renamed {
 		renamedFrom[oldKey] = true
 	}
+
 	for _, key := range b.order {
 		if _, kept := afterRules.rules[key]; kept || renamedFrom[key] {
 			continue
 		}
+
 		if d.inStep {
 			d.addf("Targeting rule %s no longer changed", d.ruleLabel(key))
 		} else {
@@ -295,6 +319,7 @@ func (d *describer) reorderedRules(b, a indexedRules) {
 		for _, key := range a.order {
 			labels = append(labels, d.ruleLabel(key))
 		}
+
 		d.addf("Targeting rules reordered: %s", strings.Join(labels, ", "))
 	}
 }
@@ -305,8 +330,10 @@ func (d *describer) rule(label string, before, after flag.Rule, isDefault bool) 
 	ignored := ""
 	if isDefault {
 		ignored = " (ignored for the default rule)"
+
 		d.text(label+" name", before.Name, after.Name, "")
 	}
+
 	oldQuery, newQuery := derefOr(before.Query, ""), derefOr(after.Query, "")
 	switch {
 	case oldQuery == newQuery:
@@ -321,13 +348,16 @@ func (d *describer) rule(label string, before, after flag.Rule, isDefault bool) 
 	default:
 		d.addf("%s now matches %s (was %s)", label, d.code(newQuery), d.code(oldQuery))
 	}
+
 	if oldServe, newServe := d.describeServe(&before), d.describeServe(&after); oldServe != newServe {
 		stillDisabled := ""
 		if !isDefault && before.IsDisable() && after.IsDisable() {
 			stillDisabled = " (the rule is disabled)"
 		}
+
 		d.addf("%s now serves %s (was %s)%s", label, newServe, oldServe, stillDisabled)
 	}
+
 	d.unusedFields(label, before, after)
 	d.toggle(label, "disable", before.Disable, after.Disable, false, "disabled"+ignored, "enabled"+ignored)
 }
@@ -343,6 +373,7 @@ func (d *describer) unusedFields(label string, before, after flag.Rule) {
 		d.addf("%s percentages changed from %s to %s (not used: %s)",
 			label, d.code(oldPercentages), d.code(newPercentages), unusedReason(after, "percentages"))
 	}
+
 	oldVariation, newVariation := ReadableValue(before.VariationResult), ReadableValue(after.VariationResult)
 	if oldVariation != newVariation && variationUnused(before) && variationUnused(after) {
 		d.addf("%s variation changed from %s to %s (not used: %s)",
@@ -393,14 +424,17 @@ func (d *describer) experimentation(before, after *flag.ExperimentationRollout) 
 		if before != nil {
 			oldStart, oldEnd = before.Start, before.End
 		}
+
 		if after != nil {
 			newStart, newEnd = after.Start, after.End
 		}
+
 		d.stepDate("Experimentation start", oldStart, newStart)
 		d.stepDate("Experimentation end", oldEnd, newEnd)
 
 		return
 	}
+
 	oldWindow, newWindow := describeWindow(before), describeWindow(after)
 	switch {
 	case oldWindow == newWindow:
@@ -430,6 +464,7 @@ func (d *describer) stepDate(label string, before, after *time.Time) {
 // position and read as moved; steps without a date are paired by position.
 func (d *describer) scheduled(before, after *[]flag.ScheduledStep) {
 	b, afterSteps := derefSlice(before), derefSlice(after)
+
 	pairs := pairSteps(b, afterSteps)
 	for afterIdx := range afterSteps {
 		i, paired := pairs[afterIdx]
@@ -438,21 +473,26 @@ func (d *describer) scheduled(before, after *[]flag.ScheduledStep) {
 			if lines := d.stepLines(&flag.InternalFlag{}, &afterSteps[afterIdx].InternalFlag); len(lines) > 0 {
 				content = strings.Join(lines, "; ")
 			}
+
 			d.addf("Scheduled step %s added: %s", stepLabel(afterSteps[afterIdx], afterIdx), content)
 
 			continue
 		}
+
 		if oldDate, newDate := stepDate(b[i], i), stepDate(afterSteps[afterIdx], afterIdx); oldDate != newDate {
 			d.addf("Scheduled step moved from %s to %s", oldDate, newDate)
 		}
+
 		for _, line := range d.stepLines(&b[i].InternalFlag, &afterSteps[afterIdx].InternalFlag) {
 			d.addf("Scheduled step %s: %s", stepLabel(afterSteps[afterIdx], afterIdx), line)
 		}
 	}
+
 	kept := make(map[int]bool, len(pairs))
 	for _, i := range pairs {
 		kept[i] = true
 	}
+
 	for i := range b {
 		if !kept[i] {
 			d.addf("Scheduled step %s removed", stepLabel(b[i], i))
@@ -469,12 +509,16 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 
 		return steps[index].Date.UTC().Format(time.RFC3339Nano)
 	}
+
 	byKey := map[string][]int{}
 	for i := range before {
 		byKey[key(before, i)] = append(byKey[key(before, i)], i)
 	}
+
 	pairs := map[int]int{}
+
 	var unpairedAfter []int
+
 	for afterIdx := range after {
 		k := key(after, afterIdx)
 		if candidates := byKey[k]; len(candidates) > 0 {
@@ -482,18 +526,23 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 
 			continue
 		}
+
 		unpairedAfter = append(unpairedAfter, afterIdx)
 	}
+
 	kept := make(map[int]bool, len(pairs))
 	for _, i := range pairs {
 		kept[i] = true
 	}
+
 	var unpairedBefore []int
+
 	for i := range before {
 		if !kept[i] {
 			unpairedBefore = append(unpairedBefore, i)
 		}
 	}
+
 	for n := range min(len(unpairedBefore), len(unpairedAfter)) {
 		pairs[unpairedAfter[n]] = unpairedBefore[n]
 	}
@@ -515,6 +564,7 @@ func (d *describer) describeRule(rule flag.Rule) string {
 	if query := derefOr(rule.Query, ""); query != "" {
 		text += " when " + d.code(query)
 	}
+
 	if rule.IsDisable() {
 		text += " (disabled)"
 	}
@@ -542,16 +592,20 @@ func (d *describer) describePatch(rule flag.Rule) string {
 	if rule.Query != nil {
 		parts = append(parts, "query "+d.code(*rule.Query))
 	}
+
 	if rule.VariationResult != nil {
 		parts = append(parts, "variation "+d.code(*rule.VariationResult))
 	}
+
 	parts = append(parts, d.percentageParts(rule.GetPercentages(), true)...)
 	if rule.ProgressiveRollout != nil {
 		parts = append(parts, d.describeProgressive(rule.ProgressiveRollout))
 	}
+
 	if rule.Disable != nil {
 		parts = append(parts, d.code(fmt.Sprintf("disable: %t", *rule.Disable)))
 	}
+
 	if len(parts) == 0 {
 		return "nothing"
 	}
@@ -579,16 +633,20 @@ func (d *describer) describeProgressive(rollout *flag.ProgressiveRollout) string
 		if rolloutStep == nil {
 			return "an unset step"
 		}
+
 		parts := make([]string, 0, maxPatchParts)
 		if rolloutStep.Variation != nil {
 			parts = append(parts, d.code(*rolloutStep.Variation))
 		}
+
 		if rolloutStep.Percentage != nil {
 			parts = append(parts, formatNumber(*rolloutStep.Percentage)+"%")
 		}
+
 		if rolloutStep.Date != nil {
 			parts = append(parts, "on "+formatDate(*rolloutStep.Date))
 		}
+
 		if len(parts) == 0 {
 			return "an unset step"
 		}
@@ -603,6 +661,7 @@ func describeWindow(window *flag.ExperimentationRollout) string {
 	if window == nil {
 		return ""
 	}
+
 	switch {
 	case window.Start != nil && window.End != nil:
 		return "from " + formatDate(*window.Start) + " to " + formatDate(*window.End)
@@ -658,6 +717,7 @@ func indexRules(rules []flag.Rule) indexedRules {
 		if _, taken := index.rules[key]; key.name == "" || taken {
 			key = ruleKey{position: i + 1}
 		}
+
 		index.order = append(index.order, key)
 		index.rules[key] = rule
 	}
@@ -669,17 +729,21 @@ func indexRules(rules []flag.Rule) indexedRules {
 // same position, same content, and neither key present on the other side.
 func findRenames(before, after indexedRules) map[ruleKey]ruleKey {
 	renames := map[ruleKey]ruleKey{}
+
 	for i, newKey := range after.order {
 		if i >= len(before.order) {
 			break
 		}
+
 		oldKey := before.order[i]
 		if _, ok := before.rules[newKey]; ok {
 			continue
 		}
+
 		if _, ok := after.rules[oldKey]; ok {
 			continue
 		}
+
 		if withoutName(before.rules[oldKey]) == withoutName(after.rules[newKey]) {
 			renames[newKey] = oldKey
 		}
@@ -736,6 +800,7 @@ func unionKeys[V any](a, b map[string]V) []string {
 			keys = append(keys, key)
 		}
 	}
+
 	slices.Sort(keys)
 
 	return keys

@@ -31,6 +31,7 @@ func (s *S3ManagerV2Mock) UploadObject(
 	if ctx == nil {
 		return nil, errCannotCreateContextFrom
 	}
+
 	if uploadInput.Bucket == nil || *uploadInput.Bucket == "" {
 		return nil, errInvalidBucket
 	}
@@ -40,10 +41,12 @@ func (s *S3ManagerV2Mock) UploadObject(
 	}
 
 	buf := new(strings.Builder)
+
 	_, err := io.Copy(buf, uploadInput.Body)
 	if err != nil {
 		fmt.Println(err) //nolint:forbidigo // mock server diagnostics
 	}
+
 	s.S3ManagerMockFileSystem[*uploadInput.Key] = buf.String()
 
 	return &transfermanager.UploadObjectOutput{
@@ -59,6 +62,7 @@ func (s *S3ManagerV2Mock) DownloadObject(
 	if ctx == nil {
 		return nil, errCannotCreateContextFrom
 	}
+
 	if input.WriterAt == nil {
 		return nil, errWriterAtIsRequired
 	}
@@ -69,6 +73,7 @@ func (s *S3ManagerV2Mock) DownloadObject(
 
 		return &transfermanager.DownloadObjectOutput{}, nil
 	}
+
 	if input.Key != nil && *input.Key == "no-file" {
 		return nil, errNoFile
 	}

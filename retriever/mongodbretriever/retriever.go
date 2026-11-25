@@ -39,6 +39,7 @@ type Retriever struct {
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.logger = logger
 	if r.dbConnection == nil {
 		r.status = retriever.RetrieverNotReady
@@ -50,6 +51,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 			//nolint:wrapcheck // preserves mongo.Connect error text asserted by CLI evaluate tests
 			return err
 		}
+
 		r.dbClient = client
 		r.dbConnection = client.Database(r.Database)
 		r.status = retriever.RetrieverReady
@@ -63,8 +65,10 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil {
 		return retriever.RetrieverNotReady
 	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	if r.status == "" {
 		return retriever.RetrieverNotReady
 	}
@@ -76,16 +80,19 @@ func (r *Retriever) Status() retriever.Status {
 func (r *Retriever) Shutdown(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if r.dbClient == nil {
 		r.status = retriever.RetrieverNotReady
 
 		return nil
 	}
+
 	err := r.dbClient.Disconnect(ctx)
 	// the client is dropped whatever the outcome of the disconnection: the retriever can not be used anymore
 	r.dbClient = nil
 	r.dbConnection = nil
 	r.status = retriever.RetrieverNotReady
+
 	if err != nil {
 		return fmt.Errorf("disconnect MongoDB: %w", err)
 	}
@@ -99,6 +106,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	r.mu.RLock()
 	dbConnection := r.dbConnection
 	r.mu.RUnlock()
+
 	if dbConnection == nil {
 		return nil, errDatabaseConnectionIsNot
 	}
@@ -126,6 +134,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		if val, ok := doc["flag"]; ok {
 			delete(doc, "flag")
+
 			if str, isString := val.(string); isString {
 				ffDocs[str] = doc
 			} else {

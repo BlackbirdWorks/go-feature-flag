@@ -17,6 +17,7 @@ import (
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
+
 	tests := []struct {
 		r func() *Retriever
 		// env sets extra environment variables for the test.
@@ -72,10 +73,13 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("AWS_REGION", "us-west-2")
+
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
+
 			r := tt.r()
+
 			err := initRetriever(t, r, tt.awsConfig, tt.nilCtx)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -83,6 +87,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.NotNil(t, r.downloader)
 			assert.Equal(t, tt.wantLister, r.lister != nil)
@@ -96,11 +101,14 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 // initRetriever calls Init, optionally with an explicit us-east-1 AwsConfig or a nil context.
 func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 	t.Helper()
+
 	if awsConfig {
 		cfg, err := config.LoadDefaultConfig(t.Context(), config.WithRegion("us-east-1"))
 		require.NoError(t, err)
+
 		r.AwsConfig = &cfg
 	}
+
 	ctx := t.Context()
 	if nilCtx {
 		ctx = nil
@@ -113,9 +121,11 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 // UseAccelerate option.
 func assertListerClient(t *testing.T, r *Retriever, wantLister, wantAccelerate bool) {
 	t.Helper()
+
 	if !wantLister {
 		return
 	}
+
 	client, ok := r.lister.(*s3.Client)
 	require.True(t, ok, "the lister should be a real S3 client")
 	assert.Equal(t, wantAccelerate, client.Options().UseAccelerate)

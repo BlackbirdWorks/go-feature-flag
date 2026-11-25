@@ -46,12 +46,14 @@ func runParallel(n int, fn func(i int)) {
 			}
 		})
 	}
+
 	wg.Wait()
 }
 
 // The evaluation of a flag must never write into the flag, which is shared by all the evaluations.
 func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		endPercentage *float64
 		// wantEndPercentage is the end percentage the flag still has after the evaluations
@@ -66,7 +68,9 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			targetFlag := progressiveFlag(tt.endPercentage)
+
 			runParallel(300, func(_ int) {
 				ctx := ffcontext.NewEvaluationContext("user")
 				_, d := targetFlag.Value("flag", ctx, Context{Service: NewService()})
@@ -82,6 +86,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 // by concurrent evaluations, and its custom attributes can be nil.
 func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		ctxCustom  map[string]any
@@ -121,6 +126,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			targetFlag := &InternalFlag{
 				Variations: &map[string]*any{
 					"A": new(any(true)),
@@ -131,12 +137,15 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 			}
 			svc := NewService()
 			require.NoError(t, targetFlag.IsValid(svc))
+
 			ctx := &customContext{key: "user", custom: tt.ctxCustom}
+
 			var before map[string]any
 			if tt.ctxCustom != nil {
 				before = map[string]any{}
 				maps.Copy(before, tt.ctxCustom)
 			}
+
 			runParallel(200, func(_ int) {
 				v, _ := targetFlag.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)

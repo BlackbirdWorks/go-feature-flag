@@ -255,22 +255,27 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 
 			container, client := setupTest(t)
 			defer tearDown(t, container)
+
 			blobServiceURL, err := container.BlobServiceURL(context.Background())
 			require.NoError(t, err)
 
 			tt.exporter.ServiceURL = fmt.Sprintf("%s/%s", blobServiceURL, azurite.AccountName)
 			err = tt.exporter.Export(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()}, tt.events)
 			tt.wantErr(t, err, "Export() error")
+
 			if err == nil {
 				files := make([]string, 0)
+
 				pager := client.NewListBlobsFlatPager(containerName, nil)
 				for pager.More() {
 					page, nextPageErr := pager.NextPage(context.Background())
 					require.NoError(t, nextPageErr)
+
 					for _, blob := range page.Segment.BlobItems {
 						files = append(files, *blob.Name)
 					}
 				}
+
 				assert.Len(t, files, 1, "should have one file")
 				assert.Regexp(t, tt.wantBlobName, files[0], "filename should match")
 			}
@@ -287,6 +292,7 @@ func TestAzureBlobStorage_IsBulk(t *testing.T) {
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	t.Helper()
+
 	ctx := context.Background()
 	azuriteContainer, err := azurite.Run(
 		ctx,
@@ -322,6 +328,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 
 func tearDown(t *testing.T, container *azurite.Container) {
 	t.Helper()
+
 	err := testcontainers.TerminateContainer(container)
 	require.NoError(t, err)
 }

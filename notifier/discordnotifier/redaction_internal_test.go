@@ -25,6 +25,7 @@ func (failingClient) Do(req *http.Request) (*http.Response, error) {
 // The Discord webhook URL embeds the webhook token: it must not end up in the errors that are logged.
 func TestNotifier_errorsDoNotContainTheWebhookURL(t *testing.T) {
 	t.Parallel()
+
 	c := Notifier{
 		DiscordWebhookURL: "https://discord.com/api/webhooks/1/SECRETMARKER-token",
 		httpClient:        failingClient{},

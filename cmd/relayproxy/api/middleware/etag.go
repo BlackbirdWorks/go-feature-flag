@@ -24,12 +24,13 @@ type etagBuffer struct {
 
 func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} } //nolint:gosec // see above
 
-func (b *etagBuffer) Write(p []byte) (int, error) {
+func (b *etagBuffer) Write(data []byte) (int, error) {
 	if b.status == 0 {
 		b.status = http.StatusOK
 	}
-	n, _ := b.buf.Write(p)
-	_, _ = b.hash.Write(p)
+
+	n, _ := b.buf.Write(data)
+	_, _ = b.hash.Write(data)
 	b.len += n
 
 	return n, nil
@@ -43,6 +44,7 @@ func (b *etagBuffer) answer(ifNoneMatch string) (string, bool) {
 	if b.status/100 != 2 || b.status == http.StatusNoContent || b.buf.Len() == 0 {
 		return "", false
 	}
+
 	etag := `"` + strconv.Itoa(b.len) + "-" + hex.EncodeToString(b.hash.Sum(nil)) + `"`
 
 	return etag, ifNoneMatch == etag || ifNoneMatch == "W/"+etag
@@ -60,6 +62,7 @@ func ETag() Func {
 			if h.Get("ETag") == "" {
 				if etag, notModified := bufWriter.answer(r.Header.Get("If-None-Match")); etag != "" {
 					h.Set("ETag", etag)
+
 					if notModified {
 						w.WriteHeader(http.StatusNotModified)
 
@@ -67,6 +70,7 @@ func ETag() Func {
 					}
 				}
 			}
+
 			if bufWriter.status != 0 {
 				w.WriteHeader(bufWriter.status)
 				_, _ = w.Write(bufWriter.buf.Bytes())
@@ -119,12 +123,14 @@ func ETagHuma() func(huma.Context, func(huma.Context)) {
 
 		if etag, notModified := etagCtx.answer(ctx.Header("If-None-Match")); etag != "" {
 			ctx.SetHeader("ETag", etag)
+
 			if notModified {
 				ctx.SetStatus(http.StatusNotModified)
 
 				return
 			}
 		}
+
 		if etagCtx.status != 0 {
 			ctx.SetStatus(etagCtx.status)
 			_, _ = ctx.BodyWriter().Write(etagCtx.buf.Bytes())

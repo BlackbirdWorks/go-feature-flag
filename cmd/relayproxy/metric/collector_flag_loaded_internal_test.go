@@ -288,11 +288,14 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 			t.Parallel()
 
 			metrics := &Metrics{}
+
 			if tt.withRegistry {
 				created, err := NewMetrics()
 				require.NoError(t, err)
+
 				metrics = &created
 			}
+
 			before := metricFamilyNames(t, metrics)
 
 			assert.Equal(t, tt.wantErr, metrics.RegisterFlagLoaded(tt.source))
@@ -302,18 +305,22 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 	}
 }
 
-// metricFamilyNames returns the sorted names of the metric families gathered from the registry of m.
-func metricFamilyNames(t *testing.T, m *Metrics) []string {
+// metricFamilyNames returns the sorted names of the metric families gathered from the registry of metrics.
+func metricFamilyNames(t *testing.T, metrics *Metrics) []string {
 	t.Helper()
-	if m.Registry == nil {
+
+	if metrics.Registry == nil {
 		return nil
 	}
-	families, err := m.Registry.Gather()
+
+	families, err := metrics.Registry.Gather()
 	require.NoError(t, err)
+
 	var names []string
 	for _, f := range families {
 		names = append(names, f.GetName())
 	}
+
 	slices.Sort(names)
 
 	return names
@@ -336,6 +343,7 @@ func TestFlagLoaded_SkipsSeriesWithInvalidLabelValues(t *testing.T) {
 semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
 semaphore_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
 `
+
 	assert.NotPanics(t, func() {
 		assert.NoError(
 			t,

@@ -65,6 +65,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 	if j.hasErr() {
 		return false
 	}
+
 	switch val := tree.(type) {
 	case *LogicalExpContext:
 		return val.Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
@@ -92,6 +93,7 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
 	left := ctx.Query(0).Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+
 	op := ctx.LOGICAL_OPERATOR().GetText()
 	if op == "or" {
 		if left {
@@ -117,9 +119,11 @@ func (j *JSONQueryVisitorImpl) VisitPresentExp(ctx *PresentExpContext) any {
 func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 	ctx.AttrPath().Accept(j)
 	ctx.Value().Accept(j)
+
 	if j.hasErr() {
 		return false
 	}
+
 	apply := operationFor(j.currentOperation, ctx.op.GetTokenType())
 	if apply == nil {
 		err := fmt.Errorf(
@@ -132,6 +136,7 @@ func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 		return false
 	}
 	defer func() { j.rightOp = nil }()
+
 	ret, err := apply(j.leftOp, j.rightOp)
 	if err != nil {
 		j.recordCompareError(ctx, err)
@@ -172,29 +177,35 @@ func operationFor(operation Operation, tokenType int) func(Operand, Operand) (bo
 
 func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 	var item any
+
 	if ctx.SubAttr() == nil || ctx.SubAttr().IsEmpty() {
 		if !j.stack.empty() {
 			item = j.stack.pop()
 		} else {
 			item = j.item
 		}
+
 		if item == nil {
 			return nil
 		}
+
 		m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		j.leftOp = m[ctx.ATTRNAME().GetText()]
 		j.stack.clear()
 
 		return nil
 	}
+
 	if !j.stack.empty() {
 		item = j.stack.peek()
 	} else {
 		item = j.item
 	}
+
 	if item == nil {
 		return nil
 	}
+
 	m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	j.stack.push(m[ctx.ATTRNAME().GetText()])
 
@@ -215,6 +226,7 @@ func (j *JSONQueryVisitorImpl) VisitBoolean(ctx *BooleanContext) any {
 
 		return nil
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -247,6 +259,7 @@ func (j *JSONQueryVisitorImpl) VisitString(ctx *StringContext) any {
 
 func (j *JSONQueryVisitorImpl) VisitDouble(ctx *DoubleContext) any {
 	j.currentOperation = &FloatOperation{}
+
 	val, err := strconv.ParseFloat(ctx.GetText(), 64)
 	if err != nil {
 		// an unparsable double leaves the operand nil without an error, like the compiled path
@@ -254,6 +267,7 @@ func (j *JSONQueryVisitorImpl) VisitDouble(ctx *DoubleContext) any {
 
 		return false
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -268,6 +282,7 @@ func (j *JSONQueryVisitorImpl) VisitVersion(ctx *VersionContext) any {
 
 func (j *JSONQueryVisitorImpl) VisitLong(ctx *LongContext) any {
 	j.currentOperation = &IntOperation{}
+
 	val, err := strconv.Atoi(ctx.GetText())
 	if err != nil {
 		j.rightOp = nil
@@ -275,6 +290,7 @@ func (j *JSONQueryVisitorImpl) VisitLong(ctx *LongContext) any {
 
 		return nil
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -294,15 +310,19 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) any
 	if j.rightOp == nil {
 		j.rightOp = make([]int, 0)
 	}
+
 	list := j.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+
 	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
 		j.setErr(err)
 
 		return nil
 	}
+
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfInts() == nil || ctx.SubListOfInts().IsEmpty() {
 		return nil
 	}
@@ -324,15 +344,19 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfDoubles(ctx *SubListOfDoublesContex
 	if j.rightOp == nil {
 		j.rightOp = make([]float64, 0)
 	}
+
 	list := j.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+
 	val, err := strconv.ParseFloat(ctx.DOUBLE().GetText(), 64)
 	if err != nil {
 		j.setErr(err)
 
 		return nil
 	}
+
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfDoubles() == nil || ctx.SubListOfDoubles().IsEmpty() {
 		return nil
 	}
@@ -354,10 +378,12 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 	if j.rightOp == nil {
 		j.rightOp = make([]string, 0)
 	}
+
 	val := getString(ctx.STRING().GetText())
 	list := j.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfStrings() == nil || ctx.SubListOfStrings().IsEmpty() {
 		return nil
 	}
@@ -405,6 +431,7 @@ func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err er
 		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
 			msg = "operands are not the right value type"
 		}
+
 		j.setDebugErr(
 			newNestedError(err, msg).Set(ErrVals{
 				errValAttrPath:      ctx.AttrPath().GetText(),

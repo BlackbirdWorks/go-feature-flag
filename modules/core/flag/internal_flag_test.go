@@ -79,10 +79,12 @@ func runInternalFlagValidTests(t *testing.T, tests []internalFlagValidCase) {
 				Experimentation: tt.fields.Experimentation,
 			}
 			err := internalFlag.IsValid(flag.NewService())
+
 			errMsg := ""
 			if err != nil {
 				errMsg = err.Error()
 			}
+
 			tt.wantErr(t, err, fmt.Sprintf("IsValid(): %s", err))
 			assert.Equal(t, tt.errorMsg, errMsg)
 		})
@@ -3304,6 +3306,7 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 			},
 		},
 	}
+
 	for range cases {
 		t.Run("scheduledRollout", func(t *testing.T) {
 			t.Parallel()
@@ -3373,6 +3376,7 @@ func TestInternalFlag_GetVersion(t *testing.T) {
 // table-driven setup of TestInternalFlag_IsValid.
 func TestInternalFlag_IsValid_DeterministicError(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		variations map[string]*any
@@ -3403,6 +3407,7 @@ func TestInternalFlag_IsValid_DeterministicError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			for range 50 {
 				f := &flag.InternalFlag{
 					Variations:  &tt.variations,

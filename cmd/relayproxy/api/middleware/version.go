@@ -24,6 +24,7 @@ func VersionHeader(cfg *config.Config) Func {
 				h.Set(VersionHeaderName, cfg.Version)
 				h.Set(LegacyVersionHeaderName, cfg.Version)
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

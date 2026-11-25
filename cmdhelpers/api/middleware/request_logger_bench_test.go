@@ -23,11 +23,14 @@ func BenchmarkRequestLogger(b *testing.B) {
 		b.Run(testCase.name, func(b *testing.B) {
 			l, err := cmdlog.New("json", testCase.level, cmdlog.WithWriter(discard{}))
 			require.NoError(b, err)
+
 			handler := requestLogger(l.Slog, true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(testCase.status)
 			}))
 			req := httptest.NewRequest(http.MethodGet, "/v1/feature/x/eval?a=b", nil)
+
 			b.ReportAllocs()
+
 			for b.Loop() {
 				handler.ServeHTTP(httptest.NewRecorder(), req)
 			}

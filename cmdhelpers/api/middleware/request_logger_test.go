@@ -41,6 +41,7 @@ func TestRequestLogger200(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields["status"])
@@ -59,6 +60,7 @@ func TestRequestLogger300(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields["status"])
@@ -76,6 +78,7 @@ func TestRequestLogger400(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
@@ -96,6 +99,7 @@ func TestRequestLogger500(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	logger := obs
 	requestLogger(logger, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
@@ -313,11 +317,13 @@ func TestRequestLoggerRequestID(t *testing.T) {
 			if tt.requestHeader != "" {
 				req.Header.Set("X-Request-ID", tt.requestHeader)
 			}
+
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
 			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.responseHeader != "" {
 					w.Header().Set("X-Request-ID", tt.responseHeader)
 				}
+
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -379,11 +385,13 @@ func TestRequestLoggerReturnedErrors(t *testing.T) {
 			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
 			assert.Equal(t, tt.wantStatus, rec.Code)
+
 			got := logs.All()
 			require.Len(t, got, 1)
 			assert.Equal(t, tt.wantLevel, got[0].Level)
 			assert.Equal(t, tt.wantMessage, got[0].Message)
 			assert.Equal(t, int64(tt.wantStatus), got[0].ContextMap()["status"])
+
 			if tt.wantErr {
 				assert.Equal(t, errBoom.Error(), got[0].ContextMap()["error"])
 			}

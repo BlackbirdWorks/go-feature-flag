@@ -14,6 +14,7 @@ func IsJSONObject(input string) bool {
 	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "null") {
 		return false
 	}
+
 	var obj map[string]any
 
 	return json.Unmarshal([]byte(input), &obj) == nil

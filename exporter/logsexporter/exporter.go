@@ -40,6 +40,7 @@ func (f *Exporter) Export(
 		if f.LogFormat == "" && f.Format != "" {
 			f.LogFormat = f.Format
 		}
+
 		f.logTemplate = exporter.ParseTemplate("logFormat", f.LogFormat, defaultLoggerFormat)
 	})
 
@@ -48,6 +49,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			return fmt.Errorf("format log event: %w", err)
 		}
+
 		logger.InfoContext(ctx, string(log))
 	}
 

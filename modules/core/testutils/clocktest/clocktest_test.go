@@ -46,24 +46,30 @@ func TestFreezeStepping_ClockIsStrictlyIncreasingAndUnique(t *testing.T) {
 			t.Parallel()
 
 			var mu sync.Mutex
+
 			seen := map[time.Time]bool{}
+
 			var wg sync.WaitGroup
 			for range tt.goroutines {
 				wg.Go(func() {
 					var previous time.Time
+
 					for range tt.calls {
 						now := clock.Now()
 						assert.True(t, now.After(previous), "each call is later than the previous one of the goroutine")
 						previous = now
+
 						mu.Lock()
 						seen[now] = true
 						mu.Unlock()
 					}
 				})
 			}
+
 			wg.Wait()
 
 			assert.Len(t, seen, tt.wantInstants, "no two calls return the same instant")
+
 			for now := range seen {
 				assert.Zero(
 					t,

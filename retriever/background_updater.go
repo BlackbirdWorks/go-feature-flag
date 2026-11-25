@@ -23,10 +23,12 @@ func newBackgroundUpdater(pollingInterval time.Duration, useJitter bool) backgro
 	if useJitter {
 		// we accept a deviation of maximum 10% of the polling interval
 		maxJitter := float64(pollingInterval) * jitterFraction
+
 		jitter := time.Duration(0)
 		if int64(maxJitter) > 0 {
 			jitter = time.Duration(rand.Int64N(int64(maxJitter))) //nolint:gosec // jitter, not security sensitive
 		}
+
 		if jitter%2 == 0 {
 			tickerDuration = pollingInterval + jitter
 		} else {
@@ -45,6 +47,7 @@ func (bgu *backgroundUpdater) close() {
 	if bgu.updaterChan != nil {
 		close(bgu.updaterChan)
 	}
+
 	if bgu.ticker != nil {
 		bgu.ticker.Stop()
 	}

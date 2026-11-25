@@ -39,27 +39,33 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 
 		return nil
 	}
+
 	if strings.HasPrefix(raw, "-") {
 		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, raw)
 	}
+
 	parsedUint, uintErr := strconv.ParseUint(raw, 10, 63)
 	if uintErr == nil {
 		*b = ByteSize(parsedUint)
 
 		return nil
 	}
+
 	_, floatErr := strconv.ParseFloat(raw, 64)
 	if floatErr == nil {
 		// a number without unit that is not an integer (1.5, 1e3), do not truncate it silently.
 		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, raw)
 	}
+
 	parsed, err := humanize.ParseBytes(raw)
 	if err != nil {
 		return fmt.Errorf("invalid size %q: %w", raw, err)
 	}
+
 	if parsed > math.MaxInt64 {
 		return fmt.Errorf("%w %q: too large", errInvalidSize, raw)
 	}
+
 	*b = ByteSize(parsed)
 
 	return nil
@@ -90,9 +96,11 @@ func (v ValidateFlagsEndpoint) WithDefaults() ValidateFlagsEndpoint {
 	if v.MaxJSONBodySize == 0 {
 		v.MaxJSONBodySize = DefaultValidateFlagsMaxJSONBodySize
 	}
+
 	if v.MaxYAMLBodySize == 0 {
 		v.MaxYAMLBodySize = DefaultValidateFlagsMaxYAMLBodySize
 	}
+
 	if v.MaxTOMLBodySize == 0 {
 		v.MaxTOMLBodySize = DefaultValidateFlagsMaxTOMLBodySize
 	}

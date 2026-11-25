@@ -107,6 +107,7 @@ func (e *Exporter) initializeProducer() error {
 	}
 
 	var err error
+
 	e.sender, err = e.dialer(e.Settings.Addresses, e.Settings.Config)
 	if err != nil {
 		err = fmt.Errorf("producer: %w", err)

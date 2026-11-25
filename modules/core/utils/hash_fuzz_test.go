@@ -25,6 +25,7 @@ func FuzzBuildHash(f *testing.F) {
 
 			return
 		}
+
 		assert.Equal(t, utils.Hash(flagKey+bucketingKey)%maxPercentage, got)
 		assert.Less(t, got, maxPercentage)
 	})

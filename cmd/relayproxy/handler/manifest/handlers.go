@@ -62,6 +62,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 	}
 
 	logger := logging.FromContext(ctx)
+
 	flags, err := flagset.GetFlagsFromCacheWithContext(ctx)
 	if err != nil {
 		logger.LogAttrs(
@@ -80,6 +81,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 
 		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}
+
 	responses := make([]model.ManifestDefinitionSuccessResponse, 0, len(manifest))
 	for k, v := range manifest {
 		responses = append(responses, model.ManifestDefinitionSuccessResponse{
@@ -89,6 +91,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 			Description:  v.Description,
 		})
 	}
+
 	sort.Slice(responses, func(i, j int) bool {
 		return responses[i].Key < responses[j].Key
 	})

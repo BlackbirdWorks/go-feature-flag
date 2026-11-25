@@ -23,10 +23,12 @@ type XDGSCRAMClient struct {
 
 func (x *XDGSCRAMClient) Begin(userName, password, authzID string) error {
 	var err error
+
 	x.Client, err = x.NewClient(userName, password, authzID)
 	if err != nil {
 		return fmt.Errorf("create SCRAM client: %w", err)
 	}
+
 	x.ClientConversation = x.NewConversation()
 
 	return nil

@@ -50,6 +50,7 @@ func newTestServer(
 	t *testing.T, conf *config.Config, services service.Services, logger *slog.Logger, opts ...api.Option,
 ) api.Server {
 	t.Helper()
+
 	exit := func() {
 		select {
 		case <-t.Context().Done():
@@ -57,6 +58,7 @@ func newTestServer(
 		default:
 			assert.Fail(t, "the server exited with a fatal error", "see the log of the server")
 		}
+
 		runtime.Goexit()
 	}
 
@@ -73,6 +75,7 @@ func waitForServer(t *testing.T, baseURL string) {
 		if err != nil {
 			return false
 		}
+
 		_ = resp.Body.Close()
 
 		return true
@@ -106,8 +109,10 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -123,6 +128,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -130,17 +136,23 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	response, err := http.Get(baseURL + "/health")
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	responseM, err := http.Get(baseURL + "/metrics")
 	require.NoError(t, err)
+
 	defer func() { _ = responseM.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
 	responseI, err := http.Get(baseURL + "/info")
 	require.NoError(t, err)
+
 	defer func() { _ = responseI.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseI.StatusCode)
 }
 
@@ -173,8 +185,10 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -196,41 +210,55 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		api.WithMonitoringListener(monitoringLn),
 	)
 	go func() { srv.StartWithContext(context.Background()) }()
+
 	defer srv.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	monitoringURL := fmt.Sprintf("http://localhost:%d", monitoringPort)
+
 	waitForServer(t, baseURL)
 	waitForServer(t, monitoringURL)
 
 	response, err := http.Get(baseURL + "/health")
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	responseM, err := http.Get(baseURL + "/metrics")
 	require.NoError(t, err)
+
 	defer func() { _ = responseM.Body.Close() }()
+
 	assert.Equal(t, http.StatusNotFound, responseM.StatusCode)
 
 	responseI, err := http.Get(baseURL + "/info")
 	require.NoError(t, err)
+
 	defer func() { _ = responseI.Body.Close() }()
+
 	assert.Equal(t, http.StatusNotFound, responseI.StatusCode)
 
 	responseH1, err := http.Get(monitoringURL + "/health")
 	require.NoError(t, err)
+
 	defer func() { _ = responseH1.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	responseM1, err := http.Get(monitoringURL + "/metrics")
 	require.NoError(t, err)
+
 	defer func() { _ = responseM1.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
 	responseI1, err := http.Get(monitoringURL + "/info")
 	require.NoError(t, err)
+
 	defer func() { _ = responseI1.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseI1.StatusCode)
 }
 
@@ -265,8 +293,10 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -282,6 +312,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -295,7 +326,9 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	req, err = http.NewRequest(http.MethodPost,
@@ -306,7 +339,9 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	req, err = http.NewRequest(http.MethodPost,
@@ -317,7 +352,9 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 }
 
@@ -341,8 +378,10 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	require.NoError(t, err)
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
+
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -355,6 +394,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -362,7 +402,9 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 
 	response, err := http.Get(baseURL + "/health")
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, proxyConf.Version, response.Header.Get("X-Gofeatureflag-Version"))
 }
@@ -388,8 +430,10 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	require.NoError(t, err)
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
+
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -402,6 +446,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -409,7 +454,9 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 
 	response, err := http.Get(baseURL + "/health")
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 }
@@ -484,9 +531,11 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			tests,
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
 				t.Helper()
+
 				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
 				require.NoError(t, err)
 				request.Header.Add("Content-Type", "application/json")
+
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
 					request.Header.Add("Authorization", "Bearer "+tt.configAPIKeys.Admin[0])
 				}
@@ -511,9 +560,11 @@ func runAuthMiddlewareTests(
 	doRequest func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error),
 ) {
 	t.Helper()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, port := testutils.ListenLocal(t)
+
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
@@ -530,14 +581,17 @@ func runAuthMiddlewareTests(
 			if tt.configAPIKeys != nil {
 				proxyConf.AuthorizedKeys = *tt.configAPIKeys
 			}
+
 			proxyConf.ForceReloadAPIKeys()
 
 			log := newTestLogger(t)
 
 			metricsV2, err := metric.NewMetrics()
 			require.NoError(t, err)
+
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
+
 			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
@@ -550,6 +604,7 @@ func runAuthMiddlewareTests(
 
 			s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 			go func() { s.StartWithContext(context.Background()) }()
+
 			defer s.Stop(context.Background())
 
 			baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -557,7 +612,9 @@ func runAuthMiddlewareTests(
 
 			response, err := doRequest(t, tt, baseURL)
 			require.NoError(t, err)
+
 			defer func() { _ = response.Body.Close() }()
+
 			assert.Equal(t, tt.want, response.StatusCode)
 		})
 	}
@@ -568,6 +625,7 @@ func runAuthMiddlewareTests(
 // a dead network"), and unix socket mode is a Unix-only deployment target anyway.
 func skipUnixSocketOnWindows(t *testing.T) {
 	t.Helper()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("AF_UNIX listeners are unreliable on Windows CI (WSAENETDOWN); " +
 			"unix socket mode is a Unix-only deployment target")
@@ -617,8 +675,10 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -634,6 +694,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog)
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	// Wait for the socket to be created
@@ -659,19 +720,25 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Test health endpoint
 	response, err := client.Get("http://unix/health")
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test metrics endpoint
 	responseM, err := client.Get("http://unix/metrics")
 	require.NoError(t, err)
+
 	defer func() { _ = responseM.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
 	// Test info endpoint
 	responseI, err := client.Get("http://unix/info")
 	require.NoError(t, err)
+
 	defer func() { _ = responseI.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, responseI.StatusCode)
 }
 
@@ -709,8 +776,10 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -726,6 +795,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithMonitoringListener(monitoringLn))
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	// Wait for the socket to be created
@@ -751,19 +821,25 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Test health endpoint
 	responseH1, err := http.Get(monitoringURL + "/health")
 	require.NoError(t, err)
+
 	defer responseH1.Body.Close()
+
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	// Test metrics endpoint
 	responseM1, err := http.Get(monitoringURL + "/metrics")
 	require.NoError(t, err)
+
 	defer responseM1.Body.Close()
+
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
 	// Test info endpoint
 	responseI, err := http.Get(monitoringURL + "/info")
 	require.NoError(t, err)
+
 	defer responseI.Body.Close()
+
 	assert.Equal(t, http.StatusOK, responseI.StatusCode)
 }
 
@@ -803,8 +879,10 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 			cmdlog.Err(err),
 		)
 	}
+
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
+
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
@@ -820,6 +898,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog)
 	go func() { s.StartWithContext(context.Background()) }()
+
 	defer s.Stop(context.Background())
 
 	// Wait for the socket to be created
@@ -851,7 +930,9 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err := client.Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (non-existent flag)
@@ -863,7 +944,9 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err = client.Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (existing flag)
@@ -875,7 +958,9 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	response, err = client.Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
+
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 }
 
@@ -883,6 +968,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 	t.Parallel()
 
 	skipUnixSocketOnWindows(t)
+
 	tests := []struct {
 		name          string
 		configAPIKeys *config.APIKeys
@@ -979,14 +1065,17 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			if tt.configAPIKeys != nil {
 				proxyConf.AuthorizedKeys = *tt.configAPIKeys
 			}
+
 			proxyConf.ForceReloadAPIKeys()
 
 			log := newTestLogger(t)
 
 			metricsV2, err := metric.NewMetrics()
 			require.NoError(t, err)
+
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
+
 			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
@@ -999,6 +1088,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 			s := newTestServer(t, proxyConf, services, log.Slog)
 			go func() { s.StartWithContext(context.Background()) }()
+
 			defer s.Stop(context.Background())
 
 			// Wait for the socket to be created
@@ -1024,18 +1114,22 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			} else {
 				req, err = http.NewRequest(tt.method, tt.endpoint, nil)
 			}
+
 			require.NoError(t, err)
 
 			if tt.authHeader != "" {
 				req.Header.Add("Authorization", tt.authHeader)
 			}
+
 			if tt.body != "" {
 				req.Header.Add("Content-Type", "application/json")
 			}
 
 			response, err := client.Do(req)
 			require.NoError(t, err)
+
 			defer func() { _ = response.Body.Close() }()
+
 			assert.Equal(t, tt.want, response.StatusCode)
 		})
 	}
@@ -1045,6 +1139,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 	t.Parallel()
 
 	skipUnixSocketOnWindows(t)
+
 	tests := []struct {
 		name                 string
 		disableVersionHeader bool
@@ -1092,8 +1187,10 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 			metricsV2, err := metric.NewMetrics()
 			require.NoError(t, err)
+
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
+
 			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
@@ -1106,6 +1203,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 			s := newTestServer(t, proxyConf, services, log.Slog)
 			go func() { s.StartWithContext(context.Background()) }()
+
 			defer s.Stop(context.Background())
 
 			// Wait for the socket to be created
@@ -1126,7 +1224,9 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 			response, err := client.Get("http://unix/health")
 			require.NoError(t, err)
+
 			defer func() { _ = response.Body.Close() }()
+
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 
 			if tt.wantVersionHeader {
@@ -1182,6 +1282,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(ctx) }()
+
 	defer s.Stop(ctx)
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -1190,10 +1291,12 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	// Make some requests to generate histogram data
 	healthResp, err := http.Get(baseURL + "/health")
 	require.NoError(t, err)
+
 	_ = healthResp.Body.Close()
 
 	infoResp, err := http.Get(baseURL + "/info")
 	require.NoError(t, err)
+
 	_ = infoResp.Body.Close()
 
 	// Scrape /metrics with protobuf Accept header
@@ -1207,18 +1310,24 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = resp.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Decode delimited protobuf stream
 	var histogramFamilies []*promdto.MetricFamily
+
 	reader := bufio.NewReader(resp.Body)
+
 	for {
 		var family promdto.MetricFamily
+
 		unmarshalFromErr := protodelim.UnmarshalFrom(reader, &family)
 		if errors.Is(unmarshalFromErr, io.EOF) {
 			break
 		}
+
 		require.NoError(t, unmarshalFromErr)
 
 		// Only check histogram metric families from our subsystem
@@ -1285,12 +1394,13 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		FlagsetManager:    flagsetManager,
 	}
 
-	s := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
+	srv := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+
 	go func() {
-		s.StartWithContext(ctx)
+		srv.StartWithContext(ctx)
 		close(done)
 	}()
 
@@ -1300,6 +1410,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
+
 		_ = resp.Body.Close()
 
 		return resp.StatusCode == http.StatusOK
@@ -1330,8 +1441,10 @@ func Test_StopBeforeStart(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
+
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
+
 	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
@@ -1350,6 +1463,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	testLogger := newTestLogger(t)
 	flagsetManager, err := service.NewFlagsetManager(proxyConf, testLogger.Slog, nil, nil, nil)
 	require.NoError(t, err)
+
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
@@ -1361,11 +1475,14 @@ func Test_StopBeforeStart(t *testing.T) {
 	// when its context is done instead of blocking forever.
 	stopCtx, cancelStop := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancelStop()
+
 	stopReturned := make(chan struct{})
+
 	go func() {
 		srv.Stop(stopCtx)
 		close(stopReturned)
 	}()
+
 	select {
 	case <-stopReturned:
 	case <-time.After(5 * time.Second):
@@ -1374,10 +1491,12 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// A server stopped before it started must return immediately without serving.
 	done := make(chan struct{})
+
 	go func() {
 		srv.StartWithContext(context.Background())
 		close(done)
 	}()
+
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):

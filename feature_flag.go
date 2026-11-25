@@ -88,6 +88,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 			err,
 		)
 	}
+
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
 		config, goFF.config.internalLogger)
@@ -113,6 +114,7 @@ func initializeRetrieverManager(
 	if err != nil {
 		return nil, err
 	}
+
 	mngrConfig := retriever.ManagerConfig{
 		FileFormat:                      config.FileFormat,
 		DisableNotifierOnInit:           config.DisableNotifierOnInit,
@@ -145,6 +147,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 	exporters := config.GetDataExporters()
 	featureEventExporterConfigs := make([]exporter.Config, 0)
 	trackingEventExporterConfigs := make([]exporter.Config, 0)
+
 	if len(exporters) > 0 {
 		for _, exp := range exporters {
 			expCfg := exporter.Config{
@@ -158,6 +161,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 
 				continue
 			}
+
 			featureEventExporterConfigs = append(featureEventExporterConfigs, expCfg)
 		}
 	}
@@ -195,9 +199,11 @@ func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
 	if g == nil {
 		return
 	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if g.retrieverManager != nil {
 		_ = g.retrieverManager.Shutdown(ctx)
 	}
@@ -207,11 +213,13 @@ func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
 		g.eventAdmission.Lock()
 		g.closing = true
 		g.eventAdmission.Unlock()
+
 		if g.eventWorkerStop != nil {
 			close(g.eventWorkerStop)
 		}
 	})
 	g.evalExporterWg.Wait()
+
 	if g.featureEventDataExporter != nil {
 		g.featureEventDataExporter.Stop()
 	}
@@ -219,6 +227,7 @@ func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
 	if g.trackingEventDataExporter != nil {
 		g.trackingEventDataExporter.Stop()
 	}
+
 	g.evaluationService.Close()
 }
 
@@ -277,9 +286,11 @@ func (g *GoFeatureFlag) SetOfflineWithContext(ctx context.Context, control bool)
 	if !g.IsOffline() && control {
 		g.retrieverManager.StopPolling()
 	}
+
 	if g.IsOffline() && !control {
 		g.retrieverManager.StartPolling(ctx)
 	}
+
 	g.SetOffline(control)
 }
 

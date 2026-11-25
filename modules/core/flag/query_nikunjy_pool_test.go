@@ -22,6 +22,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		flagName  string
 		isDefault bool
 	}
+
 	tests := []struct {
 		wantErr assert.ErrorAssertionFunc
 		rule    flag.Rule
@@ -215,6 +216,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			if tt.wantErr != nil {
 				tt.wantErr(t, err)
 			}
+
 			if tt.want != "" {
 				assert.Equal(t, tt.want, got)
 			}
@@ -245,6 +247,7 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	ctx := ffcontext.NewEvaluationContext("concurrent-user")
 
 	const goroutines = 50
+
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
@@ -254,9 +257,11 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
+
 			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "concurrent-user", ctx, "test-concurrent", false)
 		}(i)
 	}
+
 	wg.Wait()
 
 	for i := range goroutines {
@@ -268,8 +273,10 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 	t.Parallel()
 
-	const numQueries = 10
-	const goroutinesPerQuery = 5
+	const (
+		numQueries         = 10
+		goroutinesPerQuery = 5
+	)
 
 	type queryCase struct {
 		rule flag.Rule
@@ -294,6 +301,7 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+
 	total := numQueries * goroutinesPerQuery
 	wg.Add(total)
 
@@ -301,19 +309,23 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 		err       error
 		variation string
 	}
+
 	results := make([]result, total)
 
 	for i := range cases {
 		for j := range goroutinesPerQuery {
 			idx := i*goroutinesPerQuery + j
 			qc := cases[i]
+
 			go func() {
 				defer wg.Done()
+
 				v, err := qc.rule.Evaluate(flag.NewService(), qc.key, qc.ctx, "test-diffquery", false)
 				results[idx] = result{variation: v, err: err}
 			}()
 		}
 	}
+
 	wg.Wait()
 
 	for i := range cases {
@@ -337,6 +349,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 	ctx := ffcontext.NewEvaluationContext("user-1")
 
 	const goroutines = 30
+
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
@@ -346,9 +359,11 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
+
 			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "user-1", ctx, "test-concurrent-invalid", false)
 		}(i)
 	}
+
 	wg.Wait()
 
 	for i := range goroutines {

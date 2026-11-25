@@ -29,6 +29,7 @@ func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []ex
 	e.starts = append(e.starts, time.Now())
 	n := len(e.starts)
 	e.mu.Unlock()
+
 	if n == 1 {
 		close(e.started)
 		<-e.release
@@ -46,6 +47,7 @@ func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []ex
 // right away: the retry of the event-count trigger waits for flushRetryBackoff (1s).
 func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		firstBatch int
@@ -68,6 +70,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			exp := &firstFailsExporter{release: make(chan struct{}), started: make(chan struct{})}
 			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: 1000,
@@ -76,6 +79,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			require.True(t, ok)
 
 			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, tt.firstBatch))
+
 			select {
 			case <-exp.started:
 			case <-time.After(time.Minute):
@@ -87,10 +91,12 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 
 			// keep feeding events until the exporter is called a second time.
 			var second time.Time
+
 			require.Eventually(t, func() bool {
 				asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 10))
 				exp.mu.Lock()
 				defer exp.mu.Unlock()
+
 				if len(exp.starts) >= 2 {
 					second = exp.starts[1]
 

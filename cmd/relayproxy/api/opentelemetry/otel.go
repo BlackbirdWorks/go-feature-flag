@@ -141,6 +141,7 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 	if v := config.OtelConfig.Service.Name; v != "" {
 		serviceName = v
 	}
+
 	res, err := initResource(ctx, serviceName, config.Version, config.OtelConfig.Resource.Attributes)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
@@ -153,13 +154,16 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 			return fmt.Errorf("initializing OTel metric exporter: %w", err)
 		}
 	}
+
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithResource(res))
+
 	err = runtime.Start(runtime.WithMeterProvider(provider))
 	if err != nil {
 		_ = provider.Shutdown(ctx)
 
 		return fmt.Errorf("starting the Go runtime metrics: %w", err)
 	}
+
 	s.meterProvider = provider
 
 	return nil
@@ -175,6 +179,7 @@ func (s *OtelService) Install(logger *slog.Logger) {
 
 		return
 	}
+
 	otel.SetTracerProvider(s.otelTraceProvider)
 	otel.SetErrorHandler(newErrorHandler(logger))
 	otel.SetTextMapPropagator(newPropagator())
@@ -272,11 +277,13 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	}
 
 	samplerRefreshInterval := defaultSamplingRefreshInterval
+
 	if v := conf.JaegerConfig.Sampler.Refresh.Interval; v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return "", 0, 0, fmt.Errorf("parsing JAEGER_SAMPLER_REFRESH_INTERVAL: %w", err)
 		}
+
 		samplerRefreshInterval = d
 	}
 
@@ -296,6 +303,7 @@ func (s *OtelService) Stop(ctx context.Context) error {
 	if s.otelExporter != nil {
 		errs = append(errs, s.otelExporter.Shutdown(ctx))
 	}
+
 	if s.otelTraceProvider != nil {
 		errs = append(errs, s.otelTraceProvider.Shutdown(ctx))
 	}

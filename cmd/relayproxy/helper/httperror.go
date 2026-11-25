@@ -54,6 +54,7 @@ func (e *HTTPError) Error() string {
 	if msg == "" {
 		msg = http.StatusText(e.Code)
 	}
+
 	if e.err == nil {
 		return fmt.Sprintf("code=%d, message=%v", e.Code, msg)
 	}
@@ -86,6 +87,7 @@ var (
 // when it has one (500 otherwise) and its message. exposeError adds the wrapped error to the body.
 func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 	code := http.StatusInternalServerError
+
 	var sc interface{ StatusCode() int }
 	if errors.As(err, &sc) {
 		if c := sc.StatusCode(); c != 0 {
@@ -98,6 +100,7 @@ func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 		if body.Message == "" {
 			body.Message = http.StatusText(code)
 		}
+
 		if exposeError && httpErr.err != nil {
 			body.Error = httpErr.err.Error()
 		}
@@ -130,6 +133,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 	h.Del("Content-Encoding")
 	h.Del("Content-Length")
 	h.Del("Content-Disposition")
+
 	if r.Method == http.MethodHead {
 		w.WriteHeader(code)
 		// commit the response now: the router must not add a body of its own.
@@ -137,6 +141,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 
 		return
 	}
+
 	_ = WriteJSON(w, code, body)
 }
 

@@ -39,6 +39,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 		branch         string
 		withCtx        bool
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -155,10 +156,12 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				RepositorySlug: tt.fields.repositorySlug,
 			}
 			ret.SetHTTPClient(&tt.fields.httpClient)
+
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
+
 			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
@@ -168,9 +171,11 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, strings.TrimSpace(string(tt.want)), strings.TrimSpace(string(got)))
+
 				if tt.fields.gitlabToken != "" {
 					assert.Equal(
 						t,
@@ -187,6 +192,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 	t.Parallel()
 
 	const projectPath = "/api/v4/projects/team%2Fsubgroup%2Fconfig/repository/files/"
+
 	tests := []struct {
 		name            string
 		filePath        string
@@ -274,6 +280,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 
 func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
 	t.Parallel()
+
 	h := gitlabretriever.Retriever{
 		BaseURL:        "https://user:SECRETMARKER@gitlab.example.com:bad/?token=SECRETMARKER",
 		FilePath:       "flags.yaml",

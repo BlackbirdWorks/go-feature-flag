@@ -22,11 +22,13 @@ func BuildHash(flagName, bucketingKey string, maxPercentage uint32) uint32 {
 		offset32 = 2166136261
 		prime32  = 16777619
 	)
+
 	hashVal := uint32(offset32)
 	for i := range len(flagName) {
 		hashVal ^= uint32(flagName[i])
 		hashVal *= prime32
 	}
+
 	for i := range len(bucketingKey) {
 		hashVal ^= uint32(bucketingKey[i])
 		hashVal *= prime32

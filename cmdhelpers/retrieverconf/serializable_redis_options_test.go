@@ -184,6 +184,7 @@ func TestSerializableRedisOptions_JSONStructure(t *testing.T) {
 	}`
 
 	var opts retrieverconf.SerializableRedisOptions
+
 	err := json.Unmarshal([]byte(jsonStr), &opts)
 	require.NoError(t, err)
 

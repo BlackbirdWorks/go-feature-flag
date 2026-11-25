@@ -71,6 +71,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 			if tt.fields.nilCtx {
 				ctx = nil
 			}
+
 			err := s3Exp.Export(
 				ctx,
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
@@ -88,6 +89,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 				s3ManagerMock.S3ManagerMockFileSystem, 1,
 				"we should have 1 file in our mock",
 			)
+
 			expectedContent, _ := os.ReadFile(tt.expectedFile)
 			for k, v := range s3ManagerMock.S3ManagerMockFileSystem {
 				assert.Equal(t, string(expectedContent), v, "invalid file content")
@@ -378,6 +380,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
+
 	logger := &fflog.FFLogger{
 		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
 	}

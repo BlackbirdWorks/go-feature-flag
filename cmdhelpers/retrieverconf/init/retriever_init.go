@@ -95,18 +95,22 @@ func Retriever(
 	for _, opt := range opts {
 		opt(&parsedOpts)
 	}
+
 	retrieverTimeout := retrieverconf.DefaultTimeout
 	if conf.Timeout != 0 {
 		retrieverTimeout = time.Duration(conf.Timeout) * time.Millisecond
 	}
+
 	factory, exists := factoryFor(conf.Kind)
 	if !exists {
 		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
 	}
+
 	r, err := factory(conf, retrieverTimeout)
 	if err != nil {
 		return nil, err
 	}
+
 	if pg, ok := r.(*postgresqlretriever.Retriever); ok && parsedOpts.postgresPools != nil {
 		pg.Pools = parsedOpts.postgresPools
 	}

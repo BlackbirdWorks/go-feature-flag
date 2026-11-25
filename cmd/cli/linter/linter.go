@@ -22,6 +22,7 @@ func (l *Linter) Lint() []error {
 	if err != nil {
 		return []error{err}
 	}
+
 	errs := make([]error, 0)
 	for _, flagErr := range helper.ValidateFlags(flags) {
 		errs = append(errs, fmt.Errorf("%s: %w", l.InputFile, flagErr))

@@ -109,6 +109,7 @@ func (f *InternalFlag) Value(
 	if f.Scheduled != nil || f.Experimentation != nil {
 		evaluationDate = svc.evaluationDate(evaluationCtx)
 	}
+
 	flag, err := f.applyScheduledRolloutSteps(svc, evaluationDate)
 	if err != nil {
 		return flagContext.DefaultSdkValue, ResolutionDetails{
@@ -153,6 +154,7 @@ func (f *InternalFlag) Value(
 
 	value := flag.GetVariationValue(variationSelection.name)
 	ruleName := variationSelection.ruleName
+
 	var metadata map[string]any
 	if flag == f {
 		metadata = constructMetadata(flag.GetMetadata(), ruleName)
@@ -194,6 +196,7 @@ func selectEvaluationReason(
 		if isDynamic {
 			return ReasonSplit
 		}
+
 		if hasRule {
 			return ReasonDefault
 		}
@@ -207,21 +210,25 @@ func selectEvaluationReason(
 // validateVariationTypes checks that all the variations have a value and the same type.
 func validateVariationTypes(variations map[string]*any) error {
 	expectedVarType := ""
+
 	for _, name := range slices.Sorted(maps.Keys(variations)) {
 		value := variations[name]
 		if value == nil {
 			return fmt.Errorf("%w: %s", errNilValueForVariation, name)
 		}
+
 		currentType, err := utils.JSONTypeExtractor(*value)
 		if err != nil {
 			//nolint:wrapcheck // preserves IsValid variation type error text
 			return err
 		}
+
 		if expectedVarType == "" {
 			expectedVarType = currentType
 
 			continue
 		}
+
 		if currentType != expectedVarType {
 			return errAllVariationsShouldHave
 		}
@@ -443,6 +450,7 @@ func (f *InternalFlag) selectVariation(
 
 				return variationSelection{}, err
 			}
+
 			matchedIndex := ruleIndex
 			reason := selectEvaluationReason(hasRule, true, target.IsDynamic(), false)
 
@@ -486,6 +494,7 @@ func (f *InternalFlag) applyScheduledRolloutSteps(svc *Service, evaluationDate t
 
 	// We only keep the steps that are already active (date in the past or now).
 	due := 0
+
 	for i := range *f.Scheduled {
 		if isStepDue(&(*f.Scheduled)[i], evaluationDate) {
 			due++
@@ -540,7 +549,9 @@ func (f *InternalFlag) deepCopy() (*InternalFlag, error) {
 		//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation in deepCopy
 		return nil, err
 	}
+
 	var flagCopy *InternalFlag
+
 	unmarshalErr := json.Unmarshal(data, &flagCopy)
 	if unmarshalErr != nil {
 		//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation in deepCopy
@@ -585,9 +596,11 @@ func (f *InternalFlag) applyScheduledStep(steps *ScheduledStep) {
 		if f.Experimentation == nil {
 			f.Experimentation = &ExperimentationRollout{}
 		}
+
 		if steps.Experimentation.Start != nil {
 			f.Experimentation.Start = steps.Experimentation.Start
 		}
+
 		if steps.Experimentation.End != nil {
 			f.Experimentation.End = steps.Experimentation.End
 		}
@@ -605,16 +618,22 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 // queries, known being the evaluators that were validated before (nil if there is none).
 func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([]*parser.Evaluator, error) {
 	const isDefaultRule = false
+
 	ruleNames := map[string]any{}
 	rules := f.GetRules()
+
 	evaluators := make([]*parser.Evaluator, len(rules))
 	for i := range rules {
 		rule := &rules[i]
-		var err error
-		var knownEvaluator *parser.Evaluator
+
+		var (
+			err            error
+			knownEvaluator *parser.Evaluator
+		)
 		if known != nil {
 			knownEvaluator = known[i].evaluator
 		}
+
 		evaluators[i], err = rule.validate(svc, isDefaultRule, f.GetVariations(), knownEvaluator)
 		if err != nil {
 			return nil, err

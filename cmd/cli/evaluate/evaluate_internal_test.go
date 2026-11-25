@@ -45,6 +45,7 @@ func buildEvaluate(
 	if err != nil {
 		return evaluate{}, err
 	}
+
 	if customize != nil {
 		customize(r)
 	}
@@ -60,12 +61,14 @@ func buildEvaluate(
 // assertEvaluate runs a single evaluateTestCase and verifies its outcome.
 func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	t.Helper()
+
 	eval, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)
 
 		return
 	}
+
 	got, err := eval.Evaluate()
 	tt.wantErr(t, err)
 
@@ -75,6 +78,7 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 		// Unix vs "The system cannot find the file specified." on Windows).
 		assert.Contains(t, err.Error(), tt.expectedErr)
 	}
+
 	if tt.expectedResult != nil {
 		assert.Equal(t, tt.expectedResult, got)
 	}

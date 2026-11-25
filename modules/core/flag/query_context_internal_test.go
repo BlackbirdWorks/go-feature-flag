@@ -201,6 +201,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		},
 		DefaultRule: &Rule{VariationResult: new("default")},
 	}
+
 	tests := []struct {
 		name string
 		plan string

@@ -32,11 +32,13 @@ func (f *FFLogger) ErrorContext(ctx context.Context, msg string, keysAndValues .
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.ErrorContext(ctx, msg, keysAndValues...)
 
 		return
 	}
+
 	f.legacyLog("ERROR", msg, keysAndValues...)
 }
 
@@ -52,11 +54,13 @@ func (f *FFLogger) InfoContext(ctx context.Context, msg string, keysAndValues ..
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.InfoContext(ctx, msg, keysAndValues...)
 
 		return
 	}
+
 	f.legacyLog("INFO", msg, keysAndValues...)
 }
 
@@ -72,11 +76,13 @@ func (f *FFLogger) DebugContext(ctx context.Context, msg string, keysAndValues .
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.DebugContext(ctx, msg, keysAndValues...)
 
 		return
 	}
+
 	f.legacyLog("DEBUG", msg, keysAndValues...)
 }
 
@@ -92,11 +98,13 @@ func (f *FFLogger) WarnContext(ctx context.Context, msg string, keysAndValues ..
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.WarnContext(ctx, msg, keysAndValues...)
 
 		return
 	}
+
 	f.legacyLog("WARN", msg, keysAndValues...)
 }
 
@@ -121,6 +129,7 @@ func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 		for _, attr := range keysAndValues {
 			attrs = append(attrs, fmt.Sprintf("%v", attr))
 		}
+
 		f.LegacyLogger.Printf(
 			"%s %s %s %v",
 			clock.Now().Format("2006/01/02 15:04:05"),

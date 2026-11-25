@@ -17,6 +17,7 @@ import (
 // evaluating concurrently must not write it, nor modify the evaluation context of the callers.
 func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		enrichment map[string]any
 		// wantCustom is the custom attributes of the evaluation context of the callers afterwards and
@@ -40,6 +41,7 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval:             time.Hour,
 				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
@@ -47,9 +49,11 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 				EvaluationContextEnrichment: tt.enrichment,
 			})
 			require.NoError(t, err)
+
 			defer client.Close()
 
 			shared := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "free").Build()
+
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
@@ -59,6 +63,7 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 					}
 				})
 			}
+
 			wg.Wait()
 			assert.Equal(t, tt.wantCustom, shared.GetCustom(),
 				"the evaluation context of the caller must not be modified")

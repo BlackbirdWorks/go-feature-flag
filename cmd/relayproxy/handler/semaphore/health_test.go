@@ -71,6 +71,7 @@ func Test_health_Handler(t *testing.T) {
 			}
 
 			require.NoError(t, res)
+
 			body, err := os.ReadFile(tt.want.bodyFile)
 			require.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
 			got, err := json.Marshal(out.Body)

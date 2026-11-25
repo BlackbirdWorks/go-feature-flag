@@ -34,10 +34,12 @@ func validatePattern(pattern string) error {
 	if pattern == "" {
 		return nil
 	}
+
 	_, err := path.Match(pattern, "")
 	if err != nil {
 		return fmt.Errorf("invalid pattern %q: %w", pattern, err)
 	}
+
 	if strings.Contains(pattern, "/") {
 		return fmt.Errorf("%w %q: it is matched against the file name only and can't contain \"/\"", errInvalidPattern,
 			pattern)

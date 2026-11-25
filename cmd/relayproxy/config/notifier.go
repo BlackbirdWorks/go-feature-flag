@@ -29,21 +29,25 @@ func (c *NotifierConf) IsValid() error {
 	if err != nil {
 		return err
 	}
+
 	if c.Kind == SlackNotifier && (c.SlackWebhookURL == "" && c.WebhookURL == "") {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoSlackWebhookURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == MicrosoftTeamsNotifier && c.WebhookURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoWebhookURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == WebhookNotifier && c.EndpointURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoEndpointURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == DiscordNotifier && c.WebhookURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoLowerWebhookURL,
 			c.Kind,

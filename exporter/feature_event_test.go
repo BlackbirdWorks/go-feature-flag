@@ -23,6 +23,7 @@ func TestNewFeatureEvent(t *testing.T) {
 		source           string
 		failed           bool
 	}
+
 	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		name string
 		args args
@@ -74,6 +75,7 @@ func TestNewFeatureEvent(t *testing.T) {
 			// The creation date is the wall clock at call time: check the window, then compare the rest.
 			assert.GreaterOrEqual(t, got.CreationDate, before)
 			assert.LessOrEqual(t, got.CreationDate, after)
+
 			want := tt.want
 			want.CreationDate = got.CreationDate
 			assert.Equalf(
@@ -175,6 +177,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 
 				return
 			}
+
 			if tt.want != nil {
 				assert.Equal(t, tt.want.Value, val)
 			}
@@ -270,6 +273,7 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 
 			got, err := tt.featureEvent.FormatInJSON()
 			tt.wantErr(t, err)
+
 			if err == nil {
 				assert.JSONEq(t, tt.want, string(got))
 			}

@@ -83,6 +83,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		bitbucketHeaders := map[string]string{}
+
 		for name := range resp.Header {
 			if strings.HasPrefix(name, "X-") {
 				bitbucketHeaders[name] = resp.Header.Get(name)

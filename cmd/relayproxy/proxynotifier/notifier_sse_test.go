@@ -66,23 +66,29 @@ func TestNotifierSSE_Notify(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
+
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
+
 			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
 			defer srv.Close()
 
 			subscribed := make(chan struct{}, 1)
+
 			sseService.SetOnSubscribe(func(string) {
 				select {
 				case subscribed <- struct{}{}:
 				default:
 				}
 			})
+
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream="+tt.flagsetName, nil)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
+
 			defer func() { _ = resp.Body.Close() }()
+
 			select {
 			case <-subscribed:
 			case <-ctx.Done():
@@ -92,19 +98,23 @@ func TestNotifierSSE_Notify(t *testing.T) {
 			require.NoError(t, proxynotifier.NewNotifierSSE(sseService, tt.flagsetName).Notify(tt.diff))
 
 			fields := map[string]string{}
+
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
 				line := scanner.Text()
 				if strings.HasPrefix(line, ":") {
 					continue
 				}
+
 				if line == "" && len(fields) > 0 {
 					break
 				}
+
 				if key, value, ok := strings.Cut(line, ": "); ok {
 					fields[key] = value
 				}
 			}
+
 			var got model.OFREPSSEEvent
 			require.NoError(t, json.Unmarshal([]byte(fields["data"]), &got))
 

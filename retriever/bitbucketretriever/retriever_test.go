@@ -35,6 +35,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
+
 	type fields struct {
 		httpClient     mock.HTTP
 		repositorySlug string
@@ -43,6 +44,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 		branch         string
 		withCtx        bool
 	}
+
 	tests := []struct {
 		fields  fields
 		name    string
@@ -138,14 +140,17 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				BitBucketToken: tt.fields.bitbucketToken,
 			}
 			ret.SetHTTPClient(&tt.fields.httpClient)
+
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
+
 			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
+
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -154,9 +159,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, strings.TrimSpace(string(tt.want)), strings.TrimSpace(string(got)))
+
 				if tt.fields.bitbucketToken != "" {
 					assert.Equal(
 						t,

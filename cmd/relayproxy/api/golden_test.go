@@ -697,11 +697,13 @@ func Test_Golden(t *testing.T) {
 			conf := testConfig(t)
 			conf.Version = goldenVersion
 			tt.configure(conf)
+
 			if tt.series {
 				checkMetricSeries(t, startGoldenServer(t, conf))
 
 				return
 			}
+
 			runGoldenCases(t, conf, tt.name, tt.cases)
 		})
 	}
@@ -718,6 +720,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				got := recordGolden(t, baseURL, tt)
+
 				path := filepath.Join(goldenDir, variant, tt.name+".golden")
 				if os.Getenv("GOLDEN_UPDATE") != "" {
 					require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -725,6 +728,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 
 					return
 				}
+
 				want, err := os.ReadFile(path)
 				require.NoError(t, err, "missing golden file, run with GOLDEN_UPDATE=1")
 				assert.Equal(t, string(want), got)
@@ -753,6 +757,7 @@ func startWrappedServer(
 
 	metrics, err := metric.NewMetrics()
 	require.NoError(t, err)
+
 	wsService := stream.NewWebsocketService()
 	sseService := stream.NewSSEService()
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
@@ -766,6 +771,7 @@ func startWrappedServer(
 		Metrics:           metrics,
 	}, log.Slog, append([]api.Option{api.WithListener(listener)}, opts...)...)
 	go func() { srv.StartWithContext(context.Background()) }()
+
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	// cleanups run last in, first out: the streams end first, so the graceful shutdown has nothing to wait for.
 	t.Cleanup(wsService.Close)
@@ -789,6 +795,7 @@ func goldenHeaders() []string {
 
 func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 	t.Helper()
+
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 
@@ -800,14 +807,18 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 		if tt.body != "" {
 			body = strings.NewReader(tt.body)
 		}
+
 		req, err := http.NewRequestWithContext(ctx, tt.method, baseURL+tt.path, body)
 		require.NoError(t, err)
+
 		for k, v := range tt.headers {
 			req.Header.Set(k, v)
 		}
+
 		for k, v := range extra {
 			req.Header.Set(k, v)
 		}
+
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 
@@ -819,6 +830,7 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 		etag := resp.Header.Get("ETag")
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
+
 		require.NotEmpty(t, etag, "the first response has no ETag")
 		resp = doReq(map[string]string{"If-None-Match": etag})
 	}
@@ -826,24 +838,30 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "status: %d\n", resp.StatusCode)
+
 	for _, h := range goldenHeaders() {
 		if vals := resp.Header.Values(h); len(vals) > 0 {
 			fmt.Fprintf(&buf, "%s: %s\n", h, strings.Join(vals, " | "))
 		}
 	}
+
 	buf.WriteString("---\n")
+
 	switch {
 	case tt.headersOnly:
 		buf.WriteString("(stream, body not recorded)\n")
 	case tt.noBody:
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		buf.WriteString("(body not recorded)\n")
 	case tt.name == "swagger_index" || strings.HasPrefix(tt.name, "swagger_"):
 		// the document changes with the swagger library, status and content type are what is pinned.
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		buf.WriteString("(body not recorded)\n")
 	case strings.HasPrefix(tt.path, "/debug/pprof/") && resp.StatusCode == http.StatusOK:
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		buf.WriteString("(body not recorded)\n")
 	default:
 		b, err := io.ReadAll(resp.Body)
@@ -877,12 +895,17 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 
 	resp, err := http.Get(baseURL + "/metrics")
 	require.NoError(t, err)
+
 	defer func() { _ = resp.Body.Close() }()
+
 	var lines []string
+
 	scanner := bufio.NewScanner(resp.Body)
 	hostLabel := regexp.MustCompile(`host="[^"]*"`)
+
 	for scanner.Scan() {
 		line := scanner.Text()
+
 		keep := strings.HasPrefix(line, "# TYPE semaphore_") ||
 			strings.HasPrefix(line, "semaphore_requests_total{") ||
 			(strings.HasPrefix(line, "semaphore_request_duration_seconds_count{")) ||
@@ -892,10 +915,12 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 			lines = append(lines, hostLabel.ReplaceAllString(line, `host="HOST"`))
 		}
 	}
+
 	require.NoError(t, scanner.Err())
 	sort.Strings(lines)
 
 	got := strings.Join(lines, "\n") + "\n"
+
 	path := filepath.Join(goldenDir, "metrics", "http_series.golden")
 	if os.Getenv("GOLDEN_UPDATE") != "" {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -903,6 +928,7 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 
 		return
 	}
+
 	want, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, string(want), got)

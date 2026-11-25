@@ -238,6 +238,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 			name: "statement size limit",
 			events: func() []exporter.ExportableEvent {
 				events := make([]exporter.ExportableEvent, 0, 10)
+
 				for i := range 10 {
 					event := newFeatureEvent(i)
 					event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
@@ -261,7 +262,9 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, len(tt.wantStatements))
+
 			rows := 0
+
 			for i, input := range client.executed {
 				assert.Len(t, input.Sqls, tt.wantStatements[i])
 				assert.Equal(t, types.ExecutionModeTransaction, input.ExecutionMode)
@@ -270,17 +273,22 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 				for _, p := range input.Parameters {
 					names[":"+aws.ToString(p.Name)] = struct{}{}
 				}
+
 				assert.Len(t, names, len(input.Parameters))
+
 				used := map[string]struct{}{}
 				for _, placeholder := range paramRegex.FindAllString(strings.Join(input.Sqls, " "), -1) {
 					used[placeholder] = struct{}{}
 				}
+
 				assert.Equal(t, names, used)
+
 				for _, sql := range input.Sqls {
 					assert.LessOrEqual(t, len(sql), maxStatementBytes)
 					rows += strings.Count(sql, "JSON_PARSE(:p") / 2
 				}
 			}
+
 			assert.Equal(t, len(tt.events), rows)
 		})
 	}
@@ -290,6 +298,7 @@ func TestBuildBatches_LimitsStatementsPerBatch(t *testing.T) {
 	t.Parallel()
 
 	values := []string{"tracking", "", "", "0", "k", "null", "null"}
+
 	rows := make([]row, 0, maxRowsPerStatement*maxStatementsPerBatch+1)
 	for range cap(rows) {
 		// a tiny size, so only the statements limit applies
@@ -311,6 +320,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 	events := make([]exporter.ExportableEvent, 0, 60)
+
 	for i := range 60 {
 		event := newFeatureEvent(i)
 		event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
@@ -321,20 +331,26 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Greater(t, len(client.executed), 1)
+
 	rows := 0
+
 	for _, input := range client.executed {
 		assert.Less(t, len(input.Sqls), maxStatementsPerBatch)
+
 		size := 0
 		for _, sql := range input.Sqls {
 			size += len(sql)
 			rows += strings.Count(sql, "JSON_PARSE(:p") / 2
 		}
+
 		for _, p := range input.Parameters {
 			size += len(aws.ToString(p.Name)) + len(aws.ToString(p.Value))
 		}
+
 		assert.LessOrEqual(t, size, maxBatchBytes)
 		assert.LessOrEqual(t, paramsSize(input.Parameters), maxBatchParamBytes)
 	}
+
 	assert.Equal(t, len(events), rows)
 }
 
@@ -424,7 +440,9 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 
 			client := &mockRedshiftDataClient{}
 			exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+
 			var logs bytes.Buffer
+
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
 			oversized := newFeatureEvent(1)
 			oversized.Key = "big-flag"
@@ -438,9 +456,11 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			require.Len(t, client.executed, 1)
 			assert.Equal(t, tt.wantRows, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
 			assert.NotContains(t, strings.Join(client.executed[0].Sqls, ""), "big-flag")
+
 			for _, p := range client.executed[0].Parameters {
 				assert.NotEqual(t, "big-flag", aws.ToString(p.Value))
 			}
+
 			assert.Contains(t, logs.String(), "level=WARN")
 			assert.Contains(t, logs.String(), tt.wantSkipped)
 			assert.Contains(t, logs.String(), "big-flag")
@@ -482,6 +502,7 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			exporter.TrackingEvent{Key: "checkout"},
 		}
 	}
+
 	tests := []struct {
 		name    string
 		wantErr string
@@ -518,19 +539,23 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+			exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+
 			var logs bytes.Buffer
+
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
 
-			err := e.Export(context.TODO(), logger, tt.events)
+			err := exp.Export(context.TODO(), logger, tt.events)
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, 1)
 			// the 2 valid events are exported, without the invalid one
 			assert.Equal(t, 2, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
+
 			for _, p := range client.executed[0].Parameters {
 				assert.NotEqual(t, "bad-flag", aws.ToString(p.Value))
 			}
+
 			assert.Contains(t, logs.String(), "level=WARN")
 			assert.Contains(t, logs.String(), "cannot be converted to JSON")
 			assert.Contains(t, logs.String(), "count=1")
@@ -605,12 +630,14 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
 
 			var creates []string
+
 			for _, input := range client.executed {
 				if strings.HasPrefix(input.Sqls[0], "CREATE TABLE") {
 					creates = append(creates, input.Sqls...)
 					assert.Nil(t, input.Parameters)
 				}
 			}
+
 			if tt.wantCreate == "" {
 				assert.Empty(t, creates)
 
@@ -798,23 +825,29 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 			if len(tt.wantErr) == 0 {
 				require.NoError(t, err)
 			}
+
 			for _, want := range tt.wantErr {
 				require.ErrorContains(t, err, want)
 			}
+
 			for _, notWant := range tt.notWantErr {
 				assert.NotContains(t, err.Error(), notWant)
 			}
+
 			if tt.wantErrIs != nil {
 				require.ErrorIs(t, err, tt.wantErrIs)
 			}
+
 			if tt.wantPolls > 0 {
 				assert.Len(t, tt.client.described, tt.wantPolls)
 			}
+
 			if tt.wantCancel {
 				assert.Equal(t, []string{aws.ToString(tt.client.lastStatementID())}, tt.client.cancelled)
 			} else {
 				assert.Empty(t, tt.client.cancelled)
 			}
+
 			if tt.wantDescribeInput {
 				assert.Equal(t, int32(describeWaitSeconds), aws.ToInt32(tt.client.lastDescribeInput.WaitTimeSeconds))
 			}
@@ -920,6 +953,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 	t.Parallel()
 
 	featureEvents := []exporter.ExportableEvent{newFeatureEvent(0)}
+
 	tests := []struct {
 		exporter *Exporter
 		name     string
@@ -1066,6 +1100,7 @@ func TestExporter_InitClient(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.IsType(t, &redshiftdata.Client{}, exp.client)
 		})
@@ -1108,11 +1143,14 @@ func (m *mockRedshiftDataClient) BatchExecuteStatement(
 ) (*redshiftdata.BatchExecuteStatementOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.executed = append(m.executed, params)
+
 	m.executedAt = time.Now()
 	if len(m.executeErrs) > 0 {
 		err := m.executeErrs[0]
 		m.executeErrs = m.executeErrs[1:]
+
 		if err != nil {
 			return nil, err
 		}
@@ -1128,7 +1166,9 @@ func (m *mockRedshiftDataClient) DescribeStatement(
 ) (*redshiftdata.DescribeStatementOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.described = append(m.described, aws.ToString(params.Id))
+
 	m.lastDescribeInput = params
 	if m.longPoll {
 		m.mu.Unlock()
@@ -1137,15 +1177,18 @@ func (m *mockRedshiftDataClient) DescribeStatement(
 
 		return nil, fmt.Errorf("operation error Redshift Data: DescribeStatement, %w", ctx.Err())
 	}
+
 	if len(m.describeErrs) > 0 {
 		err := m.describeErrs[0]
 		m.describeErrs = m.describeErrs[1:]
 
 		return nil, err
 	}
+
 	if m.describeErr != nil {
 		return nil, m.describeErr
 	}
+
 	status := types.StatusStringFinished
 	if len(m.statuses) > 0 {
 		status = m.statuses[0]
@@ -1153,19 +1196,23 @@ func (m *mockRedshiftDataClient) DescribeStatement(
 			m.statuses = m.statuses[1:]
 		}
 	}
+
 	if m.finishAfter > 0 && time.Since(m.executedAt) < m.finishAfter {
 		status = types.StatusStringStarted
 	}
+
 	if len(m.cancelled) > 0 && len(m.afterCancel) > 0 {
 		status = m.afterCancel[0]
 		if len(m.afterCancel) > 1 {
 			m.afterCancel = m.afterCancel[1:]
 		}
 	}
+
 	out := &redshiftdata.DescribeStatementOutput{Id: params.Id, Status: status}
 	if m.statusError != "" {
 		out.Error = aws.String(m.statusError)
 	}
+
 	if m.subStatementError != "" {
 		out.SubStatements = []types.SubStatementData{{}, {Error: aws.String(m.subStatementError)}}
 	}
@@ -1180,6 +1227,7 @@ func (m *mockRedshiftDataClient) CancelStatement(
 ) (*redshiftdata.CancelStatementOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.cancelled = append(m.cancelled, aws.ToString(params.Id))
 	if m.cancelErr != nil {
 		return nil, m.cancelErr

@@ -27,12 +27,15 @@ import (
 // and does not depend on the other tests running in parallel.
 func goroutinesLabeled(key, value string) int {
 	var buf bytes.Buffer
+
 	err := pprof.Lookup("goroutine").WriteTo(&buf, 1)
 	if err != nil {
 		return -1
 	}
+
 	want := fmt.Sprintf("%q:%q", key, value)
 	total, current := 0, 0
+
 	for line := range strings.SplitSeq(buf.String(), "\n") {
 		if n, _, ok := strings.Cut(line, " @ "); ok {
 			v, parseErr := strconv.Atoi(n)
@@ -42,6 +45,7 @@ func goroutinesLabeled(key, value string) int {
 
 			continue
 		}
+
 		if strings.HasPrefix(line, "# labels:") && strings.Contains(line, want) {
 			total += current
 		}
@@ -58,6 +62,7 @@ type gatedRetriever struct {
 
 func (r gatedRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 	defer r.done.Done()
+
 	select {
 	case <-r.gate:
 	case <-ctx.Done():
@@ -87,22 +92,27 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 			t.Parallel()
 
 			gate := make(chan struct{})
+
 			var retrieved sync.WaitGroup
 			retrieved.Add(tt.nbSlow)
+
 			retrievers := []retriever.Retriever{failingRetriever{}}
 			for range tt.nbSlow {
 				retrievers = append(retrievers, gatedRetriever{gate: gate, done: &retrieved})
 			}
+
 			logger := fflog.FFLogger{}
 			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 			manager := retriever.NewManager(retriever.ManagerConfig{}, retrievers, cacheManager, &logger)
 
 			var gotRefresh bool
+
 			label := t.Name()
 			// The timeout is only a bound: the slow retrievers give up with the context if the refresh
 			// ever stops returning on the first error, so the test fails instead of hanging.
 			refreshCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
+
 			pprof.Do(refreshCtx, pprof.Labels("leakcheck", label), func(ctx context.Context) {
 				gotRefresh = manager.ForceRefresh(ctx)
 			})

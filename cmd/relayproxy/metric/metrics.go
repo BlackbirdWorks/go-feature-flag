@@ -85,6 +85,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	if len(opts) > 0 {
 		metricsOpts = &opts[0]
 	}
+
 	customRegistry := prom.NewRegistry()
 
 	// counts the number of flag evaluations
@@ -361,16 +362,19 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
 	out := make([]*dto.MetricFamily, 0, len(families)*metricsPerFamily)
+
 	out = append(out, families...)
 	for _, family := range families {
 		name := family.GetName()
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
+
 		clone, ok := proto.Clone(family).(*dto.MetricFamily)
 		if !ok {
 			continue
 		}
+
 		clone.Name = new(LegacySubSystem + "_" + legacyMetricName(strings.TrimPrefix(name, prefix)))
 		out = append(out, clone)
 	}

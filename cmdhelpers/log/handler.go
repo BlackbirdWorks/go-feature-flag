@@ -91,7 +91,9 @@ func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if len(attrs) == 0 {
 		return h
 	}
+
 	merged := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
+
 	merged = append(merged, h.attrs...)
 	for _, a := range attrs {
 		merged = append(merged, prefixAttr(h.prefix, a))
@@ -105,6 +107,7 @@ func prefixAttr(prefix string, attr slog.Attr) slog.Attr {
 	if prefix == "" {
 		return attr
 	}
+
 	attr.Key = prefix + attr.Key
 
 	return attr
@@ -134,15 +137,18 @@ func (h *handler) Handle(_ context.Context, r slog.Record) error {
 		buf = append(buf, " level="...)
 		buf = append(buf, levelName(r.Level)...)
 	}
+
 	if r.PC != 0 {
 		buf = h.core.appendCaller(buf, isJSON, r.PC)
 	}
+
 	buf = appendKey(buf, isJSON, MessageKey)
 	buf = appendString(buf, isJSON, r.Message)
 
 	for _, a := range h.attrs {
 		buf = appendAttr(buf, isJSON, "", a)
 	}
+
 	r.Attrs(func(a slog.Attr) bool {
 		buf = appendAttr(buf, isJSON, h.prefix, a)
 
@@ -152,6 +158,7 @@ func (h *handler) Handle(_ context.Context, r slog.Record) error {
 	if isJSON {
 		buf = append(buf, '}')
 	}
+
 	buf = append(buf, '\n')
 
 	h.core.mu.Lock()
@@ -176,10 +183,12 @@ func (c *core) appendCaller(buf []byte, isJSON bool, pc uintptr) []byte {
 	if site == "" {
 		return buf
 	}
+
 	buf = appendKey(buf, isJSON, CallerKey)
 	if isJSON {
 		buf = append(buf, '"')
 	}
+
 	buf = appendEscaped(buf, site)
 	if isJSON {
 		buf = append(buf, '"')
@@ -196,10 +205,13 @@ func (c *core) callSite(callerPC uintptr) string {
 	c.sitesMu.RLock()
 	site, ok := c.sites[callerPC]
 	c.sitesMu.RUnlock()
+
 	if ok {
 		return site
 	}
+
 	pcs := [1]uintptr{callerPC}
+
 	frame, _ := runtime.CallersFrames(pcs[:]).Next()
 	if frame.File != "" {
 		file := frame.File
@@ -212,10 +224,13 @@ func (c *core) callSite(callerPC uintptr) string {
 					break
 				}
 			}
+
 			file = file[idx+1:]
 		}
+
 		site = file + ":" + strconv.Itoa(frame.Line)
 	}
+
 	c.sitesMu.Lock()
 	c.sites[callerPC] = site
 	c.sitesMu.Unlock()
@@ -240,6 +255,7 @@ func appendKey(buf []byte, isJSON bool, key string) []byte {
 
 		return append(buf, '"', ':')
 	}
+
 	buf = append(buf, ' ')
 	buf = appendEscaped(buf, key)
 
@@ -251,20 +267,24 @@ func appendAttr(buf []byte, isJSON bool, prefix string, attr slog.Attr) []byte {
 	if attr.Equal(slog.Attr{}) {
 		return buf
 	}
+
 	if attr.Value.Kind() == slog.KindGroup {
 		group := attr.Value.Group()
 		if len(group) == 0 {
 			return buf
 		}
+
 		if attr.Key != "" {
 			prefix += attr.Key + "."
 		}
+
 		for _, ga := range group {
 			buf = appendAttr(buf, isJSON, prefix, ga)
 		}
 
 		return buf
 	}
+
 	if prefix == "" {
 		buf = appendKey(buf, isJSON, attr.Key)
 	} else {
@@ -324,10 +344,12 @@ func appendAny(buf []byte, isJSON bool, val any) []byte {
 	case []string:
 		return appendStrings(buf, isJSON, typed)
 	}
+
 	encoded, err := json.Marshal(val)
 	if err != nil {
 		return appendString(buf, isJSON, "unsupported value type")
 	}
+
 	if isJSON {
 		return append(buf, encoded...)
 	}
@@ -339,20 +361,25 @@ func appendStrings(buf []byte, isJSON bool, list []string) []byte {
 	if !isJSON {
 		// logfmt has no list, the elements are joined with commas, like the former encoder did.
 		joined := make([]byte, 0, initialBuffer)
+
 		for i, s := range list {
 			if i > 0 {
 				joined = append(joined, ',')
 			}
+
 			joined = append(joined, s...)
 		}
 
 		return appendString(buf, false, string(joined))
 	}
+
 	buf = append(buf, '[')
+
 	for i, s := range list {
 		if i > 0 {
 			buf = append(buf, ',')
 		}
+
 		buf = appendString(buf, true, s)
 	}
 
@@ -366,7 +393,9 @@ func appendString(buf []byte, isJSON bool, str string) []byte {
 
 		return append(buf, '"')
 	}
+
 	quote := false
+
 	for _, r := range str {
 		if r <= ' ' || r == '=' || r == '"' || r == utf8.RuneError {
 			quote = true
@@ -374,9 +403,11 @@ func appendString(buf []byte, isJSON bool, str string) []byte {
 			break
 		}
 	}
+
 	if quote {
 		buf = append(buf, '"')
 	}
+
 	buf = appendEscaped(buf, str)
 	if quote {
 		buf = append(buf, '"')
@@ -391,6 +422,7 @@ func appendEscaped(buf []byte, str string) []byte {
 		chr := str[i]
 		if chr < utf8.RuneSelf {
 			i++
+
 			switch chr {
 			case '"', '\\':
 				buf = append(buf, '\\', chr)
@@ -410,6 +442,7 @@ func appendEscaped(buf []byte, str string) []byte {
 
 			continue
 		}
+
 		r, size := utf8.DecodeRuneInString(str[i:])
 		if r == utf8.RuneError && size == 1 {
 			buf = append(buf, `�`...)
@@ -417,6 +450,7 @@ func appendEscaped(buf []byte, str string) []byte {
 
 			continue
 		}
+
 		buf = append(buf, str[i:i+size]...)
 		i += size
 	}

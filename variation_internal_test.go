@@ -94,9 +94,11 @@ func (c *cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return ni
 // from there: it calls t.Fatalf, which is illegal outside the test goroutine.
 func assertExpectedLog(t *testing.T, handler *slogassert.Handler, expectedLog string) {
 	t.Helper()
+
 	if expectedLog == "" {
 		return
 	}
+
 	require.Eventually(t, func() bool {
 		return handler.Assert(func(message slogassert.LogMessage) bool {
 			return strings.Contains(message.Message, expectedLog)
@@ -172,6 +174,7 @@ func runVariationWithCheck[T any, R any](
 			t.Parallel()
 
 			handler := slogassert.New(t, slog.LevelInfo, nil)
+
 			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				ff = newVariationTestClient(slog.New(handler), tt.args.cacheMock, tt.args.offline)
@@ -181,6 +184,7 @@ func runVariationWithCheck[T any, R any](
 			if !logAfterSuccess {
 				assertExpectedLog(t, handler, tt.expectedLog)
 			}
+
 			if tt.wantErr {
 				if alwaysAssertResult {
 					require.Error(t, err, "%s() error = %v, wantErr %v", label, err, tt.wantErr)
@@ -190,7 +194,9 @@ func runVariationWithCheck[T any, R any](
 					return
 				}
 			}
+
 			assertGot(t, tt.want, got)
+
 			if logAfterSuccess {
 				assertExpectedLog(t, handler, tt.expectedLog)
 			}
@@ -202,6 +208,7 @@ func TestBoolVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[bool]
+
 	runVariationTests(t, "BoolVariation", (*GoFeatureFlag).BoolVariation, []variationCase[bool, bool]{
 		{
 			name: "Call variation before init of SDK",
@@ -310,6 +317,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[bool]
+
 	runVariationTests(t, "BoolVariation", (*GoFeatureFlag).BoolVariation, []variationCase[bool, bool]{
 		{
 			name: "Get true value, rule apply",
@@ -462,6 +470,7 @@ func TestBoolVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[bool]
+
 	runVariationTests(
 		t,
 		"BoolVariationDetails",
@@ -585,6 +594,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[bool]
+
 	runVariationTests(
 		t,
 		"BoolVariationDetails",
@@ -761,6 +771,7 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[bool]
+
 	runVariationTests(
 		t,
 		"BoolVariationDetails",
@@ -892,6 +903,7 @@ func TestFloat64Variation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[float64]
+
 	assertFloat64 := func(t *testing.T, want, got float64) {
 		t.Helper()
 		assert.InDelta(t, want, got, 0, "Float64Variation() got = %v, want %v", got, want)
@@ -1011,6 +1023,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[float64]
+
 	assertFloat64 := func(t *testing.T, want, got float64) {
 		t.Helper()
 		assert.InDelta(t, want, got, 0, "Float64Variation() got = %v, want %v", got, want)
@@ -1174,6 +1187,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[float64]
+
 	runVariationTests(
 		t,
 		"Float64VariationDetails",
@@ -1297,6 +1311,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[float64]
+
 	runVariationTests(
 		t,
 		"Float64VariationDetails",
@@ -1452,6 +1467,7 @@ func TestJSONArrayVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[[]any]
+
 	assertJSONArray := func(t *testing.T, want, got []any) {
 		t.Helper()
 		assert.Equal(t, want, got, "JSONArrayVariation() got = %v, want %v", got, want)
@@ -1573,6 +1589,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[[]any]
+
 	assertJSONArray := func(t *testing.T, want, got []any) {
 		t.Helper()
 		assert.Equal(t, want, got, "JSONArrayVariation() got = %v, want %v", got, want)
@@ -1723,6 +1740,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[[]any]
+
 	assertJSONArrayDetails := func(t *testing.T, want, got model.VariationResult[[]any]) {
 		t.Helper()
 		assert.Equal(t, want, got, "JSONArrayVariation() got = %v, want %v", got, want)
@@ -1855,6 +1873,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[[]any]
+
 	assertJSONArrayDetails := func(t *testing.T, want, got model.VariationResult[[]any]) {
 		t.Helper()
 		assert.Equal(t, want, got, "JSONArrayVariation() got = %v, want %v", got, want)
@@ -2008,6 +2027,7 @@ func TestJSONVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[map[string]any]
+
 	runVariationTests(
 		t,
 		"JSONVariation",
@@ -2120,6 +2140,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[map[string]any]
+
 	runVariationTests(
 		t,
 		"JSONVariation",
@@ -2250,6 +2271,7 @@ func TestJSONVariationDetails(t *testing.T) {
 		offline       bool
 		disableInit   bool
 	}
+
 	tests := []struct {
 		name        string
 		expectedLog string
@@ -2431,6 +2453,7 @@ func TestJSONVariationDetails(t *testing.T) {
 			logger := slog.New(handler)
 
 			var client *GoFeatureFlag
+
 			if !tt.args.disableInit {
 				mgrCfg := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2477,6 +2500,7 @@ func TestJSONVariationDetails(t *testing.T) {
 
 				return
 			}
+
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
 		})
 	}
@@ -2486,6 +2510,7 @@ func TestStringVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[string]
+
 	runVariationTests(t, "StringVariation", (*GoFeatureFlag).StringVariation, []variationCase[string, string]{
 		{
 			name: "Call variation before init of SDK",
@@ -2595,6 +2620,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[string]
+
 	runVariationTests(t, "StringVariation", (*GoFeatureFlag).StringVariation, []variationCase[string, string]{
 		{
 			name: "Get true value, rule apply",
@@ -2751,6 +2777,7 @@ func TestStringVariationDetails(t *testing.T) {
 		offline       bool
 		disableInit   bool
 	}
+
 	tests := []struct {
 		name        string
 		expectedLog string
@@ -2932,6 +2959,7 @@ func TestStringVariationDetails(t *testing.T) {
 			logger := slog.New(handler)
 
 			var client *GoFeatureFlag
+
 			if !tt.args.disableInit {
 				mgrCfg := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2967,6 +2995,7 @@ func TestStringVariationDetails(t *testing.T) {
 					),
 				}
 			}
+
 			got, err := client.StringVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
@@ -2976,6 +3005,7 @@ func TestStringVariationDetails(t *testing.T) {
 
 				return
 			}
+
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
 		})
 	}
@@ -2985,6 +3015,7 @@ func TestIntVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[int]
+
 	runVariationTests(t, "IntVariation", (*GoFeatureFlag).IntVariation, []variationCase[int, int]{
 		{
 			name: "Call variation before init of SDK",
@@ -3093,6 +3124,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[int]
+
 	runVariationTests(t, "IntVariation", (*GoFeatureFlag).IntVariation, []variationCase[int, int]{
 		{
 			name: "Get true value, rule apply",
@@ -3244,6 +3276,7 @@ func TestIntVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[int]
+
 	runVariationTests(
 		t,
 		"IntVariation",
@@ -3316,6 +3349,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[int]
+
 	runVariationTests(
 		t,
 		"IntVariation",
@@ -3475,6 +3509,7 @@ func TestRawVariation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[any]
+
 	assertRaw := func(t *testing.T, want, got model.RawVarResult) {
 		t.Helper()
 		assert.Equal(t, want, got, "RawVariation() got = %v, want %v", got, want)
@@ -3629,6 +3664,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 	t.Parallel()
 
 	type args = variationArgs[any]
+
 	assertRaw := func(t *testing.T, want, got model.RawVarResult) {
 		t.Helper()
 		assert.Equal(t, want, got, "RawVariation() got = %v, want %v", got, want)
@@ -3818,6 +3854,7 @@ func Test_OverrideContextEnrichmentWithEnvironment(t *testing.T) {
 
 	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
+
 	defer tempFile.Close()
 
 	err = os.WriteFile(tempFile.Name(), []byte(`
@@ -3850,6 +3887,7 @@ flag1:
 	)
 	assert.True(t, res)
 	require.NoError(t, err1)
+
 	allFlags := goff.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags.GetFlags()["flag1"].Value)
 
@@ -3862,6 +3900,7 @@ flag1:
 		},
 	})
 	require.NoError(t, err2)
+
 	res2, err3 := goff2.BoolVariation(
 		"flag1",
 		ffcontext.NewEvaluationContextBuilder("my-key").Build(),
@@ -3869,6 +3908,7 @@ flag1:
 	)
 	assert.True(t, res2)
 	require.NoError(t, err3)
+
 	allFlags2 := goff2.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags2.GetFlags()["flag1"].Value)
 
@@ -3882,6 +3922,7 @@ flag1:
 		},
 	})
 	require.NoError(t, err4)
+
 	res3, err5 := goff3.BoolVariation(
 		"flag1",
 		ffcontext.NewEvaluationContextBuilder("my-key").Build(),

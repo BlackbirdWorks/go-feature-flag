@@ -31,6 +31,7 @@ func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) 
 // Handler is the entry point for the allFlags endpoint.
 func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
+
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
 		//nolint:wrapcheck // helper.BindBody already returns *helper.HTTPError
@@ -46,7 +47,9 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
@@ -71,6 +74,7 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	for key := range allFlags.GetFlags() {
 		flagNames = append(flagNames, key)
 	}
+
 	h.metrics.IncAllFlag(flagNames...)
 
 	span.SetAttributes(

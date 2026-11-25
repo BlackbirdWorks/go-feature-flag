@@ -56,6 +56,7 @@ func TestNewManifest(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			_, err = mfst.Generate()

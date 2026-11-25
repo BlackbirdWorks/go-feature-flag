@@ -123,6 +123,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			defer sseService.Close()
 
 			subscribed := make(chan struct{}, 1)
+
 			sseService.SetOnSubscribe(func(_ string) {
 				select {
 				case subscribed <- struct{}{}:
@@ -138,6 +139,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+
 			srv := httptest.NewServer(e)
 			defer srv.Close()
 
@@ -147,6 +149,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -157,12 +160,15 @@ func Test_SSE_FlagChange(t *testing.T) {
 			case <-ctx.Done():
 				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
+
 			before := clock.Now().Unix()
+
 			require.NoError(t, sseService.BroadcastFlagChanges("default", tt.flagChange))
 
 			event := readSSEEvent(t, resp)
 			assert.NotEmpty(t, event["id"], "events should have an id")
 			assert.Equal(t, "message", event["event"])
+
 			var got model.OFREPSSEEvent
 			require.NoError(t, json.Unmarshal([]byte(event["data"]), &got))
 			assert.Equal(t, tt.wantEvent, got.Type)
@@ -181,6 +187,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	defer sseService.Close()
 
 	subscribed := make(chan struct{}, 1)
+
 	sseService.SetOnSubscribe(func(_ string) {
 		select {
 		case subscribed <- struct{}{}:
@@ -196,6 +203,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 	e := http.NewServeMux()
 	e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+
 	srv := httptest.NewServer(e)
 	defer srv.Close()
 
@@ -205,7 +213,9 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 
 	resp, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
+
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	select {
@@ -222,6 +232,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	// Broadcast to flagsetA -- the client should receive this one.
 	// The event id is a timestamp, so it tells us which broadcast was received.
 	afterWrongBroadcast := clock.Now().UnixNano()
+
 	require.NoError(t, sseService.BroadcastFlagChanges("flagsetA", notifier.DiffCache{
 		Added: map[string]flag.Flag{"right-flag": &flag.InternalFlag{}},
 	}))
@@ -237,20 +248,25 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 // readSSEEvent reads the next SSE event of the response and returns its fields.
 func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 	t.Helper()
+
 	fields := map[string]string{}
+
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, ":") {
 			continue // SSE comment (connection comment or heartbeat), ignored by clients
 		}
+
 		if line == "" && len(fields) > 0 {
 			break
 		}
+
 		if key, value, ok := strings.Cut(line, ": "); ok {
 			fields[key] = value
 		}
 	}
+
 	require.NotEmpty(t, fields["data"], "should have received an SSE data line")
 
 	return fields
@@ -295,6 +311,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
+
 			srv := httptest.NewServer(e)
 			defer srv.Close()
 
@@ -302,6 +319,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			if tt.apiKey != "" {
 				url += "?apiKey=" + tt.apiKey
 			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -310,6 +328,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)

@@ -74,6 +74,7 @@ func newSharedBucketRegistry(
 	if factory == nil {
 		factory = defaultSharedItemsFactory
 	}
+
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -105,7 +106,9 @@ func (r *sharedBucketRegistry) retrieverFor(flagset *config.FlagSet) (retriever.
 	if err != nil {
 		return nil, err
 	}
+
 	r.mu.Lock()
+
 	key := pendingKey(flagset)
 	if p := r.pending[key]; len(p) > 0 {
 		r.pending[key] = p[1:]
@@ -126,12 +129,15 @@ func (r *sharedBucketRegistry) preRegister(flagset *config.FlagSet) error {
 	if err != nil {
 		return err
 	}
+
 	relRetriever, err := r.newRetriever(flagset)
 	if err != nil {
 		return err
 	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	key := pendingKey(flagset)
 	r.pending[key] = append(r.pending[key], relRetriever)
 
@@ -145,6 +151,7 @@ func (r *sharedBucketRegistry) preRegisterAll(flagsets []config.FlagSet) {
 		if !flagsets[i].EnableSharedPollerPerBucket {
 			continue
 		}
+
 		err := r.preRegister(&flagsets[i])
 		if err != nil {
 			r.logger.LogAttrs(
@@ -161,12 +168,15 @@ func (r *sharedBucketRegistry) preRegisterAll(flagsets []config.FlagSet) {
 // releasePending shuts down the pre-registered retrievers nobody claimed.
 func (r *sharedBucketRegistry) releasePending() {
 	r.mu.Lock()
+
 	var unclaimed []*releasingRetriever
 	for k, p := range r.pending {
 		unclaimed = append(unclaimed, p...)
+
 		delete(r.pending, k)
 	}
 	r.mu.Unlock()
+
 	for _, rr := range unclaimed {
 		_ = rr.Shutdown(context.Background())
 	}
@@ -197,14 +207,17 @@ func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	grp, ok := r.groups[bucket]
 	if !ok {
 		grp = &registryGroup{items: items}
 		items.SetPoller(r.pollerConfig(bucket))
 		r.groups[bucket] = grp
 	}
+
 	grp.refs++
 
 	return grp, nil
@@ -213,10 +226,12 @@ func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 // newRetriever creates the retriever of the flagset in the group of its bucket.
 func (r *sharedBucketRegistry) newRetriever(flagset *config.FlagSet) (*releasingRetriever, error) {
 	retConf := flagset.Retriever
+
 	grp, err := r.acquire(retConf.Bucket)
 	if err != nil {
 		return nil, err
 	}
+
 	r.warnPollingMismatch(flagset)
 
 	return &releasingRetriever{
@@ -250,11 +265,13 @@ func (r *sharedBucketRegistry) warnPollingMismatch(flagset *config.FlagSet) {
 	r.mu.Lock()
 	parent := r.polling
 	r.mu.Unlock()
+
 	own := time.Duration(flagset.PollingInterval) * time.Millisecond
 	if own != 0 && own != parent.Interval {
 		r.warnIgnored(flagset, "pollingInterval",
 			slog.Duration("flagsetPollingInterval", own), slog.Duration("pollingInterval", parent.Interval))
 	}
+
 	if flagset.EnablePollingJitter && !parent.Jitter {
 		r.warnIgnored(flagset, "enablePollingJitter",
 			slog.Bool("flagsetEnablePollingJitter", flagset.EnablePollingJitter),
@@ -280,12 +297,14 @@ func (r *sharedBucketRegistry) setPolling(
 	interval time.Duration, jitter bool, flagsets []config.FlagSet,
 ) {
 	interval = normalizePollingInterval(interval)
+
 	r.mu.Lock()
 	if r.polling.Interval == interval && r.polling.Jitter == jitter {
 		r.mu.Unlock()
 
 		return
 	}
+
 	r.polling.Interval, r.polling.Jitter = interval, jitter
 	for bucket, g := range r.groups {
 		g.items.SetPoller(r.pollerConfig(bucket))
@@ -298,6 +317,7 @@ func (r *sharedBucketRegistry) setPolling(
 		slog.Duration("pollingInterval", interval),
 		slog.Bool("enablePollingJitter", jitter),
 	)
+
 	for i := range flagsets {
 		if flagsets[i].EnableSharedPollerPerBucket {
 			r.warnPollingMismatch(&flagsets[i])
@@ -308,6 +328,7 @@ func (r *sharedBucketRegistry) setPolling(
 func (r *sharedBucketRegistry) release(bucket string, g *registryGroup) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	g.refs--
 	if g.refs <= 0 && r.groups[bucket] == g {
 		delete(r.groups, bucket)
@@ -334,6 +355,7 @@ func (r *releasingRetriever) SetRefresh(refresh func() bool) {
 func (r *releasingRetriever) Shutdown(ctx context.Context) error {
 	err := r.SharedItemRetriever.Shutdown(ctx)
 	r.releaseOnce.Do(r.release)
+
 	if err != nil {
 		return fmt.Errorf("shutdown shared S3 retriever: %w", err)
 	}

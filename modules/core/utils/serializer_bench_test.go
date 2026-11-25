@@ -14,9 +14,12 @@ func BenchmarkContextToMap(b *testing.B) {
 		for i := range count {
 			builder.AddCustom(fmt.Sprintf("attr%d", i), i)
 		}
+
 		ctx := builder.Build()
+
 		b.Run(fmt.Sprintf("%d custom attributes", count), func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				_ = utils.ContextToMap(ctx)
 			}

@@ -57,6 +57,7 @@ func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ 
 // the exporters directly and exported by their final flush.
 func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		// bulk is the type of the exporter that flushes after the hook of the first one.
@@ -70,6 +71,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			calls := &atomic.Int64{}
 			newCtx := func(blockAt int64, reached, gate chan struct{}) ffcontext.Context {
 				return gatedContext{
@@ -83,6 +85,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			hook.onFinalFlush = func() {
 				// the workers are gone: let the late evaluation finish and wait for it.
 				close(gate)
+
 				select {
 				case <-lateDone:
 				case <-time.After(time.Minute):
@@ -101,16 +104,20 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 
 			// 1. a first evaluation, to learn how many calls build an event, and to have something to flush.
 			calls.Store(0)
+
 			_, _ = client.BoolVariation("test-flag", newCtx(0, nil, nil), false)
 			perEvaluation := calls.Load()
 			require.Positive(t, perEvaluation)
 
 			// 2. an evaluation held right before its event is handed to the exporters.
 			calls.Store(0)
+
 			go func() {
 				defer close(lateDone)
+
 				_, _ = client.BoolVariation("test-flag", newCtx(perEvaluation, reached, gate), false)
 			}()
+
 			select {
 			case <-reached:
 			case <-time.After(time.Minute):

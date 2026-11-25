@@ -90,7 +90,9 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	s.status = retriever.RetrieverNotReady
+
 	err := folderloader.Validate("item", s.Item, s.Prefix, s.Pattern, s.Recursive)
 	if err != nil {
 		s.status = retriever.RetrieverError
@@ -100,7 +102,9 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.logger = logger
+
 	s.mode = singleFileMode
 	if s.Item == "" {
 		s.mode = folderMode
@@ -115,6 +119,7 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 
 		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
 	}
+
 	s.status = retriever.RetrieverReady
 
 	return nil
@@ -124,8 +129,10 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 func (s *Retriever) Shutdown(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.status = retriever.RetrieverNotReady
 	s.downloader = nil
+
 	s.lister = nil
 	if l := s.loader.Load(); l != nil {
 		l.Reset()
@@ -146,8 +153,10 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.downloader == nil {
 		s.status = retriever.RetrieverError
 
@@ -180,6 +189,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 // downloadObject fetches the content of a single object, with the ETag of the downloaded version.
 func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([]byte, string, error) {
 	writerAt := types.NewWriteAtBuffer([]byte{})
+
 	out, err := d.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 		Bucket:   aws.String(bucket),
 		Key:      aws.String(key),
@@ -209,6 +219,7 @@ func (s *Retriever) OutputFormat() string {
 func (s *Retriever) SetDownloader(downloader DownloaderAPI) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.downloader = downloader
 }
 
@@ -216,6 +227,7 @@ func (s *Retriever) SetDownloader(downloader DownloaderAPI) {
 func (s *Retriever) SetLister(lister ListerAPI) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.lister = lister
 }
 
@@ -234,17 +246,21 @@ func (s *Retriever) initClients(ctx context.Context, needLister bool) error {
 	if s.downloader != nil && (!needLister || s.lister != nil) {
 		return nil
 	}
+
 	if s.AwsConfig == nil {
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
 			return fmt.Errorf("load AWS default config for S3 retriever: %w", err)
 		}
+
 		s.AwsConfig = &cfg
 	}
+
 	client := s3.NewFromConfig(*s.AwsConfig, s.S3ClientOptions...)
 	if s.downloader == nil {
 		s.downloader = transfermanager.New(client)
 	}
+
 	if needLister && s.lister == nil {
 		s.lister = client
 	}

@@ -65,20 +65,24 @@ func (c *ExporterConf) IsValid() error {
 	if err != nil {
 		return err
 	}
+
 	err = c.validateStorage()
 	if err != nil {
 		return err
 	}
+
 	if len(c.ParquetCompressionCodec) > 0 {
 		_, codecErr := parquet.CompressionCodecFromString(c.ParquetCompressionCodec)
 		if codecErr != nil {
 			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, codecErr)
 		}
 	}
+
 	err = c.validateMessaging()
 	if err != nil {
 		return err
 	}
+
 	err = c.validateAzure()
 	if err != nil {
 		return err
@@ -143,9 +147,11 @@ func (c *ExporterConf) validateAzure() error {
 	if c.Kind != AzureExporter {
 		return nil
 	}
+
 	if c.Container == "" {
 		return invalidExporterf("no \"container\" property found for kind \"%s\"", c.Kind)
 	}
+
 	if c.AccountName == "" {
 		return invalidExporterf("no \"accountName\" property found for kind \"%s\"", c.Kind)
 	}
@@ -157,19 +163,24 @@ func (c *ExporterConf) isValidRedshift() error {
 	if c.Kind != RedshiftExporter {
 		return nil
 	}
+
 	if c.Database == "" {
 		return invalidExporterf("no \"database\" property found for kind \"%s\"", c.Kind)
 	}
+
 	if (c.ClusterIdentifier == "") == (c.WorkgroupName == "") {
 		return invalidExporterf(
 			"exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"%s\"", c.Kind)
 	}
+
 	if c.DBUser != "" && c.WorkgroupName != "" {
 		return invalidExporterf("\"dbUser\" cannot be used with \"workgroupName\" for kind \"%s\"", c.Kind)
 	}
+
 	if c.DBUser != "" && c.SecretArn != "" {
 		return invalidExporterf("\"dbUser\" and \"secretArn\" are mutually exclusive for kind \"%s\"", c.Kind)
 	}
+
 	if !redshiftexporter.IsValidTableName(c.TableName) {
 		return invalidExporterf(
 			"\"tableName\" %q is not a valid table name for kind \"%s\"", c.TableName, c.Kind)

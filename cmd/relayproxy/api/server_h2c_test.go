@@ -21,6 +21,7 @@ import (
 
 func TestServerEnableH2C(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		wantProtoMaj int
@@ -49,11 +50,14 @@ func TestServerEnableH2C(t *testing.T) {
 			log := newTestLogger(t)
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
+
 			wsSvc := stream.NewWebsocketService()
 			defer wsSvc.Close()
+
 			flagsetMgr, err := service.NewFlagsetManager(conf, log.Slog,
 				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, wsSvc)
 			require.NoError(t, err)
+
 			srv := newTestServer(t, conf, service.Services{
 				MonitoringService: service.NewMonitoring(
 					flagsetMgr,
@@ -63,6 +67,7 @@ func TestServerEnableH2C(t *testing.T) {
 				Metrics:          metrics,
 			}, log.Slog, api.WithListener(listener))
 			go func() { srv.StartWithContext(context.Background()) }()
+
 			defer srv.Stop(context.Background())
 
 			baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -74,22 +79,28 @@ func TestServerEnableH2C(t *testing.T) {
 			} else {
 				protos.SetHTTP1(true)
 			}
+
 			client := &http.Client{Transport: &http.Transport{Protocols: &protos}}
 			defer client.CloseIdleConnections()
 
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
 			require.NoError(t, err)
+
 			resp, err := client.Do(req)
 			if tt.wantErr {
 				if err == nil {
 					_ = resp.Body.Close()
 				}
+
 				assert.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
+
 			defer func() { _ = resp.Body.Close() }()
+
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, tt.wantProtoMaj, resp.ProtoMajor)
 		})

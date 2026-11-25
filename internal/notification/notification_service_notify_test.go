@@ -21,10 +21,12 @@ var (
 
 func TestNotificationServiceNotify(t *testing.T) {
 	t.Parallel()
+
 	yoFlags := func() map[string]flag.Flag {
 		return map[string]flag.Flag{"yo": &flag.InternalFlag{Version: new("1.0")}}
 	}
 	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
+
 	tests := []struct {
 		notifierErr  error
 		oldCache     map[string]flag.Flag
@@ -49,9 +51,11 @@ func TestNotificationServiceNotify(t *testing.T) {
 			c.Close() // waits for the notifier goroutines
 
 			assert.Equal(t, tt.wantCalls, mockNotifier.calls.Load())
+
 			if tt.wantLogError {
 				handler.AssertMessage("error while calling the notifier")
 			}
+
 			handler.AssertEmpty()
 		})
 	}

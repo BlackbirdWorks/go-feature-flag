@@ -31,6 +31,7 @@ func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
 
 func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 	tb.Helper()
+
 	l, err := log.New(format, "info", log.WithWriter(sink{}))
 	require.NoError(tb, err)
 
@@ -39,6 +40,7 @@ func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 
 func BenchmarkLogger(b *testing.B) {
 	ctx := context.Background()
+
 	tests := []struct {
 		logger *slog.Logger
 		name   string
@@ -57,6 +59,7 @@ func BenchmarkLogger(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				logFiveAttrs(ctx, tt.logger, tt.level)
 			}

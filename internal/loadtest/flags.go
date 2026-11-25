@@ -90,6 +90,7 @@ func scenarioBody(scenario string) string {
 // mode. Keys are given by FlagKey.
 func FlagsYAML() string {
 	var builder strings.Builder
+
 	for _, sc := range Scenarios() {
 		for _, typ := range Types() {
 			for _, track := range []bool{true, false} {
@@ -108,6 +109,7 @@ func ManyFlagsYAML(n int) string {
 	var builder strings.Builder
 	for i := range n {
 		fmt.Fprintf(&builder, "flag-%d:\n  trackEvents: false\n  variations:\n    A: true\n    B: false\n", i)
+
 		switch i % 3 {
 		case 0:
 			builder.WriteString("  defaultRule:\n    variation: A\n")

@@ -39,6 +39,7 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 
 			configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(configPath, []byte(tt.content), 0o600))
+
 			var environ []string
 			if tt.environment != "" {
 				environ = append(environ, "DISABLEFLAGDETAILSINSTREAM="+tt.environment)
@@ -77,6 +78,7 @@ func runParseConfigFromPflag(t *testing.T, tests []parseConfigFileCase) {
 			if !tt.wantErr(t, err) {
 				return
 			}
+
 			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
 		})
 	}
@@ -503,10 +505,12 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
+
 			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 			if !tt.wantErr(t, err) {
 				return
 			}
+
 			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
 		})
 	}
@@ -562,6 +566,7 @@ func runConfigIsValidTests(t *testing.T, tests []configIsValidCase) {
 			if tt.name == "empty config" {
 				cfg = nil
 			}
+
 			tt.wantErr(t, cfg.IsValid(), "invalid configuration")
 		})
 	}
@@ -1377,10 +1382,12 @@ func runMergeConfigFromOSEnvTests(t *testing.T, tests []mergeConfigFromOSEnvCase
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
+
 			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
+
 			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
 		})
 	}
@@ -1867,6 +1874,7 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 			for k, v := range tt.envVars {
 				environ = append(environ, k+"="+v)
 			}
+
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
@@ -2026,6 +2034,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 
 func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	t.Parallel()
+
 	s3Item := &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: "flags", Item: "a/flags.yaml"}
 	flagset := func(common config.CommonFlagSet) *config.Config {
 		common.EnableSharedPollerPerBucket = true
@@ -2035,6 +2044,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 			FlagSets: []config.FlagSet{{Name: "fs", APIKeys: []string{"k"}, CommonFlagSet: common}},
 		}
 	}
+
 	tests := []struct {
 		name    string
 		cfg     *config.Config
@@ -2082,12 +2092,14 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
 
 				return
 			}
+
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -2103,6 +2115,7 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
+
 	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	flagSet.String("config", "", "Location of your config file")
 	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
@@ -2114,6 +2127,7 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 
 func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		content      string
@@ -2136,6 +2150,7 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 			t.Parallel()
 			got := parseCleanQueueConfig(t, tt.content)
 			assert.Equal(t, tt.want, got.ExporterCleanQueueInterval)
+
 			for i, want := range tt.wantFlagSets {
 				assert.Equal(t, want, got.FlagSets[i].ExporterCleanQueueInterval)
 			}
@@ -2152,7 +2167,9 @@ func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
 
 func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
+
 	retriever := &retrieverconf.RetrieverConf{Kind: retrieverconf.HTTPRetriever, URL: "https://example.com/flags.yaml"}
+
 	tests := []struct {
 		name    string
 		cfg     *config.Config
@@ -2183,12 +2200,14 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
 
 				return
 			}
+
 			assert.EqualError(t, err, tt.wantErr)
 		})
 	}
@@ -2198,6 +2217,7 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 	t.Parallel()
 
 	const marker = "SECRETMARKER-7f3a"
+
 	tests := []struct {
 		name         string
 		attributes   string
@@ -2220,6 +2240,7 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 			require.Len(t, entries, 1)
 			assert.Equal(t, slog.LevelError, entries[0].Level)
 			assert.Equal(t, tt.wantPosition, entries[0].ContextMap()["position"])
+
 			for _, e := range logs.All() {
 				assert.NotContains(t, fmt.Sprintf("%v %v", e.Message, e.ContextMap()), marker)
 			}

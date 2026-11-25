@@ -28,12 +28,14 @@ const unknown = "unknown"
 // info may be nil.
 func Text(name string, linked Linked, info *debug.BuildInfo, fips bool) string {
 	version, commit, date := linked.Version, linked.Commit, linked.Date
+
 	goVersion := runtime.Version()
 	if info != nil {
 		goVersion = info.GoVersion
 		if (version == "" || version == DevVersion) && info.Main.Version != "" && info.Main.Version != "(devel)" {
 			version = info.Main.Version
 		}
+
 		for _, s := range info.Settings {
 			switch {
 			case s.Key == "vcs.revision" && commit == "":

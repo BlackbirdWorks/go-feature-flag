@@ -134,6 +134,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if headers == nil {
 		headers = make(http.Header)
 	}
+
 	headers.Set("Content-Type", "application/json")
 
 	// if a secret is provided we sign the body and add this signature as a header.
@@ -152,7 +153,9 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if err != nil {
 		return fmt.Errorf("error: while calling webhook: %w", internal.RedactURLError(err))
 	}
+
 	defer func() { _ = response.Body.Close() }()
+
 	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w = %d", errErrorWhileCallingWebhook, response.StatusCode)
 	}

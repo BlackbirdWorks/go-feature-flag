@@ -112,6 +112,7 @@ func TestNestedObject(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.result, result)
 		})
@@ -183,6 +184,7 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
+
 			result, err := eval(tt.rule, tt.input)
 			require.NoError(t, err, tt.rule)
 			assert.Equal(t, tt.result, result, tt.rule)

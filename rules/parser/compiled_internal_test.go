@@ -42,8 +42,10 @@ func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retEr
 			ret = false
 		}
 	}()
+
 	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(tree)
+
 	debugErr = visitor.debugErr
 	if result == nil || visitor.err != nil {
 		return false, visitor.err, debugErr
@@ -65,6 +67,7 @@ func errString(err error) (s string) { //nolint:nonamedreturns // recover sets t
 			s = fmt.Sprintf("Error() panicked: %v", info)
 		}
 	}()
+
 	if err == nil {
 		return "<nil>"
 	}
@@ -141,11 +144,13 @@ func buildAttrDifferentialGroups(inputs []diffKV) []diffGroup {
 	for _, attr := range attrs {
 		rules := make([]string, 0, 2+len(values)*len(ops))
 		rules = append(rules, attr+" pr", "not ("+attr+" pr)")
+
 		for _, op := range ops {
 			for _, v := range values {
 				rules = append(rules, fmt.Sprintf("%s %s %s", attr, op, v))
 			}
 		}
+
 		groups = append(groups, diffGroup{name: "attr/" + attr, rules: rules, inputs: inputs})
 	}
 
@@ -313,12 +318,14 @@ func buildVersionDifferentialGroup() diffGroup {
 			versionRules = append(versionRules, fmt.Sprintf("v %s %s", op, v))
 		}
 	}
+
 	versionRules = append(versionRules,
 		`v gt 1.2.0 and w lt 2.0.0`,
 		`v gt 99999999999999999999.0.0 or w lt 2.0.0`,
 		`v eq 1.2.3 or missing gt 1.0.0`,
 	)
 	versionInputs := make([]diffKV, 0, 2+len(versionLeftValues()))
+
 	versionInputs = append(versionInputs, nil, diffKV{})
 	for _, left := range versionLeftValues() {
 		versionInputs = append(versionInputs, diffKV{"v": left, "w": left})
@@ -329,21 +336,26 @@ func buildVersionDifferentialGroup() diffGroup {
 
 func buildRandomDifferentialGroups() []diffGroup {
 	rnd := rand.New(rand.NewSource(1))
+
 	count := randomRuleCount
 	if testing.Short() {
 		count = randomRuleCount / 10
 	}
+
 	randRules := make([]string, 0, count)
 	for len(randRules) < count {
 		randRules = append(randRules, genRule(rnd, 4))
 	}
+
 	randInputs := make([]diffKV, 0, 8)
+
 	randInputs = append(randInputs, nil)
 	for range 7 {
 		randInputs = append(randInputs, genMap(rnd, 3))
 	}
 	// chunks run in parallel; one sequential group dominated the run time
 	const chunk = 250
+
 	groups := make([]diffGroup, 0, (len(randRules)+chunk-1)/chunk)
 	for start := 0; start < len(randRules); start += chunk {
 		end := min(start+chunk, len(randRules))
@@ -362,6 +374,7 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 	for _, tt := range groups {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			for _, rule := range tt.rules {
 				// repeated is reused for every input; fresh compiles on its
 				// first Process, which is the call under test for each input.
@@ -376,6 +389,7 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 				tree := repeated.tree
 				for i, input := range tt.inputs {
 					wantRet, wantErr, wantDebug := visitorProcess(tree, input)
+
 					fresh := &Evaluator{rule: rule, tree: tree}
 					for name, eval := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
 						gotRet, gotErr := eval.Process(input)
@@ -391,6 +405,7 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 							name,
 						)
 					}
+
 					assert.Equal(t, wantRet, Evaluate(rule, input), "%q input %d: Evaluate", rule, i)
 				}
 			}
@@ -463,6 +478,7 @@ func genPath(r *rand.Rand) string {
 
 func genList(r *rand.Rand) string {
 	var pool []string
+
 	switch r.Intn(3) {
 	case 0:
 		pool = []string{"1", "2", "5", "0", "99999999999999999999"}
@@ -471,6 +487,7 @@ func genList(r *rand.Rand) string {
 	default:
 		pool = []string{`"a"`, `"hello"`, `""`, `"x"`, `"\u0041"`}
 	}
+
 	el := make([]string, 1+r.Intn(4))
 	for i := range el {
 		el[i] = pool[r.Intn(len(pool))]
@@ -484,6 +501,7 @@ func genRule(r *rand.Rand, depth int) string {
 		if r.Intn(5) == 0 {
 			return genPath(r) + " pr"
 		}
+
 		v := fuzzVals()[r.Intn(len(fuzzVals()))]
 		if r.Intn(3) == 0 {
 			v = genList(r)
@@ -491,6 +509,7 @@ func genRule(r *rand.Rand, depth int) string {
 
 		return genPath(r) + " " + fuzzOps()[r.Intn(len(fuzzOps()))] + " " + v
 	}
+
 	switch r.Intn(4) {
 	case 0:
 		return "(" + genRule(r, depth-1) + ")"
@@ -532,6 +551,7 @@ func genVal(r *rand.Rand, depth int) any {
 	case 12:
 		return float32(1.5)
 	}
+
 	if depth <= 0 {
 		return "leaf"
 	}
@@ -541,6 +561,7 @@ func genVal(r *rand.Rand, depth int) any {
 
 func genMap(r *rand.Rand, depth int) map[string]any {
 	res := map[string]any{}
+
 	for _, a := range fuzzAttrs() {
 		if r.Intn(3) != 0 {
 			res[a] = genVal(r, depth)
@@ -552,6 +573,7 @@ func genMap(r *rand.Rand, depth int) map[string]any {
 
 func testProcessZeroValue(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		items map[string]any
 		name  string
@@ -562,12 +584,15 @@ func testProcessZeroValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var wantErr error
+
 			func() {
 				v := NewJSONQueryVisitorImpl(tt.items)
 				v.Visit(nil)
 				wantErr = v.err
 			}()
+
 			ev := &Evaluator{}
 			got, err := ev.Process(tt.items)
 			assert.False(t, got)
@@ -579,6 +604,7 @@ func testProcessZeroValue(t *testing.T) {
 
 func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		bad    map[string]any
 		mutate func(t *testing.T, rule any)
@@ -593,8 +619,10 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			bad:  map[string]any{"x": "str"},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
+
 				s, ok := r.([]int)
 				require.True(t, ok)
+
 				s[0] = 42
 			},
 			probe: map[string]any{"x": 42},
@@ -605,8 +633,10 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			bad:  map[string]any{"x": "str"},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
+
 				s, ok := r.([]float64)
 				require.True(t, ok)
+
 				s[0] = 42
 			},
 			probe: map[string]any{"x": 42.0},
@@ -617,8 +647,10 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			bad:  map[string]any{"x": 5},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
+
 				s, ok := r.([]string)
 				require.True(t, ok)
+
 				s[0] = "zzz"
 			},
 			probe: map[string]any{"x": "zzz"},
@@ -627,10 +659,12 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			_, err = eval.Process(tt.bad)
 			require.NoError(t, err)
+
 			var ne *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &ne)
 			tt.mutate(t, ne.Vals["rule_operand"])
@@ -642,6 +676,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 
 func testProcessErrorIdentity(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		name string
 		rule string
@@ -653,10 +688,13 @@ func testProcessErrorIdentity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ev, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			_, err1 := ev.Process(map[string]any{"x": 1})
 			_, err2 := ev.Process(map[string]any{"x": 1})
+
 			var ne1, ne2 *strconv.NumError
 			require.ErrorAs(t, err1, &ne1)
 			require.ErrorAs(t, err2, &ne2)
@@ -669,6 +707,7 @@ func testProcessErrorIdentity(t *testing.T) {
 
 func testProcessConcurrent(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		items map[string]any
 		name  string
@@ -687,19 +726,24 @@ func testProcessConcurrent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
 					for range 500 {
 						got, processErr := eval.Process(tt.items)
 						assert.Equal(t, tt.want, got)
+
 						_ = eval.LastDebugErr()
+
 						assert.NoError(t, processErr)
 					}
 				})
 			}
+
 			wg.Wait()
 		})
 	}
@@ -707,6 +751,7 @@ func testProcessConcurrent(t *testing.T) {
 
 func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		want  any
 		items map[string]any
@@ -722,8 +767,10 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			items: map[string]any{"x": 1},
 			mut: func(t *testing.T, v any) {
 				t.Helper()
+
 				s, ok := v.([]int)
 				require.True(t, ok)
+
 				s[0] = 99
 			},
 			want: []int{1, 2},
@@ -734,8 +781,10 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			items: map[string]any{"x": 1.0},
 			mut: func(t *testing.T, v any) {
 				t.Helper()
+
 				s, ok := v.([]float64)
 				require.True(t, ok)
+
 				s[0] = 99
 			},
 			want: []float64{1.5, 2.5},
@@ -746,8 +795,10 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			items: map[string]any{"x": "a"},
 			mut: func(t *testing.T, v any) {
 				t.Helper()
+
 				s, ok := v.([]string)
 				require.True(t, ok)
+
 				s[0] = "zzz"
 			},
 			want:            []string{"a", "b"},
@@ -757,15 +808,19 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
+
 			var nestedErr *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &nestedErr)
+
 			var eio *InvalidOperandError
 			require.ErrorAs(t, nestedErr.Err, &eio)
 			tt.mut(t, eio.Val)
+
 			if typeObj := reflect.ValueOf(eio.typeObj); typeObj.Kind() == reflect.Slice {
 				assert.NotEqual(t, reflect.ValueOf(eval.root.cmp.listOp).Pointer(), typeObj.Pointer(),
 					"typeObj shares the compiled list's backing array")
@@ -773,12 +828,15 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			} else {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
+
 			tt.mut(t, nestedErr.Vals["rule_operand"])
 			assert.Equal(t, tt.want, eval.root.cmp.listOp, "compiled constant mutated")
 			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
+
 			var ne2 *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &ne2)
+
 			var eio2 *InvalidOperandError
 			require.ErrorAs(t, ne2.Err, &eio2)
 			assert.Equal(t, tt.want, eio2.Val, "later debug error affected")
@@ -788,6 +846,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 
 func testProcessConcurrentFirstCall(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		items map[string]any
 		name  string
@@ -805,19 +864,25 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			for range 50 {
 				eval, err := NewEvaluator(tt.rule)
 				require.NoError(t, err)
+
 				var wg sync.WaitGroup
+
 				start := make(chan struct{})
+
 				for range 16 {
 					wg.Go(func() {
 						<-start
+
 						got, processErr := eval.Process(tt.items)
 						assert.Equal(t, tt.want, got)
 						assert.NoError(t, processErr)
 					})
 				}
+
 				close(start)
 				wg.Wait()
 			}
@@ -842,7 +907,9 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			wantRet, wantErr, wantDebug := visitorProcess(tt.tree, tt.items)
+
 			eval := &Evaluator{tree: tt.tree}
 			for call := range 2 {
 				gotRet, gotErr := eval.Process(tt.items)
@@ -850,6 +917,7 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 				assert.Equal(t, errString(wantErr), errString(gotErr), "call %d", call)
 				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "call %d", call)
 			}
+
 			assert.Nil(t, eval.root, "failed compile must leave no root")
 			assert.NotNil(t, eval.tree, "failed compile must keep the tree")
 		})
@@ -858,6 +926,7 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 
 func testProcessDropsTreeAfterCompile(t *testing.T) {
 	t.Helper()
+
 	eval, err := NewEvaluator(`x eq 1`)
 	require.NoError(t, err)
 	require.NotNil(t, eval.tree, "NewEvaluator must only parse")
@@ -871,6 +940,7 @@ func testProcessDropsTreeAfterCompile(t *testing.T) {
 
 func testProcessVersionFastPath(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		rule     string
 		wantFast bool
@@ -893,6 +963,7 @@ func testProcessVersionFastPath(t *testing.T) {
 			// the differential versions group would skip a rule that does not parse
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			items := map[string]any{"v": "1.2.3"}
 			want, wantErr := eval.Process(items)
 			assert.Equal(t, tt.wantFast, eval.root.cmp.version != nil, "fast path")
@@ -915,8 +986,10 @@ func testProcessVersionFastPath(t *testing.T) {
 
 func testProcessStaleDebugErr(t *testing.T) {
 	t.Helper()
+
 	bad := map[string]any{"x": "s"}
 	good := map[string]any{"x": 1}
+
 	tests := []struct {
 		clear func(eval *Evaluator)
 		name  string
@@ -932,8 +1005,10 @@ func testProcessStaleDebugErr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			eval, err := NewEvaluator(`x in [1, 2]`)
 			require.NoError(t, err)
+
 			for round := range 3 {
 				_, _ = eval.Process(bad)
 				require.Error(t, eval.LastDebugErr(), "round %d: want a debug error", round)
@@ -948,8 +1023,10 @@ func testProcessStaleDebugErr(t *testing.T) {
 // does not leave the debug error another call stored while it was running.
 func TestPanicClearsDebugErrStoredByOverlappingCall(t *testing.T) {
 	t.Parallel()
+
 	eval, err := NewEvaluator(`x in [1, 2]`)
 	require.NoError(t, err)
+
 	eval.testHookPanic = func() {
 		eval.testHookPanic = nil
 		// stands in for an overlapping call that failed after this one started
@@ -972,25 +1049,33 @@ func TestParsePlainVersion(t *testing.T) {
 		"1.2.3-alpha", "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
 		"01.2.3", "1.02.3", "1.2.03", "0.0.00", "v1.2.3", " 1.2.3", "1.2.3 ", "1.2.٣", "-1.2.3", "+1.2.3",
 	}
+
 	const randomInputs = 20000
+
 	inputs := make([]string, 0, len(literals)+randomInputs)
 	inputs = append(inputs, literals...)
 	// seeded random strings over the characters that matter to the parser
 	rnd := rand.New(rand.NewSource(1))
+
 	const alphabet = "0123456789..++--aZ_"
+
 	for range randomInputs {
 		b := make([]byte, rnd.Intn(12))
 		for j := range b {
 			b[j] = alphabet[rnd.Intn(len(alphabet))]
 		}
+
 		inputs = append(inputs, string(b))
 	}
+
 	for _, input := range inputs {
 		got, ok := parsePlainVersion(input)
 		want, err := semver.Make(input)
+
 		if !ok {
 			continue
 		}
+
 		require.NoError(t, err, "%q: accepted but semver.Make fails", input)
 		assert.Empty(t, want.Pre, "%q", input)
 		assert.Equal(t, want.Major, got.Major, "%q", input)
@@ -999,6 +1084,7 @@ func TestParsePlainVersion(t *testing.T) {
 		assert.Nil(t, got.Pre, "%q", input)
 		assert.Nil(t, got.Build, "%q", input)
 	}
+
 	for _, input := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
 		_, ok := parsePlainVersion(input)
 		assert.True(t, ok, "%q: not parsed by the fast path", input)
@@ -1010,6 +1096,7 @@ func TestParsePlainVersion(t *testing.T) {
 // than write into the shared compiled list.
 func testProcessListCapacity(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		rule string
 	}{
@@ -1021,12 +1108,14 @@ func testProcessListCapacity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
-			_, _ = ev.Process(map[string]any{"x": 1})
-			list := reflect.ValueOf(ev.root.cmp.listOp)
+
+			_, _ = eval.Process(map[string]any{"x": 1})
+			list := reflect.ValueOf(eval.root.cmp.listOp)
 			require.Equal(t, reflect.Slice, list.Kind())
-			assert.Equal(t, list.Len(), list.Cap(), "listOp %v", ev.root.cmp.listOp)
+			assert.Equal(t, list.Len(), list.Cap(), "listOp %v", eval.root.cmp.listOp)
 		})
 	}
 }
@@ -1039,6 +1128,7 @@ func testProcessListCapacity(t *testing.T) {
 // shared list. Run with -race.
 func testProcessConcurrentStaleList(t *testing.T) {
 	t.Helper()
+
 	tests := []struct {
 		items map[string]any
 		name  string
@@ -1063,11 +1153,14 @@ func testProcessConcurrentStaleList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			tree, err := parseRule(tt.rule)
 			require.NoError(t, err)
+
 			wantRet, wantErr, wantDebug := visitorProcess(tree, tt.items)
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
@@ -1080,6 +1173,7 @@ func testProcessConcurrentStaleList(t *testing.T) {
 					}
 				})
 			}
+
 			wg.Wait()
 			assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "debug err")
 		})
@@ -1103,8 +1197,12 @@ func TestAttrStack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var stack attrStack
-			var want []any
+
+			var (
+				stack attrStack
+				want  []any
+			)
+
 			for i, op := range tt.ops {
 				switch {
 				case op > 0:
@@ -1112,14 +1210,18 @@ func TestAttrStack(t *testing.T) {
 					want = append(want, op)
 				case op == 0:
 					stack.pop()
+
 					want = want[:len(want)-1]
 				default:
 					stack.clear()
+
 					want = want[:0]
 				}
+
 				wantMore := max(len(want)-attrStackInline, 0)
 				require.Equal(t, len(want), stack.n, "op %d: n", i)
 				require.Len(t, stack.more, wantMore, "op %d: len(more)", i)
+
 				if stack.n > 0 {
 					require.Equal(t, want[len(want)-1], stack.top(), "op %d: top", i)
 				}

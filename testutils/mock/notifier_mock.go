@@ -14,6 +14,7 @@ type Notifier struct {
 func (n *Notifier) Notify(_ notifier.DiffCache) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
 	n.NotifyCalls++
 
 	return nil

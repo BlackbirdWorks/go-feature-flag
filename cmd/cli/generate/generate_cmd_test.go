@@ -49,6 +49,7 @@ func TestNewGenerateCmd(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			cmd := generate.NewGenerateCmd()
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)

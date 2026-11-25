@@ -57,6 +57,7 @@ func TestSharedItems_etagOf(t *testing.T) {
 
 func TestSharedItems_listingPrefix(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -115,6 +116,7 @@ func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 	require.NoError(t, err)
 	group.mu.Lock()
 	defer group.mu.Unlock()
+
 	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, group.listing)
 }
 
@@ -138,6 +140,7 @@ func (l *tokenLister) ListObjectsV2(
 
 func TestSharedItems_list(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name      string
 		next      func(n int64) string
@@ -166,6 +169,7 @@ func TestSharedItems_list(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			l := &tokenLister{next: tt.next}
 			g := &SharedItems{bucket: "b", lister: l}
 			_, err := g.list(t.Context(), "p/", nil)

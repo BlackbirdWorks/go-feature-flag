@@ -62,6 +62,7 @@ func (c *Config) EffectiveMonitoringPort(logger *slog.Logger) int {
 	if c.Server.MonitoringPort != 0 {
 		return c.Server.MonitoringPort
 	}
+
 	if c.MonitoringPort != 0 {
 		if logger != nil {
 			logger.Warn("The monitoring port is set using `monitoringPort`, " +

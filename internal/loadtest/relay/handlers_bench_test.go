@@ -21,21 +21,26 @@ import (
 func invoke(
 	b *testing.B,
 	handler func(http.ResponseWriter, *http.Request) error,
-	ep relay.Endpoint,
+	endpoint relay.Endpoint,
 	key string,
 	i int,
 ) {
 	b.Helper()
-	req := httptest.NewRequest(http.MethodPost, ep.Path(key), strings.NewReader(ep.Body(i)))
+
+	req := httptest.NewRequest(http.MethodPost, endpoint.Path(key), strings.NewReader(endpoint.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
+
 	req.SetPathValue("flagKey", key)
+
 	err := handler(rec, req)
 	if err != nil {
 		assert.NoError(b, err)
 
 		return
 	}
+
 	assert.Equal(b, http.StatusOK, rec.Code, "unexpected status: %s", rec.Body.String())
 }
 
@@ -47,7 +52,9 @@ func BenchmarkHandlers(b *testing.B) {
 		ExporterMode: loadtest.ExporterDiscard,
 	})
 	require.NoError(b, err)
+
 	defer r.Close()
+
 	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
 	semEval := controller.NewFlagEval(fm, metrics)
 	semAll := controller.NewAllFlags(fm, metrics)
@@ -58,15 +65,18 @@ func BenchmarkHandlers(b *testing.B) {
 		relay.OFREPEval:         ofrepCtrl.Evaluate,
 		relay.OFREPBulk:         ofrepCtrl.BulkEvaluate,
 	}
+
 	for _, endpoint := range relay.Endpoints() {
 		for _, track := range []bool{false, true} {
 			if (endpoint == relay.SemaphoreAllFlags || endpoint == relay.OFREPBulk) && track {
 				continue
 			}
+
 			key := loadtest.FlagKey("rule", "bool", track)
 			handler := handlers[endpoint]
 			b.Run(fmt.Sprintf("%s/track=%t", endpoint, track), func(b *testing.B) {
 				b.ReportAllocs()
+
 				for i := range b.N {
 					invoke(b, handler, endpoint, key, i)
 				}

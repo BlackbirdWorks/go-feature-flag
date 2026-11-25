@@ -49,14 +49,18 @@ func (f *fakeS3) ListObjectsV2(
 	_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
 	f.lists.Add(1)
+
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
+
 	out := &s3.ListObjectsV2Output{}
+
 	keys := f.keys
 	if keys == nil {
 		keys = []string{"p/a.yaml", "p/b.yaml", "p/c.yaml"}
 	}
+
 	for _, k := range keys {
 		if strings.HasPrefix(k, aws.ToString(input.Prefix)) {
 			out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(f.etagOf(k))})
@@ -74,8 +78,10 @@ func (f *fakeS3) DownloadObject(
 	if f.getsByKey == nil {
 		f.getsByKey = map[string]int{}
 	}
+
 	f.getsByKey[aws.ToString(input.Key)]++
 	f.mu.Unlock()
+
 	_, err := input.WriterAt.WriteAt(f.content, 0)
 	if err != nil {
 		return nil, err
@@ -87,15 +93,18 @@ func (f *fakeS3) DownloadObject(
 func (f *fakeS3) setETag(key, etag string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.etags == nil {
 		f.etags = map[string]string{}
 	}
+
 	f.etags[key] = etag
 }
 
 func (f *fakeS3) etagOf(key string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e, ok := f.etags[key]; ok {
 		return e
 	}
@@ -154,6 +163,7 @@ func (r *sharedBucketRegistry) groupCount() int {
 
 func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		// run executes the scenario and returns what it observed: the groups created and the groups alive at each
@@ -163,7 +173,9 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 	}{
 		{name: "same bucket shares a group, other bucket has its own", run: func(t *testing.T) []int {
 			t.Helper()
+
 			var created atomic.Int32
+
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
 			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
 				s3FlagSet("c", "b2", "p/c.yaml")
@@ -173,6 +185,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			require.NoError(t, err)
 			_, err = reg.retrieverFor(&fs3)
 			require.NoError(t, err)
+
 			got := make([]int, 0, 3)
 			got = append(got, int(created.Load()), reg.groupCount())
 
@@ -192,9 +205,11 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			require.NoError(t, err)
 			ret2, err := reg.retrieverFor(&fs2)
 			require.NoError(t, err)
+
 			rel1, ok := ret1.(*releasingRetriever)
 			require.True(t, ok)
 			require.NoError(t, rel1.Shutdown(t.Context()))
+
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
 			rel2, ok := ret2.(*releasingRetriever)
@@ -210,6 +225,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			other := s3FlagSet("a", "b1", "x")
 			other.Retriever.Kind = retrieverconf.HTTPRetriever
 			multi := s3FlagSet("a", "b1", "x")
+
 			multi.Retrievers = &[]retrieverconf.RetrieverConf{*multi.Retriever}
 			for _, fs := range []config.FlagSet{folder, other, multi} {
 				_, err := reg.retrieverFor(&fs)
@@ -220,6 +236,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
 			t.Helper()
+
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
@@ -229,9 +246,12 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		}, want: []int{0}},
 		{name: "concurrent callers build the group once", run: func(t *testing.T) []int {
 			t.Helper()
+
 			const callers = 4
+
 			var building sync.WaitGroup
 			building.Add(callers)
+
 			reg := newSharedBucketRegistry(
 				func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 					// every caller is building its own group at the same time: only one is kept
@@ -246,25 +266,32 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 				false,
 				nil,
 			)
+
 			type retrieverResult struct {
 				err error
 				rel *releasingRetriever
 				ok  bool
 			}
+
 			var wg sync.WaitGroup
+
 			results := make(chan retrieverResult, callers)
 			for i := range callers {
 				wg.Go(func() {
 					fs := s3FlagSet(fmt.Sprintf("f%d", i), "b1", fmt.Sprintf("p/%d.yaml", i))
 					r, err := reg.retrieverFor(&fs)
+
 					rel, ok := r.(*releasingRetriever)
 					results <- retrieverResult{err: err, rel: rel, ok: ok}
 				})
 			}
+
 			wg.Wait()
 			close(results)
+
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
+
 			for res := range results {
 				require.NoError(t, res.err)
 				require.True(t, res.ok)
@@ -285,6 +312,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 
 func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		// run executes the scenario and returns the groups created and alive at each checkpoint
@@ -294,20 +322,25 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 		{name: "claimed retrievers are the pre-registered ones, the unclaimed ones are released",
 			run: func(t *testing.T) []int {
 				t.Helper()
+
 				var created atomic.Int32
+
 				reg := newFakeRegistry(t, &fakeS3{}, &created)
 				fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "q/b.yaml")
 				require.NoError(t, reg.preRegister(&fs1))
 				require.NoError(t, reg.preRegister(&fs2))
+
 				got := make([]int, 0, 3)
 				got = append(got, int(created.Load()))
 
 				// no additional reference is taken when a pre-registered retriever is claimed
 				r1, err := reg.retrieverFor(&fs1)
 				require.NoError(t, err)
+
 				rel1, ok := r1.(*releasingRetriever)
 				require.True(t, ok)
 				require.NoError(t, rel1.Shutdown(t.Context()))
+
 				got = append(got, reg.groupCount()) // fs2 is still pending
 
 				reg.releasePending()
@@ -324,6 +357,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
 			t.Helper()
+
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
@@ -347,9 +381,11 @@ func failingRegistry(logger *slog.Logger) *sharedBucketRegistry {
 
 func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	t.Parallel()
+
 	valid := s3FlagSet("valid", "b1", "p/a.yaml")
 	plain := s3FlagSet("plain", "b1", "p/b.yaml")
 	plain.EnableSharedPollerPerBucket = false
+
 	tests := []struct {
 		reg        func(logger *slog.Logger) *sharedBucketRegistry
 		name       string
@@ -368,6 +404,7 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			core, logs := slogutil.NewObserver(slog.LevelWarn)
 			reg := tt.reg(core)
 			reg.preRegisterAll([]config.FlagSet{valid, plain})
@@ -402,6 +439,7 @@ func Test_defaultSharedItemsFactory(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
+
 			_, err := defaultSharedItemsFactory(t.Context(), "bucket")
 			tt.wantErr(t, err)
 		})
@@ -410,6 +448,7 @@ func Test_defaultSharedItemsFactory(t *testing.T) {
 
 func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		wantMessage []string
@@ -439,17 +478,20 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			core, logs := slogutil.NewObserver(slog.LevelWarn)
 			reg := newFakeRegistryWithPolling(t, &fakeS3{}, &atomic.Int32{}, tt.parent, tt.parentJit, core)
 			fs := s3FlagSet("fs", "b1", "p/a.yaml")
 			fs.PollingInterval, fs.EnablePollingJitter = tt.polling, tt.jitter
 			r, err := reg.retrieverFor(&fs)
 			require.NoError(t, err)
+
 			rel, ok := r.(*releasingRetriever)
 			require.True(t, ok)
 			require.NoError(t, rel.Shutdown(t.Context()))
 
 			require.Equal(t, len(tt.wantMessage), logs.Len())
+
 			for i, snippet := range tt.wantMessage {
 				entry := logs.All()[i]
 				assert.Contains(t, entry.Message, snippet)

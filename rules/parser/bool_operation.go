@@ -26,10 +26,12 @@ func (o *BoolOperation) get(left Operand, right Operand) (bool, bool, error) {
 	if left == nil {
 		return false, false, ErrEvalOperandMissing
 	}
+
 	leftVal, ok := left.(bool)
 	if !ok {
 		return false, false, newInvalidOperandError(left, leftVal)
 	}
+
 	rightVal, ok := right.(bool)
 	if !ok {
 		return false, false, newInvalidOperandError(right, rightVal)

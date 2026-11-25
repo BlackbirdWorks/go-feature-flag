@@ -46,6 +46,7 @@ func (p *PoolRegistry) GetPool(ctx context.Context, uri string) (*pgxpool.Pool, 
 		//nolint:wrapcheck // preserves pgxpool.New parse error text asserted by registry tests
 		return nil, err
 	}
+
 	pingErr := pool.Ping(ctx)
 	if pingErr != nil {
 		pool.Close()

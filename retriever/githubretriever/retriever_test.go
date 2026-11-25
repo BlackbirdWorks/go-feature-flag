@@ -19,6 +19,7 @@ func Test_github_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
+
 	type fields struct {
 		httpClient     mock.HTTP
 		repositorySlug string
@@ -26,6 +27,7 @@ func Test_github_Retrieve(t *testing.T) {
 		githubToken    string
 		withCtx        bool
 	}
+
 	tests := []struct {
 		fields  fields
 		name    string
@@ -175,14 +177,17 @@ func Test_github_Retrieve(t *testing.T) {
 			}
 
 			ret.SetHTTPClient(&tt.fields.httpClient)
+
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
+
 			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
+
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -191,9 +196,11 @@ func Test_github_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, tt.want, got)
+
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
@@ -217,6 +224,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		baseURL        string
 		branch         string
 	}
+
 	tests := []struct {
 		fields      fields
 		name        string
@@ -362,9 +370,11 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			ret.SetHTTPClient(&tt.fields.httpClient)
 			got, err := ret.Retrieve(context.Background())
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
+
 			if !tt.wantErr {
 				assert.Equal(t, string(tt.want), string(got))
 				assert.Equal(t, tt.expectedURL, tt.fields.httpClient.Req.URL.String())
+
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
@@ -406,6 +416,7 @@ func TestRateLimiting(t *testing.T) {
 
 func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
 	t.Parallel()
+
 	h := githubretriever.Retriever{
 		BaseURL:        "https://user:SECRETMARKER@github.example.com:bad/?token=SECRETMARKER",
 		FilePath:       "flags.yaml",

@@ -24,6 +24,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 	if !e.recovered.Load() {
 		return assert.AnError
 	}
+
 	e.events.Add(int64(len(ev)))
 
 	return nil
@@ -34,6 +35,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 // has a larger one.
 func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		smallLimit   int64
@@ -62,6 +64,7 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 			}, time.Hour, nil)
 			am, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
+
 			for range tt.events {
 				if tt.async {
 					am.QueueEvents(make([]exporter.FeatureEvent, 1))
@@ -69,9 +72,12 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 					mgr.AddEvent(exporter.FeatureEvent{})
 				}
 			}
+
 			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
+
 			dropped := dc.DroppedEvents()
+
 			small.recovered.Store(true)
 			mgr.Stop()
 			assert.LessOrEqual(t, small.events.Load(), tt.wantSmallMax, "the small exporter keeps at most its limit")

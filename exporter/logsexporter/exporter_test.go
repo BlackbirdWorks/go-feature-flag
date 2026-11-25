@@ -22,9 +22,11 @@ func TestLog_Export(t *testing.T) {
 	type fields struct {
 		LogFormat string
 	}
+
 	type args struct {
 		featureEvents []exporter.ExportableEvent
 	}
+
 	tests := []struct {
 		name        string
 		fields      fields

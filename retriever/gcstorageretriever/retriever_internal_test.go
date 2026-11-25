@@ -27,6 +27,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		Bucket string
 		Object string
 	}
+
 	type storageConfig struct {
 		files        map[string]string
 		updatedFiles map[string]string

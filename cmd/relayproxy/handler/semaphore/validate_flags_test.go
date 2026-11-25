@@ -43,13 +43,17 @@ func normalizeAltMessage(got []controller.FlagValidationError, alt string, want 
 // validateOutcomeCounts returns the validate flags counter value per outcome label.
 func validateOutcomeCounts(t *testing.T, m metric.Metrics) map[string]float64 {
 	t.Helper()
+
 	families, err := m.Registry.Gather()
 	require.NoError(t, err)
+
 	counts := map[string]float64{}
+
 	for _, f := range families {
 		if f.GetName() != "semaphore_validate_flags_total" {
 			continue
 		}
+
 		for _, mm := range f.GetMetric() {
 			counts[mm.GetLabel()[0].GetValue()] = mm.GetCounter().GetValue()
 		}
@@ -81,16 +85,19 @@ func assertValidateResult(
 	wantStatus int, wantValid bool, altMessage string, wantErrors []controller.FlagValidationError,
 ) {
 	t.Helper()
+
 	if wantStatus != http.StatusOK && wantStatus != http.StatusUnprocessableEntity {
 		var httpErr *helper.HTTPError
 		require.ErrorAs(t, err, &httpErr)
 		assert.Equal(t, wantStatus, httpErr.Code)
+
 		if wantStatus == http.StatusRequestEntityTooLarge {
 			assert.Contains(t, httpErr.Message, "request body too large (max ")
 		}
 
 		return
 	}
+
 	require.NoError(t, err)
 	assert.Equal(t, wantStatus, rec.Code)
 
@@ -99,18 +106,24 @@ func assertValidateResult(
 	assert.Equal(t, "v1.2.3", got.Version)
 	assert.Equal(t, wantValid, got.Valid)
 	normalizeAltMessage(got.Errors, altMessage, wantErrors)
+
 	if wantErrors == nil {
 		wantErrors = []controller.FlagValidationError{}
 	}
+
 	assert.Equal(t, wantErrors, got.Errors)
 }
 
 func TestNewValidateFlags_Handler(t *testing.T) {
 	t.Parallel()
-	const validJSON = `{"flag-a":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`
-	const validYAML = "flag-a:\n  variations:\n    a: true\n    b: false\n  defaultRule:\n    variation: a\n"
-	const validTOML = "[flag-a]\n[flag-a.variations]\na = true\nb = false\n[flag-a.defaultRule]\nvariation = \"a\"\n"
-	const invalidJSON = `{"flag-b":{"variations":{"a":true}},"flag-a":{"variations":{"a":true}}}`
+
+	const (
+		validJSON   = `{"flag-a":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`
+		validYAML   = "flag-a:\n  variations:\n    a: true\n    b: false\n  defaultRule:\n    variation: a\n"
+		validTOML   = "[flag-a]\n[flag-a.variations]\na = true\nb = false\n[flag-a.defaultRule]\nvariation = \"a\"\n"
+		invalidJSON = `{"flag-b":{"variations":{"a":true}},"flag-a":{"variations":{"a":true}}}`
+	)
+
 	oversizedJSON := padTo(validJSON, " ", jsonBodyLimit+1)
 
 	tests := []struct {
@@ -306,10 +319,13 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
+
 			ctrl := controller.NewValidateFlags("v1.2.3", metrics, tt.limits)
 			rec := httptest.NewRecorder()
+
 			req := httptest.NewRequestWithContext(
 				t.Context(), http.MethodPost, "/admin/v1/flags/validate", strings.NewReader(tt.body))
 			switch {
@@ -320,11 +336,13 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 				req.Body = io.NopCloser(strings.NewReader(tt.body))
 				req.ContentLength = -1
 			}
+
 			if tt.contentType != "" {
 				req.Header.Set("Content-Type", tt.contentType)
 			}
 
 			err = ctrl.Handler(rec, req)
+
 			assert.Equal(t, map[string]float64{outcomeForStatus(tt.wantStatus): 1}, validateOutcomeCounts(t, metrics))
 			assertValidateResult(t, err, rec, tt.wantStatus, tt.wantValid, tt.altMessage, tt.wantErrors)
 		})

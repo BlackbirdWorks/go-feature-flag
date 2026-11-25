@@ -46,14 +46,20 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 	t.Helper()
 	desc, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
 	require.NoError(t, err)
+
 	iterators := map[string]*string{}
-	for _, s := range desc.StreamDescription.Shards {
-		it, getShardIteratorErr := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
-			StreamName: aws.String(stream), ShardId: s.ShardId, ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
+
+	for _, shard := range desc.StreamDescription.Shards {
+		iter, getShardIteratorErr := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
+			StreamName:        aws.String(stream),
+			ShardId:           shard.ShardId,
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 		})
 		require.NoError(t, getShardIteratorErr)
-		iterators[aws.ToString(s.ShardId)] = it.ShardIterator
+
+		iterators[aws.ToString(shard.ShardId)] = iter.ShardIterator
 	}
+
 	var got []exporter.FeatureEvent
 	require.Eventually(t, func() bool {
 		for id, it := range iterators {
@@ -64,6 +70,7 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 			if getRecordsErr != nil {
 				return false
 			}
+
 			iterators[id] = out.NextShardIterator
 			for _, r := range out.Records {
 				var e exporter.FeatureEvent
@@ -140,24 +147,29 @@ func TestE2E_Export(t *testing.T) {
 					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
 				)
 				require.NoError(t, err)
+
 				opts = []kinesisexporter.Option{
 					kinesisexporter.WithStreamArn(aws.ToString(desc.StreamDescription.StreamARN)),
 				}
 			}
+
 			if tt.partitionKey != nil {
 				opts = append(opts, kinesisexporter.WithPartitionKey(tt.partitionKey))
 			}
-			e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: kinesisexporter.NewSettings(opts...)}
+
+			exp := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: kinesisexporter.NewSettings(opts...)}
 
 			all := events(tt.nbEvents)
+
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
+				require.NoError(t, exp.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
 			}
 
 			got := readAll(t, client, stream, tt.nbEvents)
 			require.Len(t, got, tt.wantReceived)
 			sort.Slice(got, func(i, j int) bool { return got[i].UserKey < got[j].UserKey })
+
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.UserKey)
 				assert.Equal(t, "my-flag", g.Key)

@@ -18,6 +18,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		EndpointURL string
 		Secret      string
 	}
+
 	tests := []struct {
 		fields   fields
 		name     string
@@ -96,6 +97,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 			}
 			err := cfg.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
+
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())
 			}

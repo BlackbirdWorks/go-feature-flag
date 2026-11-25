@@ -45,6 +45,7 @@ func main() {
 	// Ctrl+C / SIGTERM stop the workers (the relay proxy also shuts itself down on them).
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	code := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+
 	stop()
 	os.Exit(code)
 }
@@ -61,6 +62,7 @@ type options struct {
 func parseArgs(args []string, stderr io.Writer) (options, error) {
 	flagSet := flag.NewFlagSet("soak", flag.ContinueOnError)
 	flagSet.SetOutput(stderr)
+
 	var opts options
 	flagSet.StringVar(&opts.target, "target", "library", "library | relay")
 	flagSet.StringVar(&opts.endpoint, "endpoint", string(relay.SemaphoreEval),
@@ -102,6 +104,7 @@ func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse exporter mode: %w", err)
 	}
+
 	switch opts.target {
 	case "library":
 		t, libErr := loadtest.NewLibraryTarget(ctx, loadtest.LibraryOptions{
@@ -118,6 +121,7 @@ func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 		if parseEndpointErr != nil {
 			return nil, fmt.Errorf("parse relay endpoint: %w", parseEndpointErr)
 		}
+
 		if opts.protocol != "http1" && opts.protocol != "h2c" {
 			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
 		}
@@ -143,6 +147,7 @@ func startCPUProfile(path string) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("create CPU profile file: %w", err)
 	}
+
 	startCPUProfileErr := pprof.StartCPUProfile(file)
 	if startCPUProfileErr != nil {
 		_ = file.Close()
@@ -152,6 +157,7 @@ func startCPUProfile(path string) (func(), error) {
 
 	return func() {
 		pprof.StopCPUProfile()
+
 		_ = file.Close()
 	}, nil
 }
@@ -163,9 +169,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return 0
 	}
+
 	if err != nil {
 		return exitUsage
 	}
+
 	slog.SetLogLoggerLevel(slog.LevelError)
 
 	if opts.cpuProfile != "" {
@@ -177,6 +185,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		defer stop()
 	}
+
 	t, err := newTarget(ctx, opts)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
@@ -189,8 +198,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if opts.target == "relay" {
 		name += " endpoint=" + opts.endpoint + " protocol=" + opts.protocol
 	}
+
 	_, _ = fmt.Fprintf(stdout, "# %s GOMAXPROCS=%d %s duration=%s\n",
 		name, runtime.GOMAXPROCS(0), runtime.Version(), opts.duration)
+
 	rep := loadtest.Run(ctx, t, loadtest.Options{
 		Name: name, Duration: opts.duration, Interval: opts.interval, Workers: opts.workers,
 		WarmupIntervals: opts.warmup, HeapTolerance: opts.heapTolerance,
@@ -200,7 +211,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		return exitInterrupted
 	}
+
 	rep.Summary(stdout)
+
 	if !rep.Pass {
 		return 1
 	}

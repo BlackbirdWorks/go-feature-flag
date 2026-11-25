@@ -235,6 +235,7 @@ func assertCalls(
 	method string,
 ) {
 	t.Helper()
+
 	for name := range expected {
 		r := findRetrieverByName(retrievers, name)
 		require.NotNil(t, r, "Retriever %s should have been found", name)
@@ -248,12 +249,15 @@ func assertCalls(
 // case expects to have been initialized.
 func assertInitCalls(t *testing.T, retrievers []retriever.Retriever, expected map[string]bool) {
 	t.Helper()
+
 	for name, shouldBeCalled := range expected {
 		if !shouldBeCalled {
 			continue
 		}
+
 		r := findRetrieverByName(retrievers, name)
 		assert.NotNil(t, r, "Retriever %s should have been found", name)
+
 		if called, ok := initCalled(r); ok {
 			assert.True(t, called, "Init should have been called on %s", name)
 		}
@@ -336,9 +340,11 @@ variation = "A"
 			} else {
 				require.NoError(t, err)
 			}
+
 			flags, allErr := cacheManager.AllFlags()
 			require.NoError(t, allErr)
 			assert.Equal(t, tt.wantFlags, slices.Sorted(maps.Keys(flags)))
+
 			_ = manager.Shutdown(ctx)
 		})
 	}
@@ -354,6 +360,7 @@ type countingRetriever struct {
 func (r *countingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.calls++
 
 	return []byte(`{"test-flag":{"variations":{"A":true,"B":false},` +
@@ -369,6 +376,7 @@ func (r *countingRetriever) Calls() int {
 
 func newPollingManager(t *testing.T, r retriever.Retriever) *retriever.Manager {
 	t.Helper()
+
 	logger := fflog.FFLogger{}
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 	// ManagerConfig.PollingInterval is not clamped, the 1s floor lives in ffclient.Config.
@@ -393,6 +401,7 @@ func TestManagerShutdownStopsThePolling(t *testing.T) {
 		time.Second, 10*time.Millisecond, "the polling never started")
 
 	require.NoError(t, manager.Shutdown(ctx))
+
 	callsAtShutdown := r.Calls()
 
 	require.Never(t, func() bool { return r.Calls() > callsAtShutdown },
@@ -411,6 +420,7 @@ func TestManagerStopPollingIsIdempotent(t *testing.T) {
 	require.NoError(t, manager.Init(ctx))
 
 	var shutdownErr error
+
 	assert.NotPanics(t, func() {
 		manager.StopPolling()
 		manager.StopPolling()
@@ -435,6 +445,7 @@ func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	require.NoError(t, manager.Init(ctx))
 
 	var shutdownErr error
+
 	assert.NotPanics(t, func() {
 		manager.StartPolling(ctx)
 		manager.StopPolling()

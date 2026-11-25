@@ -30,6 +30,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 		EnablePprof         bool
 		expectedStatusCode  int
 	}
+
 	tests := []test{
 		{
 			name:               "pprof available in proxy port",
@@ -52,11 +53,14 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			ln, port := testutils.ListenLocal(t)
 			opts := []api.Option{api.WithListener(ln)}
 			monitoringPort := 0
+
 			if tt.dedicatedMonitoring {
 				var monitoringLn net.Listener
+
 				monitoringLn, monitoringPort = testutils.ListenLocal(t)
 				opts = append(opts, api.WithMonitoringListener(monitoringLn))
 			}
+
 			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
@@ -88,10 +92,13 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 			go apiServer.StartWithContext(context.Background())
 			defer apiServer.Stop(context.Background())
+
 			waitForServer(t, fmt.Sprintf("http://localhost:%d", portToCheck))
 			resp, err := http.Get(fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck))
 			require.NoError(t, err)
+
 			defer func() { _ = resp.Body.Close() }()
+
 			require.Equal(t, tt.expectedStatusCode, resp.StatusCode)
 		})
 	}

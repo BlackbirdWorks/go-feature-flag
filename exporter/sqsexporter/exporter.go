@@ -44,6 +44,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			return fmt.Errorf("impossible to init SQS exporter: %w", err)
 		}
+
 		f.AwsConfig = &cfg
 	}
 
@@ -62,6 +63,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			return fmt.Errorf("marshal SQS event: %w", err)
 		}
+
 		_, err = f.sqsService.SendMessage(ctx, &sqs.SendMessageInput{
 			MessageBody: aws.String(string(messageBody)),
 			QueueUrl:    aws.String(f.QueueURL),
@@ -72,7 +74,6 @@ func (f *Exporter) Export(
 				},
 			},
 		})
-
 		if err != nil {
 			return fmt.Errorf("send SQS message: %w", err)
 		}

@@ -28,6 +28,7 @@ const defaultReadTimeout = 30 * time.Second
 
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
+
 	select {
 	case <-s.stopRequested:
 		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
@@ -50,6 +51,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		)
 		// we can continue because otel is not mandatory to start the server
 	}
+
 	if err == nil && s.installGlobalTelemetry {
 		//nolint:contextcheck // otel.ErrorHandler.Handle has no context parameter
 		s.otelService.Install(s.logger)
@@ -92,11 +94,13 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	// Start a http server for monitoring if monitoringport is configured
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
+
 		wg.Go(func() { s.startMonitoringServer(ctx) })
 		defer wg.Wait()
 	}
 
 	lc := net.ListenConfig{}
+
 	listener, err := lc.Listen(ctx, "unix", socketPath)
 	if err != nil {
 		s.fatal(ctx, "Error creating Unix listener", cmdlog.Err(err))
@@ -130,6 +134,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
+
 		wg.Go(func() { s.startMonitoringServer(ctx) })
 		defer wg.Wait()
 	}
@@ -145,6 +150,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if err == nil {
 		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "error shutting down api server")
 	}
+
 	if err != nil {
 		s.fatal(ctx, "Error starting relay proxy", cmdlog.Err(err))
 	}
@@ -175,6 +181,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 		// (SSE, websocket) are long-lived.
 		ReadTimeout: s.readTimeout,
 	}
+
 	if h2c {
 		var p http.Protocols
 		p.SetHTTP1(true)
@@ -185,20 +192,26 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 	// the shutdown goroutine ends when ctx is done or when Serve returned (the cancel below): a listener that
 	// fails must not wait for an external shutdown before its error reaches the caller.
 	gCtx, cancel := context.WithCancel(ctx)
+
 	var wg sync.WaitGroup
+
 	defer func() {
 		cancel()
 		wg.Wait()
 	}()
+
 	wg.Go(func() {
 		<-gCtx.Done()
+
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(gCtx), gracefulShutdownTimeout)
 		defer cancelShutdown()
+
 		err := srv.Shutdown(shutdownCtx)
 		if err != nil {
 			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, shutdownMsg, cmdlog.Err(err))
 		}
 	})
+
 	err := srv.Serve(listener)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve HTTP: %w", err)
@@ -212,10 +225,12 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
+
 	listener, err := s.listenOn(ctx, addressMonitoring, s.monitoringListener)
 	if err == nil {
 		err = s.serve(ctx, s.monitoringHandler, listener, false, "error stopping monitoring")
 	}
+
 	if err != nil {
 		s.fatal(ctx, "Error starting monitoring", cmdlog.Err(err))
 	}
@@ -244,6 +259,7 @@ func (s *Server) Stop(ctx context.Context) {
 	}
 
 	s.stop()
+
 	select {
 	case <-s.stopped:
 	case <-ctx.Done():

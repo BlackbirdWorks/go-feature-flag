@@ -107,11 +107,13 @@ func TestNewFlagsetManager(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, manager)
+
 				if tt.expectedErr != "" {
 					assert.Equal(t, tt.expectedErr, err.Error())
 				}
 			} else {
 				require.NoError(t, err)
+
 				assert.NotNil(t, manager)
 				defer manager.Close()
 			}
@@ -130,6 +132,7 @@ type fakeSSEService struct {
 func (f *fakeSSEService) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.streams = append(f.streams, flagsetName)
 
 	return nil
@@ -158,6 +161,7 @@ func newStreamManager(
 	t *testing.T, cfg *config.Config,
 ) (service.FlagsetManager, *fakeSSEService, *fakeWebsocketService) {
 	t.Helper()
+
 	sse, ws := &fakeSSEService{}, &fakeWebsocketService{}
 	manager, err := service.NewFlagsetManager(cfg, slog.New(slog.DiscardHandler), nil, sse, ws)
 	require.NoError(t, err)
@@ -289,6 +293,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err, "failed to create FlagsetManager")
+
 			defer manager.Close()
 
 			got, err := manager.FlagSet(tt.apiKey)
@@ -299,6 +304,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			all, err := manager.AllFlagSets()
 			require.NoError(t, err)
@@ -333,6 +339,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -376,6 +383,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -422,6 +430,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -459,6 +468,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -484,6 +494,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -514,6 +525,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -543,6 +555,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -571,6 +584,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -597,6 +611,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
+
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -659,7 +674,9 @@ func TestFlagsetManager_Close(t *testing.T) {
 
 		flagset, err := manager.FlagSet("test-api-key")
 		require.NoError(t, err)
+
 		_, _ = flagset.BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
+
 		assertFlushedOnClose(t, manager, outputDir)
 	})
 }
@@ -678,6 +695,7 @@ func bufferedFileExporter(outputDir string) *config.ExporterConf {
 // assertFlushedOnClose checks that the buffered events are only written once the manager is closed.
 func assertFlushedOnClose(t *testing.T, manager service.FlagsetManager, outputDir string) {
 	t.Helper()
+
 	files, err := os.ReadDir(outputDir)
 	require.NoError(t, err)
 	require.Empty(t, files, "events should still be buffered before Close")
@@ -692,6 +710,7 @@ func assertFlushedOnClose(t *testing.T, manager service.FlagsetManager, outputDi
 // setupManager is a helper function to create a manager and capture log messages.
 func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *slogutil.ObservedLogs) {
 	t.Helper()
+
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	logger := obs
 	manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
@@ -1048,6 +1067,7 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		flagset1, err := manager.FlagSet("api-key-1")
 		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
+
 		flagset2, err := manager.FlagSet("api-key-2")
 		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
@@ -1207,6 +1227,7 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		flagset, err := manager.FlagSet("api-key-1")
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
+
 		_, err = manager.FlagSet("api-key-2")
 		assert.Error(t, err, "api-key-2 should no longer work")
 	})
@@ -1274,6 +1295,7 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		// Verify other keys still work correctly
 		name1, _ := manager.FlagSetName("api-key-1")
 		assert.Equal(t, "flagset-1", name1)
+
 		name2, _ := manager.FlagSetName("api-key-2")
 		assert.Equal(t, "flagset-2", name2)
 	})
@@ -1509,6 +1531,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		// Verify initial state
 		name1, _ := manager.FlagSetName("old-key-1")
 		assert.Equal(t, "flagset-1", name1)
+
 		name2, _ := manager.FlagSetName("old-key-2")
 		assert.Equal(t, "flagset-2", name2)
 
@@ -1633,6 +1656,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		flagset2, err := manager.FlagSet("key-2")
 		require.NoError(t, err, "the flagset added at runtime should be available")
 		assert.NotNil(t, flagset2)
+
 		name2, err := manager.FlagSetName("key-2")
 		require.NoError(t, err)
 		assert.Equal(t, "flagset-2", name2)
@@ -1782,6 +1806,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		flagset, err := manager.FlagSet("old-key")
 		require.NoError(t, err, "the old API key must still work because the change is rejected")
 		assert.NotNil(t, flagset)
+
 		_, err = manager.FlagSet("new-key")
 		require.Error(t, err, "the bundled API key change must not be applied")
 
@@ -2047,8 +2072,11 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 	withoutChurn := &config.Config{FlagSets: []config.FlagSet{stable}}
 
 	done := make(chan struct{})
-	var stableErrors atomic.Int64
-	var wg sync.WaitGroup
+
+	var (
+		stableErrors atomic.Int64
+		wg           sync.WaitGroup
+	)
 
 	for range 8 {
 		wg.Go(func() {
@@ -2061,6 +2089,7 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 					if err != nil {
 						stableErrors.Add(1)
 					}
+
 					_, _ = manager.AllFlagSets()
 					_, _ = manager.FlagSetName("churn-key")
 				}
@@ -2076,6 +2105,7 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 				manager.OnConfigChange(withChurn)
 			}
 		}
+
 		close(done)
 	})
 
@@ -2096,6 +2126,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 
 	// Webhook server that records how many times the exporter flushes to it.
 	var exportCalls atomic.Int64
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		exportCalls.Add(1)
 		w.WriteHeader(http.StatusOK)
@@ -2130,6 +2161,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 	// Capture the client of the flagset we are going to remove.
 	all, err := manager.AllFlagSets()
 	require.NoError(t, err)
+
 	client := all["flagset-to-remove"]
 	require.NotNil(t, client)
 
@@ -2174,6 +2206,7 @@ func (c *countingWSConn) WriteJSON(_ any) error {
 // name means that the key must not be routed to any flagset.
 func assertKeyRouting(t *testing.T, manager service.FlagsetManager, want map[string]string) {
 	t.Helper()
+
 	got := make(map[string]string, len(want))
 	for key, wantName := range want {
 		name, err := manager.FlagSetName(key)
@@ -2182,7 +2215,9 @@ func assertKeyRouting(t *testing.T, manager service.FlagsetManager, want map[str
 		} else {
 			require.NoError(t, err, "key %q", key)
 		}
+
 		got[key] = name
 	}
+
 	assert.Equal(t, want, got)
 }

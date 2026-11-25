@@ -91,12 +91,14 @@ type installationTokenResponse struct {
 // Init validates the authentication configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
+
 	err := r.validateAppAuth()
 	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err
 	}
+
 	r.status = retriever.RetrieverReady
 
 	return nil
@@ -158,12 +160,14 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	// Invalidate it and retry once with a fresh token.
 	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
 		_ = resp.Body.Close()
+
 		r.invalidateCachedToken()
 
 		token, err = r.resolveToken(ctx)
 		if err != nil {
 			return nil, err
 		}
+
 		resp, err = r.fetch(ctx, requestURL, token)
 		if err != nil {
 			return nil, err
@@ -196,12 +200,15 @@ func (r *Retriever) validateAppAuth() error {
 	if r.AppID == 0 && r.InstallationID == 0 && r.PrivateKey == "" && r.PrivateKeyFile == "" {
 		return nil
 	}
+
 	if r.GithubToken != "" {
 		return errGithubAppGithubTokenAnd
 	}
+
 	if !r.isAppAuth() {
 		return errGithubAppAppIDInstallationID
 	}
+
 	_, err := r.loadPrivateKey()
 
 	return err
@@ -221,6 +228,7 @@ func (r *Retriever) fetch(ctx context.Context, contentsURL, token string) (*http
 	if err != nil {
 		return nil, fmt.Errorf("fetch GitHub contents: %w", err)
 	}
+
 	r.updateRateLimit(resp.Header)
 
 	return resp, nil
@@ -251,6 +259,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("github app: failed to mint installation token: %w", err)
 	}
+
 	r.cachedToken = token
 	r.tokenExpiresAt = expiresAt
 
@@ -262,6 +271,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 func (r *Retriever) invalidateCachedToken() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.cachedToken = ""
 	r.tokenExpiresAt = time.Time{}
 }
@@ -309,13 +319,16 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	}
 
 	var result installationTokenResponse
+
 	unmarshalErr := json.Unmarshal(body, &result)
 	if unmarshalErr != nil {
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
+
 	if result.Token == "" {
 		return "", time.Time{}, errGithubAppTokenResponse
 	}
+
 	if result.ExpiresAt.IsZero() {
 		return "", time.Time{}, errGithubAppTokenResponseContained
 	}
@@ -325,8 +338,10 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 // loadPrivateKey returns the RSA private key from PrivateKeyFile (preferred) or PrivateKey.
 func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
-	var pemBytes []byte
-	var err error
+	var (
+		pemBytes []byte
+		err      error
+	)
 
 	if r.PrivateKeyFile != "" {
 		pemBytes, err = os.ReadFile(r.PrivateKeyFile)
@@ -355,6 +370,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
 	header.Add("X-Github-Api-Version", "2022-11-28")
+
 	if token != "" {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
@@ -366,6 +382,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 func (r *Retriever) checkRateLimit() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if r.rateLimitRemaining <= 0 && clock.Now().Before(r.rateLimitReset) {
 		return fmt.Errorf("%w %s", errRateLimitExceededNext, r.rateLimitReset)
 	}
@@ -379,6 +396,7 @@ func (r *Retriever) buildURL(branch string) (string, error) {
 	if strings.Contains(r.FilePath, "..") {
 		return "", errFilepathMustNotContain
 	}
+
 	if strings.Contains(r.RepositorySlug, "..") {
 		return "", errRepositorySlugMustNot
 	}
@@ -406,6 +424,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
+
 	parsedURL.Path = path.Join(append([]string{parsedURL.Path}, elem...)...)
 
 	return parsedURL, nil
@@ -416,6 +435,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
+
 		for name := range resp.Header {
 			if strings.HasPrefix(name, "X-") {
 				ghHeaders[name] = resp.Header.Get(name)
@@ -432,6 +452,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if remaining := headers.Get("X-Ratelimit-Remaining"); remaining != "" {
 		remainingInt, err := strconv.Atoi(remaining)
 		if err == nil {

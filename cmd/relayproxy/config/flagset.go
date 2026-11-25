@@ -114,6 +114,7 @@ type CommonFlagSet struct {
 func (c *Config) GetFlagSets() []FlagSet {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	out := make([]FlagSet, len(c.FlagSets))
 	copy(out, c.FlagSets)
 
@@ -125,10 +126,12 @@ func (c *Config) GetFlagSets() []FlagSet {
 func (c *Config) AddFlagSet(flagset FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	_, err := c.getFlagSetIndexFromName(flagset.Name)
 	if err == nil {
 		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
+
 	c.FlagSets = append(c.FlagSets, flagset)
 
 	return nil
@@ -139,10 +142,12 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 func (c *Config) RemoveFlagSet(flagsetName string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	index, err := c.getFlagSetIndexFromName(flagsetName)
 	if err != nil {
 		return err
 	}
+
 	c.FlagSets = append(c.FlagSets[:index], c.FlagSets[index+1:]...)
 
 	return nil
@@ -156,6 +161,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	if err != nil {
 		return err
 	}
+
 	c.FlagSets[index].APIKeys = apiKeys
 
 	return nil
@@ -164,6 +170,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	index, err := c.getFlagSetIndexFromName(flagsetName)
 	if err != nil {
 		return nil, err

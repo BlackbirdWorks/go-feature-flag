@@ -20,6 +20,7 @@ import (
 // (threadSafeConn / pingPongLoop) can be tested directly.
 func newWSConnPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Helper()
+
 	upgrader := websocket.Upgrader{}
 	serverConnCh := make(chan *websocket.Conn, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,6 +28,7 @@ func newWSConnPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 		if err != nil {
 			return
 		}
+
 		serverConnCh <- c
 	}))
 	t.Cleanup(srv.Close)
@@ -34,7 +36,9 @@ func newWSConnPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
 	client, _, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
+
 	server := <-serverConnCh
+
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
@@ -51,6 +55,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 1)
+
 	client.SetPingHandler(func(string) error {
 		select {
 		case pinged <- struct{}{}:
@@ -73,6 +78,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 
 	// Happy path: the ping reaches the client.
 	require.NoError(t, tsConn.ping())
+
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
@@ -81,6 +87,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 
 	// Error path: writing to a closed connection returns an error.
 	_ = server.Close()
+
 	assert.Error(t, tsConn.ping())
 }
 
@@ -91,6 +98,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 8)
+
 	client.SetPingHandler(func(string) error {
 		select {
 		case pinged <- struct{}{}:
@@ -99,6 +107,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 
 		return nil
 	})
+
 	go func() {
 		for {
 			_, _, err := client.ReadMessage()
@@ -113,6 +122,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+
 	go func() {
 		ctrl.pingPongLoop(ctx, &threadSafeConn{conn: server})
 		close(done)
@@ -125,6 +135,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	}
 
 	cancel()
+
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -141,12 +152,13 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 	_ = client.Close()
 	_ = server.Close()
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil)
-	f.pingInterval = 5 * time.Millisecond
+	ctrl := NewWsFlagChange(stream.NewWebsocketService(), nil)
+	ctrl.pingInterval = 5 * time.Millisecond
 
 	done := make(chan struct{})
+
 	go func() {
-		f.pingPongLoop(context.Background(), &threadSafeConn{conn: server})
+		ctrl.pingPongLoop(context.Background(), &threadSafeConn{conn: server})
 		close(done)
 	}()
 
@@ -171,12 +183,14 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+
 	go func() {
 		ctrl.pingPongLoop(ctx, &threadSafeConn{conn: server})
 		close(done)
 	}()
 
 	cancel()
+
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):

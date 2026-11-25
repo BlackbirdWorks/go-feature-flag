@@ -16,8 +16,11 @@ func TestRedactValue(t *testing.T) {
 	t.Parallel()
 
 	plain := "plain"
+
 	var nilPtr *string
+
 	probe := redactProbe{hidden: "x"}
+
 	tests := []struct {
 		want  any
 		value reflect.Value
@@ -51,6 +54,7 @@ func TestRedactValue(t *testing.T) {
 
 func TestSensitiveNamePattern(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		want bool
@@ -68,6 +72,7 @@ func TestSensitiveNamePattern(t *testing.T) {
 
 func TestConfigStringNeverLeaksSecrets(t *testing.T) {
 	t.Parallel()
+
 	c := &Config{CommonFlagSet: CommonFlagSet{}, APIKeys: []string{"super-secret-key"}}
 	out := c.String()
 	assert.NotContains(t, out, "super-secret-key")

@@ -34,6 +34,7 @@ func New(config *config.Config,
 	opts ...Option,
 ) Server {
 	stopRequested := make(chan struct{})
+
 	srv := Server{
 		config:        config,
 		services:      services,
@@ -55,6 +56,7 @@ func New(config *config.Config,
 		logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
 	}
+
 	srv.initRoutes()
 
 	return srv

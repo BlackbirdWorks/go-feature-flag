@@ -77,6 +77,7 @@ func runExporterConfValidTests(t *testing.T, tests []exporterConfValidCase) {
 			}
 			err := cfg.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
+
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())
 			}

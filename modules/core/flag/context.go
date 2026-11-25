@@ -23,5 +23,6 @@ func (s *Context) AddIntoEvaluationContextEnrichment(key string, value any) {
 	if s.EvaluationContextEnrichment == nil {
 		s.EvaluationContextEnrichment = make(map[string]any)
 	}
+
 	s.EvaluationContextEnrichment[key] = value
 }

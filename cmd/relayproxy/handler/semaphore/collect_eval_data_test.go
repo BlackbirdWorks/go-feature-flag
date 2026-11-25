@@ -33,6 +33,7 @@ func requestContext(t *testing.T, logger *slog.Logger, requestID string) context
 	t.Helper()
 
 	var served *http.Request
+
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
 	req.Header.Set("X-Request-ID", requestID)
 	logging.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { served = r }),
@@ -73,6 +74,7 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			exporterFile, err := os.CreateTemp(t.TempDir(), "exporter.json")
 			require.NoError(t, err)
+
 			defer os.Remove(exporterFile.Name())
 
 			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
@@ -90,8 +92,10 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			// read wantBody request file
 			var bodyReq []byte
+
 			if tt.args.bodyFile != "" {
 				var readFileErr error
+
 				bodyReq, readFileErr = os.ReadFile(tt.args.bodyFile)
 				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 			}
@@ -104,16 +108,20 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			// the lines of the handler go through the logger of the request, with its request ID.
 			require.Len(t, logs.All(), tt.want.warnings)
+
 			for _, entry := range logs.All() {
 				assert.Equal(t, slog.LevelWarn, entry.Level)
 				assert.Equal(t, "req-1", entry.ContextMap()["request_id"])
 			}
+
 			if tt.want.handlerErr {
 				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
 
 				return
 			}
+
 			flagsetManager.Close()
+
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 			require.NoError(t, err)
 			wantCollectData, err := os.ReadFile(tt.want.collectedDataFile)
@@ -348,11 +356,13 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 
 		return
 	}
+
 	out := make([]config.FlagSet, len(cfg.FlagSets))
 	for index, flagSet := range cfg.FlagSets {
 		flagSet.Exporters = &[]config.ExporterConf{exporter}
 		out[index] = flagSet
 	}
+
 	cfg.FlagSets = out
 }
 
@@ -361,13 +371,16 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
 	require.Error(t, handlerErr, "handler should return an error")
+
 	httpErr := &helper.HTTPError{}
+
 	ok := errors.As(handlerErr, &httpErr)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
 
 		return
 	}
+
 	assert.Equal(t, errorCode, httpErr.Code)
 	assert.Equal(t, errorMsg, httpErr.Message)
 }
@@ -398,6 +411,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	// run handler in background, cancel after 10ms
 	done := make(chan error, 1)
+
 	go func() {
 		_, handleErr := ctrl.Handle(ctx, input)
 		done <- handleErr
@@ -482,6 +496,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			require.NoError(t, err)
 			trackingExporter, err := os.CreateTemp(t.TempDir(), "trackExport.json")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(evalExporter.Name())
 				_ = os.Remove(trackingExporter.Name())
@@ -508,6 +523,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 					}
 					out[index] = flagSet
 				}
+
 				tt.config.FlagSets = out
 			} else {
 				tt.config.Exporters = &[]config.ExporterConf{
@@ -535,6 +551,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+
 			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
@@ -545,9 +562,11 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			})
 			require.NoError(t, handlerErr)
 			flagsetManager.Close()
+
 			evalEvents, err := os.ReadFile(evalExporter.Name())
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.wantEval, string(evalEvents), "Invalid exported data")
+
 			trackingEvents, err := os.ReadFile(trackingExporter.Name())
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.wantTracking, string(trackingEvents), "Invalid exported data")

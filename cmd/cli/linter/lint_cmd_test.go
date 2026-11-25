@@ -16,6 +16,7 @@ func TestCmdLint(t *testing.T) {
 
 	pterm.DisableStyling()
 	pterm.DisableColor()
+
 	tests := []struct {
 		wantErr           assert.ErrorAssertionFunc
 		name              string
@@ -54,6 +55,7 @@ func TestCmdLint(t *testing.T) {
 			require.NoError(t, err)
 			redirectionStdout, err := os.CreateTemp(t.TempDir(), "out")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(redirectionStderr.Name())
 				_ = os.Remove(redirectionStdout.Name())

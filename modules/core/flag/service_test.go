@@ -87,6 +87,7 @@ func TestRule_Evaluate_RequiresTheService(t *testing.T) {
 			got, err := r.Evaluate(tt.service, "user", ctx, "flag", false)
 
 			assert.Equal(t, tt.want, got)
+
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -111,6 +112,7 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 
 		return f
 	}
+
 	tests := []struct {
 		name      string
 		flag      *flag.InternalFlag
@@ -141,6 +143,7 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 			t.Parallel()
 
 			svc := flag.NewService()
+
 			base := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "pro").Build()
 			for date, want := range map[time.Time]string{early: tt.wantEarly, late: tt.wantLate} {
 				ctx := flag.EnrichContext(base, nil)
@@ -158,6 +161,7 @@ func withDate(ctx ffcontext.Context, date time.Time) ffcontext.Context {
 	for k, v := range ctx.GetCustom() {
 		out.AddCustomAttribute(k, v)
 	}
+
 	out.AddCustomAttribute(ffcontext.ReservedKey, map[string]any{"currentDateTime": date.Format(time.RFC3339)})
 
 	return out

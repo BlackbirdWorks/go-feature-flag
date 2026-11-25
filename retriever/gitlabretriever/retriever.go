@@ -47,10 +47,12 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			r.RepositorySlug,
 		)
 	}
+
 	branch := r.Branch
 	if branch == "" {
 		branch = "main"
 	}
+
 	if r.BaseURL == "" {
 		r.BaseURL = "https://gitlab.com"
 	}
@@ -75,6 +77,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.GitlabToken != "" {
 		header.Add("Private-Token", r.GitlabToken)
 	}
+
 	httpRetriever := httpretriever.Retriever{
 		URL:     parsedURL.String(),
 		Method:  http.MethodGet,

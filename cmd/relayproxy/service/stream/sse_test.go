@@ -79,6 +79,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			require.NoError(t, err)
 
 			subscribed := make(chan struct{}, 1)
+
 			sseService.SetOnSubscribe(func(_ string) {
 				select {
 				case subscribed <- struct{}{}:
@@ -88,7 +89,9 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
+
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 			select {
@@ -96,24 +99,31 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			case <-ctx.Done():
 				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
+
 			before := clocktest.Instant()
+
 			require.NoError(t, sseService.BroadcastFlagChanges(tt.broadcastFlagset, tt.diff))
+
 			if !tt.expectReceive {
 				// Broadcast the correct stream so the client unblocks after.
 				before = clocktest.Instant()
+
 				require.NoError(t, sseService.BroadcastFlagChanges(tt.subscribeFlagset, notifier.DiffCache{}))
 			}
 
 			fields := map[string]string{}
+
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
 				line := scanner.Text()
 				if strings.HasPrefix(line, ":") {
 					continue // SSE comment (connection comment or heartbeat), ignored by clients
 				}
+
 				if line == "" && len(fields) > 0 {
 					break
 				}
+
 				if key, value, ok := strings.Cut(line, ": "); ok {
 					fields[key] = value
 				}
@@ -125,6 +135,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			assert.GreaterOrEqual(t, id, before.UnixNano(),
 				"client should only receive the events of its own stream")
 			assert.Equal(t, "message", fields["event"])
+
 			var got model.OFREPSSEEvent
 			require.NoError(t, json.Unmarshal([]byte(fields["data"]), &got))
 			assert.Equal(t, model.OFREPSSEEvent{
@@ -160,33 +171,42 @@ func TestSSEService_Close(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
+
 			sseService := stream.NewSSEService()
+
 			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
 			defer srv.Close()
 
 			var body io.ReadCloser = http.NoBody
+
 			if tt.connect {
 				subscribed := make(chan struct{}, 1)
+
 				sseService.SetOnSubscribe(func(string) {
 					select {
 					case subscribed <- struct{}{}:
 					default:
 					}
 				})
+
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream=flagsetA", nil)
 				require.NoError(t, err)
 				resp, err := (&http.Client{}).Do(req)
 				require.NoError(t, err)
+
 				body = resp.Body
+
 				select {
 				case <-subscribed:
 				case <-ctx.Done():
 					require.Fail(t, "timed out waiting for the SSE client to subscribe")
 				}
 			}
+
 			defer func() { _ = body.Close() }()
 
 			sseService.Close()
+
 			if tt.closeTwice {
 				sseService.Close()
 			}
@@ -250,16 +270,20 @@ func TestSSEService_Comments(t *testing.T) {
 			// The body is read until this timeout, it leaves time for several heartbeats.
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
+
 			sseService := stream.NewSSEService(stream.WithSSEHeartbeatInterval(tt.heartbeatInterval))
 			defer sseService.Close()
 
 			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
 			defer srv.Close()
+
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, nil)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
+
 			require.Equal(t, tt.wantStatus, resp.StatusCode)
 
 			lines := readLines(resp.Body)
@@ -272,6 +296,7 @@ func TestSSEService_Comments(t *testing.T) {
 			} else {
 				assert.NotContains(t, lines, ": connected\n")
 			}
+
 			heartbeats := countLine(lines, ": heartbeat\n")
 			if tt.wantHeartbeat {
 				assert.GreaterOrEqual(t, heartbeats, 2, "should receive heartbeats before the timeout")
@@ -285,18 +310,21 @@ func TestSSEService_Comments(t *testing.T) {
 // readLines reads the body line by line until it ends or the request times out.
 func readLines(body io.Reader) []string {
 	var lines []string
+
 	reader := bufio.NewReader(body)
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			return lines
 		}
+
 		lines = append(lines, line)
 	}
 }
 
 func countLine(lines []string, want string) int {
 	count := 0
+
 	for _, line := range lines {
 		if line == want {
 			count++

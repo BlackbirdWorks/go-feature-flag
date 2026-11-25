@@ -97,6 +97,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			}
 			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
+
 			apiServer := New(cfg, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
@@ -117,16 +118,19 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			switch strings.ToLower(tt.mode) {
 			case "apigatewayv2":
 				var res events.APIGatewayV2HTTPResponse
+
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
 				require.Equal(t, tt.wantStatus, res.StatusCode)
 			case "apigatewayv1":
 				var res events.APIGatewayProxyResponse
+
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
 				require.Equal(t, tt.wantStatus, res.StatusCode)
 			case "alb":
 				var res events.ALBTargetGroupResponse
+
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
 				require.Equal(t, tt.wantStatus, res.StatusCode)
@@ -232,6 +236,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 			require.NoError(t, marshalErr)
 
 			var res events.APIGatewayV2HTTPResponse
+
 			marshalErr = json.Unmarshal(response, &res)
 			require.NoError(t, marshalErr)
 			require.Equal(t, tt.expectedCode, res.StatusCode)

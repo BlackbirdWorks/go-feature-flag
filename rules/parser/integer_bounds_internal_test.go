@@ -22,6 +22,7 @@ func decimalMinusOne(n int) string {
 // error, and never wrap the literal around.
 func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 	t.Parallel()
+
 	maxInt, minInt := strconv.Itoa(math.MaxInt), strconv.Itoa(math.MinInt)
 
 	tests := []struct {
@@ -51,13 +52,16 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			items := map[string]any{"x": tt.value}
 
 			ev, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			compiled, compiledErr := ev.Process(items)
 			tree, err := parseRule(tt.rule)
 			require.NoError(t, err)
+
 			visited, visitedErr, _ := visitorProcess(tree, items)
 
 			if tt.wantErr {
@@ -68,6 +72,7 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 
 				return
 			}
+
 			assert.NoError(t, compiledErr, "compiled")
 			assert.NoError(t, visitedErr, "visitor")
 			assert.Equal(t, tt.want, compiled, "compiled")

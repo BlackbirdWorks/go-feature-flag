@@ -39,6 +39,7 @@ func TestFFLogger_Error(t *testing.T) {
 		msg           string
 		keysAndValues []any
 	}
+
 	tests := []struct {
 		logger      *fflog.FFLogger
 		name        string
@@ -122,6 +123,7 @@ func TestFFLogger_Error(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -139,6 +141,7 @@ func TestFFLogger_Error(t *testing.T) {
 					},
 				}))
 			}
+
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -151,7 +154,9 @@ func TestFFLogger_Error(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
+
 			actual := string(content)
+
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
 				const timestampLen = len("2006/01/02 15:04:05 ")
@@ -159,6 +164,7 @@ func TestFFLogger_Error(t *testing.T) {
 					actual = actual[timestampLen:]
 				}
 			}
+
 			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
@@ -171,6 +177,7 @@ func TestFFLogger_Warn(t *testing.T) {
 		msg           string
 		keysAndValues []any
 	}
+
 	tests := []struct {
 		logger      *fflog.FFLogger
 		name        string
@@ -254,6 +261,7 @@ func TestFFLogger_Warn(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -271,6 +279,7 @@ func TestFFLogger_Warn(t *testing.T) {
 					},
 				}))
 			}
+
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -283,7 +292,9 @@ func TestFFLogger_Warn(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
+
 			actual := string(content)
+
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
 				const timestampLen = len("2006/01/02 15:04:05 ")
@@ -291,6 +302,7 @@ func TestFFLogger_Warn(t *testing.T) {
 					actual = actual[timestampLen:]
 				}
 			}
+
 			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
@@ -303,6 +315,7 @@ func TestFFLogger_Info(t *testing.T) {
 		msg           string
 		keysAndValues []any
 	}
+
 	tests := []struct {
 		logger      *fflog.FFLogger
 		name        string
@@ -386,6 +399,7 @@ func TestFFLogger_Info(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -403,6 +417,7 @@ func TestFFLogger_Info(t *testing.T) {
 					},
 				}))
 			}
+
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -415,7 +430,9 @@ func TestFFLogger_Info(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
+
 			actual := string(content)
+
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
 				const timestampLen = len("2006/01/02 15:04:05 ")
@@ -423,6 +440,7 @@ func TestFFLogger_Info(t *testing.T) {
 					actual = actual[timestampLen:]
 				}
 			}
+
 			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
@@ -435,6 +453,7 @@ func TestFFLogger_Debug(t *testing.T) {
 		msg           string
 		keysAndValues []any
 	}
+
 	tests := []struct {
 		logger      *fflog.FFLogger
 		name        string
@@ -517,8 +536,10 @@ func TestFFLogger_Debug(t *testing.T) {
 			t.Parallel()
 
 			slog.SetLogLoggerLevel(slog.LevelDebug)
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -536,6 +557,7 @@ func TestFFLogger_Debug(t *testing.T) {
 					},
 				}))
 			}
+
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -548,7 +570,9 @@ func TestFFLogger_Debug(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
+
 			actual := string(content)
+
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
 				const timestampLen = len("2006/01/02 15:04:05 ")
@@ -556,6 +580,7 @@ func TestFFLogger_Debug(t *testing.T) {
 					actual = actual[timestampLen:]
 				}
 			}
+
 			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
@@ -590,6 +615,7 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 	t.Parallel()
 
 	const key = ctxKey("req-id")
+
 	type methodCall func(l *fflog.FFLogger, ctx context.Context, msg string, args ...any)
 
 	tests := []struct {
@@ -711,12 +737,16 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
 
-			var logger *fflog.FFLogger
-			var capture *ctxCaptureHandler
+			var (
+				logger  *fflog.FFLogger
+				capture *ctxCaptureHandler
+			)
+
 			switch {
 			case tt.nilLogger:
 				logger = nil
@@ -745,18 +775,23 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 			if !tt.nilCtx {
 				ctx = context.WithValue(t.Context(), key, "req-1")
 			}
+
 			tt.call(logger, ctx, tt.msg, tt.args...)
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
+
 			actual := string(content)
+
 			if tt.useLegacy {
 				const timestampLen = len("2006/01/02 15:04:05 ")
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
 			}
+
 			assert.Equal(t, tt.wantLog, actual)
+
 			if capture != nil {
 				assert.True(t, capture.nonNil)
 				assert.Equal(t, tt.wantCtxVal, capture.gotVal)

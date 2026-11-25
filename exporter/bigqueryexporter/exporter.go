@@ -101,6 +101,7 @@ func (e *Exporter) Export(
 	if err != nil {
 		return err
 	}
+
 	if len(rows) == 0 {
 		return nil
 	}
@@ -159,16 +160,20 @@ func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, big
 		if err != nil {
 			return nil, nil, err
 		}
+
 		if rowType == "" {
 			// Skip events this exporter does not handle.
 			continue
 		}
+
 		if eventType == "" {
 			eventType = rowType
 		}
+
 		if eventType != rowType {
 			return nil, nil, errBigqueryExporterReceivedMixed
 		}
+
 		rows = append(rows, row)
 	}
 
@@ -222,6 +227,7 @@ func (e *Exporter) exportRows(
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
 		end := min(start+maxRowsPerInsert, len(rows))
+
 		err := e.client.Put(ctx, e.DatasetID, table, rows[start:end])
 		if err != nil {
 			return fmt.Errorf("insert rows into BigQuery: %w", err)
@@ -242,6 +248,7 @@ func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
 	if err != nil {
 		return rowSaver{}, err
 	}
+
 	metadata, err := jsonString(event.Metadata)
 	if err != nil {
 		return rowSaver{}, err
@@ -270,6 +277,7 @@ func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
 	if err != nil {
 		return rowSaver{}, err
 	}
+
 	evaluationContext, err := jsonString(event.EvaluationContext)
 	if err != nil {
 		return rowSaver{}, err
@@ -334,10 +342,12 @@ func credentialsType(creds []byte) option.CredentialsType {
 	var parsed struct {
 		Type string `json:"type"`
 	}
+
 	err := json.Unmarshal(creds, &parsed)
 	if err != nil {
 		return option.ServiceAccount
 	}
+
 	switch parsed.Type {
 	case "authorized_user":
 		return option.AuthorizedUser
@@ -386,6 +396,7 @@ func (c *realBigQueryClient) EnsureTable(
 	schema bigquery.Schema,
 ) error {
 	bqDataset := c.client.Dataset(dataset)
+
 	err := bqDataset.Create(ctx, nil)
 	if err != nil && !isAlreadyExists(err) {
 		return fmt.Errorf("create BigQuery dataset: %w", err)

@@ -31,17 +31,21 @@ func idList(count, replaced int, replacement string) string {
 	var builder strings.Builder
 	builder.Grow(count*16 + 16)
 	builder.WriteString(`key in [`)
+
 	for i := range count {
 		if i > 0 {
 			builder.WriteString(", ")
 		}
+
 		if i == replaced {
 			fmt.Fprintf(&builder, `"%s"`, replacement)
 
 			continue
 		}
+
 		fmt.Fprintf(&builder, `"user-%07d"`, i)
 	}
+
 	builder.WriteString(`]`)
 
 	return builder.String()
@@ -56,6 +60,7 @@ func applies(svc *Service, r *Rule, key string) bool {
 
 func validatedFlag(tb testing.TB, svc *Service, queries ...string) *InternalFlag {
 	tb.Helper()
+
 	f := newFlagWithQueries(queries...)
 	require.NoError(tb, f.IsValid(svc))
 
@@ -68,6 +73,7 @@ func indexedEvaluator(c *nikunjyEvaluatorCache, r *Rule) *parser.Evaluator {
 
 func indexSize(evalCache *nikunjyEvaluatorCache) int {
 	count := 0
+
 	evalCache.byKey.Range(func(_, _ any) bool {
 		count++
 
@@ -83,23 +89,28 @@ func assertSharedEvaluators(
 	t *testing.T, evalCache *nikunjyEvaluatorCache, flags []*InternalFlag, wantEvaluators int,
 ) {
 	t.Helper()
+
 	distinct := map[*parser.Evaluator]string{}
 	bytesOf := map[string]*byte{}
+
 	for _, flg := range flags {
 		for i := range *flg.Rules {
 			rule := &(*flg.Rules)[i]
 			evaluator := indexedEvaluator(evalCache, rule)
 			require.NotNil(t, evaluator, "a validated rule must be found by its hash")
+
 			distinct[evaluator] = rule.GetQuery()
 			if shared, ok := bytesOf[rule.GetQuery()]; ok {
 				assert.Same(t, shared, unsafe.StringData(rule.GetQuery()), "rules with one text share its bytes")
 			}
+
 			bytesOf[rule.GetQuery()] = unsafe.StringData(rule.GetQuery())
 			want, err := evalCache.get(rule.GetTrimmedQuery())
 			require.NoError(t, err)
 			assert.Same(t, want, evaluator, "the hash lookup must give the evaluator of the query text")
 		}
 	}
+
 	assert.Len(t, distinct, wantEvaluators)
 }
 
@@ -107,6 +118,7 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 	t.Parallel()
 
 	const query = `key eq "shared"`
+
 	tests := []struct {
 		// queryOf returns the query of rule r of flag f.
 		queryOf func(f, r int) string
@@ -146,14 +158,17 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
+
 			flags := make([]*InternalFlag, tt.flags)
 			for flagIdx := range flags {
 				queries := make([]string, tt.rules)
 				for ruleIdx := range queries {
 					queries[ruleIdx] = tt.queryOf(flagIdx, ruleIdx)
 				}
+
 				flags[flagIdx] = validatedFlag(t, svc, queries...)
 			}
+
 			assertSharedEvaluators(t, evalCache, flags, tt.wantEvaluators)
 			runtime.KeepAlive(flags)
 		})
@@ -163,6 +178,7 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 // splitRulesByQuery returns the rules of flags whose query is listA, and the other ones.
 func splitRulesByQuery(flags []*InternalFlag, listA string) ([]*Rule, []*Rule) {
 	var rulesA, rulesB []*Rule
+
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
@@ -181,13 +197,16 @@ func splitRulesByQuery(flags []*InternalFlag, listA string) ([]*Rule, []*Rule) {
 // two lists never share one.
 func assertListsHaveOwnEvaluators(t *testing.T, evalCache *nikunjyEvaluatorCache, rulesA, rulesB []*Rule) {
 	t.Helper()
+
 	evA, evB := indexedEvaluator(evalCache, rulesA[0]), indexedEvaluator(evalCache, rulesB[0])
 	require.NotNil(t, evA)
 	require.NotNil(t, evB)
 	assert.NotSame(t, evA, evB, "two different queries must never share an evaluator")
+
 	for _, r := range rulesA {
 		assert.Same(t, evA, indexedEvaluator(evalCache, r))
 	}
+
 	for _, r := range rulesB {
 		assert.Same(t, evB, indexedEvaluator(evalCache, r))
 	}
@@ -201,6 +220,7 @@ func assertListsApply(t assert.TestingT, svc *Service, rulesA, rulesB []*Rule, i
 		assert.True(t, applies(svc, r, "user-0000001"))
 		assert.False(t, applies(svc, r, "nobody"))
 	}
+
 	for _, r := range rulesB {
 		assert.True(t, applies(svc, r, idB), "the id of list B must match list B")
 		assert.False(t, applies(svc, r, idA), "the id of list A must not match list B")
@@ -212,6 +232,7 @@ func assertListsApply(t assert.TestingT, svc *Service, rulesA, rulesB []*Rule, i
 // runConcurrently runs check from 8 goroutines, 3 times each.
 func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 	t.Helper()
+
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
@@ -220,6 +241,7 @@ func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 			}
 		})
 	}
+
 	wg.Wait()
 }
 
@@ -402,36 +424,44 @@ func assertOneTextPerKeyAndEvaluator(
 	count int,
 ) {
 	t.Helper()
+
 	keys := map[uint64]string{}
 	evaluators := map[*parser.Evaluator]string{}
+
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
 			eval := indexedEvaluator(evalCache, r)
 			require.NotNil(t, eval)
+
 			if other, ok := keys[r.QueryHash]; ok {
 				require.Equal(t, other, r.GetQuery(), "a key must belong to one text")
 			}
+
 			keys[r.QueryHash] = r.GetQuery()
 			if other, ok := evaluators[eval]; ok {
 				require.Equal(t, other, r.GetQuery(), "an evaluator must belong to one text")
 			}
+
 			evaluators[eval] = r.GetQuery()
 		}
 	}
+
 	assert.Len(t, keys, count)
 	assert.Len(t, evaluators, count)
 	assert.NotContains(t, keys, uint64(0))
 }
 
 // assertCollidingQueriesApply checks that each rule of flags applies to the key of its own query
-// only, among the n colliding queries.
-func assertCollidingQueriesApply(t *testing.T, svc *Service, flags []*InternalFlag, n int) {
+// only, among the count colliding queries.
+func assertCollidingQueriesApply(t *testing.T, svc *Service, flags []*InternalFlag, count int) {
 	t.Helper()
+
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
-			for j := range n {
+
+			for j := range count {
 				want := fmt.Sprintf("collide-%d", j)
 				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(svc, r, want))
 			}
@@ -466,6 +496,7 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
 			evalCache.hash = tt.hash
+
 			queries := make([]string, 0, tt.wantQueries)
 			for i := range tt.wantQueries {
 				queries = append(queries, fmt.Sprintf(`key eq "collide-%d"`, i))
@@ -475,6 +506,7 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			for i, q := range queries {
 				reversed[len(queries)-1-i] = strings.Clone(q)
 			}
+
 			flags := []*InternalFlag{validatedFlag(t, svc, queries...), validatedFlag(t, svc, reversed...)}
 
 			assertOneTextPerKeyAndEvaluator(t, evalCache, flags, len(queries))
@@ -482,15 +514,18 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 
 			// Releasing one flag keeps the keys of the other.
 			flags[0] = nil
+
 			gcUntil(
 				t,
 				func() bool { return evalCache.keyRefsTotal() == len(queries) },
 				"the collected flag must release its keys",
 			)
+
 			for i := range *flags[1].Rules {
 				r := &(*flags[1].Rules)[i]
 				assert.NotNil(t, indexedEvaluator(evalCache, r))
 			}
+
 			runtime.KeepAlive(flags[1])
 		})
 	}
@@ -499,6 +534,7 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 func (c *nikunjyEvaluatorCache) keyRefsTotal() int {
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
+
 	n := 0
 	for _, refs := range c.keyRefs {
 		n += refs
@@ -574,6 +610,7 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
 			flg := newFlagWithQueries(tt.query)
+
 			err := flg.IsValid(svc)
 			if !tt.wantValid {
 				require.Error(t, err)
@@ -581,7 +618,9 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
+
 			rule := &(*flg.Rules)[0]
 			assert.Equal(t, strings.Contains(tt.query, "eq"), indexedEvaluator(evalCache, rule) != nil)
 			assert.True(t, applies(svc, rule, tt.wantMatches))
@@ -606,7 +645,9 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 
 	svc := newIndexingService()
 	evalCache := svc.nikunjy
+
 	const flags = 10
+
 	load := func(query func(f int) string) []*InternalFlag {
 		set := make([]*InternalFlag, flags)
 		for f := range set {
@@ -633,6 +674,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	for gen := 1; gen <= 30; gen++ {
 		// Even generations reload the same queries, the others change them.
 		changed := gen%2 == 1
+
 		next := load(func(f int) string {
 			if changed {
 				return fmt.Sprintf(`key eq "gen-%d-%d"`, gen, f%3)
@@ -645,17 +687,22 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 		} else {
 			check(next, gen-1)
 		}
+
 		runtime.KeepAlive(current)
 		current = next
+
 		runtime.GC()
 	}
+
 	gcUntil(t, func() bool { return indexSize(evalCache) <= flags }, "the rules of the old loads must be unindexed")
 	assert.LessOrEqual(t, indexSize(evalCache), flags)
 	runtime.KeepAlive(current)
 
 	clear(current) // drop the last references to the flags
 	gcUntil(t, func() bool { return indexSize(evalCache) == 0 }, "no rule left to index")
+
 	cached := 0
+
 	evalCache.entries.Range(func(_, _ any) bool {
 		cached++
 
@@ -670,10 +717,12 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 
 	svc := newIndexingService()
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
+
 	var current struct {
 		flags []*InternalFlag
 		mu    sync.RWMutex
 	}
+
 	newSet := func(i int) []*InternalFlag {
 		a, b := listA, listB
 		if i%2 == 1 {
@@ -685,6 +734,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 	current.flags = newSet(0)
 
 	stop := make(chan struct{})
+
 	var wg sync.WaitGroup
 	for range 6 {
 		wg.Go(func() {
@@ -694,6 +744,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 					return
 				default:
 				}
+
 				current.mu.RLock()
 				set := current.flags
 				current.mu.RUnlock()
@@ -707,13 +758,16 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 			}
 		})
 	}
+
 	for i := 1; i <= 20; i++ {
 		next := newSet(i)
+
 		current.mu.Lock()
 		current.flags = next
 		current.mu.Unlock()
 		runtime.GC()
 	}
+
 	close(stop)
 	wg.Wait()
 }
@@ -722,6 +776,7 @@ func TestHashNikunjyQuery(t *testing.T) {
 	t.Parallel()
 
 	long := strings.Repeat("0123456789abcdef", 8)
+
 	tests := []struct {
 		name string
 		a, b string
@@ -755,6 +810,7 @@ func TestHashNikunjyQuery(t *testing.T) {
 		t.Parallel()
 
 		seen := map[uint64]int{}
+
 		for n := range 101 {
 			h := hashNikunjyQuery(strings.Repeat("a", n))
 			assert.Equal(t, h, hashNikunjyQuery(strings.Repeat("a", n)))
@@ -783,10 +839,12 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
+
 			flg := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
 			for range tt.validations {
 				require.NoError(t, flg.IsValid(svc))
 			}
+
 			hashes := []uint64{(*flg.Rules)[0].QueryHash, (*flg.Rules)[1].QueryHash}
 			assert.NotZero(t, hashes[0])
 			assert.NotEqual(t, hashes[0], hashes[1])
@@ -797,6 +855,7 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 
 			runtime.KeepAlive(flg)
 			*flg = InternalFlag{} // drop the rules
+
 			gcUntil(
 				t,
 				func() bool { return indexSize(evalCache) == 0 },
@@ -830,12 +889,14 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
+
 			eval, err := tt.rule.validate(svc, tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
+
 			assert.Equal(t, tt.wantEval, eval != nil)
 		})
 	}
@@ -916,6 +977,7 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	t.Parallel()
 
 	query := idList(200, -1, "")
+
 	tests := []struct {
 		name string
 		// loads is the number of flags that carry the query, loaded one after the other.
@@ -935,16 +997,19 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
+
 			flags := make([]*InternalFlag, tt.loads)
 			for i := range flags {
 				flags[i] = validatedFlag(t, svc, strings.Clone(query))
 			}
+
 			trimmed := (&(*flags[0].Rules)[0]).GetTrimmedQuery()
 			assert.Equal(t, tt.wantTextRefs, refCount(evalCache, trimmed))
 			assert.Equal(t, tt.wantKeyRefs, evalCache.keyRefsTotal())
 
 			first := indexedEvaluator(evalCache, &(*flags[0].Rules)[0])
 			require.NotNil(t, first)
+
 			for _, flg := range flags {
 				rule := &(*flg.Rules)[0]
 				assert.Same(t, first, indexedEvaluator(evalCache, rule), "one evaluator for the query")
@@ -965,6 +1030,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	t.Parallel()
 
 	query := idList(200, -1, "")
+
 	tests := []struct {
 		// invalid makes the flag that carries the known query fail its validation.
 		invalid func(f *InternalFlag)
@@ -1006,6 +1072,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 
 			runtime.KeepAlive(invalid)
 			*invalid = InternalFlag{} // drop the rules
+
 			gcUntil(
 				t,
 				func() bool { return evalCache.keyRefsTotal() == tt.wantRefsAfter },

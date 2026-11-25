@@ -82,9 +82,11 @@ func (b *fakeBucket) ListObjectsV2(
 	b.mu.Lock()
 	hang, latency, gate := b.hang, b.pageLatency, b.listGate
 	b.mu.Unlock()
+
 	if gate != nil {
 		<-gate
 	}
+
 	if latency > 0 {
 		select {
 		case <-time.After(latency):
@@ -92,18 +94,23 @@ func (b *fakeBucket) ListObjectsV2(
 			return nil, ctx.Err()
 		}
 	}
+
 	if hang {
 		<-ctx.Done()
 
 		return nil, ctx.Err()
 	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	b.prefixes = append(b.prefixes, aws.ToString(input.Prefix))
 	if b.listErr != nil {
 		return nil, b.listErr
 	}
+
 	var keys []string
+
 	for k := range b.objects {
 		rest := strings.TrimPrefix(k, aws.ToString(input.Prefix))
 		if strings.HasPrefix(k, aws.ToString(input.Prefix)) && k > aws.ToString(input.ContinuationToken) &&
@@ -111,13 +118,17 @@ func (b *fakeBucket) ListObjectsV2(
 			keys = append(keys, k)
 		}
 	}
+
 	sort.Strings(keys)
+
 	out := &s3.ListObjectsV2Output{}
+
 	if b.pageSize > 0 && len(keys) > b.pageSize {
 		keys = keys[:b.pageSize]
 		out.IsTruncated = aws.Bool(true)
 		out.NextContinuationToken = aws.String(keys[len(keys)-1])
 	}
+
 	for _, k := range keys {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(b.objects[k].etag)})
 	}
@@ -130,31 +141,41 @@ func (b *fakeBucket) DownloadObject(
 ) (*transfermanager.DownloadObjectOutput, error) {
 	cur := b.curGets.Add(1)
 	defer b.curGets.Add(-1)
+
 	storeMax(&b.maxGets, cur)
+
 	if b.downloadGate != nil {
 		<-b.downloadGate
 	}
+
 	if b.getLatency > 0 {
 		time.Sleep(b.getLatency)
 	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	key := aws.ToString(input.Key)
+
 	b.gets[key]++
 	if b.getErr != nil {
 		return nil, b.getErr
 	}
+
 	obj, ok := b.objects[key]
 	if !ok {
 		return nil, errNoSuchKey
 	}
+
 	_, err := input.WriterAt.WriteAt([]byte(obj.data), 0)
 	if err != nil {
 		return nil, err
 	}
+
 	if b.noDownloadETag {
 		return &transfermanager.DownloadObjectOutput{}, nil
 	}
+
 	if b.downloadETag != "" {
 		return &transfermanager.DownloadObjectOutput{ETag: aws.String(b.downloadETag)}, nil
 	}
@@ -165,6 +186,7 @@ func (b *fakeBucket) DownloadObject(
 func (b *fakeBucket) put(key, etag, data string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	b.objects[key] = fakeObject{etag: etag, data: data}
 }
 
@@ -178,6 +200,7 @@ func (b *fakeBucket) getCount(key string) int {
 func (b *fakeBucket) totalGets() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	total := 0
 	for _, n := range b.gets {
 		total += n
@@ -198,6 +221,7 @@ func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {
 
 func initRetriever(t *testing.T, g *s3retrieverv2.SharedItems, item string) *s3retrieverv2.SharedItemRetriever {
 	t.Helper()
+
 	r := g.Retriever(item)
 	require.NoError(t, r.Init(t.Context(), nil))
 
@@ -206,6 +230,7 @@ func initRetriever(t *testing.T, g *s3retrieverv2.SharedItems, item string) *s3r
 
 func TestNewSharedItems(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr string
@@ -229,12 +254,14 @@ func TestNewSharedItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			group, err := s3retrieverv2.NewSharedItems(t.Context(), tt.opts)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.NotNil(t, group)
 		})
@@ -243,6 +270,7 @@ func TestNewSharedItems(t *testing.T) {
 
 func TestSharedItems_Retriever(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		item       string
@@ -256,6 +284,7 @@ func TestSharedItems_Retriever(t *testing.T) {
 			t.Parallel()
 			r := newGroup(t, newFakeBucket(nil)).Retriever(tt.item)
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
+
 			err := r.Init(t.Context(), nil)
 			if tt.wantErrMsg != "" {
 				require.ErrorContains(t, err, tt.wantErrMsg)
@@ -263,6 +292,7 @@ func TestSharedItems_Retriever(t *testing.T) {
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}
@@ -441,10 +471,12 @@ func runSharedCase(
 	run func(*testing.T, *fakeBucket, map[string]*s3retrieverv2.SharedItemRetriever),
 ) {
 	t.Helper()
+
 	b := newFakeBucket(baseObjects())
 	if setup != nil {
 		setup(b)
 	}
+
 	group := newGroup(t, b)
 	// the listing TTL follows the group polling interval: the lowest one of the items
 	var interval time.Duration
@@ -453,11 +485,14 @@ func runSharedCase(
 			interval = polling
 		}
 	}
+
 	group.SetPoller(s3retrieverv2.PollerConfig{Interval: interval})
+
 	r := map[string]*s3retrieverv2.SharedItemRetriever{}
 	for item := range items {
 		r[item] = initRetriever(t, group, item)
 	}
+
 	run(t, b, r)
 }
 
@@ -478,52 +513,63 @@ func baseObjects() map[string]fakeObject {
 
 func runSameWindow(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for key, want := range map[string]string{"p1/dev/flags.yaml": "dev", "p1/prod/flags.yaml": "prod"} {
 		got, err := r[key].Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got))
 	}
+
 	lists := b.lists.Load()
 	assert.Equal(t, 2, b.totalGets())
+
 	for range 3 {
 		for _, rr := range r {
 			_, err := rr.Retrieve(t.Context())
 			require.NoError(t, err)
 		}
 	}
+
 	assert.Equal(t, lists, b.lists.Load())
 	assert.Equal(t, 2, b.totalGets())
 }
 
 func runCommonPrefix(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for _, rr := range r {
 		_, err := rr.Retrieve(t.Context())
 		require.NoError(t, err)
 	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	assert.ElementsMatch(t, []string{"p1/"}, b.prefixes)
 }
 
 func runTTLExpiry(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	dev, prod := r["p1/dev/flags.yaml"], r["p1/prod/flags.yaml"]
 	_, err := dev.Retrieve(t.Context())
 	require.NoError(t, err)
 	_, err = prod.Retrieve(t.Context())
 	require.NoError(t, err)
+
 	listsAfterFirst := b.lists.Load()
 
 	b.put("p1/dev/flags.yaml", `"e1b"`, "dev2")
 	// TTL = 20s/2 = 10s
 	time.Sleep(5 * time.Second)
+
 	got, err := dev.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "dev", string(got), "still inside the TTL window")
 	assert.Equal(t, listsAfterFirst, b.lists.Load())
 
 	time.Sleep(6 * time.Second)
+
 	got, err = dev.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "dev2", string(got))
@@ -540,6 +586,7 @@ func runMinTTL(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedIt
 	_, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
 	time.Sleep(1100 * time.Millisecond)
+
 	_, err = r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, b.lists.Load())
@@ -554,6 +601,7 @@ func runMissing(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedI
 
 func runListError(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for range 3 {
 		for _, rr := range r {
 			_, err := rr.Retrieve(t.Context())
@@ -567,6 +615,7 @@ func runListError(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 	b.listErr = nil
 	b.mu.Unlock()
 	time.Sleep(11 * time.Second)
+
 	got, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "p2", string(got))
@@ -580,15 +629,18 @@ func runDownloadError(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.S
 
 func runNoDownloadETag(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for range 2 {
 		got, err := r["p2/flags.yaml"].Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "p2", string(got))
 	}
+
 	assert.Equal(t, 1, b.getCount("p2/flags.yaml"), "downloaded after the listing started")
 
 	// without an ETag the content can't be compared: it is downloaded again for the next listing
 	time.Sleep(2 * time.Second)
+
 	_, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 2, b.getCount("p2/flags.yaml"))
@@ -596,6 +648,7 @@ func runNoDownloadETag(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.
 
 func runConcurrent(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	var wg sync.WaitGroup
 	for i := range 20 {
 		wg.Go(func() {
@@ -603,10 +656,12 @@ func runConcurrent(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Shar
 			if i%2 == 0 {
 				key = "p1/prod/flags.yaml"
 			}
+
 			_, err := r[key].Retrieve(t.Context())
 			assert.NoError(t, err)
 		})
 	}
+
 	wg.Wait()
 	assert.EqualValues(t, 1, b.lists.Load(), "one shared listing")
 	assert.Equal(t, 1, b.getCount("p1/dev/flags.yaml"))
@@ -617,6 +672,7 @@ func runClone(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedIte
 	t.Helper()
 	got, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
+
 	got[0] = 'X'
 	again, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
@@ -625,13 +681,19 @@ func runClone(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedIte
 
 func runHung(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
-	var wg sync.WaitGroup
-	var otherErr error
+
+	var (
+		wg       sync.WaitGroup
+		otherErr error
+	)
+
 	wg.Go(func() {
 		_, otherErr = r["p2/flags.yaml"].Retrieve(t.Context())
 	})
+
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
+
 	start := time.Now()
 	_, err := r["p1/dev/flags.yaml"].Retrieve(ctx)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -678,6 +740,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 			require.EqualError(t, err, "shared S3 retriever is not initialized")
 
 			time.Sleep(s3retrieverv2.DefaultSharedPollingInterval)
+
 			_, err = ret1.Retrieve(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, []string{"", "a/"}, b.prefixes, "listing only covers the remaining item")
@@ -702,6 +765,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 
 	t.Run("re-Init joins the group again", func(t *testing.T) {
 		t.Parallel()
+
 		b := newFakeBucket(map[string]fakeObject{"a/1.yaml": {etag: "1", data: "1"}})
 		r := initRetriever(t, newGroup(t, b), "a/1.yaml")
 		require.NoError(t, r.Shutdown(t.Context()))
@@ -743,22 +807,26 @@ func runWiden(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.SharedIte
 
 func runEmptyFile(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for range 2 {
 		got, err := r["empty/flags.yaml"].Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Empty(t, got)
 	}
+
 	assert.Equal(t, 1, b.getCount("empty/flags.yaml"))
 }
 
 func runOpaqueKeys(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	want := map[string]string{"./flags.yaml": "dot", "dir/../flags.yaml": "dotdot", "/flags.yaml": "slash"}
 	for key, data := range want {
 		got, err := r[key].Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, data, string(got))
 	}
+
 	assert.Equal(t, []string{""}, b.prefixes, "no common prefix")
 }
 
@@ -768,6 +836,7 @@ func runLateInCoveredDir(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv
 	first := initRetriever(t, group, "p1/dev/flags.yaml")
 	_, err := first.Retrieve(t.Context())
 	require.NoError(t, err)
+
 	lists, gets := b.lists.Load(), b.totalGets()
 
 	second := initRetriever(t, group, "p1/dev/other.yaml")
@@ -784,6 +853,7 @@ func runLateMissing(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 	first := initRetriever(t, group, "p1/dev/flags.yaml")
 	_, err := first.Retrieve(t.Context())
 	require.NoError(t, err)
+
 	lists := b.lists.Load()
 
 	missing := initRetriever(t, group, "p1/dev/nope.yaml")
@@ -791,11 +861,13 @@ func runLateMissing(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 		_, err = missing.Retrieve(t.Context())
 		require.ErrorContains(t, err, "not found")
 	}
+
 	assert.Equal(t, lists+1, b.lists.Load(), "one refresh, then the listing is fresh again")
 }
 
 func runSlowPages(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	start := time.Now()
 	// p1/prod/flags.yaml is on the 4th page: 40s in total, each page is below the 30s timeout
 	got, err := r["p1/prod/flags.yaml"].Retrieve(t.Context())
@@ -807,19 +879,23 @@ func runSlowPages(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 
 func runStuckDownload(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	b.downloadGate = make(chan struct{})
 	g := newGroup(t, b)
 	r1 := initRetriever(t, g, "p2/flags.yaml")
 	ret2 := initRetriever(t, g, "p2/flags.yaml")
 	done := make(chan error, 1)
+
 	go func() {
 		_, err := r1.Retrieve(context.Background())
 		done <- err
 	}()
+
 	synctest.Wait()
 
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
+
 	_, err := ret2.Retrieve(ctx)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
@@ -829,28 +905,33 @@ func runStuckDownload(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.S
 
 func runChangedBetween(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	for range 3 {
 		_, err := r["p2/flags.yaml"].Retrieve(t.Context())
 		require.NoError(t, err)
 	}
+
 	assert.Equal(t, 1, b.getCount("p2/flags.yaml"), "the download is newer than the listing")
 
 	// the next listing still shows the old ETag, so the cached one (changed) is stale
 	time.Sleep(2 * time.Second)
+
 	_, err := r["p2/flags.yaml"].Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 2, b.getCount("p2/flags.yaml"))
 }
 
-// distinctItems adds n objects under k/ and returns the retrievers of their items.
-func distinctItems(t *testing.T, b *fakeBucket, n int) []*s3retrieverv2.SharedItemRetriever {
+// distinctItems adds count objects under k/ and returns the retrievers of their items.
+func distinctItems(t *testing.T, b *fakeBucket, count int) []*s3retrieverv2.SharedItemRetriever {
 	t.Helper()
-	g := newGroup(t, b)
-	retrievers := make([]*s3retrieverv2.SharedItemRetriever, n)
-	for i := range n {
+
+	group := newGroup(t, b)
+
+	retrievers := make([]*s3retrieverv2.SharedItemRetriever, count)
+	for i := range count {
 		key := fmt.Sprintf("k/%03d.yaml", i)
 		b.put(key, `"e"`, "x")
-		retrievers[i] = initRetriever(t, g, key)
+		retrievers[i] = initRetriever(t, group, key)
 	}
 
 	return retrievers
@@ -859,6 +940,7 @@ func distinctItems(t *testing.T, b *fakeBucket, n int) []*s3retrieverv2.SharedIt
 func runDownloadCap(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
 	rs := distinctItems(t, b, 100)
+
 	var wg sync.WaitGroup
 	for _, r := range rs {
 		wg.Go(func() {
@@ -866,14 +948,18 @@ func runDownloadCap(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 			assert.NoError(t, err)
 		})
 	}
+
 	wg.Wait()
 	assert.EqualValues(t, s3retrieverv2.MaxConcurrentDownloads, b.maxGets.Load())
 }
 
 func runShutdownQueued(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	const queued = 4
+
 	retrievers := distinctItems(t, b, s3retrieverv2.MaxConcurrentDownloads+queued)
+
 	errs := make(chan error, len(retrievers))
 	for _, r := range retrievers {
 		go func() {
@@ -881,49 +967,63 @@ func runShutdownQueued(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.
 			errs <- err
 		}()
 	}
+
 	synctest.Wait()
+
 	for _, r := range retrievers {
 		require.NoError(t, r.Shutdown(t.Context()))
 	}
+
 	close(b.downloadGate)
+
 	failed := 0
+
 	for range retrievers {
 		err := <-errs
 		if err != nil {
 			failed++
 		}
 	}
+
 	assert.Equal(t, queued, failed, "only the downloads waiting for a slot are cancelled")
 }
 
 func runShutdownListing(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	errs := make(chan error, 1)
+
 	go func() {
 		_, err := r["p1/dev/flags.yaml"].Retrieve(t.Context())
 		errs <- err
 	}()
+
 	time.Sleep(1500 * time.Millisecond)
 	require.NoError(t, r["p1/dev/flags.yaml"].Shutdown(t.Context()))
 	require.Error(t, <-errs)
+
 	lists := b.lists.Load()
+
 	time.Sleep(time.Minute)
 	assert.Equal(t, lists, b.lists.Load(), "no more page requests after the shutdown")
 }
 
 func runSlowListingWindow(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
+
 	dev := r["p1/dev/flags.yaml"]
 	_, err := dev.Retrieve(t.Context()) // 3 pages of 15s, the window is 30s
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, b.lists.Load())
 
 	time.Sleep(29 * time.Second)
+
 	_, err = dev.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, b.lists.Load(), "the window starts at the end of the listing")
 
 	time.Sleep(2 * time.Second)
+
 	_, err = dev.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.EqualValues(t, 6, b.lists.Load())
@@ -934,12 +1034,16 @@ func runInflightWiden(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.S
 	group := newGroup(t, b)
 	dev := initRetriever(t, group, "p1/dev/flags.yaml")
 	devData := make(chan string, 1)
+
 	go func() {
 		got, err := dev.Retrieve(t.Context())
 		assert.NoError(t, err)
+
 		devData <- string(got)
 	}()
+
 	time.Sleep(100 * time.Millisecond) // the listing of p1/dev/ is in flight
+
 	other := initRetriever(t, group, "p2/flags.yaml")
 	got, err := other.Retrieve(t.Context())
 	require.NoError(t, err)
@@ -949,6 +1053,7 @@ func runInflightWiden(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.S
 
 	// narrowing: the wider listing still serves the remaining item
 	require.NoError(t, other.Shutdown(t.Context()))
+
 	lists := b.lists.Load()
 	_, err = dev.Retrieve(t.Context())
 	require.NoError(t, err)
@@ -987,6 +1092,7 @@ func (l *lockedBuffer) String() string {
 
 func newPollCase(t *testing.T, cfg s3retrieverv2.PollerConfig, items ...string) *pollCase {
 	t.Helper()
+
 	b := newFakeBucket(baseObjects())
 	pollCtx := &pollCase{
 		b: b, g: newGroup(t, b), r: map[string]*s3retrieverv2.SharedItemRetriever{},
@@ -994,10 +1100,12 @@ func newPollCase(t *testing.T, cfg s3retrieverv2.PollerConfig, items ...string) 
 	}
 	cfg.Logger = slog.New(slog.NewTextHandler(pollCtx.logs, nil))
 	pollCtx.g.SetPoller(cfg)
+
 	for _, item := range items {
 		r := initRetriever(t, pollCtx.g, item)
 		_, err := r.Retrieve(t.Context())
 		require.NoError(t, err)
+
 		pollCtx.r[item] = r
 		pollCtx.calls[item], pollCtx.failing[item] = &atomic.Int32{}, &atomic.Bool{}
 	}
@@ -1008,9 +1116,11 @@ func newPollCase(t *testing.T, cfg s3retrieverv2.PollerConfig, items ...string) 
 // start registers the refresh functions, which fail while failing[item] is set.
 func (pc *pollCase) start(t *testing.T) {
 	t.Helper()
+
 	for item, r := range pc.r {
 		pc.g.SetRefresh(r, func() bool {
 			pc.calls[item].Add(1)
+
 			_, err := r.Retrieve(t.Context())
 
 			return err == nil && !pc.failing[item].Load()
@@ -1029,6 +1139,7 @@ func (pc *pollCase) start2(item string) {
 
 func (pc *pollCase) shutdown(t *testing.T) {
 	t.Helper()
+
 	for _, r := range pc.r {
 		require.NoError(t, r.Shutdown(t.Context()))
 	}
@@ -1050,17 +1161,21 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 	t.Helper()
 	pollCtx := newPollCase(t, cfg)
 	gate := make(chan struct{})
+
 	var running, maxRunning atomic.Int32
+
 	for i := range 2 * s3retrieverv2.MaxConcurrentDownloads {
 		key := fmt.Sprintf("many/%d.yaml", i)
 		pollCtx.b.put(key, `"a"`, "a")
 		r := initRetriever(t, pollCtx.g, key)
 		_, err := r.Retrieve(t.Context())
 		require.NoError(t, err)
+
 		pollCtx.r[key] = r
 		pollCtx.g.SetRefresh(r, func() bool {
 			cur := running.Add(1)
 			defer running.Add(-1)
+
 			storeMax(&maxRunning, cur)
 			<-gate
 
@@ -1068,6 +1183,7 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 		})
 		pollCtx.b.put(key, `"b"`, "b")
 	}
+
 	time.Sleep(10 * time.Second)
 	synctest.Wait()
 	assert.EqualValues(t, s3retrieverv2.MaxConcurrentDownloads, running.Load())
@@ -1077,6 +1193,7 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 	for _, r := range pollCtx.r {
 		wg.Go(func() { assert.NoError(t, r.Shutdown(t.Context())) })
 	}
+
 	synctest.Wait()
 	close(gate)
 	wg.Wait()
@@ -1097,13 +1214,16 @@ func runSynctestRefreshTests(t *testing.T, tests []sharedRefreshCase) {
 
 func TestSharedItems_SetRefresh(t *testing.T) {
 	t.Parallel()
+
 	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
+
 	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "only the changed object is refreshed, after one listing per interval", run: func(t *testing.T) {
 			t.Helper()
 			pollCtx := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev, prod)
 			pollCtx.start(t)
 			lists := pollCtx.b.lists.Load()
+
 			time.Sleep(9 * time.Second)
 			assert.Equal(t, lists, pollCtx.b.lists.Load(), "no listing before the interval")
 
@@ -1189,12 +1309,14 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pollCtx.start(t)
 			require.NoError(t, pollCtx.r[dev].Shutdown(t.Context()))
 			lists := pollCtx.b.lists.Load()
+
 			time.Sleep(10 * time.Second)
 			synctest.Wait()
 			assert.Greater(t, pollCtx.b.lists.Load(), lists, "prod is still polled")
 
 			require.NoError(t, pollCtx.r[prod].Shutdown(t.Context()))
 			lists = pollCtx.b.lists.Load()
+
 			time.Sleep(time.Minute)
 			synctest.Wait()
 			assert.Equal(t, lists, pollCtx.b.lists.Load(), "no poller anymore")
@@ -1223,6 +1345,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pollCtx.start(t)
 			require.NoError(t, pollCtx.r[dev].Shutdown(t.Context()))
 			lists := pollCtx.b.lists.Load()
+
 			time.Sleep(time.Minute)
 			synctest.Wait()
 			assert.Equal(t, lists, pollCtx.b.lists.Load(), "the poller stopped with the only item")
@@ -1232,13 +1355,17 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 
 func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
 	t.Parallel()
+
 	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
+
 	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "shutting down while the bucket is being listed stops the poller", run: func(t *testing.T) {
 			t.Helper()
 			pollCtx := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev)
 			pollCtx.start(t)
+
 			gate := make(chan struct{})
+
 			pollCtx.b.mu.Lock()
 			pollCtx.b.listGate = gate
 			pollCtx.b.mu.Unlock()
@@ -1254,8 +1381,11 @@ func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
 			t.Helper()
 			pollCtx := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second})
 			gate := make(chan struct{})
+
 			var mu sync.Mutex
+
 			started := map[string]bool{}
+
 			n := s3retrieverv2.MaxConcurrentDownloads + 1
 			for i := range n {
 				key := fmt.Sprintf("many/%d.yaml", i)
@@ -1263,6 +1393,7 @@ func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
 				r := initRetriever(t, pollCtx.g, key)
 				_, err := r.Retrieve(t.Context())
 				require.NoError(t, err)
+
 				pollCtx.r[key] = r
 				pollCtx.g.SetRefresh(r, func() bool {
 					mu.Lock()
@@ -1274,12 +1405,15 @@ func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
 				})
 				pollCtx.b.put(key, `"b"`, "b")
 			}
+
 			time.Sleep(10 * time.Second)
 			synctest.Wait()
 			// every worker is blocked, so the last item is picked by the poll but not refreshed yet
 			var queued string
+
 			mu.Lock()
 			require.Len(t, started, s3retrieverv2.MaxConcurrentDownloads)
+
 			for key := range pollCtx.r {
 				if !started[key] {
 					queued = key
@@ -1312,13 +1446,17 @@ func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
 
 func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 	t.Parallel()
+
 	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
+
 	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "shutdown waits for the refresh in flight", run: func(t *testing.T) {
 			t.Helper()
 			pollCtx := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev, prod)
 			gate := make(chan struct{})
+
 			var returned, shutDown atomic.Bool
+
 			pollCtx.g.SetRefresh(pollCtx.r[dev], func() bool {
 				<-gate
 				returned.Store(true)
@@ -1335,6 +1473,7 @@ func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 				assert.True(t, returned.Load(), "Shutdown returned before the refresh")
 				shutDown.Store(true)
 			}()
+
 			synctest.Wait()
 			assert.False(t, shutDown.Load(), "the refresh is still running")
 			close(gate)
@@ -1346,6 +1485,7 @@ func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 			t.Helper()
 			pollCtx := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev)
 			gate := make(chan struct{})
+
 			pollCtx.g.SetRefresh(pollCtx.r[dev], func() bool {
 				<-gate
 
@@ -1356,11 +1496,14 @@ func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 			synctest.Wait()
 
 			ctx, cancel := context.WithCancel(t.Context())
+
 			var shutDown atomic.Bool
+
 			go func() {
 				assert.NoError(t, pollCtx.r[dev].Shutdown(ctx))
 				shutDown.Store(true)
 			}()
+
 			synctest.Wait()
 			require.False(t, shutDown.Load())
 			cancel()
@@ -1379,7 +1522,9 @@ func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 				other := initRetriever(t, pollCtx.g, dev)
 				_, err := other.Retrieve(t.Context())
 				require.NoError(t, err)
+
 				var otherCalls atomic.Int32
+
 				pollCtx.g.SetRefresh(other, func() bool {
 					otherCalls.Add(1)
 
@@ -1388,6 +1533,7 @@ func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
 
 				pollCtx.b.put(dev, `"e1b"`, "dev2")
 				time.Sleep(6 * time.Second) // the listing of the load below is fresh
+
 				got, err := other.Retrieve(t.Context())
 				require.NoError(t, err)
 				require.Equal(t, "dev2", string(got))
@@ -1413,19 +1559,27 @@ func TestSharedItems_SetPoller(t *testing.T) {
 		pollCtx := newPollCase(t, cfg, dev)
 		// the first poll sees a changed object, then the failing refresh is retried by every poll
 		pollCtx.b.put(dev, `"changed"`, "changed")
+
 		start := time.Now()
-		var mu sync.Mutex
-		var res []time.Duration
+
+		var (
+			mu  sync.Mutex
+			res []time.Duration
+		)
+
 		pollCtx.g.SetRefresh(pollCtx.r[dev], func() bool {
 			mu.Lock()
 			defer mu.Unlock()
+
 			res = append(res, time.Since(start))
 
 			return false
 		})
+
 		if change != nil {
 			change(pollCtx)
 		}
+
 		time.Sleep(10 * time.Minute)
 		synctest.Wait()
 		pollCtx.shutdown(t)
@@ -1434,6 +1588,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 
 		return slices.Clone(res)
 	}
+
 	tests := []struct {
 		name   string
 		cfg    s3retrieverv2.PollerConfig
@@ -1487,22 +1642,28 @@ func TestSharedItems_SetPoller(t *testing.T) {
 				default:
 					require.Greater(t, len(got), tt.wantAtLeast-1)
 				}
+
 				if tt.wantFirst > 0 {
 					assert.Equal(t, tt.wantFirst, got[0])
 				}
+
 				prev := time.Duration(0)
 				distinct := make(map[time.Duration]struct{})
+
 				for _, at := range got {
 					gap := at - prev
 					prev = at
+
 					distinct[gap] = struct{}{}
 					if tt.wantMinGap > 0 {
 						assert.GreaterOrEqual(t, gap, tt.wantMinGap)
 					}
+
 					if tt.wantMaxGap > 0 {
 						assert.LessOrEqual(t, gap, tt.wantMaxGap)
 					}
 				}
+
 				if tt.wantVariable {
 					assert.Greater(t, len(distinct), 1)
 				}

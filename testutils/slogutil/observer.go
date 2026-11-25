@@ -17,12 +17,13 @@ type Entry struct {
 // ContextMap returns the attributes of the record by key. An error is its message.
 func (e Entry) ContextMap() map[string]any {
 	attrsMap := make(map[string]any, len(e.Attrs))
-	for _, a := range e.Attrs {
-		v := a.Value.Resolve().Any()
+	for _, attr := range e.Attrs {
+		v := attr.Value.Resolve().Any()
 		if err, ok := v.(error); ok {
 			v = err.Error()
 		}
-		attrsMap[a.Key] = v
+
+		attrsMap[attr.Key] = v
 	}
 
 	return attrsMap
@@ -47,6 +48,7 @@ func NewObserver(level slog.Level) (*slog.Logger, *ObservedLogs) {
 func (o *ObservedLogs) All() []Entry {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+
 	out := make([]Entry, 0, len(*o.entries))
 	for _, e := range *o.entries {
 		if o.filter == nil || o.filter(e) {

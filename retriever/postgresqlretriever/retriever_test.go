@@ -98,6 +98,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 				Table:   tt.tableName,
 				Columns: tt.columns,
 			}
+
 			require.NoError(t, r.Init(context.TODO(), nil, &tt.flagset))
 			defer func() {
 				assert.NoError(t, r.Shutdown(context.TODO()))
@@ -106,6 +107,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverReady, r.Status())
 			got, err := r.Retrieve(context.TODO())
 			tt.assertErr(t, err)
+
 			if err != nil {
 				return
 			}
@@ -120,6 +122,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 // startPostgreSQLAndAddData starts a PostgreSQL container, removed when the test ends, and loads the files in it.
 func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 	t.Helper()
+
 	ctx := context.TODO()
 	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)
@@ -130,17 +133,21 @@ func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 
 	// Retry connection with backoff
 	var conn *pgx.Conn
+
 	maxRetries := 5
 	for i := range maxRetries {
 		conn, err = pgx.Connect(ctx, connectionString)
 		if err == nil {
 			break
 		}
+
 		if i < maxRetries-1 {
 			time.Sleep(time.Duration(i+1) * time.Second)
 		}
 	}
+
 	require.NoError(t, err, "Failed to connect to database after %d retries", maxRetries)
+
 	defer func() {
 		if conn != nil {
 			conn.Close(ctx)
@@ -225,6 +232,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		t.Parallel()
 
 		var r *postgresqlretriever.Retriever
+
 		status := r.Status()
 		assert.Equal(t, retriever.RetrieverNotReady, status)
 	})
@@ -267,6 +275,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -290,6 +299,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -309,6 +319,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -361,6 +372,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 		}
 
 		initErr := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, initErr)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -384,6 +396,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 		}
 
 		initErr := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, initErr)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -416,6 +429,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -434,6 +448,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		ctx := context.Background()
 		conn, err := pgx.Connect(ctx, connectionString)
 		require.NoError(t, err)
+
 		defer conn.Close(ctx)
 
 		_, err = conn.Exec(ctx, `CREATE TABLE flagset_filter_flags (LIKE go_feature_flag INCLUDING ALL)`)
@@ -452,6 +467,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		}
 
 		err = r.Init(context.Background(), nil, &nonExistentFlagset)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -492,6 +508,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		ctx := context.Background()
 		conn, err := pgx.Connect(ctx, connectionString)
 		require.NoError(t, err)
+
 		defer conn.Close(ctx)
 
 		_, err = conn.Exec(ctx, `
@@ -520,6 +537,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		}
 
 		err = r.Init(context.Background(), nil, nil)
+
 		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
@@ -614,6 +632,7 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	pools := postgresqlretriever.NewPoolRegistry()
 	first := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
 	second := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
+
 	require.NoError(t, first.Init(context.Background(), nil, nil))
 	require.NoError(t, second.Init(context.Background(), nil, nil))
 	want, err := second.Retrieve(context.Background())
@@ -651,9 +670,11 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	// sequential: each case depends on the previous shutdowns
 	for _, tt := range tests {
 		require.NoError(t, tt.shutdown.Shutdown(context.Background()), tt.name)
+
 		if tt.release {
 			pools.ReleasePool(context.Background(), connectionString)
 		}
+
 		assert.Equal(t, tt.wantStatus, tt.shutdown.Status(), tt.name)
 		assert.Equal(t, tt.wantOtherStatus, tt.other.Status(), tt.name)
 		assert.Equal(t, tt.wantPoolOpen, pool.Ping(context.Background()) == nil, tt.name)
@@ -664,6 +685,7 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 
 			continue
 		}
+
 		require.NoError(t, retrieveErr, tt.name)
 		assert.JSONEq(t, string(want), string(got), tt.name)
 	}

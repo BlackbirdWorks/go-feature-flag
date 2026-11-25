@@ -13,6 +13,7 @@ import (
 // evaluation must never be visible to another one.
 func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 	t.Parallel()
+
 	flg := &InternalFlag{
 		Variations: &map[string]*any{
 			"A": new(any("a")),

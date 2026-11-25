@@ -20,6 +20,7 @@ import (
 // not change what the cache serves to the evaluations or to the next snapshot.
 func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		want   any
 		mutate func(f *flag.InternalFlag)
@@ -48,11 +49,13 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			mgr := cache.New(nil, "", &fflog.FFLogger{})
 			require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
+
 			f, ok := snap["flag-1"].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
@@ -74,6 +77,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 // replaced concurrently (meant to run with -race).
 func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	t.Parallel()
+
 	mgr := cache.New(nil, "", &fflog.FFLogger{})
 	flags := benchFlagsMap(t, 5)
 	require.NoError(t, mgr.UpdateCache(flags, nil, false))
@@ -86,12 +90,14 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 				if err != nil {
 					return
 				}
+
 				for _, f := range snap {
 					d := true
 					if iflag, ok := f.(*flag.InternalFlag); assert.True(t, ok) {
 						iflag.Disable = &d
 					}
 				}
+
 				live, getFlagErr := mgr.GetFlag("flag-1")
 				if getFlagErr == nil {
 					_ = live.IsDisable()
@@ -99,9 +105,11 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 			}
 		})
 	}
+
 	for range 50 {
 		require.NoError(t, mgr.UpdateCache(flags, nil, false))
 	}
+
 	wg.Wait()
 
 	live, err := mgr.GetFlag("flag-1")
@@ -138,6 +146,7 @@ const nestedFlagYAML = `nested:
 // (variations, rules, metadata, rollouts) is not shared with the live flags.
 func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		mutate func(t *testing.T, f *flag.InternalFlag)
 		name   string
@@ -146,6 +155,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	}{
 		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
 			t.Helper()
+
 			v := *(*f.Variations)["A"]
 			m, ok := v.(map[string]any)
 			require.True(t, ok)
@@ -153,6 +163,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			require.True(t, ok)
 			nested, ok := kSlice[2].(map[string]any)
 			require.True(t, ok)
+
 			nested["deep"] = "hacked"
 			kSlice[0] = "hacked"
 		}},
@@ -163,10 +174,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		}},
 		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
 			t.Helper()
+
 			owner, ok := (*f.Metadata)["owner"].(map[string]any)
 			require.True(t, ok)
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
+
 			team[0] = "hacked"
 		}},
 		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
@@ -192,11 +205,13 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		},
 		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
 			t.Helper()
+
 			step := &(*f.Scheduled)[0]
 			owner, ok := (*step.Metadata)["owner"].(map[string]any)
 			require.True(t, ok)
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
+
 			team[0] = "hacked"
 			(*step.Variations)["A"] = nil
 			*step.Date = step.Date.Add(1)
@@ -205,8 +220,10 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var flags map[string]dto.DTO
 			require.NoError(t, yaml.Unmarshal([]byte(nestedFlagYAML), &flags))
+
 			mgr := cache.New(nil, "", &fflog.FFLogger{})
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
 			live, err := mgr.GetFlag("nested")
@@ -216,6 +233,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
+
 			iflag, ok := snap["nested"].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
@@ -238,6 +256,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 // (same pointers as the evaluation lookup) and fails before the initialisation.
 func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	t.Parallel()
+
 	mgr := cache.New(nil, "", &fflog.FFLogger{})
 	mgr.Close()
 	_, err := mgr.AllFlagsReadOnly()
@@ -248,6 +267,7 @@ func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	shared, err := mgr.AllFlagsReadOnly()
 	require.NoError(t, err)
 	require.Len(t, shared, 3)
+
 	live, err := mgr.GetFlag("flag-1")
 	require.NoError(t, err)
 	assert.Same(t, live, shared["flag-1"])

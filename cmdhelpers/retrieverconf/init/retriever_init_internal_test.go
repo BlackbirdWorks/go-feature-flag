@@ -39,8 +39,10 @@ func runInitRetrieverTests(t *testing.T, tests []initRetrieverCase) {
 
 			got, err := Retriever(tt.conf)
 			tt.wantErr(t, err)
+
 			if err == nil {
 				assert.IsType(t, tt.wantType, got)
+
 				if !tt.skipCompleteValidation {
 					assert.Equal(t, tt.want, got)
 				}
@@ -364,6 +366,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
+
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "localhost:6379", redisRet.Options.Addr)
@@ -387,6 +390,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
+
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "redis.example.com:6380", redisRet.Options.Addr)
@@ -409,6 +413,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
+
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "new:6380", redisRet.Options.Addr)
@@ -436,6 +441,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
 				t.Helper()
+
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "redis:6379", redisRet.Options.Addr)
@@ -463,6 +469,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, got)
 				assert.IsType(t, &redisretriever.Retriever{}, got)
+
 				if tt.validateRetriever != nil {
 					tt.validateRetriever(t, got)
 				}
@@ -475,6 +482,7 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 	t.Parallel()
 
 	pools := postgresqlretriever.NewPoolRegistry()
+
 	tests := []struct {
 		wantPools *postgresqlretriever.PoolRegistry
 		name      string
@@ -492,6 +500,7 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 			}, tt.opts...)
 
 			require.NoError(t, err)
+
 			pg, ok := got.(*postgresqlretriever.Retriever)
 			require.True(t, ok)
 			assert.Same(t, tt.wantPools, pg.Pools)

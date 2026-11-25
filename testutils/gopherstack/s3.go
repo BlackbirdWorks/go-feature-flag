@@ -43,7 +43,9 @@ func (s *Server) GetObject(tb testing.TB, bucket, key string) []byte {
 		Bucket: aws.String(bucket), Key: aws.String(key),
 	})
 	require.NoError(tb, err)
+
 	defer func() { _ = out.Body.Close() }()
+
 	b, err := io.ReadAll(out.Body)
 	require.NoError(tb, err)
 
@@ -53,13 +55,16 @@ func (s *Server) GetObject(tb testing.TB, bucket, key string) []byte {
 // ListKeys returns all the keys of the bucket under prefix.
 func (s *Server) ListKeys(tb testing.TB, bucket, prefix string) []string {
 	tb.Helper()
+
 	var keys []string
+
 	p := s3.NewListObjectsV2Paginator(s.S3Client(tb), &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket), Prefix: aws.String(prefix),
 	})
 	for p.HasMorePages() {
 		page, err := p.NextPage(tb.Context())
 		require.NoError(tb, err)
+
 		for _, o := range page.Contents {
 			keys = append(keys, aws.ToString(o.Key))
 		}

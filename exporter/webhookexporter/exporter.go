@@ -90,6 +90,7 @@ func (f *Exporter) Export(
 		Meta:   f.Meta,
 		Events: events,
 	}
+
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal webhook payload: %w", err)
@@ -98,6 +99,7 @@ func (f *Exporter) Export(
 	if f.Headers == nil {
 		f.Headers = map[string][]string{}
 	}
+
 	f.Headers["Content-Type"] = []string{"application/json"}
 
 	// if a secret is provided, we sign the body and add this signature as a header.
@@ -110,6 +112,7 @@ func (f *Exporter) Export(
 	if err != nil {
 		return internal.RedactURLError(err)
 	}
+
 	request.Header = f.Headers
 	response, err := f.httpClient.Do(request)
 	// Log if something went wrong while calling the webhook.
@@ -117,7 +120,9 @@ func (f *Exporter) Export(
 		// the endpoint URL may carry a secret and net/http errors embed it.
 		return internal.RedactURLError(err)
 	}
+
 	defer func() { _ = response.Body.Close() }()
+
 	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w %d received, response: %v", errErrorWhileCallingThe,
 			response.StatusCode,

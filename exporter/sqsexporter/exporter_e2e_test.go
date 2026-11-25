@@ -40,6 +40,7 @@ type received struct { //nolint:govet // fieldalignment: the table holds a type 
 
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {
 	t.Helper()
+
 	var got []received
 	require.Eventually(t, func() bool {
 		out, err := client.ReceiveMessage(t.Context(), &sqs.ReceiveMessageInput{
@@ -49,13 +50,16 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 		if err != nil {
 			return false
 		}
+
 		for _, msg := range out.Messages {
 			var e exporter.FeatureEvent
 			require.NoError(t, json.Unmarshal([]byte(aws.ToString(msg.Body)), &e))
+
 			r := received{event: e}
 			if a, ok := msg.MessageAttributes["emitter"]; ok {
 				r.emitter = aws.ToString(a.StringValue)
 			}
+
 			got = append(got, r)
 			_, deleteMessageErr := client.DeleteMessage(
 				t.Context(),
@@ -108,17 +112,19 @@ func TestE2E_Export(t *testing.T) {
 			cfg := srv.MustAwsConfig(t)
 			client := sqs.NewFromConfig(cfg)
 			queueURL := createQueue(t, client)
-			e := &sqsexporter.Exporter{QueueURL: queueURL, AwsConfig: &cfg}
+			exp := &sqsexporter.Exporter{QueueURL: queueURL, AwsConfig: &cfg}
 
 			all := events(tt.nbEvents)
+
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
+				require.NoError(t, exp.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
 			}
 
 			got := receiveAll(t, client, queueURL, tt.nbEvents)
 			require.Len(t, got, tt.wantReceived)
 			sort.Slice(got, func(i, j int) bool { return got[i].event.UserKey < got[j].event.UserKey })
+
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.event.UserKey)
 				assert.Equal(t, "my-flag", g.event.Key)

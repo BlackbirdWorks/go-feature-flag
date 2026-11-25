@@ -30,11 +30,13 @@ func BindBody(r *http.Request, target any) error {
 	if r.ContentLength == 0 {
 		return nil
 	}
+
 	if !IsJSON(r.Header.Get(HeaderContentType)) {
 		return NewHTTPError(http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
 	}
 
 	buf, _ := bodyBuffers.Get().(*bytes.Buffer)
+
 	buf.Reset()
 	defer func() {
 		if buf.Cap() <= maxPooledBody {
@@ -65,6 +67,7 @@ func BindRawBody(contentType string, raw []byte, target any) error {
 	if len(raw) == 0 {
 		return nil
 	}
+
 	if !IsJSON(contentType) {
 		return NewHTTPError(http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
 	}

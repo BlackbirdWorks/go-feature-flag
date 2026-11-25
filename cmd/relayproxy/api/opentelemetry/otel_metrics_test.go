@@ -17,9 +17,12 @@ import (
 // metricNames collects the metrics of the reader and returns their names.
 func metricNames(t *testing.T, reader sdkmetric.Reader) []string {
 	t.Helper()
+
 	var data metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(t.Context(), &data))
+
 	var names []string
+
 	for _, scope := range data.ScopeMetrics {
 		for _, m := range scope.Metrics {
 			names = append(names, m.Name)
@@ -66,6 +69,7 @@ func TestInitMetrics(t *testing.T) {
 
 				return
 			}
+
 			require.NotNil(t, svc.MeterProvider())
 			// the Go runtime instruments (OpenTelemetry semantic conventions for Go runtime metrics)
 			assert.Subset(
@@ -77,7 +81,9 @@ func TestInitMetrics(t *testing.T) {
 			// the stop flushes and stops the provider: the reader is shut down
 			stopCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
+
 			require.NoError(t, svc.Stop(stopCtx))
+
 			var data metricdata.ResourceMetrics
 			assert.ErrorIs(t, reader.Collect(t.Context(), &data), sdkmetric.ErrReaderShutdown)
 		})

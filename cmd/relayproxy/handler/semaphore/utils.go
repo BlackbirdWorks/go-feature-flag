@@ -18,6 +18,7 @@ func assertRequest(u *model.AllFlagRequest) *helper.HTTPError {
 	if u != nil && u.LegacyUser != nil {
 		return helper.NewHTTPError(http.StatusBadRequest, errLegacyUser)
 	}
+
 	if u == nil || u.EvaluationContext == nil {
 		return helper.NewHTTPError(
 			http.StatusBadRequest,
@@ -36,6 +37,7 @@ func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.Evaluati
 				"evaluationContextFromRequest: impossible to convert the request, evaluationContext missing",
 			)
 	}
+
 	u := req.EvaluationContext
 
 	return utils.ConvertEvaluationCtxFromRequest(u.Key, u.Custom), nil

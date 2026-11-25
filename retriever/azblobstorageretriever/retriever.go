@@ -56,26 +56,32 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		url = fmt.Sprintf("https://%s.blob.core.windows.net/", r.AccountName)
 	}
 
-	var client *azblob.Client
-	var err error
+	var (
+		client *azblob.Client
+		err    error
+	)
 
 	if r.AccountKey == "" {
 		var cred *azidentity.DefaultAzureCredential
+
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			r.status = retriever.RetrieverError
 
 			return fmt.Errorf("create default Azure credential: %w", err)
 		}
+
 		client, err = azblob.NewClient(url, cred, nil)
 	} else {
 		var cred *azblob.SharedKeyCredential
+
 		cred, err = azblob.NewSharedKeyCredential(r.AccountName, r.AccountKey)
 		if err != nil {
 			r.status = retriever.RetrieverError
 
 			return fmt.Errorf("create Azure shared key credential: %w", err)
 		}
+
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, nil)
 	}
 

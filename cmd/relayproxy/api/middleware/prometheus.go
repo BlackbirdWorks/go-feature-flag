@@ -37,6 +37,7 @@ func RoutePattern(r *http.Request) string {
 	if _, route, found := strings.Cut(pattern, " "); found {
 		pattern = route
 	}
+
 	if pattern == "" || pattern == "/" {
 		return r.URL.Path
 	}
@@ -48,16 +49,20 @@ func RoutePattern(r *http.Request) string {
 // anchors a path ending with a slash.
 func routeLabel(pattern string) string {
 	var b strings.Builder
+
 	for {
 		start := strings.IndexByte(pattern, '{')
 		if start < 0 {
 			break
 		}
+
 		end := strings.IndexByte(pattern[start:], '}')
 		if end < 0 {
 			break
 		}
+
 		b.WriteString(pattern[:start])
+
 		name := pattern[start+1 : start+end]
 		switch {
 		case name == "$":
@@ -66,8 +71,10 @@ func routeLabel(pattern string) string {
 		default:
 			b.WriteString(":" + name)
 		}
+
 		pattern = pattern[start+end+1:]
 	}
+
 	b.WriteString(pattern)
 
 	return b.String()
@@ -79,6 +86,7 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 	if cfg.HistogramOptsFunc == nil {
 		cfg.HistogramOptsFunc = func(opts prometheus.HistogramOpts) prometheus.HistogramOpts { return opts }
 	}
+
 	labels := []string{"code", "method", "host", "url"}
 
 	requestCount := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -98,6 +106,7 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 		Help:      "The HTTP response sizes in bytes.",
 		Buckets:   sizeBuckets(),
 	}), labels)
+
 	requestSize := prometheus.NewHistogramVec(cfg.HistogramOptsFunc(prometheus.HistogramOpts{
 		Subsystem: cfg.Subsystem,
 		Name:      "request_size_bytes",
@@ -116,7 +125,9 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 			reqSize := approximateRequestSize(r)
 			rec := newRecorder(w)
 			start := time.Now()
+
 			next.ServeHTTP(rec, r)
+
 			elapsed := time.Since(start).Seconds()
 
 			values := [...]string{
@@ -125,18 +136,22 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 				r.Host,
 				strings.ToValidUTF8(RoutePattern(r), "�"),
 			}
+
 			durObs, durErr := requestDuration.GetMetricWithLabelValues(values[:]...)
 			if durErr == nil {
 				durObs.Observe(elapsed)
 			}
+
 			cntObs, cntErr := requestCount.GetMetricWithLabelValues(values[:]...)
 			if cntErr == nil {
 				cntObs.Inc()
 			}
+
 			reqObs, reqErr := requestSize.GetMetricWithLabelValues(values[:]...)
 			if reqErr == nil {
 				reqObs.Observe(float64(reqSize))
 			}
+
 			respObs, respErr := responseSize.GetMetricWithLabelValues(values[:]...)
 			if respErr == nil {
 				respObs.Observe(float64(rec.Size()))
@@ -150,6 +165,7 @@ func approximateRequestSize(r *http.Request) int {
 	if r.URL != nil {
 		size = len(r.URL.Path)
 	}
+
 	size += len(r.Method) + len(r.Proto)
 	for name, values := range r.Header {
 		size += len(name)
@@ -157,6 +173,7 @@ func approximateRequestSize(r *http.Request) int {
 			size += len(value)
 		}
 	}
+
 	size += len(r.Host)
 	if r.ContentLength != -1 {
 		size += int(r.ContentLength)
@@ -192,6 +209,7 @@ func (r *recorder) WriteHeader(code int) {
 	if r.status == 0 && (code >= http.StatusOK || code == http.StatusSwitchingProtocols) {
 		r.status = code
 	}
+
 	r.ResponseWriter.WriteHeader(code)
 }
 
@@ -200,6 +218,7 @@ func (r *recorder) Write(b []byte) (int, error) {
 	if r.status == 0 {
 		r.status = http.StatusOK
 	}
+
 	n, err := r.ResponseWriter.Write(b)
 	r.size += int64(n)
 

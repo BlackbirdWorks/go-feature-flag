@@ -63,6 +63,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) 
 	}
 
 	var ctxAsMap map[string]any
+
 	err := json.Unmarshal([]byte(e.evaluationCtx), &ctxAsMap)
 	if err != nil {
 		//nolint:wrapcheck // CLI evaluate preserves JSON context parse error
@@ -111,6 +112,7 @@ func (e evaluate) evaluateFlags(
 			//nolint:wrapcheck // CLI evaluate preserves flag evaluation error
 			return nil, err
 		}
+
 		result[flag] = res
 	}
 

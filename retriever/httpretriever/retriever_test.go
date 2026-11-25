@@ -25,6 +25,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 		body       string
 		withCtx    bool
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -145,10 +146,12 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				Header: tt.fields.header,
 			}
 			ret.SetHTTPClient(&tt.fields.httpClient)
+
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
+
 			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
@@ -178,6 +181,7 @@ func (c statusClient) Do(_ *http.Request) (*http.Response, error) {
 
 func TestRetriever_ErrorDoesNotLeakCredentials(t *testing.T) {
 	t.Parallel()
+
 	h := httpretriever.Retriever{
 		URL: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/flags.yaml?token=SECRETMARKER",
 	}
