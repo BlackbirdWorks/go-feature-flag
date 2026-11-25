@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -343,7 +344,18 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 		numIterations = 50
 	)
 
-	var wg sync.WaitGroup
+	var (
+		wg     sync.WaitGroup
+		errsMu sync.Mutex
+		errs   []error
+	)
+
+	collect := func(err error) {
+		errsMu.Lock()
+		defer errsMu.Unlock()
+
+		errs = append(errs, err)
+	}
 
 	// Start writer goroutines
 	for i := range numGoroutines {
@@ -353,8 +365,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 			for j := range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				newKeys := []string{fmt.Sprintf("key-%d-%d", id, j)}
-				err := cfg.SetFlagSetAPIKeys(flagsetName, newKeys)
-				assert.NoError(t, err) // not require: this runs outside the test goroutine
+				collect(cfg.SetFlagSetAPIKeys(flagsetName, newKeys))
 			}
 		})
 	}
@@ -369,7 +380,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 				keys, err := cfg.GetFlagSetAPIKeys(flagsetName)
 				// We don't check the exact value since it may change between reads
 				// but we verify the operation doesn't panic or return an error
-				assert.NoError(t, err)
+				collect(err)
 				assert.NotNil(t, keys)
 			}
 		})
@@ -377,6 +388,9 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 
 	// Wait for all goroutines to complete
 	wg.Wait()
+
+	// require runs on the test goroutine only, so the errors are collected above and checked here.
+	require.NoError(t, errors.Join(errs...))
 
 	// Verify final state - each flagset should have exactly one key (from the last write)
 	for i := 1; i <= 3; i++ {

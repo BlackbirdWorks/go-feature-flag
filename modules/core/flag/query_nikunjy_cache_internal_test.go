@@ -1,6 +1,7 @@
 package flag
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"runtime"
@@ -77,13 +78,26 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 
 	goroutines := 4 * runtime.GOMAXPROCS(0)
 
-	var wg sync.WaitGroup
+	var (
+		wg     sync.WaitGroup
+		errsMu sync.Mutex
+		errs   []error
+	)
+
+	collect := func(err error) {
+		errsMu.Lock()
+		defer errsMu.Unlock()
+
+		errs = append(errs, err)
+	}
 
 	for goroutineIdx := range goroutines {
 		wg.Go(func() {
 			for i := range 200 {
 				shared, getErr := evalCache.get(query)
-				if !assert.NoError(t, getErr) {
+				if getErr != nil {
+					collect(getErr)
+
 					return
 				}
 
@@ -97,13 +111,16 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 				}
 
 				ok, getErr := shared.Process(map[string]any{"group": group})
-				assert.NoError(t, getErr)
+				collect(getErr)
 				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", goroutineIdx, i)
 			}
 		})
 	}
 
 	wg.Wait()
+
+	// require runs on the test goroutine only, so the errors are collected above and checked here.
+	require.NoError(t, errors.Join(errs...))
 }
 
 // BenchmarkRule_ValidateThenEvaluate measures loading a rule with a query never
