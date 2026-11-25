@@ -86,9 +86,9 @@ type RetrieverConf struct {
 
 // IsValid validates the configuration of the retriever.
 func (c *RetrieverConf) IsValid() error {
-	err := c.Kind.IsValid()
-	if err != nil {
-		return err
+	kindErr := c.Kind.IsValid()
+	if kindErr != nil {
+		return kindErr
 	}
 
 	switch c.Kind {
@@ -328,9 +328,9 @@ func (r RetrieverKind) IsValid() error {
 
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.
 func (c *RetrieverConf) validateS3Retriever() error {
-	err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive)
-	if err != nil {
-		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
+	validateErr := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive)
+	if validateErr != nil {
+		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", validateErr, c.Kind)
 	}
 
 	return nil

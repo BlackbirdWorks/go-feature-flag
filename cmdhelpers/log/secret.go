@@ -22,7 +22,7 @@ func (Secret) GoString() string { return RedactedValue }
 func (Secret) MarshalText() ([]byte, error) { return []byte(RedactedValue), nil }
 
 // SecretAttr is a log attribute holding a secret: only its redacted form is logged.
-func SecretAttr(key string, value string) slog.Attr {
+func SecretAttr(key, value string) slog.Attr {
 	return slog.Any(key, Secret(value))
 }
 

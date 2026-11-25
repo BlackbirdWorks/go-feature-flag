@@ -23,12 +23,12 @@ func NewRetrieverConfError(property, kind string) *RetrieverConfError {
 }
 
 func (e *RetrieverConfError) Error() string {
-	return fmt.Sprintf("invalid retriever: no \"%s\" property found for kind \"%s\"", e.property, e.kind)
+	return fmt.Sprintf("invalid retriever: no %q property found for kind %q", e.property, e.kind)
 }
 
 // CliErrorMessage returns the message shown to the command line user.
 func (e *RetrieverConfError) CliErrorMessage() string {
 	kebab := camelToKebabRegex.ReplaceAllString(e.property, "${1}-${2}")
 
-	return fmt.Sprintf("invalid retriever: no \"%s\" property found for kind \"%s\"", strings.ToLower(kebab), e.kind)
+	return fmt.Sprintf("invalid retriever: no %q property found for kind %q", strings.ToLower(kebab), e.kind)
 }
