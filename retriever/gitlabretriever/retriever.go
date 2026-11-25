@@ -86,7 +86,12 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		httpRetriever.SetHTTPClient(r.httpClient)
 	}
 
-	return httpRetriever.Retrieve(ctx)
+	content, err := httpRetriever.Retrieve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("retrieve GitLab file: %w", err)
+	}
+
+	return content, nil
 }
 
 // escapePathSegment encodes s as a single URL path segment, as expected by the GitLab API.

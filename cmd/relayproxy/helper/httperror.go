@@ -118,6 +118,7 @@ func WriteJSON(w http.ResponseWriter, code int, v any) error {
 	w.Header().Set(HeaderContentType, MIMEApplicationJSON)
 	w.WriteHeader(code)
 
+	//nolint:wrapcheck // WriteJSON returns encoder error directly after response headers are committed
 	return json.NewEncoder(w).Encode(v)
 }
 

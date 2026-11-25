@@ -134,7 +134,7 @@ func (c *Loader) ToConfig() (*Config, error) {
 	proxyConf := &Config{}
 	errUnmarshal := c.k.Unmarshal("", proxyConf)
 	if errUnmarshal != nil {
-		return nil, errUnmarshal
+		return nil, fmt.Errorf("unmarshal config: %w", errUnmarshal)
 	}
 	switch {
 	case len(proxyConf.FlagSets) > 0:

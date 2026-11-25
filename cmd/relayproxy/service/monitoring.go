@@ -43,6 +43,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 	}
 	flagSets, err := m.flagsetManager.AllFlagSets()
 	if err != nil {
+		//nolint:wrapcheck // preserves FlagsetManager.AllFlagSets error message asserted by monitoring tests
 		return model.InfoResponse{}, err
 	}
 

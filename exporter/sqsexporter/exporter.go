@@ -60,7 +60,7 @@ func (f *Exporter) Export(
 	for _, event := range events {
 		messageBody, err := json.Marshal(event)
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal SQS event: %w", err)
 		}
 		_, err = f.sqsService.SendMessage(ctx, &sqs.SendMessageInput{
 			MessageBody: aws.String(string(messageBody)),
@@ -74,7 +74,7 @@ func (f *Exporter) Export(
 		})
 
 		if err != nil {
-			return err
+			return fmt.Errorf("send SQS message: %w", err)
 		}
 	}
 

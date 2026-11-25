@@ -2,6 +2,7 @@ package ffclient
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"strings"
@@ -134,7 +135,7 @@ type legacyWriter struct{ logger *log.Logger }
 func (w legacyWriter) Write(msg []byte) (int, error) {
 	err := w.logger.Output(0, strings.TrimSuffix(string(msg), "\n"))
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("write legacy log: %w", err)
 	}
 
 	return len(msg), nil

@@ -178,7 +178,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read GitHub response body: %w", err)
 	}
 
 	return body, nil
@@ -219,7 +219,7 @@ func (r *Retriever) fetch(ctx context.Context, contentsURL, token string) (*http
 		r.httpClient,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch GitHub contents: %w", err)
 	}
 	r.updateRateLimit(resp.Header)
 
@@ -290,7 +290,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 	resp, err := shared.CallHTTPAPI(ctx, parsedURL.String(), http.MethodPost, "", r.Timeout, header, r.httpClient)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, fmt.Errorf("request GitHub access token: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -305,7 +305,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, fmt.Errorf("read GitHub access token response: %w", err)
 	}
 
 	var result installationTokenResponse

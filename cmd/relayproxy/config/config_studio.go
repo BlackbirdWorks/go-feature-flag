@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -56,19 +57,19 @@ func (s Studio) provider(parser koanf.Parser, log *slog.Logger) *httpprovider.HT
 func validateStudioFlagSets(content []byte, parser koanf.Parser) error {
 	values, err := parser.Unmarshal(content)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse studio flagsets: %w", err)
 	}
 	koanfLoader := koanf.New(".")
 	loadErr := koanfLoader.Load(confmap.Provider(values, "."), nil)
 	if loadErr != nil {
-		return loadErr
+		return fmt.Errorf("load studio flagsets: %w", loadErr)
 	}
 	var studioConf struct {
 		FlagSets []FlagSet `koanf:"flagsets"`
 	}
 	unmarshalErr := koanfLoader.Unmarshal("", &studioConf)
 	if unmarshalErr != nil {
-		return unmarshalErr
+		return fmt.Errorf("unmarshal studio flagsets: %w", unmarshalErr)
 	}
 
 	return (&Config{FlagSets: studioConf.FlagSets}).validateFlagSets()

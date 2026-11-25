@@ -29,16 +29,21 @@ type sharedItemsFactory func(ctx context.Context, bucket string) (*s3retrieverv2
 func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 	awsConfig, err := awsConf.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
 
-	return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+	items, err := s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
 		Bucket:          bucket,
 		AwsConfig:       &awsConfig,
 		Lister:          nil,
 		Downloader:      nil,
 		S3ClientOptions: nil,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("init shared S3 items: %w", err)
+	}
+
+	return items, nil
 }
 
 // sharedBucketRegistry lazily creates one shared S3 group per bucket and hands out the
@@ -329,6 +334,9 @@ func (r *releasingRetriever) SetRefresh(refresh func() bool) {
 func (r *releasingRetriever) Shutdown(ctx context.Context) error {
 	err := r.SharedItemRetriever.Shutdown(ctx)
 	r.releaseOnce.Do(r.release)
+	if err != nil {
+		return fmt.Errorf("shutdown shared S3 retriever: %w", err)
+	}
 
-	return err
+	return nil
 }

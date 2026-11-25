@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"text/template"
 	"time"
 
@@ -118,7 +119,7 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 		FormattedDate: time.Unix(f.GetCreationDate(), 0).Format(time.RFC3339),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("format feature event CSV: %w", err)
 	}
 
 	return buf.Bytes(), nil
@@ -126,9 +127,12 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 
 func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
+	if err != nil {
+		return nil, fmt.Errorf("marshal feature event JSON: %w", err)
+	}
 	b = append(b, []byte("\n")...)
 
-	return b, err
+	return b, nil
 }
 
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
@@ -138,7 +142,7 @@ func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	}
 	b, err := json.Marshal(f.Value)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal feature event value for parquet: %w", err)
 	}
 
 	return string(b), nil

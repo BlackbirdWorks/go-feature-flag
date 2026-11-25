@@ -46,6 +46,7 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, in *RetrieverRefreshInpu
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 

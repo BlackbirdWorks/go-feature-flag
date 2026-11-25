@@ -69,7 +69,7 @@ type Relay struct {
 func Start(opts Options) (_ *Relay, err error) {
 	dir, err := os.MkdirTemp(opts.TempDir, "ffrelay")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create relay temp dir: %w", err)
 	}
 	r := &Relay{dir: dir}
 	defer func() {
@@ -93,7 +93,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		// another test (or an outgoing connection) take the port before the server binds it.
 		listener, err = (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("listen on loopback: %w", err)
 		}
 		//nolint:errcheck,forcetypeassert // a tcp listener always has a *net.TCPAddr
 		port := listener.Addr().(*net.TCPAddr).Port
@@ -104,13 +104,13 @@ func Start(opts Options) (_ *Relay, err error) {
 	logger := log.NewDefault()
 	metrics, err := metric.NewMetrics()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init relay metrics: %w", err)
 	}
 	r.wsSvc = stream.NewWebsocketService()
 	flagsetMgr, err := service.NewFlagsetManager(conf, logger.Slog,
 		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, r.wsSvc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init flagset manager: %w", err)
 	}
 	r.Services = service.Services{
 		MonitoringService: service.NewMonitoring(flagsetMgr),
@@ -138,7 +138,7 @@ func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
 	flagFile := filepath.Join(r.dir, "flags.yaml")
 	err := os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write relay flag file: %w", err)
 	}
 	conf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},

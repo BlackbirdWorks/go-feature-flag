@@ -136,6 +136,7 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 	if opts.ExporterMode != "" {
 		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
 		if parseErr != nil {
+			//nolint:wrapcheck // preserves ParseExporterMode error text asserted by target tests
 			return parseErr
 		}
 	}
@@ -205,7 +206,7 @@ func (t *Target) Eval(worker, i int) error {
 	}
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("execute relay eval request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -252,12 +253,12 @@ func (t *Target) countFlagsPerCall() (int, error) {
 	}
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("execute relay count request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("read relay response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)

@@ -57,6 +57,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, m.flagsetManager, in.APIKey())
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 

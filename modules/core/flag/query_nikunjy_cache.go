@@ -151,6 +151,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 	}
 	ev, err := parser.NewEvaluator(query)
 	if err != nil {
+		//nolint:wrapcheck // preserves rule parser error on evaluation and validation path
 		return nil, err
 	}
 	actual, _ := c.entries.LoadOrStore(query, ev)

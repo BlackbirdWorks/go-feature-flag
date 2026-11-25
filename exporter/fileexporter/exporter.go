@@ -79,7 +79,7 @@ func (f *Exporter) Export(
 	// Get the filename
 	filename, err := exporter.ComputeFilename(f.filenameTemplate, f.Format)
 	if err != nil {
-		return err
+		return fmt.Errorf("compute export filename: %w", err)
 	}
 
 	// Handle empty OutputDir and remove trailing slash
@@ -114,7 +114,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 	//nolint:gosec // G302/G304: the path is chosen by the operator
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("open export file %s: %w", filePath, err)
 	}
 	defer func() { _ = file.Close() }()
 	for _, event := range events {
@@ -168,13 +168,13 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.FeatureEvent) error {
 	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet file writer: %w", err)
 	}
 	defer func() { _ = fileWriter.Close() }()
 
 	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet feature writer: %w", err)
 	}
 
 	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
@@ -186,7 +186,7 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 	for _, event := range events {
 		eventValue, convertValueForParquetErr := event.ConvertValueForParquet()
 		if convertValueForParquetErr != nil {
-			return convertValueForParquetErr
+			return fmt.Errorf("convert event value for parquet: %w", convertValueForParquetErr)
 		}
 		event.Value = eventValue
 		convertValueForParquetErr = pqWriter.Write(event)
@@ -195,7 +195,12 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 		}
 	}
 
-	return pqWriter.WriteStop()
+	err = pqWriter.WriteStop()
+	if err != nil {
+		return fmt.Errorf("stop parquet feature writer: %w", err)
+	}
+
+	return nil
 }
 
 // writeParquetTrackingEvent writes the tracking events in a parquet file.
@@ -205,13 +210,13 @@ func (f *Exporter) writeParquetTrackingEvent(
 ) error {
 	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet file writer: %w", err)
 	}
 	defer func() { _ = fileWriter.Close() }()
 
 	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet tracking writer: %w", err)
 	}
 
 	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
@@ -227,5 +232,10 @@ func (f *Exporter) writeParquetTrackingEvent(
 		}
 	}
 
-	return pqWriter.WriteStop()
+	err = pqWriter.WriteStop()
+	if err != nil {
+		return fmt.Errorf("stop parquet tracking writer: %w", err)
+	}
+
+	return nil
 }

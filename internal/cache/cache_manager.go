@@ -104,6 +104,7 @@ func ConvertToFlagStruct(
 		err = yaml.Unmarshal(loadedFlags, &newFlags)
 	}
 
+	//nolint:wrapcheck // preserves parser unmarshal error chain asserted by retriever manager tests
 	return newFlags, err
 }
 

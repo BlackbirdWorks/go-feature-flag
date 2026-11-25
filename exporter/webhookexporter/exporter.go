@@ -92,7 +92,7 @@ func (f *Exporter) Export(
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal webhook payload: %w", err)
 	}
 
 	if f.Headers == nil {

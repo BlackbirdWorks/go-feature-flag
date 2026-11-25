@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 )
@@ -30,7 +31,7 @@ func (r *GCStorageReaderMock) Read(buf []byte) (int, error) {
 	if r.data == nil {
 		data, err := os.ReadFile(r.FileToRead)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("read mock GCS file %s: %w", r.FileToRead, err)
 		}
 		r.data = data
 	}

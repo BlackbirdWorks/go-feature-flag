@@ -76,7 +76,7 @@ func (f *Exporter) Export(
 	// Create a temp directory to store the file we will produce
 	outputDir, err := os.MkdirTemp("", "semaphore_s3_export")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for S3 export: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(outputDir) }()
 
@@ -91,13 +91,13 @@ func (f *Exporter) Export(
 	}
 	err = fileExporter.Export(ctx, logger, events)
 	if err != nil {
-		return err
+		return fmt.Errorf("export events to temp file for S3: %w", err)
 	}
 
 	// Upload all the files in the folder to export
 	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read temp dir for S3 export: %w", err)
 	}
 	for _, file := range files {
 		// read file
@@ -161,7 +161,7 @@ func (f *Exporter) uploadFile(
 		Body:   fileHandle,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("upload export file to S3: %w", err)
 	}
 
 	location := ""

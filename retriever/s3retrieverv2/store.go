@@ -32,6 +32,7 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
+			//nolint:wrapcheck // folderloader.Load wraps store.List error with S3 provider and prefix context
 			return nil, err
 		}
 		for _, obj := range page.Contents {

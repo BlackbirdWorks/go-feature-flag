@@ -45,6 +45,7 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 		Valid: a.IsValid(),
 	}
 
+	//nolint:wrapcheck // json.Marshaler implementation returns json.Marshal error directly
 	return json.Marshal(res)
 }
 

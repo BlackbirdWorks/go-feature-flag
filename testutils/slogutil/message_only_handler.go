@@ -2,6 +2,7 @@ package slogutil
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 )
@@ -13,8 +14,11 @@ type MessageOnlyHandler struct {
 // Handle implements the [slog.Handler] interface.
 func (h *MessageOnlyHandler) Handle(_ context.Context, r slog.Record) error {
 	_, err := h.Writer.WriteString(r.Message + "\n")
+	if err != nil {
+		return fmt.Errorf("write log message: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Enabled implements the [slog.Handler] interface.

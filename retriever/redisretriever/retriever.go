@@ -38,7 +38,7 @@ func (r *Retriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
 	if err != nil {
 		r.status = retriever.RetrieverError
 
-		return err
+		return fmt.Errorf("ping Redis: %w", err)
 	}
 	r.client = client
 	r.status = retriever.RetrieverReady
@@ -73,7 +73,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 	if err != nil && !errors.Is(err, redis.ErrClosed) {
 		r.status = retriever.RetrieverError
 
-		return err
+		return fmt.Errorf("close Redis client: %w", err)
 	}
 	r.status = retriever.RetrieverNotReady
 

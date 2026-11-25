@@ -130,7 +130,7 @@ func (d *dataExporterImpl[T]) flush() error {
 			d.logger.Error(err.Error())
 		}
 
-		return err
+		return fmt.Errorf("process pending events: %w", err)
 	}
 	// release the events everybody has consumed instead of waiting for the periodic cleaning
 	if c, ok := store.(interface{ CleanQueue() }); ok {

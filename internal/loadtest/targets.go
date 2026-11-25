@@ -40,12 +40,12 @@ type LibraryOptions struct {
 func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget, error) {
 	dir, err := os.MkdirTemp("", "ffsoak")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create soak temp dir: %w", err)
 	}
 	path := filepath.Join(dir, "flags.yaml")
 	writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600)
 	if writeFileErr != nil {
-		return nil, writeFileErr
+		return nil, fmt.Errorf("write soak flag file: %w", writeFileErr)
 	}
 	if opts.FlushInterval == 0 {
 		opts.FlushInterval = time.Second
@@ -64,7 +64,7 @@ func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget,
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init soak ffclient: %w", err)
 	}
 
 	return &LibraryTarget{client: client, exporter: exp, flagKey: opts.FlagKey, dir: dir}, nil
@@ -85,8 +85,11 @@ func (l *LibraryTarget) Eval(worker, i int) error {
 		AddCustom("company", "acme").
 		Build()
 	_, err := l.client.BoolVariation(l.flagKey, ctx, false)
+	if err != nil {
+		return fmt.Errorf("evaluate bool flag %s: %w", l.flagKey, err)
+	}
 
-	return err
+	return nil
 }
 
 // Extra implements Target.

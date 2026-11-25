@@ -284,7 +284,7 @@ func initRetrieversWithRegistry(
 	if proxyConf.Retriever != nil {
 		currentRetriever, err := retrieverInit.Retriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("init retriever: %w", err)
 		}
 		retrievers = append(retrievers, currentRetriever)
 	}
@@ -293,7 +293,7 @@ func initRetrieversWithRegistry(
 		for _, r := range *proxyConf.Retrievers {
 			currentRetriever, err := retrieverInit.Retriever(&r, retrieverOpts...)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("init retriever: %w", err)
 			}
 			retrievers = append(retrievers, currentRetriever)
 		}
@@ -470,7 +470,7 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 	}
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
 
 	switch expConf.Kind {
@@ -529,7 +529,7 @@ func setKafkaConfig(kafkaSettings kafkaexporter.Settings) (kafkaexporter.Setting
 	// an unset one, so it keeps the default.
 	err := mergo.Merge(saramaConfig, kafkaSettings.Config, mergo.WithOverride)
 	if err != nil {
-		return kafkaexporter.Settings{}, err
+		return kafkaexporter.Settings{}, fmt.Errorf("merge kafka config: %w", err)
 	}
 	// mergo copies a struct with unexported fields as a whole, so an unset Version would erase the default one.
 	if kafkaSettings.Config.Version == (sarama.KafkaVersion{}) {

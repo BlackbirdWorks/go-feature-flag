@@ -622,6 +622,7 @@ func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginato
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
 
+	//nolint:wrapcheck // caller etagOf/get wraps listPage error with S3 bucket context
 	return p.NextPage(ctx)
 }
 

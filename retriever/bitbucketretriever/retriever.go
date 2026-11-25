@@ -74,7 +74,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	resp, err := shared.CallHTTPAPI(ctx, requestURL, http.MethodGet, "", r.Timeout, header, r.httpClient)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch Bitbucket file: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -95,7 +95,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read Bitbucket response body: %w", err)
 	}
 
 	return body, nil

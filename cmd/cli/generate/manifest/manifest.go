@@ -36,6 +36,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		helper.LegacyWarner(),
 	)
 	if err != nil {
+		//nolint:wrapcheck // preserves configfile error string asserted by CLI manifest tests
 		return Manifest{}, err
 	}
 
@@ -60,6 +61,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		output.Add(rec.message, slogLevelToOutputLevel(rec.level))
 	}
 	if err != nil {
+		//nolint:wrapcheck // CLI manifest preserves definition generation error
 		return output, err
 	}
 
@@ -83,6 +85,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
+		//nolint:wrapcheck // CLI manifest preserves JSON formatting error
 		return "", err
 	}
 
@@ -90,6 +93,7 @@ func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 }
 
 func (m *Manifest) storeManifest(definitionsJSON string) error {
+	//nolint:wrapcheck // CLI manifest preserves file write error
 	return os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
 }
 

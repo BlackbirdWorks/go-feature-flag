@@ -118,6 +118,7 @@ func validateLogLevel(logLevel string) error {
 	}
 	_, err := cmdlog.ParseLevel(logLevel)
 	if err != nil {
+		//nolint:wrapcheck // preserves log level validation error text
 		return err
 	}
 
@@ -209,6 +210,7 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 	if retriever != nil {
 		err := retriever.IsValid()
 		if err != nil {
+			//nolint:wrapcheck // preserves RetrieverConf.IsValid validation error text
 			return err
 		}
 	}

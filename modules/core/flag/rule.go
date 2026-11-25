@@ -150,6 +150,7 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 		var err error
 		q.parsedEvalCtxAsBytes, err = json.Marshal(q.mapOnce())
 		if err != nil {
+			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
 			return nil, err
 		}
 	}
@@ -174,6 +175,7 @@ func (q *queryContext) dataOnce() (any, error) {
 		var data any
 		unmarshalErr := json.Unmarshal(raw, &data)
 		if unmarshalErr != nil {
+			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
 			return nil, unmarshalErr
 		}
 		q.parsedEvalCtxAsData = data

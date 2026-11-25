@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -46,6 +47,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		if err != nil {
 			r.status = retriever.RetrieverError
 
+			//nolint:wrapcheck // preserves mongo.Connect error text asserted by CLI evaluate tests
 			return err
 		}
 		r.dbClient = client
@@ -84,8 +86,11 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 	r.dbClient = nil
 	r.dbConnection = nil
 	r.status = retriever.RetrieverNotReady
+	if err != nil {
+		return fmt.Errorf("disconnect MongoDB: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
@@ -105,7 +110,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	cursor, err := coll.Find(ctx, bson.D{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find MongoDB documents: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
@@ -116,7 +121,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		decodeErr := cursor.Decode(&doc)
 		if decodeErr != nil {
-			return nil, decodeErr
+			return nil, fmt.Errorf("decode MongoDB document: %w", decodeErr)
 		}
 
 		if val, ok := doc["flag"]; ok {
@@ -133,7 +138,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	flags, err := json.Marshal(ffDocs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal MongoDB flags: %w", err)
 	}
 
 	return flags, nil

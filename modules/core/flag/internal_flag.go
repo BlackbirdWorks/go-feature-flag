@@ -214,6 +214,7 @@ func validateVariationTypes(variations map[string]*any) error {
 		}
 		currentType, err := utils.JSONTypeExtractor(*value)
 		if err != nil {
+			//nolint:wrapcheck // preserves IsValid variation type error text
 			return err
 		}
 		if expectedVarType == "" {
@@ -536,11 +537,13 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 func (f *InternalFlag) deepCopy() (*InternalFlag, error) {
 	data, err := json.Marshal(f)
 	if err != nil {
+		//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation in deepCopy
 		return nil, err
 	}
 	var flagCopy *InternalFlag
 	unmarshalErr := json.Unmarshal(data, &flagCopy)
 	if unmarshalErr != nil {
+		//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation in deepCopy
 		return nil, unmarshalErr
 	}
 

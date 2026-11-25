@@ -86,7 +86,7 @@ func LoadConfigFile(
 func readConfigFile(configFile, configFormat string) (map[string]dto.DTO, error) {
 	dat, err := os.ReadFile(configFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config file %s: %w", configFile, err)
 	}
 	flags, err := ParseConfig(dat, configFormat)
 	if err != nil {

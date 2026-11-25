@@ -60,6 +60,7 @@ func NewOFREPEvaluate(
 func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	flagKey := r.PathValue("flagKey")
 	if flagKey == "" {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, NewEvaluateError(flagKey, flag.ErrorCodeGeneral,
 			"No key provided in the URL"))
 	}
@@ -67,6 +68,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.OFREPEvalFlagRequest)
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(
 			w,
 			http.StatusBadRequest,
@@ -75,6 +77,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	}
 	validateErr := assertOFREPEvaluateRequest(reqBody)
 	if validateErr != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, model.OFREPEvaluateResponseError{
 			OFREPCommonResponseError: *validateErr,
 			Key:                      flagKey,
@@ -82,6 +85,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	}
 	evalCtx, err := evaluationContextFromOFREPRequest(reqBody)
 	if err != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, err)
 	}
 
@@ -91,6 +95,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return httpErr
 	}
 
@@ -109,6 +114,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 			httpStatus = http.StatusNotFound
 		}
 
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, httpStatus, NewEvaluateError(flagKey, flagValue.ErrorCode,
 			fmt.Sprintf("Error while evaluating the flag: %s", flagKey)))
 	}
@@ -137,6 +143,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		metadata[LegacyMetadataCacheable] = true
 	}
 
+	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return helper.WriteJSON(w, http.StatusOK, model.OFREPEvaluateSuccessResponse{
 		Key:      flagKey,
 		Value:    flagValue.Value,
@@ -151,14 +158,17 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	request := new(model.OFREPEvalFlagRequest)
 	err := helper.BindBody(r, request)
 	if err != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, NewOFREPCommonError("INVALID_CONTEXT", err.Error()))
 	}
 	validateErr := assertOFREPEvaluateRequest(request)
 	if validateErr != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, validateErr)
 	}
 	evalCtx, err := evaluationContextFromOFREPRequest(request)
 	if err != nil {
+		//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 		return helper.WriteJSON(w, http.StatusBadRequest, err)
 	}
 
@@ -173,6 +183,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return httpErr
 	}
 
@@ -214,6 +225,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		response.EventStreams = h.buildEventStreams(r)
 	}
 
+	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return helper.WriteJSON(w, http.StatusOK, response)
 }
 

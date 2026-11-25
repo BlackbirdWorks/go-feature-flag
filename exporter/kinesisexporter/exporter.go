@@ -63,7 +63,12 @@ func (k *DefaultKinesisSender) SendMessages(
 	ctx context.Context,
 	msgs *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {
-	return k.PutRecords(ctx, msgs)
+	out, err := k.PutRecords(ctx, msgs)
+	if err != nil {
+		return nil, fmt.Errorf("put kinesis records: %w", err)
+	}
+
+	return out, nil
 }
 
 type Exporter struct {
@@ -406,6 +411,11 @@ func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error)
 	case formatJSON:
 		fallthrough
 	default:
-		return json.Marshal(event)
+		b, err := json.Marshal(event)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kinesis event: %w", err)
+		}
+
+		return b, nil
 	}
 }

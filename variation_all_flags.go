@@ -85,6 +85,7 @@ func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flag.Flag, error) {
 // It is the cheap way to evaluate every flag again and again, a copy rebuilds the state that
 // is memoized for the scheduled rollouts.
 func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error) {
+	//nolint:wrapcheck // preserves retriever.Manager cache sentinel errors
 	return g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
 }
 
@@ -92,5 +93,6 @@ func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned. The provided context is used for the operation.
 func (g *GoFeatureFlag) GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flag.Flag, error) {
+	//nolint:wrapcheck // preserves retriever.Manager cache sentinel errors
 	return g.retrieverManager.GetFlagsFromCache(ctx)
 }

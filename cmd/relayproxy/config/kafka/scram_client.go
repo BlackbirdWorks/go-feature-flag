@@ -3,6 +3,7 @@ package kafka
 import (
 	"crypto/sha256"
 	"crypto/sha512"
+	"fmt"
 	"hash"
 
 	"github.com/xdg-go/scram"
@@ -24,7 +25,7 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) error {
 	var err error
 	x.Client, err = x.NewClient(userName, password, authzID)
 	if err != nil {
-		return err
+		return fmt.Errorf("create SCRAM client: %w", err)
 	}
 	x.ClientConversation = x.NewConversation()
 
@@ -32,7 +33,12 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) error {
 }
 
 func (x *XDGSCRAMClient) Step(challenge string) (string, error) {
-	return x.ClientConversation.Step(challenge)
+	res, err := x.ClientConversation.Step(challenge)
+	if err != nil {
+		return "", fmt.Errorf("step SCRAM conversation: %w", err)
+	}
+
+	return res, nil
 }
 
 func (x *XDGSCRAMClient) Done() bool {

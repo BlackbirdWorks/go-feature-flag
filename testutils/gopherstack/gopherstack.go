@@ -100,7 +100,7 @@ func Start(ctx context.Context) (*Server, error) {
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
 
-		return nil, err
+		return nil, fmt.Errorf("get gopherstack host: %w", err)
 	}
 	if host == "localhost" {
 		host = "127.0.0.1" // keep an IP host for path-style S3
@@ -109,7 +109,7 @@ func Start(ctx context.Context) (*Server, error) {
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
 
-		return nil, err
+		return nil, fmt.Errorf("get gopherstack mapped port: %w", err)
 	}
 	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, port.Port())}
 
@@ -124,7 +124,7 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("create gopherstack health request: %w", err)
 		}
 		resp, err := client.Do(req) //nolint:gosec // same endpoint
 		if err == nil {
@@ -147,16 +147,26 @@ func (s *Server) Terminate() error {
 		return nil
 	}
 
-	return testcontainers.TerminateContainer(s.container)
+	err := testcontainers.TerminateContainer(s.container)
+	if err != nil {
+		return fmt.Errorf("terminate gopherstack container: %w", err)
+	}
+
+	return nil
 }
 
 // AwsConfig returns an AWS config with static credentials, the region and the emulator endpoint.
 func (s *Server) AwsConfig(ctx context.Context) (aws.Config, error) {
-	return config.LoadDefaultConfig(ctx,
+	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(Region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(AccessKey, SecretKey, "")),
 		config.WithBaseEndpoint(s.Endpoint),
 	)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load gopherstack AWS config: %w", err)
+	}
+
+	return cfg, nil
 }
 
 // MustAwsConfig is AwsConfig failing the test on error.

@@ -215,7 +215,7 @@ func (e *Exporter) exportRows(
 	if e.AutoMigrate {
 		err := e.client.EnsureTable(ctx, e.DatasetID, table, schema)
 		if err != nil {
-			return err
+			return fmt.Errorf("ensure BigQuery table: %w", err)
 		}
 	}
 
@@ -224,7 +224,7 @@ func (e *Exporter) exportRows(
 		end := min(start+maxRowsPerInsert, len(rows))
 		err := e.client.Put(ctx, e.DatasetID, table, rows[start:end])
 		if err != nil {
-			return err
+			return fmt.Errorf("insert rows into BigQuery: %w", err)
 		}
 	}
 
@@ -292,7 +292,7 @@ func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
 func jsonString(value any) (string, error) {
 	b, err := json.Marshal(value)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal BigQuery JSON field: %w", err)
 	}
 
 	return string(b), nil
@@ -357,7 +357,7 @@ func newBigQueryClient(
 ) (*realBigQueryClient, error) {
 	client, err := bigquery.NewClient(ctx, projectID, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create BigQuery client: %w", err)
 	}
 
 	return &realBigQueryClient{client: client}, nil
@@ -372,7 +372,12 @@ func (c *realBigQueryClient) Inserter(dataset, table string) *bigquery.Inserter 
 }
 
 func (c *realBigQueryClient) Put(ctx context.Context, dataset, table string, src any) error {
-	return c.Inserter(dataset, table).Put(ctx, src)
+	err := c.Inserter(dataset, table).Put(ctx, src)
+	if err != nil {
+		return fmt.Errorf("put rows to BigQuery inserter: %w", err)
+	}
+
+	return nil
 }
 
 func (c *realBigQueryClient) EnsureTable(
@@ -383,19 +388,24 @@ func (c *realBigQueryClient) EnsureTable(
 	bqDataset := c.client.Dataset(dataset)
 	err := bqDataset.Create(ctx, nil)
 	if err != nil && !isAlreadyExists(err) {
-		return err
+		return fmt.Errorf("create BigQuery dataset: %w", err)
 	}
 
 	err = bqDataset.Table(table).Create(ctx, &bigquery.TableMetadata{Schema: schema})
 	if err != nil && !isAlreadyExists(err) {
-		return err
+		return fmt.Errorf("create BigQuery table: %w", err)
 	}
 
 	return nil
 }
 
 func (c *realBigQueryClient) Close() error {
-	return c.client.Close()
+	err := c.client.Close()
+	if err != nil {
+		return fmt.Errorf("close BigQuery client: %w", err)
+	}
+
+	return nil
 }
 
 func isAlreadyExists(err error) bool {

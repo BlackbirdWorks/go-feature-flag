@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -106,5 +107,10 @@ func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 		return nil
 	}
 
-	return m.Registry.Register(newFlagLoadedCollector(source))
+	err := m.Registry.Register(newFlagLoadedCollector(source))
+	if err != nil {
+		return fmt.Errorf("register flag loaded collector: %w", err)
+	}
+
+	return nil
 }

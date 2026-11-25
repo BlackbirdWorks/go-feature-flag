@@ -80,6 +80,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
 	flagset, httpErr := helper.FlagSet(h.flagsetManager, input.APIKey())
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.FlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 
@@ -155,11 +156,11 @@ func convertTrackingEvent(
 	var trackingEv exporter.TrackingEvent
 	marshalled, err := json.Marshal(event)
 	if err != nil {
-		return exporter.TrackingEvent{}, err
+		return exporter.TrackingEvent{}, fmt.Errorf("marshal tracking event: %w", err)
 	}
 	err = json.Unmarshal(marshalled, &trackingEv)
 	if err != nil {
-		return exporter.TrackingEvent{}, err
+		return exporter.TrackingEvent{}, fmt.Errorf("unmarshal tracking event: %w", err)
 	}
 	trackingEv.CreationDate = formatCreationDate(ctx, trackingEv.CreationDate, logger)
 
@@ -174,7 +175,7 @@ func convertFeatureEvent(
 	var featureEv exporter.FeatureEvent
 	err := mapstructure.Decode(event, &featureEv)
 	if err != nil {
-		return exporter.FeatureEvent{}, err
+		return exporter.FeatureEvent{}, fmt.Errorf("decode feature event: %w", err)
 	}
 	if featureEv.Source == "" {
 		featureEv.Source = "PROVIDER_CACHE"

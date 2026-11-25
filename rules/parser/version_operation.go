@@ -75,9 +75,11 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 	var err error
 	leftVer, err = semver.Make(leftVal)
 	if err != nil {
+		//nolint:wrapcheck // evaluation hot path: preserves semver parse error directly
 		return leftVer, rightVer, err
 	}
 	rightVer, err = semver.Make(rightVal)
 
+	//nolint:wrapcheck // evaluation hot path: preserves semver parse error directly
 	return leftVer, rightVer, err
 }

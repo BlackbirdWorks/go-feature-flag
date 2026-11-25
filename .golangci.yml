@@ -173,6 +173,7 @@ linters:
     - varnamelen # checks that the length of a variable's name matches its scope
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
+    - wrapcheck # checks that errors returned from external packages are wrapped
 
     # ---- kept from the previous configuration (extra relative to gopherstack) ----
     - decorder
@@ -207,7 +208,6 @@ linters:
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
-    - wrapcheck # errors are wrapped where the context adds something
     - wsl_v5 # too strict, mostly not more readable
 
   settings:
@@ -624,6 +624,12 @@ linters:
         - wg
         - mu
         - id
+
+    wrapcheck:
+      ignore-sig-regexps:
+        - '\.New.*Error\('
+        - '\(context\.Context\)\.Err\('
+        - '^func github\.com/blackbirdworks/semaphore/internal\.RedactURLError\('
 
   exclusions:
     # Log a warning if an exclusion rule is unused.

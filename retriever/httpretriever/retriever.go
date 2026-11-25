@@ -100,7 +100,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	resp, err := shared.CallHTTPAPI(ctx, r.URL, r.Method, r.Body, r.Timeout, r.Header, httpClient)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch HTTP flag file: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusBadRequest {
@@ -108,7 +108,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read HTTP response body: %w", err)
 	}
 
 	return body, nil
@@ -175,6 +175,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 
 	cert, err := tls.LoadX509KeyPair(r.ClientCertPath, r.ClientKeyPath)
 	if err != nil {
+		//nolint:wrapcheck // preserves TLS key pair error text asserted by certificate tests
 		return nil, err
 	}
 
@@ -189,6 +190,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
+		//nolint:wrapcheck // preserves system cert pool error directly
 		return nil, err
 	}
 	if rootCAs == nil {
@@ -197,6 +199,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 
 	caCert, err := os.ReadFile(r.CACertPath)
 	if err != nil {
+		//nolint:wrapcheck // preserves os.ReadFile error (and fs.ErrNotExist) asserted by certificate tests
 		return nil, err
 	}
 	if !rootCAs.AppendCertsFromPEM(caCert) {

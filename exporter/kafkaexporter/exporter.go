@@ -123,6 +123,11 @@ func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error)
 	case formatJSON:
 		fallthrough
 	default:
-		return json.Marshal(event)
+		b, err := json.Marshal(event)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kafka event: %w", err)
+		}
+
+		return b, nil
 	}
 }

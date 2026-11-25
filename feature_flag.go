@@ -135,6 +135,7 @@ func initializeRetrieverManager(
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
 	err = manager.Init(ctx)
 
+	//nolint:wrapcheck // preserves retriever.Manager.Init error chain asserted by ffclient tests
 	return manager, err
 }
 

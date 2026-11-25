@@ -186,7 +186,7 @@ type watchedListener struct {
 func (l *watchedListener) Accept() (net.Conn, error) {
 	conn, err := l.Listener.Accept()
 	if err != nil {
-		return nil, err //nolint:wrapcheck // transparent
+		return nil, err
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -219,7 +219,7 @@ func (c *watchedConn) SetReadDeadline(t time.Time) error {
 	}
 	c.listener.mu.Unlock()
 
-	return c.Conn.SetReadDeadline(t) //nolint:wrapcheck // transparent
+	return c.Conn.SetReadDeadline(t)
 }
 
 // deadlineRecorder is a response writer that records the read deadlines that are set on the connection (huma sets

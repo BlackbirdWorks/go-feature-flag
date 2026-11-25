@@ -66,5 +66,10 @@ func (s *Retriever) createClient() (kubernetes.Interface, error) {
 		return s.newClient(&s.ClientConfig)
 	}
 
-	return kubernetes.NewForConfig(&s.ClientConfig)
+	client, err := kubernetes.NewForConfig(&s.ClientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create Kubernetes client: %w", err)
+	}
+
+	return client, nil
 }

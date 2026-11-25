@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -216,7 +217,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	for _, metric := range metricToRegister {
 		err := customRegistry.Register(metric)
 		if err != nil {
-			return Metrics{}, err
+			return Metrics{}, fmt.Errorf("register metric: %w", err)
 		}
 	}
 
@@ -376,6 +377,7 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
 
+	//nolint:wrapcheck // transparent prometheus.Gatherer decorator preserves Gather error and partial families
 	return out, err
 }
 

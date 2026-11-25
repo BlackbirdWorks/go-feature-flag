@@ -88,35 +88,50 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	)
 	flagSet.StringVar(&opts.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")
 
-	return opts, flagSet.Parse(args)
+	err := flagSet.Parse(args)
+	if err != nil {
+		return options{}, fmt.Errorf("parse soak flags: %w", err)
+	}
+
+	return opts, nil
 }
 
 // newTarget builds the target selected by the options.
 func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 	mode, err := loadtest.ParseExporterMode(opts.exporter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse exporter mode: %w", err)
 	}
 	switch opts.target {
 	case "library":
-		return loadtest.NewLibraryTarget(ctx, loadtest.LibraryOptions{
+		t, libErr := loadtest.NewLibraryTarget(ctx, loadtest.LibraryOptions{
 			FlagKey: opts.flagKey, ExporterMode: mode,
 			FlushInterval: time.Duration(opts.flushMs) * time.Millisecond, MaxEventInMemory: opts.maxEvents,
 		})
+		if libErr != nil {
+			return nil, fmt.Errorf("create library soak target: %w", libErr)
+		}
+
+		return t, nil
 	case "relay":
 		endpoint, parseEndpointErr := relay.ParseEndpoint(opts.endpoint)
 		if parseEndpointErr != nil {
-			return nil, parseEndpointErr
+			return nil, fmt.Errorf("parse relay endpoint: %w", parseEndpointErr)
 		}
 		if opts.protocol != "http1" && opts.protocol != "h2c" {
 			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
 		}
 
 		//nolint:contextcheck // relay.Target owns its own loopback server lifecycle stopped by Target.Close
-		return relay.NewTarget(relay.Options{
+		t, relayErr := relay.NewTarget(relay.Options{
 			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: opts.protocol == "h2c",
 			FlushIntervalMs: opts.flushMs, MaxEventInMemory: opts.maxEvents,
 		}, endpoint, opts.flagKey, opts.workers)
+		if relayErr != nil {
+			return nil, fmt.Errorf("create relay soak target: %w", relayErr)
+		}
+
+		return t, nil
 	default:
 		return nil, fmt.Errorf("%w %q", errUnknownTarget, opts.target)
 	}
@@ -126,13 +141,13 @@ func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 func startCPUProfile(path string) (func(), error) {
 	file, err := os.Create(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create CPU profile file: %w", err)
 	}
 	startCPUProfileErr := pprof.StartCPUProfile(file)
 	if startCPUProfileErr != nil {
 		_ = file.Close()
 
-		return nil, startCPUProfileErr
+		return nil, fmt.Errorf("start CPU profile: %w", startCPUProfileErr)
 	}
 
 	return func() {

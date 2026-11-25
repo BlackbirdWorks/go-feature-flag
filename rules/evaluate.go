@@ -3,10 +3,12 @@ package rules
 import "github.com/blackbirdworks/semaphore/rules/parser"
 
 func Evaluate(rule string, items map[string]any) (bool, error) {
-	ev, err := parser.NewEvaluator(rule)
+	evaluator, err := parser.NewEvaluator(rule)
 	if err != nil {
+		//nolint:wrapcheck // preserves rule parser error on evaluation path
 		return false, err
 	}
 
-	return ev.Process(items)
+	//nolint:wrapcheck // preserves rule evaluation error on evaluation path
+	return evaluator.Process(items)
 }

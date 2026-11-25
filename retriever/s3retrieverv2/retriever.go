@@ -161,6 +161,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			return nil, errListerIsNotInitialized
 		}
 
+		//nolint:wrapcheck // folderloader.Load already wraps errors with S3 provider and prefix context
 		return s.loader.Load().Load(ctx)
 	}
 
@@ -185,6 +186,7 @@ func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([
 		WriterAt: writerAt,
 	})
 	if err != nil {
+		//nolint:wrapcheck // callers wrap downloadObject errors with S3 item context
 		return nil, "", err
 	}
 
@@ -235,7 +237,7 @@ func (s *Retriever) initClients(ctx context.Context, needLister bool) error {
 	if s.AwsConfig == nil {
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("load AWS default config for S3 retriever: %w", err)
 		}
 		s.AwsConfig = &cfg
 	}

@@ -44,6 +44,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.EvalFlagRequest)
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
+		//nolint:wrapcheck // helper.BindBody already returns *helper.HTTPError
 		return err
 	}
 
@@ -63,6 +64,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetMngr, helper.APIKey(r))
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return httpErr
 	}
 
@@ -91,5 +93,6 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 
+	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return helper.WriteJSON(w, http.StatusOK, flagValue)
 }

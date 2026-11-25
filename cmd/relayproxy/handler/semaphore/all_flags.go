@@ -33,6 +33,7 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
+		//nolint:wrapcheck // helper.BindBody already returns *helper.HTTPError
 		return err
 	}
 	// validation that we have a reqBody key
@@ -51,6 +52,7 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
+		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return httpErr
 	}
 
@@ -76,5 +78,6 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 		attribute.Int("AllFlagsState.numberEvaluation", len(allFlags.GetFlags())),
 	)
 
+	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return helper.WriteJSON(w, http.StatusOK, allFlags)
 }

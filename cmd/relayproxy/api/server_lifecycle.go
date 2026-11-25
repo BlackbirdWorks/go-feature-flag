@@ -156,7 +156,12 @@ func (*Server) listenOn(ctx context.Context, address string, given net.Listener)
 		return given, nil
 	}
 
-	return (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", address, err)
+	}
+
+	return listener, nil
 }
 
 // serve serves the handler on the listener until ctx is done, then it gracefully shuts the server down: the
@@ -196,7 +201,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 	})
 	err := srv.Serve(listener)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return fmt.Errorf("serve HTTP: %w", err)
 	}
 
 	return nil

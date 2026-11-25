@@ -52,6 +52,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 		FileFormat:            e.fileFormat,
 	}
 
+	//nolint:wrapcheck // CLI evaluate preserves ffclient initialization error
 	return ffclient.New(cfg)
 }
 
@@ -64,6 +65,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) 
 	var ctxAsMap map[string]any
 	err := json.Unmarshal([]byte(e.evaluationCtx), &ctxAsMap)
 	if err != nil {
+		//nolint:wrapcheck // CLI evaluate preserves JSON context parse error
 		return ffcontext.EvaluationContext{}, err
 	}
 
@@ -85,6 +87,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 
 	flags, err := goff.GetFlagsFromCache()
 	if err != nil {
+		//nolint:wrapcheck // CLI evaluate preserves cache retrieval error
 		return nil, err
 	}
 
@@ -105,6 +108,7 @@ func (e evaluate) evaluateFlags(
 	for _, flag := range listFlags {
 		res, err := goff.RawVariation(flag, convertedEvaluationCtx, nil)
 		if err != nil {
+			//nolint:wrapcheck // CLI evaluate preserves flag evaluation error
 			return nil, err
 		}
 		result[flag] = res

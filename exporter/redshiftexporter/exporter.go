@@ -580,11 +580,11 @@ func columnsForEventType(eventType string) []column {
 func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 	value, err := json.Marshal(event.Value)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal feature event value: %w", err)
 	}
 	metadata, err := json.Marshal(event.Metadata)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal feature event metadata: %w", err)
 	}
 
 	return []string{
@@ -605,11 +605,11 @@ func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
 	trackingDetails, err := json.Marshal(event.TrackingDetails)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal tracking details: %w", err)
 	}
 	evaluationContext, err := json.Marshal(event.EvaluationContext)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal evaluation context: %w", err)
 	}
 
 	return []string{

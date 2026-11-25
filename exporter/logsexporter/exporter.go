@@ -2,6 +2,7 @@ package logsexporter
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"text/template"
 
@@ -45,7 +46,7 @@ func (f *Exporter) Export(
 	for _, event := range events {
 		log, err := event.FormatInCSV(f.logTemplate)
 		if err != nil {
-			return err
+			return fmt.Errorf("format log event: %w", err)
 		}
 		logger.InfoContext(ctx, string(log))
 	}

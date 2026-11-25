@@ -69,7 +69,7 @@ func (f *Exporter) Export(
 
 	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for Azure export: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(outputDir) }()
 
@@ -82,12 +82,12 @@ func (f *Exporter) Export(
 	}
 	err = fileExporter.Export(ctx, logger, featureEvents)
 	if err != nil {
-		return err
+		return fmt.Errorf("export events to temp file for Azure: %w", err)
 	}
 
 	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read temp dir for Azure export: %w", err)
 	}
 
 	for _, file := range files {
@@ -123,17 +123,27 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 	if f.AccountKey == "" {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create default Azure credential: %w", err)
 		}
 
-		return azblob.NewClient(url, cred, nil)
+		client, err := azblob.NewClient(url, cred, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create Azure blob client: %w", err)
+		}
+
+		return client, nil
 	}
 	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create Azure shared key credential: %w", err)
 	}
 
-	return azblob.NewClientWithSharedKeyCredential(url, cred, nil)
+	client, err := azblob.NewClientWithSharedKeyCredential(url, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create Azure blob client with shared key: %w", err)
+	}
+
+	return client, nil
 }
 
 // uploadFile uploads a single file to Azure Blob Storage and closes the file
@@ -163,7 +173,7 @@ func (f *Exporter) uploadFile(
 			slog.String("path", outputDir+"/"+fileName),
 		)
 
-		return err
+		return fmt.Errorf("upload file to Azure blob: %w", err)
 	}
 
 	logger.InfoContext(

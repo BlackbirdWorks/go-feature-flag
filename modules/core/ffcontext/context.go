@@ -59,6 +59,7 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 // MarshalJSON is a custom JSON marshaller for EvaluationContext.
 // It will only marshal the targetingKey and the attributes of the context and avoid to expose the internal structure.
 func (u EvaluationContext) MarshalJSON() ([]byte, error) {
+	//nolint:wrapcheck // json.Marshaler implementation returns json.Marshal error directly
 	return json.Marshal(&struct {
 		Attributes   value  `json:"attributes"`
 		TargetingKey string `json:"targetingKey"`

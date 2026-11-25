@@ -38,7 +38,7 @@ func run() error {
 	}
 	ans, err := evaluator.Process(info)
 	if err != nil {
-		return err
+		return fmt.Errorf("evaluate rule: %w", err)
 	}
 	fmt.Fprintf(os.Stdout, `
 		Rule: %v

@@ -3,6 +3,7 @@ package exporter
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"text/template"
 	"time"
 )
@@ -63,7 +64,7 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 		FormattedDate: time.Unix(f.GetCreationDate(), 0).Format(time.RFC3339),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("format tracking event CSV: %w", err)
 	}
 
 	return buf.Bytes(), nil
@@ -71,7 +72,10 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 
 func (f TrackingEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
+	if err != nil {
+		return nil, fmt.Errorf("marshal tracking event JSON: %w", err)
+	}
 	b = append(b, []byte("\n")...)
 
-	return b, err
+	return b, nil
 }

@@ -32,13 +32,18 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	msgText := convertToMicrosoftTeamsMessage(diff)
 	msg, err := adaptivecard.NewSimpleMessage(msgText, "Semaphore", true)
 	if err != nil {
-		return err
+		return fmt.Errorf("error: (Microsoft Teams Notifier) create adaptive card message: %w", err)
 	}
 	if c.teamsClient == nil {
 		c.teamsClient = goteamsnotify.NewTeamsClient()
 	}
 
-	return c.teamsClient.Send(c.MicrosoftTeamsWebhookURL, msg)
+	err = c.teamsClient.Send(c.MicrosoftTeamsWebhookURL, msg)
+	if err != nil {
+		return fmt.Errorf("error: (Microsoft Teams Notifier) send webhook: %w", err)
+	}
+
+	return nil
 }
 
 func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {

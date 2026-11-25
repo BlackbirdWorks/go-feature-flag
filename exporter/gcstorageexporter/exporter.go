@@ -68,7 +68,7 @@ func (f *Exporter) Export(
 	// Init google storage client
 	client, err := storage.NewClient(ctx, f.Options...)
 	if err != nil {
-		return err
+		return fmt.Errorf("create GCS client: %w", err)
 	}
 	defer func() { _ = client.Close() }()
 
@@ -79,7 +79,7 @@ func (f *Exporter) Export(
 	// Create a temp directory to store the file we will produce
 	outputDir, err := os.MkdirTemp("", "semaphore_GoogleCloudStorage_export")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for GCS export: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(outputDir) }()
 
@@ -94,13 +94,13 @@ func (f *Exporter) Export(
 	}
 	err = fileExporter.Export(ctx, logger, events)
 	if err != nil {
-		return err
+		return fmt.Errorf("export events to temp file for GCS: %w", err)
 	}
 
 	// Upload all the files in the folder to google storage
 	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read temp dir for GCS export: %w", err)
 	}
 
 	for _, file := range files {

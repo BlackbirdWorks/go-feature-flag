@@ -202,7 +202,7 @@ func initResource(ctx context.Context, serviceName, version string,
 		attrs = append(attrs, attribute.String(k, v))
 	}
 
-	return resource.New(ctx,
+	res, err := resource.New(ctx,
 		resource.WithAttributes(attrs...),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
@@ -220,6 +220,11 @@ func initResource(ctx context.Context, serviceName, version string,
 			semconv.ServiceVersionKey.String(version),
 		),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create OpenTelemetry resource: %w", err)
+	}
+
+	return res, nil
 }
 
 // initSampler determines which sampling strategy to use. If OTEL_TRACES_SAMPLER

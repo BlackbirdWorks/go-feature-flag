@@ -158,6 +158,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 					return cliMessageError(rcErr.CliErrorMessage())
 				}
 
+				//nolint:wrapcheck // CLI command preserves retriever validation error
 				return err
 			}
 
@@ -254,6 +255,7 @@ func runEvaluate(
 
 	r, err := retrieverInit.Retriever(&retrieverConf)
 	if err != nil {
+		//nolint:wrapcheck // CLI command preserves retriever init error
 		return err
 	}
 
@@ -292,6 +294,7 @@ func runEvaluate(
 
 	detailed, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
+		//nolint:wrapcheck // CLI command preserves JSON encoding error
 		return err
 	}
 
@@ -309,6 +312,7 @@ func runCheck(
 	//nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
 	detailed, err := json.MarshalIndent(retrieverConf, "", "  ")
 	if err != nil {
+		//nolint:wrapcheck // CLI command preserves JSON encoding error
 		return err
 	}
 

@@ -184,6 +184,9 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*file
 
 func createS3Retriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*s3retrieverv2.Retriever, error) {
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("load AWS default config: %w", err)
+	}
 
 	return &s3retrieverv2.Retriever{
 		Bucket:    conf.Bucket,
@@ -192,7 +195,7 @@ func createS3Retriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*s3r
 		Pattern:   conf.Pattern,
 		Recursive: conf.Recursive,
 		AwsConfig: &awsConfig,
-	}, err
+	}, nil
 }
 
 func createHTTPRetriever(
@@ -224,7 +227,7 @@ func createKubernetesRetriever(
 	conf *retrieverconf.RetrieverConf, _ time.Duration) (*k8sretriever.Retriever, error) {
 	client, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load in-cluster kubernetes config: %w", err)
 	}
 
 	return &k8sretriever.Retriever{

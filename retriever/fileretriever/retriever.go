@@ -14,6 +14,7 @@ type Retriever struct {
 func (r *Retriever) Retrieve(_ context.Context) ([]byte, error) {
 	content, err := os.ReadFile(r.Path)
 	if err != nil {
+		//nolint:wrapcheck // preserves os.ReadFile error text asserted by CLI evaluate tests
 		return nil, err
 	}
 

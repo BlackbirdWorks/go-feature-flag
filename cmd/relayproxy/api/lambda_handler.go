@@ -56,6 +56,7 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 	req events.APIGatewayV2HTTPRequest,
 ) (
 	events.APIGatewayV2HTTPResponse, error) {
+	//nolint:wrapcheck // AWS Lambda adapter returns proxy error verbatim to runtime
 	return h.adapterAPIGtwV2.ProxyWithContext(ctx, req)
 }
 
@@ -65,11 +66,13 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 	req events.APIGatewayProxyRequest,
 ) (
 	events.APIGatewayProxyResponse, error) {
+	//nolint:wrapcheck // AWS Lambda adapter returns proxy error verbatim to runtime
 	return h.adapterAPIGtwV1.ProxyWithContext(ctx, req)
 }
 
 // HandlerALB is the function that proxy the lambda events to the API handler for API Gateway V1.
 func (h *awsLambdaHandler) HandlerALB(ctx context.Context, req events.ALBTargetGroupRequest) (
 	events.ALBTargetGroupResponse, error) {
+	//nolint:wrapcheck // AWS Lambda adapter returns proxy error verbatim to runtime
 	return h.adapterALB.ProxyWithContext(ctx, req)
 }

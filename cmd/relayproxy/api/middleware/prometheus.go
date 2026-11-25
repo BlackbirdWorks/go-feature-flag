@@ -203,6 +203,7 @@ func (r *recorder) Write(b []byte) (int, error) {
 	n, err := r.ResponseWriter.Write(b)
 	r.size += int64(n)
 
+	//nolint:wrapcheck // transparent http.ResponseWriter decorator preserves underlying Write error
 	return n, err
 }
 

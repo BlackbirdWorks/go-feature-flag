@@ -109,6 +109,7 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 		outcome = metric.ValidateFlagsOutcomeInvalid
 	}
 
+	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return outcome, helper.WriteJSON(w, status, resp)
 }
 

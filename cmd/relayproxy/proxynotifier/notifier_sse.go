@@ -1,6 +1,8 @@
 package proxynotifier
 
 import (
+	"fmt"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
@@ -20,5 +22,10 @@ func NewNotifierSSE(sseService stream.SSEService, flagsetName string) *NotifierS
 }
 
 func (n *NotifierSSE) Notify(diff notifier.DiffCache) error {
-	return n.sseService.BroadcastFlagChanges(n.flagsetName, diff)
+	err := n.sseService.BroadcastFlagChanges(n.flagsetName, diff)
+	if err != nil {
+		return fmt.Errorf("broadcast SSE flag changes: %w", err)
+	}
+
+	return nil
 }

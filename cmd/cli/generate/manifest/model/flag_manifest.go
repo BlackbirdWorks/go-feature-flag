@@ -20,6 +20,7 @@ type FlagManifest struct {
 // MarshalJSON always includes "$schema" so manifest files validate against the
 // published Open Feature CLI schema.
 func (m FlagManifest) MarshalJSON() ([]byte, error) {
+	//nolint:wrapcheck // json.Marshaler implementation returns json.Marshal error directly
 	return json.Marshal(
 		struct { //nolint:govet // fieldalignment: field order is the order of the keys of the generated manifest
 			Schema string                          `json:"$schema"`

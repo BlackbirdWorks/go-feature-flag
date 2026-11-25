@@ -38,7 +38,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		// Create GC Storage Client.
 		client, err := storage.NewClient(ctx, retriever.Options...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create GCS client: %w", err)
 		}
 
 		// Construct Object.
@@ -48,7 +48,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	// Fetch the metadata of the remote file.
 	attrs, err := retriever.obj.Attrs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get GCS object attributes: %w", err)
 	}
 
 	// When local and remote hashes match, return cached data.
@@ -59,7 +59,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	// When cache is outdated download file and create Reader to read from it.
 	reader, err := retriever.obj.NewReader(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open GCS object reader: %w", err)
 	}
 	defer func() { _ = reader.Close() }()
 

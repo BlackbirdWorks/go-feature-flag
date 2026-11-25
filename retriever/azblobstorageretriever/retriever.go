@@ -65,7 +65,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			return err
+			return fmt.Errorf("create default Azure credential: %w", err)
 		}
 		client, err = azblob.NewClient(url, cred, nil)
 	} else {
@@ -74,7 +74,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			return err
+			return fmt.Errorf("create Azure shared key credential: %w", err)
 		}
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, nil)
 	}
@@ -82,7 +82,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if err != nil {
 		r.status = retriever.RetrieverError
 
-		return err
+		return fmt.Errorf("create Azure blob client: %w", err)
 	}
 
 	r.client = client
@@ -121,7 +121,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	fileStream, err := r.client.DownloadStream(ctx, r.Container, r.Object, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("download Azure blob %s: %w", r.Object, err)
 	}
 
 	retryReader := fileStream.NewRetryReader(ctx, nil)

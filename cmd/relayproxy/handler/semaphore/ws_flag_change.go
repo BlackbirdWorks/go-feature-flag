@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -32,7 +33,12 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.conn.WriteJSON(v)
+	err := c.conn.WriteJSON(v)
+	if err != nil {
+		return fmt.Errorf("write websocket JSON: %w", err)
+	}
+
+	return nil
 }
 
 // ping sends a ping control message to the client.
@@ -40,7 +46,12 @@ func (c *threadSafeConn) ping() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.conn.WriteMessage(websocket.PingMessage, nil)
+	err := c.conn.WriteMessage(websocket.PingMessage, nil)
+	if err != nil {
+		return fmt.Errorf("write websocket ping: %w", err)
+	}
+
+	return nil
 }
 
 // defaultPingInterval is how often a keep-alive ping is sent to the client.
