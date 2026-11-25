@@ -124,7 +124,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
-// IsBulk reports whether the exporter sends events in bulk.
+// IsBulk returns true: events are buffered and written to S3 in batches, one file per flush.
 func (*Exporter) IsBulk() bool {
 	return true
 }

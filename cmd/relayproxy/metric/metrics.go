@@ -376,7 +376,7 @@ func (m *Metrics) IncGetManifestCall() {
 	}
 }
 
-// ShouldCollectBulkMetrics reports whether metrics are collected for bulk evaluations.
+// ShouldCollectBulkMetrics reports whether per-flag-name metrics are collected for bulk evaluations.
 func (m *Metrics) ShouldCollectBulkMetrics() bool {
 	return m.opts.EnableBulkMetricFlagNames && m.allFlagCounterWithFlag.MetricVec != nil
 }

@@ -36,7 +36,8 @@ type FlagSet struct {
 	CommonFlagSet `koanf:",squash"`
 }
 
-// CommonFlagSet is the configuration shared by the flagsets.
+// CommonFlagSet holds the settings common to the top-level configuration and to every flag set;
+// it is embedded in both.
 type CommonFlagSet struct {
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped

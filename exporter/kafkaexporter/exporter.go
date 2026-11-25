@@ -77,7 +77,7 @@ func (e *Exporter) Export(
 	return nil
 }
 
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
+// IsBulk returns false: this exporter sends each event on its own as a Kafka message, it does not batch events.
 func (*Exporter) IsBulk() bool {
 	return false
 }

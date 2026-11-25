@@ -67,7 +67,7 @@ func (e *Exporter) Export(
 	return nil
 }
 
-// IsBulk reports whether the exporter sends events in bulk.
+// IsBulk returns false: this exporter sends each event on its own as an OpenTelemetry log record, it does not batch events.
 func (*Exporter) IsBulk() bool {
 	return false
 }

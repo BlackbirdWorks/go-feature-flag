@@ -57,7 +57,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
-// IsBulk reports whether the exporter sends events in bulk.
+// IsBulk returns false: this exporter sends each event on its own as a log line, it does not batch events.
 func (*Exporter) IsBulk() bool {
 	return false
 }

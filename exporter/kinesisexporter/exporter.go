@@ -341,7 +341,7 @@ func backoff(attempt int) time.Duration {
 	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
 }
 
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
+// IsBulk returns false: this exporter sends each event on its own as a Kinesis record, it does not batch events.
 func (*Exporter) IsBulk() bool {
 	return false
 }

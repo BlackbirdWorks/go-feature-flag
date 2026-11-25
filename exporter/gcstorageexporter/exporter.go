@@ -56,7 +56,7 @@ type Exporter struct {
 	Options []option.ClientOption
 }
 
-// IsBulk reports whether the exporter sends events in bulk.
+// IsBulk returns true: events are buffered and written to Google Cloud Storage in batches, one file per flush.
 func (*Exporter) IsBulk() bool {
 	return true
 }
