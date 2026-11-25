@@ -90,18 +90,18 @@ test-flag:
 	tomlFile := []byte(`[test-flag]
 trackEvents = false
 
-  [test-flagdef.variations]
+  [test-flag.variations]
   true_var = true
   false_var = false
 
-  [[test-flagdef.targeting]]
+  [[test-flag.targeting]]
   query = 'key eq "random-key"'
 
-    [test-flagdef.targeting.percentage]
+    [test-flag.targeting.percentage]
     true_var = 100.00
     false_var = 0.00
 
-  [test-flagdef.defaultRule]
+  [test-flag.defaultRule]
   variation = "false_var"`)
 
 	type args struct {
@@ -251,13 +251,13 @@ test-flag:
 				loadedFlags: []byte(`
 [test-flag]
 trackEvents = false
-[test-flagdef.variations]
+[test-flag.variations]
 true_var = true
 false_var = false
-[[test-flagdef.targeting]]
+[[test-flag.targeting]]
 query = 'key eq "random-key"'
 percentage = "toto
-[test-flagdef.defaultRule]
+[test-flag.defaultRule]
 variation = "false_var"
 `),
 			},
