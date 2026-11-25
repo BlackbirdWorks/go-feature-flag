@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -264,7 +264,7 @@ func runEvaluate(
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverInit.Retriever(retrieverConf)
+	r, err := retrieverinit.Retriever(retrieverConf)
 	if err != nil {
 		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}

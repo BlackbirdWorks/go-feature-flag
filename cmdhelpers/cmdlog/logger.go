@@ -1,6 +1,6 @@
-// Package log builds the logger of the relay proxy: a [slog.Logger] writing JSON or logfmt lines to a writer
+// Package cmdlog builds the logger of the relay proxy: a [slog.Logger] writing JSON or logfmt lines to a writer
 // (stderr by default), with the level and the format of the configuration.
-package log
+package cmdlog
 
 import (
 	"errors"

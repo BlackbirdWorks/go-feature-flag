@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"errors"

@@ -33,7 +33,7 @@ configuration to your `ffclient.Config{}` object:
 ```go
 client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
-    Retriever: &azblobretriever.Retriever{
+    Retriever: &azblobstorageretriever.Retriever{
         Container:    "your-container",
         AccountName:  "your-account-name",
         AccountKey:   "your-account-key",

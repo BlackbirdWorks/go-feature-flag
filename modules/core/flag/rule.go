@@ -106,7 +106,7 @@ func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagNam
 		return "", errNoService
 	}
 
-	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
+	v, err := r.evaluateWith(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
@@ -506,9 +506,9 @@ func (r *Rule) GetProgressiveRollout() ProgressiveRollout {
 	return *r.ProgressiveRollout
 }
 
-// evaluate is Evaluate reading the context through queryCtx, which the caller can share
+// evaluateWith is Evaluate reading the context through queryCtx, which the caller can share
 // across the rules of a flag.
-func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isDefault bool,
+func (r *Rule) evaluateWith(key string, queryCtx *queryContext, flagName string, isDefault bool,
 ) (string, error) {
 	ctx := queryCtx.ctx
 	// Only require key if this rule needs bucketing

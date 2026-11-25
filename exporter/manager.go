@@ -426,14 +426,14 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	consumer := m.consumers[i]
 
-	flusher, ok := consumer.(interface{ flush() error })
+	flusher, ok := consumer.(interface{ flushQueue() error })
 	if !ok {
 		consumer.Flush()
 
 		return
 	}
 
-	err := flusher.flush()
+	err := flusher.flushQueue()
 	if err != nil {
 		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())

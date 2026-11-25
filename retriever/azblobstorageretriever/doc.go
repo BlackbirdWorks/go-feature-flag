@@ -1,2 +1,2 @@
-// Package azblobretriever retrieves flag configurations from Azure Blob Storage.
-package azblobretriever
+// Package azblobstorageretriever retrieves flag configurations from Azure Blob Storage.
+package azblobstorageretriever

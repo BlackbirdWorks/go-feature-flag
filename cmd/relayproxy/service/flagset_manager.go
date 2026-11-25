@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
@@ -237,7 +237,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
 
-		client, err := newGoFeatureFlagClient(
+		client, err := createGoFeatureFlagClient(
 			flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
 			withDefaultExporterCleanQueueInterval(cfg.ExporterCleanQueueInterval))
 		if err != nil {
@@ -551,7 +551,7 @@ func (m *FlagsetManagerImpl) addFlagset(flagset *config.FlagSet, defaultCleanQue
 		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
 	}, m.clientOptions...)
 
-	client, err := newGoFeatureFlagClient(flagset, m.logger, allNotifiers, opts...)
+	client, err := createGoFeatureFlagClient(flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError,
 			"failed to create the flagset added at runtime, it will not be available until the "+

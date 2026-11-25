@@ -10,10 +10,10 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest/model"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	configHelper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	confighelper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	dtoCore "github.com/blackbirdworks/semaphore/modules/core/dto"
+	dtocore "github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
@@ -33,10 +33,10 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		return Manifest{}, errFlagManifestDestinationIs
 	}
 
-	flagDTOs, err := configHelper.LoadConfigFile(
+	flagDTOs, err := confighelper.LoadConfigFile(
 		configFile,
 		configFormat,
-		configHelper.DefaultLocations(),
+		confighelper.DefaultLocations(),
 		helper.LegacyWarner(),
 	)
 	if err != nil {
@@ -55,7 +55,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 
 	flags := make(map[string]flag.InternalFlag)
 	for k, v := range m.dtos {
-		flags[k] = dtoCore.ConvertDtoToInternalFlag(&v)
+		flags[k] = dtocore.ConvertDtoToInternalFlag(&v)
 	}
 
 	output := helper.Output{}

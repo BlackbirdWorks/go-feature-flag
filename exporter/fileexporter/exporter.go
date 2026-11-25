@@ -22,8 +22,8 @@ var _ exporter.Exporter = &Exporter{}
 
 // Exporter writes evaluation events to local files.
 type Exporter struct {
-	csvTemplate      *template.Template
-	filenameTemplate *template.Template
+	parsedCSVTemplate *template.Template
+	filenameTemplate  *template.Template
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV, and Parquet.
 	// Default: JSON
@@ -59,7 +59,7 @@ func (f *Exporter) Export(
 ) error {
 	// Parse the template only once
 	f.initTemplates.Do(func() {
-		f.csvTemplate = exporter.ParseTemplate(
+		f.parsedCSVTemplate = exporter.ParseTemplate(
 			"csvFormat",
 			f.CsvTemplate,
 			exporter.DefaultCsvTemplate,
@@ -131,7 +131,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		// Convert the line in the right format
 		switch f.Format {
 		case "csv":
-			line, innerErr = event.FormatInCSV(f.csvTemplate)
+			line, innerErr = event.FormatInCSV(f.parsedCSVTemplate)
 		default:
 			line, innerErr = event.FormatInJSON()
 		}

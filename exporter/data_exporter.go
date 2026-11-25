@@ -122,11 +122,11 @@ func (d *dataExporterImpl[T]) Stop() {
 
 // Flush is sending the data to the exporter.
 func (d *dataExporterImpl[T]) Flush() {
-	_ = d.flush()
+	_ = d.flushQueue()
 }
 
 // flush is Flush, it also returns the error of the flush (the manager uses it to back off).
-func (d *dataExporterImpl[T]) flush() error {
+func (d *dataExporterImpl[T]) flushQueue() error {
 	store := d.eventStore
 
 	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)

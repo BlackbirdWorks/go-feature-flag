@@ -16,9 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
-	manifestHelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	manifesthelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 )
 
 const (
@@ -80,7 +80,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		)
 	}
 
-	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(logger))
+	manifest, err := manifesthelper.GenerateDefinitionFromFlags(flags, manifesthelper.WithLogger(logger))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 

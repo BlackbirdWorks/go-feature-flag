@@ -15,7 +15,7 @@ import (
 
 	"github.com/knadh/koanf/maps"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 const (

@@ -1,4 +1,4 @@
-package azblobretriever
+package azblobstorageretriever
 
 import (
 	"context"

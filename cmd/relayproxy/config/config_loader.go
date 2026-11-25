@@ -20,7 +20,7 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/utils"

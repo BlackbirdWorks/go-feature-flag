@@ -1,4 +1,4 @@
-package log_test
+package cmdlog_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -20,10 +20,10 @@ const secretValue = "SECRETMARKER-hunter2"
 
 // settings is a configuration-like struct holding secrets, as the relay proxy configuration does.
 type settings struct {
-	Name    string     `json:"name"   yaml:"name"`
-	APIKey  log.Secret `json:"apiKey" yaml:"apiKey"`
+	Name    string        `json:"name"   yaml:"name"`
+	APIKey  cmdlog.Secret `json:"apiKey" yaml:"apiKey"`
 	Backend struct {
-		URI log.Secret `json:"uri" yaml:"uri"`
+		URI cmdlog.Secret `json:"uri" yaml:"uri"`
 	} `json:"backend" yaml:"backend"`
 }
 
@@ -82,19 +82,19 @@ func TestSecretInTheLogs(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := log.New(format, fixtures.Debug, log.WithWriter(&out))
+			logger, err := cmdlog.New(format, fixtures.Debug, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 
 			// the three ways a secret reaches the logs: a secret attribute, a secret field of a struct, an
 			// error built from a secret.
 			logger.Slog.Debug("config",
-				log.SecretAttr("token", secretValue),
+				cmdlog.SecretAttr("token", secretValue),
 				slog.Any("settings", newSettings()),
-				slog.Any("secret", log.Secret(secretValue)),
+				slog.Any("secret", cmdlog.Secret(secretValue)),
 			)
 
 			assert.NotContains(t, out.String(), "SECRETMARKER")
-			assert.Contains(t, out.String(), log.RedactedValue)
+			assert.Contains(t, out.String(), cmdlog.RedactedValue)
 			assert.Contains(t, out.String(), "visible-name")
 		})
 	}

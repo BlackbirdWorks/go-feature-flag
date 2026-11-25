@@ -41,14 +41,14 @@ type Retriever struct {
 	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
 	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
 	// creates one of its own at Init.
-	Pools   *PoolRegistry
-	logger  *fflog.FFLogger
-	columns map[string]string
-	pool    *pgxpool.Pool
-	flagset *string
-	URI     string
-	Table   string
-	status  retriever.Status
+	Pools       *PoolRegistry
+	logger      *fflog.FFLogger
+	columnNames map[string]string
+	pool        *pgxpool.Pool
+	flagset     *string
+	URI         string
+	Table       string
+	status      retriever.Status
 }
 
 // Init connects to PostgreSQL and prepares the retriever for the flagset.
@@ -60,7 +60,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 		r.logger = &fflog.FFLogger{}
 	}
 
-	r.columns = r.getColumnNames()
+	r.columnNames = r.getColumnNames()
 	r.flagset = flagset
 
 	if r.Pools == nil {
@@ -69,7 +69,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 
 	if r.pool == nil {
 		r.logger.InfoContext(ctx, "Initializing PostgreSQL retriever")
-		r.logger.DebugContext(ctx, "Using columns", "columns", r.columns)
+		r.logger.DebugContext(ctx, "Using columns", "columns", r.columnNames)
 
 		pool, err := r.Pools.GetPool(ctx, r.URI)
 		if err != nil {
@@ -192,10 +192,10 @@ func (*Retriever) OutputFormat() string {
 func (r *Retriever) buildQuery() string {
 	var query string
 
-	flagNameCol := pgx.Identifier{r.columns[flagNameColumn]}.Sanitize()
-	configCol := pgx.Identifier{r.columns[configKey]}.Sanitize()
+	flagNameCol := pgx.Identifier{r.columnNames[flagNameColumn]}.Sanitize()
+	configCol := pgx.Identifier{r.columnNames[configKey]}.Sanitize()
 	tableCol := pgx.Identifier{r.Table}.Sanitize()
-	flagsetCol := pgx.Identifier{r.columns[flagsetKey]}.Sanitize()
+	flagsetCol := pgx.Identifier{r.columnNames[flagsetKey]}.Sanitize()
 
 	if r.getFlagset() != "" {
 		query = fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s = $1 ORDER BY %s",

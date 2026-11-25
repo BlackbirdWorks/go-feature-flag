@@ -1,6 +1,6 @@
 //go:build docker
 
-package azblobretriever_test
+package azblobstorageretriever_test
 
 import (
 	"context"

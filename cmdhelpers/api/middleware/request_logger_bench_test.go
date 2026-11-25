@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 func BenchmarkRequestLogger(b *testing.B) {

@@ -32,7 +32,7 @@ var (
 // markdown inline code.
 // It describes every field of flag.InternalFlag and returns an error for any other flag type.
 func DescribeChanges(before, after flag.Flag) ([]string, error) {
-	return describeChanges(before, after, inlineCode)
+	return describeDiff(before, after, inlineCode)
 }
 
 // inlineCode wraps text in a code span whose fence is longer than any run of backticks in the text,
@@ -64,10 +64,10 @@ func inlineCode(text string) string {
 
 // DescribeChangesPlain is DescribeChanges without inline code, for destinations that cannot display it.
 func DescribeChangesPlain(before, after flag.Flag) ([]string, error) {
-	return describeChanges(before, after, func(text string) string { return text })
+	return describeDiff(before, after, func(text string) string { return text })
 }
 
-func describeChanges(before, after flag.Flag, code func(string) string) ([]string, error) {
+func describeDiff(before, after flag.Flag, code func(string) string) ([]string, error) {
 	b, okBefore := before.(*flag.InternalFlag)
 
 	afterFlag, okAfter := after.(*flag.InternalFlag)

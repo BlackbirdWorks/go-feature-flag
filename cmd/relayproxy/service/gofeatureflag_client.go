@@ -9,12 +9,12 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/IBM/sarama"
-	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	awsconf "github.com/aws/aws-sdk-go-v2/config"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
 	"github.com/blackbirdworks/semaphore/exporter/bigqueryexporter"
@@ -98,12 +98,12 @@ func (o *clientOptions) ensurePostgresPools() {
 }
 
 // retrieverOptions are the options that the retrievers of a client are created with.
-func (o *clientOptions) retrieverOptions() []retrieverInit.Option {
+func (o *clientOptions) retrieverOptions() []retrieverinit.Option {
 	if o.postgresPools == nil {
 		return nil
 	}
 
-	return []retrieverInit.Option{retrieverInit.WithPostgresPools(o.postgresPools)}
+	return []retrieverinit.Option{retrieverinit.WithPostgresPools(o.postgresPools)}
 }
 
 // withSharedBucketRegistry sets the registry providing the retrievers of the flagsets with
@@ -118,7 +118,7 @@ func NewGoFeatureFlagClient(
 	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 ) (*ffclient.GoFeatureFlag, error) {
-	return newGoFeatureFlagClient(cFlagSet, logger, notifiers)
+	return createGoFeatureFlagClient(cFlagSet, logger, notifiers)
 }
 
 // collectNotifiers builds the notifiers of the flagset and appends the given ones.
@@ -149,7 +149,7 @@ func collectNotifiers(
 	return append(notif, extra...), nil
 }
 
-func newGoFeatureFlagClient(
+func createGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
 	logger *slog.Logger,
 	notifiers []notifier.Notifier,
@@ -291,7 +291,7 @@ func initLeveledLogger(c *config.FlagSet, logger *slog.Logger) *slog.Logger {
 // the `retriever` and `retrievers` fields. The registry provides the retriever of the flagsets with
 // enableSharedPollerPerBucket, it is required for them.
 func initRetrieversWithRegistry(
-	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverInit.Option,
+	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverinit.Option,
 ) ([]retriever.Retriever, error) {
 	retrievers := make([]retriever.Retriever, 0)
 
@@ -309,7 +309,7 @@ func initRetrieversWithRegistry(
 	}
 	// if the retriever is set, we add it to the retrievers
 	if proxyConf.Retriever != nil {
-		currentRetriever, err := retrieverInit.Retriever(proxyConf.Retriever, retrieverOpts...)
+		currentRetriever, err := retrieverinit.Retriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("init retriever: %w", err)
 		}
@@ -319,7 +319,7 @@ func initRetrieversWithRegistry(
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
 		for i := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.Retriever(&(*proxyConf.Retrievers)[i], retrieverOpts...)
+			currentRetriever, err := retrieverinit.Retriever(&(*proxyConf.Retrievers)[i], retrieverOpts...)
 			if err != nil {
 				return nil, fmt.Errorf("init retriever: %w", err)
 			}
@@ -502,12 +502,12 @@ func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, erro
 //
 //nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
 func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (exporter.CommonExporter, error) {
-	var awsOpts []func(*awsConf.LoadOptions) error
+	var awsOpts []func(*awsconf.LoadOptions) error
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {
-		awsOpts = append(awsOpts, awsConf.WithRegion(expConf.AwsRegion))
+		awsOpts = append(awsOpts, awsconf.WithRegion(expConf.AwsRegion))
 	}
 
-	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
+	awsConfig, err := awsconf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}

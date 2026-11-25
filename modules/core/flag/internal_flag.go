@@ -439,7 +439,7 @@ func (f *InternalFlag) selectVariation(
 	// Check all targeting in order, the first to match will be the one used.
 	if hasRule {
 		for ruleIndex, target := range f.GetRules() {
-			variationName, err := target.evaluate(key, queryCtx, flagName, false)
+			variationName, err := target.evaluateWith(key, queryCtx, flagName, false)
 			if err != nil {
 				// the targeting does not apply
 				if errors.Is(err, errRuleNotApply) {
@@ -466,7 +466,7 @@ func (f *InternalFlag) selectVariation(
 		return variationSelection{}, errNoDefaultTargetingFor
 	}
 
-	variationName, err := f.GetDefaultRule().evaluate(key, queryCtx, flagName, true)
+	variationName, err := f.GetDefaultRule().evaluateWith(key, queryCtx, flagName, true)
 	if err != nil {
 		return variationSelection{}, err
 	}
@@ -517,7 +517,7 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 		}
 	}
 
-	flagCopy, err := f.deepCopy()
+	flagCopy, err := f.deepCopyViaJSON()
 	if err != nil {
 		return &InternalFlag{}, err
 	}
@@ -547,9 +547,9 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 	return flagCopy, nil
 }
 
-// deepCopy copies the flag through its JSON form, so that modifying the copy never modifies the original flag.
+// deepCopyViaJSON copies the flag through its JSON form, so that modifying the copy never modifies the original flag.
 // The deep copy is done to fix this issue https://github.com/thomaspoignant/go-feature-flag/issues/2256
-func (f *InternalFlag) deepCopy() (*InternalFlag, error) {
+func (f *InternalFlag) deepCopyViaJSON() (*InternalFlag, error) {
 	data, err := json.Marshal(f)
 	if err != nil {
 		return nil, fmt.Errorf("encoding the flag for the deep copy: %w", err)

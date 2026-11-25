@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	testcontainerRedis "github.com/testcontainers/testcontainers-go/modules/redis"
+	testcontainerredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
 	ret "github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
@@ -103,12 +103,12 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 	ctx := context.TODO()
 
 	//nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
-	redisContainer, err := testcontainerRedis.RunContainer(
+	redisContainer, err := testcontainerredis.RunContainer(
 		ctx,
 		testcontainers.WithImage("docker.io/redis:7"),
-		testcontainerRedis.WithSnapshotting(10, 1),
-		testcontainerRedis.WithLogLevel(testcontainerRedis.LogLevelVerbose),
-		testcontainerRedis.WithConfigFile(filepath.Join("testdata", "redis.conf")),
+		testcontainerredis.WithSnapshotting(10, 1),
+		testcontainerredis.WithLogLevel(testcontainerredis.LogLevelVerbose),
+		testcontainerredis.WithConfigFile(filepath.Join("testdata", "redis.conf")),
 	)
 	testcontainers.CleanupContainer(t, redisContainer)
 	require.NoError(t, err)

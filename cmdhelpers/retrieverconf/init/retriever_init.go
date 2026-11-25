@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/redis/go-redis/v9"
 	"k8s.io/client-go/rest"
 
@@ -179,7 +179,7 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*file
 }
 
 func createS3Retriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*s3retrieverv2.Retriever, error) {
-	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
+	awsConfig, err := awsconf.LoadDefaultConfig(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}

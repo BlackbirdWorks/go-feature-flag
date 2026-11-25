@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/notifier"
@@ -110,7 +110,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
 
-	logger := log.NewDefault()
+	logger := cmdlog.NewDefault()
 
 	metrics, err := metric.NewMetrics()
 	if err != nil {

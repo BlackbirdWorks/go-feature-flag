@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"
@@ -49,7 +49,7 @@ func buildEvaluate(
 	evaluationCtx string,
 	customize func(r retriever.Retriever),
 ) (evaluate, error) {
-	r, err := retrieverInit.Retriever(conf)
+	r, err := retrieverinit.Retriever(conf)
 	if err != nil {
 		return evaluate{}, err
 	}

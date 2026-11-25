@@ -44,7 +44,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 - No mutable package-level state and no singletons (`gochecknoglobals`, `gochecknoinits`, `reassign` enforce it): state is
   owned by an object created at startup and passed in (`flag.Service`, the client, the registries).
 - The only global is `clock.Now`; loggers and clients are injected. Everything logs through `log/slog`: the engine through
-  `utils/fflog`, the relay proxy through the `*slog.Logger` built by `cmdhelpers/log` (`json` or `logfmt` handler). Zap is
+  `utils/fflog`, the relay proxy through the `*slog.Logger` built by `cmdhelpers/cmdlog` (`json` or `logfmt` handler). Zap is
   forbidden (`depguard`). Log with `logger.LogAttrs(ctx, level, msg, slog.String(...), ...)` and typed attributes on hot
   paths (the `any` variadic form allocates even when the level is disabled), guard expensive values with `logger.Enabled`,
   and wrap secrets in `log.Secret`.

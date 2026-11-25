@@ -745,7 +745,8 @@ func (g *SharedItems) runDownload(
 	ctx, cancel := activeContext(parent, active)
 	defer cancel()
 
-	data, dlETag, startedAt, err := g.download(ctx, active, key)
+	result, err := g.download(ctx, active, key)
+	data, dlETag, startedAt := result.data, result.etag, result.startedAt
 
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
@@ -762,22 +763,29 @@ func (g *SharedItems) runDownload(
 	close(dlOp.done)
 }
 
+// downloadResult is the object that download fetched.
+type downloadResult struct {
+	startedAt time.Time
+	etag      string
+	data      []byte
+}
+
 // download waits for a free download slot, then downloads the object.
 func (g *SharedItems) download(
 	base context.Context, active <-chan struct{}, key string,
-) ([]byte, string, time.Time, error) {
+) (downloadResult, error) {
 	select {
 	case g.sem <- struct{}{}:
 		defer func() { <-g.sem }()
 	case <-active:
-		return nil, "", time.Time{}, context.Canceled
+		return downloadResult{}, context.Canceled
 	case <-base.Done():
-		return nil, "", time.Time{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
+		return downloadResult{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
 	}
 	// Check active directly as well because activeContext cancels base asynchronously when active closes.
 	select {
 	case <-active:
-		return nil, "", time.Time{}, context.Canceled
+		return downloadResult{}, context.Canceled
 	default:
 	}
 
@@ -788,7 +796,7 @@ func (g *SharedItems) download(
 
 	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
 
-	return data, etag, startedAt, err
+	return downloadResult{data: data, etag: etag, startedAt: startedAt}, err
 }
 
 // poll lists the bucket every polling interval until ctx is done.

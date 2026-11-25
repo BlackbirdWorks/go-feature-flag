@@ -1,4 +1,4 @@
-package controller_test
+package semaphore_test
 
 import (
 	"errors"

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ffClient "github.com/blackbirdworks/semaphore"
+	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
@@ -103,7 +103,7 @@ func TestConfig_Initialize(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				c := ffClient.Config{
+				c := ffclient.Config{
 					PollingInterval: tt.pollingInterval,
 				}
 				c.Initialize()
@@ -200,7 +200,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &ffClient.Config{
+			c := &ffclient.Config{
 				PollingInterval: tt.fields.PollingInterval,
 				Retriever:       tt.fields.Retriever,
 			}
@@ -217,7 +217,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 func TestOfflineConfig(t *testing.T) {
 	t.Parallel()
 
-	c := ffClient.Config{
+	c := ffclient.Config{
 		Offline: true,
 	}
 	assert.True(t, c.IsOffline())
@@ -229,29 +229,29 @@ func TestConfig_GetDataExporters(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		DataExporters []ffClient.DataExporter
-		DataExporter  ffClient.DataExporter
+		DataExporters []ffclient.DataExporter
+		DataExporter  ffclient.DataExporter
 	}
 
 	tests := []struct {
 		name   string
-		want   []ffClient.DataExporter
+		want   []ffclient.DataExporter
 		fields fields
 	}{
 		{
 			name:   "No data exporter",
 			fields: fields{},
-			want:   []ffClient.DataExporter{},
+			want:   []ffclient.DataExporter{},
 		},
 		{
 			name: "Single data exporter",
 			fields: fields{
-				DataExporter: ffClient.DataExporter{
+				DataExporter: ffclient.DataExporter{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
@@ -261,7 +261,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		{
 			name: "Multiple data exporters",
 			fields: fields{
-				DataExporters: []ffClient.DataExporter{
+				DataExporters: []ffclient.DataExporter{
 					{
 						FlushInterval:    20 * time.Second,
 						MaxEventInMemory: 200,
@@ -272,7 +272,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 					},
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    20 * time.Second,
 					MaxEventInMemory: 200,
@@ -286,11 +286,11 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		{
 			name: "Both single and multiple data exporters",
 			fields: fields{
-				DataExporter: ffClient.DataExporter{
+				DataExporter: ffclient.DataExporter{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
 				},
-				DataExporters: []ffClient.DataExporter{
+				DataExporters: []ffclient.DataExporter{
 					{
 						FlushInterval:    20 * time.Second,
 						MaxEventInMemory: 200,
@@ -301,7 +301,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 					},
 				},
 			},
-			want: []ffClient.DataExporter{
+			want: []ffclient.DataExporter{
 				{
 					FlushInterval:    10 * time.Second,
 					MaxEventInMemory: 100,
@@ -322,7 +322,7 @@ func TestConfig_GetDataExporters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &ffClient.Config{
+			c := &ffclient.Config{
 				DataExporter:  tt.fields.DataExporter,
 				DataExporters: tt.fields.DataExporters,
 			}
@@ -372,7 +372,7 @@ func TestNewWithContext(t *testing.T) {
 				closeCtx = context.WithValue(t.Context(), key, tt.closeVal)
 			}
 
-			client, err := ffClient.NewWithContext(initCtx, &ffClient.Config{
+			client, err := ffclient.NewWithContext(initCtx, &ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				Retriever:       rec,
 			})

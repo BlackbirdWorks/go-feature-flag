@@ -1,4 +1,4 @@
-package log_test
+package cmdlog_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -34,7 +34,7 @@ func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
 func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 	tb.Helper()
 
-	l, err := log.New(format, fixtures.Info, log.WithWriter(sink{}))
+	l, err := cmdlog.New(format, fixtures.Info, cmdlog.WithWriter(sink{}))
 	require.NoError(tb, err)
 
 	return l.Slog
@@ -74,9 +74,9 @@ func BenchmarkLogger(b *testing.B) {
 func stdlibKeys(_ []string, attr slog.Attr) slog.Attr {
 	switch attr.Key {
 	case slog.TimeKey:
-		return slog.Float64(log.TimeKey, float64(attr.Value.Time().UnixNano())/1e9)
+		return slog.Float64(cmdlog.TimeKey, float64(attr.Value.Time().UnixNano())/1e9)
 	case slog.LevelKey:
-		return slog.String(log.LevelKey, fixtures.Info)
+		return slog.String(cmdlog.LevelKey, fixtures.Info)
 	}
 
 	return attr

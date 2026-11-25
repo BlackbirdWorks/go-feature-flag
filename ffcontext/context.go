@@ -3,23 +3,23 @@ package ffcontext
 // This file is a wrapper around the core context package to avoid any breaking changes
 // when moving the logic to the new core package.
 
-import coreCtx "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+import corectx "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
 // Context is the evaluation context of a flag evaluation.
-type Context = coreCtx.Context
+type Context = corectx.Context
 
 // EvaluationContext is the evaluation context with the attributes used by the rules.
-type EvaluationContext = coreCtx.EvaluationContext
+type EvaluationContext = corectx.EvaluationContext
 
 // EvaluationContextBuilder builds an EvaluationContext.
-type EvaluationContextBuilder = coreCtx.EvaluationContextBuilder
+type EvaluationContextBuilder = corectx.EvaluationContextBuilder
 
 // GoffContextSpecifics holds the context fields specific to GO Feature Flag.
-type GoffContextSpecifics = coreCtx.GoffContextSpecifics
+type GoffContextSpecifics = corectx.GoffContextSpecifics
 
 // NewEvaluationContext creates a new evaluation context identified by the given targetingKey.
 func NewEvaluationContext(key string) EvaluationContext {
-	return coreCtx.NewEvaluationContext(key)
+	return corectx.NewEvaluationContext(key)
 }
 
 // NewAnonymousEvaluationContext returns an anonymous evaluation context with the given key.
@@ -30,7 +30,7 @@ func NewEvaluationContext(key string) EvaluationContext {
 // ctx := NewEvaluationContext("my-targetingKey")
 // ctx.AddCustomAttribute("anonymous", true).
 func NewAnonymousEvaluationContext(key string) EvaluationContext {
-	return coreCtx.NewAnonymousEvaluationContext(key)
+	return corectx.NewAnonymousEvaluationContext(key)
 }
 
 // NewEvaluationContextBuilder constructs a new EvaluationContextBuilder, specifying the user targetingKey.
@@ -38,17 +38,17 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 // For authenticated users, the targetingKey may be a username or e-mail address. For anonymous users,
 // this could be an IP address or session ID.
 func NewEvaluationContextBuilder(key string) *EvaluationContextBuilder {
-	return coreCtx.NewEvaluationContextBuilder(key)
+	return corectx.NewEvaluationContextBuilder(key)
 }
 
 // ReservedKey is the evaluation context attribute holding the Semaphore specific fields.
 // LegacyReservedKey is the name used by GO Feature Flag, still accepted.
 const (
-	ReservedKey       = coreCtx.ReservedKey
-	LegacyReservedKey = coreCtx.LegacyReservedKey
+	ReservedKey       = corectx.ReservedKey
+	LegacyReservedKey = corectx.LegacyReservedKey
 )
 
 // HasReservedKey tells if the attributes carry the reserved attribute, under any of its names.
 func HasReservedKey(attributes map[string]any) bool {
-	return coreCtx.HasReservedKey(attributes)
+	return corectx.HasReservedKey(attributes)
 }

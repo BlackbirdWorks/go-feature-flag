@@ -14,7 +14,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"go.opentelemetry.io/otel/trace"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // skipURL is what we use as a default.

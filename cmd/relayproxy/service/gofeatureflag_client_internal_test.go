@@ -1,7 +1,7 @@
 package service
 
 // Whitebox: the tests reach unexported functions (initRetrieversWithRegistry, firstSharedRetriever,
-// newGoFeatureFlagClient) and inject a fake shared bucket registry. The fakes are in
+// createGoFeatureFlagClient) and inject a fake shared bucket registry. The fakes are in
 // shared_bucket_registry_internal_test.go.
 
 import (
@@ -28,7 +28,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
 	"github.com/blackbirdworks/semaphore/exporter/bigqueryexporter"
@@ -1069,7 +1069,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 				reg := newFakeRegistry(t, tt.s3, &atomic.Int32{})
 				fs := s3FlagSet("a", "b1", pAYaml)
 				tt.mod(&fs)
-				_, err := newGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil, withSharedBucketRegistry(reg))
+				_, err := createGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil, withSharedBucketRegistry(reg))
 				require.Error(t, err)
 				assert.Equal(t, tt.wantGroups, reg.groupCount(), "the retriever must have left its group")
 			})
@@ -1083,7 +1083,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 	fs := s3FlagSet("a", "b1", pAYaml)
 	r, err := reg.retrieverFor(&fs)
 	require.NoError(t, err)
-	file, err := retrieverInit.Retriever(&retrieverconf.RetrieverConf{
+	file, err := retrieverinit.Retriever(&retrieverconf.RetrieverConf{
 		Kind: retrieverconf.FileRetriever, Path: testdataSemaphoreConfigurationFlags,
 	})
 	require.NoError(t, err)
@@ -1188,7 +1188,7 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 
 			var got time.Duration
 
-			client, err := newGoFeatureFlagClient(fs, slog.New(slog.DiscardHandler), nil,
+			client, err := createGoFeatureFlagClient(fs, slog.New(slog.DiscardHandler), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),
 				withClientFactory(func(c *ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					got = c.ExporterCleanQueueInterval

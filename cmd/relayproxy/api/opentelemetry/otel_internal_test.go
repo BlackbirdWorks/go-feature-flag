@@ -82,11 +82,11 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		url, refreshInterval, maxOperations, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(c)
 		require.NoError(t, err)
-		assert.Equal(t, defaultSamplerURL, url)
-		assert.Equal(t, defaultSamplingRefreshInterval, refreshInterval)
-		assert.Equal(t, defaultSamplingMaxOperations, maxOperations)
+		assert.Equal(t, defaultSamplerURL, opts.url)
+		assert.Equal(t, defaultSamplingRefreshInterval, opts.refreshInterval)
+		assert.Equal(t, defaultSamplingMaxOperations, opts.maxOperations)
 	})
 
 	t.Run("JAEGER_SAMPLER_MANAGER_HOST_PORT set", func(t *testing.T) {
@@ -97,9 +97,9 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		url, _, _, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(c)
 		require.NoError(t, err)
-		assert.Equal(t, expected, url)
+		assert.Equal(t, expected, opts.url)
 	})
 
 	t.Run("JAEGER_SAMPLER_REFRESH_INTERVAL set", func(t *testing.T) {
@@ -110,9 +110,9 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		_, refreshInterval, _, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(c)
 		require.NoError(t, err)
-		assert.Equal(t, expected, refreshInterval)
+		assert.Equal(t, expected, opts.refreshInterval)
 	})
 
 	t.Run("JAEGER_SAMPLER_MAX_OPERATIONS set", func(t *testing.T) {
@@ -123,9 +123,9 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		_, _, maxOperations, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(c)
 		require.NoError(t, err)
-		assert.Equal(t, expected, maxOperations)
+		assert.Equal(t, expected, opts.maxOperations)
 	})
 
 	t.Run("invalid JAEGER_SAMPLER_REFRESH_INTERVAL", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		_, _, _, err := jaegerRemoteSamplerOpts(c)
+		_, err := jaegerRemoteSamplerOpts(c)
 		require.EqualError(t, err, `parsing JAEGER_SAMPLER_REFRESH_INTERVAL: time: invalid duration "bogus"`)
 	})
 

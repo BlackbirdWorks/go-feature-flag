@@ -1,4 +1,4 @@
-package log
+package cmdlog
 
 import (
 	"encoding"

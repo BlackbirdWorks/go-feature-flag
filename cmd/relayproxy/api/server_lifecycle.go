@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // gracefulShutdownTimeout is the time given to in-flight requests to complete when the servers are stopped.

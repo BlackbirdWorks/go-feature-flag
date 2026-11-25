@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // RedactedValue replaces every value that may be a secret when the configuration is logged.

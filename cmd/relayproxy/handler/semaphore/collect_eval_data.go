@@ -1,4 +1,4 @@
-package controller
+package semaphore
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 

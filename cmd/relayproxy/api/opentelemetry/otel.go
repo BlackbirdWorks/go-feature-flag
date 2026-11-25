@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // OtelService owns the OpenTelemetry providers of the relay proxy: the tracer provider and, with the same
@@ -257,16 +257,16 @@ func initSampler(serviceName string, conf *config.Config) (sdktrace.Sampler, err
 		return nil, nil
 	}
 
-	samplerURL, samplerRefreshInterval, maxOperations, err := jaegerRemoteSamplerOpts(conf)
+	samplerOpts, err := jaegerRemoteSamplerOpts(conf)
 	if err != nil {
 		return nil, err
 	}
 
 	return jaegerremote.New(
 		serviceName,
-		jaegerremote.WithSamplingServerURL(samplerURL),
-		jaegerremote.WithSamplingRefreshInterval(samplerRefreshInterval),
-		jaegerremote.WithMaxOperations(maxOperations),
+		jaegerremote.WithSamplingServerURL(samplerOpts.url),
+		jaegerremote.WithSamplingRefreshInterval(samplerOpts.refreshInterval),
+		jaegerremote.WithMaxOperations(samplerOpts.maxOperations),
 		jaegerremote.WithInitialSampler(sdktrace.AlwaysSample()),
 	), nil
 }
@@ -277,7 +277,14 @@ const (
 	defaultSamplingMaxOperations   = 256
 )
 
-func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, error) {
+// jaegerSamplerOptions are the settings of the Jaeger remote sampler.
+type jaegerSamplerOptions struct {
+	url             string
+	refreshInterval time.Duration
+	maxOperations   int
+}
+
+func jaegerRemoteSamplerOpts(conf *config.Config) (jaegerSamplerOptions, error) {
 	samplerURL := defaultSamplerURL
 	if host := conf.JaegerConfig.Sampler.Manager.Host.Port; host != "" {
 		samplerURL = host
@@ -288,7 +295,7 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	if v := conf.JaegerConfig.Sampler.Refresh.Interval; v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return "", 0, 0, fmt.Errorf("parsing JAEGER_SAMPLER_REFRESH_INTERVAL: %w", err)
+			return jaegerSamplerOptions{}, fmt.Errorf("parsing JAEGER_SAMPLER_REFRESH_INTERVAL: %w", err)
 		}
 
 		samplerRefreshInterval = d
@@ -299,7 +306,7 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 		maxOperations = v
 	}
 
-	return samplerURL, samplerRefreshInterval, maxOperations, nil
+	return jaegerSamplerOptions{url: samplerURL, refreshInterval: samplerRefreshInterval, maxOperations: maxOperations}, nil
 }
 
 // Stop the OpenTelemetry service. The exporter, the tracer provider and the meter provider are all shut down, whatever

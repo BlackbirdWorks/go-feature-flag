@@ -257,7 +257,7 @@ func NewMetrics(opts ...MetricsOpts) (*Metrics, error) {
 
 	err := registerMetricCollectors(customRegistry, &counters, counterVecs, metricsOpts.Version)
 	if err != nil {
-		return nil, err
+		return &Metrics{}, err
 	}
 
 	return &Metrics{

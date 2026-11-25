@@ -17,7 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
 // This file is the one place where the middleware that wrap a whole listener are assembled. They are plain

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	awsconf "github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
@@ -27,7 +27,7 @@ var (
 type sharedItemsFactory func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error)
 
 func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
-	awsConfig, err := awsConf.LoadDefaultConfig(ctx)
+	awsConfig, err := awsconf.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}

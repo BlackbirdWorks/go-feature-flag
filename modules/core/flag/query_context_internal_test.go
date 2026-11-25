@@ -201,7 +201,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 
 			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext(fixtures.UserKeyOne)}
 
-			_, err := tt.rule.evaluate(fixtures.UserKeyOne, queryCtx, fixtures.FlagKeyMy, tt.isDefault)
+			_, err := tt.rule.evaluateWith(fixtures.UserKeyOne, queryCtx, fixtures.FlagKeyMy, tt.isDefault)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMapped, queryCtx.parsedEvalCtxAsMap != nil)

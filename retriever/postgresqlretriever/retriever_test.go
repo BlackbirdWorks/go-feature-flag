@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	testcontainerPostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	testcontainerpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
@@ -135,7 +135,7 @@ func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 	t.Helper()
 
 	ctx := context.TODO()
-	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
+	postgreSQLContainer, err := testcontainerpostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)
 
 	connectionString, err := postgreSQLContainer.ConnectionString(ctx, "sslmode=disable")
