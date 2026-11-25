@@ -84,7 +84,8 @@ func benchNewAndProcess(b *testing.B, rule string) {
 
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
-		ev.Process(benchInput)
+		_, err := ev.Process(benchInput)
+		require.NoError(b, err)
 	}
 }
 
@@ -103,8 +104,9 @@ func BenchmarkLogicalExpressionBigTreeCached(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		eval.Process(benchInput)
-		eval.Reset()
+		_, err := eval.Process(benchInput)
+		require.NoError(b, err)
+		require.NoError(b, eval.Reset())
 	}
 }
 
@@ -151,7 +153,8 @@ func BenchmarkProcess(b *testing.B) {
 			b.ResetTimer()
 
 			for range b.N {
-				eval.Process(benchInput)
+				_, err := eval.Process(benchInput)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -168,7 +171,8 @@ func BenchmarkProcessParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			ev.Process(items)
+			_, err := ev.Process(items)
+			assert.NoError(b, err)
 		}
 	})
 }
@@ -236,7 +240,8 @@ func BenchmarkNewEvaluatorFirstProcess(b *testing.B) {
 
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
-		ev.Process(benchInput)
+		_, err := ev.Process(benchInput)
+		require.NoError(b, err)
 	}
 }
 

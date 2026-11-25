@@ -67,7 +67,12 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
+			resp, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
+			t.Cleanup(func() {
+				if resp != nil && resp.Body != nil {
+					require.NoError(t, resp.Body.Close())
+				}
+			})
 			require.EqualError(t, err, tt.wantErr)
 			assert.NotContains(t, err.Error(), "SECRETMARKER")
 		})
@@ -87,6 +92,11 @@ func TestCallHTTPAPI_KeepsResponseOnClientError(t *testing.T) {
 	resp, err := shared.CallHTTPAPI(context.Background(),
 		"https://user:SECRETMARKER@flags.example.com/f", "", "", 0, nil, redirectRejectingClient{resp: want})
 	require.Error(t, err)
+	t.Cleanup(func() {
+		if resp != nil && resp.Body != nil {
+			require.NoError(t, resp.Body.Close())
+		}
+	})
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 	require.Same(t, want, resp)
 }

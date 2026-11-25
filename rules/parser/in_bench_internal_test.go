@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -55,7 +57,8 @@ func BenchmarkIn(b *testing.B) {
 					name string
 				}{{name: "hit", val: hit}, {name: "miss", val: miss}} {
 					input := map[string]any{"x": probe.val}
-					eval.Process(input) // compile
+					_, err := eval.Process(input) // compile
+					require.NoError(b, err)
 
 					name := fmt.Sprintf(
 						"%s/%s/%s/n=%d",
@@ -68,7 +71,8 @@ func BenchmarkIn(b *testing.B) {
 						b.ReportAllocs()
 
 						for range b.N {
-							eval.Process(input)
+							_, err := eval.Process(input)
+							require.NoError(b, err)
 						}
 					})
 				}
@@ -93,7 +97,8 @@ func BenchmarkInCompile(b *testing.B) {
 				b.ReportAllocs()
 
 				for range b.N {
-					newBenchEvaluator(b, rule).Process(input)
+					_, err := newBenchEvaluator(b, rule).Process(input)
+					require.NoError(b, err)
 				}
 			})
 		}

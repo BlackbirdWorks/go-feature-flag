@@ -94,8 +94,8 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	return baseURL, monitoringURL
 }
 
-// doRequest performs a request with the given headers and returns the response, the body being
-// closed for the caller since every assertion here is on headers and status code.
+// doRequest performs a request with the given headers and returns the response. Callers close
+// the body with t.Cleanup since every assertion here is on headers and status code.
 func doRequest(t *testing.T, method, url string, headers map[string]string) *http.Response {
 	t.Helper()
 
@@ -108,7 +108,6 @@ func doRequest(t *testing.T, method, url string, headers map[string]string) *htt
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = resp.Body.Close() })
 
 	return resp
 }
@@ -140,6 +139,7 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, map[string]string{
 					origin: httpsExampleCom,
 				})
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 				assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get(accessControlAllowOrigin))
 				assert.Contains(t, resp.Header.Values(vary), origin)
@@ -151,6 +151,7 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				t.Parallel()
 
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, nil)
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 				assert.Empty(t, resp.Header.Get(accessControlAllowOrigin))
 			})
@@ -185,6 +186,7 @@ func Test_CORS_Preflight(t *testing.T) {
 				accessControlRequestMethod:  http.MethodPost,
 				accessControlRequestHeaders: contentTypeAuthorization,
 			})
+			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 			assert.Equal(t, "*", resp.Header.Get(accessControlAllowOrigin))
 			assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), http.MethodPost)
@@ -208,6 +210,7 @@ func Test_CORS_MonitoringPort(t *testing.T) {
 	resp := doRequest(t, http.MethodGet, monitoringURL+health2, map[string]string{
 		origin: httpsExampleCom,
 	})
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "*", resp.Header.Get(accessControlAllowOrigin))
 	assert.Contains(t, resp.Header.Values(vary), origin)

@@ -135,7 +135,7 @@ loglevel: error`,
 			logger := slog.New(slog.DiscardHandler)
 
 			loader := config.NewConfigLoader(flagSet, logger, versionOneZeroZero, true)
-			defer loader.StopWatchChanges()
+			defer func() { require.NoError(t, loader.StopWatchChanges()) }()
 
 			// Setup callbacks
 			receivedConfigs, mu := tt.setupCallback(t, loader)

@@ -137,6 +137,7 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			baseURL, monitoringURL := startTestServer(t, conf, true)
 
 			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+health2, nil)
+			t.Cleanup(func() { require.NoError(t, monitoringResp.Body.Close()) })
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
@@ -144,6 +145,7 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 				"monitoring server")
 
 			apiResp := doRequest(t, http.MethodGet, baseURL+v1FlagChange, nil)
+			t.Cleanup(func() { require.NoError(t, apiResp.Body.Close()) })
 			assert.Equal(t, http.StatusOK, apiResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,

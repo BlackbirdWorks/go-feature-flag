@@ -198,6 +198,7 @@ func TestSSEService_Close(t *testing.T) {
 				require.NoError(t, err)
 				resp, err := (&http.Client{}).Do(req)
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 				body = resp.Body
 
@@ -207,8 +208,6 @@ func TestSSEService_Close(t *testing.T) {
 					require.Fail(t, "timed out waiting for the SSE client to subscribe")
 				}
 			}
-
-			defer func() { _ = body.Close() }()
 
 			sseService.Close()
 

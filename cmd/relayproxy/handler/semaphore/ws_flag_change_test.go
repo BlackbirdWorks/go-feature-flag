@@ -169,11 +169,12 @@ func Test_websocket_flag_change(t *testing.T) {
 			dialer := &websocket.Dialer{
 				HandshakeTimeout: 10 * time.Second,
 			}
-			wsConn, _, err := dialer.DialContext(ctx, url, nil)
+			wsConn, resp, err := dialer.DialContext(ctx, url, nil)
 			require.NoError(t, err, failedToConnectTo)
+			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 			defer func() {
-				wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				assert.NoError(t, wsConn.SetWriteDeadline(time.Now().Add(5*time.Second)))
 				_ = wsConn.Close()
 			}()
 
@@ -280,8 +281,9 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	url := "ws" + strings.TrimPrefix(testServer.URL, http2) + wsV1Flag
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	wsConn, _, err := dialer.DialContext(ctx, url, nil)
+	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, failedToConnectTo)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 	defer func() {
 		_ = wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -385,8 +387,9 @@ func Test_websocket_legacy_handler(t *testing.T) {
 
 	url := "ws" + strings.TrimPrefix(testServer.URL, http2) + wsV1Flag
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	wsConn, _, err := dialer.DialContext(ctx, url, nil)
+	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, failedToConnectTo)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 	defer func() { _ = wsConn.Close() }()
 
@@ -458,8 +461,9 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			defer testServer.Close()
 
 			url := "ws" + strings.TrimPrefix(testServer.URL, http2) + "/ws?apiKey=key-a"
-			wsConn, _, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
+			wsConn, resp, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 			defer func() { _ = wsConn.Close() }()
 
