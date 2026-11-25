@@ -205,7 +205,7 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 
 	ruleQueries := make([]nikunjyRuleQuery, 0, len(*rules))
 	for i := range *rules {
-		if known != nil && known[i].evaluator != nil {
+		if len(known) > i && known[i].evaluator != nil {
 			continue
 		}
 
@@ -219,7 +219,7 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 		queries = append(queries, trimmed)
 		if trimmed != "" {
 			q := nikunjyRuleQuery{rule: i, raw: raw, trimmed: trimmed}
-			if known != nil && known[i].hash != 0 {
+			if len(known) > i && known[i].hash != 0 {
 				q.hash, q.hashed = known[i].hash, true
 			}
 
