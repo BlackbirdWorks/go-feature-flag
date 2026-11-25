@@ -314,7 +314,7 @@ func initRetrieversWithRegistry(
 			return nil, fmt.Errorf("init retriever: %w", err)
 		}
 
-		retrievers = append(retrievers, currentRetriever)
+		retrievers = append(retrievers, currentRetriever.Retriever)
 	}
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
@@ -324,7 +324,7 @@ func initRetrieversWithRegistry(
 				return nil, fmt.Errorf("init retriever: %w", err)
 			}
 
-			retrievers = append(retrievers, currentRetriever)
+			retrievers = append(retrievers, currentRetriever.Retriever)
 		}
 	}
 
@@ -383,12 +383,12 @@ func initDataExporter(expConf *config.ExporterConf) (ffclient.DataExporter, erro
 		ExporterEventType: exporterEventType,
 	}
 
-	var err error
-
-	dataExp.Exporter, err = createExporter(expConf)
+	built, err := createExporter(expConf)
 	if err != nil {
 		return ffclient.DataExporter{}, err
 	}
+
+	dataExp.Exporter = built.CommonExporter
 
 	return dataExp, nil
 }
@@ -420,66 +420,71 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
-//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
-func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, error) {
+// builtExporter is the exporter that createExporter built: the implementation of the kind of the configuration.
+type builtExporter struct {
+	exporter.CommonExporter
+}
+
+// createExporter builds the exporter of the configuration.
+func createExporter(expConf *config.ExporterConf) (builtExporter, error) {
 	defaults := newExporterDefaults(expConf)
 
 	switch expConf.Kind {
 	case config.WebhookExporter:
-		return &webhookexporter.Exporter{
+		return builtExporter{CommonExporter: &webhookexporter.Exporter{
 			EndpointURL: expConf.EndpointURL,
 			Secret:      expConf.Secret,
 			Meta:        expConf.Meta,
 			Headers:     expConf.Headers,
-		}, nil
+		}}, nil
 	case config.FileExporter:
-		return &fileexporter.Exporter{
+		return builtExporter{CommonExporter: &fileexporter.Exporter{
 			Format:                  defaults.format,
 			OutputDir:               expConf.OutputDir,
 			Filename:                defaults.filename,
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
-		}, nil
+		}}, nil
 	case config.LogExporter:
-		return &logsexporter.Exporter{
+		return builtExporter{CommonExporter: &logsexporter.Exporter{
 			LogFormat: valueOrDefault(expConf.LogFormat, config.DefaultExporter().LogFormat),
-		}, nil
+		}}, nil
 	case config.S3Exporter, config.KinesisExporter, config.SQSExporter, config.RedshiftExporter:
 		return createAWSExporter(expConf, defaults)
 	case config.GoogleStorageExporter:
-		return &gcstorageexporter.Exporter{
+		return builtExporter{CommonExporter: &gcstorageexporter.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
 			Path:                    expConf.Path,
 			Filename:                defaults.filename,
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
-		}, nil
+		}}, nil
 	case config.KafkaExporter:
 		settings, err := setKafkaConfig(expConf.Kafka)
 		if err != nil {
-			return nil, err
+			return builtExporter{}, err
 		}
 
-		return &kafkaexporter.Exporter{
+		return builtExporter{CommonExporter: &kafkaexporter.Exporter{
 			Format:   defaults.format,
 			Settings: settings,
-		}, nil
+		}}, nil
 	case config.PubSubExporter:
-		return &pubsubexporterv2.Exporter{
+		return builtExporter{CommonExporter: &pubsubexporterv2.Exporter{
 			ProjectID: expConf.ProjectID,
 			Topic:     expConf.Topic,
-		}, nil
+		}}, nil
 	case config.BigQueryExporter:
-		return &bigqueryexporter.Exporter{
+		return builtExporter{CommonExporter: &bigqueryexporter.Exporter{
 			ProjectID:         expConf.ProjectID,
 			DatasetID:         expConf.DatasetID,
 			TableName:         expConf.TableName,
 			GoogleCredentials: []byte(expConf.GoogleCredentials),
 			AutoMigrate:       expConf.AutoMigrate,
-		}, nil
+		}}, nil
 	case config.AzureExporter:
-		return &azureexporter.Exporter{
+		return builtExporter{CommonExporter: &azureexporter.Exporter{
 			Container:               expConf.Container,
 			Format:                  defaults.format,
 			Path:                    expConf.Path,
@@ -488,20 +493,19 @@ func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, erro
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AccountKey:              expConf.AccountKey,
 			AccountName:             expConf.AccountName,
-		}, nil
+		}}, nil
 	case config.OpenTelemetryExporter:
-		return &opentelemetryexporter.Exporter{
+		return builtExporter{CommonExporter: &opentelemetryexporter.Exporter{
 			TracerName: expConf.TracerName,
-		}, nil
+		}}, nil
 	default:
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, expConf.Kind)
+		return builtExporter{}, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, expConf.Kind)
 	}
 }
 
 // createAWSExporter builds the exporters that load the default AWS configuration.
 //
-//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
-func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (exporter.CommonExporter, error) {
+func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (builtExporter, error) {
 	var awsOpts []func(*awsconf.LoadOptions) error
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {
 		awsOpts = append(awsOpts, awsconf.WithRegion(expConf.AwsRegion))
@@ -509,11 +513,11 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 
 	awsConfig, err := awsconf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("load AWS default config: %w", err)
+		return builtExporter{}, fmt.Errorf("load AWS default config: %w", err)
 	}
 
 	if expConf.Kind == config.S3Exporter {
-		return &s3exporterv2.Exporter{
+		return builtExporter{CommonExporter: &s3exporterv2.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
 			S3Path:                  expConf.Path,
@@ -521,29 +525,29 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 			CsvTemplate:             defaults.csvTemplate,
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AwsConfig:               &awsConfig,
-		}, nil
+		}}, nil
 	}
 
 	if expConf.Kind == config.KinesisExporter {
-		return &kinesisexporter.Exporter{
+		return builtExporter{CommonExporter: &kinesisexporter.Exporter{
 			Format:    defaults.format,
 			AwsConfig: &awsConfig,
 			Settings: kinesisexporter.NewSettings(
 				kinesisexporter.WithStreamArn(expConf.StreamArn),
 				kinesisexporter.WithStreamName(expConf.StreamName),
 			),
-		}, nil
+		}}, nil
 	}
 
 	if expConf.Kind == config.SQSExporter {
-		return &sqsexporter.Exporter{
+		return builtExporter{CommonExporter: &sqsexporter.Exporter{
 			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,
-		}, nil
+		}}, nil
 	}
 
 	// config.RedshiftExporter, the only other kind routed here
-	return &redshiftexporter.Exporter{
+	return builtExporter{CommonExporter: &redshiftexporter.Exporter{
 		ClusterIdentifier: expConf.ClusterIdentifier,
 		WorkgroupName:     expConf.WorkgroupName,
 		Database:          expConf.Database,
@@ -552,7 +556,7 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 		TableName:         expConf.TableName,
 		AwsConfig:         &awsConfig,
 		AutoMigrate:       expConf.AutoMigrate,
-	}, nil
+	}}, nil
 }
 
 // setKafkaConfig set the kafka configuration based on the default configuration

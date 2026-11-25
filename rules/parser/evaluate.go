@@ -194,7 +194,7 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 		return false, visitor.err
 	}
 
-	return assertType[bool](result), visitor.err
+	return assertBool(result), visitor.err
 }
 
 // Evaluate reports whether the rule matches the items, and false if the rule does not compile.
@@ -214,15 +214,57 @@ type recoveredPanicError struct{ info any }
 
 func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }
 
-// assertType returns v as a T. A mismatch is a bug of the evaluator, not a bad rule: it panics, and the recover of
-// the evaluation reports it as an error, as the unchecked type assertion it replaces did.
-//
-//nolint:ireturn // generic: the result is a type parameter
-func assertType[T any](v any) T {
-	res, ok := v.(T)
+// The assert functions return v as the type they name. A mismatch is a bug of the evaluator, not a bad rule: they
+// panic, and the recover of the evaluation reports it as an error, as the unchecked type assertion they replace did.
+
+func assertBool(v any) bool {
+	res, ok := v.(bool)
 	if !ok {
-		panic(fmt.Sprintf("interface conversion: %T is not %s", v, reflect.TypeFor[T]()))
+		panicConversion(v, "bool")
 	}
 
 	return res
+}
+
+func assertString(v any) string {
+	res, ok := v.(string)
+	if !ok {
+		panicConversion(v, "string")
+	}
+
+	return res
+}
+
+func assertMap(v any) map[string]any {
+	res, ok := v.(map[string]any)
+	if !ok {
+		panicConversion(v, "map[string]any")
+	}
+
+	return res
+}
+
+func assertInts(v any) []int {
+	return assertSlice[int](v)
+}
+
+func assertFloats(v any) []float64 {
+	return assertSlice[float64](v)
+}
+
+func assertStrings(v any) []string {
+	return assertSlice[string](v)
+}
+
+func assertSlice[E any](v any) []E {
+	res, ok := v.([]E)
+	if !ok {
+		panicConversion(v, reflect.TypeFor[[]E]().String())
+	}
+
+	return res
+}
+
+func panicConversion(v any, want string) {
+	panic(fmt.Sprintf("interface conversion: %T is not %s", v, want))
 }

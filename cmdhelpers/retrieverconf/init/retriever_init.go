@@ -78,11 +78,14 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 	return func(o *options) { o.postgresPools = pools }
 }
 
+// Built is the retriever that Retriever built: the implementation of the kind of the configuration.
+type Built struct {
+	retriever.Retriever
+}
+
 // Retriever initialize the retriever based on the configuration.
-//
-//nolint:ireturn // factory: selects the retriever implementation from the kind at runtime
 func Retriever(
-	conf *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, opts ...Option) (Built, error) {
 	var parsedOpts options
 	for _, opt := range opts {
 		opt(&parsedOpts)
@@ -95,19 +98,19 @@ func Retriever(
 
 	factory, exists := factoryFor(conf.Kind)
 	if !exists {
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
+		return Built{}, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
 	}
 
 	r, err := factory(conf, retrieverTimeout)
 	if err != nil {
-		return nil, err
+		return Built{}, err
 	}
 
 	if pg, ok := r.(*postgresqlretriever.Retriever); ok && parsedOpts.postgresPools != nil {
 		pg.Pools = parsedOpts.postgresPools
 	}
 
-	return r, nil
+	return Built{Retriever: r}, nil
 }
 
 // Factory functions for each retriever type.

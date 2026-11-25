@@ -50,10 +50,12 @@ func buildEvaluate(
 	evaluationCtx string,
 	customize func(r retriever.Retriever),
 ) (evaluate, error) {
-	r, err := retrieverinit.Retriever(conf)
+	built, err := retrieverinit.Retriever(conf)
 	if err != nil {
 		return evaluate{}, err
 	}
+
+	r := built.Retriever
 
 	if customize != nil {
 		customize(r)

@@ -703,7 +703,12 @@ func cloneMetadata(metadata map[string]any) map[string]any {
 		return nil
 	}
 
-	return asOr(cloneVariationValue(metadata), metadata)
+	cloned, ok := cloneVariationValue(metadata).(map[string]any)
+	if !ok {
+		return metadata
+	}
+
+	return cloned
 }
 
 // cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the

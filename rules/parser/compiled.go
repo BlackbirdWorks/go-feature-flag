@@ -154,7 +154,7 @@ func (st *evalState) resolve(path []string) {
 			return
 		}
 
-		m := assertType[map[string]any](item)
+		m := assertMap(item)
 		st.stack.push(m[name])
 	}
 
@@ -170,7 +170,7 @@ func (st *evalState) resolve(path []string) {
 		return
 	}
 
-	m := assertType[map[string]any](item)
+	m := assertMap(item)
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -219,19 +219,19 @@ func (n *compareNode) setRight(state *evalState) {
 
 	switch n.valKind {
 	case valueInts:
-		state.rightOp = appendList(state.rightOp, assertType[[]int](n.listOp))
+		state.rightOp = appendList(state.rightOp, assertInts(n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueDoubles:
-		state.rightOp = appendList(state.rightOp, assertType[[]float64](n.listOp))
+		state.rightOp = appendList(state.rightOp, assertFloats(n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueStrings:
-		state.rightOp = appendList(state.rightOp, assertType[[]string](n.listValue()))
+		state.rightOp = appendList(state.rightOp, assertStrings(n.listValue()))
 	case valueConst:
 		state.rightOp = n.rightOp
 		if n.valErr != nil {
@@ -246,7 +246,7 @@ func appendList[T any](current any, add []T) []T {
 	if current == nil {
 		list = []T{}
 	} else {
-		list = assertType[[]T](current)
+		list = assertSlice[T](current)
 	}
 
 	return append(list, add...)
@@ -433,7 +433,7 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		}
 
 		if _, ok := operation.(*VersionOperation); ok {
-			ruleVersion := assertType[string](cmpNode.rightOp)
+			ruleVersion := assertString(cmpNode.rightOp)
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
 

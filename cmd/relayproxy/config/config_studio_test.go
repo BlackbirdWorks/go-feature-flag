@@ -96,19 +96,17 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 	_, _ = w.Write([]byte(body))
 }
 
-// receive returns the next value of ch, it fails the test with msg after 5 seconds.
-func receive[T any](t *testing.T, ch <-chan T, msg string) T {
+// receive returns a pointer to the next value of ch, it fails the test with msg after 5 seconds.
+func receive[T any](t *testing.T, ch <-chan T, msg string) *T {
 	t.Helper()
 
 	select {
 	case v := <-ch:
-		return v
+		return &v
 	case <-time.After(5 * time.Second):
 		require.Fail(t, msg)
 
-		var zero T
-
-		return zero
+		return new(T)
 	}
 }
 
@@ -342,7 +340,7 @@ studio:
 				)
 			}
 
-			newConfig := receive(t, configs, timeoutWaitingForCallback)
+			newConfig := *receive(t, configs, timeoutWaitingForCallback)
 			assert.Equal(t, tt.wantPort, newConfig.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(newConfig))
 		})
@@ -411,11 +409,11 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 				configs <- observedConfig{config: c, requests: count}
 			})
 
-			c := receive(t, configs, "Timeout waiting for recovery after the failed reload")
+			c := *receive(t, configs, "Timeout waiting for recovery after the failed reload")
 			assert.Equal(t, []string{teamB}, flagSetNames(c.config))
 			require.NoError(t, c.config.IsValid())
 			assert.GreaterOrEqual(t, c.requests, 4, "failed reloads must not notify consumers")
-			header := receive(t, retries, "Timeout waiting for an unconditional retry")
+			header := *receive(t, retries, "Timeout waiting for an unconditional retry")
 			assert.Empty(t, header, "the failed reload must invalidate the accepted ETag")
 		})
 	}
@@ -492,7 +490,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 				require.Equal(
 					t,
 					tt.wantRetryETag,
-					receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
+					*receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
 				)
 			}
 
@@ -505,7 +503,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			mu.Unlock()
 
 			// Recovery must work even when the server reuses the rejected ETag.
-			c := receive(t, configs, "Timeout waiting for recovery with the same ETag")
+			c := *receive(t, configs, "Timeout waiting for recovery with the same ETag")
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(c))
 			assert.NoError(t, c.IsValid())
 		})

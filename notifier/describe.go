@@ -196,7 +196,7 @@ func (d *describer) flag(before, after *flag.InternalFlag) {
 // toggle describes an optional boolean. Setting or removing it without changing its
 // effective value is still a change to the flag file, so it gets its own sentence.
 func (d *describer) toggle(subject, field string, before, after *bool, defaultValue bool, onTrue, onFalse string) {
-	oldValue, newValue := derefOr(before, defaultValue), derefOr(after, defaultValue)
+	oldValue, newValue := derefBool(before, defaultValue), derefBool(after, defaultValue)
 	if d.inStep && before != after && (before == nil || after == nil) {
 		// A scheduled step sets the value at its date, whatever the default is,
 		// and leaves it alone when the field is absent.
@@ -338,7 +338,7 @@ func (d *describer) rule(label string, before, after flag.Rule, isDefault bool) 
 		d.text(label+" name", before.Name, after.Name, "")
 	}
 
-	oldQuery, newQuery := derefOr(before.Query, ""), derefOr(after.Query, "")
+	oldQuery, newQuery := derefString(before.Query), derefString(after.Query)
 	switch {
 	case oldQuery == newQuery:
 	case isDefault && newQuery == "":
@@ -565,7 +565,7 @@ func (d *describer) stepLines(before, after *flag.InternalFlag) []string {
 // describeRule describes a targeting rule as a whole, for a rule that was just added.
 func (d *describer) describeRule(rule flag.Rule) string {
 	text := "serves " + d.describeServe(&rule)
-	if query := derefOr(rule.Query, ""); query != "" {
+	if query := derefString(rule.Query); query != "" {
 		text += " when " + d.code(query)
 	}
 
@@ -717,7 +717,7 @@ type indexedRules struct {
 func indexRules(rules []flag.Rule) indexedRules {
 	index := indexedRules{order: make([]ruleKey, 0, len(rules)), rules: make(map[ruleKey]flag.Rule, len(rules))}
 	for i, rule := range rules {
-		key := ruleKey{name: derefOr(rule.Name, "")}
+		key := ruleKey{name: derefString(rule.Name)}
 		if _, taken := index.rules[key]; key.name == "" || taken {
 			key = ruleKey{position: i + 1}
 		}
@@ -818,10 +818,17 @@ func equalPtr[T comparable](a, b *T) bool {
 	return *a == *b
 }
 
-//nolint:ireturn // generic: the result is a type parameter
-func derefOr[T any](p *T, fallback T) T {
+func derefBool(p *bool, fallback bool) bool {
 	if p == nil {
 		return fallback
+	}
+
+	return *p
+}
+
+func derefString(p *string) string {
+	if p == nil {
+		return ""
 	}
 
 	return *p

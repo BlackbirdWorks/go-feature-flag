@@ -151,7 +151,7 @@ func newNikunjyEvaluatorCache() *nikunjyEvaluatorCache {
 }
 
 func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
-	if v, ok := loadAs[*parser.Evaluator](&c.entries, query); ok {
+	if v, ok := loadPtr[parser.Evaluator](&c.entries, query); ok {
 		return v, nil
 	}
 
@@ -162,7 +162,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 
 	actual, _ := c.entries.LoadOrStore(query, eval)
 
-	return asOr(actual, eval), nil
+	return ptrOr(actual, eval), nil
 }
 
 // validate parses the query through the cache and evaluates it on an empty context. That
@@ -391,7 +391,7 @@ func (c *nikunjyEvaluatorCache) referenceEntry(key uint64, raw string) *nikunjyK
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
 
-	entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	entry, ok := loadPtr[nikunjyKeyedEvaluator](&c.byKey, key)
 	if !ok || entry.query != raw {
 		return nil
 	}
@@ -412,7 +412,7 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 			continue
 		}
 
-		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+		entry, ok := loadPtr[nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
 			return 0, nil
 		}
@@ -443,7 +443,7 @@ func (c *nikunjyEvaluatorCache) intern(
 			continue
 		}
 
-		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+		entry, ok := loadPtr[nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
 			entry = &nikunjyKeyedEvaluator{query: raw, evaluator: evaluator}
 			c.byKey.Store(key, entry)
@@ -492,7 +492,7 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 		return nil
 	}
 
-	e, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	e, ok := loadPtr[nikunjyKeyedEvaluator](&c.byKey, key)
 	if !ok || e.query != raw {
 		return nil
 	}

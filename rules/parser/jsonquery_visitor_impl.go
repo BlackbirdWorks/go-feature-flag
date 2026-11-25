@@ -71,13 +71,13 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 
 	switch val := tree.(type) {
 	case *LogicalExpContext:
-		return assertType[bool](val.Accept(j))
+		return assertBool(val.Accept(j))
 	case *CompareExpContext:
-		return assertType[bool](val.Accept(j))
+		return assertBool(val.Accept(j))
 	case *ParenExpContext:
-		return assertType[bool](val.Accept(j))
+		return assertBool(val.Accept(j))
 	case *PresentExpContext:
-		return assertType[bool](val.Accept(j))
+		return assertBool(val.Accept(j))
 	default:
 		j.setErr(errInvalidRule2)
 
@@ -87,7 +87,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 
 // VisitParenExp evaluates a parenthesized query and negates it when NOT is present.
 func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
-	result := assertType[bool](ctx.Query().Accept(j))
+	result := assertBool(ctx.Query().Accept(j))
 	if ctx.NOT() != nil {
 		return !result
 	}
@@ -97,7 +97,7 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 
 // VisitLogicalExp evaluates an and/or expression of two queries.
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
-	left := assertType[bool](ctx.Query(0).Accept(j))
+	left := assertBool(ctx.Query(0).Accept(j))
 
 	op := ctx.LOGICAL_OPERATOR().GetText()
 	if op == "or" {
@@ -105,14 +105,14 @@ func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
 			return left
 		}
 
-		return assertType[bool](ctx.Query(1).Accept(j))
+		return assertBool(ctx.Query(1).Accept(j))
 	}
 	// means it is and
 	if !left {
 		return left
 	}
 
-	return assertType[bool](ctx.Query(1).Accept(j))
+	return assertBool(ctx.Query(1).Accept(j))
 }
 
 // VisitPresentExp reports whether the attribute path resolves to a value.
@@ -197,7 +197,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 			return nil
 		}
 
-		m := assertType[map[string]any](item)
+		m := assertMap(item)
 		j.leftOp = m[ctx.ATTRNAME().GetText()]
 		j.stack.clear()
 
@@ -214,7 +214,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 		return nil
 	}
 
-	m := assertType[map[string]any](item)
+	m := assertMap(item)
 	j.stack.push(m[ctx.ATTRNAME().GetText()])
 
 	return ctx.SubAttr().Accept(j)
@@ -329,7 +329,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) any
 		j.rightOp = make([]int, 0)
 	}
 
-	list := assertType[[]int](j.rightOp)
+	list := assertInts(j.rightOp)
 
 	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
@@ -366,7 +366,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfDoubles(ctx *SubListOfDoublesContex
 		j.rightOp = make([]float64, 0)
 	}
 
-	list := assertType[[]float64](j.rightOp)
+	list := assertFloats(j.rightOp)
 
 	val, err := strconv.ParseFloat(ctx.DOUBLE().GetText(), 64)
 	if err != nil {
@@ -404,7 +404,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 	}
 
 	val := getString(ctx.STRING().GetText())
-	list := assertType[[]string](j.rightOp)
+	list := assertStrings(j.rightOp)
 	list = append(list, val)
 	j.rightOp = list
 

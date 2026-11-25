@@ -50,10 +50,10 @@ func runInitRetrieverTests(t *testing.T, tests []initRetrieverCase) {
 			tt.wantErr(t, err)
 
 			if err == nil {
-				assert.IsType(t, tt.wantType, got)
+				assert.IsType(t, tt.wantType, got.Retriever)
 
 				if !tt.skipCompleteValidation {
-					assert.Equal(t, tt.want, got)
+					assert.Equal(t, tt.want, got.Retriever)
 				}
 			}
 		})
@@ -476,11 +476,11 @@ func Test_InitRetriever_Redis(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				assert.NotNil(t, got)
-				assert.IsType(t, &redisretriever.Retriever{}, got)
+				assert.NotNil(t, got.Retriever)
+				assert.IsType(t, &redisretriever.Retriever{}, got.Retriever)
 
 				if tt.validateRetriever != nil {
-					tt.validateRetriever(t, got)
+					tt.validateRetriever(t, got.Retriever)
 				}
 			}
 		})
@@ -510,7 +510,7 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 
 			require.NoError(t, err)
 
-			pg, ok := got.(*postgresqlretriever.Retriever)
+			pg, ok := got.Retriever.(*postgresqlretriever.Retriever)
 			require.True(t, ok)
 			assert.Same(t, tt.wantPools, pg.Pools)
 		})

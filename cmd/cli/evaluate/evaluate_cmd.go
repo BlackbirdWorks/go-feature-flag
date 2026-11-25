@@ -263,10 +263,12 @@ func runEvaluate(
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverinit.Retriever(retrieverConf)
+	built, err := retrieverinit.Retriever(retrieverConf)
 	if err != nil {
 		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}
+
+	r := built.Retriever
 
 	logger := slog.Default()
 

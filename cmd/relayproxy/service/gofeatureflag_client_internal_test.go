@@ -1099,7 +1099,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 		want       bool
 	}{
 		{name: "no retriever"},
-		{name: "another kind of retriever", retrievers: []retriever.Retriever{file}},
+		{name: "another kind of retriever", retrievers: []retriever.Retriever{file.Retriever}},
 		{name: "shared-poller retriever", retrievers: []retriever.Retriever{r}, want: true},
 	}
 	for _, tt := range tests {
