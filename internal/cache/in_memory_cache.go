@@ -87,9 +87,7 @@ func (fc *InMemoryCache) addFlag(key string, value *flag.InternalFlag) {
 
 // getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
 // allocation-free. The caller must not modify it.
-//
-//nolint:ireturn // returns the flag.Flag stored in the cache (the cache holds the interface of the public API)
-func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
+func (fc *InMemoryCache) getFlag(key string) (*flag.InternalFlag, error) {
 	cachedFlag, ok := fc.Flags[key]
 	if !ok {
 		// callers expect a usable (empty) flag next to the error

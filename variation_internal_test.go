@@ -69,7 +69,7 @@ var (
 )
 
 type cacheMock struct {
-	flag flag.Flag
+	flag *flag.InternalFlag
 	err  error
 }
 
@@ -90,7 +90,7 @@ type variationCase[T any, R any] struct {
 	wantErr     bool
 }
 
-func NewCacheMock(flg flag.Flag, err error) *cacheMock {
+func NewCacheMock(flg *flag.InternalFlag, err error) *cacheMock {
 	return &cacheMock{
 		flag: flg,
 		err:  err,
@@ -109,7 +109,7 @@ func (*cacheMock) UpdateCache(_ map[string]dto.DTO, _ *slog.Logger, _ bool) erro
 }
 
 func (*cacheMock) Close() {}
-func (c *cacheMock) GetFlag(_ string) (flag.Flag, error) {
+func (c *cacheMock) GetFlag(_ string) (*flag.InternalFlag, error) {
 	return c.flag, c.err
 }
 

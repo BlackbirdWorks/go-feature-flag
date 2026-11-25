@@ -217,9 +217,7 @@ func (g *GoFeatureFlag) RawVariation(
 
 // getFlagFromCache try to get the flag from the cache.
 // It returns an error if the cache is not init or if the flag is not present or disabled.
-//
-//nolint:ireturn // passes through the flag.Flag of the retriever manager, it constructs none
-func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (flag.Flag, error) {
+func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (*flag.InternalFlag, error) {
 	f, err := g.retrieverManager.GetFlag(flagKey)
 	if err != nil {
 		return f, fmt.Errorf("flag %v %w", flagKey, errNotPresentOrDisabled)

@@ -162,9 +162,7 @@ func (m *Manager) GetCacheRefreshDate() time.Time {
 }
 
 // GetFlag returns the flag from the cache with the current state when calling this method.
-//
-//nolint:ireturn // passes through the flag.Flag of the cache.Manager interface, it constructs none
-func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
+func (m *Manager) GetFlag(flagKey string) (*flag.InternalFlag, error) {
 	res, err := m.cacheManager.GetFlag(flagKey)
 	if err != nil {
 		return res, fmt.Errorf("getting the flag from the cache: %w", err)

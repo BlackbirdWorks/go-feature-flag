@@ -32,7 +32,7 @@ var _ Manager = (*ManagerImpl)(nil)
 type Manager interface {
 	UpdateCache(newFlags map[string]dto.DTO, log *slog.Logger, notifyChanges bool) error
 	Close()
-	GetFlag(key string) (flag.Flag, error)
+	GetFlag(key string) (*flag.InternalFlag, error)
 	// AllFlags returns a snapshot of the flags that the caller is free to change.
 	AllFlags() (map[string]flag.Flag, error)
 	// AllFlagsReadOnly returns the flags of the cache without copying them (cheap): the caller must only
@@ -173,9 +173,7 @@ func (c *ManagerImpl) Close() {
 }
 
 // GetFlag returns the cached flag with the given key, or an error if the flag does not exist.
-//
-//nolint:ireturn // implements cache.Manager, returns the flag.Flag stored in the cache
-func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
+func (c *ManagerImpl) GetFlag(key string) (*flag.InternalFlag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe

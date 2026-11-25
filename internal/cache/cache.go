@@ -11,7 +11,7 @@ type Cache interface {
 	addFlag(key string, value *flag.InternalFlag)
 
 	// getFlag get a specific flag by the flag key
-	getFlag(key string) (flag.Flag, error)
+	getFlag(key string) (*flag.InternalFlag, error)
 
 	// Copy return a copy version of the cache.
 	Copy() *InMemoryCache
