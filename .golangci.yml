@@ -1,5 +1,5 @@
 # Mirrors BlackbirdWorks/gopherstack .golangci.yml (golangci-lint v2.15.0, the
-# version pinned there in Taskfile.yml): same linters, same settings, same
+# version pinned in the Makefile as GOLANGCI_LINT_VERSION): same linters, same settings, same
 # thresholds, same formatters (goimports + golines, 120 columns).
 #
 # Deliberate differences from gopherstack:
@@ -17,7 +17,7 @@
 # This file is licensed under the terms of the MIT license https://opensource.org/license/mit
 # Copyright (c) 2021-2025 Marat Reimers
 
-## Golden config for golangci-lint v2.9.0
+## Golden config for golangci-lint v2.15.0
 #
 # This is the best config for golangci-lint based on my experience and opinion.
 # It is very strict, but not extremely strict.
@@ -32,17 +32,21 @@ run:
   # Cap concurrency to avoid memory/GC thrashing when loading SSA across
   # 200+ packages and large AWS SDK v2 dependency graphs.
   concurrency: 8
-  timeout: 55m
+  timeout: 10m
   # semaphore: build tags used by this repo (docker integration tests, benchmarks).
   build-tags:
     - docker
     - bench
 
 issues:
+  # Maximum count of issues per linter.
+  # Set to 0 to disable.
+  # Default: 50
+  max-issues-per-linter: 0
   # Maximum count of issues with the same text.
   # Set to 0 to disable.
   # Default: 3
-  max-same-issues: 50
+  max-same-issues: 0
 
 formatters:
   enable:
@@ -443,17 +447,11 @@ linters:
         # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#require-stdlib-doclink
         - require-stdlib-doclink
 
-    gosec:
-      # kept from the previous configuration
-      excludes:
-        - G304
-
     gomoddirectives:
       replace-local: true
       replace-allow-list:
         # fix for Athena v3 parquet query issue - https://github.com/xitongsys/parquet-go/issues/547
         - github.com/xitongsys/parquet-go
-        - github.com/apache/thrift
 
     govet:
       # Enable all analyzers.
@@ -532,12 +530,6 @@ linters:
       patterns:
         - ".*"
 
-    rowserrcheck:
-      # database/sql is always checked.
-      # Default: []
-      packages:
-        - github.com/jmoiron/sqlx
-
     sloglint:
       # Enforce not using global loggers.
       # Values:
@@ -578,9 +570,8 @@ linters:
         - -QF1008
 
     testifylint:
-      # go-require (no require.* off the test goroutine) is in the default set; kept explicit.
-      enable:
-        - go-require
+      # Enable all checkers (go-require included).
+      enable-all: true
 
     usetesting:
       # Enable/disable `os.TempDir()` detections.

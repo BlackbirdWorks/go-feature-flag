@@ -217,7 +217,7 @@ lint-install:
 
 lint-run:
 	@test -n "$(MODULE)" || { echo "usage: make lint-module MODULE=<dir>"; exit 1; }
-	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=20m --config $(CURDIR)/.golangci.yml ./...
+	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=10m --config $(CURDIR)/.golangci.yml ./...
 
 lint-module: lint-install lint-run ## Lint one module (usage: make lint-module MODULE=./)
 
