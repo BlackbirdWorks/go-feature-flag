@@ -14,6 +14,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -75,7 +76,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			calls := &atomic.Int64{}
 			newCtx := func(blockAt int64, reached, gate chan struct{}) ffcontext.Context {
 				return gatedContext{
-					Context: ffcontext.NewEvaluationContext(user2),
+					Context: ffcontext.NewEvaluationContext(fixtures.User),
 					calls:   calls, blockAt: blockAt, reached: reached, gate: gate,
 				}
 			}
@@ -94,7 +95,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			second := &queueTestExporter{bulk: tt.bulk}
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
-				Retriever:       &fileretriever.Retriever{Path: testdataFlagConfigYaml},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				DataExporters: []ffclient.DataExporter{
 					{Exporter: hook, FlushInterval: time.Hour},
 					{Exporter: second, FlushInterval: time.Hour},
@@ -105,7 +106,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			// 1. a first evaluation, to learn how many calls build an event, and to have something to flush.
 			calls.Store(0)
 
-			_, _ = client.BoolVariation(testFlag, newCtx(0, nil, nil), false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, newCtx(0, nil, nil), false)
 			perEvaluation := calls.Load()
 			require.Positive(t, perEvaluation)
 
@@ -115,7 +116,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			go func() {
 				defer close(lateDone)
 
-				_, _ = client.BoolVariation(testFlag, newCtx(perEvaluation, reached, gate), false)
+				_, _ = client.BoolVariation(fixtures.FlagKeyTest, newCtx(perEvaluation, reached, gate), false)
 			}()
 
 			select {

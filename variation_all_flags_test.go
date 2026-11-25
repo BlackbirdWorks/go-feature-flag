@@ -16,12 +16,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	numericValue123               = "123"
-	gofeatureflag                 = "gofeatureflag"
-	offline2                      = "offline"
+	offline                       = "offline"
 	testdataFfclientAllFlags      = "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml"
 	testdataFfclientGetFlagstates = "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml"
 	timestamp                     = "timestamp"
@@ -128,7 +127,7 @@ func TestAllFlagsState(t *testing.T) {
 			initModule:   false,
 		},
 		{
-			name: offline2,
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{
@@ -166,7 +165,7 @@ func TestAllFlagsState(t *testing.T) {
 				goff.Close()
 			}
 
-			user := ffcontext.NewEvaluationContext(randomKey)
+			user := ffcontext.NewEvaluationContext(fixtures.UserKeyRandom)
 			allFlagsState := goff.AllFlagsState(user)
 			assert.Equal(t, tt.wantValid, allFlagsState.IsValid())
 
@@ -203,8 +202,8 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).
-				AddCustom(gofeatureflag, map[string]any{
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Value123).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
 					"flagList": []string{"test-flag1", "test-flag4"},
 				}).
 				Build(),
@@ -219,8 +218,8 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).
-				AddCustom(gofeatureflag, map[string]any{
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Value123).
+				AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
 					"flagList": []string{},
 				}).
 				Build(),
@@ -235,10 +234,10 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:         true,
 			wantJSONFile:      "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:        true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).Build(),
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixtures.Value123).Build(),
 		},
 		{
-			name: offline2,
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{
@@ -327,7 +326,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 			wantErr:    assert.NoError,
 		},
 		{
-			name: offline2,
+			name: offline,
 			config: ffclient.Config{
 				Offline: true,
 				Retriever: &fileretriever.Retriever{

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	legacy2 = "[legacy] "
+	legacyLogPrefix = "[legacy] "
 )
 
 func TestConfig_serviceLogger(t *testing.T) {
@@ -69,10 +69,10 @@ func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
 		redirect     bool
 	}{
 		{name: "same output", prefix: "", flags: 0, wantFirst: "msg=one"},
-		{name: "the prefix of the legacy logger", prefix: legacy2, flags: 0, wantFirst: legacy2},
+		{name: "the prefix of the legacy logger", prefix: legacyLogPrefix, flags: 0, wantFirst: legacyLogPrefix},
 		{
 			name:      "the flags of the legacy logger",
-			prefix:    legacy2,
+			prefix:    legacyLogPrefix,
 			flags:     log.Lmsgprefix,
 			wantFirst: "[legacy] time=",
 		},

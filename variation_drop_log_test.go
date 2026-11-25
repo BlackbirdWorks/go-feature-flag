@@ -15,6 +15,7 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // dropGatedSink blocks the records about dropped events until gate is closed.
@@ -72,7 +73,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
-				Retriever:       &fileretriever.Retriever{Path: testdataFlagConfigYaml},
+				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				LeveledLogger:   slog.New(sink),
 				EventQueueSize:  tt.queueSize,
 				DataExporter: ffclient.DataExporter{
@@ -94,7 +95,11 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						default:
 						}
 
-						_, _ = client.BoolVariation(testFlag, ffcontext.NewEvaluationContext(user2), false)
+						_, _ = client.BoolVariation(
+							fixtures.FlagKeyTest,
+							ffcontext.NewEvaluationContext(fixtures.User),
+							false,
+						)
 
 						counters[i].Add(1)
 					}

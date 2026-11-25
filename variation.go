@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	env2 = "env"
+	env = "env"
 )
 
 const (
@@ -530,7 +530,7 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 				enrichment = make(map[string]any, 1)
 			}
 
-			enrichment[env2] = g.config.Environment
+			enrichment[env] = g.config.Environment
 		}
 
 		g.enrichment = enrichment

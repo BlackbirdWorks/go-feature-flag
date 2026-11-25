@@ -10,13 +10,12 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 const (
-	anonymous2      = "anonymous"
 	evalContextUUID = "1668d845-051d-4dd9-907a-7ebe6aa2c9da"
-	value           = "value"
 )
 
 func TestValidTrackingEvent(t *testing.T) {
@@ -41,9 +40,9 @@ func TestValidTrackingEvent(t *testing.T) {
 		"my-feature-flag",
 		ffcontext.NewEvaluationContextBuilder(evalContextUUID).
 			AddCustom("admin", true).
-			AddCustom(anonymous2, true).
+			AddCustom(fixtures.Anonymous, true).
 			Build(),
-		map[string]any{"additional data": value},
+		map[string]any{"additional data": fixtures.Value},
 	)
 
 	assert.Len(t, exp.ExportedEvents, 1)
@@ -52,15 +51,15 @@ func TestValidTrackingEvent(t *testing.T) {
 	assert.Equal(
 		t,
 		map[string]any{
-			"targetingKey": evalContextUUID,
-			"admin":        true,
-			anonymous2:     true,
+			"targetingKey":     evalContextUUID,
+			"admin":            true,
+			fixtures.Anonymous: true,
 		},
 		exp.ExportedEvents[0].EvaluationContext,
 	)
 	assert.Equal(
 		t,
-		map[string]any{"additional data": value},
+		map[string]any{"additional data": fixtures.Value},
 		exp.ExportedEvents[0].TrackingDetails,
 	)
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -57,7 +58,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events 
 func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	t.Parallel()
 
-	const flagFile = testdataFlagConfigYaml
+	const flagFile = fixtures.FlagConfigYAMLPath
 	// goroutineRatio: the growth must be under 1/10 of the evaluations (>= 500 for 5000 evaluations),
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
@@ -132,7 +133,11 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			for range 4 {
 				wg.Go(func() {
 					for range tt.evals / 4 {
-						_, _ = client.BoolVariation(testFlag, ffcontext.NewEvaluationContext(user2), false)
+						_, _ = client.BoolVariation(
+							fixtures.FlagKeyTest,
+							ffcontext.NewEvaluationContext(fixtures.User),
+							false,
+						)
 
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)

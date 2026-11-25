@@ -17,6 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -166,7 +167,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 				PollingInterval: 3 * time.Second,
 				Retriever: &githubretriever.Retriever{
 					RepositorySlug: "thomaspoignant/go-feature-flag",
-					FilePath:       testdataFlagConfigYaml,
+					FilePath:       fixtures.FlagConfigYAMLPath,
 					GithubToken:    "XXX",
 				},
 			},
