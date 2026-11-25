@@ -18,8 +18,8 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
 )
 
 const (

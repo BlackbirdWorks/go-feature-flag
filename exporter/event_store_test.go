@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -29,7 +29,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+			eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 				defaultTestCleanQueueDuration,
 			)
 
@@ -46,7 +46,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+			eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 				defaultTestCleanQueueDuration,
 			)
 
@@ -55,7 +55,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 
 			err := eventStore.ProcessPendingEvents(
 				"wrong name",
-				func(_ context.Context, _ []testutils.ExportableMockEvent) error { return nil },
+				func(_ context.Context, _ []testhelpers.ExportableMockEvent) error { return nil },
 			)
 			assert.EqualError(t, err, "consumer with name wrong name not found")
 		},
@@ -66,7 +66,7 @@ func Test_SingleConsumer(t *testing.T) {
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -86,7 +86,7 @@ func Test_SingleConsumer(t *testing.T) {
 
 	// Consume
 	err := eventStore.ProcessPendingEvents(consumerName,
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 100)
 
 			return nil
@@ -104,7 +104,7 @@ func Test_SingleConsumer(t *testing.T) {
 	requireEventuallyPendingCount(t, eventStore, consumerName, 91)
 
 	err = eventStore.ProcessPendingEvents(consumerName,
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 91)
 
 			return nil
@@ -119,7 +119,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 
 	consumerNames := []string{consumer1, "consumer2"}
 
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 	for _, name := range consumerNames {
@@ -141,7 +141,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	assert.Equal(t, int64(1000), consumer1Size)
 
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -167,7 +167,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 
 	// Consumer with Consumer1 and Consumer2
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -175,7 +175,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	require.NoError(t, err)
 
 	err = eventStore.ProcessPendingEvents(consumerNames[1],
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 2000)
 
 			return nil
@@ -191,7 +191,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 
 	consumerNames := []string{consumer1, "consumer2"}
 
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 	for _, name := range consumerNames {
@@ -211,14 +211,14 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 	var countersMu sync.Mutex
 
 	consumeFunc := func(
-		eventStore exporter.EventStore[testutils.ExportableMockEvent],
+		eventStore exporter.EventStore[testhelpers.ExportableMockEvent],
 		consumerName string,
 		eventCounters *map[string]int,
 	) {
 		defer wg.Done()
 
 		err := eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 				assert.NotEmpty(t, events)
 
 				return nil
@@ -229,7 +229,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 		) // we wait to be sure that the producer has produce new events
 
 		err = eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 				if eventCounters != nil {
 					countersMu.Lock()
 					(*eventCounters)[consumerName] = len(events)
@@ -257,7 +257,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -274,7 +274,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 	// process is in error, so we are not able to update the offset
 	err = eventStore.ProcessPendingEvents(
 		consumerName,
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return errError
@@ -290,7 +290,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 	// process is not in error anymore
 	err = eventStore.ProcessPendingEvents(
 		consumerName,
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -309,7 +309,7 @@ func Test_WaitForEmptyClean(t *testing.T) {
 
 	consumerNames := []string{consumer1}
 
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 	for _, name := range consumerNames {
@@ -323,7 +323,7 @@ func Test_WaitForEmptyClean(t *testing.T) {
 	startEventProducer(ctx, eventStore, 100, false)
 	err := eventStore.ProcessPendingEvents(
 		consumerNames[0],
-		func(_ context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			assert.Len(t, events, 100)
 
 			return nil
@@ -338,7 +338,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -346,7 +346,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
+		eventStore.Add(testhelpers.NewExportableMockEvent(initEvent))
 	}
 
 	processingStarted := make(chan struct{})
@@ -357,7 +357,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 
 	go func() {
 		_ = eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 				for _, e := range events {
 					processedBatch = append(processedBatch, e.GetUserKey())
 				}
@@ -377,7 +377,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	addDone := make(chan struct{})
 
 	go func() {
-		eventStore.Add(testutils.NewExportableMockEvent("during-export"))
+		eventStore.Add(testhelpers.NewExportableMockEvent("during-export"))
 		close(addDone)
 	}()
 
@@ -404,7 +404,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -412,7 +412,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
+		eventStore.Add(testhelpers.NewExportableMockEvent(initEvent))
 	}
 
 	processingStarted := make(chan struct{})
@@ -427,7 +427,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 
 	wg.Go(func() {
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 				batchesMu.Lock()
 
 				batchSizes = append(batchSizes, len(events))
@@ -451,7 +451,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	wg.Go(func() {
 		close(secondCallStarted)
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 				batchesMu.Lock()
 
 				batchSizes = append(batchSizes, len(events))
@@ -476,7 +476,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	addDone := make(chan struct{})
 
 	go func() {
-		eventStore.Add(testutils.NewExportableMockEvent("during-queued-flush"))
+		eventStore.Add(testhelpers.NewExportableMockEvent("during-queued-flush"))
 		close(addDone)
 	}()
 
@@ -505,7 +505,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -513,7 +513,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
+		eventStore.Add(testhelpers.NewExportableMockEvent(initEvent))
 	}
 
 	var (
@@ -525,7 +525,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 		wg          sync.WaitGroup
 	)
 
-	processFunc := func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+	processFunc := func(ctx context.Context, events []testhelpers.ExportableMockEvent) error {
 		callbackMu.Lock()
 
 		batchSizes = append(batchSizes, len(events))
@@ -568,7 +568,7 @@ func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 	t.Parallel()
 
 	consumerName := consumer1
-	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
+	eventStore := exporter.NewEventStore[testhelpers.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
 
@@ -578,7 +578,7 @@ func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 	callbackCalled := false
 	err := eventStore.ProcessPendingEvents(
 		consumerName,
-		func(_ context.Context, _ []testutils.ExportableMockEvent) error {
+		func(_ context.Context, _ []testhelpers.ExportableMockEvent) error {
 			callbackCalled = true
 
 			return nil
@@ -594,7 +594,7 @@ func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 // being scheduled promptly, which is not guaranteed on a loaded CI runner.
 func requireEventuallyPendingCount(
 	t *testing.T,
-	eventStore exporter.EventStore[testutils.ExportableMockEvent],
+	eventStore exporter.EventStore[testhelpers.ExportableMockEvent],
 	consumerName string,
 	want int64,
 ) {
@@ -612,7 +612,7 @@ func requireEventuallyPendingCount(
 // margin left once the runner stalls.
 func requireEventuallyEmptyStore(
 	t *testing.T,
-	eventStore exporter.EventStore[testutils.ExportableMockEvent],
+	eventStore exporter.EventStore[testhelpers.ExportableMockEvent],
 ) {
 	t.Helper()
 	require.Eventually(t, func() bool {
@@ -623,7 +623,7 @@ func requireEventuallyEmptyStore(
 
 func startEventProducer(
 	ctx context.Context,
-	eventStore exporter.EventStore[testutils.ExportableMockEvent],
+	eventStore exporter.EventStore[testhelpers.ExportableMockEvent],
 	produceMax int,
 	randomizeProducingTime bool,
 ) {
@@ -637,7 +637,7 @@ func startEventProducer(
 				time.Sleep(time.Duration(randomNumber) * time.Millisecond)
 			}
 
-			eventStore.Add(testutils.NewExportableMockEvent("Hello"))
+			eventStore.Add(testhelpers.NewExportableMockEvent("Hello"))
 		}
 	}
 }

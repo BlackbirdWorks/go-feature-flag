@@ -3,7 +3,7 @@ package loadtest
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
 
 // TestMain pins the clock once for the whole package: the events that the harness produces are stamped

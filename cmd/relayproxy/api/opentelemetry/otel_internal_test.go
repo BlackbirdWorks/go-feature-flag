@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (

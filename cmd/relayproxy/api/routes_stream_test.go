@@ -21,7 +21,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -35,7 +35,7 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 
 	logger := slog.New(slog.DiscardHandler)
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: file2, Path: testdataFlagConfigYaml},
@@ -153,7 +153,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			PollingInterval: 200,
 		}
 	}
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		FlagSets: []config.FlagSet{
 			flagset("tenant-a", "tenant-A-api-key", tenantAFile),

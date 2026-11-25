@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
@@ -124,7 +124,7 @@ loglevel: error`,
 			t.Parallel()
 
 			// Create temporary directory and config file
-			configFile := testutils.CopyContentToNewTempFile(t, tt.initialConfig)
+			configFile := testhelpers.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
 			flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 			flagSet.String(config3, "", locationOfYourConfig)
@@ -148,7 +148,7 @@ loglevel: error`,
 			// the watch of the file is registered when NewConfigLoader returns: no need to wait for it
 
 			// Update config file to trigger callback
-			_ = testutils.CopyContentToExistingTempFile(t, tt.updatedConfig, configFile)
+			_ = testhelpers.CopyContentToExistingTempFile(t, tt.updatedConfig, configFile)
 
 			// Wait for callback to be triggered (file watchers may have some delay)
 			timeout := time.After(5 * time.Second)
@@ -212,7 +212,7 @@ loglevel: error`,
 func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
 	t.Parallel()
 
-	configFile := testutils.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
+	configFile := testhelpers.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
 	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
@@ -238,7 +238,7 @@ func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
 	})
 
 	// Update config file
-	_ = testutils.CopyContentToExistingTempFile(t, `server:
+	_ = testhelpers.CopyContentToExistingTempFile(t, `server:
   port: 9999
 pollingInterval: 5000
 loglevel: debug`, configFile)
@@ -257,7 +257,7 @@ func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
 	t.Parallel()
 
 	// Create temporary directory and config file
-	configFile := testutils.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
+	configFile := testhelpers.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
 	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
@@ -288,7 +288,7 @@ func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
   port: invalid
 pollingInterval: 1000
 loglevel: info`
-	_ = testutils.CopyContentToExistingTempFile(t, invalidConfig, configFile)
+	_ = testhelpers.CopyContentToExistingTempFile(t, invalidConfig, configFile)
 
 	// Wait a bit for the file watcher to detect the change and attempt to load the config
 	time.Sleep(1 * time.Second)

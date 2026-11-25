@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -95,9 +95,9 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			evStore := mock.NewEventStore[testutils.ExportableMockEvent]()
+			evStore := mock.NewEventStore[testhelpers.ExportableMockEvent]()
 			for range 100 {
-				evStore.Add(testutils.NewExportableMockEvent(feature))
+				evStore.Add(testhelpers.NewExportableMockEvent(feature))
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -107,7 +107,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 			defer func() { _ = os.Remove(logFile.Name()) }()
 
 			exporterMock := tt.exporter
-			exp := exporter.NewDataExporter[testutils.ExportableMockEvent](
+			exp := exporter.NewDataExporter[testhelpers.ExportableMockEvent](
 				exporter.Config{
 					Exporter:         exporterMock,
 					FlushInterval:    0,

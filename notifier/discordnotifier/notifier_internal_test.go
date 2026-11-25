@@ -14,7 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -57,7 +57,7 @@ func runDiscordNotifyCases(t *testing.T, tests []discordNotifyCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockHTTPClient := &testutils.HTTPClientMock{
+			mockHTTPClient := &testhelpers.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
 			}

@@ -9,7 +9,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
 )
 
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {

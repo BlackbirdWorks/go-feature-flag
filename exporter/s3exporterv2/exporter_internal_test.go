@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -60,7 +60,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ManagerMock := testutils.S3ManagerV2Mock{}
+			s3ManagerMock := testhelpers.S3ManagerV2Mock{}
 			s3Exp := &Exporter{
 				Bucket:          tt.fields.Bucket,
 				AwsConfig:       tt.fields.AwsConfig,
@@ -400,7 +400,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
 	}
 
-	s3ManagerMock := testutils.S3ManagerV2Mock{}
+	s3ManagerMock := testhelpers.S3ManagerV2Mock{}
 	f := &Exporter{
 		Bucket:     test,
 		s3Uploader: &s3ManagerMock,
@@ -445,7 +445,7 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 	tempPattern := filepath.Join(os.TempDir(), "go_feature_flag_s3_export*")
 	before, _ := filepath.Glob(tempPattern)
 
-	f := &Exporter{Bucket: test, s3Uploader: &testutils.S3ManagerV2Mock{}}
+	f := &Exporter{Bucket: test, s3Uploader: &testhelpers.S3ManagerV2Mock{}}
 	err := f.Export(
 		context.TODO(),
 		&fflog.FFLogger{LeveledLogger: slog.Default()},

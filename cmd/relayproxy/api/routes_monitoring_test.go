@@ -18,7 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
@@ -50,14 +50,14 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			t.Parallel()
 
 			logger := slog.New(slog.DiscardHandler)
-			ln, port := testutils.ListenLocal(t)
+			ln, port := testhelpers.ListenLocal(t)
 			opts := []api.Option{api.WithListener(ln)}
 			monitoringPort := 0
 
 			if tt.dedicatedMonitoring {
 				var monitoringLn net.Listener
 
-				monitoringLn, monitoringPort = testutils.ListenLocal(t)
+				monitoringLn, monitoringPort = testhelpers.ListenLocal(t)
 				opts = append(opts, api.WithMonitoringListener(monitoringLn))
 			}
 

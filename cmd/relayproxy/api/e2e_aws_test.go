@@ -3,7 +3,7 @@
 package api_test
 
 // These tests run a real relay proxy (config file -> flagset manager -> API server) against the
-// gopherstack AWS emulator, started once for the package by testutils/gopherstack.
+// gopherstack AWS emulator, started once for the package by testhelpers/gopherstack.
 //
 // The relay proxy builds its AWS clients with config.LoadDefaultConfig and has no endpoint
 // setting, so the only way to point it to the emulator is the AWS_* environment variables. The
@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
 const (

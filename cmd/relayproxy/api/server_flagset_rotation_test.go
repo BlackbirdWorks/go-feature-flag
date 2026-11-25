@@ -26,7 +26,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -74,7 +74,7 @@ func (m routingLostManager) FlagSetName(apiKey string) (string, error) {
 func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
@@ -208,7 +208,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		return flagsets([]string{"a-key", newKey}, []string{"b-key", rotatingKey})
 	}
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
 

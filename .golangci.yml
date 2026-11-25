@@ -306,8 +306,8 @@ linters:
             - "!${base-path}/exporter/data_exporter.go"
             - "!${base-path}/exporter/exporter.go"
             - "!${base-path}/retriever/retriever.go"
-            - "!${base-path}/testutils/mock/exporter_mock.go"
-            - "!${base-path}/testutils/mock/mockretriever/initializable_retriever_legacy.go"
+            - "!${base-path}/testhelpers/mock/exporter_mock.go"
+            - "!${base-path}/testhelpers/mock/mockretriever/initializable_retriever_legacy.go"
             - "!${base-path}/utils/fflog/log.go"
             - "!${base-path}/utils/fflog/log_test.go"
           deny:

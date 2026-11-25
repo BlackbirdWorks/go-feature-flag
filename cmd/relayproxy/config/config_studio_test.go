@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -237,7 +237,7 @@ flagSets:
 			}
 
 			fileConfig := strings.NewReplacer(uRL, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
-			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
+			configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
 			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 			f.String(config3, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
@@ -311,7 +311,7 @@ studio:
 			}))
 			defer srv.Close()
 
-			configFile := testutils.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, uRL, srv.URL))
+			configFile := testhelpers.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, uRL, srv.URL))
 			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 			f.String(config3, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
@@ -334,7 +334,7 @@ studio:
 			}
 
 			if tt.newFile != "" {
-				_ = testutils.CopyContentToExistingTempFile(
+				_ = testhelpers.CopyContentToExistingTempFile(
 					t,
 					strings.ReplaceAll(tt.newFile, uRL, srv.URL),
 					configFile,
@@ -519,7 +519,7 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 		fileConfig += "  cacheFile: " + cacheFile + "\n"
 	}
 
-	configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
+	configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
 	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 	f.String(config3, "", locationOfYourConfig)
 	require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))

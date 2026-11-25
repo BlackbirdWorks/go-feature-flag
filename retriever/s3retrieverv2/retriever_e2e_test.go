@@ -19,7 +19,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
 const (

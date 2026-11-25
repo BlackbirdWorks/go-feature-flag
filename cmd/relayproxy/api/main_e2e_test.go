@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
 // TestMain starts the gopherstack emulator shared by the tests of this package, and removes it at the end.

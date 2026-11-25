@@ -18,7 +18,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -39,18 +39,18 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 	}{
 		{
 			name: "Returns well formed flag definition document",
-			data: testutils.MongoFindResultString,
-			want: []byte(testutils.QueryResult),
+			data: testhelpers.MongoFindResultString,
+			want: []byte(testhelpers.QueryResult),
 		},
 		{
 			name: "One of the Flag definition document does not have 'flag' key/value (ignore this document)",
-			data: testutils.MongoMissingFlagKey,
-			want: []byte(testutils.MissingFlagKeyResult),
+			data: testhelpers.MongoMissingFlagKey,
+			want: []byte(testhelpers.MissingFlagKeyResult),
 		},
 		{
 			name: "Flag definition document 'flag' key does not have 'string' value (ignore this document)",
-			data: testutils.MongoFindResultFlagNoStr,
-			want: []byte(testutils.FlagKeyNotStringResult),
+			data: testhelpers.MongoFindResultFlagNoStr,
+			want: []byte(testhelpers.FlagKeyNotStringResult),
 		},
 		{
 			name: "No flags found on DB",

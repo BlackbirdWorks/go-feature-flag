@@ -1,4 +1,4 @@
-package testutils
+package testhelpers
 
 // MongoFindResultString is a MongoDB find result with two flags.
 const MongoFindResultString = `[{"flag":"test-flag","variations":{"true_var":true,"false_var":false},"targeting":` +

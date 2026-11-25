@@ -29,7 +29,7 @@ import (
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -111,7 +111,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -191,8 +191,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
-	monitoringLn, monitoringPort := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
+	monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -309,7 +309,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 func Test_CheckOFREPAPIExists(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -405,7 +405,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -458,7 +458,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 func Test_VersionHeader_Disabled(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -622,7 +622,7 @@ func runAuthMiddlewareTests(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
@@ -811,7 +811,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	t.Parallel()
 
 	skipUnixSocketOnWindows(t)
-	monitoringLn, monitoringPort := testutils.ListenLocal(t)
+	monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
 	// Create a temporary directory for the socket
 	tempDir := shortSocketDir(t)
 
@@ -1317,7 +1317,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -1443,7 +1443,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	t.Parallel()
 
 	// The server serves on a listener that stays bound from the start: the server closing it is what frees the port.
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{

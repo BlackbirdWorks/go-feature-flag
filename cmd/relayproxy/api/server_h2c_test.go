@@ -16,7 +16,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -41,7 +41,7 @@ func TestServerEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			conf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: file2, Path: testdataFlagConfigYaml}},
 				Server: config.Server{

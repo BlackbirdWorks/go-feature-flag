@@ -27,7 +27,7 @@ class Fixture(unittest.TestCase):
         self.addCleanup(self._td.cleanup)
         self.root = self._td.name
         self.write("go.mod", "module %s\n\ngo 1.22\n" % ROOT_MOD)
-        self.write("exclude.txt", "# c\ntestutils/\nmodules/core/testutils/\n**/gen_*.go\n")
+        self.write("exclude.txt", "# c\ntesthelpers/\nmodules/core/testhelpers/\n**/gen_*.go\n")
 
     def write(self, rel, text):
         path = os.path.join(self.root, rel)
@@ -118,13 +118,13 @@ class ExcludeTest(Fixture):
         return any(r.match(path) for r in pats)
 
     def test_root_only_vs_nested(self):
-        self.assertTrue(self.matches("testutils/x.go"))
-        self.assertTrue(self.matches("testutils/sub/x.go"))
-        self.assertTrue(self.matches("modules/core/testutils/x.go"))
-        # `testutils/` is anchored at the repository root
-        self.assertFalse(self.matches("cmd/testutils/x.go"))
+        self.assertTrue(self.matches("testhelpers/x.go"))
+        self.assertTrue(self.matches("testhelpers/sub/x.go"))
+        self.assertTrue(self.matches("modules/core/testhelpers/x.go"))
+        # `testhelpers/` is anchored at the repository root
+        self.assertFalse(self.matches("cmd/testhelpers/x.go"))
         self.assertFalse(self.matches("modules/core/other/x.go"))
-        self.assertFalse(self.matches("testutilsx/x.go"))
+        self.assertFalse(self.matches("testhelpersx/x.go"))
 
     def test_double_star(self):
         self.assertTrue(self.matches("gen_a.go"))
@@ -133,16 +133,16 @@ class ExcludeTest(Fixture):
 
     def test_excluded_files_leave_the_denominator(self):
         self.write("a/a.go", GO_A)
-        self.write("testutils/t.go", GO_A)
+        self.write("testhelpers/t.go", GO_A)
         p = self.profile("p.out",
                          "%s/a/a.go:3.10,7.2 4 1" % ROOT_MOD,
-                         "%s/testutils/t.go:3.10,7.2 4 0" % ROOT_MOD)
+                         "%s/testhelpers/t.go:3.10,7.2 4 0" % ROOT_MOD)
         merged = os.path.join(self.root, "merged.out")
         rc, out, _ = self.run_main(p, "--merged", merged)
         self.assertEqual(rc, 0)
         self.assertEqual(self.total(out), 100.0)
         with open(merged, encoding="utf-8") as fh:
-            self.assertNotIn("testutils", fh.read())
+            self.assertNotIn("testhelpers", fh.read())
         rc, out, _ = self.run_main(p, "--no-exclude")
         self.assertLess(self.total(out), 100.0)
 

@@ -20,7 +20,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 

@@ -18,7 +18,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 - `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
 - `internal/cache/`: flag cache. `ffcontext/`, `model/`, `utils/`: public helper packages of the engine.
 - `retriever/`, `exporter/`, `notifier/`: integrations (flag sources, evaluation-data sinks, change notifications).
-- `testutils/` (mocks, `gopherstack` emulator helpers), `testdata/`: test helpers and fixtures.
+- `testhelpers/` (mocks, `gopherstack` emulator helpers), `testdata/`: test helpers and fixtures.
 - `openfeature/provider_tests/`: compatibility tests of the relay proxy against real OpenFeature providers.
 - `.github/ci-scripts/`: CI helper scripts (test sharding, coverage, fuzz); `docs/`: Markdown documentation (`docs/README.md`).
 - `.schema/flag-schema.json`: JSON schema of the flag file.

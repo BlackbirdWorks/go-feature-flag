@@ -23,8 +23,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
@@ -92,11 +92,11 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -120,7 +120,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
 				t,
 				tt.modifiedConfigFile,
 				configFile,
@@ -206,11 +206,11 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -234,7 +234,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
 				t,
 				tt.modifiedConfigFile,
 				configFile,
@@ -299,11 +299,11 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
@@ -329,7 +329,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			}
 
 			// Modify the config to create an invalid config
-			_ = testutils.ReplaceAndCopyFileToExistingFile(
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
 				t,
 				tt.modifiedConfigFile,
 				configFile,
@@ -406,11 +406,11 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			listener, port := testutils.ListenLocal(t)
+			listener, port := testhelpers.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
-			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
+			configFile := testhelpers.CopyFileToNewTempFile(t, tt.initialConfigFile)
+			testhelpers.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -432,7 +432,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 				doHTTPRequestAndCheck(t, urlAPIAllFlags, body, check, phaseBeforeChange)
 			}
 
-			_ = testutils.ReplaceAndCopyFileToExistingFile(
+			_ = testhelpers.ReplaceAndCopyFileToExistingFile(
 				t,
 				tt.modifiedConfigFile,
 				configFile,
@@ -459,11 +459,11 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	t.Parallel()
 
-	listener, listenPort := testutils.ListenLocal(t)
+	listener, listenPort := testhelpers.ListenLocal(t)
 	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
-	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
-	testutils.ReplaceInFile(t, configFile, placeholderPort, port)
+	configFile := testhelpers.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
+	testhelpers.ReplaceInFile(t, configFile, placeholderPort, port)
 
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := slogutil.NewObserver(slog.LevelError)
@@ -491,7 +491,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	}, phaseBeforeChange)
 
 	// Change the retriever of the existing flagset: this is a forbidden modification.
-	_ = testutils.ReplaceAndCopyFileToExistingFile(
+	_ = testhelpers.ReplaceAndCopyFileToExistingFile(
 		t, "../testdata/config/flagset-modify-config-MODIFIED.yaml", configFile, placeholderPort, port)
 
 	select {

@@ -324,7 +324,7 @@ jobs:
       - name: Pre-pull the gopherstack image
         run: |
           # The tag is the single source of truth in the test helper.
-          image=$(sed -n 's/^[[:space:]]*Image = "\(.*\)"$/\1/p' testutils/gopherstack/gopherstack.go)
+          image=$(sed -n 's/^[[:space:]]*Image = "\(.*\)"$/\1/p' testhelpers/gopherstack/gopherstack.go)
           [[ -n "$image" ]] || { echo "::error::cannot read the gopherstack image"; exit 1; }
           .github/ci-scripts/pull-images.sh "$image"
       - name: Run e2e tests with the race detector

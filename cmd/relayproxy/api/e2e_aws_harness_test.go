@@ -24,7 +24,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 // startRelayProxyFromYAML starts a relay proxy in the process from a YAML configuration, wired like
@@ -32,7 +32,7 @@ import (
 // executed with data, and the port of the server is available as {{ .Port }}. It returns the base URL.
 func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]any) string {
 	t.Helper()
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 
 	if data == nil {
 		data = map[string]any{}

@@ -24,7 +24,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -784,7 +784,7 @@ func startWrappedServer(
 	t *testing.T, conf *config.Config, wrap func(net.Listener) net.Listener, opts ...api.Option,
 ) string {
 	t.Helper()
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	listener = wrap(listener)
 	conf.Server.Port = port
 	log := newTestLogger(t)

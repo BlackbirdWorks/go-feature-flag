@@ -64,7 +64,7 @@ Done in this tree:
 - Go toolchain pinned to the latest release (`go 1.27.4`).
 - `rules/` is a plain directory of the root module (import path `github.com/blackbirdworks/semaphore/rules`; upstream and the original: a separate module `github.com/nikunjy/rules` wired by a `replace`). `modules/core` is a plain directory of the root module here (upstream: a separate module).
 - Docs website, bundled OpenFeature provider SDKs (`openfeature/providers`, including the python provider's WASM submodule), `examples/` and the upstream release/community tooling removed; plain Markdown docs live in `docs/`.
-- gopherstack-based end-to-end tests (`testutils/gopherstack`, `*_e2e_test.go`, build tag `docker`).
+- gopherstack-based end-to-end tests (`testhelpers/gopherstack`, `*_e2e_test.go`, build tag `docker`).
 
 - Renamed to Semaphore: Go module path `github.com/blackbirdworks/semaphore`, binaries, images and operator-visible names, with
   the GO Feature Flag names kept as aliases (see "Path and name mapping" and `docs/migration/rename-to-semaphore.md`).

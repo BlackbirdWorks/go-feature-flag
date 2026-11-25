@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	retrieverpkg "github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {

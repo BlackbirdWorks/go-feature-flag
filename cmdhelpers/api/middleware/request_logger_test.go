@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (

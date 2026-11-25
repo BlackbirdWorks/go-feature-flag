@@ -19,10 +19,10 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -1588,7 +1588,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				},
 				want:    []any{toto},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
 			},
 			{
@@ -1604,7 +1604,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				},
 				want:    []any{toto},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
 			},
 			{
@@ -1746,7 +1746,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				},
 				want:    []any{toto},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex +
 					"\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
 					"toto\\]\"\n",
 			},
@@ -1867,7 +1867,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						errImpossibleToReadThe),
 				},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
 			},
 			{
@@ -1882,7 +1882,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					),
 				},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
 			},
 			{
@@ -2054,7 +2054,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					Value:         []any{toto},
 				},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex +
+				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex +
 					"\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
 					"toto\\]\"\n",
 			},

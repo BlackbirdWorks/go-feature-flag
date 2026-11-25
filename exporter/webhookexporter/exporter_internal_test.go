@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -34,7 +34,7 @@ type webhookExportFields struct {
 	Headers     map[string][]string
 	EndpointURL string
 	Secret      string
-	httpClient  testutils.HTTPClientMock
+	httpClient  testhelpers.HTTPClientMock
 }
 
 type webhookExportArgs struct {
@@ -120,7 +120,7 @@ func TestWebhook_Export(t *testing.T) {
 			name: "valid without signature",
 			fields: webhookExportFields{
 				EndpointURL: httpValidComWebhook,
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
 				Meta:        map[string]string{hostname2: hostname2},
 			},
 			args: webhookExportArgs{
@@ -161,7 +161,7 @@ func TestWebhook_Export(t *testing.T) {
 			name: "valid with signature",
 			fields: webhookExportFields{
 				EndpointURL: httpValidComWebhook,
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
 				Meta:        map[string]string{hostname2: hostname2},
 				Secret:      secret,
 			},
@@ -211,7 +211,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			name: "http error while calling webhook",
 			fields: webhookExportFields{
 				EndpointURL: httpValidComWebhook,
-				httpClient:  testutils.HTTPClientMock{StatusCode: 400, ForceError: false},
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 400, ForceError: false},
 				Meta:        map[string]string{hostname2: hostname2},
 				Secret:      secret,
 			},
@@ -248,7 +248,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			name: "error in the during the Do call",
 			fields: webhookExportFields{
 				EndpointURL: httpValidComWebhook,
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: true},
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: true},
 				Meta:        map[string]string{hostname2: hostname2},
 				Secret:      secret,
 			},
@@ -285,7 +285,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			name: "expect exporter to send custom headers",
 			fields: webhookExportFields{
 				EndpointURL: httpValidComWebhook,
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				httpClient:  testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false},
 				Meta:        map[string]string{hostname2: hostname2},
 				Headers:     map[string][]string{"Authorization": {"Bearer auth_token"}},
 			},

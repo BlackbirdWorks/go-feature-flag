@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -29,10 +29,10 @@ func Test_EventStoreWithLimit(t *testing.T) {
 	t.Parallel()
 
 	process := func(
-		out *[]testutils.ExportableMockEvent,
+		out *[]testhelpers.ExportableMockEvent,
 		err error,
-	) func(context.Context, []testutils.ExportableMockEvent) error {
-		return func(_ context.Context, events []testutils.ExportableMockEvent) error {
+	) func(context.Context, []testhelpers.ExportableMockEvent) error {
+		return func(_ context.Context, events []testhelpers.ExportableMockEvent) error {
 			if err != nil {
 				return err
 			}
@@ -79,17 +79,17 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				mu          sync.Mutex
 			)
 
-			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](
+			store := exporter.NewEventStoreWithLimit[testhelpers.ExportableMockEvent](
 				time.Hour, tt.limit, func(total int64) { mu.Lock(); onDropTotal = total; mu.Unlock() })
 			defer store.Stop()
 
 			store.AddConsumer("c")
 
 			for i := range tt.adds {
-				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
+				store.Add(testhelpers.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 			}
 
-			var out []testutils.ExportableMockEvent
+			var out []testhelpers.ExportableMockEvent
 			if tt.consume {
 				err := store.ProcessPendingEvents("c", process(&out, tt.consumeErr))
 				if tt.wantConsumeErr != "" {
@@ -109,7 +109,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 			assert.Equal(t, tt.wantOut, gotOut)
 
 			for i := range tt.addsAfter {
-				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
+				store.Add(testhelpers.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}
 
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
@@ -127,20 +127,20 @@ func Test_EventStoreWithLimit(t *testing.T) {
 func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 	t.Parallel()
 
-	store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, 3, nil)
+	store := exporter.NewEventStoreWithLimit[testhelpers.ExportableMockEvent](time.Hour, 3, nil)
 	defer store.Stop()
 
 	store.AddConsumer("c")
 
 	for i := range 6 {
-		store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
+		store.Add(testhelpers.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 	}
 
 	var got []string
 
 	require.NoError(
 		t,
-		store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
+		store.ProcessPendingEvents("c", func(_ context.Context, ev []testhelpers.ExportableMockEvent) error {
 			for _, e := range ev {
 				got = append(got, e.GetKey())
 			}
@@ -169,7 +169,7 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
+			store := exporter.NewEventStoreWithLimit[testhelpers.ExportableMockEvent](time.Hour, tt.limit, nil)
 			defer store.Stop()
 
 			store.AddConsumer("c")
@@ -178,7 +178,7 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 			for range tt.workers {
 				wg.Go(func() {
 					for range tt.perW {
-						store.Add(testutils.NewExportableMockEvent("e"))
+						store.Add(testhelpers.NewExportableMockEvent("e"))
 						assert.LessOrEqual(t, store.GetTotalEventCount(), tt.limit)
 					}
 				})
@@ -271,17 +271,17 @@ func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := exporter.NewEventStore[testutils.ExportableMockEvent](time.Hour)
+			store := exporter.NewEventStore[testhelpers.ExportableMockEvent](time.Hour)
 			defer store.Stop()
 
 			store.AddConsumer("a")
 			store.AddConsumer("b")
 
 			for range 5 {
-				store.Add(testutils.NewExportableMockEvent("e"))
+				store.Add(testhelpers.NewExportableMockEvent("e"))
 			}
 
-			noop := func(context.Context, []testutils.ExportableMockEvent) error { return nil }
+			noop := func(context.Context, []testhelpers.ExportableMockEvent) error { return nil }
 			require.NoError(t, store.ProcessPendingEvents("a", noop))
 
 			if tt.consumeBoth {

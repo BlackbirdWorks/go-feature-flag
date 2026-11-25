@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
 	t.Helper()
-	configFile := testutils.CopyContentToNewTempFile(t, configContent)
+	configFile := testhelpers.CopyContentToNewTempFile(t, configContent)
 	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 	f.String(configFlagName, "", configFlagUsage)
 	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
@@ -64,7 +64,7 @@ loglevel: debug`
 	cfg.AttachConfigChangeCallback(callback)
 
 	// Update config file
-	_ = testutils.CopyContentToExistingTempFile(t, updatedConfig, configFile)
+	_ = testhelpers.CopyContentToExistingTempFile(t, updatedConfig, configFile)
 
 	// Wait for callback to be triggered
 	timeout := time.After(5 * time.Second)
@@ -170,7 +170,7 @@ loglevel: error`
 	cfg.AttachConfigChangeCallback(callback1)
 	cfg.AttachConfigChangeCallback(callback2)
 
-	_ = testutils.CopyContentToExistingTempFile(t, updatedConfig, configFile)
+	_ = testhelpers.CopyContentToExistingTempFile(t, updatedConfig, configFile)
 
 	timeout := time.After(5 * time.Second)
 

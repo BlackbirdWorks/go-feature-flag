@@ -16,8 +16,8 @@ rules/parser/jsonquery_parser.go
 rules/parser/jsonquery_visitor.go
 
 # Test helpers and mocks (shared fixtures, gopherstack/testcontainers helpers).
-testutils/
-modules/core/testutils/
+testhelpers/
+modules/core/testhelpers/
 cmd/relayproxy/testdata/
 
 # Type-only structs that exist to feed the OpenAPI document; no behaviour.

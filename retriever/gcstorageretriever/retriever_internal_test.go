@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -108,7 +108,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockedStorage := testutils.NewMockedGCS(t)
+			mockedStorage := testhelpers.NewMockedGCS(t)
 			mockedStorage.WithFiles(t, tt.storage.bucket, tt.storage.files)
 
 			retriever := &Retriever{

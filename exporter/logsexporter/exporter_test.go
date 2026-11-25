@@ -11,8 +11,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -95,7 +95,7 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 		},
 		{
 			name: "Field does not exist",
@@ -114,7 +114,7 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 			wantErr:     true,
 		},
 	}

@@ -17,8 +17,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
@@ -63,7 +63,7 @@ func Test_Listener(t *testing.T) {
 			wantCause:   acceptFailed,
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
-				ln, port := testutils.ListenLocal(t)
+				ln, port := testhelpers.ListenLocal(t)
 				conf.Server.MonitoringPort = port + 1
 
 				return []api.Option{api.WithListener(ln), api.WithMonitoringListener(failingListener{})}
@@ -75,7 +75,7 @@ func Test_Listener(t *testing.T) {
 			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
-				_, port := testutils.ListenLocal(t)
+				_, port := testhelpers.ListenLocal(t)
 				conf.Server.Host = loopbackAddress
 				conf.Server.Port = port
 
@@ -88,8 +88,8 @@ func Test_Listener(t *testing.T) {
 			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
-				ln, _ := testutils.ListenLocal(t)
-				_, monitoringPort := testutils.ListenLocal(t)
+				ln, _ := testhelpers.ListenLocal(t)
+				_, monitoringPort := testhelpers.ListenLocal(t)
 				conf.Server.Host = loopbackAddress
 				conf.Server.MonitoringPort = monitoringPort
 

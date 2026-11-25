@@ -18,8 +18,8 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 const (
@@ -387,7 +387,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 		{
 			name: "Should evaluate a flag from a S3 repository",
 			initEvaluate: func() (evaluate, error) {
-				downloader := &testutils.S3ManagerV2Mock{
+				downloader := &testhelpers.S3ManagerV2Mock{
 					TestDataLocation: "./testdata",
 				}
 
@@ -453,7 +453,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 		{
 			name: "Should evaluate a flag from a GCS",
 			initEvaluate: func() (evaluate, error) {
-				mockedStorage := testutils.NewMockedGCS(t)
+				mockedStorage := testhelpers.NewMockedGCS(t)
 				mockedStorage.WithFiles(t, "flags", map[string]string{testdataFlagConfigYaml: "flag-config.yaml"})
 
 				return buildEvaluate(&retrieverconf.RetrieverConf{

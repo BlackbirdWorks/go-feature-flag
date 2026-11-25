@@ -15,7 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -48,14 +48,14 @@ func testConfig(t *testing.T) *config.Config {
 // serves the endpoints the API server no longer has.
 func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (string, string) {
 	t.Helper()
-	ln, port := testutils.ListenLocal(t)
+	ln, port := testhelpers.ListenLocal(t)
 	conf.Server.Port = port
 	opts := []api.Option{api.WithListener(ln)}
 
 	var monitoringURL string
 
 	if withMonitoring {
-		monitoringLn, monitoringPort := testutils.ListenLocal(t)
+		monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
 		conf.Server.MonitoringPort = monitoringPort
 
 		opts = append(opts, api.WithMonitoringListener(monitoringLn))

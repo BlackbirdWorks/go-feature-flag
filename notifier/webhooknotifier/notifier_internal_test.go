@@ -12,7 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -62,7 +62,7 @@ func runWebhookNotifierTests(t *testing.T, tests []webhookNotifierCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockHTTPClient := &testutils.HTTPClientMock{
+			mockHTTPClient := &testhelpers.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
 			}
@@ -321,7 +321,7 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 func Test_webhookNotifier_no_meta_data(t *testing.T) {
 	t.Parallel()
 
-	mockHTTPClient := &testutils.HTTPClientMock{StatusCode: 200, ForceError: false}
+	mockHTTPClient := &testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false}
 	diff := notifier.DiffCache{
 		Added: map[string]flag.Flag{
 			testFlag3: &flag.InternalFlag{

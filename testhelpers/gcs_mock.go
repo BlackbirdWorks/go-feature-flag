@@ -1,4 +1,4 @@
-package testutils
+package testhelpers
 
 import (
 	"crypto/md5" //nolint:gosec // md5 is the checksum the GCS API reports, not a security use

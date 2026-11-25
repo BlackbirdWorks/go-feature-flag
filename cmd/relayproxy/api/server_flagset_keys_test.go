@@ -18,7 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Parallel()
 
-	listener, port := testutils.ListenLocal(t)
+	listener, port := testhelpers.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",

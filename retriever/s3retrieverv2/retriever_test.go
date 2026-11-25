@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -73,14 +73,14 @@ func (c cfg) build() *s3retrieverv2.Retriever {
 
 type retrieveCase struct {
 	name  string
-	setup func(m *testutils.S3PrefixMock)
+	setup func(m *testhelpers.S3PrefixMock)
 	r     cfg
 	steps []step
 }
 
 // step is one Retrieve call (or several concurrent ones), preceded by a mutation of the bucket.
 type step struct {
-	mutate         func(m *testutils.S3PrefixMock)
+	mutate         func(m *testhelpers.S3PrefixMock)
 	wantDownloads  map[string]int // cumulative number of downloads per key
 	wantLog        string         // substring expected in the logs
 	wantNoLog      string         // substring not expected in the logs
@@ -101,7 +101,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 	tests := slices.Concat([]retrieveCase{
 		{
 			name:  "item mode unchanged",
-			setup: func(m *testutils.S3PrefixMock) { m.Put(flagsAYaml, yamlA) },
+			setup: func(m *testhelpers.S3PrefixMock) { m.Put(flagsAYaml, yamlA) },
 			r:     cfg{Item: flagsAYaml},
 			steps: []step{
 				{wantFlags: []string{flagA2}},
@@ -111,19 +111,19 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "item mode download error",
-			setup: func(_ *testutils.S3PrefixMock) {},
+			setup: func(_ *testhelpers.S3PrefixMock) {},
 			r:     cfg{Item: "missing.yaml"},
 			steps: []step{{wantErr: "unable to download item from S3 \"missing.yaml\""}},
 		},
 		{
 			name:  notInitialized,
-			setup: func(_ *testutils.S3PrefixMock) {},
+			setup: func(_ *testhelpers.S3PrefixMock) {},
 			r:     cfg{Prefix: "f/", noLister: true},
 			steps: []step{{wantErr: "lister is not initialized"}},
 		},
 		{
 			name: "prefix non recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 				m.Put(flagsSubCYaml, flagC2)
@@ -135,7 +135,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "prefix without trailing slash non recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put(flagsSubCYaml, flagC2)
 				m.Put(flagsOldZYaml, flagZ)
@@ -145,7 +145,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "prefix with a leading and trailing slash is the same folder",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put(flagsSubCYaml, flagC2)
 				m.Put(flagsOldZYaml, flagZ)
@@ -155,7 +155,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "prefix with a trailing slash is the same folder",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put(flagsSubCYaml, flagC2)
 				m.Put(flagsOldZYaml, flagZ)
@@ -165,7 +165,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "no item and no prefix reads the root, non recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 			},
@@ -174,7 +174,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "no item and no prefix reads the whole bucket when recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 			},
@@ -183,7 +183,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "pattern filter at the root",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put("b.yml", yamlB)
 				m.Put("notes.txt", "x")
@@ -193,7 +193,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "root prefix non recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 			},
@@ -202,7 +202,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "root prefix recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 				m.Put("flags/deep/c.yaml", flagC2)
@@ -212,7 +212,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "leading slash is trimmed",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(aYaml, yamlA)
 				m.Put(flagsBYaml, yamlB)
 			},
@@ -221,7 +221,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "prefix recursive",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put("flags/sub/b.yml", yamlB)
 				m.Put("flags/sub/deep/", "")
@@ -232,7 +232,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "pattern filter",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(flagsAYaml, yamlA)
 				m.Put("flags/notes.txt", "not a flag file")
 				m.Put("flags/sub/b.yaml", yamlB)
@@ -242,7 +242,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "pagination",
-			setup: func(mockS3 *testutils.S3PrefixMock) {
+			setup: func(mockS3 *testhelpers.S3PrefixMock) {
 				mockS3.PageSize = 2
 				mockS3.Put(fileAYAML, yamlA)
 				mockS3.Put(fileBYAML, yamlB)
@@ -257,7 +257,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "list error",
-			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errBoom },
+			setup: func(m *testhelpers.S3PrefixMock) { m.ListErr = errBoom },
 			r:     cfg{Prefix: "f/"},
 			steps: []step{
 				{wantErr: `unable to list objects from S3 with prefix "f/", store: listing a page of objects: boom`},
@@ -265,7 +265,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "download error",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(fileAYAML, yamlA)
 				m.DownloadErr = errKaboom
 			},
@@ -274,7 +274,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "concurrent calls are serialized",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.Put(fileAYAML, yamlA)
 				m.Put(fileBYAML, yamlB)
 			},
@@ -289,7 +289,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			// the object is replaced between the list and the download: the cache must hold the ETag
 			// of the downloaded content, so that the next list (A again) triggers a new download
 			name: "object replaced between list and download is downloaded again on the next poll",
-			setup: func(mockS3 *testutils.S3PrefixMock) {
+			setup: func(mockS3 *testhelpers.S3PrefixMock) {
 				mockS3.Put(fileAYAML, yamlA)
 
 				swapped := false
@@ -305,7 +305,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			steps: []step{
 				{wantFlags: []string{flagB2}},
 				{
-					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fileAYAML, yamlA) },
+					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fileAYAML, yamlA) },
 					wantFlags:     []string{flagA2},
 					wantDownloads: map[string]int{fileAYAML: 2},
 				},
@@ -313,7 +313,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name: "no etag never hits the cache",
-			setup: func(m *testutils.S3PrefixMock) {
+			setup: func(m *testhelpers.S3PrefixMock) {
 				m.NoETag = true
 				m.Put(fileAYAML, yamlA)
 			},
@@ -322,7 +322,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 1}},
 				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 2}},
 				{
-					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fileAYAML, yamlB) },
+					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fileAYAML, yamlB) },
 					wantFlags:     []string{flagB2},
 					wantDownloads: map[string]int{fileAYAML: 3},
 				},
@@ -356,7 +356,7 @@ func roundTripCases(t *testing.T) []retrieveCase {
 
 		cases = append(cases, retrieveCase{
 			name:  "round trip " + fileName,
-			setup: func(m *testutils.S3PrefixMock) { m.Put("f/"+fileName, string(content)) },
+			setup: func(m *testhelpers.S3PrefixMock) { m.Put("f/"+fileName, string(content)) },
 			r:     cfg{Prefix: "f/"},
 			steps: []step{{wantSameAs: []string{local}}},
 		})
@@ -365,10 +365,10 @@ func roundTripCases(t *testing.T) []retrieveCase {
 	return cases
 }
 
-func runRetrieveCase(t *testing.T, setup func(*testutils.S3PrefixMock), conf cfg, steps []step) {
+func runRetrieveCase(t *testing.T, setup func(*testhelpers.S3PrefixMock), conf cfg, steps []step) {
 	t.Helper()
 
-	mockS3 := &testutils.S3PrefixMock{}
+	mockS3 := &testhelpers.S3PrefixMock{}
 	setup(mockS3)
 
 	r := conf.build()
@@ -545,7 +545,7 @@ func TestRetriever_Init(t *testing.T) {
 			t.Parallel()
 
 			r := tt.r.build()
-			m := &testutils.S3PrefixMock{}
+			m := &testhelpers.S3PrefixMock{}
 			r.SetDownloader(m)
 			r.SetLister(m)
 
@@ -570,7 +570,7 @@ func TestRetriever_Init(t *testing.T) {
 		t.Parallel()
 
 		r := cfg{Item: aYaml}.build()
-		r.SetDownloader(&testutils.S3PrefixMock{})
+		r.SetDownloader(&testhelpers.S3PrefixMock{})
 		require.NoError(t, r.Init(t.Context(), nil))
 		assert.Nil(t, r.AwsConfig)
 	})
@@ -579,7 +579,7 @@ func TestRetriever_Init(t *testing.T) {
 func TestRetriever_Shutdown(t *testing.T) {
 	t.Parallel()
 
-	mockS3 := &testutils.S3PrefixMock{}
+	mockS3 := &testhelpers.S3PrefixMock{}
 	mockS3.Put(fileAYAML, yamlA)
 	mockS3.Put("f/readme.txt", "hello")
 
@@ -613,7 +613,7 @@ func TestRetriever_Shutdown(t *testing.T) {
 func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	t.Parallel()
 
-	mockS3 := &testutils.S3PrefixMock{}
+	mockS3 := &testhelpers.S3PrefixMock{}
 	mockS3.Put(fileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
@@ -635,7 +635,7 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	t.Parallel()
 
-	mock := &testutils.S3PrefixMock{}
+	mock := &testhelpers.S3PrefixMock{}
 	mock.Put(fileAYAML, yamlA)
 	mock.Put("g/b.yaml", yamlB)
 
@@ -664,7 +664,7 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 func TestRetriever_SetLister(t *testing.T) {
 	t.Parallel()
 
-	mockS3 := &testutils.S3PrefixMock{}
+	mockS3 := &testhelpers.S3PrefixMock{}
 	mockS3.Put(fileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
@@ -697,7 +697,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockS3 := &testutils.S3PrefixMock{}
+			mockS3 := &testhelpers.S3PrefixMock{}
 			mockS3.Put(aYaml, yamlA)
 
 			r := tt.r.build()
@@ -734,7 +734,7 @@ func TestRetriever_OutputFormat(t *testing.T) {
 			t.Parallel()
 
 			r := tt.r.build()
-			m := &testutils.S3PrefixMock{}
+			m := &testhelpers.S3PrefixMock{}
 			r.SetDownloader(m)
 			r.SetLister(m)
 			require.NoError(t, r.Init(t.Context(), nil))

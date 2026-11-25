@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 type batchAdder interface {
-	AddAll([]testutils.ExportableMockEvent)
+	AddAll([]testhelpers.ExportableMockEvent)
 }
 
 func Test_EventStore_AddAll(t *testing.T) {
@@ -42,15 +42,15 @@ func Test_EventStore_AddAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
+			store := exporter.NewEventStoreWithLimit[testhelpers.ExportableMockEvent](time.Hour, tt.limit, nil)
 			defer store.Stop()
 
 			store.AddConsumer("c")
 
 			for _, n := range tt.batches {
-				batch := make([]testutils.ExportableMockEvent, n)
+				batch := make([]testhelpers.ExportableMockEvent, n)
 				for i := range batch {
-					batch[i] = testutils.NewExportableMockEvent("e")
+					batch[i] = testhelpers.NewExportableMockEvent("e")
 				}
 
 				ba, ok := store.(batchAdder)
