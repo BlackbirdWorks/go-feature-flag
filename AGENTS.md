@@ -1,7 +1,7 @@
 # AGENTS.md - the rules of the Semaphore repository
 
 The single place to read before changing this repository (contributors and coding agents alike). Prefer the
-`Makefile` (`make help`). [CONTRIBUTING.md](CONTRIBUTING.md) covers issues and the pull request flow and points here.
+`Taskfile.yml` (`task --list`). [CONTRIBUTING.md](CONTRIBUTING.md) covers issues and the pull request flow and points here.
 
 ## What this is
 
@@ -73,7 +73,7 @@ benchstat base.txt new.txt                           # alternate base and new ru
 ## Compatibility
 
 - Clients are OpenFeature/OFREP providers over HTTP: responses, headers, config keys, CLI output and the legacy aliases
-  below stay stable unless a change is decided explicitly. `openfeature/provider_tests` is the guard (`make provider-tests`).
+  below stay stable unless a change is decided explicitly. `openfeature/provider_tests` is the guard (`task provider-tests`).
 - Struct field order is output order for JSON, CSV and Parquet exports and the CLI: the exporter events, the manifest and the
   evaluation results keep their order under a reasoned `//nolint:govet` (fieldalignment).
 - The Go API is internal (nothing imports this module): it may change.
@@ -93,8 +93,8 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 
 ## Lint
 
-- `make lint` must be clean (golangci-lint plus `mulint` through `go vet -vettool`, version pinned in the `Makefile`; see `.golangci.yml`, every linter is enabled
-  or listed there with a reason). Run `make tidy-check` (tree stays clean) too.
+- `task lint` must be clean (golangci-lint plus `mulint` through `go vet -vettool`, version pinned in `Taskfile.yml`; see `.golangci.yml`, every linter is enabled
+  or listed there with a reason). Run `task tidy-check` (tree stays clean) too.
 - No blanket or path-wide exclusions. A suppression is one line, `//nolint:<linter> // <specific reason>`, and unused ones
   are removed (`nolintlint`). Generated files are excluded by their `Code generated` header only.
 
@@ -108,11 +108,11 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 ```shell
 export GOWORK=off
 go build ./... && go vet -tags=docker,bench ./...
-make lint && make tidy-check && make test-shards-check && make test-ci-scripts
+task lint && task tidy-check && task test-shards-check && task test-ci-scripts
 go test -race -shuffle=on -count=1 ./...
-make test-unit && make test-integration && make test-e2e   # integration and e2e need Docker
-make coverage COVERAGE_MIN=92                              # coverage floor
-make provider-tests
+task test-unit && task test-integration && task test-e2e   # integration and e2e need Docker
+task coverage COVERAGE_MIN=92                              # coverage floor
+task provider-tests
 ```
 
 ## Upstream

@@ -12,7 +12,7 @@ security problems privately, see [SECURITY.md](SECURITY.md).
 
 1. Fork the repository (or create a branch if you have write access) from `main`.
 2. Make your change, with tests and, for user-facing changes, an update of [`docs/`](docs/README.md).
-3. Make sure `make lint` and the tests below pass.
+3. Make sure `task lint` and the tests below pass.
 4. Open a pull request against `main` of this repository and fill in the pull request template.
 
 Rules enforced by CI and review:
@@ -24,24 +24,24 @@ Rules enforced by CI and review:
 
 ## Development setup
 
-Everything is driven by the [`Makefile`](Makefile) (`make help` lists the targets). The repository is a
+Everything is driven by the [`Taskfile.yml`](Taskfile.yml) (`task --list` lists the targets). The repository is a
 single-module Go repository (`modules/core` and `rules` are directories of the root module) that CI builds with the Go workspace
 disabled, so export `GOWORK=off` when you do not use a `go.work` file:
 
 ```shell
 export GOWORK=off
-make build            # builds the relay proxy, cli and jsonschema generator into out/bin/
-make test-unit        # unit tests of all modules, no Docker
-make test-integration # testcontainers tests, needs Docker
-make test-e2e         # gopherstack-backed end-to-end tests, needs Docker
-make lint             # golangci-lint on all modules
-make tidy-check       # go.mod / go.sum must be tidy
+task build            # builds the relay proxy, cli and jsonschema generator into out/bin/
+task test-unit        # unit tests of all modules, no Docker
+task test-integration # testcontainers tests, needs Docker
+task test-e2e         # gopherstack-backed end-to-end tests, needs Docker
+task lint             # golangci-lint on all modules
+task tidy-check       # go.mod / go.sum must be tidy
 GOLDEN_UPDATE=1 go test ./cmd/relayproxy/api   # refresh the golden files (OpenAPI document, HTTP behaviour) after a deliberate change
 ```
 
-If you created a `go.work` with `make workspace-init` before `modules/core` and `rules` were folded into the root module,
+If you created a `go.work` with `task workspace-init` before `modules/core` and `rules` were folded into the root module,
 run `go work edit -dropuse=./modules/core -dropuse=./rules` once from the repository root (or delete `go.work` and run
-`make workspace-init` again); otherwise Go fails reading the removed go.mod files.
+`task workspace-init` again); otherwise Go fails reading the removed go.mod files.
 
 Optional: `pre-commit install` runs `gofumpt` and the import-order linter before each commit.
 

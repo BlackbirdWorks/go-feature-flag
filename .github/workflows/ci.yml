@@ -28,7 +28,7 @@ env:
   # job fails below it. The target is 90 (the repository ruleset requires it for
   # the native GitHub coverage rule). This is a ratchet: it is the floor of the
   # measured total and is raised in the same pull request that adds tests,
-  # until it reaches 90. Local equivalent: make coverage COVERAGE_MIN=<n>.
+  # until it reaches 90. Local equivalent: task coverage COVERAGE_MIN=<n>.
   COVERAGE_MIN: "92"
   # Packages run in parallel and share one Ryuk reaper; a package can latch onto
   # a reaper that is shutting down and time out after 60s. Runners are
@@ -94,7 +94,7 @@ jobs:
           persist-credentials: false
       - uses: $/.github/actions/setup-go
       # All modules, relay proxy, jsonschema generator and cli.
-      - run: make build
+      - run: task build
 
   # Smoke-test the FIPS variant so a dependency that breaks under GOFIPS140
   # is caught here rather than at release time.
@@ -113,7 +113,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make build-relayproxy-fips
+      - run: task build-relayproxy-fips
 
   # One Go module: the root module, which includes modules/core and rules.
   lint:
@@ -131,18 +131,9 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make lint
-      - run: make vet
-      - run: make fix-check
-      # Optional target: it runs only once the Makefile defines it, so this
-      # job needs no change when it lands.
-      - name: Run mulint (if the target exists)
-        run: |
-          if make -n mulint > /dev/null 2>&1; then
-            make mulint
-          else
-            echo "No mulint target, skipping."
-          fi
+      - run: task lint
+      - run: task vet
+      - run: task fix-check
 
   modules:
     name: modules (tidy, verify)
@@ -159,8 +150,8 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make tidy-check
-      - run: make verify
+      - run: task tidy-check
+      - run: task verify
 
   vulncheck:
     name: vulncheck
@@ -177,9 +168,9 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make vuln-check
+      - run: task vuln-check
 
-  # Test types run as separate parallel jobs; each calls the Makefile target a
+  # Test types run as separate parallel jobs; each calls the Taskfile target a
   # developer runs locally. Every job writes a coverage profile (artifact, plus
   # Codecov when a CODECOV_TOKEN secret exists) under a distinct flag.
 
@@ -209,13 +200,13 @@ jobs:
           persist-credentials: false
       - uses: $/.github/actions/setup-go
       - name: Check that the test shards cover every package
-        run: make test-shards-check
+        run: task test-shards-check
       - name: Run unit tests with the race detector
         env:
           GROUP: ${{ matrix.group }}
         run: |
           mkdir -p test-logs coverage
-          make test-unit-root GROUP="$GROUP" \
+          task test-unit-root GROUP="$GROUP" \
             COVERPROFILE="coverage/unit-root-$GROUP.out" \
             TEST_LOG="test-logs/unit-root-$GROUP.log"
       - name: Upload test log on failure
@@ -273,7 +264,7 @@ jobs:
       - name: Run integration tests with the race detector
         run: |
           mkdir -p test-logs coverage
-          make test-integration \
+          task test-integration \
             COVERPROFILE=coverage/integration.out \
             TEST_LOG=test-logs/integration.log
       - name: Upload test log on failure
@@ -330,7 +321,7 @@ jobs:
       - name: Run e2e tests with the race detector
         run: |
           mkdir -p test-logs coverage
-          make test-e2e \
+          task test-e2e \
             COVERPROFILE=coverage/e2e.out \
             TEST_LOG=test-logs/e2e.log
       - name: Upload test log on failure
@@ -362,7 +353,7 @@ jobs:
   # Merges the profiles of every test job (a block covered by any suite counts
   # once), applies .github/ci-scripts/coverage-exclude.txt, prints the totals
   # to the job summary, fails below COVERAGE_MIN and publishes the Cobertura
-  # file that GitHub's native coverage reads. Same script as `make coverage`.
+  # file that GitHub's native coverage reads. Same script as `task coverage`.
   # Runs even when a suite failed, so a diagnostic summary of the partial
   # profiles still exists; the minimum is enforced and the Cobertura upload is
   # allowed only when every suite succeeded (output `complete`). A failed suite
@@ -395,7 +386,7 @@ jobs:
           cache: "false"
           download: "false"
       - name: Check the unit tests of the CI scripts
-        run: make test-ci-scripts
+        run: task test-ci-scripts
       - name: Check the tested tree is the pull request head
         id: tree
         env:
@@ -437,7 +428,7 @@ jobs:
           min="$COVERAGE_MIN"
           [[ "$COMPLETE" == true ]] || min=""
           set +e
-          make coverage-report COVERAGE_MIN="$min"
+          task coverage-report COVERAGE_MIN="$min"
           rc=$?
           [[ -f coverage/report/summary.md ]] && cat coverage/report/summary.md >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
@@ -501,10 +492,14 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - uses: $/.github/actions/setup-go
+        with:
+          cache: "false"
+          download: "false"
       - name: List packages with fuzz targets
         id: plan
         run: |
-          list=$(make --no-print-directory fuzz-list)
+          list=$(task fuzz-list)
           echo "$list"
           [[ -n "$list" ]] || { echo "::error::no fuzz targets found"; exit 1; }
           matrix=$(jq -Rsc '{include: (split("\n") | map(select(length > 0) | split(" ") | {module: .[0], dir: .[1]}))}' <<< "$list")
@@ -527,7 +522,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make fuzz-dir MODULE="$FUZZ_MODULE" DIR="$FUZZ_DIR" FUZZTIME=10s
+      - run: task fuzz-dir MODULE="$FUZZ_MODULE" DIR="$FUZZ_DIR" FUZZTIME=10s
         env:
           FUZZ_MODULE: ${{ matrix.module }}
           FUZZ_DIR: ${{ matrix.dir }}
@@ -562,7 +557,7 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: "9.0.x"
-      - run: make provider-tests
+      - run: task provider-tests
 
   # The release configuration is exercised on every pull request so it cannot rot between
   # releases: `goreleaser check`, a snapshot build of the FIPS target for the runner (the build
