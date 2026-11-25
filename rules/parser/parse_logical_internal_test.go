@@ -6,12 +6,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	x2AndY = `x < 2 and ( y > 4 or z == true )`
-	xAEq1  = `x.a eq 1 and x.b.c eq 2`
-	xAEq12 = `x.a eq 1 or x.b.c eq 2`
+	x2AndY     = `x < 2 and ( y > 4 or z == true )`
+	xAEqOneAnd = `x.a eq 1 and x.b.c eq 2`
+	xAEqOneOr  = `x.a eq 1 or x.b.c eq 2`
 )
 
 func TestNestedObject(t *testing.T) {
@@ -19,7 +21,7 @@ func TestNestedObject(t *testing.T) {
 
 	tests := []testCase{
 		{
-			rule: xAEq1,
+			rule: xAEqOneAnd,
 			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
@@ -32,7 +34,7 @@ func TestNestedObject(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: xAEq1,
+			rule: xAEqOneAnd,
 			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
@@ -45,7 +47,7 @@ func TestNestedObject(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: xAEq1,
+			rule: xAEqOneAnd,
 			input: map[string]any{
 				"x": map[string]any{
 					"b": map[string]any{
@@ -57,7 +59,7 @@ func TestNestedObject(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: xAEq12,
+			rule: xAEqOneOr,
 			input: map[string]any{
 				"x": map[string]any{
 					"b": map[string]any{
@@ -69,13 +71,13 @@ func TestNestedObject(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule:     xAEq12,
+			rule:     xAEqOneOr,
 			input:    nil,
 			result:   false,
 			hasError: false,
 		},
 		{
-			rule:     xAEq12,
+			rule:     xAEqOneOr,
 			input:    obj{},
 			result:   false,
 			hasError: false,
@@ -129,7 +131,7 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 	t.Parallel()
 
 	input := obj{
-		"x": abc,
+		"x": fixtures.Abc,
 		"y": "11.3.0",
 	}
 	parenInput := obj{

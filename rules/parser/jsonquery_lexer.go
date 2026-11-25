@@ -10,18 +10,18 @@ import (
 )
 
 const (
-	aTTRNAME        = "ATTRNAME"
-	bOOLEAN         = "BOOLEAN"
-	cOMMA           = "COMMA"
-	dOUBLE          = "DOUBLE"
-	eXP             = "EXP"
-	iNT             = "INT"
-	lOGICALOPERATOR = "LOGICAL_OPERATOR"
-	nEWLINE         = "NEWLINE"
-	nOT             = "NOT"
-	nULL            = "NULL"
-	sTRING          = "STRING"
-	vERSION         = "VERSION"
+	tokenAttrName        = "ATTRNAME"
+	tokenBoolean         = "BOOLEAN"
+	tokenComma           = "COMMA"
+	tokenDouble          = "DOUBLE"
+	tokenExp             = "EXP"
+	tokenInt             = "INT"
+	tokenLogicalOperator = "LOGICAL_OPERATOR"
+	tokenNewline         = "NEWLINE"
+	tokenNot             = "NOT"
+	tokenNull            = "NULL"
+	tokenString          = "STRING"
+	tokenVersion         = "VERSION"
 )
 
 // Suppress unused import error
@@ -62,16 +62,16 @@ func jsonquerylexerLexerInit() {
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "'\\n'",
 	}
 	staticData.SymbolicNames = []string{
-		"", "", "", "", "", "", "", "", nOT, lOGICALOPERATOR, bOOLEAN,
-		nULL, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
-		aTTRNAME, vERSION, sTRING, dOUBLE, iNT, eXP, nEWLINE,
-		cOMMA, "SP",
+		"", "", "", "", "", "", "", "", tokenNot, tokenLogicalOperator, tokenBoolean,
+		tokenNull, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
+		tokenAttrName, tokenVersion, tokenString, tokenDouble, tokenInt, tokenExp, tokenNewline,
+		tokenComma, "SP",
 	}
 	staticData.RuleNames = []string{
-		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", nOT, lOGICALOPERATOR,
-		bOOLEAN, nULL, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
-		"EW", aTTRNAME, "ATTR_NAME_CHAR", "ALPHA", vERSION, sTRING, "ESC",
-		"UNICODE", "HEX", dOUBLE, iNT, eXP, nEWLINE, cOMMA, "SP",
+		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", tokenNot, tokenLogicalOperator,
+		tokenBoolean, tokenNull, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
+		"EW", tokenAttrName, "ATTR_NAME_CHAR", "ALPHA", tokenVersion, tokenString, "ESC",
+		"UNICODE", "HEX", tokenDouble, tokenInt, tokenExp, tokenNewline, tokenComma, "SP",
 		"VALID_SEMVER", "VERSION_CORE", "MAJOR", "MINOR", "PATCH", "PRERELEASE",
 		"DOT_SEPARATED_PRERELEASE_IDENTIFIERS", "BUILD", "DOT_SEPARATED_BUILD_IDENTIFIERS",
 		"PRERELEASE_IDENTIFIER", "BUILD_IDENTIFIER", "ALPHANUMERIC_IDENTIFIER",

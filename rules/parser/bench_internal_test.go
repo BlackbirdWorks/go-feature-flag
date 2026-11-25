@@ -6,18 +6,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	debugError = "debug error"
-	orOperator = " or "
-	yIN12      = `y IN [1, 2, 3, 4, 5]`
+	debugError   = "debug error"
+	orOperator   = " or "
+	yInOneToFive = `y IN [1, 2, 3, 4, 5]`
 )
 
 func benchConditions() []string {
 	return []string{
-		xEq1,
-		yIN12,
+		xEqOne,
+		yInOneToFive,
 		`z in ["abcd", "efghijkl", "asdoihadoihasoihsaoasihasdoihdadoiahsdoihdasodha", "asdoisahdadoihasdoisdwoqeioheqcnac"]`,
 		`(a > 123 or b <= 456)`,
 		`(aa == 123123131.1232313131312312 or bb == 1231.1312313123123131231)`,
@@ -126,8 +128,8 @@ func BenchmarkProcess(b *testing.B) {
 		want      bool
 		wantDebug bool
 	}{
-		{name: "IntEq", rule: xEq1},
-		{name: "IntIn", rule: yIN12},
+		{name: "IntEq", rule: xEqOne},
+		{name: "IntIn", rule: yInOneToFive},
 		{name: "StringEq", rule: `z eq "asdada"`, want: true},
 		{
 			name: "StringIn",
@@ -136,7 +138,7 @@ func BenchmarkProcess(b *testing.B) {
 		},
 		{name: "FloatCmp", rule: `aa == 123123131.1232313131312312`},
 		{name: "Version", rule: `jh gt 1.2.0`, want: true},
-		{name: "Nested", rule: uPlanEqPro, want: true},
+		{name: "Nested", rule: uPlanEqProAnd, want: true},
 		{name: "Logical", rule: `(x eq 1 or y eq 2) and (z eq "nope" or b > 100)`},
 		{name: "Mixed", rule: strings.Join(benchConditions(), orOperator)},
 		{name: "DebugErr/TypeMismatch", rule: `z gt 123`, wantDebug: true},
@@ -199,9 +201,9 @@ func newBenchInput() map[string]any {
 		"b":  123131,
 		"aa": 123123.123131232113,
 		"bb": 1.5,
-		"jh": versionOneTwoThree,
+		"jh": fixtures.VersionOneTwoThree,
 		"kl": "1.5",
-		"u":  map[string]any{plan: pro, age: 31},
+		"u":  map[string]any{fixtures.Plan: fixtures.Pro, age: 31},
 	}
 }
 
@@ -257,7 +259,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 		wantDebug bool
 	}{
 		{name: "semver ordering", jh: "1.10.0", want: true},
-		{name: "not a semver", jh: abc, wantDebug: true},
+		{name: "not a semver", jh: fixtures.Abc, wantDebug: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -286,7 +288,7 @@ func TestBenchmarkRules(t *testing.T) {
 		rule string
 	}{
 		{name: "logical", rule: logicalRule(benchConditions(), 0)},
-		{name: nested2, rule: logicalRule(benchConditions(), 3)},
+		{name: fixtures.Nested, rule: logicalRule(benchConditions(), 3)},
 		{name: "big", rule: bigRule()},
 	}
 	for _, tt := range tests {

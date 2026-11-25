@@ -5,13 +5,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	env     = "env"
-	pro     = "pro"
-	xEq1And = "x eq 1  and y eq 2"
-	xEqAB   = `x eq "a  b"`
+	xEqOneAndY = "x eq 1  and y eq 2"
+	xEqAB      = `x eq "a  b"`
 )
 
 func TestIssue41RuleValidator(t *testing.T) {
@@ -101,30 +101,30 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		{
 			name:  "leading space",
 			rule:  ` env eq "pro"`,
-			input: obj{env: pro},
+			input: obj{fixtures.Env: fixtures.Pro},
 			want:  true,
 		},
 		{
 			name:  "trailing CRLF",
 			rule:  "env eq \"pro\"\r\n",
-			input: obj{env: pro},
+			input: obj{fixtures.Env: fixtures.Pro},
 			want:  true,
 		},
 		{
 			name:  "CRLF only",
 			rule:  "env eq \"pro\"\r",
-			input: obj{env: pro},
+			input: obj{fixtures.Env: fixtures.Pro},
 			want:  true,
 		},
 		{
 			name:  "double space before and evaluates both sides",
-			rule:  xEq1And,
+			rule:  xEqOneAndY,
 			input: obj{"x": 1, "y": 2},
 			want:  true,
 		},
 		{
 			name:  "double space before and is not a prefix of the left clause",
-			rule:  xEq1And,
+			rule:  xEqOneAndY,
 			input: obj{"x": 1, "y": 99},
 			want:  false,
 		},
@@ -143,7 +143,7 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		{
 			name:  "trailing spaces and newline",
 			rule:  "env eq \"pro\"  \n",
-			input: obj{env: pro},
+			input: obj{fixtures.Env: fixtures.Pro},
 			want:  true,
 		},
 	}
@@ -169,7 +169,7 @@ func TestNormalizeRuleInput(t *testing.T) {
 		rule string
 		want string
 	}{
-		{name: "collapses double spaces", rule: xEq1And, want: `x eq 1 and y eq 2`},
+		{name: "collapses double spaces", rule: xEqOneAndY, want: `x eq 1 and y eq 2`},
 		{name: "trims space and CRLF", rule: " env eq \"pro\" \r\n", want: `env eq "pro"`},
 		{name: "keeps spaces inside strings", rule: xEqAB, want: xEqAB},
 	}

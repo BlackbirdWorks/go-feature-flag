@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	err3 = "err"
-	msg2 = "msg"
+	errKey = "err"
+	msgKey = "msg"
 )
 
 // ErrVals holds the key-value context attached to a NestedError.
@@ -49,8 +49,8 @@ func (e *NestedError) Original() error {
 // e is never written to and concurrent Error calls are safe.
 func (e *NestedError) Error() string {
 	vals := e.Vals.Dupe()
-	vals[err3] = e.Err.Error()
-	vals[msg2] = e.Msg
+	vals[errKey] = e.Err.Error()
+	vals[msgKey] = e.Msg
 
 	data, err := json.Marshal(vals)
 	if err != nil {

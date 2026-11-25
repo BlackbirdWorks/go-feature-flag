@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	fixtureTrue = "true"
+	trueLiteral = "true"
 )
 
 const (
@@ -643,7 +643,7 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 	switch ctx := v.(type) {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
-		target.rightOp = ctx.GetText() == fixtureTrue
+		target.rightOp = ctx.GetText() == trueLiteral
 
 		return &BoolOperation{}
 	case *NullContext:

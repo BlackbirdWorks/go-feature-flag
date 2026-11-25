@@ -11,11 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	aBIn          = "a.b in "
-	stringType    = "string"
 	nIn           = "n in "
 	notSIn        = "not (s in "
 	sIn           = "s in "
@@ -66,10 +67,10 @@ func randStrList(r *rand.Rand, count int) string {
 		"ß",
 		"é",
 		"é",
-		versionOneTwoThree,
+		fixtures.VersionOneTwoThree,
 		"5",
-		fixtureTrue,
-		null2,
+		trueLiteral,
+		fixtures.Null,
 		"x y",
 		`q\"q`,
 		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
@@ -239,7 +240,7 @@ func TestInSetThreshold(t *testing.T) {
 		{"at", inSetMinLen, true},
 		{"above", inSetMinLen + 1, true},
 	}
-	for _, kind := range []string{stringType, intType} {
+	for _, kind := range []string{fixtures.StringType, fixtures.IntType} {
 		for _, tt := range tests {
 			t.Run(kind+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -248,7 +249,7 @@ func TestInSetThreshold(t *testing.T) {
 					rule              string
 					first, last, miss any
 				)
-				if kind == stringType {
+				if kind == fixtures.StringType {
 					rule, first, last, miss = xIn+seqStrs(
 						tt.n,
 					), "u0", fmt.Sprintf(
@@ -298,8 +299,8 @@ func TestInSetDifferential(t *testing.T) {
 		"ß",
 		"SS",
 		"5",
-		versionOneTwoThree,
-		null2,
+		fixtures.VersionOneTwoThree,
+		fixtures.Null,
 		"i",
 		"İ",
 		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
@@ -438,13 +439,13 @@ func TestInSetConcurrent(t *testing.T) {
 		rule string
 	}{
 		{
-			name: stringType,
+			name: fixtures.StringType,
 			rule: sIn + seqStrs(300),
 			val:  func(i int) any { return fmt.Sprintf(userKeyFormat, i%600) },
 			want: func(i int) bool { return i%600 < 300 },
 		},
 		{
-			name: intType,
+			name: fixtures.IntType,
 			rule: sIn + seqInts(300),
 			val:  func(i int) any { return i % 600 },
 			want: func(i int) bool { return i%600 < 300 },

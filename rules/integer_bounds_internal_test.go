@@ -9,11 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	xEq  = `x eq `
-	xIn0 = `x in [0, `
+	xInZero = `x in [0, `
 )
 
 // plusOne / minusOne return the decimal string of n+1 / n-1 without any overflow.
@@ -39,22 +40,22 @@ func TestEvaluateIntegerLiteralBounds(t *testing.T) {
 		{name: "zero", rule: `x eq 0`, value: 0, want: true},
 		{name: "negative zero", rule: `x eq -0`, value: 0, want: true},
 		{name: "small negative", rule: `x eq -42`, value: -42, want: true},
-		{name: "max int", rule: xEq + maxInt, value: math.MaxInt, want: true},
-		{name: "min int", rule: xEq + minInt, value: math.MinInt, want: true},
-		{name: "max int is not min int", rule: xEq + maxInt, value: math.MinInt, want: false},
+		{name: "max int", rule: fixtures.QueryXEq + maxInt, value: math.MaxInt, want: true},
+		{name: "min int", rule: fixtures.QueryXEq + minInt, value: math.MinInt, want: true},
+		{name: "max int is not min int", rule: fixtures.QueryXEq + maxInt, value: math.MinInt, want: false},
 		{name: "max int gt", rule: `x gt ` + minInt, value: math.MaxInt, want: true},
-		{name: "max int + 1", rule: xEq + plusOne(math.MaxInt), value: math.MinInt, wantErr: true},
-		{name: "min int - 1", rule: xEq + minusOne(math.MinInt), value: math.MaxInt, wantErr: true},
+		{name: "max int + 1", rule: fixtures.QueryXEq + plusOne(math.MaxInt), value: math.MinInt, wantErr: true},
+		{name: "min int - 1", rule: fixtures.QueryXEq + minusOne(math.MinInt), value: math.MaxInt, wantErr: true},
 		{name: "uint64 max does not wrap to -1", rule: `x eq 18446744073709551615`, value: -1, wantErr: true},
 		{name: "2^32 does not wrap to 0", rule: `x eq 4294967296`, value: 0, want: false},
-		{name: "huge digit string", rule: xEq + hugeDigits, value: 0, wantErr: true},
+		{name: "huge digit string", rule: fixtures.QueryXEq + hugeDigits, value: 0, wantErr: true},
 		{name: "huge negative digit string", rule: `x eq -` + hugeDigits, value: 0, wantErr: true},
 		{name: "huge literal after a valid or", rule: `x eq 1 or x eq ` + hugeDigits, value: 5, wantErr: true},
 
 		// lists
-		{name: "list with max int", rule: xIn0 + maxInt + `]`, value: math.MaxInt, want: true},
-		{name: "list with zero", rule: xIn0 + maxInt + `]`, value: 0, want: true},
-		{name: "list miss", rule: xIn0 + maxInt + `]`, value: math.MinInt, want: false},
+		{name: "list with max int", rule: xInZero + maxInt + `]`, value: math.MaxInt, want: true},
+		{name: "list with zero", rule: xInZero + maxInt + `]`, value: 0, want: true},
+		{name: "list miss", rule: xInZero + maxInt + `]`, value: math.MinInt, want: false},
 		// the grammar does not accept negative integers in a list (INT is unsigned): syntax error, not a wrap.
 		{name: "list with min int is a syntax error", rule: `x in [` + minInt + `, 1]`, value: 1, wantErr: true},
 		{name: "list with max int + 1", rule: `x in [1, ` + plusOne(math.MaxInt) + `]`, value: 1, wantErr: true},

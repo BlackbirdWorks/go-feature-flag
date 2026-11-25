@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	attrPath2   = "attr_path"
+	attrPath    = "attr_path"
 	ruleOperand = "rule_operand"
 )
 
@@ -56,7 +56,7 @@ const (
 	errValOperation     = "operation"
 	errValObjectOperand = "object_path_operand"
 	errValRuleOperand   = ruleOperand
-	errValAttrPath      = attrPath2
+	errValAttrPath      = attrPath
 )
 
 // InvalidOperandError reports an operand whose type does not match the operation.
