@@ -354,7 +354,7 @@ func TestFeatureEvent_GetUserKey(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		featureEvent *exporter.FeatureEvent ``
+		featureEvent *exporter.FeatureEvent
 		want         string
 	}{
 		{

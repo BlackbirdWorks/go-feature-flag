@@ -153,8 +153,8 @@ func BenchmarkProcess(b *testing.B) {
 			b.ResetTimer()
 
 			for range b.N {
-				_, err := eval.Process(benchInput)
-				require.NoError(b, err)
+				_, procErr := eval.Process(benchInput)
+				require.NoError(b, procErr)
 			}
 		})
 	}

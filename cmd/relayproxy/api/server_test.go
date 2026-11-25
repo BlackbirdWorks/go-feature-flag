@@ -96,6 +96,7 @@ func waitForServer(t *testing.T, baseURL string) {
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 		require.NoError(t, err)
+
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false
@@ -546,6 +547,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
+
 				req.Header.Set("Content-Type", applicationJSON)
 
 				return http.DefaultClient.Do(req)
@@ -1489,6 +1491,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 			http.NoBody,
 		)
 		require.NoError(t, getErr)
+
 		resp, getErr := http.DefaultClient.Do(req22)
 		if getErr != nil {
 			return false

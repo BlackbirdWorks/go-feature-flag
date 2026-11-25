@@ -71,8 +71,8 @@ func BenchmarkIn(b *testing.B) {
 						b.ReportAllocs()
 
 						for range b.N {
-							_, err := eval.Process(input)
-							require.NoError(b, err)
+							_, procErr := eval.Process(input)
+							require.NoError(b, procErr)
 						}
 					})
 				}

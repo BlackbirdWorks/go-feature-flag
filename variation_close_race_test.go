@@ -46,10 +46,10 @@ type finalFlushHookExporter struct {
 }
 
 func (*finalFlushHookExporter) IsBulk() bool { return true }
-func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (e *finalFlushHookExporter) Export(ctx context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
 
-	return nil
+	return ctx.Err()
 }
 
 // An evaluation that is still running when the client is closed (a request that obtained a flag

@@ -44,10 +44,13 @@ func TestRedactURLError(t *testing.T) {
 
 	req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, closedURL+"/SECRETMARKER-token", http.NoBody)
 	require.NoError(t, reqErr)
+
 	resp, doErr := http.DefaultClient.Do(req)
+
 	if resp != nil {
 		require.NoError(t, resp.Body.Close())
 	}
+
 	require.Error(t, doErr)
 
 	tests := []struct {

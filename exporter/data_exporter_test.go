@@ -34,11 +34,11 @@ type slowExporter struct {
 	exportCall atomic.Int32
 }
 
-func (s *slowExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (s *slowExporter) Export(ctx context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	s.exportCall.Add(1)
 	time.Sleep(s.delay)
 
-	return nil
+	return ctx.Err()
 }
 
 func (*slowExporter) IsBulk() bool {

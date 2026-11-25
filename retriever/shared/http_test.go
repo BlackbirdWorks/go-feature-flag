@@ -68,6 +68,7 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 			t.Parallel()
 
 			resp, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
+
 			t.Cleanup(func() {
 				if resp != nil && resp.Body != nil {
 					require.NoError(t, resp.Body.Close())

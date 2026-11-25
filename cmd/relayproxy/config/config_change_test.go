@@ -602,6 +602,7 @@ func waitForHealth(t *testing.T, baseURL string) {
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", http.NoBody)
 		require.NoError(t, err)
+
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false
