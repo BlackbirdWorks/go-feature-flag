@@ -13,6 +13,23 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	debugMessage               = "Debug message"
+	errorMessage               = "Error message"
+	fFLoggerNil                = "FFLogger nil"
+	fFLoggerNoLoggerConfigured = "FFLogger no logger configured"
+	fixture2006010215          = "2006/01/02 15:04:05 "
+	infoMessage                = "Info message"
+	req1                       = "req-1"
+	test                       = "test"
+	testHappyPathLegacy        = "Test Happy Path - legacy"
+	testHappyPathLegacy2       = "Test Happy Path - legacy with keys and values"
+	testHappyPathSlog          = "Test Happy Path - slog"
+	testHappyPathSlog2         = "Test Happy Path - slog with keys and values"
+	toto                       = "toto"
+	warnMessage                = "Warn message"
+)
+
 type ctxKey string
 
 type ctxCaptureHandler struct {
@@ -47,71 +64,71 @@ func TestFFLogger_Error(t *testing.T) {
 		fields      fields
 	}{
 		{
-			name: "Test Happy Path - slog",
+			name: testHappyPathSlog,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Error message",
+				msg:           errorMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: `level=ERROR msg="Error message"` + "\n",
 		},
 		{
-			name: "Test Happy Path - slog with keys and values",
+			name: testHappyPathSlog2,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Error message",
+				msg: errorMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: `level=ERROR msg="Error message" test=toto toto=test` + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy",
+			name: testHappyPathLegacy,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Error message",
+				msg:           errorMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "ERROR Error message" + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy with keys and values",
+			name: testHappyPathLegacy2,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Error message",
+				msg: errorMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: "ERROR Error message test=toto toto=test" + "\n",
 		},
 		{
-			name:   "FFLogger nil",
+			name:   fFLoggerNil,
 			logger: nil,
 			fields: fields{
-				msg:           "Error message",
+				msg:           errorMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
 		},
 		{
-			name:   "FFLogger no logger configured",
+			name:   fFLoggerNoLoggerConfigured,
 			logger: &fflog.FFLogger{},
 			fields: fields{
-				msg:           "Error message",
+				msg:           errorMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
@@ -159,7 +176,7 @@ func TestFFLogger_Error(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len("2006/01/02 15:04:05 ")
+				const timestampLen = len(fixture2006010215)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -185,71 +202,71 @@ func TestFFLogger_Warn(t *testing.T) {
 		fields      fields
 	}{
 		{
-			name: "Test Happy Path - slog",
+			name: testHappyPathSlog,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Warn message",
+				msg:           warnMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: `level=WARN msg="Warn message"` + "\n",
 		},
 		{
-			name: "Test Happy Path - slog with keys and values",
+			name: testHappyPathSlog2,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Warn message",
+				msg: warnMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: `level=WARN msg="Warn message" test=toto toto=test` + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy",
+			name: testHappyPathLegacy,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Warn message",
+				msg:           warnMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "WARN Warn message" + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy with keys and values",
+			name: testHappyPathLegacy2,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Warn message",
+				msg: warnMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: "WARN Warn message test=toto toto=test" + "\n",
 		},
 		{
-			name:   "FFLogger nil",
+			name:   fFLoggerNil,
 			logger: nil,
 			fields: fields{
-				msg:           "Warn message",
+				msg:           warnMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
 		},
 		{
-			name:   "FFLogger no logger configured",
+			name:   fFLoggerNoLoggerConfigured,
 			logger: &fflog.FFLogger{},
 			fields: fields{
-				msg:           "Warn message",
+				msg:           warnMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
@@ -297,7 +314,7 @@ func TestFFLogger_Warn(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len("2006/01/02 15:04:05 ")
+				const timestampLen = len(fixture2006010215)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -323,71 +340,71 @@ func TestFFLogger_Info(t *testing.T) {
 		fields      fields
 	}{
 		{
-			name: "Test Happy Path - slog",
+			name: testHappyPathSlog,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Info message",
+				msg:           infoMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: `level=INFO msg="Info message"` + "\n",
 		},
 		{
-			name: "Test Happy Path - slog with keys and values",
+			name: testHappyPathSlog2,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Info message",
+				msg: infoMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: `level=INFO msg="Info message" test=toto toto=test` + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy",
+			name: testHappyPathLegacy,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Info message",
+				msg:           infoMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "INFO Info message" + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy with keys and values",
+			name: testHappyPathLegacy2,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Info message",
+				msg: infoMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: "INFO Info message test=toto toto=test" + "\n",
 		},
 		{
-			name:   "FFLogger nil",
+			name:   fFLoggerNil,
 			logger: nil,
 			fields: fields{
-				msg:           "Info message",
+				msg:           infoMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
 		},
 		{
-			name:   "FFLogger no logger configured",
+			name:   fFLoggerNoLoggerConfigured,
 			logger: &fflog.FFLogger{},
 			fields: fields{
-				msg:           "Info message",
+				msg:           infoMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
@@ -435,7 +452,7 @@ func TestFFLogger_Info(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len("2006/01/02 15:04:05 ")
+				const timestampLen = len(fixture2006010215)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -461,71 +478,71 @@ func TestFFLogger_Debug(t *testing.T) {
 		fields      fields
 	}{
 		{
-			name: "Test Happy Path - slog",
+			name: testHappyPathSlog,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Debug message",
+				msg:           debugMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: `level=DEBUG msg="Debug message"` + "\n",
 		},
 		{
-			name: "Test Happy Path - slog with keys and values",
+			name: testHappyPathSlog2,
 			logger: &fflog.FFLogger{
 				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Debug message",
+				msg: debugMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: `level=DEBUG msg="Debug message" test=toto toto=test` + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy",
+			name: testHappyPathLegacy,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg:           "Debug message",
+				msg:           debugMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "DEBUG Debug message" + "\n",
 		},
 		{
-			name: "Test Happy Path - legacy with keys and values",
+			name: testHappyPathLegacy2,
 			logger: &fflog.FFLogger{
 				LegacyLogger: log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
-				msg: "Debug message",
+				msg: debugMessage,
 				keysAndValues: []any{
-					slog.String("test", "toto"),
-					slog.String("toto", "test"),
+					slog.String(test, toto),
+					slog.String(toto, test),
 				},
 			},
 			expectedLog: "DEBUG Debug message test=toto toto=test" + "\n",
 		},
 		{
-			name:   "FFLogger nil",
+			name:   fFLoggerNil,
 			logger: nil,
 			fields: fields{
-				msg:           "Debug message",
+				msg:           debugMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
 		},
 		{
-			name:   "FFLogger no logger configured",
+			name:   fFLoggerNoLoggerConfigured,
 			logger: &fflog.FFLogger{},
 			fields: fields{
-				msg:           "Debug message",
+				msg:           debugMessage,
 				keysAndValues: nil,
 			},
 			expectedLog: "",
@@ -575,7 +592,7 @@ func TestFFLogger_Debug(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len("2006/01/02 15:04:05 ")
+				const timestampLen = len(fixture2006010215)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -636,28 +653,28 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 			msg:        "err msg",
 			args:       []any{slog.String("k", "v")},
 			wantLog:    `level=ERROR msg="err msg" k=v` + "\n",
-			wantCtxVal: "req-1",
+			wantCtxVal: req1,
 		},
 		{
 			name:       "WarnContext with slog",
 			call:       (*fflog.FFLogger).WarnContext,
 			msg:        "warn msg",
 			wantLog:    `level=WARN msg="warn msg"` + "\n",
-			wantCtxVal: "req-1",
+			wantCtxVal: req1,
 		},
 		{
 			name:       "InfoContext with slog",
 			call:       (*fflog.FFLogger).InfoContext,
 			msg:        "info msg",
 			wantLog:    `level=INFO msg="info msg"` + "\n",
-			wantCtxVal: "req-1",
+			wantCtxVal: req1,
 		},
 		{
 			name:       "DebugContext with slog",
 			call:       (*fflog.FFLogger).DebugContext,
 			msg:        "debug msg",
 			wantLog:    `level=DEBUG msg="debug msg"` + "\n",
-			wantCtxVal: "req-1",
+			wantCtxVal: req1,
 		},
 		{
 			name:    "ErrorContext with nil ctx falls back to background",
@@ -773,7 +790,7 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 
 			var ctx context.Context
 			if !tt.nilCtx {
-				ctx = context.WithValue(t.Context(), key, "req-1")
+				ctx = context.WithValue(t.Context(), key, req1)
 			}
 
 			tt.call(logger, ctx, tt.msg, tt.args...)
@@ -784,7 +801,7 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 			actual := string(content)
 
 			if tt.useLegacy {
-				const timestampLen = len("2006/01/02 15:04:05 ")
+				const timestampLen = len(fixture2006010215)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
