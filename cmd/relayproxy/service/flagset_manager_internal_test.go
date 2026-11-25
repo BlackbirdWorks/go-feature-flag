@@ -61,9 +61,7 @@ func testSharedPollerManager(t *testing.T) {
 	assert.EqualValues(t, 2, f.gets.Load())
 
 	// a flagset added at runtime joins the same group
-	impl, ok := mgr.(*flagsetManagerImpl)
-	require.True(t, ok)
-	impl.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"), 0)
+	mgr.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"), 0)
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
 	all, err := mgr.AllFlagSets()
@@ -71,8 +69,8 @@ func testSharedPollerManager(t *testing.T) {
 	assert.Contains(t, all, "u3")
 
 	// removing flagsets releases the group once the last one is gone
-	impl.removeFlagset(s3FlagSet("u1", "flags", "p/a.yaml"))
-	impl.removeFlagset(s3FlagSet("u2", "flags", "p/b.yaml"))
+	mgr.removeFlagset(s3FlagSet("u1", "flags", "p/a.yaml"))
+	mgr.removeFlagset(s3FlagSet("u2", "flags", "p/b.yaml"))
 	assert.Equal(t, 1, reg.groupCount())
 	mgr.Close()
 	assert.Equal(t, 0, reg.groupCount())
@@ -91,9 +89,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 
 		// the flagset name is already in the configuration: the new client is closed and released
 		dup := s3FlagSet("u1", "flags", "p/b.yaml")
-		impl, ok := mgr.(*flagsetManagerImpl)
-		require.True(t, ok)
-		impl.addFlagset(dup, 0)
+		mgr.addFlagset(dup, 0)
 		assert.Equal(t, 1, reg.groupCount())
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
@@ -130,7 +126,7 @@ func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 
 func newPollingManager(
 	t *testing.T, f *fakeS3, interval time.Duration, logger *slog.Logger,
-) (*flagsetManagerImpl, *sharedBucketRegistry) {
+) (*FlagsetManagerImpl, *sharedBucketRegistry) {
 	t.Helper()
 	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 	require.NoError(t, err)
@@ -142,10 +138,7 @@ func newPollingManager(
 		&config.Config{FlagSets: []config.FlagSet{a, b}}, logger, nil, nil, nil, reg)
 	require.NoError(t, err)
 
-	impl, ok := mgr.(*flagsetManagerImpl)
-	require.True(t, ok)
-
-	return impl, reg
+	return mgr, reg
 }
 
 func Test_flagsetManagerImpl_sharedPoller(t *testing.T) {
@@ -264,9 +257,7 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 			t.Cleanup(m.Close)
 
 			var got, calls atomic.Int64
-			impl, ok := m.(*flagsetManagerImpl)
-			require.True(t, ok)
-			impl.clientOptions = []clientOption{
+			m.clientOptions = []clientOption{
 				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					calls.Add(1)
 					got.Store(int64(c.ExporterCleanQueueInterval))
@@ -279,7 +270,7 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 				Name: "added", APIKeys: []string{"k2"},
 				Retriever: retriever, ExporterCleanQueueInterval: tt.addedOverride,
 			}
-			impl.onConfigChangeWithFlagsets(&config.Config{
+			m.onConfigChangeWithFlagsets(&config.Config{
 				FlagSets:                   []config.FlagSet{existing, added},
 				ExporterCleanQueueInterval: tt.reloadTop,
 			})

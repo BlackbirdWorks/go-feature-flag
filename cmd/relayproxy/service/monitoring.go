@@ -17,27 +17,27 @@ type Monitoring interface {
 	Info() (model.InfoResponse, error)
 }
 
+// MonitoringImpl is one implementation of the Monitoring interface.
+type MonitoringImpl struct {
+	flagsetManager FlagsetManager
+}
+
 // NewMonitoring creates a new implementation of Monitoring.
-func NewMonitoring(flagsetManager FlagsetManager) Monitoring {
-	return &monitoringImpl{
+func NewMonitoring(flagsetManager FlagsetManager) *MonitoringImpl {
+	return &MonitoringImpl{
 		flagsetManager: flagsetManager,
 	}
 }
 
-// monitoringImpl is one implementation of the Monitoring interface.
-type monitoringImpl struct {
-	flagsetManager FlagsetManager
-}
-
 // Health returns a static object to show that the server is initialized.
-func (m *monitoringImpl) Health() model.HealthResponse {
+func (m *MonitoringImpl) Health() model.HealthResponse {
 	return model.HealthResponse{
 		Initialized: true,
 	}
 }
 
 // Info returns information about the relay-proxy.
-func (m *monitoringImpl) Info() (model.InfoResponse, error) {
+func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 	if m.flagsetManager == nil {
 		return model.InfoResponse{}, errFlagsetManagerIsNot
 	}

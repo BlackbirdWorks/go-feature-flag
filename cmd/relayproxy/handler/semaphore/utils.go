@@ -28,7 +28,7 @@ func assertRequest(u *model.AllFlagRequest) *helper.HTTPError {
 	return nil
 }
 
-func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.Context, error) {
+func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.EvaluationContext, error) {
 	if req == nil || req.EvaluationContext == nil {
 		return ffcontext.EvaluationContext{},
 			helper.NewHTTPError(

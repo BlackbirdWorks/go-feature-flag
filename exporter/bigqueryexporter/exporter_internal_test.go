@@ -735,7 +735,11 @@ func newMockBigQueryClient() *mockBigQueryClient {
 	return client
 }
 
-func (m *mockBigQueryClient) Inserter(dataset, table string) inserter {
+func (m *mockBigQueryClient) Put(ctx context.Context, dataset, table string, src any) error {
+	return m.Inserter(dataset, table).Put(ctx, src)
+}
+
+func (m *mockBigQueryClient) Inserter(dataset, table string) *mockInserter {
 	m.ensureInitialized()
 	key := dataset + "." + table
 	if m.inserters[key] == nil {

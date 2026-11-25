@@ -261,7 +261,7 @@ func assertOFREPEvaluateRequest(
 	return nil
 }
 
-func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffcontext.Context, error) {
+func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffcontext.EvaluationContext, error) {
 	if req == nil || req.Context == nil {
 		return ffcontext.EvaluationContext{}, NewOFREPCommonError(
 			flag.ErrorCodeInvalidContext,

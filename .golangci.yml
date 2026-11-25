@@ -8,7 +8,7 @@
 #   - forbidigo: the two slog.Default/slog.New bans point at gopherstack's own
 #     pkgs/logger package and are dropped (sloglint no-global: all still bans
 #     the global slog logger); the generic fmt.Print ban is kept.
-#   - ireturn.allow: gopherstack-specific entries dropped (linter not enabled).
+#   - ireturn.allow: semaphore polymorphic seams and external SDK interfaces.
 #   - exclusions: gopherstack's per-service path rules are dropped; paths for
 #     generated/vendored code of this repo are added (see exclusions.paths).
 #   - modules: the single root module (incl. modules/core and rules/) is linted with this file;
@@ -127,6 +127,7 @@ linters:
     - iface # checks the incorrect use of interfaces, helping developers avoid interface pollution
     - ineffassign # detects when assignments to existing variables are not used
     - intrange # finds places where for loops could make use of an integer range
+    - ireturn # accept interfaces, return concrete types (genuine polymorphic seams allowed below)
     - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
@@ -198,7 +199,6 @@ linters:
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
-    - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen
     - noinlineerr # inline error handling is the project style
     - tagalign # struct tags are aligned by hand for the schema and config readability
@@ -455,6 +455,25 @@ linters:
         - error
         - empty
         - stdlib
+        - generic
+        # Internal polymorphic seams
+        - ^github\.com/blackbirdworks/semaphore/retriever\.Retriever$
+        - ^github\.com/blackbirdworks/semaphore/exporter\.CommonExporter$
+        - ^github\.com/blackbirdworks/semaphore/internal\.HTTPClient$
+        - ^github\.com/blackbirdworks/semaphore/internal/loadtest\.Target$
+        - ^github\.com/blackbirdworks/semaphore/modules/core/flag\.Flag$
+        - ^github\.com/blackbirdworks/semaphore/modules/core/ffcontext\.Context$
+        - ^github\.com/blackbirdworks/semaphore/rules/parser\.Operand$
+        - ^github\.com/blackbirdworks/semaphore/rules/parser\.Operation$
+        - ^github\.com/prometheus/client_golang/prometheus\.Gatherer$
+        # External SDK interfaces
+        - ^github\.com/antlr4-go/antlr/v4\.ParseTree$
+        - ^github\.com/danielgtaylor/huma/v2\.API$
+        - ^github\.com/danielgtaylor/huma/v2\.Context$
+        - ^github\.com/knadh/koanf/v2\.Parser$
+        - ^go\.opentelemetry\.io/otel/propagation\.TextMapPropagator$
+        - ^go\.opentelemetry\.io/otel/sdk/trace\.Sampler$
+        - ^k8s\.io/client-go/kubernetes\.Interface$
 
     mnd:
       # List of function patterns to exclude from analysis.

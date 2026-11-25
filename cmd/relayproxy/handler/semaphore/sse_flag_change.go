@@ -11,25 +11,26 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
+// SSEFlagChange is the controller for the SSE flag change endpoint.
+type SSEFlagChange struct {
+	sseService     stream.SSEService
+	flagsetManager service.FlagsetManager
+}
+
 // NewSSEFlagChange is the constructor to create a new controller to handle SSE
 // requests to be notified about flag changes.
 func NewSSEFlagChange(
 	sseService stream.SSEService,
 	flagsetManager service.FlagsetManager,
-) RawHandler {
-	return &sseFlagChange{
+) *SSEFlagChange {
+	return &SSEFlagChange{
 		sseService:     sseService,
 		flagsetManager: flagsetManager,
 	}
 }
 
-type sseFlagChange struct {
-	sseService     stream.SSEService
-	flagsetManager service.FlagsetManager
-}
-
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
-func (h *sseFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
+func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	apiKey := r.URL.Query().Get("apiKey")
 	flagsetName, err := helper.RequestFlagSetName(r.Context(), h.flagsetManager, apiKey)
 	if err != nil {

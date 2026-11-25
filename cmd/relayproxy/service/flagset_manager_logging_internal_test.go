@@ -37,7 +37,7 @@ func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *te
 	var buf bytes.Buffer
 	logger, err := cmdlog.New("json", "debug", cmdlog.WithWriter(&buf))
 	require.NoError(t, err)
-	mgr := &flagsetManagerImpl{logger: logger.Slog}
+	mgr := &FlagsetManagerImpl{logger: logger.Slog}
 
 	mgr.OnConfigChange(invalid)
 

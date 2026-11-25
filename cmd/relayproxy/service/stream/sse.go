@@ -34,12 +34,22 @@ type SSEService interface {
 	Close()
 }
 
+// SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
+type SSEServiceImpl struct {
+	server *sse.Server
+	// activeStreams counts the connected clients per stream, used to send the heartbeats.
+	activeStreams   map[string]int
+	done            chan struct{}
+	closeOnce       sync.Once
+	muActiveStreams sync.Mutex
+}
+
 // NewSSEService creates a new SSEService backed by r3labs/sse.
-func NewSSEService(opts ...Option) SSEService {
+func NewSSEService(opts ...Option) *SSEServiceImpl {
 	server := sse.New()
 	server.AutoReplay = false
 	server.AutoStream = true
-	s := &sseServiceImpl{
+	s := &SSEServiceImpl{
 		server:        server,
 		activeStreams: map[string]int{},
 		done:          make(chan struct{}),
@@ -51,18 +61,9 @@ func NewSSEService(opts ...Option) SSEService {
 	return s
 }
 
-type sseServiceImpl struct {
-	server *sse.Server
-	// activeStreams counts the connected clients per stream, used to send the heartbeats.
-	activeStreams   map[string]int
-	done            chan struct{}
-	closeOnce       sync.Once
-	muActiveStreams sync.Mutex
-}
-
 // BroadcastFlagChanges only notifies that the flags changed, the diff is not sent:
 // providers re-fetch their evaluations when they receive the event.
-func (s *sseServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
+func (s *SSEServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
 	now := clock.Now()
 	data, err := json.Marshal(model.OFREPSSEEvent{
 		Type:         model.OFREPSSEEventTypeRefetchEvaluation,
@@ -80,7 +81,7 @@ func (s *sseServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 	return nil
 }
 
-func (s *sseServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	streamID := r.URL.Query().Get("stream")
 	s.trackStream(streamID, 1)
 	defer s.trackStream(streamID, -1)
@@ -91,18 +92,18 @@ func (s *sseServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.server.ServeHTTP(w, r)
 }
 
-func (s *sseServiceImpl) SetOnSubscribe(fn func(streamID string)) {
+func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
 	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
 		fn(streamID)
 	}
 }
 
-func (s *sseServiceImpl) Close() {
+func (s *SSEServiceImpl) Close() {
 	s.closeOnce.Do(func() { close(s.done) })
 	s.server.Close()
 }
 
-func (s *sseServiceImpl) trackStream(streamID string, delta int) {
+func (s *SSEServiceImpl) trackStream(streamID string, delta int) {
 	s.muActiveStreams.Lock()
 	defer s.muActiveStreams.Unlock()
 	s.activeStreams[streamID] += delta
@@ -113,7 +114,7 @@ func (s *sseServiceImpl) trackStream(streamID string, delta int) {
 
 // sendHeartbeats periodically sends an SSE comment on every stream with connected clients,
 // so that proxies and load balancers do not close the connections while no flag changes.
-func (s *sseServiceImpl) sendHeartbeats(interval time.Duration) {
+func (s *SSEServiceImpl) sendHeartbeats(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {

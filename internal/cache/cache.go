@@ -14,7 +14,7 @@ type Cache interface {
 	getFlag(key string) (flag.Flag, error)
 
 	// Copy return a copy version of the cache.
-	Copy() Cache
+	Copy() *InMemoryCache
 
 	// All return the complete list of the flags, as deep copies the caller is free to change.
 	All() map[string]flag.Flag

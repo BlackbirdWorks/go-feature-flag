@@ -14,20 +14,22 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 )
 
-type allFlags struct {
+// AllFlags is the controller for the /v1/allflags endpoint.
+type AllFlags struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 }
 
-func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) RawHandler {
-	return &allFlags{
+// NewAllFlags initializes the controller for the /v1/allflags endpoint.
+func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) *AllFlags {
+	return &AllFlags{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
 }
 
 // Handler is the entry point for the allFlags endpoint.
-func (h *allFlags) Handler(w http.ResponseWriter, r *http.Request) error {
+func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
 	if err := helper.BindBody(r, reqBody); err != nil {
 		return err

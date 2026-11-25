@@ -28,7 +28,7 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 //
 // For authenticated users, the targetingKey may be a username or e-mail address. For anonymous users,
 // this could be an IP address or session ID.
-func NewEvaluationContextBuilder(key string) EvaluationContextBuilder {
+func NewEvaluationContextBuilder(key string) *EvaluationContextBuilder {
 	return coreCtx.NewEvaluationContextBuilder(key)
 }
 

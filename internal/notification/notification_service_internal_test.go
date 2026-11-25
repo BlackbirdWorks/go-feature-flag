@@ -246,7 +246,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &notificationService{
+			c := &ServiceImpl{
 				Notifiers: tt.fields.Notifiers,
 				waitGroup: &sync.WaitGroup{},
 			}

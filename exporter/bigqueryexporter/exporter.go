@@ -51,13 +51,9 @@ const (
 var _ exporter.Exporter = &Exporter{}
 
 type bigQueryClient interface {
-	Inserter(dataset, table string) inserter
+	Put(ctx context.Context, dataset, table string, src any) error
 	EnsureTable(ctx context.Context, dataset, table string, schema bigquery.Schema) error
 	Close() error
-}
-
-type inserter interface {
-	Put(ctx context.Context, src any) error
 }
 
 type rowSaver struct {
@@ -135,11 +131,6 @@ func (e *Exporter) initClient(ctx context.Context) error {
 			return
 		}
 
-		newClientFunc := e.newClientFunc
-		if newClientFunc == nil {
-			newClientFunc = newBigQueryClient
-		}
-
 		var opts []option.ClientOption
 		if len(e.GoogleCredentials) > 0 {
 			opts = append(
@@ -148,7 +139,11 @@ func (e *Exporter) initClient(ctx context.Context) error {
 			)
 		}
 
-		e.client, e.initErr = newClientFunc(ctx, e.ProjectID, opts...)
+		if e.newClientFunc != nil {
+			e.client, e.initErr = e.newClientFunc(ctx, e.ProjectID, opts...)
+		} else {
+			e.client, e.initErr = newBigQueryClient(ctx, e.ProjectID, opts...)
+		}
 	})
 
 	return e.initErr
@@ -222,11 +217,10 @@ func (e *Exporter) exportRows(
 		}
 	}
 
-	ins := e.client.Inserter(e.DatasetID, table)
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
 		end := min(start+maxRowsPerInsert, len(rows))
-		if err := ins.Put(ctx, rows[start:end]); err != nil {
+		if err := e.client.Put(ctx, e.DatasetID, table, rows[start:end]); err != nil {
 			return err
 		}
 	}
@@ -356,7 +350,7 @@ func newBigQueryClient(
 	ctx context.Context,
 	projectID string,
 	opts ...option.ClientOption,
-) (bigQueryClient, error) {
+) (*realBigQueryClient, error) {
 	client, err := bigquery.NewClient(ctx, projectID, opts...)
 	if err != nil {
 		return nil, err
@@ -369,8 +363,12 @@ type realBigQueryClient struct {
 	client *bigquery.Client
 }
 
-func (c *realBigQueryClient) Inserter(dataset, table string) inserter {
+func (c *realBigQueryClient) Inserter(dataset, table string) *bigquery.Inserter {
 	return c.client.Dataset(dataset).Table(table).Inserter()
+}
+
+func (c *realBigQueryClient) Put(ctx context.Context, dataset, table string, src any) error {
+	return c.Inserter(dataset, table).Put(ctx, src)
 }
 
 func (c *realBigQueryClient) EnsureTable(

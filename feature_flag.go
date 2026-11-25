@@ -98,7 +98,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 }
 
 // initializeNotificationService is a function that will initialize the notification service with the notifiers.
-func initializeNotificationService(config Config) notification.Service {
+func initializeNotificationService(config Config) *notification.ServiceImpl {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
 

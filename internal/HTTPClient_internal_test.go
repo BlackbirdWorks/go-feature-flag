@@ -18,10 +18,8 @@ func TestNewHTTPClient(t *testing.T) {
 
 	client := NewHTTPClient(2*time.Second, transport)
 
-	httpClient, ok := client.(*http.Client)
-	require.True(t, ok)
-	assert.Equal(t, 2*time.Second, httpClient.Timeout)
-	assert.Same(t, transport, httpClient.Transport)
+	assert.Equal(t, 2*time.Second, client.Timeout)
+	assert.Same(t, transport, client.Transport)
 }
 
 func TestNewHTTPClient_WithDefaultTimeout(t *testing.T) {
@@ -29,8 +27,6 @@ func TestNewHTTPClient_WithDefaultTimeout(t *testing.T) {
 
 	client := NewHTTPClient(0, nil)
 
-	httpClient, ok := client.(*http.Client)
-	require.True(t, ok)
-	assert.Equal(t, 10*time.Second, httpClient.Timeout)
-	assert.Nil(t, httpClient.Transport)
+	assert.Equal(t, 10*time.Second, client.Timeout)
+	assert.Nil(t, client.Transport)
 }

@@ -17,7 +17,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
 
-type validateFlags struct {
+// ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
+type ValidateFlags struct {
 	version string
 	metrics metric.Metrics
 	limits  config.ValidateFlagsEndpoint
@@ -40,12 +41,12 @@ type FlagValidationResponse struct {
 // The unset (zero) limits are replaced by their default.
 func NewValidateFlags(
 	version string, metrics metric.Metrics, limits config.ValidateFlagsEndpoint,
-) RawHandler {
-	return &validateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
+) *ValidateFlags {
+	return &ValidateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
 }
 
 // Handler validates a flag file without loading it in the relay proxy.
-func (h *validateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
+func (h *ValidateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	outcome, err := h.validate(w, r)
 	h.metrics.IncValidateFlags(outcome)
 
@@ -53,7 +54,7 @@ func (h *validateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 }
 
 // validate runs the validation and returns the outcome used for the metric alongside the handler error.
-func (h *validateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
+func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
 	const outcomeError = metric.ValidateFlagsOutcomeError
 	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
 	if !ok {
@@ -121,7 +122,7 @@ func tooLargeMessage(maxSize int64, format string) string {
 	return fmt.Sprintf("request body too large (max %s for %s)", size, format)
 }
 
-func (h *validateFlags) formatFromContentType(contentType string) (string, int64, bool) {
+func (h *ValidateFlags) formatFromContentType(contentType string) (string, int64, bool) {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return "", 0, false

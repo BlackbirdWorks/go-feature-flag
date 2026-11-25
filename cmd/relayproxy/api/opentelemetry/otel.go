@@ -180,8 +180,8 @@ func (s *OtelService) Install(logger *slog.Logger) {
 }
 
 // newErrorHandler logs the OTel errors rather than the default log package.
-func newErrorHandler(logger *slog.Logger) otel.ErrorHandler {
-	return otelErrHandler(func(err error) {
+func newErrorHandler(logger *slog.Logger) otel.ErrorHandlerFunc {
+	return otel.ErrorHandlerFunc(func(err error) {
 		logger.LogAttrs(context.Background(), slog.LevelError, "OTel error", cmdlog.Err(err))
 	})
 }
@@ -193,14 +193,6 @@ func newPropagator() propagation.TextMapPropagator {
 		propagation.Baggage{},
 	)
 }
-
-type otelErrHandler func(err error)
-
-func (o otelErrHandler) Handle(err error) {
-	o(err)
-}
-
-var _ otel.ErrorHandler = otelErrHandler(nil)
 
 func initResource(ctx context.Context, serviceName, version string,
 	attribs map[string]string) (*resource.Resource, error) {

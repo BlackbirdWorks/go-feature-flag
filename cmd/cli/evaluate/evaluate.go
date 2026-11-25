@@ -56,7 +56,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 }
 
 // parseEvaluationContext parses the evaluation context from the command line arguments.
-func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
+func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) {
 	if e.evaluationCtx == "" {
 		return ffcontext.NewEvaluationContextBuilder("").Build(), nil
 	}
@@ -64,7 +64,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
 	var ctxAsMap map[string]any
 	err := json.Unmarshal([]byte(e.evaluationCtx), &ctxAsMap)
 	if err != nil {
-		return nil, err
+		return ffcontext.EvaluationContext{}, err
 	}
 
 	targetingKey, ok := ctxAsMap["targetingKey"].(string)

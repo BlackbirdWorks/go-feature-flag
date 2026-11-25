@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/knadh/koanf/maps"
-	"github.com/knadh/koanf/v2"
 
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
@@ -133,7 +132,7 @@ func isServiceLinkURL(value string) bool {
 	return false
 }
 
-func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) koanf.Provider {
+func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) *environProvider {
 	return &environProvider{prefix: prefix, environ: c.environ(),
 		skip: func(key, value string) bool { return prefix != "" && isServiceLink(key, value) },
 		skipped: func(names []string) {

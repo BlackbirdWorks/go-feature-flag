@@ -20,20 +20,22 @@ var (
 	errImpossibleToFindThe = errors.New("impossible to find the flag key in the URL")
 )
 
-type flagEval struct {
+// FlagEval is the controller for the /v1/feature/{flagKey}/eval endpoint.
+type FlagEval struct {
 	flagsetMngr service.FlagsetManager
 	metrics     metric.Metrics
 }
 
-func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) RawHandler {
-	return &flagEval{
+// NewFlagEval initializes the controller for the /v1/feature/{flagKey}/eval endpoint.
+func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) *FlagEval {
+	return &FlagEval{
 		flagsetMngr: flagsetMngr,
 		metrics:     metrics,
 	}
 }
 
 // Handler is the entry point for the flag eval endpoint.
-func (h *flagEval) Handler(w http.ResponseWriter, r *http.Request) error {
+func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	flagKey := r.PathValue("flagKey")
 	if flagKey == "" {
 		return errImpossibleToFindThe

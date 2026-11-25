@@ -4,17 +4,17 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-type notifierPrometheus struct {
+type NotifierPrometheus struct {
 	metricsService Metrics
 }
 
-func NewPrometheusNotifier(metricsService Metrics) notifier.Notifier {
-	return &notifierPrometheus{
+func NewPrometheusNotifier(metricsService Metrics) *NotifierPrometheus {
+	return &NotifierPrometheus{
 		metricsService: metricsService,
 	}
 }
 
-func (n *notifierPrometheus) Notify(diff notifier.DiffCache) error {
+func (n *NotifierPrometheus) Notify(diff notifier.DiffCache) error {
 	if !diff.HasDiff() {
 		return nil
 	}

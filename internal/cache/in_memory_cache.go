@@ -34,7 +34,7 @@ func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache 
 	}
 }
 
-func (fc *InMemoryCache) Copy() Cache {
+func (fc *InMemoryCache) Copy() *InMemoryCache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
 		inMemoryCache.addFlag(k, *v)
