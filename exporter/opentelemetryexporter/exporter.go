@@ -115,7 +115,11 @@ func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, 
 		b, err := json.Marshal(event.Value)
 		if err != nil {
 			if logger != nil {
-				logger.DebugContext(ctx, "failed to marshal feature flag value for otel attribute", slog.Any("error", err))
+				logger.DebugContext(
+					ctx,
+					"failed to marshal feature flag value for otel attribute",
+					slog.Any("error", err),
+				)
 			}
 		} else {
 			attributes = append(attributes, attribute.String("feature_flag.value", string(b)))

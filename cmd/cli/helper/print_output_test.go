@@ -113,9 +113,11 @@ func TestLegacyWarner(t *testing.T) {
 		wantLines []string
 	}{
 		{
-			name:      "one kind several times is logged once",
-			kinds:     []string{flagFile, flagFile},
-			wantLines: []string{`{"level":"WARN","msg":"legacy name used","legacyName":"flag-file","detail":"legacy name flag-file"}`},
+			name:  "one kind several times is logged once",
+			kinds: []string{flagFile, flagFile},
+			wantLines: []string{
+				`{"level":"WARN","msg":"legacy name used","legacyName":"flag-file","detail":"legacy name flag-file"}`,
+			},
 		},
 		{
 			name:  "two kinds are logged once each",

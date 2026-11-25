@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/blackbirdworks/semaphore/internal"
 	"log"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 var (

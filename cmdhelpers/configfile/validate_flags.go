@@ -41,6 +41,7 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 
 	for _, key := range slices.Sorted(maps.Keys(flags)) {
 		flagDto := flags[key]
+
 		err := validateFlag(svc, &flagDto)
 		if err != nil {
 			errs = append(errs, FlagError{Flag: key, Err: err})

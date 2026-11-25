@@ -646,7 +646,12 @@ authorizedKeys:
 `+tt.retriever+"\n", "{{ .Bucket }}", bucket)
 			url := startRelayProxyFromYAML(t, yaml, nil)
 
-			res := postJSON(t, url+ofrepEvaluateRuleFlag, topKey, ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin))
+			res := postJSON(
+				t,
+				url+ofrepEvaluateRuleFlag,
+				topKey,
+				ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
+			)
 			require.Equal(t, 200, res.Status, res.Raw)
 			assert.Equal(t, tt.wantValue, res.Body[fixtures.MetadataValue])
 			assert.Equal(t, targetingMatch, res.Body["reason"])

@@ -164,7 +164,10 @@ func TestE2E_Export(t *testing.T) {
 
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, exp.Export(context.Background(), slog.New(slog.DiscardHandler), all[i:min(i+per, len(all))]))
+				require.NoError(
+					t,
+					exp.Export(context.Background(), slog.New(slog.DiscardHandler), all[i:min(i+per, len(all))]),
+				)
 			}
 
 			got := readAll(t, client, stream, tt.nbEvents)
@@ -215,7 +218,11 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: tt.settings(t)}
-			require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)), tt.wantErr)
+			require.ErrorContains(
+				t,
+				e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)),
+				tt.wantErr,
+			)
 		})
 	}
 }

@@ -171,8 +171,7 @@ func deepCopyValue(val any) any {
 	}
 
 	reflVal := reflect.ValueOf(val)
-	switch kind := reflVal.Kind(); {
-	case kind == reflect.Map:
+	if reflVal.Kind() == reflect.Map {
 		if reflVal.IsNil() {
 			return val
 		}
@@ -183,7 +182,9 @@ func deepCopyValue(val any) any {
 		}
 
 		return out.Interface()
-	case kind == reflect.Slice:
+	}
+
+	if reflVal.Kind() == reflect.Slice {
 		if reflVal.IsNil() {
 			return val
 		}

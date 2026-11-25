@@ -115,9 +115,7 @@ func run(exit func()) int {
 		return 1
 	}
 
-	if !proxyConf.HideBanner {
-		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
-	}
+	printBanner(proxyConf)
 
 	// Update the logger's format and level from the config
 	updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel)
@@ -127,25 +125,10 @@ func run(exit func()) int {
 		return 1
 	}
 
-	// Surface whether the binary is running with FIPS 140-3 validated crypto.
-	// True only for builds produced with GOFIPS140 (see `make build-relayproxy-fips`).
-	logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
-
-	// Init swagger
+	logCryptoMode(logger.Slog)
 
 	// Initialize metrics
-	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{
-		Version:                   version,
-		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
-	})
-	if err != nil {
-		logger.Slog.LogAttrs(
-			context.Background(),
-			slog.LevelError,
-			"impossible to initialize prometheus metrics",
-			cmdlog.Err(err),
-		)
-	}
+	metricsV2 := newMetrics(logger.Slog, proxyConf)
 
 	// Init services
 	wsService := stream.NewWebsocketService(stream.WithFlagDetails(!proxyConf.DisableFlagDetailsInStream))
@@ -191,6 +174,37 @@ func run(exit func()) int {
 	apiServer.StartWithContext(context.Background())
 
 	return 0
+}
+
+// logCryptoMode surfaces whether the binary is running with FIPS 140-3 validated crypto.
+// True only for builds produced with GOFIPS140 (see `make build-relayproxy-fips`).
+func logCryptoMode(logger *slog.Logger) {
+	logger.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
+}
+
+// printBanner prints the startup banner on stdout, unless the configuration hides it.
+func printBanner(proxyConf *config.Config) {
+	if !proxyConf.HideBanner {
+		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
+	}
+}
+
+// newMetrics initializes the metrics. When it fails, the error is logged and the metrics stay unset.
+func newMetrics(logger *slog.Logger, proxyConf *config.Config) *metric.Metrics {
+	metrics, err := metric.NewMetrics(metric.MetricsOpts{
+		Version:                   version,
+		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
+	})
+	if err != nil {
+		logger.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
+	}
+
+	return metrics
 }
 
 // logFatal logs the message at the fatal level.

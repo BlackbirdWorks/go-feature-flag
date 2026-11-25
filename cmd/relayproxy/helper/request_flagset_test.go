@@ -122,8 +122,12 @@ func TestRequestFlagSetName(t *testing.T) {
 	}{
 		{name: "the name resolved by the authentication is used", apiKey: fixtures.MetadataKey, authenticate: true,
 			wantName: tenant, wantAuth: true, wantLogged: []any{tenant}},
-		{name: "the name of the key is looked up without authentication", apiKey: fixtures.MetadataKey, wantName: tenant,
-			wantLogged: []any{tenant}},
+		{
+			name:       "the name of the key is looked up without authentication",
+			apiKey:     fixtures.MetadataKey,
+			wantName:   tenant,
+			wantLogged: []any{tenant},
+		},
 		{name: "a key without flag set is an error", apiKey: "other", wantErr: true},
 		{name: "a key without flag set is not authenticated", apiKey: "other", authenticate: true, wantErr: true},
 	}

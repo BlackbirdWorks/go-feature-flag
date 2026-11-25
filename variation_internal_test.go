@@ -3675,9 +3675,11 @@ func TestRawVariation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
+							fixtures.VariationDefault: new(
+								any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest}),
+							),
+							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -3734,9 +3736,11 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
+							fixtures.VariationDefault: new(
+								any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest}),
+							),
+							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -3776,9 +3780,11 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
+							fixtures.VariationDefault: new(
+								any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest}),
+							),
+							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),

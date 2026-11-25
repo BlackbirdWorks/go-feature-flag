@@ -154,7 +154,7 @@ func createGoFeatureFlagClient(
 	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 	opts ...clientOption,
-) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
+) (_ *ffclient.GoFeatureFlag, retErr error) {
 	var err error
 
 	if cFlagSet == nil {
@@ -512,8 +512,7 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
 
-	switch kind := expConf.Kind; {
-	case kind == config.S3Exporter:
+	if expConf.Kind == config.S3Exporter {
 		return &s3exporterv2.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
@@ -523,7 +522,9 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AwsConfig:               &awsConfig,
 		}, nil
-	case kind == config.KinesisExporter:
+	}
+
+	if expConf.Kind == config.KinesisExporter {
 		return &kinesisexporter.Exporter{
 			Format:    defaults.format,
 			AwsConfig: &awsConfig,
@@ -532,7 +533,9 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 				kinesisexporter.WithStreamName(expConf.StreamName),
 			),
 		}, nil
-	case kind == config.SQSExporter:
+	}
+
+	if expConf.Kind == config.SQSExporter {
 		return &sqsexporter.Exporter{
 			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,

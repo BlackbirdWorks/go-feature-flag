@@ -306,7 +306,11 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (jaegerSamplerOptions, error) 
 		maxOperations = v
 	}
 
-	return jaegerSamplerOptions{url: samplerURL, refreshInterval: samplerRefreshInterval, maxOperations: maxOperations}, nil
+	return jaegerSamplerOptions{
+		url:             samplerURL,
+		refreshInterval: samplerRefreshInterval,
+		maxOperations:   maxOperations,
+	}, nil
 }
 
 // Stop the OpenTelemetry service. The exporter, the tracer provider and the meter provider are all shut down, whatever

@@ -452,7 +452,11 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
+			exp := &Exporter{
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
+				client:            client,
+			}
 
 			var logs bytes.Buffer
 
@@ -537,8 +541,10 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			wantErr: unsupportedType,
 		},
 		{
-			name:    "feature metadata unsupported type",
-			events:  featureEvents(exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}}),
+			name: "feature metadata unsupported type",
+			events: featureEvents(
+				exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}},
+			),
 			wantErr: unsupportedType,
 		},
 		{
@@ -561,7 +567,11 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
+			exp := &Exporter{
+				ClusterIdentifier: fixtures.MyCluster,
+				Database:          fixtures.DatabaseAnalytics,
+				client:            client,
+			}
 
 			var logs bytes.Buffer
 
@@ -849,7 +859,11 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				cancelTimeout:     20 * time.Millisecond,
 			}
 
-			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
+			err := exp.Export(
+				context.TODO(),
+				slog.New(slog.DiscardHandler),
+				[]exporter.ExportableEvent{newFeatureEvent(0)},
+			)
 
 			if len(tt.wantErr) == 0 {
 				require.NoError(t, err)
@@ -1024,8 +1038,11 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name:     "mixed event types",
 			exporter: &Exporter{Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster},
-			events:   []exporter.ExportableEvent{newFeatureEvent(0), exporter.TrackingEvent{Key: fixtures.TrackingEventKey}},
-			wantErr:  "redshift exporter received mixed event types",
+			events: []exporter.ExportableEvent{
+				newFeatureEvent(0),
+				exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
+			},
+			wantErr: "redshift exporter received mixed event types",
 		},
 		{
 			name: "execute statement error",

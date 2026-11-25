@@ -257,9 +257,17 @@ func TestLevels(t *testing.T) {
 			level:     fixtures.LogLevelDebug,
 			wantShown: []string{fixtures.LogLevelDebug, fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal},
 		},
-		{name: "empty is info", level: "", wantShown: []string{fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal}},
+		{
+			name:      "empty is info",
+			level:     "",
+			wantShown: []string{fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal},
+		},
 		{name: "upper case", level: "WARN", wantShown: []string{warn, fixtures.LogLevelError, fatal}},
-		{name: fixtures.LogLevelError, level: fixtures.LogLevelError, wantShown: []string{fixtures.LogLevelError, fatal}},
+		{
+			name:      fixtures.LogLevelError,
+			level:     fixtures.LogLevelError,
+			wantShown: []string{fixtures.LogLevelError, fatal},
+		},
 		{name: fatal, level: fatal, wantShown: []string{fatal}},
 		{name: "dpanic", level: "dpanic", wantShown: []string{fatal}},
 		{

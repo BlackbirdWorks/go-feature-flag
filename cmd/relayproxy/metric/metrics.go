@@ -233,12 +233,6 @@ func registerMetricCollectors(
 	return nil
 }
 
-// Enabled reports whether the metrics are set up: the zero value, or no Metrics at all, means that no metric is
-// recorded or served.
-func (m *Metrics) Enabled() bool {
-	return m != nil && m.Registry != nil
-}
-
 // NewMetrics is the constructor for the custom metrics.
 func NewMetrics(opts ...MetricsOpts) (*Metrics, error) {
 	// default opts
@@ -279,6 +273,12 @@ func NewMetrics(opts ...MetricsOpts) (*Metrics, error) {
 		getManifestCounter:       counters.getManifestCounter,
 		Registry:                 customRegistry,
 	}, nil
+}
+
+// Enabled reports whether the metrics are set up: the zero value, or no Metrics at all, means that no metric is
+// recorded or served.
+func (m *Metrics) Enabled() bool {
+	return m != nil && m.Registry != nil
 }
 
 // IncFlagEvaluation increments the evaluation counter of the named flag.

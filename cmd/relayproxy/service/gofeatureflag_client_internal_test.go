@@ -1069,7 +1069,12 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 				reg := newFakeRegistry(t, tt.s3, &atomic.Int32{})
 				fs := s3FlagSet("a", "b1", pAYaml)
 				tt.mod(&fs)
-				_, err := createGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil, withSharedBucketRegistry(reg))
+				_, err := createGoFeatureFlagClient(
+					&fs,
+					slog.New(slog.DiscardHandler),
+					nil,
+					withSharedBucketRegistry(reg),
+				)
 				require.Error(t, err)
 				assert.Equal(t, tt.wantGroups, reg.groupCount(), "the retriever must have left its group")
 			})

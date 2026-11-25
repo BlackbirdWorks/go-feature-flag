@@ -1,8 +1,9 @@
 package testhelpers
 
 import (
-	"github.com/blackbirdworks/semaphore/exporter"
 	"text/template"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 // ExportableMockEvent is an exportable evaluation event used in tests.

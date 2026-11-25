@@ -61,14 +61,19 @@ func (e Endpoint) EmitsEvents() bool {
 
 // Path returns the URL path of the endpoint for a flag key.
 func (e Endpoint) Path(flagKey string) string {
-	switch {
-	case e == SemaphoreEval:
+	if e == SemaphoreEval {
 		return "/v1/feature/" + flagKey + "/eval"
-	case e == SemaphoreAllFlags:
+	}
+
+	if e == SemaphoreAllFlags {
 		return "/v1/allflags"
-	case e == OFREPEval:
+	}
+
+	if e == OFREPEval {
 		return "/ofrep/v1/evaluate/flags/" + flagKey
-	case e == OFREPBulk:
+	}
+
+	if e == OFREPBulk {
 		return "/ofrep/v1/evaluate/flags"
 	}
 
@@ -81,10 +86,11 @@ func (e Endpoint) Body(i int) string {
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
 
-	switch {
-	case e == SemaphoreEval:
+	if e == SemaphoreEval {
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)
-	case e == SemaphoreAllFlags:
+	}
+
+	if e == SemaphoreAllFlags {
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}}}`, user, custom)
 	}
 

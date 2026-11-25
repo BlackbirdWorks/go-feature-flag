@@ -19,6 +19,6 @@ func (d *DiffCache) HasDiff() bool {
 
 // DiffUpdated holds the state of one flag before and after it was updated.
 type DiffUpdated struct {
-	Before flag.Flag `json:"old_value"` //nolint:tagliatelle // semaphore webhook notifier and flag-change websocket payload
-	After  flag.Flag `json:"new_value"` //nolint:tagliatelle // semaphore webhook notifier and flag-change websocket payload
+	Before flag.Flag `json:"old_value"` //nolint:tagliatelle // webhook notifier and flag-change websocket payload
+	After  flag.Flag `json:"new_value"` //nolint:tagliatelle // webhook notifier and flag-change websocket payload
 }

@@ -56,8 +56,10 @@ func (g *GoFeatureFlag) GetFlagStates(
 	}
 
 	allFlags := flagstate.NewAllFlags()
+
 	for key, currentFlag := range flags {
 		state := flagstate.FromFlagEvaluation(key, evaluationCtx, flagCtx, currentFlag)
+
 		allFlags.AddFlag(key, &state)
 	}
 

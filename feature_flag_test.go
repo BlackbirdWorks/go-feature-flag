@@ -1002,7 +1002,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			mockNotifier := &mock.Notifier{}
 			tt.config.Notifiers = []notifier.Notifier{mockNotifier}
 
-			gffClient, err := ffclient.New(&*tt.config)
+			gffClient, err := ffclient.New(tt.config)
 			require.NoError(t, err)
 
 			defer gffClient.Close()

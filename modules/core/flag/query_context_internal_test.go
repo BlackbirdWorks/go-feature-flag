@@ -241,7 +241,9 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.AttrPlan, tt.plan).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+				AddCustom(fixtures.AttrPlan, tt.plan).
+				Build()
 
 			value, details := internalFlag.Value(
 				"mixed-formats",

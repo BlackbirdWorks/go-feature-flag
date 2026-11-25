@@ -40,8 +40,9 @@ func TestManifestCmd(t *testing.T) {
 			name:             "should ignore flag without value",
 			args:             []string{"--config=testdata/input/flag-no-default.yaml"},
 			expectedManifest: "testdata/output/flag-no-default.json",
-			expectedOutput:   "WARNING: flag ignored: no default value provided flag=test-flag\nINFO: 🎉 Manifest has been created\n",
-			assertError:      assert.NoError,
+			expectedOutput: "WARNING: flag ignored: no default value provided flag=test-flag\n" +
+				"INFO: 🎉 Manifest has been created\n",
+			assertError: assert.NoError,
 		},
 		{
 			name:        "should error if flag type is invalid",

@@ -200,7 +200,11 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &s3exporterv2.Exporter{Bucket: tt.bucket(t), AwsConfig: &cfg, S3Path: "x"}
-			require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)), tt.wantErr)
+			require.ErrorContains(
+				t,
+				e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)),
+				tt.wantErr,
+			)
 		})
 	}
 }

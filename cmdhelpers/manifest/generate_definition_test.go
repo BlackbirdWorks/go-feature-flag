@@ -40,6 +40,7 @@ func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 
 		return true
 	})
+
 	h.msgs = append(h.msgs, msg)
 	h.levels = append(h.levels, r.Level)
 

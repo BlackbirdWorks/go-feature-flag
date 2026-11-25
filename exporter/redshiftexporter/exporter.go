@@ -519,10 +519,11 @@ func (e *Exporter) interval() time.Duration {
 
 // statementResult reports if the statement is completed and its error if it did not succeed.
 func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (bool, error) {
-	switch status := output.Status; {
-	case status == types.StatusStringFinished:
+	if output.Status == types.StatusStringFinished {
 		return true, nil
-	case status == types.StatusStringFailed || status == types.StatusStringAborted:
+	}
+
+	if output.Status == types.StatusStringFailed || output.Status == types.StatusStringAborted {
 		stmtErr := fmt.Errorf("%w: statement %s %s", errRedshiftExporter, aws.ToString(id), output.Status)
 		if detail := statementError(output); detail != "" {
 			stmtErr = fmt.Errorf("%w: %s", stmtErr, detail)

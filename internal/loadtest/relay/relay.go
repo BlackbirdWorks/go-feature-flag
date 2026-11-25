@@ -57,11 +57,11 @@ type Relay struct {
 	wsSvc  stream.WebsocketService
 	sink   *httptest.Server
 	server *api.Server
+	// Services are the relay proxy services, usable to build handlers in-process.
+	Services service.Services
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
 	dir     string
-	// Services are the relay proxy services, usable to build handlers in-process.
-	Services service.Services
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.

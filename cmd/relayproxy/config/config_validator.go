@@ -231,8 +231,9 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 
 	if retrievers != nil {
 		for i := range *retrievers {
-			retriever := &(*retrievers)[i]
-			err := retriever.IsValid()
+			conf := &(*retrievers)[i]
+
+			err := conf.IsValid()
 			if err != nil {
 				return fmt.Errorf("retriever at index %d validation failed: %w", i, err)
 			}
@@ -253,8 +254,9 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 
 	if exporters != nil {
 		for i := range *exporters {
-			exporter := &(*exporters)[i]
-			err := exporter.IsValid()
+			conf := &(*exporters)[i]
+
+			err := conf.IsValid()
 			if err != nil {
 				return fmt.Errorf("exporter at index %d validation failed: %w", i, err)
 			}

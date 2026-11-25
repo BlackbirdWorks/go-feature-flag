@@ -222,6 +222,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 	for index := range cfg.FlagSets {
 		flagset := &cfg.FlagSets[index]
+
 		flagSetName := flagset.Name
 		if !isNamedFlagset(flagset) {
 			flagSetName = uuid.New().String()

@@ -20,8 +20,8 @@ import (
 
 // ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
 type ValidateFlags struct {
-	version string
 	metrics *metric.Metrics
+	version string
 	limits  config.ValidateFlagsEndpoint
 }
 

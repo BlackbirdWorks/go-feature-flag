@@ -312,7 +312,13 @@ func TestETag(t *testing.T) {
 			wantBody:   okTrue,
 			wantETag:   true,
 		},
-		{name: "error untouched", entry: fixtures.KindHTTP, failing: true, wantStatus: http.StatusTeapot, wantBody: tea},
+		{
+			name:       "error untouched",
+			entry:      fixtures.KindHTTP,
+			failing:    true,
+			wantStatus: http.StatusTeapot,
+			wantBody:   tea,
+		},
 		{
 			name:       "huma no condition",
 			entry:      humaName,

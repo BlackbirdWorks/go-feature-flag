@@ -1,13 +1,14 @@
 package exporter
 
 import (
-	"github.com/blackbirdworks/semaphore/internal"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 // DefaultExporterCleanQueueInterval is the interval at which the exporter queues are cleaned.
@@ -90,8 +91,12 @@ func NewManager[T ExportableEvent](exporters []Config,
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval
 	}
 
-	mgr := &managerImpl[T]{logger: internal.LoggerOrDiscard(logger), flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
-		dropSignal: make(chan struct{}, 1)}
+	mgr := &managerImpl[T]{
+		logger:     internal.LoggerOrDiscard(logger),
+		flushEnded: make(chan struct{}),
+		stopCh:     make(chan struct{}),
+		dropSignal: make(chan struct{}, 1),
+	}
 
 	var maxQueued int64
 

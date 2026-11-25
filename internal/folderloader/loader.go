@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/blackbirdworks/semaphore/internal"
 	"log/slog"
 	"path"
 	"slices"
@@ -20,6 +19,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 )
@@ -83,14 +83,14 @@ type cachedFile struct {
 // A Loader is not safe for concurrent use: the caller must serialize the calls.
 type Loader struct {
 	store Store
+	// logger is the logger of the options, or one that discards everything.
+	logger *slog.Logger
 	// format is the format of the last Load, read by OutputFormat.
 	format  atomic.Value
 	cache   map[string]cachedFile
 	skipped map[string]struct{}
 	prefix  string
 	opts    Options
-	// logger is the logger of the options, or one that discards everything.
-	logger *slog.Logger
 }
 
 // New creates a Loader reading the files from store.

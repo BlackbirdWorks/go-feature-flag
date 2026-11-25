@@ -83,6 +83,7 @@ func testSharedPollerManager(t *testing.T) {
 	// removing flagsets releases the group once the last one is gone
 	u1 := s3FlagSet("u1", fixtures.FlagsDir, pAYaml)
 	u2 := s3FlagSet("u2", fixtures.FlagsDir, pBYaml)
+
 	mgr.removeFlagset(&u1)
 	mgr.removeFlagset(&u2)
 	assert.Equal(t, 1, reg.groupCount())

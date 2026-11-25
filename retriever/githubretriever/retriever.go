@@ -171,6 +171,12 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
+// It is also used for the tests.
+func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
+	r.httpClient = client
+}
+
 // fetchWithRetry fetches the URL. On a 401 with App auth, the cached token may have just expired: it is
 // invalidated and the request is retried once with a fresh token.
 func (r *Retriever) fetchWithRetry(ctx context.Context, requestURL, token string) (*http.Response, error) {
@@ -193,12 +199,6 @@ func (r *Retriever) fetchWithRetry(ctx context.Context, requestURL, token string
 	}
 
 	return resp, nil
-}
-
-// SetHTTPClient is here if you want to override the default [http.Client] we are using.
-// It is also used for the tests.
-func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
-	r.httpClient = client
 }
 
 // validateAppAuth checks that GitHub App fields are either all unset, or complete,

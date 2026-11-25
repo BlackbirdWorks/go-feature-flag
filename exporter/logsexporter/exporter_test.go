@@ -88,7 +88,8 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex +
+				"\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 		},
 		{
 			name: "Field does not exist",
@@ -107,8 +108,9 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
-			wantErr:     true,
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex +
+				"\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
