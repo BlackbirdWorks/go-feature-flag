@@ -157,8 +157,7 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 				Build()
 			for date, want := range map[time.Time]string{early: tt.wantEarly, late: tt.wantLate} {
-				ctx := flag.EnrichContext(base, nil)
-				ctx = withDate(ctx, date)
+				ctx := withDate(base, date)
 				_, details := tt.flag.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 				assert.Equal(t, want, details.Variant, "variant at %s", date)
 			}

@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
@@ -102,14 +100,9 @@ func asError(v any) error {
 	return err
 }
 
-// newHumaAPI returns the huma API that holds the operations of the relay proxy. The document is generated from
-// them. huma serves nothing by itself (no document, no docs page): the relay proxy owns its routes.
-//
-//nolint:ireturn // returns the huma.API that the huma adapter constructs, which only exposes the interface
-func newHumaAPI(
-	mux *http.ServeMux,
-	exposeError, docs bool,
-) huma.API {
+// newHumaConfig returns the huma configuration that holds the operations of the relay proxy. The document is
+// generated from them. huma serves nothing by itself unless docs is enabled: the relay proxy owns its routes.
+func newHumaConfig(exposeError, docs bool) huma.Config {
 	cfg := huma.DefaultConfig("Semaphore relay proxy endpoints", "1.0.0")
 	// huma serves the document and the Swagger UI under the swagger path, only when it is enabled: the relay proxy
 	// owns every other route.
@@ -144,5 +137,5 @@ func newHumaAPI(
 		},
 	}
 
-	return humago.New(mux, cfg)
+	return cfg
 }

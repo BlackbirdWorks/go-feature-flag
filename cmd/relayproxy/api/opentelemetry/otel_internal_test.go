@@ -42,9 +42,9 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
-		assert.Equal(t, sdktrace.AlwaysSample(), sampler)
+		assert.Equal(t, sdktrace.AlwaysSample(), got.sampler)
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
@@ -54,9 +54,9 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
-		assert.Nil(t, sampler)
+		assert.Nil(t, got.sampler)
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
@@ -66,12 +66,12 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
 
 		// not really any way to assert on the sampler other than calling
 		// Description()...
-		assert.Equal(t, "JaegerRemoteSampler{}", sampler.Description())
+		assert.Equal(t, "JaegerRemoteSampler{}", got.sampler.Description())
 	})
 }
 
@@ -394,43 +394,39 @@ func (p probeProcessor) Shutdown(context.Context) error { return p.probe.shutdow
 
 func (probeProcessor) ForceFlush(context.Context) error { return nil }
 
-// memoryMetricExporter keeps the metrics it receives, and its shutdown is observed.
-type memoryMetricExporter struct {
-	probe    *shutdownProbe
-	exported []string
-	mu       sync.Mutex
+// probeMetricReader is a manual metric reader whose shutdown is observed and collects pending metrics on shutdown.
+type probeMetricReader struct {
+	*sdkmetric.ManualReader
+
+	probe *shutdownProbe
+	rm    metricdata.ResourceMetrics
+	mu    sync.Mutex
 }
 
-func (*memoryMetricExporter) Temporality(sdkmetric.InstrumentKind) metricdata.Temporality {
-	return metricdata.CumulativeTemporality
+func (r *probeMetricReader) Shutdown(ctx context.Context) error {
+	r.mu.Lock()
+	collectErr := r.Collect(ctx, &r.rm)
+	r.mu.Unlock()
+
+	readerErr := r.ManualReader.Shutdown(ctx)
+	probeErr := r.probe.shutdown()
+
+	return errors.Join(collectErr, readerErr, probeErr)
 }
 
-func (*memoryMetricExporter) Aggregation(kind sdkmetric.InstrumentKind) sdkmetric.Aggregation {
-	return sdkmetric.DefaultAggregationSelector(kind)
-}
+func (r *probeMetricReader) names() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-func (e *memoryMetricExporter) Export(_ context.Context, data *metricdata.ResourceMetrics) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	var out []string
 
-	for _, scope := range data.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			e.exported = append(e.exported, m.Name)
+	for _, scope := range r.rm.ScopeMetrics {
+		for _, item := range scope.Metrics {
+			out = append(out, item.Name)
 		}
 	}
 
-	return nil
-}
-
-func (*memoryMetricExporter) ForceFlush(context.Context) error { return nil }
-
-func (e *memoryMetricExporter) Shutdown(context.Context) error { return e.probe.shutdown() }
-
-func (e *memoryMetricExporter) names() []string {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	return append([]string(nil), e.exported...)
+	return out
 }
 
 var (
@@ -441,7 +437,7 @@ var (
 
 // TestStop checks that the failure of any part of the service does not keep the others from being
 // shut down, that the errors that are returned are exactly the failing ones, and that the metrics that were pending
-// are delivered to the exporter during the shutdown (the final flush).
+// are delivered to the reader during the shutdown (the final flush).
 func TestStop(t *testing.T) {
 	t.Parallel()
 
@@ -469,9 +465,11 @@ func TestStop(t *testing.T) {
 
 			exporterProbe := &shutdownProbe{err: tt.exporterErr}
 			tracerProbe := &shutdownProbe{err: tt.tracerErr}
-			metrics := &memoryMetricExporter{probe: &shutdownProbe{err: tt.meterErr}}
-			// the periodic reader exports on its interval, and when it is shut down: nothing is exported before.
-			reader := sdkmetric.NewPeriodicReader(metrics, sdkmetric.WithInterval(time.Hour))
+			meterProbe := &shutdownProbe{err: tt.meterErr}
+			reader := &probeMetricReader{
+				ManualReader: sdkmetric.NewManualReader(),
+				probe:        meterProbe,
+			}
 
 			svc := NewOtelService(WithMetricReader(reader))
 			svc.otelExporter = probeExporter{probe: exporterProbe}
@@ -486,14 +484,14 @@ func TestStop(t *testing.T) {
 			counter, err := svc.MeterProvider().Meter(fixtures.PlaceholderTest).Int64Counter("test.pending")
 			require.NoError(t, err)
 			counter.Add(t.Context(), 1)
-			require.Empty(t, metrics.names(), "nothing was exported before the shutdown")
+			require.Empty(t, reader.names(), "nothing was collected before the shutdown")
 
 			stopErr := svc.Stop(t.Context())
 
 			assert.True(t, exporterProbe.wasShutDown(), "the span exporter was shut down")
 			assert.True(t, tracerProbe.wasShutDown(), "the tracer provider was shut down")
-			assert.True(t, metrics.probe.wasShutDown(), "the meter provider (its reader and exporter) was shut down")
-			assert.Contains(t, metrics.names(), "test.pending", "the pending metrics were flushed by the shutdown")
+			assert.True(t, meterProbe.wasShutDown(), "the meter provider (its reader) was shut down")
+			assert.Contains(t, reader.names(), "test.pending", "the pending metrics were flushed by the shutdown")
 
 			for _, want := range tt.wantErrs {
 				require.ErrorIs(t, stopErr, want)

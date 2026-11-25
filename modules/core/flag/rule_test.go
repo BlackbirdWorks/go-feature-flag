@@ -52,10 +52,15 @@ func runRuleEvaluateTests(t *testing.T, tests []ruleEvaluateCase) {
 				key = tt.args.user.GetKey()
 			}
 
+			var userCtx ffcontext.Context
+			if tt.args.user != nil {
+				userCtx = atFixedNow(tt.args.user)
+			}
+
 			got, err := tt.rule.Evaluate(
 				flag.NewService(),
 				key,
-				atFixedNow(tt.args.user),
+				userCtx,
 				"flagname+",
 				tt.args.isDefault,
 			)

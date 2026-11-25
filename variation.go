@@ -271,7 +271,7 @@ func notifyVariation[T model.JSONType](
 		// the event describes the context as it was evaluated: with the configured enrichment
 		// (only what the event reads is worth merging: the exporter metadata and the anonymous status).
 		if enrichment := client.evaluationEnrichment(); changesEventFields(enrichment) {
-			ctx = flag.EnrichContext(ctx, enrichment)
+			ctx = flag.NewEnrichedContext(ctx, enrichment)
 		}
 
 		event := exporter.NewFeatureEvent(

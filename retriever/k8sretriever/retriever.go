@@ -28,13 +28,9 @@ type Retriever struct {
 
 // Retrieve is the function in charge of fetching the flag configuration.
 func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
-	if s.client == nil {
-		client, clientErr := s.createClient()
-		if clientErr != nil {
-			return nil, fmt.Errorf("unable to create client, error: %w", clientErr)
-		}
-
-		s.client = client
+	clientErr := s.ensureClient()
+	if clientErr != nil {
+		return nil, fmt.Errorf("unable to create client, error: %w", clientErr)
 	}
 
 	if s.client == nil {
@@ -62,18 +58,29 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return []byte(content), nil
 }
 
-// createClient creates the Kubernetes client of the retriever.
-//
-//nolint:ireturn // returns the kubernetes.Interface of the injectable newClient factory
-func (s *Retriever) createClient() (kubernetes.Interface, error) {
+// ensureClient creates the Kubernetes client of the retriever when it is not already set.
+func (s *Retriever) ensureClient() error {
+	if s.client != nil {
+		return nil
+	}
+
 	if s.newClient != nil {
-		return s.newClient(&s.ClientConfig)
+		client, err := s.newClient(&s.ClientConfig)
+		if err != nil {
+			return err
+		}
+
+		s.client = client
+
+		return nil
 	}
 
 	client, err := kubernetes.NewForConfig(&s.ClientConfig)
 	if err != nil {
-		return nil, fmt.Errorf("create Kubernetes client: %w", err)
+		return fmt.Errorf("create Kubernetes client: %w", err)
 	}
 
-	return client, nil
+	s.client = client
+
+	return nil
 }

@@ -425,14 +425,13 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
 		cmpNode.attrPath = val.AttrPath().GetText()
 		cmpNode.opType = val.op.GetTokenType()
-		operation := compileValue(cmpNode, val.Value(), src)
+		isVersion := compileValue(cmpNode, val.Value(), src)
 
-		cmpNode.apply = applyFor(operation, cmpNode.opType)
 		if cmpNode.apply == nil {
 			panic(fmt.Sprintf("no operation for operator token %d", cmpNode.opType))
 		}
 
-		if _, ok := operation.(*VersionOperation); ok {
+		if isVersion {
 			ruleVersion := assertString(cmpNode.rightOp)
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
@@ -635,23 +634,24 @@ func validBuild(build string) bool {
 	return true
 }
 
-// compileValue pre-parses the right-hand side of a comparison into target and
-// returns the Operation the visitor would have selected for it.
-//
-//nolint:ireturn // factory: selects the operation implementation from the value kind at runtime
-func compileValue(target *compareNode, v IValueContext, src *sourceText) Operation {
+// compileValue pre-parses the right-hand side of a comparison into target, wires
+// target.apply for target.opType, and reports whether the comparison is a version
+// comparison.
+func compileValue(target *compareNode, v IValueContext, src *sourceText) bool {
+	var operation Operation
+
+	isVersion := false
+
 	switch ctx := v.(type) {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
 		target.rightOp = ctx.GetText() == trueLiteral
-
-		return &BoolOperation{}
+		operation = &BoolOperation{}
 	case *NullContext:
-		return &NullOperation{}
+		operation = &NullOperation{}
 	case *StringContext:
 		target.rightOp = getString(ctx.GetText())
-
-		return &StringOperation{}
+		operation = &StringOperation{}
 	case *DoubleContext:
 		// an unparsable double leaves the operand nil without an error
 		val, err := strconv.ParseFloat(ctx.GetText(), 64)
@@ -659,11 +659,11 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 			target.rightOp = val
 		}
 
-		return &FloatOperation{}
+		operation = &FloatOperation{}
 	case *VersionContext:
 		target.rightOp = ctx.VERSION().GetText()
-
-		return &VersionOperation{}
+		operation = &VersionOperation{}
+		isVersion = true
 	case *LongContext:
 		val, err := strconv.Atoi(ctx.GetText())
 		if err != nil {
@@ -672,22 +672,26 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 			target.rightOp = val
 		}
 
-		return &IntOperation{}
+		operation = &IntOperation{}
 	case *ListOfIntsContext:
 		target.compileInts(ctx)
 
-		return &IntOperation{}
+		operation = &IntOperation{}
 	case *ListOfDoublesContext:
 		target.compileDoubles(ctx)
 
-		return &FloatOperation{}
+		operation = &FloatOperation{}
 	case *ListOfStringsContext:
 		target.compileStrings(ctx, src)
 
-		return &StringOperation{}
+		operation = &StringOperation{}
+	default:
+		operation = &NullOperation{}
 	}
 
-	return &NullOperation{}
+	target.apply = applyFor(operation, target.opType)
+
+	return isVersion
 }
 
 // compileInts pre-parses an int list into n, with a hash index when it is long.

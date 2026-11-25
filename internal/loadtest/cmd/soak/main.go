@@ -98,13 +98,16 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	return opts, nil
 }
 
+// soakTarget wraps [loadtest.Target] so newTarget returns a concrete type.
+type soakTarget struct {
+	loadtest.Target
+}
+
 // newTarget builds the target selected by the options.
-//
-//nolint:ireturn // factory: selects the load test target implementation from the options at runtime
-func newTarget(ctx context.Context, opts *options) (loadtest.Target, error) {
+func newTarget(ctx context.Context, opts *options) (soakTarget, error) {
 	mode, err := loadtest.ParseExporterMode(opts.exporter)
 	if err != nil {
-		return nil, fmt.Errorf("parse exporter mode: %w", err)
+		return soakTarget{}, fmt.Errorf("parse exporter mode: %w", err)
 	}
 
 	switch opts.target {
@@ -114,18 +117,18 @@ func newTarget(ctx context.Context, opts *options) (loadtest.Target, error) {
 			FlushInterval: time.Duration(opts.flushMs) * time.Millisecond, MaxEventInMemory: opts.maxEvents,
 		})
 		if libErr != nil {
-			return nil, fmt.Errorf("create library soak target: %w", libErr)
+			return soakTarget{}, fmt.Errorf("create library soak target: %w", libErr)
 		}
 
-		return t, nil
+		return soakTarget{Target: t}, nil
 	case "relay":
 		endpoint, parseEndpointErr := relay.ParseEndpoint(opts.endpoint)
 		if parseEndpointErr != nil {
-			return nil, fmt.Errorf("parse relay endpoint: %w", parseEndpointErr)
+			return soakTarget{}, fmt.Errorf("parse relay endpoint: %w", parseEndpointErr)
 		}
 
 		if opts.protocol != "http1" && opts.protocol != "h2c" {
-			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
+			return soakTarget{}, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
 		}
 
 		//nolint:contextcheck // the relay of the target owns its loopback server, Target.Close stops it (ctx does not)
@@ -134,12 +137,12 @@ func newTarget(ctx context.Context, opts *options) (loadtest.Target, error) {
 			FlushIntervalMs: opts.flushMs, MaxEventInMemory: opts.maxEvents,
 		}, endpoint, opts.flagKey, opts.workers)
 		if relayErr != nil {
-			return nil, fmt.Errorf("create relay soak target: %w", relayErr)
+			return soakTarget{}, fmt.Errorf("create relay soak target: %w", relayErr)
 		}
 
-		return t, nil
+		return soakTarget{Target: t}, nil
 	default:
-		return nil, fmt.Errorf("%w %q", errUnknownTarget, opts.target)
+		return soakTarget{}, fmt.Errorf("%w %q", errUnknownTarget, opts.target)
 	}
 }
 

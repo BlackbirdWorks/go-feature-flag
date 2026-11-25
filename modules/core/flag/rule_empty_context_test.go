@@ -166,7 +166,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), fixtures.FlagKeyTest, false)
+			var evalCtx ffcontext.Context
+			if tt.ctx != nil {
+				evalCtx = atFixedNow(tt.ctx)
+			}
+
+			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, evalCtx, fixtures.FlagKeyTest, false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

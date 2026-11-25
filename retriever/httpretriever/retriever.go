@@ -64,7 +64,7 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 func (r *Retriever) Init(_ context.Context, _ *slog.Logger) error {
 	r.status = retriever.RetrieverNotReady
 
-	_, err := r.getHTTPClient()
+	err := r.ensureHTTPClient()
 	if err != nil {
 		r.status = retriever.RetrieverError
 
@@ -97,12 +97,12 @@ func (r *Retriever) Status() retriever.Status {
 
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
-	httpClient, err := r.getHTTPClient()
+	err := r.ensureHTTPClient()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := shared.CallHTTPAPI(ctx, r.URL, r.Method, r.Body, r.Timeout, r.Header, httpClient)
+	resp, err := shared.CallHTTPAPI(ctx, r.URL, r.Method, r.Body, r.Timeout, r.Header, r.httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("fetch HTTP flag file: %w", err)
 	}
@@ -120,10 +120,9 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
-//nolint:ireturn // returns the injectable HTTPClient of the retriever (a test seam)
-func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
+func (r *Retriever) ensureHTTPClient() error {
 	if r.httpClient != nil {
-		return r.httpClient, nil
+		return nil
 	}
 
 	var transport http.RoundTripper
@@ -131,7 +130,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	if r.ClientCertPath != "" || r.ClientKeyPath != "" || r.CACertPath != "" {
 		tlsConfig, err := r.tlsConfig()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		base := r.baseTransport
@@ -141,7 +140,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
+			return fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
 		}
 
 		tlsTransport := defaultTransport.Clone()
@@ -151,7 +150,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 
 	r.httpClient = internal.NewHTTPClient(r.Timeout, transport)
 
-	return r.httpClient, nil
+	return nil
 }
 
 func (r *Retriever) tlsConfig() (*tls.Config, error) {

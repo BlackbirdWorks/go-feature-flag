@@ -343,7 +343,13 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value(fixtures.FlagKeyTest, atFixedNow(tt.evaluationCtx), flagContext)
+
+			var evalCtx ffcontext.Context
+			if tt.evaluationCtx != nil {
+				evalCtx = atFixedNow(tt.evaluationCtx)
+			}
+
+			value, resolutionDetails := tt.flag.Value(fixtures.FlagKeyTest, evalCtx, flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
@@ -440,7 +446,13 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value(fixtures.FlagKeyTest, atFixedNow(tt.evaluationCtx), flagContext)
+
+			var evalCtx ffcontext.Context
+			if tt.evaluationCtx != nil {
+				evalCtx = atFixedNow(tt.evaluationCtx)
+			}
+
+			value, resolutionDetails := tt.flag.Value(fixtures.FlagKeyTest, evalCtx, flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)

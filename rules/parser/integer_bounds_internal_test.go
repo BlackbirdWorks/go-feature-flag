@@ -71,10 +71,10 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 			require.NoError(t, err)
 
 			compiled, compiledErr := ev.Process(items)
-			tree, err := parseRule(tt.rule)
+			parsed, err := parseRule(tt.rule)
 			require.NoError(t, err)
 
-			visited, visitedErr, _ := visitorProcess(tree, items)
+			visited, visitedErr, _ := visitorProcess(parsed.tree, items)
 
 			if tt.wantErr {
 				require.Error(t, compiledErr, compiledName)

@@ -507,18 +507,21 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 	)
 }
 
+// fileParser wraps [koanf.Parser] so selectParserForFile returns a concrete type.
+type fileParser struct {
+	koanf.Parser
+}
+
 // selectParserForFile returns the appropriate parser based on file extension.
-//
-//nolint:ireturn // selects among the toml, json and yaml parsers at runtime
-func selectParserForFile(configFileLocation string) koanf.Parser {
+func selectParserForFile(configFileLocation string) fileParser {
 	ext := filepath.Ext(configFileLocation)
 	switch strings.ToLower(ext) {
 	case ".toml":
-		return toml.Parser()
+		return fileParser{Parser: toml.Parser()}
 	case ".json":
-		return json.Parser()
+		return fileParser{Parser: json.Parser()}
 	default:
-		return yaml.Parser()
+		return fileParser{Parser: yaml.Parser()}
 	}
 }
 

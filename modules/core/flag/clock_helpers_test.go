@@ -16,18 +16,12 @@ func fixedNow() time.Time {
 
 // atFixedNow returns a copy of ctx whose evaluation date is fixedNow, unless ctx already
 // carries one. The given context is left untouched (test cases run in parallel).
-func atFixedNow(ctx ffcontext.Context) ffcontext.Context {
-	if ctx == nil {
-		return nil
-	}
-
+func atFixedNow(ctx ffcontext.Context) ffcontext.EvaluationContext {
 	specifics := ctx.ExtractGOFFProtectedFields()
-	if specifics.CurrentDateTime != nil {
-		return ctx
+	if specifics.CurrentDateTime == nil {
+		now := fixedNow()
+		specifics.CurrentDateTime = &now
 	}
-
-	now := fixedNow()
-	specifics.CurrentDateTime = &now
 
 	out := ffcontext.NewEvaluationContext(ctx.GetKey())
 	for k, v := range ctx.GetCustom() {

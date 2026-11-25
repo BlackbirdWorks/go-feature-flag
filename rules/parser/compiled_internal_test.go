@@ -1313,10 +1313,10 @@ func testProcessConcurrentStaleList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tree, err := parseRule(tt.rule)
+			parsed, err := parseRule(tt.rule)
 			require.NoError(t, err)
 
-			wantRet, wantErr, wantDebug := visitorProcess(tree, tt.items)
+			wantRet, wantErr, wantDebug := visitorProcess(parsed.tree, tt.items)
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 

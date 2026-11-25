@@ -384,24 +384,32 @@ func (m *Metrics) ShouldCollectBulkMetrics() bool {
 // Gatherer returns what the /metrics endpoint serves. With exposeLegacy it also serves every series of
 // the SubSystem under its LegacySubSystem name (semaphore_flag_evaluations_total is also exposed as
 // gofeatureflag_flag_evaluations_total), so the dashboards and alerts of GO Feature Flag keep working.
-//
-//nolint:ireturn // selects between the registry and the legacy gatherer at runtime
-func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
-	if !exposeLegacy {
-		return m.Registry
+func (m *Metrics) Gatherer(exposeLegacy bool) MetricsGatherer {
+	return MetricsGatherer{
+		source:       m.Registry,
+		exposeLegacy: exposeLegacy,
+	}
+}
+
+// MetricsGatherer gathers the source once and, when exposeLegacy is enabled, serves its families with, next to
+// each family of the SubSystem, a copy named with the LegacySubSystem prefix. Both names carry the values of the
+// same collection.
+type MetricsGatherer struct {
+	source       prom.Gatherer
+	exposeLegacy bool
+}
+
+// Gather returns the metric families from the source, adding LegacySubSystem copies when exposeLegacy is enabled.
+func (g MetricsGatherer) Gather() ([]*dto.MetricFamily, error) {
+	families, err := g.source.Gather()
+	if !g.exposeLegacy {
+		if err != nil {
+			return families, fmt.Errorf("gathering the metrics: %w", err)
+		}
+
+		return families, nil
 	}
 
-	return legacyGatherer{source: m.Registry}
-}
-
-// legacyGatherer gathers the source once and serves its families with, next to each family of the SubSystem,
-// a copy named with the LegacySubSystem prefix. Both names so carry the values of the same collection.
-type legacyGatherer struct {
-	source prom.Gatherer
-}
-
-func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
-	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
 	out := make([]*dto.MetricFamily, 0, len(families)*metricsPerFamily)
 

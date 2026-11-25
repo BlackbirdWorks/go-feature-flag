@@ -10,7 +10,7 @@ import (
 	"net/http/pprof"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
@@ -39,7 +39,7 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 		mux.Handle("GET /swagger/{$}", http.RedirectHandler("/swagger/index.html", http.StatusFound))
 	}
 
-	return &routeSet{mux: mux, api: newHumaAPI(mux, s.config.IsDebugEnabled(), docs)}
+	return &routeSet{mux: mux, api: humago.New(mux, newHumaConfig(s.config.IsDebugEnabled(), docs))}
 }
 
 // mergeOpenAPI adds the operations and the schemas of src to dst.
@@ -271,8 +271,8 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 		gatherer := s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)
 
 		h := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{DisableCompression: true})
-		if r, ok := gatherer.(prometheus.Registerer); ok {
-			h = promhttp.InstrumentMetricHandler(r, h)
+		if !s.config.ExposeLegacyMetrics {
+			h = promhttp.InstrumentMetricHandler(s.services.Metrics.Registry, h)
 		}
 
 		routes.mux.Handle("GET /metrics", h)

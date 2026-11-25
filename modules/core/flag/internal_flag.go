@@ -101,7 +101,7 @@ func (f *InternalFlag) Value(
 	// steps, experimentation and progressive rollout). The caller's context must not be modified
 	// (it can be shared by concurrent evaluations), so we work on an enriched view of it.
 	if len(flagContext.EvaluationContextEnrichment) > 0 {
-		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
+		evaluationCtx = NewEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
 	// The date is only read (from the context, else the clock) by the flags that depend on it.

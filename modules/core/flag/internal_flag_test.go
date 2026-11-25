@@ -99,7 +99,12 @@ func runInternalFlagValueTests(t *testing.T, tests []internalFlagValueCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, got1 := tt.flag.Value(tt.args.flagName, atFixedNow(tt.args.user), tt.args.flagContext)
+			var userCtx ffcontext.Context
+			if tt.args.user != nil {
+				userCtx = atFixedNow(tt.args.user)
+			}
+
+			got, got1 := tt.flag.Value(tt.args.flagName, userCtx, tt.args.flagContext)
 			assert.Equalf(t, tt.want, got, notExpectedValueS, cmp.Diff(tt.want, got))
 			assert.Equalf(t, tt.want1, got1, notExpectedValueS, cmp.Diff(tt.want1, got1))
 		})

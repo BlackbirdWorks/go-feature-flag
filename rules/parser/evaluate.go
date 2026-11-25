@@ -48,19 +48,22 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 		}
 	}()
 
-	tree, err := parseRule(rule)
+	parsed, err := parseRule(rule)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Evaluator{
 		rule: rule,
-		tree: tree,
+		tree: parsed.tree,
 	}, nil
 }
 
-//nolint:ireturn // returns the antlr.ParseTree that the generated parser constructs, which only exposes the interface
-func parseRule(rule string) (antlr.ParseTree, error) {
+type parsedRule struct {
+	tree antlr.ParseTree
+}
+
+func parseRule(rule string) (parsedRule, error) {
 	input := antlr.NewInputStream(normalizeRuleInput(rule))
 	lex := NewJsonQueryLexer(input)
 	errListener := &collectingErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
@@ -74,16 +77,16 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	tree := p.Query()
 
 	if len(errListener.errs) > 0 {
-		return nil, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
+		return parsedRule{}, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
 	}
 
 	consumeTrailingWhitespace(tokens)
 
 	if tokens.LA(1) != antlr.TokenEOF {
-		return nil, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
+		return parsedRule{}, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
 	}
 
-	return tree, nil
+	return parsedRule{tree: tree}, nil
 }
 
 // Reset clears the last debug error recorded by the evaluator.

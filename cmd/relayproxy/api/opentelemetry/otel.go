@@ -118,11 +118,16 @@ func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
 	}
 
 	s.otelExporter = exporter
-	s.otelTraceProvider = sdktrace.NewTracerProvider(
+
+	tpOpts := []sdktrace.TracerProviderOption{
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sampler),
 		sdktrace.WithResource(res),
-	)
+	}
+	if sampler.sampler != nil {
+		tpOpts = append(tpOpts, sdktrace.WithSampler(sampler.sampler))
+	}
+
+	s.otelTraceProvider = sdktrace.NewTracerProvider(tpOpts...)
 
 	return nil
 }
@@ -195,14 +200,19 @@ func newErrorHandler(ctx context.Context, logger *slog.Logger) otel.ErrorHandler
 	})
 }
 
+// textMapPropagator wraps [propagation.TextMapPropagator] so newPropagator returns a concrete type.
+type textMapPropagator struct {
+	propagation.TextMapPropagator
+}
+
 // newPropagator is the propagator of the relay proxy: W3C trace context and baggage.
-//
-//nolint:ireturn // the SDK only exposes the TextMapPropagator interface it constructs
-func newPropagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
+func newPropagator() textMapPropagator {
+	return textMapPropagator{
+		TextMapPropagator: propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	}
 }
 
 func initResource(ctx context.Context, serviceName, version string,
@@ -237,38 +247,42 @@ func initResource(ctx context.Context, serviceName, version string,
 	return res, nil
 }
 
+// traceSampler holds an optional [sdktrace.Sampler] selected at startup.
+type traceSampler struct {
+	sampler sdktrace.Sampler
+}
+
 // initSampler determines which sampling strategy to use. If OTEL_TRACES_SAMPLER
 // is unset, we'll always sample.
 // If it's set to jaeger_remote, we'll use the Jaeger sampling server (supports
 // JAEGER_SAMPLER_MANAGER_HOST_PORT, JAEGER_SAMPLER_REFRESH_INTERVAL, and
 // JAEGER_SAMPLER_MAX_OPERATIONS).
-// If it's set to any other value, we return nil and sdktrace.NewTracerProvider
-// will set up the initSampler from the environment.
-//
-//nolint:ireturn // selects among several SDK samplers at runtime, the SDK only exposes the interface
-func initSampler(serviceName string, conf *config.Config) (sdktrace.Sampler, error) {
+// If it's set to any other value, we return an empty traceSampler and sdktrace.NewTracerProvider
+// will set up the sampler from the environment.
+func initSampler(serviceName string, conf *config.Config) (traceSampler, error) {
 	sampler := conf.OtelConfig.Traces.Sampler
 	if sampler == "" {
-		return sdktrace.AlwaysSample(), nil
+		return traceSampler{sampler: sdktrace.AlwaysSample()}, nil
 	}
 
 	if sampler != "jaeger_remote" {
-		//nolint:nilnil // a nil sampler means "no sampler configured here"; the caller falls back to its default
-		return nil, nil
+		return traceSampler{}, nil
 	}
 
 	samplerOpts, err := jaegerRemoteSamplerOpts(conf)
 	if err != nil {
-		return nil, err
+		return traceSampler{}, err
 	}
 
-	return jaegerremote.New(
-		serviceName,
-		jaegerremote.WithSamplingServerURL(samplerOpts.url),
-		jaegerremote.WithSamplingRefreshInterval(samplerOpts.refreshInterval),
-		jaegerremote.WithMaxOperations(samplerOpts.maxOperations),
-		jaegerremote.WithInitialSampler(sdktrace.AlwaysSample()),
-	), nil
+	return traceSampler{
+		sampler: jaegerremote.New(
+			serviceName,
+			jaegerremote.WithSamplingServerURL(samplerOpts.url),
+			jaegerremote.WithSamplingRefreshInterval(samplerOpts.refreshInterval),
+			jaegerremote.WithMaxOperations(samplerOpts.maxOperations),
+			jaegerremote.WithInitialSampler(sdktrace.AlwaysSample()),
+		),
+	}, nil
 }
 
 const (
