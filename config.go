@@ -1,7 +1,6 @@
 package ffclient
 
 import (
-	"context"
 	"errors"
 	"log"
 	"log/slog"
@@ -26,9 +25,6 @@ var (
 // Config is the configuration of semaphore.
 // You should also have a retriever to specify where to read the flags file.
 type Config struct {
-	// Context (optional) used to call other services (HTTP, S3 ...)
-	// Default: context.Background()
-	Context context.Context
 	// Retriever is the component in charge to retrieve your flag file
 	Retriever retriever.Retriever
 	// internalLogger is the logger used by the library everywhere
@@ -119,10 +115,6 @@ type Config struct {
 
 // Initialize assigns defaults to the configuration.
 func (c *Config) Initialize() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-
 	c.PollingInterval = adjustPollingInterval(c.PollingInterval)
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}

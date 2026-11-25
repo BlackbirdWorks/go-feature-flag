@@ -495,7 +495,6 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				LeveledLogger:   slog.Default(),
-				Context:         context.Background(),
 				Retriever: &fileretriever.Retriever{
 					Path: "../testdata/flag-config.yaml",
 				},

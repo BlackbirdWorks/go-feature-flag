@@ -82,16 +82,15 @@ type SharedItemsOptions struct {
 // Listing errors are served for min(that window, 10s) so that an outage causes one failing
 // listing per window, not one per item.
 type SharedItems struct {
-	listStart time.Time // start of the listing
-	listedAt  time.Time // end of the listing
-	// base is the context of the requests of the group, it is cancelled when the last item leaves.
-	base       context.Context // NOSONAR lifecycle context of the group, intentionally detached from callers
+	listStart  time.Time // start of the listing
+	listedAt   time.Time // end of the listing
 	lister     ListerAPI
 	downloader DownloaderAPI
 	listErr    error
 	// sem bounds the concurrent downloads.
-	sem          chan struct{}
-	cancel       context.CancelFunc
+	sem chan struct{}
+	// active is closed when the last item leaves to cancel in-flight group requests, and recreated lazily.
+	active       chan struct{}
 	wake         chan struct{} // tells the poller that the interval changed
 	logger       *slog.Logger
 	stopPoller   context.CancelFunc // stops the poller, nil if it is not running
@@ -373,21 +372,34 @@ func (g *SharedItems) SetRefresh(r *SharedItemRetriever, refresh func() bool) {
 	}
 }
 
-// baseContext returns the context of the requests of the group, renewed if it was cancelled
-// because every item left.
-func (g *SharedItems) baseContext() context.Context {
+// activeChan returns the lifecycle channel of the group, lazily creating a new one if none is active.
+func (g *SharedItems) activeChan() <-chan struct{} {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	return g.baseLocked()
+	return g.activeLocked()
 }
 
-func (g *SharedItems) baseLocked() context.Context {
-	if g.base == nil || g.base.Err() != nil {
-		g.base, g.cancel = context.WithCancel(context.Background())
+func (g *SharedItems) activeLocked() <-chan struct{} {
+	if g.active == nil {
+		g.active = make(chan struct{})
 	}
 
-	return g.base
+	return g.active
+}
+
+// activeContext returns a context cancelled when active is closed or when the returned cancel func is called.
+func activeContext(active <-chan struct{}) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-active:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	return ctx, cancel
 }
 
 func (g *SharedItems) register(r *SharedItemRetriever) {
@@ -444,9 +456,10 @@ func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
 		delete(g.contents, r.item)
 		delete(g.keySeq, r.item)
 	}
-	if len(g.items) == 0 && g.cancel != nil {
+	if len(g.items) == 0 && g.active != nil {
 		// nobody needs the requests in flight anymore
-		g.cancel()
+		close(g.active)
+		g.active = nil
 	}
 	g.recompute()
 
@@ -531,7 +544,7 @@ func (g *SharedItems) listingLocked() *sharedListing {
 	for k := range g.keyRefs {
 		wanted[k] = struct{}{}
 	}
-	go g.runListing(g.baseLocked(), fl, g.prefix, wanted, g.seq)
+	go g.runListing(g.activeLocked(), fl, g.prefix, wanted, g.seq)
 
 	return fl
 }
@@ -539,16 +552,21 @@ func (g *SharedItems) listingLocked() *sharedListing {
 // runListing lists the objects under prefix and publishes the result. It does not depend on the
 // context of a caller so that a cancelled caller does not fail the others.
 func (g *SharedItems) runListing(
-	base context.Context, fl *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
+	active <-chan struct{}, fl *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
 ) {
+	ctx, cancel := activeContext(active)
+	defer cancel()
+
 	start := time.Now()
-	listing, err := g.list(base, prefix, wanted)
+	listing, err := g.list(ctx, prefix, wanted)
 
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	fl.start, fl.prefix, fl.seq, fl.listing, fl.err = start, prefix, seq, listing, err
 	// a listing cancelled because every item left is not kept
-	if base.Err() == nil {
+	select {
+	case <-active:
+	default:
 		g.listing, g.listErr, g.listed, g.listSeq = listing, err, true, seq
 		g.listedAt, g.listStart, g.listedPrefix = time.Now(), start, prefix
 	}
@@ -648,7 +666,7 @@ func (g *SharedItems) content(
 	if dl == nil {
 		dl = &sharedDownload{done: make(chan struct{})}
 		c.dl = dl
-		go g.runDownload(g.baseContext(), c, dl, key)
+		go g.runDownload(g.activeChan(), c, dl, key)
 	}
 	c.mu.Unlock()
 
@@ -662,8 +680,11 @@ func (g *SharedItems) content(
 
 // runDownload downloads the object and publishes the result, it does not depend on the context
 // of a caller so that a cancelled caller does not fail the others.
-func (g *SharedItems) runDownload(base context.Context, c *sharedContent, dl *sharedDownload, key string) {
-	data, dlETag, startedAt, err := g.download(base, key)
+func (g *SharedItems) runDownload(active <-chan struct{}, c *sharedContent, dl *sharedDownload, key string) {
+	ctx, cancel := activeContext(active)
+	defer cancel()
+
+	data, dlETag, startedAt, err := g.download(ctx, active, key)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -678,12 +699,22 @@ func (g *SharedItems) runDownload(base context.Context, c *sharedContent, dl *sh
 }
 
 // download waits for a free download slot, then downloads the object.
-func (g *SharedItems) download(base context.Context, key string) ([]byte, string, time.Time, error) {
+func (g *SharedItems) download(
+	base context.Context, active <-chan struct{}, key string,
+) ([]byte, string, time.Time, error) {
 	select {
 	case g.sem <- struct{}{}:
 		defer func() { <-g.sem }()
+	case <-active:
+		return nil, "", time.Time{}, context.Canceled
 	case <-base.Done():
 		return nil, "", time.Time{}, base.Err()
+	}
+	// Check active directly as well because activeContext cancels base asynchronously when active closes.
+	select {
+	case <-active:
+		return nil, "", time.Time{}, context.Canceled
+	default:
 	}
 	startedAt := time.Now()
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)

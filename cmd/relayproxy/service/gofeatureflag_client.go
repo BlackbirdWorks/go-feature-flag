@@ -176,7 +176,6 @@ func newGoFeatureFlagClient(
 	f := ffclient.Config{
 		PollingInterval:                 clientPollingInterval(cFlagSet),
 		LeveledLogger:                   initLeveledLogger(cFlagSet, logger),
-		Context:                         context.Background(),
 		Retrievers:                      retrievers,
 		Notifiers:                       notif,
 		FileFormat:                      cFlagSet.FileFormat,

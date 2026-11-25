@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ffClient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -16,35 +17,57 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // contextKey is the type of the keys of the values the tests put in a context.
 type contextKey string
 
+type contextRecordingRetriever struct {
+	initVal        any
+	retrieveVal    any
+	shutdownVal    any
+	key            contextKey
+	initNonNil     bool
+	retrieveNonNil bool
+	shutdownNonNil bool
+}
+
+var _ retriever.InitializableRetriever = (*contextRecordingRetriever)(nil)
+
+func (r *contextRecordingRetriever) Retrieve(ctx context.Context) ([]byte, error) {
+	r.retrieveNonNil = ctx != nil
+	if ctx != nil {
+		r.retrieveVal = ctx.Value(r.key)
+	}
+
+	return []byte("flag:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"), nil
+}
+
+func (r *contextRecordingRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+	r.initNonNil = ctx != nil
+	if ctx != nil {
+		r.initVal = ctx.Value(r.key)
+	}
+
+	return nil
+}
+
+func (r *contextRecordingRetriever) Shutdown(ctx context.Context) error {
+	r.shutdownNonNil = ctx != nil
+	if ctx != nil {
+		r.shutdownVal = ctx.Value(r.key)
+	}
+
+	return nil
+}
+
+func (r *contextRecordingRetriever) Status() retriever.Status {
+	return retriever.RetrieverReady
+}
+
 func TestConfig_Initialize(t *testing.T) {
 	t.Parallel()
-
-	t.Run("provided context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.WithValue(t.Context(), contextKey("type"), "custom")
-
-		c := ffClient.Config{
-			Context: ctx,
-		}
-		c.Initialize()
-
-		assert.Equal(t, ctx, c.Context)
-	})
-
-	t.Run("default context", func(t *testing.T) {
-		t.Parallel()
-
-		c := ffClient.Config{}
-		c.Initialize()
-
-		assert.Equal(t, context.Background(), c.Context)
-	})
 
 	t.Run("adjust polling interval", func(t *testing.T) {
 		t.Parallel()
@@ -297,6 +320,61 @@ func TestConfig_GetDataExporters(t *testing.T) {
 			}
 			got := c.GetDataExporters()
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestNewWithContext(t *testing.T) {
+	t.Parallel()
+
+	const key = contextKey("trace-id")
+	tests := []struct {
+		wantInitVal     any
+		wantRetrieveVal any
+		wantShutdownVal any
+		name            string
+		initVal         string
+		closeVal        string
+		nilCtx          bool
+	}{
+		{
+			name:            "custom context propagates to retriever lifecycle",
+			initVal:         "init-123",
+			closeVal:        "close-456",
+			wantInitVal:     "init-123",
+			wantRetrieveVal: "init-123",
+			wantShutdownVal: "close-456",
+		},
+		{
+			name:   "nil context falls back to background context",
+			nilCtx: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &contextRecordingRetriever{key: key}
+			var initCtx, closeCtx context.Context
+			if !tt.nilCtx {
+				initCtx = context.WithValue(t.Context(), key, tt.initVal)
+				closeCtx = context.WithValue(t.Context(), key, tt.closeVal)
+			}
+
+			client, err := ffClient.NewWithContext(initCtx, ffClient.Config{
+				PollingInterval: 10 * time.Second,
+				Retriever:       rec,
+			})
+			require.NoError(t, err)
+			client.CloseWithContext(closeCtx)
+
+			assert.True(t, rec.initNonNil)
+			assert.True(t, rec.retrieveNonNil)
+			assert.True(t, rec.shutdownNonNil)
+			assert.Equal(t, tt.wantInitVal, rec.initVal)
+			assert.Equal(t, tt.wantRetrieveVal, rec.retrieveVal)
+			assert.Equal(t, tt.wantShutdownVal, rec.shutdownVal)
 		})
 	}
 }

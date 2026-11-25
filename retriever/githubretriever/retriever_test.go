@@ -21,10 +21,10 @@ func Test_github_Retrieve(t *testing.T) {
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
-		context        context.Context
 		repositorySlug string
 		filePath       string
 		githubToken    string
+		withCtx        bool
 	}
 	tests := []struct {
 		fields  fields
@@ -60,7 +60,7 @@ func Test_github_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				repositorySlug: "thomaspoignant/go-feature-flag",
 				filePath:       "testdata/flag-config.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want: []byte(`test-flag:
   variations:
@@ -175,7 +175,11 @@ func Test_github_Retrieve(t *testing.T) {
 			}
 
 			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+			got, err := h.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}

@@ -1,7 +1,6 @@
 package evaluate
 
 import (
-	"context"
 	"encoding/json"
 	"time"
 
@@ -49,7 +48,6 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	c := ffclient.Config{
 		PollingInterval:       defaultPollingInterval,
 		DisableNotifierOnInit: true,
-		Context:               context.Background(),
 		Retriever:             e.retriever,
 		FileFormat:            e.fileFormat,
 	}

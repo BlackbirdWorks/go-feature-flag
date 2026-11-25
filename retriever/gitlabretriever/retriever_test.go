@@ -31,14 +31,13 @@ func Test_gitlab_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		httpClient mock.HTTP
-		context    context.Context
-
+		httpClient     mock.HTTP
 		filePath       string
 		gitlabToken    string
 		repositorySlug string
 		baseURL        string
 		branch         string
+		withCtx        bool
 	}
 	tests := []struct {
 		name    string
@@ -64,7 +63,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				baseURL:        "https://gitlab.com",
 				repositorySlug: "aa/go-feature-flags-config",
 				filePath:       "flag-config.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -156,7 +155,11 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				RepositorySlug: tt.fields.repositorySlug,
 			}
 			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+			got, err := h.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,

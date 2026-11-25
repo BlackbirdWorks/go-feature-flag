@@ -23,7 +23,6 @@ func TestS3_Export(t *testing.T) {
 
 	hostname, _ := os.Hostname()
 	type fields struct {
-		Context         context.Context
 		AwsConfig       *aws.Config
 		Bucket          string
 		Format          string
@@ -31,21 +30,21 @@ func TestS3_Export(t *testing.T) {
 		Filename        string
 		CsvTemplate     string
 		S3ClientOptions []func(*s3.Options)
+		nilCtx          bool
 	}
 
 	tests := []struct {
-		fields       fields
 		name         string
 		expectedFile string
 		expectedName string
 		events       []exporter.ExportableEvent
+		fields       fields
 		wantErr      bool
 	}{
 		{
 			name: "All default test",
 			fields: fields{
-				Bucket:  "test",
-				Context: context.TODO(),
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -66,8 +65,8 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "All default test with nil context",
 			fields: fields{
-				Bucket:  "test",
-				Context: nil,
+				Bucket: "test",
+				nilCtx: true,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -88,9 +87,8 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "With DeprecatedExporterV1 Path",
 			fields: fields{
-				S3Path:  "random/path",
-				Bucket:  "test",
-				Context: context.TODO(),
+				S3Path: "random/path",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -111,9 +109,8 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "All default CSV",
 			fields: fields{
-				Format:  "csv",
-				Bucket:  "test",
-				Context: context.TODO(),
+				Format: "csv",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -137,7 +134,6 @@ func TestS3_Export(t *testing.T) {
 				Format:      "csv",
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
 				Bucket:      "test",
-				Context:     context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -161,7 +157,6 @@ func TestS3_Export(t *testing.T) {
 				Format:   "json",
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
 				Bucket:   "test",
-				Context:  context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -182,9 +177,8 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "Invalid format",
 			fields: fields{
-				Format:  "xxx",
-				Bucket:  "test",
-				Context: context.TODO(),
+				Format: "xxx",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -205,8 +199,7 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "Empty Bucket",
 			fields: fields{
-				Format:  "xxx",
-				Context: context.TODO(),
+				Format: "xxx",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -228,7 +221,6 @@ func TestS3_Export(t *testing.T) {
 			fields: fields{
 				Filename: "{{ .InvalidField}}",
 				Bucket:   "test",
-				Context:  context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -250,7 +242,6 @@ func TestS3_Export(t *testing.T) {
 			fields: fields{
 				Format:      "csv",
 				CsvTemplate: "{{ .Foo}}",
-				Context:     context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -276,7 +267,6 @@ func TestS3_Export(t *testing.T) {
 						o.UseAccelerate = true
 					},
 				},
-				Context: context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -321,8 +311,12 @@ func TestS3_Export(t *testing.T) {
 				)
 			}
 
+			ctx := t.Context()
+			if tt.fields.nilCtx {
+				ctx = nil
+			}
 			err := f.Export(
-				tt.fields.Context,
+				ctx,
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 				tt.events,
 			)

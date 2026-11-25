@@ -19,11 +19,11 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 
 	type fields struct {
 		httpClient mock.HTTP
-		context    context.Context
 		header     http.Header
 		url        string
 		method     string
 		body       string
+		withCtx    bool
 	}
 	tests := []struct {
 		name    string
@@ -62,7 +62,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
-				context:    context.Background(),
+				withCtx:    true,
 			},
 			want: []byte(`test-flag:
   variations:
@@ -145,7 +145,11 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				Header: tt.fields.header,
 			}
 			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+			got, err := h.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,

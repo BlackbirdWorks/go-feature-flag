@@ -1,7 +1,6 @@
 package k8sretriever
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -63,7 +62,6 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 
 	type fields struct {
 		object        runtime.Object
-		context       context.Context
 		namespace     string
 		configMapName string
 		key           string
@@ -162,7 +160,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			if tt.fields.setClient {
 				s.client = fake.NewSimpleClientset()
 			}
-			got, err := s.Retrieve(tt.fields.context)
+			got, err := s.Retrieve(t.Context())
 			if tt.wantErr != nil {
 				require.EqualError(t, err, tt.wantErr.Error(), "retrieve() error")
 			} else {

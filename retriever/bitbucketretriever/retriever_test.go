@@ -37,11 +37,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
-		context        context.Context
 		repositorySlug string
 		filePath       string
 		bitbucketToken string
 		branch         string
+		withCtx        bool
 	}
 	tests := []struct {
 		fields  fields
@@ -66,7 +66,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				repositorySlug: "gofeatureflag/config-repo",
 				filePath:       "flags/config.goff.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -138,7 +138,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				BitBucketToken: tt.fields.bitbucketToken,
 			}
 			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+			got, err := h.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
