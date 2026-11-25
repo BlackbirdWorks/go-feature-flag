@@ -183,7 +183,7 @@ func (c *Config) IsDebugEnabled() bool {
 		return false
 	}
 
-	return strings.ToLower(c.LogLevel) == "debug"
+	return strings.EqualFold(c.LogLevel, "debug")
 }
 
 // IsUsingFlagsets returns true if the configuration is using flagsets.

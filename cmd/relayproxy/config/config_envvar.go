@@ -82,7 +82,7 @@ func (p *environProvider) Read() (map[string]any, error) {
 
 var (
 	// serviceLinkPortRegexp matches PORT_<port>_<PROTO> and its _ADDR, _PORT and _PROTO variants.
-	serviceLinkPortRegexp = regexp.MustCompile(`^PORT_[0-9]+_(TCP|UDP|SCTP)(_ADDR|_PORT|_PROTO)?$`)
+	serviceLinkPortRegexp = regexp.MustCompile(`^PORT_\d+_(TCP|UDP|SCTP)(_ADDR|_PORT|_PROTO)?$`)
 	// serviceLinkNamedPortRegexp matches SERVICE_PORT_<NAME>.
 	serviceLinkNamedPortRegexp = regexp.MustCompile(`^SERVICE_PORT_[A-Z0-9_]+$`)
 )
@@ -257,7 +257,7 @@ func normalizePaths(s string) []string {
 // An entry that is not a map (a scalar or a nested array from the config file) cannot take a
 // field override, so it is an error rather than a silent overwrite; a null entry is replaced by a new map.
 func fetchOrInitConfigItemAtIndex(configArray []any, index int) (map[string]any, error) {
-	outRange := index > len(configArray)-1
+	outRange := index >= len(configArray)
 	if outRange || configArray[index] == nil {
 		return make(map[string]any), nil
 	}
@@ -375,7 +375,7 @@ func parseArrayValue(v string) []string {
 // updateConfigArray updates the configuration array and returns the modified config map.
 func updateConfigArray(configArray []any, index int, configItem, configMap map[string]any,
 	prefixKey string) (map[string]any, error) {
-	outRange := index > len(configArray)-1
+	outRange := index >= len(configArray)
 
 	if outRange {
 		configArray = expandArray(configArray, index)

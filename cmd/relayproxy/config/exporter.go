@@ -71,7 +71,7 @@ func (c *ExporterConf) IsValid() error {
 		return err
 	}
 
-	if len(c.ParquetCompressionCodec) > 0 {
+	if c.ParquetCompressionCodec != "" {
 		_, codecErr := parquet.CompressionCodecFromString(c.ParquetCompressionCodec)
 		if codecErr != nil {
 			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, codecErr)

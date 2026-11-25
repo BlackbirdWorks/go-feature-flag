@@ -118,10 +118,10 @@ type FlagsetManagerImpl struct {
 // sseService and wsService are optional: when non-nil a per-flagset SSE / websocket
 // notifier is created so that flag-change events are scoped to the correct flagset.
 func NewFlagsetManager(
-	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
+	cfg *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (*FlagsetManagerImpl, error) {
-	if config == nil {
+	if cfg == nil {
 		return nil, errConfigurationIsNil
 	}
 
@@ -129,17 +129,17 @@ func NewFlagsetManager(
 		flagsetMngr *FlagsetManagerImpl
 		err         error
 	)
-	if config.IsUsingFlagsets() {
-		flagsetMngr, err = newFlagsetManagerWithFlagsets(config, logger, notifiers, sseService, wsService)
+	if cfg.IsUsingFlagsets() {
+		flagsetMngr, err = newFlagsetManagerWithFlagsets(cfg, logger, notifiers, sseService, wsService)
 	} else {
-		flagsetMngr, err = newFlagsetManagerWithDefaultConfig(config, logger, notifiers, sseService, wsService)
+		flagsetMngr, err = newFlagsetManagerWithDefaultConfig(cfg, logger, notifiers, sseService, wsService)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	config.AttachConfigChangeCallback(flagsetMngr.OnConfigChange)
+	cfg.AttachConfigChangeCallback(flagsetMngr.OnConfigChange)
 
 	return flagsetMngr, nil
 }
@@ -183,23 +183,23 @@ func newFlagsetManagerWithDefaultConfig(
 }
 
 func newFlagsetManagerWithFlagsets(
-	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
+	cfg *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (*FlagsetManagerImpl, error) {
 	return newFlagsetManagerWithFlagsetsAndRegistry(
-		config, logger, notifiers, sseService, wsService, newSharedBucketRegistry(
-			nil, time.Duration(config.PollingInterval)*time.Millisecond, config.EnablePollingJitter, logger))
+		cfg, logger, notifiers, sseService, wsService, newSharedBucketRegistry(
+			nil, time.Duration(cfg.PollingInterval)*time.Millisecond, cfg.EnablePollingJitter, logger))
 }
 
 const unroutableKeysWarning = "authorizedKeys.evaluation and apiKeys are ignored in flag set mode: " +
 	"an evaluation key must be listed in the apiKeys of a flag set"
 
 func newFlagsetManagerWithFlagsetsAndRegistry(
-	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
+	cfg *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 	registry *sharedBucketRegistry,
 ) (*FlagsetManagerImpl, error) {
-	if config.HasUnroutableEvaluationKeys() {
+	if cfg.HasUnroutableEvaluationKeys() {
 		logger.Warn(unroutableKeysWarning)
 	}
 
@@ -208,10 +208,10 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	postgresPools := postgresqlretriever.NewPoolRegistry()
 
 	// Register all the shared-poller items first so that the first listing of a bucket covers all of them.
-	registry.preRegisterAll(config.FlagSets)
+	registry.preRegisterAll(cfg.FlagSets)
 	defer registry.releasePending()
 
-	for index, flagset := range config.FlagSets {
+	for index, flagset := range cfg.FlagSets {
 		flagSetName := flagset.Name
 		if !isNamedFlagset(flagset) {
 			flagSetName = uuid.New().String()
@@ -230,7 +230,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 		client, err := newGoFeatureFlagClient(
 			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
-			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
+			withDefaultExporterCleanQueueInterval(cfg.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.LogAttrs(context.Background(), slog.LevelError,
 				"failed to create the Semaphore client for the flagset",
@@ -258,7 +258,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		notifiers:      notifiers,
 		sseService:     sseService,
 		wsService:      wsService,
-		config:         config,
+		config:         cfg,
 		mode:           flagsetManagerModeFlagsets,
 		logger:         logger,
 		sharedRegistry: registry,

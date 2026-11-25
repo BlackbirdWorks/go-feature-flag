@@ -105,9 +105,8 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 		s.accessLog(),
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
+		middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()),
 	)
-
-	chain = append(chain, middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()))
 	if s.services.Metrics != (metric.Metrics{}) {
 		prom, err := middleware.Prometheus(middleware.PrometheusConfig{
 			Subsystem:  metric.SubSystem,

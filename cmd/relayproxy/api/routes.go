@@ -62,7 +62,7 @@ func primeDocs(mux http.Handler) {
 	for _, path := range []string{
 		"/swagger/openapi.json", "/swagger/openapi-3.0.json", "/swagger/openapi.yaml", "/swagger/openapi-3.0.yaml",
 	} {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, http.NoBody)
 		if err != nil {
 			continue
 		}

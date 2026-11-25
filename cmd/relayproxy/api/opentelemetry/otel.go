@@ -59,36 +59,36 @@ func (s *OtelService) MeterProvider() *sdkmetric.MeterProvider { return s.meterP
 
 // Enabled reports whether the configuration enables OpenTelemetry tracing: without an OTLP endpoint there is no
 // exporter, and nothing is traced.
-func Enabled(config *config.Config) bool { return !isDisabled(config) }
+func Enabled(cfg *config.Config) bool { return !isDisabled(cfg) }
 
 // isDisabled is true when OpenTelemetry has no endpoint to send to, or is disabled.
 // The endpoint is set either by the openTelemetryOtlpEndpoint config element or otel.exporter.otlp.endpoint.
-func isDisabled(config *config.Config) bool {
-	return (config.OpenTelemetryOtlpEndpoint == "" && config.OtelConfig.Exporter.Otlp.Endpoint == "") ||
-		config.OtelConfig.SDK.Disabled
+func isDisabled(cfg *config.Config) bool {
+	return (cfg.OpenTelemetryOtlpEndpoint == "" && cfg.OtelConfig.Exporter.Otlp.Endpoint == "") ||
+		cfg.OtelConfig.SDK.Disabled
 }
 
 // ExportEnvironment gives the OTLP endpoint of the configuration to the OpenTelemetry SDK, which reads it
 // from OTEL_EXPORTER_OTLP_ENDPOINT. It changes the environment of the process, so it belongs to the
 // startup wiring (main): call it once, before Init.
-func ExportEnvironment(config *config.Config) {
-	if isDisabled(config) {
+func ExportEnvironment(cfg *config.Config) {
+	if isDisabled(cfg) {
 		return
 	}
 	// support the openTelemetryOtlpEndpoint config element
-	if config.OpenTelemetryOtlpEndpoint != "" &&
-		config.OtelConfig.Exporter.Otlp.Endpoint == "" {
-		config.OtelConfig.Exporter.Otlp.Endpoint = config.OpenTelemetryOtlpEndpoint
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", config.OpenTelemetryOtlpEndpoint)
-	} else if config.OtelConfig.Exporter.Otlp.Endpoint != "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", config.OtelConfig.Exporter.Otlp.Endpoint)
+	if cfg.OpenTelemetryOtlpEndpoint != "" &&
+		cfg.OtelConfig.Exporter.Otlp.Endpoint == "" {
+		cfg.OtelConfig.Exporter.Otlp.Endpoint = cfg.OpenTelemetryOtlpEndpoint
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.OpenTelemetryOtlpEndpoint)
+	} else if cfg.OtelConfig.Exporter.Otlp.Endpoint != "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.OtelConfig.Exporter.Otlp.Endpoint)
 	}
 }
 
 // Init creates the OpenTelemetry tracer provider of the service. It does not change any process-wide
 // state: Install does, and is called by the startup wiring only.
-func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
-	if isDisabled(config) {
+func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
+	if isDisabled(cfg) {
 		return nil
 	}
 
@@ -98,20 +98,20 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 	}
 
 	serviceName := "semaphore"
-	if v := config.OtelConfig.Service.Name; v != "" {
+	if v := cfg.OtelConfig.Service.Name; v != "" {
 		serviceName = v
 	}
 
-	sampler, err := initSampler(serviceName, config)
+	sampler, err := initSampler(serviceName, cfg)
 	if err != nil {
 		return fmt.Errorf("initializing OTel sampler: %w", err)
 	}
 
-	resource, err := initResource(
+	res, err := initResource(
 		ctx,
 		serviceName,
-		config.Version,
-		config.OtelConfig.Resource.Attributes,
+		cfg.Version,
+		cfg.OtelConfig.Resource.Attributes,
 	)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
@@ -121,7 +121,7 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 	s.otelTraceProvider = sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithSampler(sampler),
-		sdktrace.WithResource(resource),
+		sdktrace.WithResource(res),
 	)
 
 	return nil
@@ -132,17 +132,17 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 // the protocol, the endpoint and the headers follow the OTEL_EXPORTER_OTLP_* variables, and OTEL_METRICS_EXPORTER
 // selects the exporter (none disables the export). The export interval is the one of the SDK.
 // It changes no process-wide state: the meter provider is given where it is used (MeterProvider).
-func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) error {
-	if isDisabled(config) {
+func (s *OtelService) InitMetrics(ctx context.Context, cfg *config.Config) error {
+	if isDisabled(cfg) {
 		return nil
 	}
 
 	serviceName := "semaphore"
-	if v := config.OtelConfig.Service.Name; v != "" {
+	if v := cfg.OtelConfig.Service.Name; v != "" {
 		serviceName = v
 	}
 
-	res, err := initResource(ctx, serviceName, config.Version, config.OtelConfig.Resource.Attributes)
+	res, err := initResource(ctx, serviceName, cfg.Version, cfg.OtelConfig.Resource.Attributes)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
 	}

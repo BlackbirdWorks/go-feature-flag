@@ -70,11 +70,11 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		return output, fmt.Errorf("generating the definitions of the manifest: %w", err)
 	}
 
-	manifest := model.FlagManifest{
+	flagManifest := model.FlagManifest{
 		Flags: definitions,
 	}
 
-	definitionsJSON, err := m.toJSON(manifest)
+	definitionsJSON, err := m.toJSON(flagManifest)
 	if err != nil {
 		return output, err
 	}
@@ -88,8 +88,8 @@ func (m *Manifest) Generate() (helper.Output, error) {
 }
 
 // toJSON will convert the definitions to a JSON string.
-func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
-	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
+func (m *Manifest) toJSON(flagManifest model.FlagManifest) (string, error) {
+	definitionsJSON, err := json.MarshalIndent(flagManifest, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("encoding the flag manifest: %w", err)
 	}
@@ -98,7 +98,7 @@ func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 }
 
 func (m *Manifest) storeManifest(definitionsJSON string) error {
-	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0o600)
 	if err != nil {
 		return fmt.Errorf("writing the flag manifest: %w", err)
 	}

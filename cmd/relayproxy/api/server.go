@@ -31,7 +31,7 @@ const (
 )
 
 // New is used to create a new instance of the API server.
-func New(config *config.Config,
+func New(cfg *config.Config,
 	services service.Services,
 	logger *slog.Logger,
 	opts ...Option,
@@ -39,7 +39,7 @@ func New(config *config.Config,
 	stopRequested := make(chan struct{})
 
 	srv := Server{
-		config:        config,
+		config:        cfg,
 		services:      services,
 		logger:        logger,
 		exit:          func() { os.Exit(1) },
@@ -54,7 +54,7 @@ func New(config *config.Config,
 	}
 	// the metrics (Go runtime and HTTP server) are set up before the routes: the middleware gets the meter provider
 	// of the service when it is built.
-	err := srv.otelService.InitMetrics(context.Background(), config)
+	err := srv.otelService.InitMetrics(context.Background(), cfg)
 	if err != nil {
 		logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
