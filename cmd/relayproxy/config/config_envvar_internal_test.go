@@ -5,14 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	file2           = "file"
-	kind2           = "kind"
-	path2           = "path"
-	rETRIEVERS0PATH = "RETRIEVERS_0_PATH"
-	retrievers2     = "retrievers"
+	kindKey            = "kind"
+	pathKey            = "path"
+	retrieversZeroPath = "RETRIEVERS_0_PATH"
+	retrieversKey      = "retrievers"
 )
 
 func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
@@ -28,48 +29,48 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 	}{
 		{
 			name:   "map entry: the field is set on it",
-			key:    rETRIEVERS0PATH,
-			config: map[string]any{retrievers2: []any{map[string]any{kind2: file2}}},
-			want:   map[string]any{retrievers2: []any{map[string]any{kind2: file2, path2: "v"}}},
+			key:    retrieversZeroPath,
+			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File}}},
+			want:   map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File, pathKey: "v"}}},
 		},
 		{
 			name:   "index beyond the length: the array is expanded",
 			key:    "RETRIEVERS_2_PATH",
-			config: map[string]any{retrievers2: []any{map[string]any{kind2: file2}}},
-			want: map[string]any{retrievers2: []any{
-				map[string]any{kind2: file2}, map[string]any{}, map[string]any{path2: "v"},
+			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File}}},
+			want: map[string]any{retrieversKey: []any{
+				map[string]any{kindKey: fixtures.File}, map[string]any{}, map[string]any{pathKey: "v"},
 			}},
 		},
 		{
 			name:   "no array yet: it is created",
-			key:    rETRIEVERS0PATH,
+			key:    retrieversZeroPath,
 			config: map[string]any{},
-			want:   map[string]any{retrievers2: []any{map[string]any{path2: "v"}}},
+			want:   map[string]any{retrieversKey: []any{map[string]any{pathKey: "v"}}},
 		},
 		{
 			name:   "nil entry: replaced by a new map",
-			key:    rETRIEVERS0PATH,
-			config: map[string]any{retrievers2: []any{nil}},
-			want:   map[string]any{retrievers2: []any{map[string]any{path2: "v"}}},
+			key:    retrieversZeroPath,
+			config: map[string]any{retrieversKey: []any{nil}},
+			want:   map[string]any{retrieversKey: []any{map[string]any{pathKey: "v"}}},
 		},
 		{
 			name:      "scalar entry: an error, no panic",
-			key:       rETRIEVERS0PATH,
-			config:    map[string]any{retrievers2: []any{"oops"}},
+			key:       retrieversZeroPath,
+			config:    map[string]any{retrieversKey: []any{"oops"}},
 			wantErr:   true,
 			wantErrIn: `environment variable "RETRIEVERS_0_PATH": the config entry at index 0 is a string, expected an object`,
 		},
 		{
 			name:      "nested array entry: an error, no panic",
 			key:       "RETRIEVERS_1_PATH",
-			config:    map[string]any{retrievers2: []any{map[string]any{}, []any{"a"}}},
+			config:    map[string]any{retrieversKey: []any{map[string]any{}, []any{"a"}}},
 			wantErr:   true,
 			wantErrIn: "the config entry at index 1 is a []interface {}, expected an object",
 		},
 		{
 			name:      "negative index: an error, no panic",
 			key:       "RETRIEVERS_-1_PATH",
-			config:    map[string]any{retrievers2: []any{map[string]any{}}},
+			config:    map[string]any{retrieversKey: []any{map[string]any{}}},
 			wantErr:   true,
 			wantErrIn: "negative index -1",
 		},
@@ -98,7 +99,7 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 			name: "flagset nested array with a scalar entry: an error, no panic",
 			key:  "FLAGSETS_0_RETRIEVERS_0_PATH",
 			config: map[string]any{"flagsets": []any{
-				map[string]any{retrievers2: []any{42}},
+				map[string]any{retrieversKey: []any{42}},
 			}},
 			wantErr:   true,
 			wantErrIn: "the config entry at index 0 is a int, expected an object",

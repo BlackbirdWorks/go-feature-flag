@@ -19,12 +19,11 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
-	flags                               = "flags"
-	flagset3                            = "flagset"
 	pBYaml                              = "p/b.yaml"
 	pCYaml                              = "p/c.yaml"
 	testdataSemaphoreConfigurationFlags = "../testdata/semaphore/configuration_flags.yaml"
@@ -57,8 +56,8 @@ func testSharedPollerManager(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{FlagSets: []config.FlagSet{
-		s3FlagSet("u1", flags, pAYaml),
-		s3FlagSet("u2", flags, pBYaml),
+		s3FlagSet("u1", fixtures.FlagsDir, pAYaml),
+		s3FlagSet("u2", fixtures.FlagsDir, pBYaml),
 		nonShared,
 	}}
 	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(cfg, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
@@ -72,7 +71,7 @@ func testSharedPollerManager(t *testing.T) {
 	assert.EqualValues(t, 2, fake.gets.Load())
 
 	// a flagset added at runtime joins the same group
-	mgr.addFlagset(s3FlagSet("u3", flags, pCYaml), 0)
+	mgr.addFlagset(s3FlagSet("u3", fixtures.FlagsDir, pCYaml), 0)
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
 
@@ -81,8 +80,8 @@ func testSharedPollerManager(t *testing.T) {
 	assert.Contains(t, all, "u3")
 
 	// removing flagsets releases the group once the last one is gone
-	mgr.removeFlagset(s3FlagSet("u1", flags, pAYaml))
-	mgr.removeFlagset(s3FlagSet("u2", flags, pBYaml))
+	mgr.removeFlagset(s3FlagSet("u1", fixtures.FlagsDir, pAYaml))
+	mgr.removeFlagset(s3FlagSet("u2", fixtures.FlagsDir, pBYaml))
 	assert.Equal(t, 1, reg.groupCount())
 	mgr.Close()
 	assert.Equal(t, 0, reg.groupCount())
@@ -94,13 +93,13 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 		content, err := os.ReadFile(testdataSemaphoreConfigurationFlags)
 		require.NoError(t, err)
 		reg := newFakeRegistry(t, &fakeS3{content: content}, &atomic.Int32{})
-		first := s3FlagSet("u1", flags, pAYaml)
+		first := s3FlagSet("u1", fixtures.FlagsDir, pAYaml)
 		mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
 			&config.Config{FlagSets: []config.FlagSet{first}}, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
 		require.NoError(t, err)
 
 		// the flagset name is already in the configuration: the new client is closed and released
-		dup := s3FlagSet("u1", flags, pBYaml)
+		dup := s3FlagSet("u1", fixtures.FlagsDir, pBYaml)
 		mgr.addFlagset(dup, 0)
 		assert.Equal(t, 1, reg.groupCount())
 		mgr.Close()
@@ -119,7 +118,7 @@ func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 		flagsets := make([]config.FlagSet, 11)
 		for i := range flagsets {
 			fake.keys = append(fake.keys, fmt.Sprintf("p/f%d.yaml", i))
-			flagsets[i] = s3FlagSet(fmt.Sprintf("u%d", i), flags, fake.keys[i])
+			flagsets[i] = s3FlagSet(fmt.Sprintf("u%d", i), fixtures.FlagsDir, fake.keys[i])
 		}
 
 		reg := newFakeRegistry(t, fake, &atomic.Int32{})
@@ -149,7 +148,7 @@ func newPollingManager(
 
 	fake.content = content
 	reg := newFakeRegistryWithPolling(t, fake, &atomic.Int32{}, interval, false, logger)
-	flagsetA, flagsetB := s3FlagSet("u1", flags, pAYaml), s3FlagSet("u2", flags, pBYaml)
+	flagsetA, flagsetB := s3FlagSet("u1", fixtures.FlagsDir, pAYaml), s3FlagSet("u2", fixtures.FlagsDir, pBYaml)
 	flagsetA.PollingInterval, flagsetB.PollingInterval = 0, 0
 	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
 		&config.Config{FlagSets: []config.FlagSet{flagsetA, flagsetB}}, logger, nil, nil, nil, reg)
@@ -192,10 +191,10 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		fake := &fakeS3{}
 		mgr, reg := newPollingManager(t, fake, 10*time.Second, core)
 		// a new top-level pollingInterval is applied to the running poller, the flagsets are not rebuilt
-		flagsetA, flagsetB := s3FlagSet("u1", flags, pAYaml), s3FlagSet("u2", flags, pBYaml)
+		flagsetA, flagsetB := s3FlagSet("u1", fixtures.FlagsDir, pAYaml), s3FlagSet("u2", fixtures.FlagsDir, pBYaml)
 		flagsetA.PollingInterval, flagsetB.PollingInterval = 0, 0
 		flagsetB.PollingInterval = 20000
-		added := s3FlagSet("u3", flags, pCYaml)
+		added := s3FlagSet("u3", fixtures.FlagsDir, pCYaml)
 		added.PollingInterval = 20000
 		before, err := mgr.AllFlagSets()
 		require.NoError(t, err)
@@ -223,7 +222,10 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		// every flagset (the existing one and the one added by the reload) is warned once
 		warns := logs.FilterMessageSnippet("a polling setting of the flagset is ignored")
 		require.Equal(t, 2, warns.Len())
-		warned := []any{warns.All()[0].ContextMap()[flagset3], warns.All()[1].ContextMap()[flagset3]}
+		warned := []any{
+			warns.All()[0].ContextMap()[fixtures.FlagsetNone],
+			warns.All()[1].ContextMap()[fixtures.FlagsetNone],
+		}
 		assert.ElementsMatch(t, []any{"u2", "u3"}, warned)
 
 		// the same polling again changes nothing
@@ -241,7 +243,7 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *testing.T) {
 	t.Parallel()
 
-	retriever := &retrieverconf.RetrieverConf{Kind: file2, Path: testdataSemaphoreConfigurationFlags}
+	retriever := &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: testdataSemaphoreConfigurationFlags}
 
 	tests := []struct {
 		name          string

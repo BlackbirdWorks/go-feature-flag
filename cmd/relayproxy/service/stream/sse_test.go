@@ -20,10 +20,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	flagsetA2      = "flagsetA"
 	streamFlagsetA = "?stream=flagsetA"
 )
 
@@ -39,8 +39,8 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	}{
 		{
 			name:             "client receives event from its own stream",
-			subscribeFlagset: flagsetA2,
-			broadcastFlagset: flagsetA2,
+			subscribeFlagset: fixtures.FlagsetCamel,
+			broadcastFlagset: fixtures.FlagsetCamel,
 			diff: notifier.DiffCache{
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
@@ -55,7 +55,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 		},
 		{
 			name:             "client does not receive event from a different stream",
-			subscribeFlagset: flagsetA2,
+			subscribeFlagset: fixtures.FlagsetCamel,
 			broadcastFlagset: "flagsetB",
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{

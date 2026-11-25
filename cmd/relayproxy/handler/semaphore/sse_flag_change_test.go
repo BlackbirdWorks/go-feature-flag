@@ -21,13 +21,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	data2            = "data"
+	dataKey          = "data"
 	getStreamV1Route = "GET /stream/v1/sse/flag/change"
 )
 
@@ -75,7 +77,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			name: "update single flag",
 			flagChange: notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
-					myFlag: {
+					fixtures.FlagKeyMy: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
@@ -139,7 +141,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			})
 
 			flagsetMgr := &mockFlagsetManagerSSE{
-				flagsetName: defaultFlagset,
+				flagsetName: fixtures.FlagsetDefault,
 				isDefault:   true,
 			}
 
@@ -160,7 +162,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
-			assert.Contains(t, resp.Header.Get(contentType2), "text/event-stream")
+			assert.Contains(t, resp.Header.Get(protocol.HeaderContentType), "text/event-stream")
 
 			select {
 			case <-subscribed:
@@ -170,14 +172,14 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 			before := clock.Now().Unix()
 
-			require.NoError(t, sseService.BroadcastFlagChanges(defaultFlagset, tt.flagChange))
+			require.NoError(t, sseService.BroadcastFlagChanges(fixtures.FlagsetDefault, tt.flagChange))
 
 			event := readSSEEvent(t, resp)
 			assert.NotEmpty(t, event["id"], "events should have an id")
 			assert.Equal(t, "message", event["event"])
 
 			var got model.OFREPSSEEvent
-			require.NoError(t, json.Unmarshal([]byte(event[data2]), &got))
+			require.NoError(t, json.Unmarshal([]byte(event[dataKey]), &got))
 			assert.Equal(t, tt.wantEvent, got.Type)
 			assert.GreaterOrEqual(t, got.LastModified, before)
 		})
@@ -203,7 +205,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	})
 
 	flagsetMgr := &mockFlagsetManagerSSE{
-		flagsetName: flagsetA,
+		flagsetName: fixtures.FlagsetCamel,
 		isDefault:   false,
 	}
 
@@ -240,7 +242,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	// The event id is a timestamp, so it tells us which broadcast was received.
 	afterWrongBroadcast := clock.Now().UnixNano()
 
-	require.NoError(t, sseService.BroadcastFlagChanges(flagsetA, notifier.DiffCache{
+	require.NoError(t, sseService.BroadcastFlagChanges(fixtures.FlagsetCamel, notifier.DiffCache{
 		Added: map[string]flag.Flag{rightFlag: &flag.InternalFlag{}},
 	}))
 
@@ -249,7 +251,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, id, afterWrongBroadcast,
 		"client should only receive the event of its own flagset")
-	assert.Contains(t, event[data2], model.OFREPSSEEventTypeRefetchEvaluation)
+	assert.Contains(t, event[dataKey], model.OFREPSSEEventTypeRefetchEvaluation)
 }
 
 // readSSEEvent reads the next SSE event of the response and returns its fields.
@@ -274,7 +276,7 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 		}
 	}
 
-	require.NotEmpty(t, fields[data2], "should have received an SSE data line")
+	require.NotEmpty(t, fields[dataKey], "should have received an SSE data line")
 
 	return fields
 }

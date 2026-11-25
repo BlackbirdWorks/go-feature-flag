@@ -12,18 +12,19 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
-	admin1        = "admin-1"
-	admin2        = "admin-2"
+	adminOne      = "admin-1"
+	adminTwo      = "admin-2"
 	adminA        = "admin-a"
 	adminKeep     = "admin-keep"
 	adminNew      = "admin-new"
 	adminOld      = "admin-old"
-	eval1         = "eval-1"
-	eval2         = "eval-2"
+	evalOne       = "eval-1"
+	evalTwo       = "eval-2"
 	evaluationKey = "evaluation-key"
 	flagsetKey    = "flagset-key"
 )
@@ -31,7 +32,7 @@ const (
 func authorizedKeysFlagset() config.FlagSet {
 	return config.FlagSet{
 		Name:      "fs-keys",
-		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: testdataFlagConfigYaml},
+		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 		APIKeys:   []string{flagsetKey},
 	}
 }
@@ -49,17 +50,17 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 	}{
 		{
 			name:         "an added admin key is accepted",
-			current:      config.APIKeys{Admin: []string{admin1}},
-			next:         config.APIKeys{Admin: []string{admin1, admin2}},
-			wantAdmin:    []string{admin1, admin2},
+			current:      config.APIKeys{Admin: []string{adminOne}},
+			next:         config.APIKeys{Admin: []string{adminOne, adminTwo}},
+			wantAdmin:    []string{adminOne, adminTwo},
 			wantNotAdmin: []string{"unknown"},
 		},
 		{
 			name:         "a removed admin key is rejected",
-			current:      config.APIKeys{Admin: []string{admin1, admin2}},
-			next:         config.APIKeys{Admin: []string{admin1}},
-			wantAdmin:    []string{admin1},
-			wantNotAdmin: []string{admin2},
+			current:      config.APIKeys{Admin: []string{adminOne, adminTwo}},
+			next:         config.APIKeys{Admin: []string{adminOne}},
+			wantAdmin:    []string{adminOne},
+			wantNotAdmin: []string{adminTwo},
 		},
 		{
 			name:         "a replaced admin key swaps the accepted key",
@@ -78,15 +79,15 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 		{
 			// flag sets route an evaluation request by the key of its flag set: evaluation keys are never accepted
 			name:              "an added evaluation key is not accepted in flag set mode",
-			current:           config.APIKeys{Evaluation: []string{eval1}},
-			next:              config.APIKeys{Evaluation: []string{eval1, eval2}},
-			wantNotEvaluation: []string{eval1, eval2},
+			current:           config.APIKeys{Evaluation: []string{evalOne}},
+			next:              config.APIKeys{Evaluation: []string{evalOne, evalTwo}},
+			wantNotEvaluation: []string{evalOne, evalTwo},
 		},
 		{
 			name:              "a removed evaluation key stays rejected in flag set mode",
-			current:           config.APIKeys{Evaluation: []string{eval1, eval2}},
-			next:              config.APIKeys{Evaluation: []string{eval1}},
-			wantNotEvaluation: []string{eval1, eval2},
+			current:           config.APIKeys{Evaluation: []string{evalOne, evalTwo}},
+			next:              config.APIKeys{Evaluation: []string{evalOne}},
+			wantNotEvaluation: []string{evalOne, evalTwo},
 		},
 		{
 			name:         "all the admin keys can be removed",
@@ -203,7 +204,7 @@ func TestFlagsetManager_OnConfigChange_EvaluationKeysStayRejectedWithoutRunningF
 
 	broken := config.FlagSet{
 		Name:      "fs-broken",
-		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: "/does/not/exist/flags.yaml"},
+		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: "/does/not/exist/flags.yaml"},
 		APIKeys:   []string{brokenKey},
 	}
 	manager.OnConfigChange(&config.Config{

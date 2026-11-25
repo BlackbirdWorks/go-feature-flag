@@ -14,11 +14,11 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
-	key    = "key"
 	tenant = "tenant"
 )
 
@@ -68,7 +68,7 @@ func TestRequestFlagSet(t *testing.T) {
 
 			ctx := t.Context()
 			if tt.authenticate {
-				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, key)
+				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, fixtures.Key)
 				require.True(t, ok)
 
 				ctx = authCtx
@@ -76,7 +76,7 @@ func TestRequestFlagSet(t *testing.T) {
 				tt.manager = unrouted
 			}
 
-			flagset, err := helper.RequestFlagSet(ctx, tt.manager, key)
+			flagset, err := helper.RequestFlagSet(ctx, tt.manager, fixtures.Key)
 			assert.Equal(t, tt.wantFlagSet, flagset)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})
@@ -100,7 +100,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, ok := helper.AuthenticateFlagSet(t.Context(), tt.manager, key)
+			_, ok := helper.AuthenticateFlagSet(t.Context(), tt.manager, fixtures.Key)
 			assert.Equal(t, tt.want, ok)
 		})
 	}
@@ -109,7 +109,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 func TestRequestFlagSetName(t *testing.T) {
 	t.Parallel()
 
-	manager := &namedManager{names: map[string]string{key: tenant}}
+	manager := &namedManager{names: map[string]string{fixtures.Key: tenant}}
 
 	tests := []struct {
 		name         string
@@ -120,9 +120,9 @@ func TestRequestFlagSetName(t *testing.T) {
 		wantAuth     bool
 		wantErr      bool
 	}{
-		{name: "the name resolved by the authentication is used", apiKey: key, authenticate: true,
+		{name: "the name resolved by the authentication is used", apiKey: fixtures.Key, authenticate: true,
 			wantName: tenant, wantAuth: true, wantLogged: []any{tenant}},
-		{name: "the name of the key is looked up without authentication", apiKey: key, wantName: tenant,
+		{name: "the name of the key is looked up without authentication", apiKey: fixtures.Key, wantName: tenant,
 			wantLogged: []any{tenant}},
 		{name: "a key without flag set is an error", apiKey: "other", wantErr: true},
 		{name: "a key without flag set is not authenticated", apiKey: "other", authenticate: true, wantErr: true},

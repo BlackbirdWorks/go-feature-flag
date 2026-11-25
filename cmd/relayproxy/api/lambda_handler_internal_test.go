@@ -17,14 +17,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
-	applicationJSON = "application/json"
-	contentType     = "Content-Type"
-	methodGET       = "GET"
-	health2         = "/health"
+	healthPath = "/health"
 )
 
 func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
@@ -45,12 +43,12 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			request: events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: methodGET,
-						Path:   health2,
+						Method: http.MethodGet,
+						Path:   healthPath,
 					},
 				},
 				Headers: map[string]string{
-					contentType: applicationJSON,
+					protocol.HeaderContentType: protocol.MIMEApplicationJSON,
 				},
 				Body: "",
 			},
@@ -60,14 +58,14 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "APIGatewayV1",
 			wantStatus: http.StatusOK,
 			request: events.APIGatewayProxyRequest{
-				HTTPMethod: methodGET,
-				Path:       health2,
+				HTTPMethod: http.MethodGet,
+				Path:       healthPath,
 				RequestContext: events.APIGatewayProxyRequestContext{
-					Path:       health2,
-					HTTPMethod: methodGET,
+					Path:       healthPath,
+					HTTPMethod: http.MethodGet,
 				},
 				Headers: map[string]string{
-					contentType: applicationJSON,
+					protocol.HeaderContentType: protocol.MIMEApplicationJSON,
 				},
 				Body: "",
 			},
@@ -77,10 +75,10 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "ALB",
 			wantStatus: http.StatusOK,
 			request: events.ALBTargetGroupRequest{
-				HTTPMethod: methodGET,
-				Path:       health2,
+				HTTPMethod: http.MethodGet,
+				Path:       healthPath,
 				Headers: map[string]string{
-					contentType: applicationJSON,
+					protocol.HeaderContentType: protocol.MIMEApplicationJSON,
 				},
 				Body: "",
 			},
@@ -178,13 +176,13 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 		{
 			name:         "No base path configured - direct path",
 			basePath:     "",
-			requestPath:  health2,
+			requestPath:  healthPath,
 			expectedCode: 200,
 		},
 		{
 			name:         "No base path configured - direct path",
 			basePath:     "",
-			requestPath:  health2,
+			requestPath:  healthPath,
 			expectedCode: 200,
 		},
 	}
@@ -222,12 +220,12 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 			request := events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: methodGET,
+						Method: http.MethodGet,
 						Path:   tt.requestPath,
 					},
 				},
 				Headers: map[string]string{
-					contentType: applicationJSON,
+					protocol.HeaderContentType: protocol.MIMEApplicationJSON,
 				},
 				Body: "",
 			}

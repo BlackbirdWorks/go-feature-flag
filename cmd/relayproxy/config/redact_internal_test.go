@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	debug          = "debug"
 	visibleVersion = "visible-version"
 )
 
@@ -171,7 +171,7 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	conf.EvaluationContextEnrichment = map[string]any{"apiKey": secretMarker + "-enrichment", "env": "prod"}
 	conf.OtelConfig.Resource.Attributes = map[string]string{"service.token": secretMarker + "-otel"}
 	conf.Version = visibleVersion
-	conf.LogLevel = debug
+	conf.LogLevel = fixtures.Debug
 
 	return conf
 }
@@ -222,10 +222,10 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 func TestRedactedKeepsPlainValues(t *testing.T) {
 	t.Parallel()
 
-	conf := &Config{LogLevel: debug, Version: "1.0"}
+	conf := &Config{LogLevel: fixtures.Debug, Version: "1.0"}
 	conf.AuthorizedKeys.Admin = []string{"a-secret-admin"}
 	redacted := conf.Redacted()
-	assert.Equal(t, debug, redacted["loglevel"])
+	assert.Equal(t, fixtures.Debug, redacted["loglevel"])
 	assert.Equal(t, RedactedValue, redacted["authorizedkeys"])
 	assert.Nil(t, (*Config)(nil).Redacted())
 }

@@ -12,7 +12,7 @@ import (
 
 const (
 	apiGatewayV1Name           = "APIGatewayV1"
-	apiV1                      = "/api/v1"
+	apiVOne                    = "/api/v1"
 	deprecated                 = "deprecated"
 	exampleCom                 = "example.com"
 	expectedDeprecationWarning = "expected deprecation warning"
@@ -516,11 +516,11 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "base path from server config",
 			config: &config.Config{
 				Server: config.Server{
-					AwsAPIGatewayBasePath: apiV1,
+					AwsAPIGatewayBasePath: apiVOne,
 				},
 				AwsAPIGatewayBasePath: "",
 			},
-			wantBasePath:          apiV1,
+			wantBasePath:          apiVOne,
 			wantDeprecationWarned: false,
 		},
 		{
@@ -540,7 +540,7 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 				Server: config.Server{
 					AwsAPIGatewayBasePath: "/api/v2",
 				},
-				AwsAPIGatewayBasePath: apiV1,
+				AwsAPIGatewayBasePath: apiVOne,
 			},
 			wantBasePath:          "/api/v2",
 			wantDeprecationWarned: false,

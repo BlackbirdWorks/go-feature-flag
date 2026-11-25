@@ -20,6 +20,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -210,7 +211,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 				"/v1/feature/"+tt.args.flagKey+"/eval",
 				bodyReq,
 			)
-			req.Header.Set(contentType2, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.SetPathValue("flagKey", tt.args.flagKey)
 			handlerErr := flagEval.Handler(rec, req)
 
@@ -307,7 +308,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequestWithContext(t.Context(),
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(contentType2, applicationJSON)
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 				req.SetPathValue("flagKey", flagKey)
 				_ = flagEval.Handler(httptest.NewRecorder(), req)
 			}

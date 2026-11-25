@@ -20,12 +20,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
 	badRequest                    = "Bad Request"
-	contentType2                  = "Content-Type"
 	d10                           = `\d{10}`
 	fixedTimestamp                = "1652273630"
 	handlerShouldReturnAn         = "handler should return an error"
@@ -169,7 +169,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(contentType2, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
@@ -314,7 +314,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(contentType2, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.Header.Set("Authorization", "Bearer test-api-key")
 			handlerErr := ctrl.Handler(rec, req)
 

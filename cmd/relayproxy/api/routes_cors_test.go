@@ -15,7 +15,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
@@ -31,8 +33,8 @@ func testConfig(t *testing.T) *config.Config {
 	return &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -125,7 +127,7 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 		wantAllowOrigin string
 		wantStatus      int
 	}{
-		{name: "health endpoint", endpoint: health2, wantStatus: http.StatusOK, wantAllowOrigin: "*"},
+		{name: "health endpoint", endpoint: healthPath, wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 		{name: "evaluation endpoint", endpoint: v1FlagChange, wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 	}
 
@@ -137,12 +139,12 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				t.Parallel()
 
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, map[string]string{
-					origin: httpsExampleCom,
+					protocol.HeaderOrigin: httpsExampleCom,
 				})
 				t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 				assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get(accessControlAllowOrigin))
-				assert.Contains(t, resp.Header.Values(vary), origin)
+				assert.Contains(t, resp.Header.Values(vary), protocol.HeaderOrigin)
 				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Credentials"))
 				assert.Empty(t, resp.Header.Get("Access-Control-Expose-Headers"))
 			})
@@ -171,10 +173,10 @@ func Test_CORS_Preflight(t *testing.T) {
 	baseURL, _ := startTestServer(t, conf, false)
 
 	endpoints := []string{
-		health2,
+		healthPath,
 		v1Allflags,
 		"/v1/feature/my-flag/eval",
-		ofrepV1Evaluate,
+		fixtures.OFREPEvaluateFlagsPath,
 	}
 
 	for _, endpoint := range endpoints {
@@ -182,7 +184,7 @@ func Test_CORS_Preflight(t *testing.T) {
 			t.Parallel()
 
 			resp := doRequest(t, http.MethodOptions, baseURL+endpoint, map[string]string{
-				origin:                      httpsExampleCom,
+				protocol.HeaderOrigin:       httpsExampleCom,
 				accessControlRequestMethod:  http.MethodPost,
 				accessControlRequestHeaders: contentTypeAuthorization,
 			})
@@ -207,11 +209,11 @@ func Test_CORS_MonitoringPort(t *testing.T) {
 	conf := testConfig(t)
 	_, monitoringURL := startTestServer(t, conf, true)
 
-	resp := doRequest(t, http.MethodGet, monitoringURL+health2, map[string]string{
-		origin: httpsExampleCom,
+	resp := doRequest(t, http.MethodGet, monitoringURL+healthPath, map[string]string{
+		protocol.HeaderOrigin: httpsExampleCom,
 	})
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "*", resp.Header.Get(accessControlAllowOrigin))
-	assert.Contains(t, resp.Header.Values(vary), origin)
+	assert.Contains(t, resp.Header.Values(vary), protocol.HeaderOrigin)
 }

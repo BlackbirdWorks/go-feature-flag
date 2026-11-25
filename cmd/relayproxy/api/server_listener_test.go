@@ -15,6 +15,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestServer_WithListener checks that the server serves on the listener it is given, which stays bound from
@@ -22,7 +24,7 @@ import (
 func TestServer_WithListener(t *testing.T) {
 	t.Parallel()
 
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), tcp2, "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), protocol.NetworkTCP, "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -32,7 +34,7 @@ func TestServer_WithListener(t *testing.T) {
 	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: file2, Path: testdataFlagConfigYaml}},
+		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath}},
 		Server:     config.Server{Mode: config.ServerModeHTTP, Host: loopbackAddress, Port: port},
 	}
 	log := newTestLogger(t)
@@ -49,9 +51,9 @@ func TestServer_WithListener(t *testing.T) {
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf(http12700, port)
+	baseURL := fmt.Sprintf(localhostURLFormat, port)
 	waitForServer(t, baseURL)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

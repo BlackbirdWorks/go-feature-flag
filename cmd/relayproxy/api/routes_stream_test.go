@@ -22,10 +22,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	apiKey2     = "?apiKey="
+	apiKeyQuery = "?apiKey="
 	flagTenantA = "flag-tenant-a"
 	flagTenantB = "flag-tenant-b"
 )
@@ -38,7 +39,7 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: file2, Path: testdataFlagConfigYaml},
+			{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
@@ -149,7 +150,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		return config.FlagSet{
 			Name:            name,
 			APIKeys:         []string{apiKey},
-			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: file2, Path: path}},
+			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: path}},
 			PollingInterval: 200,
 		}
 	}
@@ -194,7 +195,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		path string
 	}{
 		{name: "stream endpoint", path: streamV1Ws},
-		{name: "legacy alias", path: wsV1Flag},
+		{name: "legacy alias", path: fixtures.WebsocketFlagChangePath},
 	}
 
 	for _, tt := range endpoints {
@@ -202,7 +203,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Parallel()
 
 			dial := func(apiKey string) <-chan string {
-				conn, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+tt.path+apiKey2+apiKey, nil)
+				conn, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+tt.path+apiKeyQuery+apiKey, nil)
 				require.NoError(t, dialErr)
 
 				_ = resp.Body.Close()
@@ -240,7 +241,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Run(endpoint.name+": "+tt.name+" is rejected before the upgrade", func(t *testing.T) {
 				t.Parallel()
 
-				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+endpoint.path+apiKey2+tt.apiKey, nil)
+				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+endpoint.path+apiKeyQuery+tt.apiKey, nil)
 				if ws != nil {
 					_ = ws.Close()
 				}

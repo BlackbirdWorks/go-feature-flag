@@ -14,14 +14,14 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	expectedEmptyInfoResponse       = "Expected empty InfoResponse"
 	expectedLatestCacheRefreshToNot = "Expected LatestCacheRefresh to not be nil"
 	expectedNoError                 = "Expected no error"
-	testdataFlagConfigYaml          = "../../../testdata/flag-config.yaml"
-	yaml                            = "yaml"
 )
 
 var (
@@ -36,9 +36,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      yaml,
+			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: file2, Path: testdataFlagConfigYaml},
+				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -54,9 +54,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      yaml,
+			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: file2, Path: testdataFlagConfigYaml},
+				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -78,9 +78,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      yaml,
+			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: file2, Path: "../../../testdata/non-existent-file.yaml"},
+				{Kind: fixtures.File, Path: "../../../testdata/non-existent-file.yaml"},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to invalid file path")
@@ -100,9 +100,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		managerDefault, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      yaml,
+			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: file2, Path: testdataFlagConfigYaml},
+				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -119,13 +119,13 @@ func TestWithFlagsetsMode(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            testFlagset,
+					Name:            fixtures.FlagsetTest,
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: testdataFlagConfigYaml},
+						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 					},
-					APIKeys: []string{testAPIKey},
+					APIKeys: []string{fixtures.APIKeyTest},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -136,7 +136,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 		info, err := monitoring.Info()
 		require.NoError(t, err, expectedNoError)
 		assert.NotEmpty(t, info.Flagsets, "Expected flagsets to not be empty")
-		assert.Contains(t, info.Flagsets, testFlagset, "Expected test-flagset to be in flagsets")
+		assert.Contains(t, info.Flagsets, fixtures.FlagsetTest, "Expected test-flagset to be in flagsets")
 	})
 
 	t.Run("info multiple flagsets", func(t *testing.T) {
@@ -147,20 +147,20 @@ func TestWithFlagsetsMode(t *testing.T) {
 				{
 					Name:            "flagset1",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: testdataFlagConfigYaml},
+						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 					},
-					APIKeys: []string{apiKey1},
+					APIKeys: []string{apiKeyOne},
 				},
 				{
 					Name:            "flagset2",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: fixtures.File, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
-					APIKeys: []string{apiKey2},
+					APIKeys: []string{apiKeyTwo},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -181,13 +181,13 @@ func TestWithFlagsetsMode(t *testing.T) {
 		managerFlagsets, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            testFlagset,
+					Name:            fixtures.FlagsetTest,
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: testdataFlagConfigYaml},
+						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 					},
-					APIKeys: []string{testAPIKey},
+					APIKeys: []string{fixtures.APIKeyTest},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -213,11 +213,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 				{
 					Name:            "invalid-flagset",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: "../../../testdata/non-existent-file.yaml"},
+						{Kind: fixtures.File, Path: "../../../testdata/non-existent-file.yaml"},
 					},
-					APIKeys: []string{apiKey1},
+					APIKeys: []string{apiKeyOne},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -279,9 +279,9 @@ func TestMonitoringInfoErrors(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000,
-			FileFormat:      yaml,
+			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: file2, Path: testdataFlagConfigYaml},
+				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -301,22 +301,22 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            testFlagset1,
+					Name:            testFlagsetOne,
 					PollingInterval: 60000,
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: testdataFlagConfigYaml},
+						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 					},
-					APIKeys: []string{apiKey1},
+					APIKeys: []string{apiKeyOne},
 				},
 				{
-					Name:            testFlagset2,
+					Name:            testFlagsetTwo,
 					PollingInterval: 60000,
-					FileFormat:      yaml,
+					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: file2, Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: fixtures.File, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
-					APIKeys: []string{apiKey2},
+					APIKeys: []string{apiKeyTwo},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)

@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
@@ -64,8 +65,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
-						Path: testdataFlagConfigYaml,
+						Kind: fixtures.File,
+						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
 				Server: config.Server{
@@ -139,7 +140,7 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			conf.DisableVersionHeader = tt.disableVersionHeader
 			baseURL, monitoringURL := startTestServer(t, conf, true)
 
-			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+health2, nil)
+			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+healthPath, nil)
 			t.Cleanup(func() { require.NoError(t, monitoringResp.Body.Close()) })
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,

@@ -17,69 +17,57 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
-	aecd6Aea1350                   = "aecd6aea-1350-46af-a7b9-231e9a609fd"
-	ampleFlagsGoffYaml             = "ample/flags.goff.yaml"
-	apikey12                       = "apikey1"
-	apikey22                       = "apikey2"
-	apikey32                       = "apikey3"
-	authorization2                 = "authorization"
+	uuidAecd6Aea                   = "aecd6aea-1350-46af-a7b9-231e9a609fd"
+	sampleFlagsGoffYamlPath        = "ample/flags.goff.yaml"
+	apikeyOne                      = "apikey1"
+	apikeyTwo                      = "apikey2"
+	apikeyThree                    = "apikey3"
+	authorizationKey               = "authorization"
 	cmdRelayproxyTestdataDockerhub = "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
-	config3                        = "config"
 	configS                        = "--config=%s"
-	custom2                        = "custom"
-	d05087DdEfff                   = "d05087dd-efff-4144-b9a6-89476a14695"
-	debug                          = "debug"
-	e0Dcb798                       = "e0dcb798-4f97-4646-a1a9-57a6c69c235"
-	extraInfo2                     = "extraInfo"
-	fb124Cf9                       = "fb124cf9-e058-4f34-8385-ad225ff85a3"
-	file2                          = "file"
+	customKey                      = "custom"
+	uuidD05087Dd                   = "d05087dd-efff-4144-b9a6-89476a14695"
+	uuidE0Dcb798                   = "e0dcb798-4f97-4646-a1a9-57a6c69c235"
+	extraInfoKey                   = "extraInfo"
+	uuidFb124Cf9                   = "fb124cf9-e058-4f34-8385-ad225ff85a3"
 	apiKeyFirst                    = "0359cdb3-5fb5-4d65-b25f-b8909ec3c44"
 	apiKeyThird                    = "04d9f1b7-f50c-4407-83bb-e9c4ddc5d45"
 	numericAPIKey                  = "11213123"
-	wildcardVersion                = "1.X.X"
 	apiKeySixth                    = "49b67ab9-20fc-42ac-ac53-b36e29834c7"
 	apiKeySecond                   = "5082a8df-cc67-48b4-aca4-26ce1425645"
 	apiKeyFourth                   = "62507779-bd2d-4170-b715-8d93ee7110f"
 	apiKeyFifth                    = "6bfd6b61-f8a9-45b3-9ca8-37125438be4"
 	flagSetAPIKey                  = "flag-set-api-key-2"
-	flagset1                       = "flagset-1"
-	flagset2                       = "flagset-2"
-	http2                          = "http"
 	httpLocalhost8080Webhook       = "http://localhost:8080/webhook"
 	httpTestingwebhookComTest      = "http://testingwebhook.com/test/"
 	httpsHooksSlackCom             = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	httpsHooktestCom               = "https://hooktest.com/"
 	httpsRawGithubusercontentCom   = "https://raw.githubusercontent.com/BlackbirdWorks/s" +
 		"emaphore/main/cmd/relayproxy/testdata/dockerhub-ex"
-	httpsRawGithubusercontentCom2 = "https://raw.githubusercontent.com/BlackbirdWorks/s" +
+	httpsRawGithubusercontentComBlackbird = "https://raw.githubusercontent.com/BlackbirdWorks/s" +
 		"emaphore/main/cmd/relayproxy/testdata/dockerhub-exa"
 	httpsXxxComNotifier          = "https://xxx.com/notifier"
-	info2                        = "info"
-	invalid2                     = "invalid"
+	invalidKey                   = "invalid"
 	kafka                        = "kafka"
 	localhost19092               = "localhost:19092"
 	localhost19092Localhost19093 = "localhost:19092,localhost:19093"
 	localhost19093               = "localhost:19093"
 	locationOfYourConfig         = "Location of your config file"
-	log2                         = "log"
-	mpleFlagsGoffYaml            = "mple/flags.goff.yaml"
+	logKey                       = "log"
+	exampleFlagsGoffYamlPath     = "mple/flags.goff.yaml"
 	secretForSigning             = "secret-for-signing"
 	slack                        = "slack"
-	test12                       = "test1"
-	test2                        = "test"
-	testAPIKey                   = "test-api-key"
-	testFlagset                  = "test-flagset"
+	testOne                      = "test1"
 	testdataConfigValidFile      = "../testdata/config/valid-file.yaml"
-	token2                       = "token"
-	webhook                      = "webhook"
+	tokenKey                     = "token"
 	xGoffCustom                  = "x-goff-custom"
-	xxx2                         = "xxx"
 	xxxx                         = "xxxx"
-	yaml2                        = "yaml"
 )
 
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
@@ -107,11 +95,16 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 				environ = append(environ, "DISABLEFLAGDETAILSINSTREAM="+tt.environment)
 			}
 
-			flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			flagSet.String(config3, "", locationOfYourConfig)
-			require.NoError(t, flagSet.Parse([]string{config2 + configPath}))
+			flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			flagSet.String(fixtures.Config, "", locationOfYourConfig)
+			require.NoError(t, flagSet.Parse([]string{configFlag + configPath}))
 
-			got, err := config.New(flagSet, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
+			got, err := config.New(
+				flagSet,
+				slog.New(slog.DiscardHandler),
+				fixtures.VersionWildcard,
+				withEnviron(environ...),
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDisabled, got.DisableFlagDetailsInStream)
 		})
@@ -132,11 +125,16 @@ func runParseConfigFromPflag(t *testing.T, tests []parseConfigFileCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron("version=1.X.X"))
+			got, err := config.New(
+				f,
+				slog.New(slog.DiscardHandler),
+				fixtures.VersionWildcard,
+				withEnviron("version=1.X.X"),
+			)
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -155,14 +153,14 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			fileLocation: testdataConfigValidFile,
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
@@ -170,17 +168,17 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Port: 1031,
 				},
 				Swagger: config.Swagger{Enabled: true, Host: "gofeatureflag.org"},
-				Version: wildcardVersion,
+				Version: fixtures.VersionWildcard,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -189,14 +187,14 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			fileLocation: "../testdata/config/valid-file-notifier.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				FixNotifiers: []config.NotifierConf{
@@ -206,19 +204,19 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
 
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -227,14 +225,14 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			fileLocation: "../testdata/config/valid-file-notifiers.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Notifiers: []config.NotifierConf{
@@ -244,19 +242,19 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
 
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -265,18 +263,18 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			fileLocation: "../testdata/config/valid-yaml-multiple-exporters.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporters: &[]config.ExporterConf{
 					{
-						Kind: log2,
+						Kind: logKey,
 					},
 					{
-						Kind:      file2,
+						Kind:      fixtures.File,
 						OutputDir: "./",
 					},
 				},
@@ -285,18 +283,18 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -305,22 +303,22 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			fileLocation: "../testdata/config/valid-yaml-exporter-and-exporters.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				Exporters: &[]config.ExporterConf{
 					{
-						Kind:        webhook,
+						Kind:        fixtures.Webhook,
 						EndpointURL: "https://example.com/webhook",
 					},
 					{
-						Kind:      file2,
+						Kind:      fixtures.File,
 						OutputDir: "./",
 					},
 				},
@@ -329,18 +327,18 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -356,26 +354,26 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 			fileLocation: "../testdata/config/valid-file.json",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
 				LogLevel: "",
@@ -387,26 +385,26 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 			fileLocation: "../testdata/config/valid-file.toml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
 				LogLevel: config.DefaultLogLevel,
@@ -418,9 +416,9 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 			fileLocation: "../testdata/config/all-default.yaml",
 			want: &config.Config{
 				PollingInterval:         60000,
-				FileFormat:              yaml2,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: false,
-				Version:                 wildcardVersion,
+				Version:                 fixtures.VersionWildcard,
 				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
@@ -435,10 +433,10 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 			fileLocation: "../testdata/config/valid-otel.yaml",
 			want: &config.Config{
 				PollingInterval: 60000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 					},
 				},
@@ -447,7 +445,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  wildcardVersion,
+				Version:  fixtures.VersionWildcard,
 				OtelConfig: config.OpenTelemetryConfiguration{
 					Exporter: config.OtelExporter{
 						Otlp: config.OtelExporterOtlp{
@@ -481,32 +479,32 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			fileLocation: testdataConfigValidFile,
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: http2,
-					URL: httpsRawGithubusercontentCom2 +
-						mpleFlagsGoffYaml,
+					Kind: fixtures.HTTP,
+					URL: httpsRawGithubusercontentComBlackbird +
+						exampleFlagsGoffYamlPath,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version: wildcardVersion,
+				Version: fixtures.VersionWildcard,
 				Swagger: config.Swagger{Enabled: true, Host: "gofeatureflag.org"},
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -515,9 +513,9 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			fileLocation: "../testdata/config/all-default.yaml",
 			want: &config.Config{
 				PollingInterval:         60000,
-				FileFormat:              yaml2,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: false,
-				Version:                 wildcardVersion,
+				Version:                 fixtures.VersionWildcard,
 				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
@@ -533,9 +531,9 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			wantErr:      assert.NoError,
 			want: &config.Config{
 				PollingInterval:         60000,
-				FileFormat:              yaml2,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: false,
-				Version:                 wildcardVersion,
+				Version:                 fixtures.VersionWildcard,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -545,9 +543,9 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			wantErr:      assert.NoError,
 			want: &config.Config{
 				PollingInterval:         60000,
-				FileFormat:              yaml2,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: false,
-				Version:                 wildcardVersion,
+				Version:                 fixtures.VersionWildcard,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -557,9 +555,9 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			wantErr:      assert.NoError,
 			want: &config.Config{
 				PollingInterval:         60000,
-				FileFormat:              yaml2,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: false,
-				Version:                 wildcardVersion,
+				Version:                 fixtures.VersionWildcard,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -568,11 +566,11 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -650,7 +648,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				OfrepEventStream: config.OfrepEventStream{BaseURL: "gofeatureflag.example.com"},
@@ -676,7 +674,7 @@ func TestConfig_IsValid(t *testing.T) {
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind:        webhook,
+						Kind:        fixtures.Webhook,
 						EndpointURL: httpsHooktestCom,
 						Secret:      xxxx,
 					},
@@ -696,20 +694,20 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				Exporter: &config.ExporterConf{
-					Kind:        webhook,
+					Kind:        fixtures.Webhook,
 					EndpointURL: httpTestingwebhookComTest,
 					Secret:      secretForSigning,
 					Meta: map[string]string{
-						extraInfo2: info2,
+						extraInfoKey: fixtures.Info,
 					},
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind:        webhook,
+						Kind:        fixtures.Webhook,
 						EndpointURL: httpsHooktestCom,
 						Secret:      xxxx,
 					},
@@ -718,7 +716,7 @@ func TestConfig_IsValid(t *testing.T) {
 						WebhookURL: httpsHooksSlackCom,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 		},
@@ -730,15 +728,15 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: "../testdata/config/valid-file-notifier.yaml",
 				},
 				Exporter: &config.ExporterConf{
-					Kind:        webhook,
+					Kind:        fixtures.Webhook,
 					EndpointURL: httpTestingwebhookComTest,
 					Secret:      secretForSigning,
 					Meta: map[string]string{
-						extraInfo2: info2,
+						extraInfoKey: fixtures.Info,
 					},
 				},
 			},
@@ -752,7 +750,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 				},
 			},
 			wantErr: assert.Error,
@@ -766,14 +764,14 @@ func TestConfig_IsValid(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: testdataConfigValidFile,
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: testdataConfigValidFile,
 					},
 				},
@@ -788,11 +786,11 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: webhook,
+					Kind: fixtures.Webhook,
 				},
 			},
 			wantErr: assert.Error,
@@ -805,12 +803,12 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind: webhook,
+						Kind: fixtures.Webhook,
 					},
 				},
 			},
@@ -824,10 +822,10 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
-				LogLevel: invalid2,
+				LogLevel: invalidKey,
 			},
 			wantErr: assert.Error,
 		},
@@ -839,7 +837,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "DeBuG",
@@ -854,7 +852,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "warning",
@@ -869,7 +867,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "panic",
@@ -884,7 +882,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "DPANIC",
@@ -899,7 +897,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "",
@@ -916,10 +914,10 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.Error,
 		},
@@ -939,10 +937,10 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    testFlagset,
-						APIKeys: []string{testAPIKey},
+						Name:    fixtures.FlagsetTest,
+						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -959,9 +957,9 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{testAPIKey},
+						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -978,9 +976,9 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name: testFlagset,
+						Name: fixtures.FlagsetTest,
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -997,18 +995,18 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    flagset1,
+						Name:    fixtures.FlagsetOne,
 						APIKeys: []string{"shared-api-key"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
 					{
-						Name:    flagset2,
+						Name:    fixtures.FlagsetTwo,
 						APIKeys: []string{"shared-api-key"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -1025,10 +1023,10 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    testFlagset,
-						APIKeys: []string{testAPIKey},
+						Name:    fixtures.FlagsetTest,
+						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							// Missing Path
 						},
 					},
@@ -1045,14 +1043,14 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    testFlagset,
-						APIKeys: []string{testAPIKey},
+						Name:    fixtures.FlagsetTest,
+						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 						Exporter: &config.ExporterConf{
-							Kind: webhook,
+							Kind: fixtures.Webhook,
 							// Missing EndpointURL
 						},
 					},
@@ -1069,15 +1067,15 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    testFlagset,
-						APIKeys: []string{testAPIKey},
+						Name:    fixtures.FlagsetTest,
+						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 						Notifiers: []config.NotifierConf{
 							{
-								Kind: webhook,
+								Kind: fixtures.Webhook,
 								// Missing EndpointURL
 							},
 						},
@@ -1095,18 +1093,18 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						Name:    flagset1,
+						Name:    fixtures.FlagsetOne,
 						APIKeys: []string{"api-key-1"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
 					{
-						Name:    flagset2,
+						Name:    fixtures.FlagsetTwo,
 						APIKeys: []string{"api-key-2"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -1123,10 +1121,10 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 					UnixSocketPath: "",
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: file2,
+					Kind: fixtures.File,
 					Path: testdataConfigValidFile,
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.Error,
 		},
@@ -1159,14 +1157,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						fb124Cf9,
-						d05087DdEfff,
+						uuidFb124Cf9,
+						uuidD05087Dd,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						e0Dcb798,
+						uuidE0Dcb798,
 						apiKeyFifth,
-						aecd6Aea1350,
+						uuidAecd6Aea,
 						apiKeySixth,
 					},
 				},
@@ -1180,14 +1178,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						fb124Cf9,
-						d05087DdEfff,
+						uuidFb124Cf9,
+						uuidD05087Dd,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						e0Dcb798,
+						uuidE0Dcb798,
 						apiKeyFifth,
-						aecd6Aea1350,
+						uuidAecd6Aea,
 						apiKeySixth,
 					},
 				},
@@ -1203,7 +1201,7 @@ func TestConfig_APIKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						xxx2,
+						fixtures.Xxx,
 					},
 				},
 			},
@@ -1215,14 +1213,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						fb124Cf9,
-						d05087DdEfff,
+						uuidFb124Cf9,
+						uuidD05087Dd,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						e0Dcb798,
+						uuidE0Dcb798,
 						apiKeyFifth,
-						aecd6Aea1350,
+						uuidAecd6Aea,
 						apiKeySixth,
 					},
 				},
@@ -1236,14 +1234,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						fb124Cf9,
-						d05087DdEfff,
+						uuidFb124Cf9,
+						uuidD05087Dd,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						e0Dcb798,
+						uuidE0Dcb798,
 						apiKeyFifth,
-						aecd6Aea1350,
+						uuidAecd6Aea,
 						apiKeySixth,
 					},
 				},
@@ -1341,7 +1339,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						aecd6Aea1350,
+						uuidAecd6Aea,
 						apiKeySixth,
 					},
 				},
@@ -1357,7 +1355,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						xxx2,
+						fixtures.Xxx,
 					},
 				},
 			},
@@ -1371,7 +1369,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						xxx2,
+						fixtures.Xxx,
 					},
 				},
 			},
@@ -1386,7 +1384,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						xxx2,
+						fixtures.Xxx,
 					},
 				},
 			},
@@ -1394,14 +1392,14 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 		},
 		{
 			name:   "evaluation key does not work for admin",
-			apiKey: xxx2,
+			apiKey: fixtures.Xxx,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						xxx2,
+						fixtures.Xxx,
 					},
 				},
 			},
@@ -1445,11 +1443,11 @@ func runMergeConfigFromOSEnvTests(t *testing.T, tests []mergeConfigFromOSEnvCase
 				environ = append(environ, k+"="+v)
 			}
 
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1468,7 +1466,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Notifiers: []config.NotifierConf{
 					{
 						Kind:        config.WebhookNotifier,
@@ -1477,68 +1475,68 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: http2,
+						Kind: fixtures.HTTP,
 						URL: httpsRawGithubusercontentCom +
-							ampleFlagsGoffYaml,
+							sampleFlagsGoffYamlPath,
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test2,
+							authorizationKey: {
+								fixtures.Test,
 							},
-							token2: {token2},
+							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
-							token2: {
+							tokenKey: {
 								numericAPIKey,
 							},
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 						},
 					},
 					{
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 							xGoffCustom: {
-								custom2,
+								customKey,
 							},
 						},
 					},
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version: wildcardVersion,
+				Version: fixtures.VersionWildcard,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel:      info2,
+				LogLevel:      fixtures.Info,
 				EnableSwagger: true,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"RETRIEVERS_0_HEADERS_AUTHORIZATION": test2,
-				"RETRIEVERS_X_HEADERS_AUTHORIZATION": test2,
-				"RETRIEVERS_1_HEADERS_AUTHORIZATION": test12,
-				"RETRIEVERS_0_HEADERS_TOKEN":         token2,
-				"RETRIEVERS_2_HEADERS_AUTHORIZATION": test12,
-				"RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": custom2,
+				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
+				"RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
+				"RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
+				"RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": customKey,
 				"NOTIFIERS_0_ENDPOINTURL":            httpsXxxComNotifier,
 			},
 		},
@@ -1547,7 +1545,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			fileLocation: "../testdata/config/validate-array-env-file-legacy.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				FixNotifiers: []config.NotifierConf{
 					{
 						Kind:        config.WebhookNotifier,
@@ -1556,68 +1554,68 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: http2,
+						Kind: fixtures.HTTP,
 						URL: httpsRawGithubusercontentCom +
-							ampleFlagsGoffYaml,
+							sampleFlagsGoffYamlPath,
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test2,
+							authorizationKey: {
+								fixtures.Test,
 							},
-							token2: {token2},
+							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
-							token2: {
+							tokenKey: {
 								numericAPIKey,
 							},
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 						},
 					},
 					{
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 							xGoffCustom: {
-								custom2,
+								customKey,
 							},
 						},
 					},
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"RETRIEVERS_0_HEADERS_AUTHORIZATION": test2,
-				"RETRIEVERS_X_HEADERS_AUTHORIZATION": test2,
-				"RETRIEVERS_1_HEADERS_AUTHORIZATION": test12,
-				"RETRIEVERS_0_HEADERS_TOKEN":         token2,
-				"RETRIEVERS_2_HEADERS_AUTHORIZATION": test12,
-				"RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": custom2,
+				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
+				"RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
+				"RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
+				"RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": customKey,
 				"NOTIFIER_0_ENDPOINTURL":             httpsXxxComNotifier,
 			},
 		},
@@ -1626,44 +1624,44 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			fileLocation: "../testdata/config/validate-array-env-file-envprefix.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: http2,
+						Kind: fixtures.HTTP,
 						URL: httpsRawGithubusercontentCom +
-							ampleFlagsGoffYaml,
+							sampleFlagsGoffYamlPath,
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test2,
+							authorizationKey: {
+								fixtures.Test,
 							},
-							token2: {token2},
+							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
-							token2: {
+							tokenKey: {
 								numericAPIKey,
 							},
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 						},
 					},
 					{
 						HTTPHeaders: map[string][]string{
-							authorization2: {
-								test12,
+							authorizationKey: {
+								testOne,
 							},
 							xGoffCustom: {
-								custom2,
+								customKey,
 							},
 						},
 					},
 				},
 				Exporter: &config.ExporterConf{
-					Kind: log2,
+					Kind: logKey,
 				},
 				StartWithRetrieverError: false,
 				EnvVariablePrefix:       "GOFF_",
@@ -1671,27 +1669,27 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       wildcardVersion,
+				Version:       fixtures.VersionWildcard,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"GOFF_RETRIEVERS_0_HEADERS_AUTHORIZATION": test2,
-				"GOFF_RETRIEVERS_X_HEADERS_AUTHORIZATION": test2,
-				"GOFF_RETRIEVERS_1_HEADERS_AUTHORIZATION": test12,
-				"GOFF_RETRIEVERS_0_HEADERS_TOKEN":         token2,
-				"GOFF_RETRIEVERS_2_HEADERS_AUTHORIZATION": test12,
-				"GOFF_RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": custom2,
+				"GOFF_RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
+				"GOFF_RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"GOFF_RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
+				"GOFF_RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
+				"GOFF_RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
+				"GOFF_RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": customKey,
 			},
 		},
 	})
@@ -1706,7 +1704,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Notifiers: []config.NotifierConf{
 					{
 						Kind:        config.WebhookNotifier,
@@ -1715,15 +1713,15 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: http2,
+						Kind: fixtures.HTTP,
 						URL: httpsRawGithubusercontentCom +
-							ampleFlagsGoffYaml,
+							sampleFlagsGoffYamlPath,
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
-							token2: {
+							tokenKey: {
 								numericAPIKey,
 							},
 						},
@@ -1743,15 +1741,15 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				Version:  wildcardVersion,
-				LogLevel: info2,
+				Version:  fixtures.VersionWildcard,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
@@ -1764,18 +1762,18 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			fileLocation: "../testdata/config/valid-env-exporters-kafka.yaml",
 			want: &config.Config{
 				PollingInterval: 1000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: http2,
+						Kind: fixtures.HTTP,
 						URL: httpsRawGithubusercontentCom +
-							ampleFlagsGoffYaml,
+							sampleFlagsGoffYamlPath,
 					},
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
-							token2: {
+							tokenKey: {
 								numericAPIKey,
 							},
 						},
@@ -1798,15 +1796,15 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						apikey32,
+						apikeyThree,
 					},
 					Evaluation: []string{
-						apikey12,
-						apikey22,
+						apikeyOne,
+						apikeyTwo,
 					},
 				},
-				Version:  wildcardVersion,
-				LogLevel: info2,
+				Version:  fixtures.VersionWildcard,
+				LogLevel: fixtures.Info,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
@@ -1818,10 +1816,10 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			fileLocation: "../testdata/config/valid-otel.yaml",
 			want: &config.Config{
 				PollingInterval: 60000,
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
+						Kind: fixtures.File,
 						Path: cmdRelayproxyTestdataDockerhub,
 					},
 				},
@@ -1830,7 +1828,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  wildcardVersion,
+				Version:  fixtures.VersionWildcard,
 				OtelConfig: config.OpenTelemetryConfiguration{
 					Exporter: config.OtelExporter{
 						Otlp: config.OtelExporterOtlp{
@@ -1856,20 +1854,20 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			name:         "Configure flagset with basic environment variables",
 			fileLocation: "../testdata/config/validate-array-env-file-flagset.yaml",
 			want: &config.Config{
-				FileFormat:      yaml2,
+				FileFormat:      protocol.FormatYAML,
 				PollingInterval: 60000,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  wildcardVersion,
+				Version:  fixtures.VersionWildcard,
 				FlagSets: []config.FlagSet{
 					{
-						Name:                    xxx2,
+						Name:                    fixtures.Xxx,
 						APIKeys:                 []string{"other-api-key", "default-api-key"},
 						PollingInterval:         50000,
-						FileFormat:              yaml2,
+						FileFormat:              protocol.FormatYAML,
 						StartWithRetrieverError: true,
 						Notifiers: []config.NotifierConf{
 							{
@@ -1887,7 +1885,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						},
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: file2,
+								Kind: fixtures.File,
 								Path: cmdRelayproxyTestdataDockerhub,
 							},
 						},
@@ -1896,16 +1894,16 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"FLAGSETS_0_NAME":                        xxx2,
+				"FLAGSETS_0_NAME":                        fixtures.Xxx,
 				"FLAGSETS_0_APIKEYS":                     "other-api-key,default-api-key",
-				"FLAGSETS_0_FILEFORMAT":                  yaml2,
+				"FLAGSETS_0_FILEFORMAT":                  protocol.FormatYAML,
 				"FLAGSETS_0_POLLINGINTERVAL":             "50000",
 				"FLAGSETS_0_STARTWITHRETRIEVERERROR":     "true",
-				"FLAGSETS_0_NOTIFIERS_0_KIND":            webhook,
+				"FLAGSETS_0_NOTIFIERS_0_KIND":            fixtures.Webhook,
 				"FLAGSETS_0_NOTIFIERS_0_ENDPOINTURL":     httpLocalhost8080Webhook,
 				"FLAGSETS_0_EXPORTERS_0_KIND":            kafka,
 				"FLAGSETS_0_EXPORTERS_0_KAFKA_ADDRESSES": localhost19092Localhost19093,
-				"FLAGSETS_0_RETRIEVERS_0_KIND":           file2,
+				"FLAGSETS_0_RETRIEVERS_0_KIND":           fixtures.File,
 				"FLAGSETS_0_RETRIEVERS_0_PATH":           cmdRelayproxyTestdataDockerhub,
 			},
 		},
@@ -1941,11 +1939,11 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 				environ = append(environ, k+"="+v)
 			}
 
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
 			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
@@ -1968,21 +1966,21 @@ func TestConfig_LogLevel(t *testing.T) {
 		{
 			name: "invalid log level",
 			config: &config.Config{
-				LogLevel: invalid2,
+				LogLevel: invalidKey,
 			},
 			wantDebug: false,
 		},
 		{
 			name: "debug level",
 			config: &config.Config{
-				LogLevel: debug,
+				LogLevel: fixtures.Debug,
 			},
 			wantDebug: true,
 		},
 		{
 			name: "info level",
 			config: &config.Config{
-				LogLevel: info2,
+				LogLevel: fixtures.Info,
 			},
 			wantDebug: false,
 		},
@@ -2029,7 +2027,7 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 		{
 			name: "Lowercase",
 			cfg: config.Config{
-				LogLevel: debug,
+				LogLevel: fixtures.Debug,
 			},
 			want: true,
 		},
@@ -2071,9 +2069,9 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Retrievers", func(t *testing.T) {
 		t.Parallel()
 
-		f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
 
-		got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(
+		got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(
 			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
 			"RETRIEVERS_0_PATH=cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 		))
@@ -2086,8 +2084,8 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Flagset retriever", func(t *testing.T) {
 		t.Parallel()
 
-		f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-		got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(
 			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
 			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
 		))
@@ -2182,10 +2180,10 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 
-	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-	flagSet.String(config3, "", locationOfYourConfig)
-	require.NoError(t, flagSet.Parse([]string{config2 + configPath}))
-	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), wildcardVersion, opts...)
+	flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+	flagSet.String(fixtures.Config, "", locationOfYourConfig)
+	require.NoError(t, flagSet.Parse([]string{configFlag + configPath}))
+	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, opts...)
 	require.NoError(t, err)
 
 	return got
@@ -2290,7 +2288,7 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 		wantPosition int64
 	}{
 		{name: "malformed entry in last position", attributes: "foo=bar,Bearer-" + marker, wantPosition: 1},
-		{name: "malformed entry in first position", attributes: token2 + marker + ",foo=bar", wantPosition: 0},
+		{name: "malformed entry in first position", attributes: tokenKey + marker + ",foo=bar", wantPosition: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2298,8 +2296,12 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 
 			core, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			_, err := config.New(pflag.NewFlagSet(config3, pflag.ContinueOnError), core, wildcardVersion,
-				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes))
+			_, err := config.New(
+				pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError),
+				core,
+				fixtures.VersionWildcard,
+				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes),
+			)
 			require.NoError(t, err)
 
 			entries := logs.FilterMessageSnippet("OTEL_RESOURCE_ATTRIBUTES").All()

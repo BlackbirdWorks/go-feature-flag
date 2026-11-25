@@ -20,19 +20,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	failedToConnectTo             = "Failed to connect to WebSocket"
-	defaultFlagset                = "default"
-	flagsetA                      = "flagsetA"
 	getWsV1Route                  = "GET /ws/v1/flag/change"
-	http2                         = "http"
-	myFlag                        = "my-flag"
 	rightFlag                     = "right-flag"
 	websocketServiceCleanupFailed = "websocket service cleanup failed"
 	wrongFlag                     = "wrong-flag"
-	wsV1Flag                      = "/ws/v1/flag/change"
 )
 
 var (
@@ -41,7 +37,7 @@ var (
 
 // newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {
-	return &mockFlagsetManagerSSE{flagsetName: defaultFlagset, isDefault: true}
+	return &mockFlagsetManagerSSE{flagsetName: fixtures.FlagsetDefault, isDefault: true}
 }
 
 func Test_websocket_flag_change(t *testing.T) {
@@ -58,7 +54,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				Deleted: nil,
 				Added:   nil,
 				Updated: map[string]notifier.DiffUpdated{
-					myFlag: {
+					fixtures.FlagKeyMy: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
@@ -110,7 +106,7 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 				Updated: map[string]notifier.DiffUpdated{
-					myFlag: {
+					fixtures.FlagKeyMy: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
@@ -163,7 +159,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, http2) + wsV1Flag
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
 
 			// Create websocket connection with timeout
 			dialer := &websocket.Dialer{
@@ -236,7 +232,7 @@ func broadcastUntilRegistered(
 	deadline := time.After(5 * time.Second)
 
 	for {
-		svc.BroadcastFlagChanges(defaultFlagset, diff)
+		svc.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 
 		select {
 		case <-firstMsg:
@@ -278,7 +274,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
-	url := "ws" + strings.TrimPrefix(testServer.URL, http2) + wsV1Flag
+	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
@@ -316,7 +312,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
-			myFlag: {
+			fixtures.FlagKeyMy: {
 				Before: &flag.InternalFlag{
 					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
@@ -343,7 +339,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	for range broadcasters {
 		wg.Go(func() {
 			for range broadcastsEach {
-				websocketService.BroadcastFlagChanges(defaultFlagset, diff)
+				websocketService.BroadcastFlagChanges(fixtures.FlagsetDefault, diff)
 			}
 		})
 	}
@@ -385,7 +381,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
-	url := "ws" + strings.TrimPrefix(testServer.URL, http2) + wsV1Flag
+	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, failedToConnectTo)
@@ -397,7 +393,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
-			myFlag: {
+			fixtures.FlagKeyMy: {
 				Before: &flag.InternalFlag{
 					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
@@ -452,7 +448,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			websocketService := stream.NewWebsocketService()
 			defer websocketService.Close()
 
-			flagsetMgr := &mockFlagsetManagerSSE{flagsetName: flagsetA, isDefault: false}
+			flagsetMgr := &mockFlagsetManagerSSE{flagsetName: fixtures.FlagsetCamel, isDefault: false}
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
@@ -460,7 +456,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, http2) + "/ws?apiKey=key-a"
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + "/ws?apiKey=key-a"
 			wsConn, resp, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -490,7 +486,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 
 			registered := false
 			for !registered {
-				websocketService.BroadcastFlagChanges(flagsetA, diff("probe-flag"))
+				websocketService.BroadcastFlagChanges(fixtures.FlagsetCamel, diff("probe-flag"))
 
 				select {
 				case <-msgs:
@@ -504,7 +500,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			// The connection is registered and the writes are ordered: if the flagsetB
 			// broadcast reached the client, it would be read before the flagsetA one.
 			websocketService.BroadcastFlagChanges("flagsetB", diff(tt.wantAbsentFlag))
-			websocketService.BroadcastFlagChanges(flagsetA, diff(tt.wantFlag))
+			websocketService.BroadcastFlagChanges(fixtures.FlagsetCamel, diff(tt.wantFlag))
 
 			for {
 				select {
@@ -579,7 +575,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, http2) + "/ws" + tt.query
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + "/ws" + tt.query
 
 			ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
 			if ws != nil {

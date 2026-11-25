@@ -26,7 +26,7 @@ func Test_OTelMetrics(t *testing.T) {
 		path      string
 		wantRoute string
 	}{
-		{name: "huma operation", path: health2, wantRoute: health2},
+		{name: "huma operation", path: healthPath, wantRoute: healthPath},
 		{name: "raw handler", path: "/v1/feature/some-flag/eval", wantRoute: "/v1/feature/{flagKey}/eval"},
 	}
 	for _, tt := range tests {
@@ -45,7 +45,7 @@ func Test_OTelMetrics(t *testing.T) {
 			)
 
 			method := http.MethodGet
-			if tt.path != health2 {
+			if tt.path != healthPath {
 				method = http.MethodPost
 			}
 

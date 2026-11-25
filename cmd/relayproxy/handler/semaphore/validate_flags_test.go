@@ -16,10 +16,10 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 const (
-	applicationJSON = "application/json"
 	applicationToml = "application/toml"
 	applicationYaml = "application/yaml"
 )
@@ -147,7 +147,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	}{
 		{
 			name:        "valid json",
-			contentType: applicationJSON,
+			contentType: protocol.MIMEApplicationJSON,
 			body:        validJSON,
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
@@ -195,7 +195,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			wantValid:   true,
 		},
 		{
-			name: "invalid flags sorted by key", contentType: applicationJSON, body: invalidJSON,
+			name: "invalid flags sorted by key", contentType: protocol.MIMEApplicationJSON, body: invalidJSON,
 			wantStatus: http.StatusUnprocessableEntity,
 			wantErrors: []controller.FlagValidationError{
 				{Flag: "flag-a", Message: "validating the flag: missing default rule"},
@@ -203,7 +203,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			},
 		},
 		{
-			name: "panicking flag definition", contentType: applicationJSON,
+			name: "panicking flag definition", contentType: protocol.MIMEApplicationJSON,
 			body:       `{"f":{"variations":{"a":true},"defaultRule":{"progressiveRollout":{}}}}`,
 			altMessage: "validating the flag: invalid progressive rollout, initial and end steps are required",
 			wantStatus: http.StatusUnprocessableEntity,
@@ -214,7 +214,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name:        "bad json syntax",
-			contentType: applicationJSON,
+			contentType: protocol.MIMEApplicationJSON,
 			body:        `{"flag-a":`,
 			wantStatus:  http.StatusBadRequest,
 		},
@@ -227,10 +227,10 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			wantStatus:  http.StatusBadRequest,
 		},
 		{name: "yaml list", contentType: applicationYaml, body: "- a\n- b\n", wantStatus: http.StatusBadRequest},
-		{name: "json list", contentType: applicationJSON, body: "[]", wantStatus: http.StatusBadRequest},
+		{name: "json list", contentType: protocol.MIMEApplicationJSON, body: "[]", wantStatus: http.StatusBadRequest},
 		{
 			name:        "unreadable body",
-			contentType: applicationJSON,
+			contentType: protocol.MIMEApplicationJSON,
 			reader:      failingReader{},
 			wantStatus:  http.StatusBadRequest,
 		},
@@ -248,17 +248,17 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{name: "missing content type", contentType: "", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
 		{
-			name: "json at the size limit", contentType: applicationJSON,
+			name: "json at the size limit", contentType: protocol.MIMEApplicationJSON,
 			body: padTo(validJSON, " ", jsonBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name:        "json over the size limit",
-			contentType: applicationJSON,
+			contentType: protocol.MIMEApplicationJSON,
 			body:        oversizedJSON,
 			wantStatus:  http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "chunked json over the size limit", contentType: applicationJSON, chunked: true,
+			name: "chunked json over the size limit", contentType: protocol.MIMEApplicationJSON, chunked: true,
 			body: oversizedJSON, wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
@@ -282,12 +282,12 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			body: padTo(validTOML, "\n", tomlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom json limit, at the limit", contentType: applicationJSON,
+			name: "custom json limit, at the limit", contentType: protocol.MIMEApplicationJSON,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2048), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "custom json limit, over the limit", contentType: applicationJSON,
+			name: "custom json limit, over the limit", contentType: protocol.MIMEApplicationJSON,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2049), wantStatus: http.StatusRequestEntityTooLarge,
 		},
@@ -344,7 +344,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			}
 
 			if tt.contentType != "" {
-				req.Header.Set(contentType2, tt.contentType)
+				req.Header.Set(protocol.HeaderContentType, tt.contentType)
 			}
 
 			err = ctrl.Handler(rec, req)

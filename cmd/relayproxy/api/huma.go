@@ -11,6 +11,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 const (
@@ -49,7 +50,7 @@ func jsonFormat() huma.Format {
 func errorTransformer(exposeError bool) huma.Transformer {
 	return func(ctx huma.Context, _ string, val any) (any, error) {
 		if model, ok := val.(*huma.ErrorModel); ok {
-			ctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+			ctx.SetHeader(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			herr := modelError(model)
 			reqlog.RecordError(ctx.Context(), herr)

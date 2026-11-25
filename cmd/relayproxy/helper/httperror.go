@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // HTTPError is an error that carries the status code of the response and the message sent to the client. The
@@ -118,7 +119,7 @@ func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 
 // WriteJSON sends v as the JSON body of the response, with the status code.
 func WriteJSON(w http.ResponseWriter, code int, v any) error {
-	w.Header().Set(HeaderContentType, MIMEApplicationJSON)
+	w.Header().Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	w.WriteHeader(code)
 
 	err := json.NewEncoder(w).Encode(v)

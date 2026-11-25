@@ -14,15 +14,14 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-)
-
-const (
-	admin = "admin"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestFlagsetMode_EvaluationKeysOutsideFlagsets checks that, in flag set mode, a key that is not
@@ -36,7 +35,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
 			APIKeys:   []string{"flagset-key"},
-			Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: testdataFlagConfigYaml},
+			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
 		}},
 		AuthorizedKeys: config.APIKeys{
 			Evaluation: []string{"authorized-evaluation-key"},
@@ -71,7 +70,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	const evalBody = contextTargetingKeyUser1
+	const evalBody = contextTargetingKeyUserOne
 
 	endpoints := []struct {
 		name   string
@@ -81,15 +80,15 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		// keyInQuery is true for the streaming endpoints, which read the key from the apiKey query param.
 		keyInQuery bool
 	}{
-		{name: "ofrep single", method: http.MethodPost, path: ofrepV1Evaluate5, body: evalBody},
-		{name: "ofrep bulk", method: http.MethodPost, path: ofrepV1Evaluate, body: evalBody},
+		{name: "ofrep single", method: http.MethodPost, path: ofrepEvaluateTestFlag, body: evalBody},
+		{name: "ofrep bulk", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: evalBody},
 		{name: "eval", method: http.MethodPost, path: v1FeatureTest,
 			body: `{"evaluationContext":{"key":"user-1"},"defaultValue":false}`},
 		{name: "allflags", method: http.MethodPost, path: v1Allflags,
 			body: `{"evaluationContext":{"key":"user-1"}}`},
 		{name: "flag configuration", method: http.MethodPost, path: v1FlagConfiguration, body: `{}`},
 		{name: "flag change", method: http.MethodGet, path: v1FlagChange},
-		{name: "data collector", method: http.MethodPost, path: v1DataCollector, body: events2},
+		{name: "data collector", method: http.MethodPost, path: v1DataCollector, body: emptyEventsBody},
 		{name: "manifest", method: http.MethodGet, path: openfeatureV0Manifest},
 		{name: "websocket", method: http.MethodGet, path: streamV1Ws, keyInQuery: true},
 		{name: "sse", method: http.MethodGet, path: streamV1Sse, keyInQuery: true},
@@ -103,7 +102,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	}{
 		{name: "flag set", key: "flagset-key", want: http.StatusOK, skipStreams: true},
 		// An admin key authenticates but it is not linked to a flag set: documented 400.
-		{name: admin, key: adminKey, want: http.StatusBadRequest},
+		{name: fixtures.UserAdmin, key: adminKey, want: http.StatusBadRequest},
 		{name: "authorizedKeys.evaluation", key: "authorized-evaluation-key", want: http.StatusUnauthorized},
 		{name: "unknown", key: "unknown-key", want: http.StatusUnauthorized},
 	}
@@ -119,16 +118,16 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 
 				target := baseURL + endpoint.path
 				if endpoint.keyInQuery {
-					target += apiKey2 + url.QueryEscape(keyCase.key)
+					target += apiKeyQuery + url.QueryEscape(keyCase.key)
 				}
 
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(), endpoint.method, target, strings.NewReader(endpoint.body))
 				require.NoError(t, requestWithContextErr)
-				req.Header.Set(contentType, applicationJSON)
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 				if !endpoint.keyInQuery {
-					req.Header.Set(xAPIKey, keyCase.key)
+					req.Header.Set(helper.XAPIKeyHeader, keyCase.key)
 				}
 
 				resp, requestWithContextErr := http.DefaultClient.Do(req)

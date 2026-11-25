@@ -21,17 +21,14 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
-	config2                  = "config"
-	versionOneTwoThree       = "1.2.3"
-	wildcardVersion          = "1.X.X"
 	httpsExampleCom4318      = "https://example.com:4318"
 	httpsOtlpExampleCom      = "https://otlp.example.com:4318"
-	oTELEXPORTEROTLPENDPOINT = "OTEL_EXPORTER_OTLP_ENDPOINT"
-	test                     = "test"
+	otelExporterOtlpEndpoint = "OTEL_EXPORTER_OTLP_ENDPOINT"
 )
 
 var (
@@ -41,11 +38,11 @@ var (
 //nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(test, c)
+		sampler, err := initSampler(fixtures.Test, c)
 		require.NoError(t, err)
 		assert.Equal(t, sdktrace.AlwaysSample(), sampler)
 	})
@@ -53,11 +50,11 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(test, c)
+		sampler, err := initSampler(fixtures.Test, c)
 		require.NoError(t, err)
 		assert.Nil(t, sampler)
 	})
@@ -65,11 +62,11 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(test, c)
+		sampler, err := initSampler(fixtures.Test, c)
 		require.NoError(t, err)
 
 		// not really any way to assert on the sampler other than calling
@@ -81,8 +78,8 @@ func TestInitSampler(t *testing.T) {
 //nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		url, refreshInterval, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -96,8 +93,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := "http://example.com:1234"
 		t.Setenv("JAEGER_SAMPLER_MANAGER_HOST_PORT", expected)
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		url, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -109,8 +106,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := 42 * time.Second
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", expected.String())
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		_, refreshInterval, _, err := jaegerRemoteSamplerOpts(c)
@@ -122,8 +119,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := 42
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", strconv.Itoa(expected))
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		_, _, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -134,8 +131,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("invalid JAEGER_SAMPLER_REFRESH_INTERVAL", func(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", "bogus")
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		_, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -145,8 +142,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("invalid JAEGER_SAMPLER_MAX_OPERATIONS", func(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", "bogus")
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		_, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		_, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.ErrorContains(t, errC,
 			"'jaeger.sampler.max.operations' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
 	})
@@ -158,7 +155,7 @@ func TestInitResource(t *testing.T) {
 	t.Run("defaults, no env", func(t *testing.T) {
 		t.Parallel()
 
-		res, err := initResource(context.Background(), test, versionOneTwoThree, nil)
+		res, err := initResource(context.Background(), fixtures.Test, fixtures.VersionOneTwoThree, nil)
 		require.NoError(t, err)
 
 		rmap := map[string]attribute.Value{}
@@ -167,8 +164,8 @@ func TestInitResource(t *testing.T) {
 		}
 
 		// just spot-check a few things
-		assert.Equal(t, test, rmap["service.name"].AsString())
-		assert.Equal(t, versionOneTwoThree, rmap["service.version"].AsString())
+		assert.Equal(t, fixtures.Test, rmap["service.name"].AsString())
+		assert.Equal(t, fixtures.VersionOneTwoThree, rmap["service.version"].AsString())
 		assert.Equal(t, "go", rmap["process.runtime.name"].AsString())
 	})
 
@@ -180,7 +177,7 @@ func TestInitResource(t *testing.T) {
 			"key2": "val2",
 		}
 
-		res, err := initResource(context.Background(), test, versionOneTwoThree, attribs)
+		res, err := initResource(context.Background(), fixtures.Test, fixtures.VersionOneTwoThree, attribs)
 		require.NoError(t, err)
 
 		rmap := map[string]attribute.Value{}
@@ -207,10 +204,10 @@ func TestInit(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		t.Setenv("OTEL_SDK_DISABLED", "true")
-		t.Setenv(oTELEXPORTEROTLPENDPOINT, httpsExampleCom4318)
+		t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
-		f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-		c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
 		svc := NewOtelService()
@@ -223,7 +220,7 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("an endpoint creates the tracer provider without installing it", func(t *testing.T) {
-		t.Setenv(oTELEXPORTEROTLPENDPOINT, httpsExampleCom4318)
+		t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
 		before := otel.GetTracerProvider()
 		svc := NewOtelService()
@@ -282,7 +279,7 @@ func TestNewPropagator(t *testing.T) {
 // Install registers the provider in the process-wide OpenTelemetry registry, which every test of the package that
 // starts a span reads.
 func TestInstall(t *testing.T) {
-	t.Setenv(oTELEXPORTEROTLPENDPOINT, httpsExampleCom4318)
+	t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
 	previous := otel.GetTracerProvider()
 
@@ -331,29 +328,29 @@ func TestExportEnvironment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(oTELEXPORTEROTLPENDPOINT, "")
+			t.Setenv(otelExporterOtlpEndpoint, "")
 
 			conf := &config.Config{OpenTelemetryOtlpEndpoint: tt.endpoint}
 			conf.OtelConfig.Exporter.Otlp.Endpoint = tt.otlpEndpoint
 			ExportEnvironment(conf)
-			assert.Equal(t, tt.wantEnv, os.Getenv(oTELEXPORTEROTLPENDPOINT))
+			assert.Equal(t, tt.wantEnv, os.Getenv(otelExporterOtlpEndpoint))
 			assert.Equal(t, tt.wantEndpoint, conf.OtelConfig.Exporter.Otlp.Endpoint)
 		})
 	}
 }
 
 func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
-	t.Setenv(oTELEXPORTEROTLPENDPOINT, httpsExampleCom4318)
+	t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
-	f := pflag.NewFlagSet(config2, pflag.ContinueOnError)
-	c, errC := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
+	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+	c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 	require.NoError(t, errC)
 
 	c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
 
 	ExportEnvironment(c)
 
-	assert.Equal(t, httpsExampleCom4318, os.Getenv(oTELEXPORTEROTLPENDPOINT))
+	assert.Equal(t, httpsExampleCom4318, os.Getenv(otelExporterOtlpEndpoint))
 }
 
 // shutdownProbe records the shutdown of a part of the service and fails it on request.
@@ -486,7 +483,7 @@ func TestStop(t *testing.T) {
 				svc.InitMetrics(t.Context(), &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
 			)
 
-			counter, err := svc.MeterProvider().Meter(test).Int64Counter("test.pending")
+			counter, err := svc.MeterProvider().Meter(fixtures.Test).Int64Counter("test.pending")
 			require.NoError(t, err)
 			counter.Add(t.Context(), 1)
 			require.Empty(t, metrics.names(), "nothing was exported before the shutdown")

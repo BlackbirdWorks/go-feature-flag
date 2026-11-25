@@ -11,6 +11,8 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestAPIKey(t *testing.T) {
@@ -28,7 +30,7 @@ func TestAPIKey(t *testing.T) {
 		{name: "Bearer token", authorization: "Bearer my-api-key-123", expectedAPIKey: "my-api-key-123"},
 		{name: "Bearer token with leading/trailing spaces", authorization: "Bearer   my-api-key-with-spaces  ",
 			expectedAPIKey: "my-api-key-with-spaces"},
-		{name: "bearer prefix is case-insensitive", authorization: "bEaReR key", expectedAPIKey: key},
+		{name: "bearer prefix is case-insensitive", authorization: "bEaReR key", expectedAPIKey: fixtures.Key},
 		{name: "raw Authorization value", authorization: "raw-key", expectedAPIKey: "raw-key"},
 		{name: "nothing", expectedAPIKey: ""},
 	}
@@ -42,7 +44,7 @@ func TestAPIKey(t *testing.T) {
 			}
 
 			if tt.authorization != "" {
-				req.Header.Set(helper.AuthorizationHeader, tt.authorization)
+				req.Header.Set(protocol.HeaderAuthorization, tt.authorization)
 			}
 
 			assert.Equal(t, tt.expectedAPIKey, helper.APIKey(req))
@@ -84,9 +86,9 @@ func TestFlagSet(t *testing.T) {
 				err *helper.HTTPError
 			)
 			if tt.manager == nil {
-				got, err = helper.FlagSet(nil, key)
+				got, err = helper.FlagSet(nil, fixtures.Key)
 			} else {
-				got, err = helper.FlagSet(tt.manager, key)
+				got, err = helper.FlagSet(tt.manager, fixtures.Key)
 			}
 
 			assert.Equal(t, tt.wantFlagSet, got)

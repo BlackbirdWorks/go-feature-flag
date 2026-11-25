@@ -20,6 +20,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // FuzzOFREPEvaluate checks that any request body sent to the OFREP endpoints
@@ -37,7 +39,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10000,
-		FileFormat:      yaml,
+		FileFormat:      protocol.FormatYAML,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 		},
@@ -47,17 +49,17 @@ func FuzzOFREPEvaluate(f *testing.F) {
 
 	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
 	mux := http.NewServeMux()
-	mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
+	mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 	mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
 
 	f.Fuzz(func(t *testing.T, flagKey, body string, bulk bool) {
-		target := ofrepV1Evaluate2 + url.PathEscape(flagKey)
+		target := ofrepEvaluatePrefix + url.PathEscape(flagKey)
 		if bulk {
-			target = ofrepV1Evaluate
+			target = fixtures.OFREPEvaluateFlagsPath
 		}
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set(contentType, applicationJSON)
+		req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

@@ -15,7 +15,7 @@ import (
 
 const (
 	configXYaml = "--config=/x.yaml"
-	version2    = "--version"
+	versionFlag = "--version"
 )
 
 type recordingAPIServer struct{ calls *[]string }
@@ -54,9 +54,9 @@ func TestVersionRequested(t *testing.T) {
 		want bool
 	}{
 		{name: "no argument", args: nil, want: false},
-		{name: "long flag", args: []string{version2}, want: true},
+		{name: "long flag", args: []string{versionFlag}, want: true},
 		{name: "short flag", args: []string{"-v"}, want: true},
-		{name: "after the config flag", args: []string{configXYaml, version2}, want: true},
+		{name: "after the config flag", args: []string{configXYaml, versionFlag}, want: true},
 		{name: "config only", args: []string{configXYaml}, want: false},
 		{name: "unknown flags are ignored", args: []string{"--nope", "-v"}, want: true},
 	}
@@ -97,7 +97,7 @@ func TestConfigFlagSet(t *testing.T) {
 			args:       []string{"--config", "-version.yaml"},
 			wantConfig: "-version.yaml",
 		},
-		{name: "version", args: []string{version2}, wantVersion: true},
+		{name: "version", args: []string{versionFlag}, wantVersion: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -7,11 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
 
-const (
-	testFlag  = "test-flag"
-	testFlag2 = "test-flag2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestMetrics_IncAllFlag(t *testing.T) {
@@ -34,20 +31,20 @@ func TestMetrics_IncAllFlag_WithBulkMetricEnabled(t *testing.T) {
 		EnableBulkMetricFlagNames: true,
 	})
 	require.NoError(t, err)
-	metricSrv.IncAllFlag(testFlag)
-	metricSrv.IncAllFlag(testFlag)
-	metricSrv.IncAllFlag(testFlag, testFlag2)
+	metricSrv.IncAllFlag(fixtures.FlagKeyTest)
+	metricSrv.IncAllFlag(fixtures.FlagKeyTest)
+	metricSrv.IncAllFlag(fixtures.FlagKeyTest, fixtures.FlagKeyTestSecond)
 
 	assert.InDelta(
 		t,
 		3.0,
-		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(testFlag)),
+		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(fixtures.FlagKeyTest)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(testFlag2)),
+		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(fixtures.FlagKeyTestSecond)),
 		0,
 	)
 	assert.InDelta(t, 3.0, testutil.ToFloat64(metricSrv.allFlagCounter), 0)
@@ -71,20 +68,20 @@ func TestMetrics_IncFlagEvaluation(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagEvaluation(testFlag)
-	metricSrv.IncFlagEvaluation(testFlag)
-	metricSrv.IncFlagEvaluation(testFlag2)
+	metricSrv.IncFlagEvaluation(fixtures.FlagKeyTest)
+	metricSrv.IncFlagEvaluation(fixtures.FlagKeyTest)
+	metricSrv.IncFlagEvaluation(fixtures.FlagKeyTestSecond)
 
 	assert.InDelta(
 		t,
 		2.0,
-		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(testFlag)),
+		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(fixtures.FlagKeyTest)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(testFlag2)),
+		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(fixtures.FlagKeyTestSecond)),
 		0,
 	)
 }
@@ -114,20 +111,20 @@ func TestMetrics_IncFlagCreated(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagCreated(testFlag)
-	metricSrv.IncFlagCreated(testFlag2)
+	metricSrv.IncFlagCreated(fixtures.FlagKeyTest)
+	metricSrv.IncFlagCreated(fixtures.FlagKeyTestSecond)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagCreateCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(testFlag2)),
+		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(fixtures.FlagKeyTestSecond)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(testFlag)),
+		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(fixtures.FlagKeyTest)),
 		0,
 	)
 }
@@ -138,20 +135,20 @@ func TestMetrics_IncFlagUpdated(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagUpdated(testFlag)
-	metricSrv.IncFlagUpdated(testFlag2)
+	metricSrv.IncFlagUpdated(fixtures.FlagKeyTest)
+	metricSrv.IncFlagUpdated(fixtures.FlagKeyTestSecond)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagUpdateCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(testFlag2)),
+		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(fixtures.FlagKeyTestSecond)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(testFlag)),
+		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(fixtures.FlagKeyTest)),
 		0,
 	)
 }
@@ -162,20 +159,20 @@ func TestMetrics_IncFlagDeleted(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagDeleted(testFlag)
-	metricSrv.IncFlagDeleted(testFlag2)
+	metricSrv.IncFlagDeleted(fixtures.FlagKeyTest)
+	metricSrv.IncFlagDeleted(fixtures.FlagKeyTestSecond)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagDeleteCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(testFlag2)),
+		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(fixtures.FlagKeyTestSecond)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(testFlag)),
+		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(fixtures.FlagKeyTest)),
 		0,
 	)
 }

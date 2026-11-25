@@ -23,7 +23,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
@@ -68,10 +70,10 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			modifiedConfigFile: "../testdata/config/change-authorized-keys-from-test-to-test2-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusUnauthorized},
-				{apiKey: test2, expectedStatus: http.StatusOK},
+				{apiKey: fixtures.Test, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
-				{apiKey: test2, expectedStatus: http.StatusUnauthorized},
+				{apiKey: fixtures.Test, expectedStatus: http.StatusUnauthorized},
 				{apiKey: "test2", expectedStatus: http.StatusOK},
 			},
 		},
@@ -80,7 +82,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			initialConfigFile:  "../testdata/config/remove-authorized-keys-should-allow-all-requests.yaml",
 			modifiedConfigFile: "../testdata/config/remove-authorized-keys-should-allow-all-requests-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
-				{apiKey: test2, expectedStatus: http.StatusOK},
+				{apiKey: fixtures.Test, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusOK},
@@ -523,9 +525,9 @@ func newAPIServerWithLogger(
 ) (api.Server, *config.Config) {
 	t.Helper()
 
-	f := pflag.NewFlagSet(test2, pflag.ContinueOnError)
-	f.String(config3, "", locationOfYourConfig)
-	err := f.Parse([]string{config2 + configFile.Name()})
+	f := pflag.NewFlagSet(fixtures.Test, pflag.ContinueOnError)
+	f.String(fixtures.Config, "", locationOfYourConfig)
+	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
 	cfg, err := config.New(f, logger, "v0.0.0")
@@ -561,7 +563,7 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
-	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
+	request.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 	if check.apiKey != "" {
 		request.Header.Set(helper.XAPIKeyHeader, check.apiKey)

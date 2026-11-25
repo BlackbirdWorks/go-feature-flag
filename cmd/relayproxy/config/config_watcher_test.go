@@ -13,23 +13,18 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-)
-
-const (
-	configFlagName   = config3
-	configFlagUsage  = locationOfYourConfig
-	configFlagPrefix = config2
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
 	t.Helper()
 	configFile := testhelpers.CopyContentToNewTempFile(t, configContent)
-	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-	f.String(configFlagName, "", configFlagUsage)
-	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
+	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+	f.String(fixtures.Config, "", locationOfYourConfig)
+	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
-	cfg, err := config.New(f, slog.New(slog.DiscardHandler), versionOneZeroZero)
+	cfg, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero)
 	require.NoError(t, err)
 
 	return cfg, configFile
@@ -83,7 +78,7 @@ loglevel: debug`
 				assert.NotNil(t, receivedConfig, "Received config should not be nil")
 				assert.Equal(t, 2031, receivedConfig.Server.Port, "Port should be updated")
 				assert.Equal(t, 2000, receivedConfig.PollingInterval, "PollingInterval should be updated")
-				assert.Equal(t, debug, receivedConfig.LogLevel, "LogLevel should be updated")
+				assert.Equal(t, fixtures.Debug, receivedConfig.LogLevel, "LogLevel should be updated")
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)

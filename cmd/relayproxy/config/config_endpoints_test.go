@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
@@ -37,7 +38,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 		{name: "MiB", text: "1MiB", want: 1 << 20},
 		{name: "KiB with space", text: "64 KiB", want: 64 << 10},
 		{name: "decimal unit", text: "2KB", want: 2000},
-		{name: invalid2, text: "lots", wantErr: true},
+		{name: invalidKey, text: "lots", wantErr: true},
 		{name: "empty", text: "", want: 0},
 		{name: "blank", text: "  ", want: 0},
 	}
@@ -252,10 +253,10 @@ func TestEndpoints_Loading(t *testing.T) {
 				environ = append(environ, k+"="+v)
 			}
 
-			fs := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			fs.String(config3, "", locationOfYourConfig)
-			require.NoError(t, fs.Parse([]string{config2 + path}))
-			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), versionOneZeroZero, false,
+			fs := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			fs.String(fixtures.Config, "", locationOfYourConfig)
+			require.NoError(t, fs.Parse([]string{configFlag + path}))
+			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, false,
 				withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)

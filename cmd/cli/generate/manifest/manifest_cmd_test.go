@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	iNFOManifestHasBeen = "INFO: 🎉 Manifest has been created\n"
+	infoManifestHasBeenCreated = "INFO: 🎉 Manifest has been created\n"
 )
 
 func TestManifestCmd(t *testing.T) {
@@ -33,7 +33,7 @@ func TestManifestCmd(t *testing.T) {
 			name:             "should return success if everything is ok",
 			args:             []string{"--config=testdata/input/flag.goff.yaml"},
 			expectedManifest: "testdata/output/flag.goff.json",
-			expectedOutput:   iNFOManifestHasBeen,
+			expectedOutput:   infoManifestHasBeenCreated,
 			assertError:      assert.NoError,
 		},
 		{
@@ -55,14 +55,14 @@ func TestManifestCmd(t *testing.T) {
 			args:             []string{"--config=testdata/input/flag-int-as-float.yaml"},
 			assertError:      assert.NoError,
 			expectedManifest: "testdata/output/flag-int-as-float.json",
-			expectedOutput:   iNFOManifestHasBeen,
+			expectedOutput:   infoManifestHasBeenCreated,
 		},
 		{
 			name:             "should have float as type if 1 float and int are mixed",
 			args:             []string{"--config=testdata/input/flag-float-and-int.yaml"},
 			assertError:      assert.NoError,
 			expectedManifest: "testdata/output/flag-float-and-int.json",
-			expectedOutput:   iNFOManifestHasBeen,
+			expectedOutput:   infoManifestHasBeenCreated,
 		},
 	}
 

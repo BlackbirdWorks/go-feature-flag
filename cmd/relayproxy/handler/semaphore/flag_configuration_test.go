@@ -18,6 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -111,7 +112,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 			// Call the handler
 			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest("", applicationJSON),
+				Request: controller.NewRequest("", protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 			require.NoError(t, handlerErr)
@@ -240,7 +241,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			// Call the handler, with the API key if provided
 			out, err := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJSON),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 
@@ -348,7 +349,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
 			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJSON),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: requestBody,
 			})
 

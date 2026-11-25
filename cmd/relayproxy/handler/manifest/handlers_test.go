@@ -19,11 +19,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
-)
-
-const (
-	yaml = "yaml"
 )
 
 const (
@@ -42,7 +39,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 
 	conf := &config.Config{
 		PollingInterval: 10000,
-		FileFormat:      yaml,
+		FileFormat:      protocol.FormatYAML,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
 				Kind: retrieverconf.FileRetriever,
@@ -133,7 +130,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset1",
 				PollingInterval: 10000,
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -145,7 +142,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset2",
 				PollingInterval: 10000,
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,

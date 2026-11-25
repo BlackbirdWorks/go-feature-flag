@@ -21,6 +21,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
@@ -54,8 +56,15 @@ func Test_Tracing(t *testing.T) {
 		wantStatus int
 		wantError  bool
 	}{
-		{name: "huma operation", method: http.MethodGet, path: health2, wantName: getHealthRoute, wantRoute: health2,
-			wantRecord: success, wantStatus: http.StatusOK},
+		{
+			name:       "huma operation",
+			method:     http.MethodGet,
+			path:       healthPath,
+			wantName:   getHealthRoute,
+			wantRoute:  healthPath,
+			wantRecord: fixtures.Success,
+			wantStatus: http.StatusOK,
+		},
 		{
 			name:       "huma operation failing",
 			method:     http.MethodGet,
@@ -105,7 +114,7 @@ func Test_Tracing(t *testing.T) {
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
-			req.Header.Set(contentType, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			req.Header.Set("Traceparent", traceparent)
 
 			rec := httptest.NewRecorder()

@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestNotifierConf_IsValid(t *testing.T) {
@@ -28,7 +29,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "Invalid kind",
 			fields: fields{
-				Kind: invalid2,
+				Kind: invalidKey,
 			},
 			wantErr:  true,
 			errValue: "invalid notifier: kind \"invalid\" is not supported",
@@ -51,7 +52,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without EndpointURL",
 			fields: fields{
-				Kind:        webhook,
+				Kind:        fixtures.Webhook,
 				EndpointURL: "",
 			},
 			wantErr:  true,
@@ -68,7 +69,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "valid use-case webhook",
 			fields: fields{
-				Kind:        webhook,
+				Kind:        fixtures.Webhook,
 				EndpointURL: httpsHooktestCom,
 				Secret:      xxxx,
 			},

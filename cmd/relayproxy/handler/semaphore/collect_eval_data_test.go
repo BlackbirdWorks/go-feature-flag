@@ -23,15 +23,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
 	collectEvalDataValid = "/collect_eval_data/valid_response.json"
-	file2                = "file"
 	invalidExportedData  = "Invalid exported data"
-	test2                = "test"
 )
 
 // requestContext returns the context of a request that went through the request logger, as the relay proxy installs
@@ -109,7 +109,7 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			out, handlerErr := ctrl.Handle(requestContext(t, logger, "req-1"), &controller.CollectEvalDataInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJSON),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: bodyReq,
 			})
 
@@ -160,7 +160,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -177,15 +177,15 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		},
 		{
 			name:   "valid usecase flagset",
-			apiKey: test2,
+			apiKey: fixtures.Test,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{test2},
+						APIKeys:         []string{fixtures.Test},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: file2,
+								Kind: fixtures.File,
 								Path: configFlagsLocation,
 							},
 						},
@@ -208,7 +208,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -225,15 +225,15 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		},
 		{
 			name:   "valid with source field flagset",
-			apiKey: test2,
+			apiKey: fixtures.Test,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{test2},
+						APIKeys:         []string{fixtures.Test},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: file2,
+								Kind: fixtures.File,
 								Path: configFlagsLocation,
 							},
 						},
@@ -263,7 +263,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -287,7 +287,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -310,7 +310,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -333,7 +333,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -355,7 +355,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 // given file, handling both the flag-set and the legacy single-config layouts.
 func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 	exporter := config.ExporterConf{
-		Kind:     file2,
+		Kind:     fixtures.File,
 		Filename: filename,
 	}
 	if len(cfg.FlagSets) == 0 {
@@ -397,7 +397,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10,
-		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: file2, Path: configFlagsLocation}},
+		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: configFlagsLocation}},
 	}, slog.New(slog.DiscardHandler), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err)
 
@@ -412,7 +412,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	input := &controller.CollectEvalDataInput{
-		Request: controller.NewRequest("", applicationJSON),
+		Request: controller.NewRequest("", protocol.MIMEApplicationJSON),
 		RawBody: []byte(body),
 	}
 
@@ -457,13 +457,13 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 		config       config.Config
 	}{
 		{
-			name: defaultMode,
+			name: fixtures.DefaultMode,
 			config: config.Config{
 				CommonFlagSet: config.CommonFlagSet{
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: file2,
+							Kind: fixtures.File,
 							Path: configFlagsLocation,
 						},
 					},
@@ -473,16 +473,16 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			wantTracking: wantTrackingEvent,
 		},
 		{
-			name:   flagsetMode,
-			apiKey: test2,
+			name:   fixtures.FlagsetMode,
+			apiKey: fixtures.Test,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{test2},
+						APIKeys:         []string{fixtures.Test},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: file2,
+								Kind: fixtures.File,
 								Path: configFlagsLocation,
 							},
 						},
@@ -535,13 +535,13 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			} else {
 				tt.config.Exporters = &[]config.ExporterConf{
 					{
-						Kind:             file2,
+						Kind:             fixtures.File,
 						Filename:         evalExporter.Name(),
 						MaxEventInMemory: 10000,
 						FlushInterval:    int64(10 * time.Second),
 					},
 					{
-						Kind:              file2,
+						Kind:              fixtures.File,
 						Filename:          trackingExporter.Name(),
 						ExporterEventType: ffclient.TrackingEventExporter,
 						MaxEventInMemory:  10000,
@@ -564,7 +564,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)
 			_, handlerErr := ctrl.Handle(t.Context(), &controller.CollectEvalDataInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJSON),
+				Request: controller.NewRequest(tt.apiKey, protocol.MIMEApplicationJSON),
 				RawBody: bodyReq,
 			})
 			require.NoError(t, handlerErr)

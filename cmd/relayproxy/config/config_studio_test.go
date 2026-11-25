@@ -16,22 +16,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	bearerSecret         = "Bearer secret"
-	eTag                 = "ETag"
-	ifNoneMatch          = "If-None-Match"
 	serverPort2031Studio = `server:
   port: 2031
 studio:
   url: {{URL}}/flagsets.yaml`
-	teamA    = "team-a"
-	teamB    = "team-b"
-	teamFile = "team-file"
-	uRL      = "{{URL}}"
-	v1Label  = `"v1"`
+	teamA       = "team-a"
+	teamB       = "team-b"
+	teamFile    = "team-file"
+	urlTemplate = "{{URL}}"
+	v1Label     = `"v1"`
 )
 
 const studioYaml = `server:
@@ -78,7 +78,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 
 // writeWithETag answers with status when it is not 200, with 304 when the client already has etag, else with body.
 func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, status int) {
-	w.Header().Set(eTag, etag)
+	w.Header().Set(protocol.HeaderETag, etag)
 
 	if status != http.StatusOK {
 		w.WriteHeader(status)
@@ -86,7 +86,7 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 		return
 	}
 
-	if r.Header.Get(ifNoneMatch) == etag {
+	if r.Header.Get(protocol.HeaderIfNoneMatch) == etag {
 		w.WriteHeader(http.StatusNotModified)
 
 		return
@@ -236,13 +236,13 @@ flagSets:
 				environ = append(environ, name+"="+value)
 			}
 
-			fileConfig := strings.NewReplacer(uRL, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
+			fileConfig := strings.NewReplacer(urlTemplate, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
-			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, false,
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, false,
 				withEnviron(environ...)).
 				ToConfig()
 			require.NoError(t, err)
@@ -311,12 +311,12 @@ studio:
 			}))
 			defer srv.Close()
 
-			configFile := testhelpers.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, uRL, srv.URL))
-			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-			f.String(config3, "", locationOfYourConfig)
-			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
+			configFile := testhelpers.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, urlTemplate, srv.URL))
+			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+			f.String(fixtures.Config, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
-			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, true)
+			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
 			defer func() { _ = loader.StopWatchChanges() }()
 
 			initialConfig, err := loader.ToConfig()
@@ -336,7 +336,7 @@ studio:
 			if tt.newFile != "" {
 				_ = testhelpers.CopyContentToExistingTempFile(
 					t,
-					strings.ReplaceAll(tt.newFile, uRL, srv.URL),
+					strings.ReplaceAll(tt.newFile, urlTemplate, srv.URL),
 					configFile,
 				)
 			}
@@ -370,19 +370,19 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 				case 1:
 					_, _ = w.Write([]byte(studioYaml))
 				case 2:
-					w.Header().Set(eTag, etag)
+					w.Header().Set(protocol.HeaderETag, etag)
 					_, _ = w.Write([]byte(updated))
 				case 3:
 					w.WriteHeader(http.StatusServiceUnavailable)
 				default:
 					select {
-					case retries <- r.Header.Get(ifNoneMatch):
+					case retries <- r.Header.Get(protocol.HeaderIfNoneMatch):
 					default:
 					}
 
-					w.Header().Set(eTag, etag)
+					w.Header().Set(protocol.HeaderETag, etag)
 
-					if etag != "" && r.Header.Get(ifNoneMatch) == etag {
+					if etag != "" && r.Header.Get(protocol.HeaderIfNoneMatch) == etag {
 						w.WriteHeader(http.StatusNotModified)
 
 						return
@@ -468,7 +468,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 				if rejected {
 					select {
-					case attempts <- r.Header.Get(ifNoneMatch):
+					case attempts <- r.Header.Get(protocol.HeaderIfNoneMatch):
 					default:
 					}
 				}
@@ -520,10 +520,10 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	}
 
 	configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
-	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-	f.String(config3, "", locationOfYourConfig)
-	require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
-	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, true)
+	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+	f.String(fixtures.Config, "", locationOfYourConfig)
+	require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
+	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
 
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 

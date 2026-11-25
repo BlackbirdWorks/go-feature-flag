@@ -15,6 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
@@ -57,7 +58,7 @@ func (h *ValidateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
 	const outcomeError = metric.ValidateFlagsOutcomeError
 
-	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
+	format, maxSize, ok := h.formatFromContentType(r.Header.Get(protocol.HeaderContentType))
 	if !ok {
 		return outcomeError, fmt.Errorf("checking the content type of the flags to validate: %w", helper.NewHTTPError(
 			http.StatusUnsupportedMediaType,

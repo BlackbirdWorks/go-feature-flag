@@ -11,6 +11,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // APIKey extracts the API key from the request headers.
@@ -30,9 +31,10 @@ func APIKeyFromHeaders(header func(string) string) string {
 	}
 
 	// Fall back to Authorization header
-	apiKey := header(AuthorizationHeader)
-	if len(apiKey) >= len(BearerPrefix) && strings.EqualFold(apiKey[:len(BearerPrefix)], BearerPrefix) {
-		return strings.TrimSpace(apiKey[len(BearerPrefix):])
+	apiKey := header(protocol.HeaderAuthorization)
+	if len(apiKey) >= len(protocol.BearerPrefix) &&
+		strings.EqualFold(apiKey[:len(protocol.BearerPrefix)], protocol.BearerPrefix) {
+		return strings.TrimSpace(apiKey[len(protocol.BearerPrefix):])
 	}
 
 	return apiKey

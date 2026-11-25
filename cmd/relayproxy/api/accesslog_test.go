@@ -13,12 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
 	getHealthRoute = "GET /health"
-	success        = "Success"
 )
 
 // panicMonitoring is a monitoring service whose health endpoint panics.
@@ -52,20 +52,20 @@ func Test_AccessLog(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name: "clean path", monitoring: okMonitoring{}, target: health2, wantRequest: getHealthRoute,
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{success: slog.LevelDebug},
+			name: "clean path", monitoring: okMonitoring{}, target: healthPath, wantRequest: getHealthRoute,
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
 		},
 		{
 			name: "double slash", monitoring: okMonitoring{}, target: "//health", wantRequest: "GET //health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{success: slog.LevelDebug},
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
 		},
 		{
 			name: "dot segments", monitoring: okMonitoring{}, target: "/a/../health?x=1",
 			wantRequest: "GET /a/../health?x=1", wantStatus: http.StatusOK,
-			wantRecords: map[string]slog.Level{success: slog.LevelDebug},
+			wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
 		},
 		{
-			name: "panic", monitoring: panicMonitoring{}, target: health2, wantRequest: getHealthRoute,
+			name: "panic", monitoring: panicMonitoring{}, target: healthPath, wantRequest: getHealthRoute,
 			wantStatus: http.StatusInternalServerError,
 			wantRecords: map[string]slog.Level{
 				"panic recovered": slog.LevelError,
@@ -83,7 +83,7 @@ func Test_AccessLog(t *testing.T) {
 			conf.LogLevel = "debug"
 			srv := api.New(conf, service.Services{MonitoringService: tt.monitoring}, logger)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, health2, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, healthPath, nil)
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]
 			req.RequestURI = tt.target
 			req.Header.Set("X-Request-ID", "req-1")

@@ -23,20 +23,21 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 const (
-	events2            = `{"events":[]}`
-	openAPIVersion     = "3.1.0"
-	swaggerOpenapiJSON = "/swagger/openapi.json"
-	v999               = "v9.9.9"
+	emptyEventsBody     = `{"events":[]}`
+	openAPIVersion      = "3.1.0"
+	swaggerOpenapiJSON  = "/swagger/openapi.json"
+	versionNineNineNine = "v9.9.9"
 )
 
 // newDocsServer builds a server with the Swagger UI enabled and returns its API handler.
 func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 	t.Helper()
 	conf := testConfig(t)
-	conf.Version = v999
+	conf.Version = versionNineNineNine
 	conf.Swagger.Enabled = true
 	conf.Server.MonitoringPort = monitoringPort
 	flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
@@ -79,16 +80,16 @@ func Test_Swagger(t *testing.T) {
 	}{
 		{
 			name:      "one listener",
-			wantPaths: []string{health2, info, metrics2, v1Allflags, adminV1Flags},
+			wantPaths: []string{healthPath, info, metricsPath, v1Allflags, adminV1Flags},
 		},
 		{
 			name: "dedicated monitoring listener", monitoringPort: 18080,
-			wantPaths: []string{health2, info, metrics2, v1Allflags, adminV1Flags},
+			wantPaths: []string{healthPath, info, metricsPath, v1Allflags, adminV1Flags},
 		},
 		{
 			name:       "first requests",
 			concurrent: 8,
-			wantPaths:  []string{health2, v1Allflags, adminV1Flags},
+			wantPaths:  []string{healthPath, v1Allflags, adminV1Flags},
 		},
 	}
 	for _, tt := range tests {
@@ -148,7 +149,7 @@ func Test_Swagger(t *testing.T) {
 						require.NoError(t, yaml.Unmarshal([]byte(bodies[path][0]), &doc), path)
 					}
 
-					assert.Equal(t, v999, doc.Info.Version, path)
+					assert.Equal(t, versionNineNineNine, doc.Info.Version, path)
 					assert.Equal(t, document.wantVersion, doc.OpenAPI, path)
 
 					for _, p := range tt.wantPaths {
@@ -172,7 +173,7 @@ func Test_Swagger(t *testing.T) {
 
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
-			assert.Equal(t, v999, doc.Info.Version)
+			assert.Equal(t, versionNineNineNine, doc.Info.Version)
 			assert.Equal(t, openAPIVersion, doc.OpenAPI)
 			assert.Empty(t, doc.Servers)
 
@@ -300,9 +301,9 @@ func Test_Upload(t *testing.T) {
 				t.Context(),
 				http.MethodPost,
 				tt.path,
-				strings.NewReader(events2),
+				strings.NewReader(emptyEventsBody),
 			)
-			req.Header.Set(contentType, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 			// real time on purpose: huma sets the deadline from the real clock, and the network deadlines are enforced
@@ -344,10 +345,10 @@ func Test_Upload(t *testing.T) {
 				t.Context(),
 				http.MethodPost,
 				base+tt.path,
-				strings.NewReader(events2),
+				strings.NewReader(emptyEventsBody),
 			)
 			require.NoError(t, err)
-			postReq.Header.Set("Content-Type", applicationJSON)
+			postReq.Header.Set("Content-Type", protocol.MIMEApplicationJSON)
 			resp, err := http.DefaultClient.Do(postReq)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
@@ -366,7 +367,7 @@ func Test_Upload(t *testing.T) {
 			baseURL := startGoldenServer(t, testConfig(t), api.WithReadTimeout(tt.timeout))
 			conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(
 				t.Context(),
-				tcp2,
+				protocol.NetworkTCP,
 				baseURL[len("http://"):],
 			)
 			require.NoError(t, err)

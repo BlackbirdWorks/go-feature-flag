@@ -22,22 +22,20 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	applicationJSON         = "application/json"
-	contentType             = "Content-Type"
 	failedToCreateFlagset   = "failed to create flagset manager"
 	numberFlag              = "number-flag"
 	ofrepInvalidContextJSON = "/ofrep/invalid_context.json"
 	ofrepNoTargetingKey     = "/ofrep/no_targeting_key_context.json"
-	ofrepV1Evaluate         = "/ofrep/v1/evaluate/flags"
-	ofrepV1Evaluate2        = "/ofrep/v1/evaluate/flags/"
+	ofrepEvaluatePrefix     = "/ofrep/v1/evaluate/flags/"
 	ofrepValidRequestJSON   = "/ofrep/valid_request.json"
-	pOSTOfrepV1             = "POST /ofrep/v1/evaluate/flags/{flagKey...}"
+	postOfrepVOneEvaluate   = "POST /ofrep/v1/evaluate/flags/{flagKey...}"
 	sse                     = "sse"
 	targetingKeyRule        = "targeting-key-rule"
-	yaml                    = "yaml"
 )
 
 const testdataDir = "../../testdata"
@@ -140,7 +138,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -167,8 +165,13 @@ func Test_Bulk_Evaluation(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate, bodyReq)
-			req.Header.Set(contentType, applicationJSON)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				fixtures.OFREPEvaluateFlagsPath,
+				bodyReq,
+			)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			handlerErr := ctrl.BulkEvaluate(rec, req)
 
 			if tt.want.handlerErr {
@@ -266,7 +269,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000,
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
@@ -283,10 +286,10 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			req := httptest.NewRequestWithContext(
 				t.Context(),
 				http.MethodPost,
-				ofrepV1Evaluate,
+				fixtures.OFREPEvaluateFlagsPath,
 				strings.NewReader(string(body)),
 			)
-			req.Header.Set(contentType, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			for k, v := range tt.args.headers {
 				req.Header.Set(k, v)
@@ -441,7 +444,7 @@ func Test_Evaluate(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -457,7 +460,7 @@ func Test_Evaluate(t *testing.T) {
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
 			mux := http.NewServeMux()
-			mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
 			rec := httptest.NewRecorder()
 
@@ -473,8 +476,8 @@ func Test_Evaluate(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate2+flagKey, bodyReq)
-			req.Header.Set(contentType, applicationJSON)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepEvaluatePrefix+flagKey, bodyReq)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			mux.ServeHTTP(rec, req)
 
@@ -528,7 +531,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -547,15 +550,15 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, config.OfrepEventStream{})
 			mux := http.NewServeMux()
-			mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequestWithContext(t.Context(),
-					http.MethodPost, ofrepV1Evaluate2+flagKey, strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(contentType, applicationJSON)
+					http.MethodPost, ofrepEvaluatePrefix+flagKey, strings.NewReader(string(bodyReqContent)))
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 				mux.ServeHTTP(httptest.NewRecorder(), req)
 			}
 
@@ -586,7 +589,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			conf := &config.Config{
 				PollingInterval: 10000,
-				FileFormat:      yaml,
+				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
@@ -598,7 +601,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
 			mux := http.NewServeMux()
-			mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
 			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
@@ -608,7 +611,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 				"/ofrep/v1/evaluate/flags/number-flag",
 				strings.NewReader(string(body)),
 			)
-			req.Header.Set(contentType, applicationJSON)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)

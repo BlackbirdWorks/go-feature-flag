@@ -26,6 +26,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
@@ -450,12 +451,12 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
+		name         string
 		wantSettings []string
-		parent      time.Duration
-		polling     int
-		parentJit   bool
-		jitter      bool
+		parent       time.Duration
+		polling      int
+		parentJit    bool
+		jitter       bool
 	}{
 		{name: "unset values follow the parent", parent: 10 * time.Second},
 		{name: "same values", parent: time.Minute, polling: 60000},
@@ -465,8 +466,8 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			wantSettings: []string{"pollingInterval"},
 		},
 		{
-			name:        "jitter only on the flagset",
-			jitter:      true,
+			name:         "jitter only on the flagset",
+			jitter:       true,
 			wantSettings: []string{"enablePollingJitter"},
 		},
 		{name: "jitter on the parent", parentJit: true, jitter: true},
@@ -495,7 +496,7 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 				entry := logs.All()[i]
 				assert.Contains(t, entry.Message, "a polling setting of the flagset is ignored")
 				assert.Equal(t, setting, entry.ContextMap()["setting"])
-				assert.Equal(t, "fs", entry.ContextMap()[flagset3])
+				assert.Equal(t, "fs", entry.ContextMap()[fixtures.FlagsetNone])
 			}
 		})
 	}

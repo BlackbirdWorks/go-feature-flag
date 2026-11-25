@@ -28,31 +28,27 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	adminKey                         = "admin-key"
-	applicationJSON                  = "application/json"
-	bearerTest                       = "Bearer test"
-	contextTargetingKeySomeKey       = `{ "context":{"targetingKey":"some-key"}}`
-	contextTargetingKeySomeKey2      = `{"context":{"targetingKey":"some-key"}}`
-	file2                            = "file"
-	httpLocalhostD                   = "http://localhost:%d"
-	httpUnixHealth                   = "http://unix/health"
-	httpUnixOfrepV                   = "http://unix/ofrep/v1/evaluate/flags/test-flag"
-	impossibleToInitializePrometheus = "impossible to initialize prometheus metrics"
-	info                             = "/info"
-	metrics2                         = "/metrics"
-	pOST                             = "POST"
-	tcp2                             = "tcp"
-	test2                            = "test"
-	testdataFlagConfigYaml           = "../../../testdata/flag-config.yaml"
-	unix                             = "unix"
-	unixSocketFileShould             = "Unix socket file should exist"
-	unixSocketFileWas                = "unix socket file was not created in time"
-	xGofeatureflagVersion            = "X-Gofeatureflag-Version"
+	adminKey                          = "admin-key"
+	bearerTest                        = "Bearer test"
+	contextTargetingKeySomeKey        = `{ "context":{"targetingKey":"some-key"}}`
+	contextTargetingKeySomeKeyCompact = `{"context":{"targetingKey":"some-key"}}`
+	httpLocalhostD                    = "http://localhost:%d"
+	httpUnixHealth                    = "http://unix/health"
+	httpUnixOfrepV                    = "http://unix/ofrep/v1/evaluate/flags/test-flag"
+	impossibleToInitializePrometheus  = "impossible to initialize prometheus metrics"
+	info                              = "/info"
+	metricsPath                       = "/metrics"
+	unix                              = "unix"
+	unixSocketFileShould              = "Unix socket file should exist"
+	unixSocketFileWas                 = "unix socket file was not created in time"
+	xGofeatureflagVersion             = "X-Gofeatureflag-Version"
 )
 
 // newTestLogger returns a logger that writes to stderr. server.go reports a failed bind with a fatal log,
@@ -94,7 +90,7 @@ func newTestServer(
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -115,8 +111,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -160,7 +156,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
@@ -169,7 +165,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	req3, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, http.NoBody)
+	req3, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metricsPath, http.NoBody)
 	require.NoError(t, err)
 	responseM, err := http.DefaultClient.Do(req3)
 	require.NoError(t, err)
@@ -196,8 +192,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -251,7 +247,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	waitForServer(t, baseURL)
 	waitForServer(t, monitoringURL)
 
-	req5, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req5, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req5)
 	require.NoError(t, err)
@@ -260,7 +256,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	req6, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, http.NoBody)
+	req6, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metricsPath, http.NoBody)
 	require.NoError(t, err)
 	responseM, err := http.DefaultClient.Do(req6)
 	require.NoError(t, err)
@@ -278,7 +274,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, responseI.StatusCode)
 
-	req8, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, http.NoBody)
+	req8, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	responseH1, err := http.DefaultClient.Do(req8)
 	require.NoError(t, err)
@@ -287,7 +283,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
-	req9, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, http.NoBody)
+	req9, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metricsPath, http.NoBody)
 	require.NoError(t, err)
 	responseM1, err := http.DefaultClient.Do(req9)
 	require.NoError(t, err)
@@ -313,8 +309,8 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -323,7 +319,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{test2},
+			Evaluation: []string{fixtures.Test},
 		},
 	}
 	log := newTestLogger(t)
@@ -363,11 +359,11 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	waitForServer(t, baseURL)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
-		baseURL+ofrepV1Evaluate,
+		baseURL+fixtures.OFREPEvaluateFlagsPath,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -379,8 +375,8 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		baseURL+"/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -389,11 +385,11 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost,
-		baseURL+ofrepV1Evaluate5,
+		baseURL+ofrepEvaluateTestFlag,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -409,8 +405,8 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -444,7 +440,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req11, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req11, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req11)
 	require.NoError(t, err)
@@ -462,8 +458,8 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -498,7 +494,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req12, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req12, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req12)
 	require.NoError(t, err)
@@ -523,17 +519,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{test2}},
+				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.Test}},
 				want:          http.StatusOK,
 			},
 			{
 				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}, Admin: []string{test2}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}, Admin: []string{fixtures.Test}},
 				want:          http.StatusUnauthorized,
 			},
 		}
@@ -542,13 +538,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(_ *testing.T, _ authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+ofrepV1Evaluate5,
-					strings.NewReader(contextTargetingKeySomeKey2))
+				req, err := http.NewRequestWithContext(
+					context.Background(),
+					http.MethodPost,
+					baseURL+ofrepEvaluateTestFlag,
+					strings.NewReader(contextTargetingKeySomeKeyCompact),
+				)
 				if err != nil {
 					return nil, err
 				}
 
-				req.Header.Set("Content-Type", applicationJSON)
+				req.Header.Set("Content-Type", protocol.MIMEApplicationJSON)
 
 				return http.DefaultClient.Do(req)
 			})
@@ -565,17 +565,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{test2}},
+				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.Test}},
 				want:          http.StatusOK,
 			},
 			{
 				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}, Admin: []string{test2}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}, Admin: []string{fixtures.Test}},
 				want:          http.StatusOK,
 			},
 		}
@@ -593,10 +593,10 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 					http.NoBody,
 				)
 				require.NoError(t, err)
-				request.Header.Add(contentType, applicationJSON)
+				request.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
-					request.Header.Add(authorization, bearer2+tt.configAPIKeys.Admin[0])
+					request.Header.Add(protocol.HeaderAuthorization, protocol.BearerPrefix+tt.configAPIKeys.Admin[0])
 				}
 
 				return (&http.Client{}).Do(request)
@@ -627,8 +627,8 @@ func runAuthMiddlewareTests(
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
-						Path: testdataFlagConfigYaml,
+						Kind: fixtures.File,
+						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
 				Server: config.Server{
@@ -714,8 +714,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -820,8 +820,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -884,7 +884,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	waitForServer(t, monitoringURL)
 
 	// Test health endpoint
-	req16, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, http.NoBody)
+	req16, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	responseH1, err := http.DefaultClient.Do(req16)
 	require.NoError(t, err)
@@ -894,7 +894,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	// Test metrics endpoint
-	req17, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, http.NoBody)
+	req17, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metricsPath, http.NoBody)
 	require.NoError(t, err)
 	responseM1, err := http.DefaultClient.Do(req17)
 	require.NoError(t, err)
@@ -926,8 +926,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -936,7 +936,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{test2},
+			Evaluation: []string{fixtures.Test},
 		},
 	}
 	log := newTestLogger(t)
@@ -997,8 +997,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		"http://unix/ofrep/v1/evaluate/flags",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err := client.Do(req)
 	require.NoError(t, err)
 
@@ -1011,8 +1011,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		"http://unix/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -1025,8 +1025,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		httpUnixOfrepV,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJSON)
+	req.Header.Add(protocol.HeaderAuthorization, bearerTest)
+	req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -1053,15 +1053,15 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Authentication disabled - health endpoint",
 			configAPIKeys: nil,
 			endpoint:      httpUnixHealth,
-			method:        methodGET,
+			method:        http.MethodGet,
 			want:          http.StatusOK,
 		},
 		{
 			name:          "Evaluation endpoint - with valid key",
 			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
 			endpoint:      httpUnixOfrepV,
-			method:        pOST,
-			body:          contextTargetingKeySomeKey2,
+			method:        http.MethodPost,
+			body:          contextTargetingKeySomeKeyCompact,
 			authHeader:    "Bearer test-key",
 			want:          http.StatusOK,
 		},
@@ -1069,8 +1069,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Evaluation endpoint - without key (should fail)",
 			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
 			endpoint:      httpUnixOfrepV,
-			method:        pOST,
-			body:          contextTargetingKeySomeKey2,
+			method:        http.MethodPost,
+			body:          contextTargetingKeySomeKeyCompact,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
 		},
@@ -1078,7 +1078,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Admin endpoint - with valid admin key",
 			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
-			method:        pOST,
+			method:        http.MethodPost,
 			authHeader:    "Bearer admin-key",
 			want:          http.StatusOK,
 		},
@@ -1086,7 +1086,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Admin endpoint - without admin key (should fail)",
 			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
-			method:        pOST,
+			method:        http.MethodPost,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
 		},
@@ -1094,7 +1094,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Admin validate endpoint - with valid admin key",
 			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
-			method:        pOST,
+			method:        http.MethodPost,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
 			authHeader:    "Bearer admin-key",
 			want:          http.StatusOK,
@@ -1103,7 +1103,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Admin validate endpoint - without admin key (should fail)",
 			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
-			method:        pOST,
+			method:        http.MethodPost,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
@@ -1124,8 +1124,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
-						Path: testdataFlagConfigYaml,
+						Kind: fixtures.File,
+						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
 				Server: config.Server{
@@ -1189,11 +1189,11 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.authHeader != "" {
-				req.Header.Add(authorization, tt.authHeader)
+				req.Header.Add(protocol.HeaderAuthorization, tt.authHeader)
 			}
 
 			if tt.body != "" {
-				req.Header.Add(contentType, applicationJSON)
+				req.Header.Add(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			}
 
 			response, err := client.Do(req)
@@ -1242,8 +1242,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: file2,
-						Path: testdataFlagConfigYaml,
+						Kind: fixtures.File,
+						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
 				Server: config.Server{
@@ -1321,8 +1321,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -1362,7 +1362,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	waitForServer(t, baseURL)
 
 	// Make some requests to generate histogram data
-	req20, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
+	req20, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthPath, http.NoBody)
 	require.NoError(t, err)
 	healthResp, err := http.DefaultClient.Do(req20)
 	require.NoError(t, err)
@@ -1377,7 +1377,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	_ = infoResp.Body.Close()
 
 	// Scrape /metrics with protobuf Accept header
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+metrics2, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+metricsPath, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set(
 		"Accept",
@@ -1448,8 +1448,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{
@@ -1514,7 +1514,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	}
 
 	// Verify the port is free by binding to it again.
-	ln2, err := (&net.ListenConfig{}).Listen(t.Context(), tcp2, fmt.Sprintf("127.0.0.1:%d", port))
+	ln2, err := (&net.ListenConfig{}).Listen(t.Context(), protocol.NetworkTCP, fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err, "port %d should be free after shutdown", port)
 	ln2.Close()
 }
@@ -1524,7 +1524,7 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server is given a listener that stays bound: closing it and binding the port again later would let
 	// another test take the port in between, and the server closes it when it is stopped before it started.
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), tcp2, "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), protocol.NetworkTCP, "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -1536,8 +1536,8 @@ func Test_StopBeforeStart(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: file2,
-				Path: testdataFlagConfigYaml,
+				Kind: fixtures.File,
+				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
 		Server: config.Server{

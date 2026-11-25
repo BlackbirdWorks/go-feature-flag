@@ -13,14 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
 	goffProxyYamlPath      = "0/goff-proxy.yaml"
 	semaphoreProxyYamlPath = "0/semaphore-proxy.yaml"
-	sEMAPHORESERVERPORT2   = "SEMAPHORE_SERVER_PORT=2"
-	sERVERPORT1            = "SERVER_PORT=1"
+	semaphoreServerPortTwo = "SEMAPHORE_SERVER_PORT=2"
+	serverPortOne          = "SERVER_PORT=1"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
@@ -139,19 +140,19 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 		wantWarnings []string
 	}{
 		{name: "unprefixed variables keep working",
-			environ:  []string{sERVERPORT1, "LOGLEVEL=debug"},
-			wantPort: "1", wantLogLevel: debug},
+			environ:  []string{serverPortOne, "LOGLEVEL=debug"},
+			wantPort: "1", wantLogLevel: fixtures.Debug},
 		{name: "SEMAPHORE_ prefix is always read",
-			environ:  []string{sEMAPHORESERVERPORT2, "SEMAPHORE_LOGLEVEL=warn"},
+			environ:  []string{semaphoreServerPortTwo, "SEMAPHORE_LOGLEVEL=warn"},
 			wantPort: "2", wantLogLevel: "warn"},
 		{name: "SEMAPHORE_ wins over the unprefixed variable",
-			environ:  []string{sERVERPORT1, sEMAPHORESERVERPORT2},
+			environ:  []string{serverPortOne, semaphoreServerPortTwo},
 			wantPort: "2"},
 		{name: "configured prefix keeps working",
-			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", sERVERPORT1},
+			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", serverPortOne},
 			wantPort: "3"},
 		{name: "SEMAPHORE_ wins over the configured prefix",
-			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", sEMAPHORESERVERPORT2},
+			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", semaphoreServerPortTwo},
 			wantPort: "2"},
 		{name: "configured SEMAPHORE_ prefix is not loaded twice",
 			configPrefix: "SEMAPHORE_", environ: []string{"SEMAPHORE_SERVER_PORT=4"},
