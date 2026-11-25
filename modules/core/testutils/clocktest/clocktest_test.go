@@ -1,7 +1,6 @@
 package clocktest_test
 
 import (
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +16,7 @@ const testStep = time.Second
 // TestMain pins the clock once for this package, like every package that uses clocktest.
 func TestMain(m *testing.M) {
 	clocktest.FreezeStepping(testStep)
-	os.Exit(m.Run())
+	m.Run()
 }
 
 func TestInstant(t *testing.T) {

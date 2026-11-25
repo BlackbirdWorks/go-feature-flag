@@ -1,7 +1,6 @@
 package ffclient_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -13,5 +12,5 @@ import (
 // the real clock would make depend on the scheduler.
 func TestMain(m *testing.M) {
 	clocktest.FreezeStepping(time.Microsecond)
-	os.Exit(m.Run())
+	m.Run()
 }

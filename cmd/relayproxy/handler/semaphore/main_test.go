@@ -1,7 +1,6 @@
 package controller_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -13,5 +12,5 @@ import (
 // dates with clock.Now, and the fixtures are built relative to clocktest.Instant.
 func TestMain(m *testing.M) {
 	clocktest.FreezeStepping(time.Microsecond)
-	os.Exit(m.Run())
+	m.Run()
 }
