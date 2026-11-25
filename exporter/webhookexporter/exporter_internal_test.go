@@ -117,7 +117,7 @@ func TestWebhook_Export(t *testing.T) {
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
@@ -128,7 +128,7 @@ func TestWebhook_Export(t *testing.T) {
 						Default:      false,
 						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyEFGH,
@@ -159,7 +159,7 @@ func TestWebhook_Export(t *testing.T) {
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
@@ -170,7 +170,7 @@ func TestWebhook_Export(t *testing.T) {
 						Default:      false,
 						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyEFGH,
@@ -209,7 +209,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
@@ -220,7 +220,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 						Default:      false,
 						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyEFGH,
@@ -246,7 +246,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
@@ -257,7 +257,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 						Default:      false,
 						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyEFGH,
@@ -283,7 +283,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
@@ -294,7 +294,7 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 						Default:      false,
 						Source:       fixtures.SourceServer,
 					},
-					exporter.FeatureEvent{
+					&exporter.FeatureEvent{
 						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyEFGH,

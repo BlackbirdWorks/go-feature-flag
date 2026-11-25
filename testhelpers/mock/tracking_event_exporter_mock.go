@@ -15,7 +15,7 @@ var errUnexpectedTrackingEvent = errors.New("unexpected event type")
 // TrackingEventExporter is a mock exporter that records the tracking events it receives.
 type TrackingEventExporter struct {
 	Err               error
-	ExportedEvents    []exporter.TrackingEvent
+	ExportedEvents    []*exporter.TrackingEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
 	once              sync.Once
@@ -35,9 +35,9 @@ func (m *TrackingEventExporter) Export(
 
 	switch events := any(events).(type) {
 	case []exporter.ExportableEvent:
-		t := make([]exporter.TrackingEvent, 0, len(events))
+		t := make([]*exporter.TrackingEvent, 0, len(events))
 		for _, v := range events {
-			te, ok := v.(exporter.TrackingEvent)
+			te, ok := v.(*exporter.TrackingEvent)
 			if !ok {
 				return fmt.Errorf("%w: %T", errUnexpectedTrackingEvent, v)
 			}
@@ -46,7 +46,7 @@ func (m *TrackingEventExporter) Export(
 		}
 
 		m.ExportedEvents = append(m.ExportedEvents, t...)
-	case []exporter.TrackingEvent:
+	case []*exporter.TrackingEvent:
 		m.ExportedEvents = append(m.ExportedEvents, events...)
 	}
 

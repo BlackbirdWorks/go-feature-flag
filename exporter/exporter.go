@@ -12,13 +12,13 @@ import (
 type DeprecatedExporterV1 interface {
 	CommonExporter
 	// Export will send the data to the exporter.
-	Export(ctx context.Context, logger *log.Logger, events []FeatureEvent) error
+	Export(ctx context.Context, logger *log.Logger, events []*FeatureEvent) error
 }
 
 // DeprecatedExporterV2 is the previous exporter interface, kept for compatibility.
 type DeprecatedExporterV2 interface {
 	CommonExporter
-	Export(ctx context.Context, logger *slog.Logger, events []FeatureEvent) error
+	Export(ctx context.Context, logger *slog.Logger, events []*FeatureEvent) error
 }
 
 // Exporter sends evaluation events to a destination.

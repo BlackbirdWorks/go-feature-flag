@@ -121,6 +121,7 @@ func (h *handler) WithGroup(name string) slog.Handler {
 	return &handler{core: h.core, prefix: h.prefix + name + ".", attrs: h.attrs}
 }
 
+//nolint:gocritic // hugeParam: signature fixed by log/slog.Handler
 func (h *handler) Handle(_ context.Context, r slog.Record) error {
 	bufPtr, _ := h.core.pool.Get().(*[]byte)
 	buf := (*bufPtr)[:0]

@@ -83,7 +83,7 @@ func TestExporter_Export(t *testing.T) {
 			format:  protocol.FormatJSON,
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -93,7 +93,7 @@ func TestExporter_Export(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      abcdef,
@@ -117,7 +117,7 @@ func TestExporter_Export(t *testing.T) {
 			format:  "", // Should default to JSON and generate a valid message
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -127,7 +127,7 @@ func TestExporter_Export(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      abcdef,
@@ -151,7 +151,7 @@ func TestExporter_Export(t *testing.T) {
 			format:  protocol.FormatJSON,
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -161,7 +161,7 @@ func TestExporter_Export(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      abcdef,

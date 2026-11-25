@@ -53,7 +53,7 @@ func (e *Exporter) Export(
 	e.init()
 
 	for _, evt := range events {
-		featureEvent, ok := evt.(exporter.FeatureEvent)
+		featureEvent, ok := evt.(*exporter.FeatureEvent)
 		if !ok {
 			continue
 		}
@@ -86,7 +86,7 @@ func (e *Exporter) init() {
 	})
 }
 
-func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *slog.Logger) {
+func (e *Exporter) createSpan(ctx context.Context, event *exporter.FeatureEvent, logger *slog.Logger) {
 	startTime := time.Unix(event.CreationDate, 0)
 
 	_, span := e.tracer.Start(

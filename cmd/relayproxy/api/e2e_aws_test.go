@@ -967,7 +967,7 @@ func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[st
 func decodeFeatureEvent(t *testing.T, b []byte) sinkEvent {
 	t.Helper()
 
-	var e exporter.FeatureEvent
+	var e *exporter.FeatureEvent
 	require.NoError(t, json.Unmarshal(b, &e), string(b))
 
 	return sinkEvent{Key: e.Key, UserKey: e.UserKey, Variation: e.Variation, Value: e.Value}

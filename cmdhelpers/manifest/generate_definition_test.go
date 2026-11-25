@@ -1,11 +1,11 @@
 package manifest_test
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
 
 const (
@@ -23,39 +24,6 @@ const (
 	invalidConfigurationForFlag = "invalid configuration for flag bad-flag: impossible to find type"
 	one                         = "One"
 )
-
-// captureHandler stores every slog record so tests can assert message content
-// and severity emitted by GenerateDefinition. The handler is wired in as the
-// logger passed with manifest.WithLogger.
-type captureHandler struct {
-	msgs   []string
-	levels []slog.Level
-}
-
-func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
-func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
-	msg := r.Message
-	r.Attrs(func(a slog.Attr) bool {
-		msg += " " + a.Key + "=" + a.Value.String()
-
-		return true
-	})
-
-	h.msgs = append(h.msgs, msg)
-	h.levels = append(h.levels, r.Level)
-
-	return nil
-}
-func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
-
-// newCaptureLogger returns a logger backed by a captureHandler (one per test case, so the
-// cases can run in parallel) and the handler to inspect.
-func newCaptureLogger() (*slog.Logger, *captureHandler) {
-	h := &captureHandler{}
-
-	return slog.New(h), h
-}
 
 // variationsOf builds the map[string]*any value expected by InternalFlag.Variations
 // from a plain map[string]any literal.
@@ -133,7 +101,7 @@ func runGenerateDefinitionTests(t *testing.T, tests []generateDefinitionCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger, handler := newCaptureLogger()
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 
 			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags, manifest.WithLogger(logger))
 
@@ -151,11 +119,26 @@ func runGenerateDefinitionTests(t *testing.T, tests []generateDefinitionCase) {
 			expected := readGolden(t, tt.goldenFile)
 			assert.Equal(t, expected, string(actual))
 
-			assert.ElementsMatch(t, tt.wantLogs, handler.msgs)
+			entries := logs.All()
+			msgs := make([]string, len(entries))
 
-			for _, lvl := range handler.levels {
-				assert.Equal(t, slog.LevelWarn, lvl)
+			for idx, entry := range entries {
+				assert.Equal(t, slog.LevelWarn, entry.Level)
+
+				var msg strings.Builder
+				msg.WriteString(entry.Message)
+
+				for _, attr := range entry.Attrs {
+					msg.WriteByte(' ')
+					msg.WriteString(attr.Key)
+					msg.WriteByte('=')
+					msg.WriteString(attr.Value.String())
+				}
+
+				msgs[idx] = msg.String()
 			}
+
+			assert.ElementsMatch(t, tt.wantLogs, msgs)
 		})
 	}
 }

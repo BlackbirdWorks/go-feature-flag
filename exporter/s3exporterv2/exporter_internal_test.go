@@ -117,7 +117,7 @@ func TestS3_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -139,7 +139,7 @@ func TestS3_Export(t *testing.T) {
 				nilCtx: true,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -161,7 +161,7 @@ func TestS3_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -183,7 +183,7 @@ func TestS3_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -206,7 +206,7 @@ func TestS3_Export(t *testing.T) {
 				Bucket:      fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -229,7 +229,7 @@ func TestS3_Export(t *testing.T) {
 				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -259,7 +259,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -280,7 +280,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 				Format: "xxx",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -301,7 +301,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -322,7 +322,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 				CsvTemplate: "{{ .Foo}}",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -347,7 +347,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 				},
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -400,7 +400,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 		context.TODO(),
 		logger,
 		[]exporter.ExportableEvent{
-			exporter.FeatureEvent{
+			&exporter.FeatureEvent{
 				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
@@ -440,7 +440,7 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 		context.TODO(),
 		slog.Default(),
 		[]exporter.ExportableEvent{
-			exporter.FeatureEvent{
+			&exporter.FeatureEvent{
 				Kind: fixtures.KindFeature, ContextKind: fixtures.UserKeyAnonymous, UserKey: fixtures.UserKeyABCD,
 				CreationDate: 1617970547, Key: fixtures.UserKeyRandom, Variation: fixtures.VariationDefault,
 				Value: "YO", Default: false, Source: fixtures.SourceServer,

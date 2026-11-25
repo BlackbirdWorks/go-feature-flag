@@ -20,8 +20,8 @@ import (
 // GoFeatureFlag is the main object of the library
 // it contains the cache, the config, the updater and the exporter.
 type GoFeatureFlag struct {
-	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
-	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
+	trackingEventDataExporter exporter.Manager[*exporter.TrackingEvent]
+	featureEventDataExporter  exporter.Manager[*exporter.FeatureEvent]
 	retrieverManager          *retriever.Manager
 	// eventWorkerStop is closed by Close to ask the worker to drain the queue and exit.
 	eventWorkerStop chan struct{}
@@ -32,7 +32,7 @@ type GoFeatureFlag struct {
 	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
-	eventQueue chan exporter.FeatureEvent
+	eventQueue chan *exporter.FeatureEvent
 	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
 	enrichment map[string]any
 	// dropSignal asks reportDrops to write the warning about the dropped events.
@@ -145,7 +145,7 @@ func initializeRetrieverManager(
 }
 
 func initializeDataExporters(config *Config, logger *slog.Logger) (
-	exporter.Manager[exporter.FeatureEvent], exporter.Manager[exporter.TrackingEvent],
+	exporter.Manager[*exporter.FeatureEvent], exporter.Manager[*exporter.TrackingEvent],
 ) {
 	exporters := config.GetDataExporters()
 	featureEventExporterConfigs := make([]exporter.Config, 0)
@@ -169,16 +169,16 @@ func initializeDataExporters(config *Config, logger *slog.Logger) (
 		}
 	}
 
-	var trackingEventManager exporter.Manager[exporter.TrackingEvent]
+	var trackingEventManager exporter.Manager[*exporter.TrackingEvent]
 	if len(trackingEventExporterConfigs) > 0 {
-		trackingEventManager = exporter.NewManager[exporter.TrackingEvent](
+		trackingEventManager = exporter.NewManager[*exporter.TrackingEvent](
 			trackingEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		trackingEventManager.Start()
 	}
 
-	var featureEventManager exporter.Manager[exporter.FeatureEvent]
+	var featureEventManager exporter.Manager[*exporter.FeatureEvent]
 	if len(featureEventExporterConfigs) > 0 {
-		featureEventManager = exporter.NewManager[exporter.FeatureEvent](
+		featureEventManager = exporter.NewManager[*exporter.FeatureEvent](
 			featureEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		featureEventManager.Start()
 	}

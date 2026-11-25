@@ -35,7 +35,7 @@ func TestNewFeatureEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		want exporter.FeatureEvent
+		want *exporter.FeatureEvent
 		name string
 		args args
 	}{
@@ -52,7 +52,7 @@ func TestNewFeatureEvent(t *testing.T) {
 				version:   "",
 				source:    fixtures.SourceServer,
 			},
-			want: exporter.FeatureEvent{
+			want: &exporter.FeatureEvent{
 				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
@@ -86,12 +86,13 @@ func TestNewFeatureEvent(t *testing.T) {
 			assert.GreaterOrEqual(t, got.CreationDate, before)
 			assert.LessOrEqual(t, got.CreationDate, after)
 
-			want := tt.want
+			want := *tt.want
 			want.CreationDate = got.CreationDate
+			gotVal := *got
 			assert.Equalf(
 				t,
 				want,
-				got,
+				gotVal,
 				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %v)",
 				tt.args.user,
 				tt.args.flagKey,

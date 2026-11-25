@@ -88,6 +88,7 @@ type observerHandler struct {
 
 func (h *observerHandler) Enabled(_ context.Context, l slog.Level) bool { return l >= h.level }
 
+//nolint:gocritic // hugeParam: signature fixed by log/slog.Handler
 func (h *observerHandler) Handle(_ context.Context, r slog.Record) error {
 	entry := Entry{Message: r.Message, Level: r.Level, Attrs: append([]slog.Attr(nil), h.attrs...)}
 	r.Attrs(func(a slog.Attr) bool {

@@ -155,11 +155,15 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 	parquetTrackingEvents := make([]exporter.TrackingEvent, 0)
 
 	for _, event := range events {
-		switch ev := any(event).(type) {
-		case exporter.FeatureEvent:
-			parquetFeatureEvents = append(parquetFeatureEvents, ev)
-		case exporter.TrackingEvent:
-			parquetTrackingEvents = append(parquetTrackingEvents, ev)
+		switch typedEvent := any(event).(type) {
+		case *exporter.FeatureEvent:
+			if typedEvent != nil {
+				parquetFeatureEvents = append(parquetFeatureEvents, *typedEvent)
+			}
+		case *exporter.TrackingEvent:
+			if typedEvent != nil {
+				parquetTrackingEvents = append(parquetTrackingEvents, *typedEvent)
+			}
 		default:
 			// do nothing
 		}

@@ -19,7 +19,7 @@ func (g *GoFeatureFlag) Track(
 			contextKind = "anonymousUser"
 		}
 
-		event := exporter.TrackingEvent{
+		event := &exporter.TrackingEvent{
 			Kind:              "tracking",
 			ContextKind:       contextKind,
 			UserKey:           ctx.GetKey(),

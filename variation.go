@@ -227,7 +227,7 @@ func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (*flag.InternalFlag, er
 }
 
 // CollectEventData is collecting events and sending them to the data exporter to be stored.
-func (g *GoFeatureFlag) CollectEventData(event exporter.FeatureEvent) {
+func (g *GoFeatureFlag) CollectEventData(event *exporter.FeatureEvent) {
 	if g != nil && g.featureEventDataExporter != nil {
 		// Add event in the exporter
 		g.featureEventDataExporter.AddEvent(event)
@@ -235,12 +235,12 @@ func (g *GoFeatureFlag) CollectEventData(event exporter.FeatureEvent) {
 }
 
 // queueEvents adds the events in the exporter without waiting for a flush (see exporter.AsyncManager).
-func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
+func (g *GoFeatureFlag) queueEvents(events []*exporter.FeatureEvent) {
 	if g.featureEventDataExporter == nil {
 		return
 	}
 
-	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
+	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[*exporter.FeatureEvent]); ok {
 		m.QueueEvents(events)
 
 		return
@@ -252,7 +252,7 @@ func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
 }
 
 // CollectTrackingEventData is collecting tracking events and sending them to the data exporter to be stored.
-func (g *GoFeatureFlag) CollectTrackingEventData(event exporter.TrackingEvent) {
+func (g *GoFeatureFlag) CollectTrackingEventData(event *exporter.TrackingEvent) {
 	if g != nil && g.trackingEventDataExporter != nil {
 		// Add event in the exporter
 		g.trackingEventDataExporter.AddEvent(event)
@@ -371,7 +371,7 @@ func (g *GoFeatureFlag) startEventWorker(ctx context.Context) {
 		size = DefaultEventQueueSize
 	}
 
-	g.eventQueue = make(chan exporter.FeatureEvent, size)
+	g.eventQueue = make(chan *exporter.FeatureEvent, size)
 	g.eventWorkerStop = make(chan struct{})
 
 	g.dropSignal = make(chan struct{}, 1)
@@ -394,7 +394,7 @@ const eventBatchSize = 256
 func (g *GoFeatureFlag) runEventWorker() {
 	defer g.evalExporterWg.Done()
 
-	batch := make([]exporter.FeatureEvent, 0, eventBatchSize)
+	batch := make([]*exporter.FeatureEvent, 0, eventBatchSize)
 	drain := func() {
 		for len(batch) < eventBatchSize {
 			select {
@@ -431,7 +431,7 @@ func (g *GoFeatureFlag) runEventWorker() {
 
 // enqueueEvent hands the event to the worker without ever blocking the evaluation.
 // If the queue is full the event is dropped and counted.
-func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
+func (g *GoFeatureFlag) enqueueEvent(event *exporter.FeatureEvent) {
 	if g.eventQueue == nil {
 		// no worker (struct not built by New): add the event directly.
 		g.CollectEventData(event)

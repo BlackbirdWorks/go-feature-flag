@@ -69,7 +69,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		client:            client,
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      fixtures.UserKeyUser,
@@ -124,7 +124,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		client:        client,
 	}
 	events := []exporter.ExportableEvent{
-		exporter.TrackingEvent{
+		&exporter.TrackingEvent{
 			Kind:              fixtures.KindTracking,
 			ContextKind:       fixtures.ContextKindUser,
 			UserKey:           fixtures.UserKeyUser,
@@ -464,7 +464,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			oversized := newFeatureEvent(1)
 			oversized.Key = bigFlag
 			oversized.UserKey = secretUser
-			tt.oversize(&oversized)
+			tt.oversize(oversized)
 
 			err := exp.Export(context.TODO(), logger,
 				[]exporter.ExportableEvent{newFeatureEvent(0), oversized, newFeatureEvent(2)})
@@ -508,20 +508,20 @@ func TestExporter_SkipsAllRowsWithDiscardingLogger(t *testing.T) {
 func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	t.Parallel()
 
-	featureEvents := func(bad exporter.FeatureEvent) []exporter.ExportableEvent {
+	featureEvents := func(bad *exporter.FeatureEvent) []exporter.ExportableEvent {
 		bad.Key = fixtures.FlagKeyBad
 		bad.UserKey = secretUser
 
 		return []exporter.ExportableEvent{newFeatureEvent(0), bad, newFeatureEvent(2)}
 	}
-	trackingEvents := func(bad exporter.TrackingEvent) []exporter.ExportableEvent {
+	trackingEvents := func(bad *exporter.TrackingEvent) []exporter.ExportableEvent {
 		bad.Key = fixtures.FlagKeyBad
 		bad.UserKey = secretUser
 
 		return []exporter.ExportableEvent{
-			exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
+			&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 			bad,
-			exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
+			&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 		}
 	}
 
@@ -532,32 +532,32 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	}{
 		{
 			name:    "feature value NaN",
-			events:  featureEvents(exporter.FeatureEvent{Value: math.NaN()}),
+			events:  featureEvents(&exporter.FeatureEvent{Value: math.NaN()}),
 			wantErr: "unsupported value: NaN",
 		},
 		{
 			name:    "feature value unsupported type",
-			events:  featureEvents(exporter.FeatureEvent{Value: make(chan int)}),
+			events:  featureEvents(&exporter.FeatureEvent{Value: make(chan int)}),
 			wantErr: unsupportedType,
 		},
 		{
 			name: "feature metadata unsupported type",
 			events: featureEvents(
-				exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}},
+				&exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}},
 			),
 			wantErr: unsupportedType,
 		},
 		{
 			name: "tracking details unsupported type",
 			events: trackingEvents(
-				exporter.TrackingEvent{TrackingDetails: map[string]any{fixtures.BadContent: make(chan int)}},
+				&exporter.TrackingEvent{TrackingDetails: map[string]any{fixtures.BadContent: make(chan int)}},
 			),
 			wantErr: unsupportedType,
 		},
 		{
 			name: "tracking evaluation context infinity",
 			events: trackingEvents(
-				exporter.TrackingEvent{EvaluationContext: map[string]any{fixtures.BadContent: math.Inf(1)}},
+				&exporter.TrackingEvent{EvaluationContext: map[string]any{fixtures.BadContent: math.Inf(1)}},
 			),
 			wantErr: "unsupported value: +Inf",
 		},
@@ -612,7 +612,7 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 	err := exp.Export(
 		context.TODO(),
 		slog.New(slog.DiscardHandler),
-		[]exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
+		[]exporter.ExportableEvent{&exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
 	)
 
 	require.NoError(t, err)
@@ -641,7 +641,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			name:        "tracking table",
 			autoMigrate: true,
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
+				&exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
 			},
 			wantCreate: `CREATE TABLE IF NOT EXISTS "tracking_events" ("kind" VARCHAR(50), ` +
 				`"context_kind" VARCHAR(50), "user_key" VARCHAR(512), "creation_date" BIGINT, "key" VARCHAR(256), ` +
@@ -1040,7 +1040,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 			exporter: &Exporter{Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster},
 			events: []exporter.ExportableEvent{
 				newFeatureEvent(0),
-				exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
+				&exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 			},
 			wantErr: "redshift exporter received mixed event types",
 		},
@@ -1307,8 +1307,8 @@ func paramsMap(params []types.SqlParameter) map[string]string {
 	return res
 }
 
-func newFeatureEvent(i int) exporter.FeatureEvent {
-	return exporter.FeatureEvent{
+func newFeatureEvent(i int) *exporter.FeatureEvent {
+	return &exporter.FeatureEvent{
 		Kind:         fixtures.KindFeature,
 		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      fmt.Sprintf("user-%d", i),
@@ -1325,7 +1325,7 @@ func newFeatureEvent(i int) exporter.FeatureEvent {
 func newSmallEvents(n int) []exporter.ExportableEvent {
 	events := make([]exporter.ExportableEvent, 0, n)
 	for range n {
-		events = append(events, exporter.TrackingEvent{Key: "k"})
+		events = append(events, &exporter.TrackingEvent{Key: "k"})
 	}
 
 	return events

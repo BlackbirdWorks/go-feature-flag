@@ -118,6 +118,7 @@ type captureHandler struct {
 
 func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 
+//nolint:gocritic // hugeParam: signature fixed by log/slog.Handler
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	message := r.Message
 	r.Attrs(func(a slog.Attr) bool {

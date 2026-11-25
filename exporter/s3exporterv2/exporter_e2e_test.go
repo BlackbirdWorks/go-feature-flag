@@ -32,7 +32,7 @@ const (
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
-		res = append(res, exporter.FeatureEvent{
+		res = append(res, &exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
 			UserKey:      fmt.Sprintf(fixtures.UserKeyFormat, i),
@@ -123,13 +123,13 @@ func TestE2E_Export(t *testing.T) {
 
 				defer func() { _ = fr.Close() }()
 
-				parquetReader, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+				parquetReader, err := reader.NewParquetReader(fr, new(*exporter.FeatureEvent), int64(runtime.NumCPU()))
 				require.NoError(t, err)
 
 				defer parquetReader.ReadStop()
 
 				require.Equal(t, int64(count), parquetReader.GetNumRows())
-				got := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
+				got := make([]*exporter.FeatureEvent, parquetReader.GetNumRows())
 				require.NoError(t, parquetReader.Read(&got))
 
 				for i, e := range got {
@@ -167,7 +167,7 @@ func checkJSON(t *testing.T, content []byte, n int) {
 	require.Len(t, lines, n)
 
 	for i, l := range lines {
-		var e exporter.FeatureEvent
+		var e *exporter.FeatureEvent
 		require.NoError(t, json.Unmarshal([]byte(l), &e))
 		assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), e.UserKey)
 		assert.Equal(t, fixtures.FlagKeyMy, e.Key)

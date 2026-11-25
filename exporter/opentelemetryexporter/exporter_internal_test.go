@@ -47,7 +47,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 	}
 
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      "user-1",
@@ -59,7 +59,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 			Version:      "v1",
 			Source:       fixtures.SourceServer,
 		},
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  "anonymousUser",
 			UserKey:      "user-2",
@@ -99,7 +99,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 	exp := &Exporter{tracerProvider: tp}
 
-	event := exporter.FeatureEvent{
+	event := &exporter.FeatureEvent{
 		Kind:         fixtures.KindFeature,
 		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      "user-123",

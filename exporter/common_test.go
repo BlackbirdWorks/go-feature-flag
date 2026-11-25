@@ -174,7 +174,7 @@ func TestFormatEventInCSV(t *testing.T) {
 
 	type args struct {
 		csvTemplate *template.Template
-		event       exporter.FeatureEvent
+		event       *exporter.FeatureEvent
 	}
 
 	tests := []struct {
@@ -191,7 +191,7 @@ func TestFormatEventInCSV(t *testing.T) {
 					exporter.DefaultCsvTemplate,
 					exporter.DefaultCsvTemplate,
 				),
-				event: exporter.FeatureEvent{
+				event: &exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -236,7 +236,7 @@ func TestFormatEventInJSON(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		event exporter.FeatureEvent
+		event *exporter.FeatureEvent
 	}
 
 	tests := []struct {
@@ -247,7 +247,7 @@ func TestFormatEventInJSON(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			args: args{event: exporter.FeatureEvent{
+			args: args{event: &exporter.FeatureEvent{
 				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,

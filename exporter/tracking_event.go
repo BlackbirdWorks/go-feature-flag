@@ -41,22 +41,22 @@ type TrackingEvent struct {
 }
 
 // GetKey returns the key of the tracking event.
-func (f TrackingEvent) GetKey() string {
+func (f *TrackingEvent) GetKey() string {
 	return f.Key
 }
 
 // GetUserKey returns the user key of the event.
-func (f TrackingEvent) GetUserKey() string {
+func (f *TrackingEvent) GetUserKey() string {
 	return f.UserKey
 }
 
 // GetCreationDate returns the creationDate of the event.
-func (f TrackingEvent) GetCreationDate() int64 {
+func (f *TrackingEvent) GetCreationDate() int64 {
 	return f.CreationDate
 }
 
 // FormatInCSV returns the tracking event formatted as a CSV line using csvTemplate.
-func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
+func (f *TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
 
 	err := csvTemplate.Execute(&buf, struct {
@@ -64,7 +64,7 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 
 		FormattedDate string
 	}{
-		TrackingEvent: f,
+		TrackingEvent: *f,
 		FormattedDate: time.Unix(f.GetCreationDate(), 0).Format(time.RFC3339),
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 }
 
 // FormatInJSON returns the tracking event formatted as JSON.
-func (f TrackingEvent) FormatInJSON() ([]byte, error) {
+func (f *TrackingEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tracking event JSON: %w", err)

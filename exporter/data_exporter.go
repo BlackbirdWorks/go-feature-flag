@@ -195,7 +195,7 @@ func (d *dataExporterImpl[T]) sendEventsV1(ctx context.Context, exp DeprecatedEx
 		legacyLogger = slog.NewLogLogger(d.logger.Handler(), slog.LevelError)
 	}
 
-	featureEvents, ok := any(events).([]FeatureEvent)
+	featureEvents, ok := any(events).([]*FeatureEvent)
 	if !ok {
 		return errTryingToSendUnknown
 	}
@@ -214,7 +214,7 @@ func (d *dataExporterImpl[T]) sendEventsV1(ctx context.Context, exp DeprecatedEx
 
 // sendEventsV2 sends the events to an exporter of the deprecated v2 interface.
 func (d *dataExporterImpl[T]) sendEventsV2(ctx context.Context, exp DeprecatedExporterV2, events []T) error {
-	featureEvents, ok := any(events).([]FeatureEvent)
+	featureEvents, ok := any(events).([]*FeatureEvent)
 	if !ok {
 		return errTryingToSendUnknownObject
 	}

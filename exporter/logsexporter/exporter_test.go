@@ -38,7 +38,7 @@ func TestLog_Export(t *testing.T) {
 			name:   "Default format",
 			fields: fields{LogFormat: ""},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -58,7 +58,7 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .Key}}\"",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -77,7 +77,7 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .Key}\" [{{ .FormattedDate}}]",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -97,7 +97,7 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: "key=\"{{ .UnknownKey}}\" [{{ .FormattedDate}}]",
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,

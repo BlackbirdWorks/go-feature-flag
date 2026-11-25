@@ -41,7 +41,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -64,7 +64,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -87,7 +87,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -110,7 +110,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -133,7 +133,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -156,7 +156,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -177,7 +177,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountKey:  azurite.AccountKey,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -194,7 +194,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			name:     "Should error with nil container",
 			exporter: azureexporter.Exporter{},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -213,7 +213,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				AccountName: "",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -234,7 +234,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				Container:   containerName,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,

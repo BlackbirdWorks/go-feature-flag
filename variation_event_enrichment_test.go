@@ -23,7 +23,7 @@ const (
 )
 
 type collectingExporter struct {
-	events []exporter.FeatureEvent
+	events []*exporter.FeatureEvent
 	mu     sync.Mutex
 }
 
@@ -33,7 +33,7 @@ func (c *collectingExporter) Export(_ context.Context, _ *slog.Logger, ev []expo
 	defer c.mu.Unlock()
 
 	for _, e := range ev {
-		if fe, ok := e.(exporter.FeatureEvent); ok {
+		if fe, ok := e.(*exporter.FeatureEvent); ok {
 			c.events = append(c.events, fe)
 		}
 	}

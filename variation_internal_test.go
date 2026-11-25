@@ -166,7 +166,7 @@ func newVariationTestClient(
 			LeveledLogger:   logger,
 			Offline:         offline,
 		},
-		featureEventDataExporter: exporter.NewManager[exporter.FeatureEvent](
+		featureEventDataExporter: exporter.NewManager[*exporter.FeatureEvent](
 			[]exporter.Config{{
 				FlushInterval:    0,
 				MaxEventInMemory: 0,
@@ -2514,7 +2514,7 @@ func TestJSONVariationDetails(t *testing.T) {
 						LeveledLogger:   logger,
 						Offline:         tt.args.offline,
 					},
-					featureEventDataExporter: exporter.NewManager[exporter.FeatureEvent](
+					featureEventDataExporter: exporter.NewManager[*exporter.FeatureEvent](
 						[]exporter.Config{
 							exporter.Config{
 								FlushInterval:    0,
@@ -3020,7 +3020,7 @@ func TestStringVariationDetails(t *testing.T) {
 						LeveledLogger:   logger,
 						Offline:         tt.args.offline,
 					},
-					featureEventDataExporter: exporter.NewManager[exporter.FeatureEvent](
+					featureEventDataExporter: exporter.NewManager[*exporter.FeatureEvent](
 						[]exporter.Config{exporter.Config{
 							FlushInterval:    0,
 							MaxEventInMemory: 0,

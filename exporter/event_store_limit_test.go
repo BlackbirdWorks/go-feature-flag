@@ -213,7 +213,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 
 			exp := &failingExporter{}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
 			defer mgr.Stop()
@@ -226,7 +226,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 			begin := time.Now().UnixNano()
 
 			for range totalEvents {
-				mgr.AddEvent(exporter.FeatureEvent{Key: "k"})
+				mgr.AddEvent(&exporter.FeatureEvent{Key: "k"})
 			}
 
 			elapsed := max(time.Duration(time.Now().UnixNano()-begin), 0)

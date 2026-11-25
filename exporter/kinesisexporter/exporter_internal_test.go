@@ -247,7 +247,7 @@ func TestExporterSettingsCreation(t *testing.T) {
 func TestHugeMessageExportFlow(t *testing.T) {
 	t.Parallel()
 
-	event := exporter.FeatureEvent{
+	event := &exporter.FeatureEvent{
 		Kind:         fixtures.KindFeature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",

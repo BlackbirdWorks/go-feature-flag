@@ -88,11 +88,11 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 			)
 
 			broken, healthy := tt.broken(), &gatedExporter{}
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{
 				{Exporter: broken, FlushInterval: time.Hour, MaxEventInMemory: perBatch, MaxQueuedEvents: queueLimit},
 				{Exporter: healthy, FlushInterval: time.Hour, MaxEventInMemory: perBatch, MaxQueuedEvents: queueLimit},
 			}, time.Hour, nil)
-			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent])
 			require.True(t, ok)
 
 			released := false
@@ -108,14 +108,14 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 
 			for b := 1; b <= batches; b++ {
 				if tt.async {
-					asyncMgr.QueueEvents(make([]exporter.FeatureEvent, perBatch))
+					asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, perBatch))
 					// the healthy exporter keeps up: wait for it so that the test does not
 					// depend on the speed of the background flushes.
 					require.Eventually(t, func() bool { return healthy.events.Load() == int64(b*perBatch) },
 						10*time.Second, time.Millisecond, "batch %d", b)
 				} else {
 					for range perBatch {
-						mgr.AddEvent(exporter.FeatureEvent{})
+						mgr.AddEvent(&exporter.FeatureEvent{})
 					}
 				}
 			}
@@ -153,11 +153,11 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 
 			exp := &gatedExporter{}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
 			for range tt.events {
-				mgr.AddEvent(exporter.FeatureEvent{})
+				mgr.AddEvent(&exporter.FeatureEvent{})
 			}
 			// no Stop yet: nothing but the event count can have triggered the flushes.
 			assert.Equal(t, tt.wantExported, exp.events.Load())
@@ -181,21 +181,21 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
 
-		m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+		m := exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{{
 			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
 		}}, time.Hour, nil)
 		defer m.Stop() // also when an assertion fails: the bubble waits for the workers
 
-		asyncMgr, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+		asyncMgr, ok := m.(exporter.AsyncManager[*exporter.FeatureEvent])
 		require.True(t, ok)
-		asyncMgr.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, threshold))
 		<-exp.started
-		asyncMgr.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs
+		asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, threshold)) // arrives while the first flush runs
 		close(exp.gate)
 		synctest.Wait()
 		require.Equal(t, int64(2*threshold), exp.events.Load())
 		// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
-		asyncMgr.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		asyncMgr.QueueEvents(make([]*exporter.FeatureEvent, threshold))
 		synctest.Wait()
 		assert.Equal(t, int64(3*threshold), exp.events.Load())
 	})

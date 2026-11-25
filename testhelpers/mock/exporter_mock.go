@@ -69,7 +69,7 @@ func (m *Exporter) initMutex() {
 // ExporterDeprecated -----.
 type ExporterDeprecated struct {
 	Err               error
-	ExportedEvents    []exporter.FeatureEvent
+	ExportedEvents    []*exporter.FeatureEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
 	once              sync.Once
@@ -81,7 +81,7 @@ type ExporterDeprecated struct {
 func (m *ExporterDeprecated) Export(
 	_ context.Context,
 	_ *log.Logger,
-	events []exporter.FeatureEvent,
+	events []*exporter.FeatureEvent,
 ) error {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
@@ -125,7 +125,7 @@ func (m *ExporterDeprecated) initMutex() {
 // ExporterDeprecatedV2 -----.
 type ExporterDeprecatedV2 struct {
 	Err               error
-	ExportedEvents    []exporter.FeatureEvent
+	ExportedEvents    []*exporter.FeatureEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
 	once              sync.Once
@@ -137,7 +137,7 @@ type ExporterDeprecatedV2 struct {
 func (m *ExporterDeprecatedV2) Export(
 	_ context.Context,
 	_ *slog.Logger,
-	events []exporter.FeatureEvent,
+	events []*exporter.FeatureEvent,
 ) error {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()

@@ -71,7 +71,7 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 				},
 			}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent](
+			mgr := exporter.NewManager[*exporter.FeatureEvent](
 				dataExporterMock,
 				exporter.DefaultExporterCleanQueueInterval,
 				nil,
@@ -81,7 +81,7 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 			defer mgr.Stop()
 
 			// Initialize inputEvents slice
-			inputEvents := []exporter.FeatureEvent{
+			inputEvents := []*exporter.FeatureEvent{
 				exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
 						AddCustom(fixtures.Anonymous, true).
@@ -148,7 +148,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 				},
 			}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent](
+			mgr := exporter.NewManager[*exporter.FeatureEvent](
 				dataExporterMock,
 				exporter.DefaultExporterCleanQueueInterval,
 				nil,
@@ -158,7 +158,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 			defer mgr.Stop()
 
 			// Initialize inputEvents slice
-			inputEvents := make([]exporter.FeatureEvent, 0, 101)
+			inputEvents := make([]*exporter.FeatureEvent, 0, 101)
 			for range 101 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
@@ -223,14 +223,14 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 				},
 			}
 
-			mgr := exporter.NewManager[exporter.FeatureEvent](
+			mgr := exporter.NewManager[*exporter.FeatureEvent](
 				dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
 
 			go mgr.Start()
 			defer mgr.Stop()
 
 			// Initialize inputEvents slice
-			inputEvents := make([]exporter.FeatureEvent, 0, 100001)
+			inputEvents := make([]*exporter.FeatureEvent, 0, 100001)
 			for range 100001 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
@@ -277,14 +277,14 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	handler := slogassert.New(t, slog.LevelInfo, nil)
 	logger := slog.New(handler)
 
-	mgr := exporter.NewManager[exporter.FeatureEvent](dataExporterMock,
+	mgr := exporter.NewManager[*exporter.FeatureEvent](dataExporterMock,
 		exporter.DefaultExporterCleanQueueInterval, logger)
 
 	go mgr.Start()
 	defer mgr.Stop()
 
 	// Initialize inputEvents slice
-	inputEvents := make([]exporter.FeatureEvent, 0, 201)
+	inputEvents := make([]*exporter.FeatureEvent, 0, 201)
 	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
@@ -318,12 +318,12 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 		},
 	}
 
-	mgr := exporter.NewManager[exporter.FeatureEvent](
+	mgr := exporter.NewManager[*exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
 	defer mgr.Stop()
 
 	// Initialize inputEvents slice
-	inputEvents := make([]exporter.FeatureEvent, 0, 100)
+	inputEvents := make([]*exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
@@ -403,7 +403,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 				"the flush ticker never exported the evaluation event")
 
 			switch val := mockExporter.GetExportedEvents()[0].(type) {
-			case exporter.FeatureEvent:
+			case *exporter.FeatureEvent:
 				assert.Equal(t, tt.want, val.Metadata)
 			default:
 				assert.Fail(t, "The exported event is not a FeatureEvent")
@@ -435,14 +435,14 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 		},
 	}
 
-	mgr := exporter.NewManager[exporter.FeatureEvent](
+	mgr := exporter.NewManager[*exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
 
 	go mgr.Start()
 	defer mgr.Stop()
 
 	// Initialize inputEvents slice
-	inputEvents := make([]exporter.FeatureEvent, 0, 100)
+	inputEvents := make([]*exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
@@ -486,21 +486,21 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 		},
 	}
 
-	mgr := exporter.NewManager[exporter.FeatureEvent](
+	mgr := exporter.NewManager[*exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
 
 	go mgr.Start()
 	defer mgr.Stop()
 
 	// Initialize inputEvents slice
-	inputEvents := make([]exporter.FeatureEvent, 0, 100)
+	inputEvents := make([]*exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
 			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
-	go func(mgr exporter.Manager[exporter.FeatureEvent]) {
+	go func(mgr exporter.Manager[*exporter.FeatureEvent]) {
 		for _, event := range inputEvents {
 			mgr.AddEvent(event)
 			// we have to wait because we are opening a new thread to slow down the flag evaluation.
@@ -636,7 +636,7 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 
 			pprof.Do(t.Context(), pprof.Labels(leakcheck, label), func(context.Context) {
 				for range tt.nbManagers {
-					mgr := exporter.NewManager[exporter.FeatureEvent](
+					mgr := exporter.NewManager[*exporter.FeatureEvent](
 						[]exporter.Config{
 							{
 								FlushInterval:    10 * time.Millisecond,

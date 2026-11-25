@@ -161,34 +161,34 @@ func convertTrackingEvent(
 	ctx context.Context,
 	event map[string]any,
 	logger *slog.Logger,
-) (exporter.TrackingEvent, error) {
+) (*exporter.TrackingEvent, error) {
 	var trackingEv exporter.TrackingEvent
 
 	marshalled, err := json.Marshal(event)
 	if err != nil {
-		return exporter.TrackingEvent{}, fmt.Errorf("marshal tracking event: %w", err)
+		return nil, fmt.Errorf("marshal tracking event: %w", err)
 	}
 
 	err = json.Unmarshal(marshalled, &trackingEv)
 	if err != nil {
-		return exporter.TrackingEvent{}, fmt.Errorf("unmarshal tracking event: %w", err)
+		return nil, fmt.Errorf("unmarshal tracking event: %w", err)
 	}
 
 	trackingEv.CreationDate = formatCreationDate(ctx, trackingEv.CreationDate, logger)
 
-	return trackingEv, nil
+	return &trackingEv, nil
 }
 
 func convertFeatureEvent(
 	ctx context.Context,
 	event map[string]any,
 	metadata exporter.FeatureEventMetadata,
-	logger *slog.Logger) (exporter.FeatureEvent, error) {
+	logger *slog.Logger) (*exporter.FeatureEvent, error) {
 	var featureEv exporter.FeatureEvent
 
 	err := mapstructure.Decode(event, &featureEv)
 	if err != nil {
-		return exporter.FeatureEvent{}, fmt.Errorf("decode feature event: %w", err)
+		return nil, fmt.Errorf("decode feature event: %w", err)
 	}
 
 	if featureEv.Source == "" {
@@ -201,7 +201,7 @@ func convertFeatureEvent(
 
 	featureEv.CreationDate = formatCreationDate(ctx, featureEv.CreationDate, logger)
 
-	return featureEv, nil
+	return &featureEv, nil
 }
 
 func formatCreationDate(ctx context.Context, input int64, logger *slog.Logger) int64 {

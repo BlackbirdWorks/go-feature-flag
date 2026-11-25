@@ -48,9 +48,9 @@ func (*slowExporter) IsBulk() bool {
 func TestDataExporterFlush_TriggerError(t *testing.T) {
 	t.Parallel()
 
-	evStore := mock.NewEventStore[exporter.FeatureEvent]()
+	evStore := mock.NewEventStore[*exporter.FeatureEvent]()
 	for range 100 {
-		evStore.Add(exporter.FeatureEvent{
+		evStore.Add(&exporter.FeatureEvent{
 			Kind: fixtures.KindFeature,
 		})
 	}
@@ -62,7 +62,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	defer func() { _ = os.Remove(logFile.Name()) }()
 
 	exporterMock := mock.Exporter{}
-	exp := exporter.NewDataExporter[exporter.FeatureEvent](exporter.Config{
+	exp := exporter.NewDataExporter[*exporter.FeatureEvent](exporter.Config{
 		Exporter:         &exporterMock,
 		FlushInterval:    0,
 		MaxEventInMemory: 0,
@@ -155,9 +155,9 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			evStore := mock.NewEventStore[exporter.FeatureEvent]()
+			evStore := mock.NewEventStore[*exporter.FeatureEvent]()
 			for range 100 {
-				evStore.Add(exporter.FeatureEvent{Kind: fixtures.KindFeature})
+				evStore.Add(&exporter.FeatureEvent{Kind: fixtures.KindFeature})
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -167,7 +167,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 			defer func() { _ = os.Remove(logFile.Name()) }()
 
 			exporterMock := tt.exporter
-			exp := exporter.NewDataExporter[exporter.FeatureEvent](
+			exp := exporter.NewDataExporter[*exporter.FeatureEvent](
 				exporter.Config{
 					Exporter:         exporterMock,
 					FlushInterval:    0,
@@ -187,17 +187,17 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	t.Parallel()
 
-	evStore := exporter.NewEventStore[exporter.FeatureEvent](defaultTestCleanQueueDuration)
+	evStore := exporter.NewEventStore[*exporter.FeatureEvent](defaultTestCleanQueueDuration)
 
 	evStore.AddConsumer(slowConsumer)
 	defer evStore.Stop()
 
 	for range 100 {
-		evStore.Add(exporter.FeatureEvent{Kind: fixtures.KindFeature})
+		evStore.Add(&exporter.FeatureEvent{Kind: fixtures.KindFeature})
 	}
 
 	slow := &slowExporter{delay: 200 * time.Millisecond}
-	exp := exporter.NewDataExporter[exporter.FeatureEvent](exporter.Config{
+	exp := exporter.NewDataExporter[*exporter.FeatureEvent](exporter.Config{
 		Exporter:         slow,
 		FlushInterval:    10 * time.Second,
 		MaxEventInMemory: 100000,

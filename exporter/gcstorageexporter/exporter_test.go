@@ -45,7 +45,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -65,7 +65,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -85,7 +85,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -106,7 +106,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket:      fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -127,7 +127,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -147,7 +147,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -166,7 +166,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Format: "xxx",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -186,7 +186,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -206,7 +206,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				CsvTemplate: "{{ .Foo}}",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -319,7 +319,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 		context.Background(),
 		slog.Default(),
 		[]exporter.ExportableEvent{
-			exporter.FeatureEvent{
+			&exporter.FeatureEvent{
 				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,

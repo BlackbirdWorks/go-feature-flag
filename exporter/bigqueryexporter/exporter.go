@@ -185,11 +185,11 @@ func (*Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, bigqu
 // this exporter does not handle.
 func buildRow(event exporter.ExportableEvent) (rowSaver, string, error) {
 	switch evt := event.(type) {
-	case exporter.FeatureEvent:
+	case *exporter.FeatureEvent:
 		row, err := featureEventRow(evt)
 
 		return row, featureEventType, err
-	case exporter.TrackingEvent:
+	case *exporter.TrackingEvent:
 		row, err := trackingEventRow(evt)
 
 		return row, trackingEventType, err
@@ -243,7 +243,7 @@ func insertID(event exporter.ExportableEvent) string {
 	return fmt.Sprintf("%s|%s|%d", event.GetKey(), event.GetUserKey(), event.GetCreationDate())
 }
 
-func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
+func featureEventRow(event *exporter.FeatureEvent) (rowSaver, error) {
 	value, err := jsonString(event.Value)
 	if err != nil {
 		return rowSaver{}, err
@@ -272,7 +272,7 @@ func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
 	}, nil
 }
 
-func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
+func trackingEventRow(event *exporter.TrackingEvent) (rowSaver, error) {
 	trackingDetails, err := jsonString(event.TrackingDetails)
 	if err != nil {
 		return rowSaver{}, err

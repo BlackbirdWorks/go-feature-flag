@@ -60,7 +60,7 @@ func TestExporter_Export(t *testing.T) {
 				topic: topic,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -78,7 +78,7 @@ func TestExporter_Export(t *testing.T) {
 				topic: topic,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         "feature1",
 					ContextKind:  "anonymousUser1",
 					UserKey:      fixtures.UserKeyABCD,
@@ -88,7 +88,7 @@ func TestExporter_Export(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         "feature2",
 					ContextKind:  "anonymousUser2",
 					UserKey:      "ABCDEF",
@@ -118,7 +118,7 @@ func TestExporter_Export(t *testing.T) {
 				},
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -137,7 +137,7 @@ func TestExporter_Export(t *testing.T) {
 				publishSettings: &pubsub.PublishSettings{CountThreshold: 123},
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -156,7 +156,7 @@ func TestExporter_Export(t *testing.T) {
 				enableMessageOrdering: true,
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -186,7 +186,7 @@ func TestExporter_Export(t *testing.T) {
 				topic: "not-existing-topic",
 			},
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -252,12 +252,12 @@ func assertMessages(
 ) {
 	t.Helper()
 
-	events := make([]exporter.FeatureEvent, len(messages))
+	events := make([]*exporter.FeatureEvent, len(messages))
 	for i, message := range messages {
 		assert.Equal(t, map[string]string{"emitter": "GO Feature Flag"}, message.Attributes,
 			"message should have associated emitter attribute")
 
-		var event exporter.FeatureEvent
+		var event *exporter.FeatureEvent
 
 		err := json.Unmarshal(message.Data, &event)
 		require.NoError(t, err)

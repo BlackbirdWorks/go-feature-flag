@@ -14,6 +14,8 @@ type PlainHandler struct {
 }
 
 // Handle implements the [slog.Handler] interface.
+//
+//nolint:gocritic // hugeParam: signature fixed by log/slog.Handler
 func (h *PlainHandler) Handle(_ context.Context, r slog.Record) error {
 	line := r.Message
 	r.Attrs(func(a slog.Attr) bool {

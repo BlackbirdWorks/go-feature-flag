@@ -68,7 +68,7 @@ func TestExporterExport(t *testing.T) {
 			},
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -88,7 +88,7 @@ func TestExporterExport(t *testing.T) {
 			},
 			wantErr: false,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -98,7 +98,7 @@ func TestExporterExport(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      "ABCDEF",
@@ -118,7 +118,7 @@ func TestExporterExport(t *testing.T) {
 			},
 			wantErr: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
@@ -128,7 +128,7 @@ func TestExporterExport(t *testing.T) {
 					Value:        "YO",
 					Default:      false,
 				},
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      "ABCDEF",

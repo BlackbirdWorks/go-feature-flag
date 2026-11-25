@@ -571,10 +571,10 @@ func buildRows(ctx context.Context, logger *slog.Logger, events []exporter.Expor
 		)
 
 		switch evt := event.(type) {
-		case exporter.FeatureEvent:
+		case *exporter.FeatureEvent:
 			values, err = featureEventRow(evt)
 			rowType = featureEventType
-		case exporter.TrackingEvent:
+		case *exporter.TrackingEvent:
 			values, err = trackingEventRow(evt)
 			rowType = trackingEventType
 		default:
@@ -619,7 +619,7 @@ func columnsForEventType(eventType string) []column {
 	return featureEventColumns()
 }
 
-func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
+func featureEventRow(event *exporter.FeatureEvent) ([]string, error) {
 	value, err := json.Marshal(event.Value)
 	if err != nil {
 		return nil, fmt.Errorf("marshal feature event value: %w", err)
@@ -645,7 +645,7 @@ func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 	}, nil
 }
 
-func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
+func trackingEventRow(event *exporter.TrackingEvent) ([]string, error) {
 	trackingDetails, err := json.Marshal(event.TrackingDetails)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tracking details: %w", err)

@@ -35,7 +35,7 @@ func createQueue(t *testing.T, client *sqs.Client) string {
 }
 
 type received struct {
-	event   exporter.FeatureEvent
+	event   *exporter.FeatureEvent
 	emitter string
 }
 
@@ -53,7 +53,7 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 		}
 
 		for _, msg := range out.Messages {
-			var e exporter.FeatureEvent
+			var e *exporter.FeatureEvent
 			require.NoError(t, json.Unmarshal([]byte(aws.ToString(msg.Body)), &e))
 
 			r := received{event: e}
@@ -78,7 +78,7 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
-		res = append(res, exporter.FeatureEvent{
+		res = append(res, &exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
 			UserKey:      fmt.Sprintf("user-%04d", i),

@@ -59,7 +59,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      fixtures.UserKeyUser,
@@ -112,7 +112,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
-		exporter.TrackingEvent{
+		&exporter.TrackingEvent{
 			Kind:              fixtures.KindTracking,
 			ContextKind:       fixtures.ContextKindUser,
 			UserKey:           fixtures.UserKeyUser,
@@ -157,7 +157,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      fixtures.UserKeyUser,
@@ -169,7 +169,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 			Version:      "v1",
 			Source:       fixtures.SourceServer,
 		},
-		exporter.TrackingEvent{
+		&exporter.TrackingEvent{
 			Kind:              fixtures.KindTracking,
 			ContextKind:       fixtures.ContextKindUser,
 			UserKey:           fixtures.UserKeyUser,
@@ -178,7 +178,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 			TrackingDetails:   map[string]any{amount: 42},
 			EvaluationContext: map[string]any{country: "FR"},
 		},
-		exporter.FeatureEvent{
+		&exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      "user-key-2",
@@ -213,7 +213,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: true,
 			tableName:   featureTable,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 			},
 			wantEnsureTableCalls: []ensureTableCall{
 				{dataset: fixtures.FakeDataset, table: featureTable, schema: featureEventSchema()},
@@ -224,7 +224,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: true,
 			tableName:   trackingTable,
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{Kind: fixtures.KindTracking},
+				&exporter.TrackingEvent{Kind: fixtures.KindTracking},
 			},
 			wantEnsureTableCalls: []ensureTableCall{
 				{dataset: fixtures.FakeDataset, table: trackingTable, schema: trackingEventSchema()},
@@ -235,7 +235,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: false,
 			tableName:   featureTable,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 			},
 			wantEnsureTableCalls: nil,
 		},
@@ -280,7 +280,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
+		&exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 	}
 
 	err := exp.Export(ctx, slog.New(slog.DiscardHandler), events)
@@ -359,7 +359,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "client initialization error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			newClientErr:        clientErr,
 			wantErrContains:     "client init failed",
@@ -368,14 +368,14 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "feature value marshal error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: func() {}},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: func() {}},
 			},
 			wantErrContains: unsupportedTypeFunc,
 		},
 		{
 			name: "feature metadata marshal error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
+				&exporter.FeatureEvent{
 					Kind:     fixtures.KindFeature,
 					Value:    true,
 					Metadata: map[string]any{fixtures.BadContent: func() {}},
@@ -386,7 +386,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "tracking details marshal error",
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{
+				&exporter.TrackingEvent{
 					Kind:            fixtures.KindTracking,
 					TrackingDetails: map[string]any{fixtures.BadContent: func() {}},
 				},
@@ -396,7 +396,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "tracking evaluation context marshal error",
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{
+				&exporter.TrackingEvent{
 					Kind:              fixtures.KindTracking,
 					TrackingDetails:   map[string]any{amount: 42},
 					EvaluationContext: map[string]any{fixtures.BadContent: func() {}},
@@ -408,7 +408,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name:        "auto migrate returns error",
 			autoMigrate: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			client:              &mockBigQueryClient{ensureTableErr: ensureErr},
 			wantErrContains:     "ensure table failed",
@@ -417,7 +417,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "feature insert returns error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			client:              &mockBigQueryClient{putErr: putErr},
 			wantErrContains:     putRowsFailed,
@@ -426,7 +426,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "tracking insert returns error",
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{
+				&exporter.TrackingEvent{
 					Kind:              fixtures.KindTracking,
 					Key:               fixtures.TrackingEventKey,
 					TrackingDetails:   map[string]any{amount: 42},
@@ -443,8 +443,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "mixed event types returns error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
-				exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fixtures.FlagKeyGeneric, Value: true},
+				&exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
 			},
 			wantErrContains:     "mixed event types",
 			wantNewClientCalled: false,
@@ -510,7 +510,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 
 	events := make([]exporter.ExportableEvent, 0, maxRowsPerInsert+3)
 	for i := range maxRowsPerInsert + 3 {
-		events = append(events, exporter.FeatureEvent{
+		events = append(events, &exporter.FeatureEvent{
 			Kind:         fixtures.KindFeature,
 			UserKey:      fmt.Sprintf("user-%d", i),
 			CreationDate: int64(i),
@@ -623,7 +623,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 			}
 
 			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
+				&exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 			})
 
 			require.NoError(t, err)
