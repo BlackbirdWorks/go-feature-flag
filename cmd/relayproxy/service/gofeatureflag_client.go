@@ -497,8 +497,8 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
 
-	switch expConf.Kind {
-	case config.S3Exporter:
+	switch kind := expConf.Kind; {
+	case kind == config.S3Exporter:
 		return &s3exporterv2.Exporter{
 			Bucket:                  expConf.Bucket,
 			Format:                  defaults.format,
@@ -508,7 +508,7 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AwsConfig:               &awsConfig,
 		}, nil
-	case config.KinesisExporter:
+	case kind == config.KinesisExporter:
 		return &kinesisexporter.Exporter{
 			Format:    defaults.format,
 			AwsConfig: &awsConfig,
@@ -517,23 +517,24 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 				kinesisexporter.WithStreamName(expConf.StreamName),
 			),
 		}, nil
-	case config.SQSExporter:
+	case kind == config.SQSExporter:
 		return &sqsexporter.Exporter{
 			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,
 		}, nil
-	default: // config.RedshiftExporter, the only other kind routed here
-		return &redshiftexporter.Exporter{
-			ClusterIdentifier: expConf.ClusterIdentifier,
-			WorkgroupName:     expConf.WorkgroupName,
-			Database:          expConf.Database,
-			DBUser:            expConf.DBUser,
-			SecretArn:         expConf.SecretArn,
-			TableName:         expConf.TableName,
-			AwsConfig:         &awsConfig,
-			AutoMigrate:       expConf.AutoMigrate,
-		}, nil
 	}
+
+	// config.RedshiftExporter, the only other kind routed here
+	return &redshiftexporter.Exporter{
+		ClusterIdentifier: expConf.ClusterIdentifier,
+		WorkgroupName:     expConf.WorkgroupName,
+		Database:          expConf.Database,
+		DBUser:            expConf.DBUser,
+		SecretArn:         expConf.SecretArn,
+		TableName:         expConf.TableName,
+		AwsConfig:         &awsConfig,
+		AutoMigrate:       expConf.AutoMigrate,
+	}, nil
 }
 
 // setKafkaConfig set the kafka configuration based on the default configuration

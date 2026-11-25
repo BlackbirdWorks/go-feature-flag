@@ -268,8 +268,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 // FlagSet is returning the flag set linked to the API Key.
 func (m *FlagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
-	switch m.mode {
-	case flagsetManagerModeFlagsets:
+	if m.mode == flagsetManagerModeFlagsets {
 		if apiKey == "" {
 			return nil, errNoAPIKeyProvided
 		}
@@ -288,19 +287,18 @@ func (m *FlagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		}
 
 		return flagset, nil
-	default:
-		if m.DefaultFlagSet == nil {
-			return nil, errNoConfiguredFlagset
-		}
-
-		return m.DefaultFlagSet, nil
 	}
+
+	if m.DefaultFlagSet == nil {
+		return nil, errNoConfiguredFlagset
+	}
+
+	return m.DefaultFlagSet, nil
 }
 
 // FlagSetName returns the name of the flagset linked to the API Key.
 func (m *FlagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
-	switch m.mode {
-	case flagsetManagerModeFlagsets:
+	if m.mode == flagsetManagerModeFlagsets {
 		if apiKey == "" {
 			return "", errAPIKeyIsRequiredWhen
 		}
@@ -314,15 +312,14 @@ func (m *FlagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 		}
 
 		return "", errNoFlagSetAssociated
-	default:
-		return utils.DefaultFlagSetName, nil
 	}
+
+	return utils.DefaultFlagSetName, nil
 }
 
 // AllFlagSets returns the flag sets of the flagset manager.
 func (m *FlagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
-	switch m.mode {
-	case flagsetManagerModeFlagsets:
+	if m.mode == flagsetManagerModeFlagsets {
 		m.flagsetsMutex.RLock()
 		defer m.flagsetsMutex.RUnlock()
 
@@ -335,15 +332,15 @@ func (m *FlagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		maps.Copy(out, m.FlagSets)
 
 		return out, nil
-	default:
-		if m.DefaultFlagSet == nil {
-			return nil, errNoDefaultFlagsetConfigured
-		}
-
-		return map[string]*ffclient.GoFeatureFlag{
-			utils.DefaultFlagSetName: m.DefaultFlagSet,
-		}, nil
 	}
+
+	if m.DefaultFlagSet == nil {
+		return nil, errNoDefaultFlagsetConfigured
+	}
+
+	return map[string]*ffclient.GoFeatureFlag{
+		utils.DefaultFlagSetName: m.DefaultFlagSet,
+	}, nil
 }
 
 // Default returns the default flagset.

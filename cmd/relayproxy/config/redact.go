@@ -195,12 +195,11 @@ func redactStruct(val reflect.Value, depth int) map[string]any {
 }
 
 func isZeroValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Slice, reflect.Map:
+	if kind := v.Kind(); kind == reflect.Slice || kind == reflect.Map {
 		return v.Len() == 0
-	default:
-		return v.IsZero()
 	}
+
+	return v.IsZero()
 }
 
 // redactValue converts a value to a generic structure that is safe to log.
@@ -209,27 +208,27 @@ func redactValue(val reflect.Value, depth int) any {
 		return nil
 	}
 
-	switch val.Kind() {
-	case reflect.Pointer, reflect.Interface:
+	switch kind := val.Kind(); {
+	case kind == reflect.Pointer || kind == reflect.Interface:
 		if val.IsNil() {
 			return nil
 		}
 
 		return redactValue(val.Elem(), depth+1)
-	case reflect.Struct:
+	case kind == reflect.Struct:
 		if !isOwnType(val.Type()) {
 			return opaqueValue
 		}
 
 		return redactStruct(val, depth)
-	case reflect.Slice, reflect.Array:
+	case kind == reflect.Slice || kind == reflect.Array:
 		out := make([]any, 0, val.Len())
 		for i := range val.Len() {
 			out = append(out, redactValue(val.Index(i), depth+1))
 		}
 
 		return out
-	case reflect.Map:
+	case kind == reflect.Map:
 		out := make(map[string]any, val.Len())
 
 		iter := val.MapRange()
@@ -245,13 +244,13 @@ func redactValue(val reflect.Value, depth int) any {
 		}
 
 		return out
-	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
-		return opaqueValue
-	default:
-		if val.CanInterface() {
-			return val.Interface()
-		}
-
+	case kind == reflect.Func || kind == reflect.Chan || kind == reflect.UnsafePointer:
 		return opaqueValue
 	}
+
+	if val.CanInterface() {
+		return val.Interface()
+	}
+
+	return opaqueValue
 }

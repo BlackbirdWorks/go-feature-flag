@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
@@ -92,11 +93,17 @@ func numberFlagType(variations map[string]*any) (model.FlagType, error) {
 
 func numberType(value any) (string, error) {
 	val := reflect.ValueOf(value)
-	switch val.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	kind := val.Kind()
+
+	integerKinds := []reflect.Kind{
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+	}
+	if slices.Contains(integerKinds, kind) {
 		return "integer", nil
-	case reflect.Float32, reflect.Float64:
+	}
+
+	if kind == reflect.Float32 || kind == reflect.Float64 {
 		// Check if the float has a whole number value.
 		floatVal := val.Float()
 		if floatVal == float64(int64(floatVal)) {
@@ -104,7 +111,7 @@ func numberType(value any) (string, error) {
 		}
 
 		return "float", nil
-	default:
-		return "", fmt.Errorf("%w %v", errUnknownType, val.Kind())
 	}
+
+	return "", fmt.Errorf("%w %v", errUnknownType, kind)
 }
