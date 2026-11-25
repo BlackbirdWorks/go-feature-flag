@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -136,7 +135,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				isDefault:   true,
 			}
 
-			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
+			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 			srv := httptest.NewServer(e)
@@ -194,7 +193,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 		isDefault:   false,
 	}
 
-	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
+	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 	e := http.NewServeMux()
 	e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 	srv := httptest.NewServer(e)
@@ -293,7 +292,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 
-			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr, slog.New(slog.DiscardHandler))
+			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 			srv := httptest.NewServer(e)

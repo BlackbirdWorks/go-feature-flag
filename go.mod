@@ -24,7 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
-	github.com/blackbirdworks/huma-middleware v0.1.0
+	github.com/blackbirdworks/huma-middleware v0.2.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/danielgtaylor/huma/v2 v2.41.0
 	github.com/diegoholiveira/jsonlogic/v3 v3.11.0

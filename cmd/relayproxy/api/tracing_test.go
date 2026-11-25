@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 var errNotInitialized = errors.New("not initialized")
@@ -44,17 +46,19 @@ func Test_Tracing(t *testing.T) {
 		body       string
 		wantName   string
 		wantRoute  string
+		wantRecord string
 		wantStatus int
 		wantError  bool
 	}{
 		{name: "huma operation", method: http.MethodGet, path: "/health", wantName: "GET /health", wantRoute: "/health",
-			wantStatus: http.StatusOK},
+			wantRecord: "Success", wantStatus: http.StatusOK},
 		{
 			name:       "huma operation failing",
 			method:     http.MethodGet,
 			path:       "/info",
 			wantName:   "GET /info",
 			wantRoute:  "/info",
+			wantRecord: "Server error",
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
@@ -65,6 +69,7 @@ func Test_Tracing(t *testing.T) {
 			body:       `{"evaluationContext":{"key":"u"}}`,
 			wantName:   "POST /v1/feature/{flagKey}/eval",
 			wantRoute:  "/v1/feature/{flagKey}/eval",
+			wantRecord: "Server error",
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
@@ -74,6 +79,7 @@ func Test_Tracing(t *testing.T) {
 			path:       "/nope",
 			wantName:   "GET /",
 			wantRoute:  "/",
+			wantRecord: "Client error",
 			wantStatus: http.StatusNotFound,
 		},
 	}
@@ -86,9 +92,11 @@ func Test_Tracing(t *testing.T) {
 			t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
 
 			conf := testConfig(t)
-			log := newTestLogger(t)
+			// /health is not logged at the default level: the debug level logs everything.
+			conf.LogLevel = "debug"
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			// without a flag set manager the endpoints that need one answer 500: the span of a failure is checked.
-			srv := api.New(conf, service.Services{MonitoringService: failingMonitoring()}, log.Slog,
+			srv := api.New(conf, service.Services{MonitoringService: failingMonitoring()}, logger,
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
@@ -110,6 +118,17 @@ func Test_Tracing(t *testing.T) {
 				span.Parent().SpanID().String(),
 				"the incoming traceparent is the parent",
 			)
+
+			// the access record carries the trace and span IDs of the span, like the other lines of the request.
+			entries := logs.All()
+			records := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				fields := entry.ContextMap()
+				assert.Equal(t, span.SpanContext().TraceID().String(), fields["trace_id"], entry.Message)
+				assert.Equal(t, span.SpanContext().SpanID().String(), fields["span_id"], entry.Message)
+				records = append(records, entry.Message)
+			}
+			assert.Contains(t, records, tt.wantRecord)
 
 			attrs := map[attribute.Key]attribute.Value{}
 			for _, kv := range span.Attributes() {

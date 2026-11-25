@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 )
 
 // bodyDumpSkipper returns the skipper of the body dump middleware.
@@ -23,7 +25,7 @@ func bodyDumpSkipper(logger *slog.Logger) func(r *http.Request) bool {
 
 // bodyDumpHandler logs request bodies with truncation for large payloads.
 // Bodies larger than maxBodyLogSize are truncated and suffixed with a marker.
-func bodyDumpHandler(logger *slog.Logger) func(r *http.Request, body []byte) {
+func bodyDumpHandler() func(r *http.Request, body []byte) {
 	maxBodyLogSize := 8192 // 8KiB
 	truncatedBodySuffix := []byte("... truncated ...")
 	truncatedSize := maxBodyLogSize + len(truncatedBodySuffix)
@@ -39,10 +41,12 @@ func bodyDumpHandler(logger *slog.Logger) func(r *http.Request, body []byte) {
 		},
 	}
 
-	return func(_ *http.Request, reqBody []byte) {
+	return func(r *http.Request, reqBody []byte) {
+		ctx := r.Context()
+		logger := logging.FromContext(ctx)
 		if len(reqBody) <= maxBodyLogSize {
 			logger.LogAttrs(
-				context.Background(),
+				ctx,
 				slog.LevelDebug,
 				"Request info",
 				slog.String("request_body", string(reqBody)),
@@ -56,7 +60,7 @@ func bodyDumpHandler(logger *slog.Logger) func(r *http.Request, body []byte) {
 		truncated := *bufPtr
 		copy(truncated[:maxBodyLogSize], reqBody[:maxBodyLogSize])
 		logger.LogAttrs(
-			context.Background(),
+			ctx,
 			slog.LevelDebug,
 			"Request info",
 			slog.String("request_body", string(truncated)),
