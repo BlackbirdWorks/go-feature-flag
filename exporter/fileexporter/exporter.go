@@ -93,7 +93,7 @@ func (f *Exporter) Export(
 	} else {
 		// Ensure OutputDir exists or create it
 		//nolint:gosec // G302/G304: the path is chosen by the operator
-		mkdirAllErr := os.MkdirAll(outputDir, 0755)
+		mkdirAllErr := os.MkdirAll(outputDir, 0o755)
 		if mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}

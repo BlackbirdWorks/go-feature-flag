@@ -32,14 +32,14 @@ func ParseTemplate(name, templateToParse, defaultTemplate string) *template.Temp
 }
 
 // ComputeFilename is computing the filename to use for the export file.
-func ComputeFilename(template *template.Template, format string) (string, error) {
+func ComputeFilename(tmpl *template.Template, format string) (string, error) {
 	hostname, _ := os.Hostname()
 	timestamp := strconv.FormatInt(clock.Now().Unix(), 10)
 	format = strings.ToLower(format)
 
 	var buf bytes.Buffer
 
-	err := template.Execute(&buf, struct {
+	err := tmpl.Execute(&buf, struct {
 		Hostname  string
 		Timestamp string
 		Format    string

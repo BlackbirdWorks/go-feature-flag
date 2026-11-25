@@ -13,10 +13,6 @@ import (
 
 var _ exporter.Exporter = &Exporter{}
 
-const (
-	formatJSON = "json"
-)
-
 // MessageSender is a Kafka producer that implements the SendMessages method.
 type MessageSender interface {
 	SendMessages(msgs []*sarama.ProducerMessage) error
@@ -120,15 +116,10 @@ func (e *Exporter) initializeProducer() error {
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
 func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
-	switch e.Format {
-	case formatJSON:
-		fallthrough
-	default:
-		b, err := json.Marshal(event)
-		if err != nil {
-			return nil, fmt.Errorf("marshal kafka event: %w", err)
-		}
-
-		return b, nil
+	b, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kafka event: %w", err)
 	}
+
+	return b, nil
 }

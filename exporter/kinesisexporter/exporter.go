@@ -28,7 +28,6 @@ var (
 var _ exporter.Exporter = &Exporter{}
 
 const (
-	formatJSON = "json"
 	// Mb is the number of bytes in a megabyte.
 	//nolint:varnamelen // exported constant kept for compatibility
 	Mb = 1024 * 1024
@@ -43,8 +42,8 @@ const (
 )
 
 // DefaultPartitionKey is the partition key function used when none is configured.
-func DefaultPartitionKey(context context.Context, _ exporter.ExportableEvent) string {
-	context.Value("feature")
+func DefaultPartitionKey(ctx context.Context, _ exporter.ExportableEvent) string {
+	ctx.Value("feature")
 
 	return "default"
 }
@@ -448,15 +447,10 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
 func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
-	switch e.Format {
-	case formatJSON:
-		fallthrough
-	default:
-		b, err := json.Marshal(event)
-		if err != nil {
-			return nil, fmt.Errorf("marshal kinesis event: %w", err)
-		}
-
-		return b, nil
+	b, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kinesis event: %w", err)
 	}
+
+	return b, nil
 }
