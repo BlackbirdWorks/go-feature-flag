@@ -78,6 +78,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	// default opts
 	mo := &MetricsOpts{
 		EnableBulkMetricFlagNames: false,
+		Version:                   "",
 	}
 
 	if len(opts) > 0 {

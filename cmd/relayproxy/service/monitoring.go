@@ -54,6 +54,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 
 		return model.InfoResponse{
 			LatestCacheRefresh: &cacheRefreshDate,
+			Flagsets:           nil,
 		}, nil
 	}
 

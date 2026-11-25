@@ -46,10 +46,12 @@ func Evaluate[T model.JSONType](
 				VariationType: flag.VariationSDKDefault,
 				Reason:        flag.ReasonError,
 				ErrorCode:     flag.ErrorCodeTypeMismatch,
+				ErrorDetails:  "",
 				Failed:        true,
 				TrackEvents:   f.IsTrackEvents(),
 				Version:       f.GetVersion(),
 				Metadata:      f.GetMetadata(),
+				Cacheable:     false,
 			}, fmt.Errorf("%w %v", errWrongVariationUsed, flagKey)
 		}
 	}

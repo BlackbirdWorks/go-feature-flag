@@ -84,7 +84,16 @@ func Start(opts Options) (_ *Relay, err error) {
 	conf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		// the server (and its monitoring port) only listens on the loopback interface
-		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", EnableH2C: opts.H2C},
+		Server: config.Server{
+			Mode:                  config.ServerModeHTTP,
+			Host:                  "127.0.0.1",
+			UnixSocketPath:        "",
+			LambdaAdapter:         "",
+			AwsAPIGatewayBasePath: "",
+			Port:                  0,
+			MonitoringPort:        0,
+			EnableH2C:             opts.H2C,
+		},
 	}
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))

@@ -54,7 +54,8 @@ type DTO struct {
 
 // Convert is converting the DTO into a flag.InternalFlag.
 func (d *DTO) Convert() flag.InternalFlag {
-	if d == nil || (DTO{}) == *d {
+	var empty DTO
+	if d == nil || empty == *d {
 		return flag.InternalFlag{}
 	}
 

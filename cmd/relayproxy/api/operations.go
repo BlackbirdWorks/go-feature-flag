@@ -48,15 +48,17 @@ func schemaOf(api huma.API, v any) *huma.Schema {
 	return api.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(v), true, "")
 }
 
-func jsonResponse(api huma.API, description string, v any) *huma.Response {
+func jsonResponse[T any](api huma.API, description string) *huma.Response {
 	return &huma.Response{
 		Description: description,
-		Content:     map[string]*huma.MediaType{contentJSON: {Schema: schemaOf(api, v)}},
+		Content: map[string]*huma.MediaType{
+			contentJSON: {Schema: api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[T](), true, "")},
+		},
 	}
 }
 
 func errorResponse(api huma.API, description string) *huma.Response {
-	return jsonResponse(api, description, helper.ErrorBody{})
+	return jsonResponse[helper.ErrorBody](api, description)
 }
 
 func notModified() *huma.Response {
@@ -121,7 +123,7 @@ func operationAllFlags(api huma.API) *huma.Operation {
 			"For that you should provide some user information in JSON in the request body.",
 		RequestBody: jsonBody(api, "Evaluation context to challenge against the flags.", true, model.AllFlagRequest{}),
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK):                  jsonResponse(api, "Success", modeldocs.AllFlags{}),
+			statusKey(http.StatusOK):                  jsonResponse[modeldocs.AllFlags](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),
 			statusKey(http.StatusInternalServerError): errorResponse(api, "Internal server error"),
 		},
@@ -148,7 +150,7 @@ func operationFlagEval(api huma.API) *huma.Operation {
 		Parameters:  []*huma.Param{flagKeyParam()},
 		RequestBody: jsonBody(api, "Evaluation context and default value for the flag.", true, model.EvalFlagRequest{}),
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK):                  jsonResponse(api, "Success", modeldocs.EvalFlagDoc{}),
+			statusKey(http.StatusOK):                  jsonResponse[modeldocs.EvalFlagDoc](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),
 			statusKey(http.StatusInternalServerError): errorResponse(api, "Internal server error"),
 		},
@@ -169,21 +171,15 @@ func operationOFREPEval(api huma.API) *huma.Operation {
 		Parameters:  []*huma.Param{flagKeyParam()},
 		RequestBody: jsonBody(api, "Evaluation Context for this API call", true, model.OFREPEvalFlagRequest{}),
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK): jsonResponse(
-				api,
-				"Success",
-				model.OFREPEvaluateSuccessResponse{},
-			),
-			statusKey(http.StatusBadRequest): jsonResponse(
+			statusKey(http.StatusOK): jsonResponse[model.OFREPEvaluateSuccessResponse](api, "Success"),
+			statusKey(http.StatusBadRequest): jsonResponse[model.OFREPEvaluateResponseError](
 				api,
 				"Bad Request",
-				model.OFREPEvaluateResponseError{},
 			),
 			statusKey(http.StatusUnauthorized): errorResponse(api, "Unauthorized"),
-			statusKey(http.StatusNotFound): jsonResponse(
+			statusKey(http.StatusNotFound): jsonResponse[model.OFREPEvaluateResponseError](
 				api,
 				"Flag Not Found",
-				model.OFREPEvaluateResponseError{},
 			),
 			statusKey(http.StatusInternalServerError): errorResponse(api, "Internal server error"),
 		},
@@ -206,13 +202,14 @@ func operationOFREPBulk(api huma.API) *huma.Operation {
 		RequestBody: jsonBody(api, "Evaluation Context and list of flag for this API call", true,
 			model.OFREPEvalFlagRequest{}),
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK): jsonResponse(api, "OFREP successful evaluation response",
-				model.OFREPBulkEvaluateSuccessResponse{}),
+			statusKey(http.StatusOK): jsonResponse[model.OFREPBulkEvaluateSuccessResponse](
+				api,
+				"OFREP successful evaluation response",
+			),
 			statusKey(http.StatusNotModified): notModified(),
-			statusKey(http.StatusBadRequest): jsonResponse(
+			statusKey(http.StatusBadRequest): jsonResponse[model.OFREPCommonResponseError](
 				api,
 				"Bad evaluation request",
-				model.OFREPCommonResponseError{},
 			),
 			statusKey(http.StatusUnauthorized): errorResponse(
 				api,
@@ -248,16 +245,17 @@ func operationValidate(api huma.API) *huma.Operation {
 			"(defaults: 1 MiB for JSON, 64 KiB for YAML and TOML).",
 		RequestBody: &huma.RequestBody{Description: "The flag file to validate", Required: true, Content: content},
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK): jsonResponse(
+			statusKey(http.StatusOK): jsonResponse[controller.FlagValidationResponse](
 				api,
 				"All the flags are valid",
-				controller.FlagValidationResponse{},
 			),
 			statusKey(http.StatusBadRequest):            errorResponse(api, "Unparseable body"),
 			statusKey(http.StatusRequestEntityTooLarge): errorResponse(api, "Body too large"),
 			statusKey(http.StatusUnsupportedMediaType):  errorResponse(api, "Missing or unsupported content type"),
-			statusKey(http.StatusUnprocessableEntity): jsonResponse(api, "At least one flag is invalid",
-				controller.FlagValidationResponse{}),
+			statusKey(http.StatusUnprocessableEntity): jsonResponse[controller.FlagValidationResponse](
+				api,
+				"At least one flag is invalid",
+			),
 		},
 	}
 }
@@ -303,7 +301,7 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 			"When disableFlagDetailsInStream is true, values are empty objects.",
 		Parameters: []*huma.Param{apiKeyQueryParam()},
 		Responses: map[string]*huma.Response{
-			statusKey(http.StatusOK):                  jsonResponse(api, "Success", notifier.DiffCache{}),
+			statusKey(http.StatusOK):                  jsonResponse[notifier.DiffCache](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),
 			statusKey(http.StatusUnauthorized):        errorResponse(api, "Unauthorized"),
 			statusKey(http.StatusInternalServerError): errorResponse(api, "Internal server error"),

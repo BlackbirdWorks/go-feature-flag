@@ -41,6 +41,7 @@ func ConvertInternalFlagToDto(f flag.InternalFlag) DTO {
 		TrackEvents:     f.TrackEvents,
 		Disable:         f.Disable,
 		Version:         f.Version,
+		Converter:       nil,
 		Variations:      f.Variations,
 		Rules:           f.Rules,
 		BucketingKey:    f.BucketingKey,

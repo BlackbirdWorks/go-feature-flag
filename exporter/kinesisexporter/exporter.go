@@ -139,7 +139,10 @@ func WithStreamArn(streamArn string) Option {
 
 func NewSettings(options ...Option) *Settings {
 	settings := Settings{
-		PartitionKey: DefaultPartitionKey,
+		StreamName:      nil,
+		StreamArn:       nil,
+		PartitionKey:    DefaultPartitionKey,
+		ExplicitHashKey: nil,
 	}
 	for _, option := range options {
 		settings = option(settings)

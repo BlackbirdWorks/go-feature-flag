@@ -76,10 +76,13 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	reqBody := new(FlagConfigurationRequest)
 	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
 		return &FlagConfigurationOutput{
-			Status: http.StatusBadRequest,
+			Status:       http.StatusBadRequest,
+			LastModified: "",
 			Body: FlagConfigurationResponse{
-				ErrorCode:    FlagConfigErrorInvalidRequest,
-				ErrorDetails: fmt.Sprintf("impossible to read request body: %s", err),
+				Flags:                       nil,
+				EvaluationContextEnrichment: nil,
+				ErrorCode:                   FlagConfigErrorInvalidRequest,
+				ErrorDetails:                fmt.Sprintf("impossible to read request body: %s", err),
 			},
 		}, nil
 	}
@@ -92,10 +95,13 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
 		return &FlagConfigurationOutput{
-			Status: http.StatusInternalServerError,
+			Status:       http.StatusInternalServerError,
+			LastModified: "",
 			Body: FlagConfigurationResponse{
-				ErrorCode:    FlagConfigErrorRetrievingFlags,
-				ErrorDetails: fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
+				Flags:                       nil,
+				EvaluationContextEnrichment: nil,
+				ErrorCode:                   FlagConfigErrorRetrievingFlags,
+				ErrorDetails:                fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
 			},
 		}, nil
 	}
@@ -119,6 +125,8 @@ func (h *FlagConfigurationAPICtrl) Handle(
 		Body: FlagConfigurationResponse{
 			EvaluationContextEnrichment: flagset.GetEvaluationContextEnrichment(),
 			Flags:                       flags,
+			ErrorCode:                   "",
+			ErrorDetails:                "",
 		},
 	}, nil
 }

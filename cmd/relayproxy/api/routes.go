@@ -132,6 +132,7 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 
 func (s *Server) adminKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
+		Skipper: nil,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			return ctx, s.config.APIKeysAdminExists(key)
 		},
@@ -311,5 +312,5 @@ func OpenAPIJSON() ([]byte, error) {
 
 // documentedConfig is the configuration of the server that describes every endpoint.
 func documentedConfig() *config.Config {
-	return &config.Config{EnablePprof: true, Swagger: config.Swagger{Enabled: true}}
+	return &config.Config{EnablePprof: true, Swagger: config.Swagger{Enabled: true, Host: ""}}
 }

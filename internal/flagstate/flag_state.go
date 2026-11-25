@@ -35,25 +35,29 @@ func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Cont
 	// if the flag is disabled, we are ignoring it.
 	if resolutionDetails.Reason == flag.ReasonDisabled {
 		return FlagState{
-			Timestamp:    at.Unix(),
-			TrackEvents:  currentFlag.IsTrackEvents(),
-			Failed:       resolutionDetails.ErrorCode != "",
-			ErrorCode:    resolutionDetails.ErrorCode,
-			ErrorDetails: resolutionDetails.ErrorMessage,
-			Reason:       resolutionDetails.Reason,
-			Metadata:     resolutionDetails.Metadata,
+			Value:         nil,
+			Timestamp:     at.Unix(),
+			VariationType: "",
+			TrackEvents:   currentFlag.IsTrackEvents(),
+			Failed:        resolutionDetails.ErrorCode != "",
+			ErrorCode:     resolutionDetails.ErrorCode,
+			ErrorDetails:  resolutionDetails.ErrorMessage,
+			Reason:        resolutionDetails.Reason,
+			Metadata:      resolutionDetails.Metadata,
 		}
 	}
 
 	if resolutionDetails.Reason == flag.ReasonError {
 		return FlagState{
-			Timestamp:    at.Unix(),
-			TrackEvents:  currentFlag.IsTrackEvents(),
-			Failed:       resolutionDetails.ErrorCode != "",
-			ErrorCode:    resolutionDetails.ErrorCode,
-			ErrorDetails: resolutionDetails.ErrorMessage,
-			Reason:       resolutionDetails.Reason,
-			Metadata:     resolutionDetails.Metadata,
+			Value:         nil,
+			Timestamp:     at.Unix(),
+			VariationType: "",
+			TrackEvents:   currentFlag.IsTrackEvents(),
+			Failed:        resolutionDetails.ErrorCode != "",
+			ErrorCode:     resolutionDetails.ErrorCode,
+			ErrorDetails:  resolutionDetails.ErrorMessage,
+			Reason:        resolutionDetails.Reason,
+			Metadata:      resolutionDetails.Metadata,
 		}
 	}
 

@@ -472,7 +472,11 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	// The authorized keys (admin keys) and the top-level API keys are reloadable too. They are replaced
 	// together with the accepted key set, in one step, so that no request sees a partial update.
 	newAuthorizedKeys := newConfig.GetAuthorizedKeys()
-	if !cmp.Equal(m.config.GetAuthorizedKeys(), newAuthorizedKeys, cmpopts.IgnoreUnexported(config.APIKeys{})) {
+	if !cmp.Equal(
+		m.config.GetAuthorizedKeys(),
+		newAuthorizedKeys,
+		cmpopts.IgnoreUnexported(config.APIKeys{Admin: nil, Evaluation: nil}),
+	) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 	}
 	m.config.ReplaceAPIKeys(newAuthorizedKeys, newConfig.GetAPIKeys())
@@ -759,7 +763,11 @@ func (m *FlagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 			"changed during runtime in default mode")
 	}
 
-	if !cmp.Equal(currentAuthorizedKeys, newAuthorizedKeys, cmpopts.IgnoreUnexported(config.APIKeys{})) {
+	if !cmp.Equal(
+		currentAuthorizedKeys,
+		newAuthorizedKeys,
+		cmpopts.IgnoreUnexported(config.APIKeys{Admin: nil, Evaluation: nil}),
+	) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 		m.config.SetAuthorizedKeys(newAuthorizedKeys)
 		reloadAPIKeys = true

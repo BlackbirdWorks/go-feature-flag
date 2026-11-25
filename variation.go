@@ -296,6 +296,10 @@ func getVariation[T model.JSONType](
 			Failed:        true,
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
+			ErrorDetails:  "",
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}, errSemaphoreIsNotInitialised
 	}
@@ -305,6 +309,11 @@ func getVariation[T model.JSONType](
 			VariationType: flag.VariationSDKDefault,
 			Failed:        false,
 			Reason:        flag.ReasonOffline,
+			ErrorCode:     "",
+			ErrorDetails:  "",
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}, nil
 	}
@@ -315,8 +324,12 @@ func getVariation[T model.JSONType](
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
 			ErrorCode:     flag.ErrorCodeFlagNotFound,
+			ErrorDetails:  "",
 			Failed:        true,
 			Reason:        flag.ReasonError,
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}
 		if f != nil {

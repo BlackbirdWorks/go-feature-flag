@@ -160,7 +160,8 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 
 	// if no flag is not provided, we evaluate all available flags
 	response := model.OFREPBulkEvaluateSuccessResponse{
-		Flags: make([]model.OFREPFlagBulkEvaluateSuccessResponse, 0),
+		Flags:        make([]model.OFREPFlagBulkEvaluateSuccessResponse, 0),
+		EventStreams: nil,
 	}
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 	_, span := tracer.Start(r.Context(), "AllFlagsState")

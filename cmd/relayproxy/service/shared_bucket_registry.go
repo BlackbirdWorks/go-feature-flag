@@ -33,8 +33,11 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 	}
 
 	return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
-		Bucket:    bucket,
-		AwsConfig: &awsConfig,
+		Bucket:          bucket,
+		AwsConfig:       &awsConfig,
+		Lister:          nil,
+		Downloader:      nil,
+		S3ClientOptions: nil,
 	})
 }
 
@@ -73,7 +76,11 @@ func newSharedBucketRegistry(
 	return &sharedBucketRegistry{
 		factory: factory,
 		logger:  logger,
-		polling: s3retrieverv2.PollerConfig{Interval: normalizePollingInterval(pollingInterval), Jitter: jitter},
+		polling: s3retrieverv2.PollerConfig{
+			Interval: normalizePollingInterval(pollingInterval),
+			Jitter:   jitter,
+			Logger:   nil,
+		},
 		groups:  map[string]*registryGroup{},
 		pending: map[string][]*releasingRetriever{},
 	}

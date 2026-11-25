@@ -516,6 +516,7 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 	c := kafkaexporter.Settings{
 		Topic:     k.Topic,
 		Addresses: k.Addresses,
+		Config:    nil,
 	}
 
 	if k.Config == nil {
