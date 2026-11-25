@@ -33,7 +33,7 @@ const (
 	hello                  = `"hello"`
 	intsName               = "ints"
 	stringsName            = "strings"
-	u0041                  = `"\u0041"`
+	escapedLetterA         = `"\escapedLetterA"`
 	uPlanEqProAnd          = `u.plan eq "pro" and u.age gt 18`
 	xInOneTwo              = `x in [1, 2]`
 	yInOneToThree          = `y in [1, 2, 3]`
@@ -247,7 +247,7 @@ func differentialRuleValues() []string {
 		`-2E+1`,
 		`2E+1`,
 		`"a\"b"`,
-		u0041,
+		escapedLetterA,
 		`"\\"`,
 		versionTwoFive,
 		negativeVersion,
@@ -538,9 +538,30 @@ func fuzzAttrs() []string {
 
 func fuzzVals() []string {
 	return []string{
-		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, versionTwoFive, negativeVersion, `1.0e2`, overflowVersion,
-		hello, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, u0041, `"1.2.3"`, fixtures.VersionOneTwoThree, `1.2.3-alpha+b`,
-		trueLiteral, `false`, fixtures.Null, overflowInteger, `-99999999999999999999`,
+		`1`,
+		`-3`,
+		`0`,
+		`5`,
+		`1e3`,
+		`-2E+1`,
+		versionTwoFive,
+		negativeVersion,
+		`1.0e2`,
+		overflowVersion,
+		hello,
+		`"HeLLo"`,
+		`""`,
+		`"A"`,
+		`"a\"b"`,
+		escapedLetterA,
+		`"1.2.3"`,
+		fixtures.VersionOneTwoThree,
+		`1.2.3-alpha+b`,
+		trueLiteral,
+		`false`,
+		fixtures.Null,
+		overflowInteger,
+		`-99999999999999999999`,
 	}
 }
 
@@ -566,7 +587,7 @@ func genList(r *rand.Rand) string {
 	case 1:
 		pool = []string{"1.5", versionTwoFive, negativeVersion, overflowVersion, "1.0"}
 	default:
-		pool = []string{`"a"`, hello, `""`, `"x"`, u0041}
+		pool = []string{`"a"`, hello, `""`, `"x"`, escapedLetterA}
 	}
 
 	el := make([]string, 1+r.Intn(4))
@@ -772,7 +793,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 
 			var ne *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &ne)
-			tt.mutate(t, ne.Vals[ruleOperand])
+			tt.mutate(t, ne.Vals[errValRuleOperand])
 			got, _ := eval.Process(tt.probe)
 			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
@@ -934,7 +955,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
 
-			tt.mut(t, nestedErr.Vals[ruleOperand])
+			tt.mut(t, nestedErr.Vals[errValRuleOperand])
 			assert.Equal(t, tt.want, eval.root.cmp.listOp, "compiled constant mutated")
 			_, err = eval.Process(tt.items)
 			require.NoError(t, err)

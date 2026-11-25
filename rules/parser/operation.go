@@ -6,11 +6,6 @@ import (
 	"reflect"
 )
 
-const (
-	attrPath    = "attr_path"
-	ruleOperand = "rule_operand"
-)
-
 func toFloat(operand Operand) (float64, error) {
 	switch val := operand.(type) {
 	case int:
@@ -55,8 +50,8 @@ var (
 const (
 	errValOperation     = "operation"
 	errValObjectOperand = "object_path_operand"
-	errValRuleOperand   = ruleOperand
-	errValAttrPath      = attrPath
+	errValRuleOperand   = "rule_operand"
+	errValAttrPath      = "attr_path"
 )
 
 // InvalidOperandError reports an operand whose type does not match the operation.

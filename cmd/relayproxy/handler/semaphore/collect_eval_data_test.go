@@ -137,7 +137,7 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 			require.NoError(t, err)
 
 			// replace the timestamps in the response
-			regex := regexp.MustCompile(d10)
+			regex := regexp.MustCompile(tenDigitsPattern)
 			replacedStr := regex.ReplaceAllString(jsonOf(t, out.Body), fixedTimestamp)
 
 			// validate the result

@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	uuidAecd6Aea                   = "aecd6aea-1350-46af-a7b9-231e9a609fd"
-	sampleFlagsGoffYamlPath        = "ample/flags.goff.yaml"
+	dockerhubExampleFlagsURL = "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/" +
+		"cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
+	apiKeyNinth                    = "aecd6aea-1350-46af-a7b9-231e9a609fd"
 	apikeyOne                      = "apikey1"
 	apikeyTwo                      = "apikey2"
 	apikeyThree                    = "apikey3"
@@ -32,10 +33,10 @@ const (
 	cmdRelayproxyTestdataDockerhub = "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
 	configS                        = "--config=%s"
 	customKey                      = "custom"
-	uuidD05087Dd                   = "d05087dd-efff-4144-b9a6-89476a14695"
-	uuidE0Dcb798                   = "e0dcb798-4f97-4646-a1a9-57a6c69c235"
+	apiKeyEighth                   = "d05087dd-efff-4144-b9a6-89476a14695"
+	apiKeyTenth                    = "e0dcb798-4f97-4646-a1a9-57a6c69c235"
 	extraInfoKey                   = "extraInfo"
-	uuidFb124Cf9                   = "fb124cf9-e058-4f34-8385-ad225ff85a3"
+	apiKeySeventh                  = "fb124cf9-e058-4f34-8385-ad225ff85a3"
 	apiKeyFirst                    = "0359cdb3-5fb5-4d65-b25f-b8909ec3c44"
 	apiKeyThird                    = "04d9f1b7-f50c-4407-83bb-e9c4ddc5d45"
 	numericAPIKey                  = "11213123"
@@ -48,26 +49,21 @@ const (
 	httpTestingwebhookComTest      = "http://testingwebhook.com/test/"
 	httpsHooksSlackCom             = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	httpsHooktestCom               = "https://hooktest.com/"
-	httpsRawGithubusercontentCom   = "https://raw.githubusercontent.com/BlackbirdWorks/s" +
-		"emaphore/main/cmd/relayproxy/testdata/dockerhub-ex"
-	httpsRawGithubusercontentComBlackbird = "https://raw.githubusercontent.com/BlackbirdWorks/s" +
-		"emaphore/main/cmd/relayproxy/testdata/dockerhub-exa"
-	httpsXxxComNotifier          = "https://xxx.com/notifier"
-	invalidKey                   = "invalid"
-	kafka                        = "kafka"
-	localhost19092               = "localhost:19092"
-	localhost19092Localhost19093 = "localhost:19092,localhost:19093"
-	localhost19093               = "localhost:19093"
-	locationOfYourConfig         = "Location of your config file"
-	logKey                       = "log"
-	exampleFlagsGoffYamlPath     = "mple/flags.goff.yaml"
-	secretForSigning             = "secret-for-signing"
-	slack                        = "slack"
-	testOne                      = "test1"
-	testdataConfigValidFile      = "../testdata/config/valid-file.yaml"
-	tokenKey                     = "token"
-	xGoffCustom                  = "x-goff-custom"
-	xxxx                         = "xxxx"
+	httpsXxxComNotifier            = "https://xxx.com/notifier"
+	invalidKey                     = "invalid"
+	kafka                          = "kafka"
+	localhost19092                 = "localhost:19092"
+	localhost19092Localhost19093   = "localhost:19092,localhost:19093"
+	localhost19093                 = "localhost:19093"
+	locationOfYourConfig           = "Location of your config file"
+	logKey                         = "log"
+	secretForSigning               = "secret-for-signing"
+	slack                          = "slack"
+	testOne                        = "test1"
+	testdataConfigValidFile        = "../testdata/config/valid-file.yaml"
+	tokenKey                       = "token"
+	xGoffCustom                    = "x-goff-custom"
+	xxxx                           = "xxxx"
 )
 
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
@@ -156,8 +152,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -190,8 +185,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -228,8 +222,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -266,8 +259,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporters: &[]config.ExporterConf{
 					{
@@ -306,8 +298,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -357,8 +348,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -388,8 +378,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -482,8 +471,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: fixtures.HTTP,
-					URL: httpsRawGithubusercontentComBlackbird +
-						exampleFlagsGoffYamlPath,
+					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
 					Kind: logKey,
@@ -1158,14 +1146,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						uuidFb124Cf9,
-						uuidD05087Dd,
+						apiKeySeventh,
+						apiKeyEighth,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						uuidE0Dcb798,
+						apiKeyTenth,
 						apiKeyFifth,
-						uuidAecd6Aea,
+						apiKeyNinth,
 						apiKeySixth,
 					},
 				},
@@ -1179,14 +1167,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						uuidFb124Cf9,
-						uuidD05087Dd,
+						apiKeySeventh,
+						apiKeyEighth,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						uuidE0Dcb798,
+						apiKeyTenth,
 						apiKeyFifth,
-						uuidAecd6Aea,
+						apiKeyNinth,
 						apiKeySixth,
 					},
 				},
@@ -1214,14 +1202,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						uuidFb124Cf9,
-						uuidD05087Dd,
+						apiKeySeventh,
+						apiKeyEighth,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						uuidE0Dcb798,
+						apiKeyTenth,
 						apiKeyFifth,
-						uuidAecd6Aea,
+						apiKeyNinth,
 						apiKeySixth,
 					},
 				},
@@ -1235,14 +1223,14 @@ func TestConfig_APIKeyExists(t *testing.T) {
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
 						apiKeyFirst,
-						uuidFb124Cf9,
-						uuidD05087Dd,
+						apiKeySeventh,
+						apiKeyEighth,
 						apiKeySecond,
 						apiKeyThird,
 						apiKeyFourth,
-						uuidE0Dcb798,
+						apiKeyTenth,
 						apiKeyFifth,
-						uuidAecd6Aea,
+						apiKeyNinth,
 						apiKeySixth,
 					},
 				},
@@ -1340,7 +1328,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						uuidAecd6Aea,
+						apiKeyNinth,
 						apiKeySixth,
 					},
 				},
@@ -1477,8 +1465,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: fixtures.HTTP,
-						URL: httpsRawGithubusercontentCom +
-							sampleFlagsGoffYamlPath,
+						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
 								fixtures.Test,
@@ -1556,8 +1543,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: fixtures.HTTP,
-						URL: httpsRawGithubusercontentCom +
-							sampleFlagsGoffYamlPath,
+						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
 								fixtures.Test,
@@ -1629,8 +1615,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: fixtures.HTTP,
-						URL: httpsRawGithubusercontentCom +
-							sampleFlagsGoffYamlPath,
+						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
 								fixtures.Test,
@@ -1715,8 +1700,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: fixtures.HTTP,
-						URL: httpsRawGithubusercontentCom +
-							sampleFlagsGoffYamlPath,
+						URL:  dockerhubExampleFlagsURL,
 					},
 					{
 						Kind: fixtures.File,
@@ -1767,8 +1751,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: fixtures.HTTP,
-						URL: httpsRawGithubusercontentCom +
-							sampleFlagsGoffYamlPath,
+						URL:  dockerhubExampleFlagsURL,
 					},
 					{
 						Kind: fixtures.File,

@@ -66,7 +66,6 @@ const (
 	goldenEvalKey  = "golden-eval-key"
 	goldenAdminKey = "golden-admin-key"
 	flagBody       = `{"evaluationContext":{"key":"user-1"},"defaultValue":false}`
-	ofrepBody      = contextTargetingKeyUserOne
 )
 
 type goldenCase struct {
@@ -148,15 +147,25 @@ func goldenOpenSuccessCases() []goldenCase {
 		{name: "swagger_dir_slash", method: http.MethodGet, path: "/swagger/"},
 		{name: "swagger_openapi", method: http.MethodGet, path: swaggerOpenapiJSON, headers: nil},
 		{
-			name: "ofrep_bulk_ok", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: ofrepBody,
+			name:    "ofrep_bulk_ok",
+			method:  http.MethodPost,
+			path:    fixtures.OFREPEvaluateFlagsPath,
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_bulk_304", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: ofrepBody,
-			headers: jsonHeaders(), followETag: true,
+			name:       "ofrep_bulk_304",
+			method:     http.MethodPost,
+			path:       fixtures.OFREPEvaluateFlagsPath,
+			body:       contextTargetingKeyUserOne,
+			headers:    jsonHeaders(),
+			followETag: true,
 		},
 		{
-			name: "ofrep_eval_ok", method: http.MethodPost, path: ofrepEvaluateTestFlag, body: ofrepBody,
+			name:    "ofrep_eval_ok",
+			method:  http.MethodPost,
+			path:    ofrepEvaluateTestFlag,
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
@@ -287,7 +296,7 @@ func goldenOpenErrorCases() []goldenCase {
 			name:    "ofrep_bulk_text_plain",
 			method:  http.MethodPost,
 			path:    fixtures.OFREPEvaluateFlagsPath,
-			body:    ofrepBody,
+			body:    contextTargetingKeyUserOne,
 			headers: map[string]string{protocol.HeaderContentType: textPlain},
 		},
 		{
@@ -295,14 +304,17 @@ func goldenOpenErrorCases() []goldenCase {
 			body: `{"context":{"targetingKey":"u","flags":["test-flag"]}}`, headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_eval_empty_key", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/", body: ofrepBody,
+			name:    "ofrep_eval_empty_key",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags/",
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
 			name:    "ofrep_eval_not_found",
 			method:  http.MethodPost,
 			path:    ofrepEvaluateNope,
-			body:    ofrepBody,
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
@@ -318,11 +330,14 @@ func goldenOpenErrorCases() []goldenCase {
 		},
 		{
 			name: "ofrep_eval_escaped_key", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test%2Dflag",
-			body: ofrepBody, headers: jsonHeaders(),
+			body: contextTargetingKeyUserOne, headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_eval_no_etag", method: http.MethodPost, path: ofrepEvaluateTestFlag,
-			body: ofrepBody, headers: withHeaders(map[string]string{protocol.HeaderIfNoneMatch: `"x"`}),
+			name:    "ofrep_eval_no_etag",
+			method:  http.MethodPost,
+			path:    ofrepEvaluateTestFlag,
+			body:    contextTargetingKeyUserOne,
+			headers: withHeaders(map[string]string{protocol.HeaderIfNoneMatch: `"x"`}),
 		},
 		{
 			name:        "ws_bad_apikey_flagset",
@@ -606,26 +621,36 @@ func goldenAuthCases() []goldenCase {
 			name:    "ofrep_bulk_no_key",
 			method:  http.MethodPost,
 			path:    fixtures.OFREPEvaluateFlagsPath,
-			body:    ofrepBody,
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_bulk_ok", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: ofrepBody,
+			name:    "ofrep_bulk_ok",
+			method:  http.MethodPost,
+			path:    fixtures.OFREPEvaluateFlagsPath,
+			body:    contextTargetingKeyUserOne,
 			headers: bearer(goldenEvalKey),
 		},
 		{
-			name: "ofrep_bulk_304", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: ofrepBody,
-			headers: bearer(goldenEvalKey), followETag: true,
+			name:       "ofrep_bulk_304",
+			method:     http.MethodPost,
+			path:       fixtures.OFREPEvaluateFlagsPath,
+			body:       contextTargetingKeyUserOne,
+			headers:    bearer(goldenEvalKey),
+			followETag: true,
 		},
 		{
 			name:    "ofrep_eval_no_key",
 			method:  http.MethodPost,
 			path:    ofrepEvaluateTestFlag,
-			body:    ofrepBody,
+			body:    contextTargetingKeyUserOne,
 			headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_eval_ok", method: http.MethodPost, path: ofrepEvaluateTestFlag, body: ofrepBody,
+			name:    "ofrep_eval_ok",
+			method:  http.MethodPost,
+			path:    ofrepEvaluateTestFlag,
+			body:    contextTargetingKeyUserOne,
 			headers: bearer(goldenEvalKey),
 		},
 		{name: "manifest_no_key", method: http.MethodGet, path: openfeatureV0Manifest},
@@ -970,8 +995,13 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 		{method: http.MethodPost, path: v1Allflags, body: flagBody, headers: jsonHeaders()},
 		{method: http.MethodPost, path: v1FeatureTest, body: flagBody, headers: jsonHeaders()},
 		{method: http.MethodPost, path: v1FeatureTest, body: flagBody, headers: jsonHeaders()},
-		{method: http.MethodPost, path: ofrepEvaluateTestFlag, body: ofrepBody, headers: jsonHeaders()},
-		{method: http.MethodPost, path: ofrepEvaluateNope, body: ofrepBody, headers: jsonHeaders()},
+		{
+			method:  http.MethodPost,
+			path:    ofrepEvaluateTestFlag,
+			body:    contextTargetingKeyUserOne,
+			headers: jsonHeaders(),
+		},
+		{method: http.MethodPost, path: ofrepEvaluateNope, body: contextTargetingKeyUserOne, headers: jsonHeaders()},
 		{method: http.MethodGet, path: nope},
 		{method: http.MethodGet, path: v1Allflags},
 		{method: http.MethodDelete, path: healthPath},

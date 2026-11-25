@@ -47,11 +47,14 @@ func TestNestedError(t *testing.T) {
 			want:     `{"err":"wrapped: {\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
 		},
 		{
-			name:     "vals",
-			err:      newNestedError(base, "m").Set(ErrVals{attrPath: dottedName, ruleOperand: []int{1, 2}}),
+			name: "vals",
+			err: newNestedError(
+				base,
+				"m",
+			).Set(ErrVals{errValAttrPath: dottedName, errValRuleOperand: []int{1, 2}}),
 			original: base,
 			want:     `{"attr_path":"x.y","err":"some random error","msg":"m","rule_operand":[1,2]}`,
-			wantVals: ErrVals{attrPath: dottedName, ruleOperand: []int{1, 2}},
+			wantVals: ErrVals{errValAttrPath: dottedName, errValRuleOperand: []int{1, 2}},
 		},
 		{
 			name:     "vals named err and msg are overridden",

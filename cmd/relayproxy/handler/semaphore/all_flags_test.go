@@ -26,7 +26,7 @@ import (
 
 const (
 	badRequest                    = "Bad Request"
-	d10                           = `\d{10}`
+	tenDigitsPattern              = `\d{10}`
 	fixedTimestamp                = "1652273630"
 	handlerShouldReturnAn         = "handler should return an error"
 	impossibleTheExpectedWantBody = "Impossible the expected wantBody file %s"
@@ -191,7 +191,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
 			// replace the timestamps in the response
-			regex := regexp.MustCompile(d10)
+			regex := regexp.MustCompile(tenDigitsPattern)
 			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
@@ -337,7 +337,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
 			// replace the timestamps in the response
-			regex := regexp.MustCompile(d10)
+			regex := regexp.MustCompile(tenDigitsPattern)
 			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
