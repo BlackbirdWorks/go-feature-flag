@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
-	authorization = "Authorization"
-	first         = "first"
-	second        = "second"
-	testSecret    = "test-secret"
-	xCustom       = "X-Custom"
+	first      = "first"
+	second     = "second"
+	testSecret = "test-secret"
+	xCustom    = "X-Custom"
 )
 
 type headerTestHTTPClient func(*http.Request) (*http.Response, error)
@@ -41,7 +41,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 		{name: "nil headers", wantAuthorization: ""},
 		{
 			name:              "custom headers",
-			headers:           map[string][]string{authorization: {"Bearer test-token"}},
+			headers:           map[string][]string{protocol.HeaderAuthorization: {"Bearer test-token"}},
 			wantAuthorization: "Bearer test-token",
 		},
 	}
@@ -94,8 +94,8 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, signer.Sign(body, []byte(whNotifier.Secret)), req.Header.Get(xHubSignature256))
-				assert.Equal(t, "application/json", req.Header.Get(contentType))
-				assert.Equal(t, tt.wantAuthorization, req.Header.Get(authorization))
+				assert.Equal(t, "application/json", req.Header.Get(protocol.HeaderContentType))
+				assert.Equal(t, tt.wantAuthorization, req.Header.Get(protocol.HeaderAuthorization))
 			}
 
 			close(release)
@@ -126,11 +126,11 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 		{
 			name: "signed request", secret: testSecret,
 			headers: map[string][]string{
-				xCustom: {first, second}, contentType: {"text/plain"},
+				xCustom: {first, second}, protocol.HeaderContentType: {"text/plain"},
 				xHubSignature256: {"configured-signature"},
 			},
 			wantHeaders: http.Header{
-				xCustom: {first, second}, contentType: {"text/plain"},
+				xCustom: {first, second}, protocol.HeaderContentType: {"text/plain"},
 				xHubSignature256: {"configured-signature"},
 			},
 		},
@@ -150,7 +150,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 				Secret:      tt.secret,
 				Headers:     tt.headers,
 				httpClient: headerTestHTTPClient(func(req *http.Request) (*http.Response, error) {
-					assert.Equal(t, "application/json", req.Header.Get(contentType))
+					assert.Equal(t, "application/json", req.Header.Get(protocol.HeaderContentType))
 					assert.Equal(t, original.Values(xCustom), req.Header.Values(xCustom))
 
 					if tt.secret == "" {
