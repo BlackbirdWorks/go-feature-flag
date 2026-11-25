@@ -21,12 +21,12 @@ import (
 )
 
 const (
-	aBCD           = "ABCD"
-	anonymousUser  = "anonymousUser"
-	feature        = "feature"
-	fixture0000    = "0.0.0.0"
-	fixtureDefault = "Default"
-	randomKey      = "random-key"
+	aBCD               = "ABCD"
+	anonymousUser      = "anonymousUser"
+	feature            = "feature"
+	unspecifiedAddress = "0.0.0.0"
+	variationDefault   = "Default"
+	randomKey          = "random-key"
 )
 
 const containerName = "testcontainer"
@@ -56,7 +56,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -79,7 +79,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -102,7 +102,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -125,7 +125,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -148,7 +148,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -171,7 +171,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -192,7 +192,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -209,7 +209,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -228,7 +228,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -249,7 +249,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -309,11 +309,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--queueHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--tableHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--skipApiVersionCheck",
 		),
 	)

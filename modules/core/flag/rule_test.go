@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	abc            = "abc"
-	fixture96Ac59E = "96ac59e6-7492-436b-b15a-ba1d797d2423"
-	keyEqAbc       = "key eq \"abc\""
-	rule12         = "rule1"
-	userkey        = "userkey"
-	variationE     = "variation_E"
+	abc         = "abc"
+	userKeyUUID = "96ac59e6-7492-436b-b15a-ba1d797d2423"
+	keyEqAbc    = "key eq \"abc\""
+	rule12      = "rule1"
+	userkey     = "userkey"
+	variationE  = "variation_E"
 )
 
 type ruleEvaluateArgs struct {
@@ -297,7 +297,7 @@ func TestRuleEvaluate(t *testing.T) {
 				},
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(fixture96Ac59E),
+				user: ffcontext.NewEvaluationContext(userKeyUUID),
 			},
 			wantErr: assert.NoError,
 			want:    variationB,
@@ -314,7 +314,7 @@ func TestRuleEvaluate(t *testing.T) {
 				Query: new("key eq \"96ac59e6-7492-436b-b15a-ba1d797d2423\""),
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(fixture96Ac59E),
+				user: ffcontext.NewEvaluationContext(userKeyUUID),
 			},
 			wantErr: assert.NoError,
 			want:    variationB,
@@ -662,7 +662,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 				),
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(fixture96Ac59E),
+				user: ffcontext.NewEvaluationContext(userKeyUUID),
 			},
 			wantErr: assert.NoError,
 			want:    variationB,
@@ -681,7 +681,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 				),
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(fixture96Ac59E),
+				user: ffcontext.NewEvaluationContext(userKeyUUID),
 			},
 			wantErr: assert.Error,
 		},

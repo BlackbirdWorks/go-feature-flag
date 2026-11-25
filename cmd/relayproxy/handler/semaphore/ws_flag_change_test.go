@@ -24,9 +24,9 @@ import (
 
 const (
 	failedToConnectTo             = "Failed to connect to WebSocket"
-	fixtureDefault                = "default"
+	defaultFlagset                = "default"
 	flagsetA                      = "flagsetA"
-	gETWsV1                       = "GET /ws/v1/flag/change"
+	getWsV1Route                  = "GET /ws/v1/flag/change"
 	http2                         = "http"
 	myFlag                        = "my-flag"
 	rightFlag                     = "right-flag"
@@ -41,7 +41,7 @@ var (
 
 // newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {
-	return &mockFlagsetManagerSSE{flagsetName: fixtureDefault, isDefault: true}
+	return &mockFlagsetManagerSSE{flagsetName: defaultFlagset, isDefault: true}
 }
 
 func Test_websocket_flag_change(t *testing.T) {
@@ -158,7 +158,7 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 			e := http.NewServeMux()
-			e.Handle(gETWsV1, helper.Handle(ctrl.Handler, false))
+			e.Handle(getWsV1Route, helper.Handle(ctrl.Handler, false))
 
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
@@ -235,7 +235,7 @@ func broadcastUntilRegistered(
 	deadline := time.After(5 * time.Second)
 
 	for {
-		svc.BroadcastFlagChanges(fixtureDefault, diff)
+		svc.BroadcastFlagChanges(defaultFlagset, diff)
 
 		select {
 		case <-firstMsg:
@@ -272,7 +272,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
-	e.Handle(gETWsV1, helper.Handle(ctrl.Handler, false))
+	e.Handle(getWsV1Route, helper.Handle(ctrl.Handler, false))
 
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
@@ -341,7 +341,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	for range broadcasters {
 		wg.Go(func() {
 			for range broadcastsEach {
-				websocketService.BroadcastFlagChanges(fixtureDefault, diff)
+				websocketService.BroadcastFlagChanges(defaultFlagset, diff)
 			}
 		})
 	}
@@ -378,7 +378,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
-	e.Handle(gETWsV1, helper.Handle(ctrl.LegacyHandler, false))
+	e.Handle(getWsV1Route, helper.Handle(ctrl.LegacyHandler, false))
 
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()

@@ -19,10 +19,10 @@ import (
 
 const (
 	defaultRule        = "defaultRule"
-	fixture11          = "1.1"
-	fixtureDefault     = "Default"
-	fixtureFalse       = "False"
-	fixtureTrue        = "True"
+	versionOneOne      = "1.1"
+	variationDefault   = "Default"
+	variationFalse     = "False"
+	variationTrue      = "True"
 	httpsDiscordComAPI = "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	jane               = "jane"
 	keyEqRandomKey     = "key eq \"random-key\""
@@ -93,23 +93,23 @@ func discordGenericFlag() *flag.InternalFlag {
 				Name:  new(rule1),
 				Query: new(keyEqRandomKey),
 				Percentages: &map[string]float64{
-					fixtureFalse: 95,
-					fixtureTrue:  5,
+					variationFalse: 95,
+					variationTrue:  5,
 				},
 			},
 		},
 		Variations: &map[string]*any{
-			fixtureDefault: new(any("default")),
-			fixtureFalse:   new(any("false")),
-			fixtureTrue:    new(any("test")),
+			variationDefault: new(any("default")),
+			variationFalse:   new(any("false")),
+			variationTrue:    new(any("test")),
 		},
 		DefaultRule: &flag.Rule{
 			Name:            new(defaultRule),
-			VariationResult: new(fixtureDefault),
+			VariationResult: new(variationDefault),
 		},
 		TrackEvents: new(true),
 		Disable:     new(false),
-		Version:     new(fixture11),
+		Version:     new(versionOneOne),
 	}
 }
 
@@ -135,23 +135,23 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 95,
-										fixtureTrue:  5,
+										variationFalse: 95,
+										variationTrue:  5,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any("default")),
-								fixtureFalse:   new(any("false")),
-								fixtureTrue:    new(any("test")),
+								variationDefault: new(any("default")),
+								variationFalse:   new(any("false")),
+								variationTrue:    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 							TrackEvents: new(true),
 							Disable:     new(false),
-							Version:     new(fixture11),
+							Version:     new(versionOneOne),
 							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 						},
 					},
@@ -162,20 +162,20 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: jane},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 					},
@@ -183,15 +183,15 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 						"test-flag2": {
 							Before: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									fixtureDefault: new(any(false)),
-									fixtureFalse:   new(any(false)),
-									fixtureTrue:    new(any(true)),
+									variationDefault: new(any(false)),
+									variationFalse:   new(any(false)),
+									variationTrue:    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name: new(defaultRule),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
@@ -202,27 +202,27 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 							},
 							After: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									fixtureDefault: new(any("strDefault")),
-									fixtureFalse:   new(any("strFalse")),
-									fixtureTrue:    new(any("strTrue")),
+									variationDefault: new(any("strDefault")),
+									variationFalse:   new(any("strFalse")),
+									variationTrue:    new(any("strTrue")),
 								},
 								Rules: &[]flag.Rule{
 									{
 										Name:  new(rule1),
 										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
-											fixtureFalse: 20,
-											fixtureTrue:  80,
+											variationFalse: 20,
+											variationTrue:  80,
 										},
 									},
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new(defaultRule),
-									VariationResult: new(fixtureDefault),
+									VariationResult: new(variationDefault),
 								},
 								Disable:     new(true),
 								TrackEvents: new(false),
-								Version:     new(fixture11),
+								Version:     new(versionOneOne),
 								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 							},
 						},

@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	aBCD           = "ABCD"
-	aBCDEF         = "ABCDEF"
-	addr1          = "addr1"
-	addr2          = "addr2"
-	anonymousUser  = "anonymousUser"
-	feature        = "feature"
-	fixtureDefault = "Default"
-	json2          = "json"
-	randomKey      = "random-key"
+	aBCD             = "ABCD"
+	aBCDEF           = "ABCDEF"
+	addr1            = "addr1"
+	addr2            = "addr2"
+	anonymousUser    = "anonymousUser"
+	feature          = "feature"
+	variationDefault = "Default"
+	json2            = "json"
+	randomKey        = "random-key"
 )
 
 var (
@@ -96,7 +96,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -106,7 +106,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -130,7 +130,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -140,7 +140,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -164,7 +164,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -174,7 +174,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},

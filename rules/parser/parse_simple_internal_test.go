@@ -9,27 +9,27 @@ import (
 )
 
 const (
-	abc        = "abc"
-	bbc        = "bbc"
-	cde        = "cde"
-	fixture100 = "1.0.0"
-	fixture110 = "1.1.0"
-	fixture200 = "2.0.0"
-	s2         = "(%s)"
-	x1         = `x != 1`
-	xEQ10      = `x EQ 1.0.0`
-	xEq1       = `x eq 1`
-	xEq10      = `x eq 1.0`
-	xEqNull    = `x eq null`
-	xGE11      = `x GE 1.1.0`
-	xGT11      = `x GT 1.1.0`
-	xGe1       = `x ge 1`
-	xGeCde     = `x ge "cde"`
-	xLE11      = `x LE 1.1.0`
-	xLT11      = `x LT 1.1.0`
-	xLe1       = `x le 1`
-	xLe11      = `x le 1.1`
-	xNE10      = `x NE 1.0.0`
+	abc                = "abc"
+	bbc                = "bbc"
+	cde                = "cde"
+	versionOneZeroZero = "1.0.0"
+	versionOneOneZero  = "1.1.0"
+	versionTwoZeroZero = "2.0.0"
+	s2                 = "(%s)"
+	x1                 = `x != 1`
+	xEQ10              = `x EQ 1.0.0`
+	xEq1               = `x eq 1`
+	xEq10              = `x eq 1.0`
+	xEqNull            = `x eq null`
+	xGE11              = `x GE 1.1.0`
+	xGT11              = `x GT 1.1.0`
+	xGe1               = `x ge 1`
+	xGeCde             = `x ge "cde"`
+	xLE11              = `x LE 1.1.0`
+	xLT11              = `x LT 1.1.0`
+	xLe1               = `x le 1`
+	xLe11              = `x le 1.1`
+	xNE10              = `x NE 1.0.0`
 )
 
 type testCase struct {
@@ -99,7 +99,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xEQ10,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
@@ -115,7 +115,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xEQ10,
 			input: obj{
-				"y": fixture100,
+				"y": versionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
@@ -153,7 +153,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xNE10,
 			input: obj{
-				"x": fixture110,
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
@@ -161,7 +161,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xLT11,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
@@ -169,7 +169,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xLT11,
 			input: obj{
-				"x": fixture200,
+				"x": versionTwoZeroZero,
 			},
 			result:   false,
 			hasError: false,
@@ -185,7 +185,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xLE11,
 			input: obj{
-				"x": fixture110,
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
@@ -193,7 +193,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xLE11,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: false,
@@ -201,7 +201,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xLE11,
 			input: obj{
-				"x": fixture200,
+				"x": versionTwoZeroZero,
 			},
 			result:   false,
 			hasError: false,
@@ -217,7 +217,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xGT11,
 			input: obj{
-				"x": fixture200,
+				"x": versionTwoZeroZero,
 			},
 			result:   true,
 			hasError: false,
@@ -225,7 +225,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xGT11,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
@@ -241,7 +241,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xGE11,
 			input: obj{
-				"x": fixture200,
+				"x": versionTwoZeroZero,
 			},
 			result:   true,
 			hasError: false,
@@ -249,7 +249,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xGE11,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   false,
 			hasError: false,
@@ -257,7 +257,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: xGE11,
 			input: obj{
-				"x": fixture110,
+				"x": versionOneOneZero,
 			},
 			result:   true,
 			hasError: false,
@@ -273,7 +273,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x CO 1.1.0`,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -281,7 +281,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x SW 1.1.0`,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -289,7 +289,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x EW 1.1.0`,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,
@@ -297,7 +297,7 @@ func TestVersions(t *testing.T) {
 		{
 			rule: `x SW 1.1.0`,
 			input: obj{
-				"x": fixture100,
+				"x": versionOneZeroZero,
 			},
 			result:   true,
 			hasError: true,

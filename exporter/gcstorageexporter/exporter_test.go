@@ -19,14 +19,14 @@ import (
 )
 
 const (
-	aBCD           = "ABCD"
-	anonymousUser  = "anonymousUser"
-	csv            = "csv"
-	feature        = "feature"
-	fixtureDefault = "Default"
-	flagVariation  = "^flag-variation-"
-	randomKey      = "random-key"
-	test           = "test"
+	aBCD             = "ABCD"
+	anonymousUser    = "anonymousUser"
+	csv              = "csv"
+	feature          = "feature"
+	variationDefault = "Default"
+	flagVariation    = "^flag-variation-"
+	randomKey        = "random-key"
+	test             = "test"
 )
 
 func TestGoogleStorage_Export(t *testing.T) {
@@ -61,7 +61,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -81,7 +81,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -101,7 +101,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -122,7 +122,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -143,7 +143,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -163,7 +163,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -182,7 +182,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -202,7 +202,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -222,7 +222,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -335,7 +335,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 				UserKey:      aBCD,
 				CreationDate: 1617970547,
 				Key:          randomKey,
-				Variation:    fixtureDefault,
+				Variation:    variationDefault,
 				Value:        "YO",
 				Default:      false,
 			},

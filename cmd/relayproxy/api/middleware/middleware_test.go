@@ -27,7 +27,7 @@ const (
 	doc                 = "/doc"
 	eTag                = "ETag"
 	etag2               = "etag"
-	fixture100          = "1.0.0"
+	versionOneZeroZero  = "1.0.0"
 	good                = "good"
 	hello               = "hello"
 	http2               = "http"
@@ -75,7 +75,7 @@ func humaHandler(
 	handler func(context.Context, *struct{}) (*document, error), mws ...func(huma.Context, func(huma.Context)),
 ) http.Handler {
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("test", fixture100)
+	cfg := huma.DefaultConfig("test", versionOneZeroZero)
 	cfg.OpenAPIPath, cfg.DocsPath, cfg.SchemasPath = "", "", ""
 	cfg.CreateHooks = nil
 	huma.Register(humago.New(mux, cfg), huma.Operation{
@@ -190,8 +190,8 @@ func TestVersionHeader(t *testing.T) {
 		conf    *config.Config
 		wantNew string
 	}{
-		{name: "enabled", conf: &config.Config{Version: fixture100}, wantNew: fixture100},
-		{name: "disabled", conf: &config.Config{Version: fixture100, DisableVersionHeader: true}},
+		{name: "enabled", conf: &config.Config{Version: versionOneZeroZero}, wantNew: versionOneZeroZero},
+		{name: "disabled", conf: &config.Config{Version: versionOneZeroZero, DisableVersionHeader: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

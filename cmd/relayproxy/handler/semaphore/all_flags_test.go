@@ -27,7 +27,7 @@ const (
 	badRequest                    = "Bad Request"
 	contentType2                  = "Content-Type"
 	d10                           = `\d{10}`
-	fixture1652273630             = "1652273630"
+	fixedTimestamp                = "1652273630"
 	handlerShouldReturnAn         = "handler should return an error"
 	impossibleTheExpectedWantBody = "Impossible the expected wantBody file %s"
 	invalidHTTPCode               = "Invalid HTTP Code"
@@ -192,7 +192,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 
 			// replace the timestamps in the response
 			regex := regexp.MustCompile(d10)
-			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixture1652273630)
+			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
 			require.NoError(t, err, impossibleTheExpectedWantBody, tt.want.bodyFile)
@@ -338,7 +338,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 
 			// replace the timestamps in the response
 			regex := regexp.MustCompile(d10)
-			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixture1652273630)
+			replacedStr := regex.ReplaceAllString(rec.Body.String(), fixedTimestamp)
 
 			// validate the result
 			require.NoError(t, err, impossibleTheExpectedWantBody, tt.want.bodyFile)

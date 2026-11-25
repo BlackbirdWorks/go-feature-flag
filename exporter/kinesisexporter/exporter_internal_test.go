@@ -19,7 +19,7 @@ import (
 
 const (
 	feature             = "feature"
-	fixtureDefault      = "default"
+	variationDefault    = "default"
 	json2               = "json"
 	testExplicitHashKey = "test-explicit-hash-key"
 	testStream          = "test-stream"
@@ -196,28 +196,28 @@ func TestExporterSettingsCreation(t *testing.T) {
 
 	{
 		settings := NewSettings()
-		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamArn(testStreamArn))
-		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Equal(t, testStreamArn, *settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamName(testStreamName))
-		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Equal(t, testStreamName, *settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithExplicitHashKey(testExplicitHashKey))
-		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)

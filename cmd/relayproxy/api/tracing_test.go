@@ -54,7 +54,7 @@ func Test_Tracing(t *testing.T) {
 		wantStatus int
 		wantError  bool
 	}{
-		{name: "huma operation", method: http.MethodGet, path: health2, wantName: gETHealth, wantRoute: health2,
+		{name: "huma operation", method: http.MethodGet, path: health2, wantName: getHealthRoute, wantRoute: health2,
 			wantRecord: success, wantStatus: http.StatusOK},
 		{
 			name:       "huma operation failing",

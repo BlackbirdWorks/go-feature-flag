@@ -12,13 +12,13 @@ import (
 )
 
 const (
-	fixtureDefault = "default"
-	jsonlogic22    = "jsonlogic-2"
-	key2           = "key"
-	plan2          = "plan"
-	pro            = "pro"
-	targetingKey2  = "targetingKey"
-	user1          = "user-1"
+	defaultVariation = "default"
+	jsonlogic22      = "jsonlogic-2"
+	key2             = "key"
+	plan2            = "plan"
+	pro              = "pro"
+	targetingKey2    = "targetingKey"
+	user1            = "user-1"
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
@@ -204,17 +204,17 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 	internalFlag := InternalFlag{
 		Variations: &map[string]*any{
-			nikunjy2:       new(any(nikunjy2)),
-			jsonlogic2:     new(any(jsonlogic2)),
-			jsonlogic22:    new(any(jsonlogic22)),
-			fixtureDefault: new(any(fixtureDefault)),
+			nikunjy2:         new(any(nikunjy2)),
+			jsonlogic2:       new(any(jsonlogic2)),
+			jsonlogic22:      new(any(jsonlogic22)),
+			defaultVariation: new(any(defaultVariation)),
 		},
 		Rules: &[]Rule{
 			{Query: new(`plan eq "free"`), VariationResult: new(nikunjy2)},
 			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new(jsonlogic2)},
 			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new(jsonlogic22)},
 		},
-		DefaultRule: &Rule{VariationResult: new(fixtureDefault)},
+		DefaultRule: &Rule{VariationResult: new(defaultVariation)},
 	}
 
 	tests := []struct {
@@ -225,7 +225,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		{name: "nikunjy rule matches", plan: free, want: nikunjy2},
 		{name: "nikunjy rule misses and jsonlogic rule matches", plan: pro, want: jsonlogic2},
 		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: jsonlogic22},
-		{name: "no rule matches", plan: "enterprise", want: fixtureDefault},
+		{name: "no rule matches", plan: "enterprise", want: defaultVariation},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

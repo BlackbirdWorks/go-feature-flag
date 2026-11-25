@@ -117,7 +117,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			)
 
 			require.NotPanics(t, func() {
-				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(tt.env...)).
+				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), versionOneZeroZero, false, withEnviron(tt.env...)).
 					ToConfig()
 			})
 

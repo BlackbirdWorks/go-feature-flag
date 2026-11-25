@@ -17,11 +17,11 @@ import (
 
 const (
 	defaultRule            = "defaultRule"
-	fixtureDefault         = "Default"
-	fixtureDefault2        = "default"
-	fixtureFalse           = "False"
-	fixtureFalse2          = "false"
-	fixtureTrue            = "True"
+	variationDefault       = "Default"
+	lowerDefault           = "default"
+	variationFalse         = "False"
+	lowerFalse             = "false"
+	variationTrue          = "True"
 	httpWebhookExampleHook = "http://webhook.example/hook"
 	rule1                  = "rule1"
 	test                   = "test"
@@ -115,15 +115,15 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						testFlag3: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(fixtureDefault2)),
-								fixtureFalse:   new(any(fixtureFalse2)),
-								fixtureTrue:    new(any(test)),
+								variationDefault: new(any(lowerDefault)),
+								variationFalse:   new(any(lowerFalse)),
+								variationTrue:    new(any(test)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									fixtureFalse: 95,
-									fixtureTrue:  5,
+									variationFalse: 95,
+									variationTrue:  5,
 								},
 							},
 						},
@@ -135,19 +135,19 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 					},
@@ -159,19 +159,19 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 										Name:  new(rule1),
 										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
-											fixtureFalse: 0,
-											fixtureTrue:  100,
+											variationFalse: 0,
+											variationTrue:  100,
 										},
 									},
 								},
 								Variations: &map[string]*any{
-									fixtureDefault: new(any(false)),
-									fixtureFalse:   new(any(false)),
-									fixtureTrue:    new(any(true)),
+									variationDefault: new(any(false)),
+									variationFalse:   new(any(false)),
+									variationTrue:    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new(defaultRule),
-									VariationResult: new(fixtureDefault),
+									VariationResult: new(variationDefault),
 								},
 							},
 							After: &flag.InternalFlag{
@@ -180,19 +180,19 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 										Name:  new(rule1),
 										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
-											fixtureFalse: 0,
-											fixtureTrue:  100,
+											variationFalse: 0,
+											variationTrue:  100,
 										},
 									},
 								},
 								Variations: &map[string]*any{
-									fixtureDefault: new(any(false)),
-									fixtureFalse:   new(any(false)),
-									fixtureTrue:    new(any(true)),
+									variationDefault: new(any(false)),
+									variationFalse:   new(any(false)),
+									variationTrue:    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new(defaultRule),
-									VariationResult: new(fixtureDefault),
+									VariationResult: new(variationDefault),
 								},
 								Disable: new(true),
 							},
@@ -214,15 +214,15 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						testFlag3: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(fixtureDefault2)),
-								fixtureFalse:   new(any(fixtureFalse2)),
-								fixtureTrue:    new(any(test)),
+								variationDefault: new(any(lowerDefault)),
+								variationFalse:   new(any(lowerFalse)),
+								variationTrue:    new(any(test)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									fixtureFalse: 95,
-									fixtureTrue:  5,
+									variationFalse: 95,
+									variationTrue:  5,
 								},
 							},
 						},
@@ -297,15 +297,15 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 					Added: map[string]flag.Flag{
 						testFlag3: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(fixtureDefault2)),
-								fixtureFalse:   new(any(fixtureFalse2)),
-								fixtureTrue:    new(any(test)),
+								variationDefault: new(any(lowerDefault)),
+								variationFalse:   new(any(lowerFalse)),
+								variationTrue:    new(any(test)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									fixtureFalse: 95,
-									fixtureTrue:  5,
+									variationFalse: 95,
+									variationTrue:  5,
 								},
 							},
 						},
@@ -326,15 +326,15 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 		Added: map[string]flag.Flag{
 			testFlag3: &flag.InternalFlag{
 				Variations: &map[string]*any{
-					fixtureDefault: new(any(fixtureDefault2)),
-					fixtureFalse:   new(any(fixtureFalse2)),
-					fixtureTrue:    new(any(test)),
+					variationDefault: new(any(lowerDefault)),
+					variationFalse:   new(any(lowerFalse)),
+					variationTrue:    new(any(test)),
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(defaultRule),
 					Percentages: &map[string]float64{
-						fixtureFalse: 95,
-						fixtureTrue:  5,
+						variationFalse: 95,
+						variationTrue:  5,
 					},
 				},
 			},

@@ -242,7 +242,7 @@ flagSets:
 			f.String(config3, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(environ...)).
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, false, withEnviron(environ...)).
 				ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
@@ -315,7 +315,7 @@ studio:
 			f.String(config3, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
 
-			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, true)
+			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, true)
 			defer func() { _ = loader.StopWatchChanges() }()
 
 			initialConfig, err := loader.ToConfig()
@@ -522,7 +522,7 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 	f.String(config3, "", locationOfYourConfig)
 	require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
-	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, true)
+	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, true)
 
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 

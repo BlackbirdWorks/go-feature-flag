@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	gETHealth = "GET /health"
-	success   = "Success"
+	getHealthRoute = "GET /health"
+	success        = "Success"
 )
 
 // panicMonitoring is a monitoring service whose health endpoint panics.
@@ -52,7 +52,7 @@ func Test_AccessLog(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name: "clean path", monitoring: okMonitoring{}, target: health2, wantRequest: gETHealth,
+			name: "clean path", monitoring: okMonitoring{}, target: health2, wantRequest: getHealthRoute,
 			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{success: slog.LevelDebug},
 		},
 		{
@@ -65,7 +65,7 @@ func Test_AccessLog(t *testing.T) {
 			wantRecords: map[string]slog.Level{success: slog.LevelDebug},
 		},
 		{
-			name: "panic", monitoring: panicMonitoring{}, target: health2, wantRequest: gETHealth,
+			name: "panic", monitoring: panicMonitoring{}, target: health2, wantRequest: getHealthRoute,
 			wantStatus: http.StatusInternalServerError,
 			wantRecords: map[string]slog.Level{
 				"panic recovered": slog.LevelError,

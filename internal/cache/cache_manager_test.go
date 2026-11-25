@@ -24,8 +24,8 @@ import (
 
 const (
 	falseVar                 = "false_var"
-	fixtureFalse2            = "false"
-	fixtureTrue2             = "true"
+	lowerFalse               = "false"
+	lowerTrue                = "true"
 	flag13                   = "flag1"
 	flag22                   = "flag2"
 	json2                    = "json"
@@ -431,8 +431,8 @@ test-flag2:
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						falseVar: new(any(fixtureFalse2)),
-						trueVar:  new(any(fixtureTrue2)),
+						falseVar: new(any(lowerFalse)),
+						trueVar:  new(any(lowerTrue)),
 					},
 					Rules: &[]flag.Rule{
 						{
@@ -602,25 +602,25 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				flag13: {
 					Variations: &map[string]*any{},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureTrue2),
+						VariationResult: new(lowerTrue),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
 				flag13: {
 					Variations: &map[string]*any{
-						fixtureTrue2: new(any(true)),
+						lowerTrue: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureTrue2),
+						VariationResult: new(lowerTrue),
 					},
 				},
 				flag22: {
 					Variations: &map[string]*any{
-						fixtureFalse2: new(any(false)),
+						lowerFalse: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureFalse2),
+						VariationResult: new(lowerFalse),
 					},
 				},
 			},
@@ -632,10 +632,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			updatedFlags: map[string]dto.DTO{
 				flag13: {
 					Variations: &map[string]*any{
-						fixtureTrue2: new(any(true)),
+						lowerTrue: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureTrue2),
+						VariationResult: new(lowerTrue),
 					},
 				},
 			},
@@ -646,28 +646,28 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			initialFlags: map[string]dto.DTO{
 				flag13: {
 					Variations: &map[string]*any{
-						fixtureTrue2: new(any(true)),
+						lowerTrue: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureTrue2),
+						VariationResult: new(lowerTrue),
 					},
 				},
 				flag22: {
 					Variations: &map[string]*any{
-						fixtureFalse2: new(any(false)),
+						lowerFalse: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureFalse2),
+						VariationResult: new(lowerFalse),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
 				flag13: {
 					Variations: &map[string]*any{
-						fixtureTrue2: new(any(true)),
+						lowerTrue: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(fixtureTrue2),
+						VariationResult: new(lowerTrue),
 					},
 				},
 			},

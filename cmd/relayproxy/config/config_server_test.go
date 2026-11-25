@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	aPIGatewayV1               = "APIGatewayV1"
+	apiGatewayV1Name           = "APIGatewayV1"
 	apiV1                      = "/api/v1"
 	deprecated                 = "deprecated"
 	exampleCom                 = "example.com"
@@ -435,7 +435,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 				Server: config.Server{
 					LambdaAdapter: "",
 				},
-				AwsLambdaAdapter: aPIGatewayV1,
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterAPIGatewayV1,
 			wantDeprecationWarned: true,
@@ -446,7 +446,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 				Server: config.Server{
 					LambdaAdapter: config.LambdaAdapterALB,
 				},
-				AwsLambdaAdapter: aPIGatewayV1,
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterALB,
 			wantDeprecationWarned: false,
@@ -468,7 +468,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 				Server: config.Server{
 					LambdaAdapter: "",
 				},
-				AwsLambdaAdapter: aPIGatewayV1,
+				AwsLambdaAdapter: apiGatewayV1Name,
 			},
 			wantAdapter:           config.LambdaAdapterAPIGatewayV1,
 			wantDeprecationWarned: false,

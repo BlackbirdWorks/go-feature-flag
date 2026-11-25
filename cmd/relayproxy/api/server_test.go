@@ -1005,7 +1005,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			name:          "Authentication disabled - health endpoint",
 			configAPIKeys: nil,
 			endpoint:      httpUnixHealth,
-			method:        gET,
+			method:        methodGET,
 			want:          http.StatusOK,
 		},
 		{

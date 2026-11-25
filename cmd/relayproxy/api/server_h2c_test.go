@@ -46,7 +46,7 @@ func TestServerEnableH2C(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: file2, Path: testdataFlagConfigYaml}},
 				Server: config.Server{
 					Mode:      config.ServerModeHTTP,
-					Host:      fixture127001,
+					Host:      loopbackAddress,
 					Port:      port,
 					EnableH2C: tt.enableH2C,
 				},

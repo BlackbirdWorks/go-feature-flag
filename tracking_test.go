@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	anonymous2         = "anonymous"
-	fixture1668D845051 = "1668d845-051d-4dd9-907a-7ebe6aa2c9da"
-	value              = "value"
+	anonymous2      = "anonymous"
+	evalContextUUID = "1668d845-051d-4dd9-907a-7ebe6aa2c9da"
+	value           = "value"
 )
 
 func TestValidTrackingEvent(t *testing.T) {
@@ -39,7 +39,7 @@ func TestValidTrackingEvent(t *testing.T) {
 
 	goff.Track(
 		"my-feature-flag",
-		ffcontext.NewEvaluationContextBuilder(fixture1668D845051).
+		ffcontext.NewEvaluationContextBuilder(evalContextUUID).
 			AddCustom("admin", true).
 			AddCustom(anonymous2, true).
 			Build(),
@@ -47,12 +47,12 @@ func TestValidTrackingEvent(t *testing.T) {
 	)
 
 	assert.Len(t, exp.ExportedEvents, 1)
-	assert.Equal(t, fixture1668D845051, exp.ExportedEvents[0].UserKey)
+	assert.Equal(t, evalContextUUID, exp.ExportedEvents[0].UserKey)
 	assert.Equal(t, "my-feature-flag", exp.ExportedEvents[0].Key)
 	assert.Equal(
 		t,
 		map[string]any{
-			"targetingKey": fixture1668D845051,
+			"targetingKey": evalContextUUID,
 			"admin":        true,
 			anonymous2:     true,
 		},

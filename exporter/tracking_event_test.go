@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	event2       = "event"
-	fixture123   = "123"
-	targetingKey = "targetingKey"
-	toto         = "toto"
-	tracking     = "tracking"
+	event2          = "event"
+	numericValue123 = "123"
+	targetingKey    = "targetingKey"
+	toto            = "toto"
+	tracking        = "tracking"
 )
 
 func TestTrackingEvent_FormatInCSV(t *testing.T) {
@@ -38,7 +38,7 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 				Key:               randomKey,
 				EvaluationContext: map[string]any{targetingKey: aBCD},
 				TrackingDetails: map[string]any{
-					event2: fixture123,
+					event2: numericValue123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -56,7 +56,7 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 				Key:               randomKey,
 				EvaluationContext: map[string]any{targetingKey: aBCD, toto: 123},
 				TrackingDetails: map[string]any{
-					event2: fixture123,
+					event2: numericValue123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -100,7 +100,7 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 				Key:               randomKey,
 				EvaluationContext: map[string]any{targetingKey: aBCD},
 				TrackingDetails: map[string]any{
-					event2: fixture123,
+					event2: numericValue123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
@@ -117,7 +117,7 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 				Key:               randomKey,
 				EvaluationContext: map[string]any{targetingKey: aBCD, toto: 123},
 				TrackingDetails: map[string]any{
-					event2: fixture123,
+					event2: numericValue123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +

@@ -20,20 +20,20 @@ import (
 )
 
 const (
-	clientError  = "Client error"
-	fromRequest  = "from-request"
-	fromResponse = "from-response"
-	gETSomething = "GET /something"
-	host2        = "host"
-	latency      = "latency"
-	remoteIP     = "remote_ip"
-	request2     = "request"
-	requestID    = "request_id"
-	size2        = "size"
-	something    = "/something"
-	status2      = "status"
-	success      = "Success"
-	userAgent    = "user_agent"
+	clientError       = "Client error"
+	fromRequest       = "from-request"
+	fromResponse      = "from-response"
+	getSomethingRoute = "GET /something"
+	host2             = "host"
+	latency           = "latency"
+	remoteIP          = "remote_ip"
+	request2          = "request"
+	requestID         = "request_id"
+	size2             = "size"
+	something         = "/something"
+	status2           = "status"
+	success           = "Success"
+	userAgent         = "user_agent"
 )
 
 // requestLogger is the access log of a plain handler, as the relay proxy builds it.
@@ -63,7 +63,7 @@ func TestRequestLogger200(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields[status2])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, gETSomething, logFields[request2])
+	assert.Equal(t, getSomethingRoute, logFields[request2])
 	assert.NotNil(t, logFields[host2])
 	assert.NotNil(t, logFields[size2])
 }
@@ -82,7 +82,7 @@ func TestRequestLogger300(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields[status2])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, gETSomething, logFields[request2])
+	assert.Equal(t, getSomethingRoute, logFields[request2])
 	assert.NotNil(t, logFields[host2])
 	assert.NotNil(t, logFields[size2])
 }
@@ -100,7 +100,7 @@ func TestRequestLogger400(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields[status2])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, gETSomething, logFields[request2])
+	assert.Equal(t, getSomethingRoute, logFields[request2])
 	assert.NotNil(t, logFields[host2])
 	assert.NotNil(t, logFields[size2])
 }
@@ -121,7 +121,7 @@ func TestRequestLogger500(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields[status2])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, gETSomething, logFields[request2])
+	assert.Equal(t, getSomethingRoute, logFields[request2])
 	assert.NotNil(t, logFields[host2])
 	assert.NotNil(t, logFields[size2])
 }

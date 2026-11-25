@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	aBCD           = "ABCD"
-	anonymousUser  = "anonymousUser"
-	feature        = "feature"
-	fixtureDefault = "Default"
-	randomKey      = "random-key"
+	aBCD             = "ABCD"
+	anonymousUser    = "anonymousUser"
+	feature          = "feature"
+	variationDefault = "Default"
+	randomKey        = "random-key"
 )
 
 var (
@@ -82,7 +82,7 @@ func TestExporterExport(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -102,7 +102,7 @@ func TestExporterExport(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -112,7 +112,7 @@ func TestExporterExport(t *testing.T) {
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -132,7 +132,7 @@ func TestExporterExport(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -142,7 +142,7 @@ func TestExporterExport(t *testing.T) {
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},

@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	acceptFailed  = "accept failed"
-	fixture127001 = "127.0.0.1"
+	acceptFailed    = "accept failed"
+	loopbackAddress = "127.0.0.1"
 )
 
 var errAcceptFailed = errors.New(acceptFailed)
@@ -76,7 +76,7 @@ func Test_Listener(t *testing.T) {
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
 				_, port := testutils.ListenLocal(t)
-				conf.Server.Host = fixture127001
+				conf.Server.Host = loopbackAddress
 				conf.Server.Port = port
 
 				return nil
@@ -90,7 +90,7 @@ func Test_Listener(t *testing.T) {
 				t.Helper()
 				ln, _ := testutils.ListenLocal(t)
 				_, monitoringPort := testutils.ListenLocal(t)
-				conf.Server.Host = fixture127001
+				conf.Server.Host = loopbackAddress
 				conf.Server.MonitoringPort = monitoringPort
 
 				return []api.Option{api.WithListener(ln)}

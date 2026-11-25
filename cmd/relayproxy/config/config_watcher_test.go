@@ -29,7 +29,7 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
 	require.NoError(t, err)
 
-	cfg, err := config.New(f, slog.New(slog.DiscardHandler), fixture100)
+	cfg, err := config.New(f, slog.New(slog.DiscardHandler), versionOneZeroZero)
 	require.NoError(t, err)
 
 	return cfg, configFile

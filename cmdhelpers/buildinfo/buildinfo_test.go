@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	fixture010 = "0.1.0"
-	go1274     = "go1.27.4"
+	versionZeroOneZero = "0.1.0"
+	go1274             = "go1.27.4"
 )
 
 func TestText(t *testing.T) {
@@ -26,13 +26,13 @@ func TestText(t *testing.T) {
 	}{
 		{
 			name:   "release build uses the link flags",
-			linked: buildinfo.Linked{Version: fixture010, Commit: "abc123", Date: "2026-11-24T12:00:00Z"},
+			linked: buildinfo.Linked{Version: versionZeroOneZero, Commit: "abc123", Date: "2026-11-24T12:00:00Z"},
 			bi:     &debug.BuildInfo{GoVersion: go1274, Main: debug.Module{Version: "(devel)"}},
 			want:   "semaphore 0.1.0\ncommit: abc123\nbuilt: 2026-11-24T12:00:00Z\ngo: go1.27.4\nfips140: false\n",
 		},
 		{
 			name:   "fips mode is reported",
-			linked: buildinfo.Linked{Version: fixture010, Commit: "abc123", Date: "d"},
+			linked: buildinfo.Linked{Version: versionZeroOneZero, Commit: "abc123", Date: "d"},
 			bi:     &debug.BuildInfo{GoVersion: go1274},
 			fips:   true,
 			want:   "semaphore 0.1.0\ncommit: abc123\nbuilt: d\ngo: go1.27.4\nfips140: true\n",
@@ -81,7 +81,7 @@ func TestText(t *testing.T) {
 func TestTextWithoutBuildInfo(t *testing.T) {
 	t.Parallel()
 
-	got := buildinfo.Text("semaphore-cli", buildinfo.Linked{Version: fixture010}, nil, false)
+	got := buildinfo.Text("semaphore-cli", buildinfo.Linked{Version: versionZeroOneZero}, nil, false)
 	assert.Contains(t, got, "semaphore-cli 0.1.0\ncommit: unknown\nbuilt: unknown\ngo: go")
 }
 

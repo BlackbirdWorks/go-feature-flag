@@ -22,24 +22,24 @@ import (
 )
 
 const (
-	aBCD                   = "ABCD"
-	anonymousUser          = "anonymousUser"
-	csv                    = "csv"
-	eFGH                   = "EFGH"
-	feature                = "feature"
-	fixture09Json          = "-[0-9]*\\.json$"
-	fixture09Parquet       = "-[0-9]*\\.parquet$"
-	fixture127             = "127"
-	fixtureDefault         = "Default"
-	flagVariation          = "^flag-variation-"
-	json                   = "json"
-	parquet2               = "parquet"
-	randomKey              = "random-key"
-	sERVER                 = "SERVER"
-	test                   = "test"
-	testdataAllDefaultJSON = "./testdata/all_default.json"
-	xxx                    = "xxx"
-	yO2                    = "YO2"
+	aBCD                     = "ABCD"
+	anonymousUser            = "anonymousUser"
+	csv                      = "csv"
+	eFGH                     = "EFGH"
+	feature                  = "feature"
+	jsonFileSuffixPattern    = "-[0-9]*\\.json$"
+	parquetFileSuffixPattern = "-[0-9]*\\.parquet$"
+	numericVersion127        = "127"
+	variationDefault         = "Default"
+	flagVariation            = "^flag-variation-"
+	json                     = "json"
+	parquet2                 = "parquet"
+	randomKey                = "random-key"
+	sERVER                   = "SERVER"
+	test                     = "test"
+	testdataAllDefaultJSON   = "./testdata/all_default.json"
+	xxx                      = "xxx"
+	yO2                      = "YO2"
 )
 
 type fileExportFields struct {
@@ -148,7 +148,7 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -159,16 +159,16 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: flagVariation + hostname + fixture09Json,
+				fileNameRegex: flagVariation + hostname + jsonFileSuffixPattern,
 				content:       testdataAllDefaultJSON,
 			},
 		},
@@ -186,7 +186,7 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -197,7 +197,7 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
 						Source:       sERVER,
@@ -224,7 +224,7 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -236,16 +236,16 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: flagVariation + hostname + fixture09Parquet,
+				fileNameRegex: flagVariation + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
 						Kind:         feature,
@@ -253,7 +253,7 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        `"YO"`,
 						Default:      false,
 						Source:       sERVER,
@@ -265,10 +265,10 @@ func TestFile_Export(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        `"YO2"`,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 						Metadata:     map[string]any{},
 					},
@@ -307,7 +307,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: "^tracking-" + hostname + fixture09Parquet,
+				fileNameRegex: "^tracking-" + hostname + parquetFileSuffixPattern,
 				trackingEvents: []exporter.TrackingEvent{
 					{
 						Kind:              feature,
@@ -336,7 +336,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -347,7 +347,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
 						Source:       sERVER,
@@ -374,7 +374,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value: map[string]any{
 							"string": "string",
 							"bool":   true,
@@ -388,7 +388,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: flagVariation + hostname + fixture09Parquet,
+				fileNameRegex: flagVariation + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
 						Kind:         feature,
@@ -396,7 +396,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
 						Default:      false,
 						Source:       sERVER,
@@ -420,7 +420,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -431,7 +431,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
 						Source:       sERVER,
@@ -466,7 +466,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -477,10 +477,10 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 					},
 				},
@@ -504,7 +504,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -515,16 +515,16 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: flagVariation + hostname + fixture09Json,
+				fileNameRegex: flagVariation + hostname + jsonFileSuffixPattern,
 				content:       testdataAllDefaultJSON,
 			},
 		},
@@ -542,7 +542,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -553,7 +553,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
 						Source:       sERVER,
@@ -576,7 +576,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -587,7 +587,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
 						Source:       sERVER,
@@ -610,7 +610,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -652,7 +652,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -696,7 +696,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      aBCD,
 						CreationDate: 1617970547,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        "YO",
 						Default:      false,
 						Source:       sERVER,
@@ -707,16 +707,16 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						UserKey:      eFGH,
 						CreationDate: 1617970701,
 						Key:          randomKey,
-						Variation:    fixtureDefault,
+						Variation:    variationDefault,
 						Value:        yO2,
 						Default:      false,
-						Version:      fixture127,
+						Version:      numericVersion127,
 						Source:       sERVER,
 					},
 				},
 			},
 			expected: fileExportExpected{
-				fileNameRegex: flagVariation + hostname + fixture09Json,
+				fileNameRegex: flagVariation + hostname + jsonFileSuffixPattern,
 				content:       testdataAllDefaultJSON,
 			},
 		},
@@ -814,7 +814,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	featureEvents := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
 			Kind: feature, ContextKind: anonymousUser, UserKey: aBCD, CreationDate: 1617970547, Key: randomKey,
-			Variation: fixtureDefault, Value: "YO", Default: false, Source: sERVER,
+			Variation: variationDefault, Value: "YO", Default: false, Source: sERVER,
 		}}
 
 	filePrefix := "test-flag-variation-EXAMPLE-"

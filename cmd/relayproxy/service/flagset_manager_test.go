@@ -32,7 +32,7 @@ const (
 	expectedExactlyOneError             = "Expected exactly one error log message"
 	failedToCreateFlagsetManager        = "failed to create FlagsetManager"
 	file2                               = "file"
-	fixtureDefault                      = "default"
+	defaultFlagset                      = "default"
 	flagset12                           = "flagset-1"
 	flagset22                           = "flagset-2"
 	flagsetA2                           = "flagset-a"
@@ -319,7 +319,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 			name:        "default mode, empty api key should work",
 			config:      &config.Config{FlagSets: []config.FlagSet{}, Retriever: file},
 			apiKey:      "",
-			wantFlagset: fixtureDefault,
+			wantFlagset: defaultFlagset,
 		},
 	}
 	for _, tt := range tests {
@@ -433,7 +433,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 
 			name, flagSetNameErr := manager.FlagSetName("")
 			require.NoError(t, flagSetNameErr)
-			assert.Equal(t, fixtureDefault, name)
+			assert.Equal(t, defaultFlagset, name)
 		})
 	})
 }
@@ -488,7 +488,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: fixtureDefault,
+					Name: defaultFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: file2,
 						Path: flagConfig,
@@ -516,7 +516,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		flagsets, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, flagsets, 2)
-		assert.NotContains(t, flagsets, fixtureDefault)
+		assert.NotContains(t, flagsets, defaultFlagset)
 		assert.Contains(t, flagsets, testFlagset2)
 	})
 
@@ -542,7 +542,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		flagsets, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, flagsets, 1)
-		assert.Contains(t, flagsets, fixtureDefault)
+		assert.Contains(t, flagsets, defaultFlagset)
 	})
 }
 
@@ -573,7 +573,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		all, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		require.NotNil(t, manager.Default())
-		assert.Same(t, all[fixtureDefault], manager.Default())
+		assert.Same(t, all[defaultFlagset], manager.Default())
 	})
 
 	// Test flagset mode
@@ -1497,7 +1497,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: fixtureDefault, // Reserved name - will be auto-generated
+					Name: defaultFlagset, // Reserved name - will be auto-generated
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: file2,
 						Path: flagConfig,
@@ -1525,7 +1525,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: fixtureDefault,
+					Name: defaultFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: file2,
 						Path: flagConfig,

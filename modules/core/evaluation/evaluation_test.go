@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	e22A40     = "e22a40e0-28fa-413c-aef8-4dc6a27593b7"
-	fixtureInt = "int"
-	myFlag     = "my-flag"
-	off2       = "off"
+	e22A40  = "e22a40e0-28fa-413c-aef8-4dc6a27593b7"
+	intType = "int"
+	myFlag  = "my-flag"
+	off2    = "off"
 )
 
 func Test_evaluate(t *testing.T) {
@@ -108,7 +108,7 @@ func Test_evaluate(t *testing.T) {
 				flagKey:         myFlag,
 				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
 				flagCtx:         flag.Context{Service: flag.NewService()},
-				expectedType:    fixtureInt,
+				expectedType:    intType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
@@ -136,7 +136,7 @@ func Test_evaluate(t *testing.T) {
 				flagKey:         myFlag,
 				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
 				flagCtx:         flag.Context{Service: flag.NewService()},
-				expectedType:    fixtureInt,
+				expectedType:    intType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
@@ -217,7 +217,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		myFlag,
 		ffcontext.NewEvaluationContext(e22A40),
 		flag.Context{Service: flag.NewService()},
-		fixtureInt,
+		intType,
 		42,
 	)
 	require.Error(t, err)

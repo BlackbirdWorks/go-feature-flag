@@ -33,7 +33,7 @@ func TestServer_WithListener(t *testing.T) {
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: file2, Path: testdataFlagConfigYaml}},
-		Server:     config.Server{Mode: config.ServerModeHTTP, Host: fixture127001, Port: port},
+		Server:     config.Server{Mode: config.ServerModeHTTP, Host: loopbackAddress, Port: port},
 	}
 	log := newTestLogger(t)
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)

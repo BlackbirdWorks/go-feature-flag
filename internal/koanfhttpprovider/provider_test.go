@@ -26,9 +26,9 @@ const (
 	bad                     = "bad"
 	badConfig               = "bad config"
 	cacheYaml               = "cache.yaml"
-	fixture1                = `"1"`
-	fixture1B               = `"1b"`
-	fixture2                = `"2"`
+	etagOne                 = `"1"`
+	etagOneB                = `"1b"`
+	etagTwo                 = `"2"`
 	httpExampleInvalid      = "http://example.invalid"
 	theRetryIsUnconditional = "the retry is unconditional"
 	unexpectedStatus500     = "unexpected status 500"
@@ -485,7 +485,7 @@ func (s *etagServer) ifNoneMatch() string {
 }
 
 func TestReadBytesConditional(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL)
 
 	got, err := p.ReadBytes()
@@ -496,19 +496,19 @@ func TestReadBytesConditional(t *testing.T) {
 	got, err = p.ReadBytes()
 	require.NoError(t, err)
 	assert.Equal(t, v12, string(got))
-	assert.Equal(t, fixture1, srv.ifNoneMatch())
+	assert.Equal(t, etagOne, srv.ifNoneMatch())
 	assert.Equal(t, int32(1), srv.full.Load())
 	assert.Equal(t, int32(1), srv.notModified.Load())
 }
 
 func TestReloadAfterWatchChangeSkipsDownload(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v2, fixture2)
+	srv.set(v2, etagTwo)
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	require.NoError(t, p.Unwatch())
 
@@ -519,7 +519,7 @@ func TestReloadAfterWatchChangeSkipsDownload(t *testing.T) {
 }
 
 func TestWatchETagUnchangedGets304(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -527,44 +527,44 @@ func TestWatchETagUnchangedGets304(t *testing.T) {
 
 	assert.Eventually(t, func() bool { return srv.notModified.Load() >= 3 }, waitFor, poll/2)
 	assert.Equal(t, int32(1), srv.full.Load(), "only ReadBytes downloads the body")
-	assert.Equal(t, fixture1, srv.ifNoneMatch())
+	assert.Equal(t, etagOne, srv.ifNoneMatch())
 	assert.Zero(t, w.reloads.Load())
 	assert.Zero(t, w.errs.Load())
 }
 
 func TestWatchETagChangeReloadsOnce(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v2, fixture2)
+	srv.set(v2, etagTwo)
 
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	before := srv.notModified.Load()
 	assert.Eventually(t, func() bool { return srv.notModified.Load() >= before+3 }, waitFor, poll/2)
-	assert.Equal(t, fixture2, srv.ifNoneMatch())
+	assert.Equal(t, etagTwo, srv.ifNoneMatch())
 	assert.Equal(t, int32(1), w.reloads.Load())
 	assert.Zero(t, w.errs.Load())
 }
 
 func TestWatchETagRetaggedSameContent(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v12, fixture1B)
+	srv.set(v12, etagOneB)
 
-	assert.Eventually(t, func() bool { return srv.ifNoneMatch() == fixture1B }, waitFor, poll/2)
+	assert.Eventually(t, func() bool { return srv.ifNoneMatch() == etagOneB }, waitFor, poll/2)
 	assert.Zero(t, w.reloads.Load())
 	assert.Zero(t, w.errs.Load())
 }
 
 func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL,
 		WithPollInterval(poll),
 		WithValidate(func(b []byte) error {
@@ -582,7 +582,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 
 	// A 304 would not report an error, so two errors mean the invalid body was refetched.
 	assert.Eventually(t, func() bool { return w.errs.Load() >= 2 }, waitFor, poll/2)
-	assert.Equal(t, fixture1, srv.ifNoneMatch())
+	assert.Equal(t, etagOne, srv.ifNoneMatch())
 	assert.Zero(t, w.reloads.Load())
 }
 
@@ -621,13 +621,13 @@ func assertPending(t *testing.T, p *HTTP, cache string) {
 }
 
 func TestInvalidateReadBytes(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL)
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 
 	p.Invalidate()
-	srv.set(v12, fixture1B)
+	srv.set(v12, etagOneB)
 
 	got, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -637,14 +637,14 @@ func TestInvalidateReadBytes(t *testing.T) {
 	got, err = p.ReadBytes()
 	require.NoError(t, err)
 	assert.Equal(t, v12, string(got))
-	assert.Equal(t, fixture1B, srv.ifNoneMatch(), "conditional requests resume with the new ETag")
+	assert.Equal(t, etagOneB, srv.ifNoneMatch(), "conditional requests resume with the new ETag")
 	assert.Equal(t, int32(2), srv.full.Load())
 	assert.Equal(t, int32(1), srv.notModified.Load())
 }
 
 func TestInvalidateWatchSameContent(t *testing.T) {
 	tests := []struct{ name, etag string }{
-		{name: "with ETag", etag: fixture1},
+		{name: "with ETag", etag: etagOne},
 		{name: "without ETag", etag: ""},
 	}
 	for _, tt := range tests {
@@ -676,7 +676,7 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newETagServer(t, v12, fixture1)
+			srv := newETagServer(t, v12, etagOne)
 			cache := filepath.Join(t.TempDir(), cacheYaml)
 			p := Provider(srv.URL, WithPollInterval(poll), WithCache(cache), WithValidate(rejectBad))
 			_, err := p.ReadBytes()
@@ -692,18 +692,18 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 			assertPending(t, p, cache)
 
 			srv.setStatus(0)
-			srv.set(v12, fixture1)
+			srv.set(v12, etagOne)
 
 			assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 			waitHits(t, srv, 3)
 			assert.Equal(t, int32(1), w.reloads.Load())
-			assert.Equal(t, fixture1, srv.ifNoneMatch())
+			assert.Equal(t, etagOne, srv.ifNoneMatch())
 		})
 	}
 }
 
 func TestInvalidateCacheFallback(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	fellBack := false
 	p := Provider(srv.URL, WithPollInterval(poll), WithCache(cache),
@@ -802,14 +802,14 @@ func readAsync(p *HTTP) <-chan readResult {
 }
 
 func TestInvalidateDuringFetch(t *testing.T) {
-	v1 := answer{http.StatusOK, v12, fixture1}
+	v1 := answer{http.StatusOK, v12, etagOne}
 	tests := []struct {
 		name    string
 		stale   answer // answer to the request in flight when Invalidate is called
 		pollErr int32  // watch errors the stale answer causes
 	}{
-		{name: "changed content", stale: answer{http.StatusOK, v2, fixture2}},
-		{name: "same content retagged", stale: answer{http.StatusOK, v12, fixture1B}},
+		{name: "changed content", stale: answer{http.StatusOK, v2, etagTwo}},
+		{name: "same content retagged", stale: answer{http.StatusOK, v12, etagOneB}},
 		{name: "not modified", stale: answer{status: http.StatusNotModified}},
 		{name: "failed fetch", stale: answer{status: http.StatusServiceUnavailable}, pollErr: 1},
 	}
@@ -830,7 +830,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 
 			res := readAsync(p)
 			held := srv.await(t)
-			assert.Equal(t, fixture1, held.inm)
+			assert.Equal(t, etagOne, held.inm)
 			p.Invalidate()
 			held.reply(tt.stale)
 			// Even a cache fallback is refused: its read started before Invalidate.
@@ -847,7 +847,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 
 			res = readAsync(p)
 			next := srv.await(t)
-			assert.Equal(t, fixture1, next.inm, "conditional requests resume")
+			assert.Equal(t, etagOne, next.inm, "conditional requests resume")
 			next.reply(answer{status: http.StatusNotModified})
 			require.NoError(t, (<-res).err)
 		})
@@ -856,7 +856,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 			w := startWatch(t, p)
 
 			held := srv.await(t)
-			assert.Equal(t, fixture1, held.inm)
+			assert.Equal(t, etagOne, held.inm)
 			p.Invalidate()
 			held.reply(tt.stale)
 
@@ -869,7 +869,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 			retry.reply(v1)
 
 			next := srv.await(t)
-			assert.Equal(t, fixture1, next.inm, "conditional polling resumes")
+			assert.Equal(t, etagOne, next.inm, "conditional polling resumes")
 			assert.Equal(t, int32(1), w.reloads.Load(), "the identical retry is delivered")
 			next.reply(answer{status: http.StatusNotModified})
 		})
@@ -888,7 +888,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 		assert.Empty(t, retry.inm)
 		retry.reply(answer{http.StatusOK, v12, `"1c"`})
 		require.NoError(t, (<-res).err)
-		held.reply(answer{http.StatusOK, v12, fixture1B})
+		held.reply(answer{http.StatusOK, v12, etagOneB})
 
 		next := srv.await(t)
 		assert.Equal(t, `"1c"`, next.inm, "the stale ETag is dropped")
@@ -898,7 +898,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 }
 
 func TestInvalidateFromWatchCallback(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -911,14 +911,14 @@ func TestInvalidateFromWatchCallback(t *testing.T) {
 	}))
 	t.Cleanup(func() { _ = p.Unwatch() })
 
-	srv.set(v2, fixture2)
+	srv.set(v2, etagTwo)
 
 	// Each notification invalidates again, so the unchanged document is delivered again.
 	assert.Eventually(t, func() bool { return reloads.Load() >= 3 }, waitFor, poll/2)
 }
 
 func TestInvalidateLifecycle(t *testing.T) {
-	srv := newETagServer(t, v12, fixture1)
+	srv := newETagServer(t, v12, etagOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	p := Provider(srv.URL, WithPollInterval(time.Hour), WithCache(cache))
 
@@ -936,7 +936,7 @@ func TestInvalidateLifecycle(t *testing.T) {
 	assert.Empty(t, srv.ifNoneMatch())
 	_, err = p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, fixture1, srv.ifNoneMatch())
+	assert.Equal(t, etagOne, srv.ifNoneMatch())
 
 	startWatch(t, p)
 	require.NoError(t, p.Unwatch())

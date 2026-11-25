@@ -17,7 +17,7 @@ import (
 
 const (
 	config2                       = "--config="
-	fixture100                    = "1.0.0"
+	versionOneZeroZero            = "1.0.0"
 	serverPort1031PollingInterval = `server:
   port: 1031
 pollingInterval: 1000
@@ -134,7 +134,7 @@ loglevel: error`,
 			// Create ConfigLoader with watchChanges enabled
 			logger := slog.New(slog.DiscardHandler)
 
-			loader := config.NewConfigLoader(flagSet, logger, fixture100, true)
+			loader := config.NewConfigLoader(flagSet, logger, versionOneZeroZero, true)
 			defer loader.StopWatchChanges()
 
 			// Setup callbacks
@@ -221,7 +221,7 @@ func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
 
 	// Create ConfigLoader with watchChanges disabled
 	logger := slog.New(slog.DiscardHandler)
-	loader := config.NewConfigLoader(flagSet, logger, fixture100, false)
+	loader := config.NewConfigLoader(flagSet, logger, versionOneZeroZero, false)
 
 	// Setup callback
 	var (
@@ -267,7 +267,7 @@ func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
 	// Create ConfigLoader with watchChanges enabled and observer logger to capture logs
 	core, logs := slogutil.NewObserver(slog.LevelError)
 	logger := core
-	loader := config.NewConfigLoader(flagSet, logger, fixture100, true)
+	loader := config.NewConfigLoader(flagSet, logger, versionOneZeroZero, true)
 
 	// Setup callback
 	var (

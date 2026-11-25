@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	companyID       = "company_id"
-	companyName     = "company_name"
-	fixture2323F37B = "2323f37b-eef7-4bbc-856f-7d16c67de3ae"
-	goFeatureFlag   = "go feature flag"
+	companyID      = "company_id"
+	companyName    = "company_name"
+	contextKeyUUID = "2323f37b-eef7-4bbc-856f-7d16c67de3ae"
+	goFeatureFlag  = "go feature flag"
 )
 
 func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
@@ -32,27 +32,27 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 		{
 			name: "simple case",
 			fields: fields{
-				Key: fixture2323F37B,
+				Key: contextKeyUUID,
 				Custom: map[string]any{
 					companyName: goFeatureFlag,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder(fixture2323F37B).
+				NewEvaluationContextBuilder(contextKeyUUID).
 				AddCustom(companyName, goFeatureFlag).
 				Build(),
 		},
 		{
 			name: "should return a float if the value is a float",
 			fields: fields{
-				Key: fixture2323F37B,
+				Key: contextKeyUUID,
 				Custom: map[string]any{
 					companyName: goFeatureFlag,
 					companyID:   1.1,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder(fixture2323F37B).
+				NewEvaluationContextBuilder(contextKeyUUID).
 				AddCustom(companyName, goFeatureFlag).
 				AddCustom(companyID, 1.1).
 				Build(),
@@ -60,14 +60,14 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 		{
 			name: "should return an int if the value is a float but without decimal",
 			fields: fields{
-				Key: fixture2323F37B,
+				Key: contextKeyUUID,
 				Custom: map[string]any{
 					companyName: goFeatureFlag,
 					companyID:   1.0,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder(fixture2323F37B).
+				NewEvaluationContextBuilder(contextKeyUUID).
 				AddCustom(companyName, goFeatureFlag).
 				AddCustom(companyID, 1).
 				Build(),

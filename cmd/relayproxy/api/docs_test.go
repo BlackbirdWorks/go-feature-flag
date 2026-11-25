@@ -27,7 +27,7 @@ import (
 
 const (
 	events2            = `{"events":[]}`
-	fixture310         = "3.1.0"
+	openAPIVersion     = "3.1.0"
 	swaggerOpenapiJSON = "/swagger/openapi.json"
 	v999               = "v9.9.9"
 )
@@ -100,9 +100,9 @@ func Test_Swagger(t *testing.T) {
 				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
 				// downgrades are 3.0
 				documents := []struct{ path, wantVersion string }{
-					{swaggerOpenapiJSON, fixture310},
+					{swaggerOpenapiJSON, openAPIVersion},
 					{"/swagger/openapi-3.0.json", "3.0.3"},
-					{"/swagger/openapi.yaml", fixture310},
+					{"/swagger/openapi.yaml", openAPIVersion},
 					{"/swagger/openapi-3.0.yaml", "3.0.3"},
 				}
 
@@ -173,7 +173,7 @@ func Test_Swagger(t *testing.T) {
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
 			assert.Equal(t, v999, doc.Info.Version)
-			assert.Equal(t, fixture310, doc.OpenAPI)
+			assert.Equal(t, openAPIVersion, doc.OpenAPI)
 			assert.Empty(t, doc.Servers)
 
 			for _, path := range tt.wantPaths {

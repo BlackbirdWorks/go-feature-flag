@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	fixtureDefault         = "default"
+	variationDefault       = "default"
 	fooFlag                = "foo-flag"
 	json2                  = "json"
 	myFlag                 = "my-flag"
@@ -918,12 +918,12 @@ func TestUseCustomBucketingKey(t *testing.T) {
 		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
 			myFlag,
 			ffcontext.NewEvaluationContext(randomKey),
-			fixtureDefault,
+			variationDefault,
 		)
 		require.NoError(t, stringVariationDetailsErr)
 
 		want := model.VariationResult[string]{
-			Value:         fixtureDefault,
+			Value:         variationDefault,
 			TrackEvents:   true,
 			VariationType: "SdkDefault",
 			Failed:        true,
@@ -942,7 +942,7 @@ func TestUseCustomBucketingKey(t *testing.T) {
 			ffcontext.NewEvaluationContextBuilder(randomKey).
 				AddCustom("teamId", "team-123").
 				Build(),
-			fixtureDefault,
+			variationDefault,
 		)
 		require.NoError(t, stringVariationDetailsErr)
 

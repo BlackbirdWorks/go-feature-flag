@@ -195,7 +195,7 @@ func newBenchInput() map[string]any {
 		"b":  123131,
 		"aa": 123123.123131232113,
 		"bb": 1.5,
-		"jh": fixture123,
+		"jh": versionOneTwoThree,
 		"kl": "1.5",
 		"u":  map[string]any{plan: pro, age: 31},
 	}

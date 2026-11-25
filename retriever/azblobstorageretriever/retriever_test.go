@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	fixture0000    = "0.0.0.0"
-	flagConfigYaml = "flag-config.yaml"
+	unspecifiedAddress = "0.0.0.0"
+	flagConfigYaml     = "flag-config.yaml"
 )
 
 const containerName = "testcontainer"
@@ -150,11 +150,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--queueHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--tableHost",
-			fixture0000,
+			unspecifiedAddress,
 			"--skipApiVersionCheck",
 		),
 	)

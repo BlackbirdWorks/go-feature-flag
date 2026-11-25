@@ -17,29 +17,29 @@ import (
 )
 
 const (
-	age                         = "age"
-	callD                       = "call %d"
-	fixture000                  = "0.0.0"
-	fixture05                   = "-0.5"
-	fixture102030               = "10.20.30"
-	fixture123                  = "1.2.3"
-	fixture123Alpha             = "1.2.3-alpha"
-	fixture123Build             = "1.2.3+build.5"
-	fixture15E999               = "1.5e999"
-	fixture25                   = "2.5"
-	fixture99999999999999999999 = "99999999999999999999"
-	floats                      = "floats"
-	hello                       = `"hello"`
-	ints2                       = "ints"
-	nested2                     = "nested"
-	null2                       = "null"
-	plan                        = "plan"
-	strings2                    = "strings"
-	u0041                       = `"\u0041"`
-	uPlanEqPro                  = `u.plan eq "pro" and u.age gt 18`
-	xIn12                       = `x in [1, 2]`
-	yIn12                       = `y in [1, 2, 3]`
-	zzz                         = "zzz"
+	age                    = "age"
+	callD                  = "call %d"
+	zeroVersion            = "0.0.0"
+	negativeVersion        = "-0.5"
+	versionTenTwentyThirty = "10.20.30"
+	versionOneTwoThree     = "1.2.3"
+	prereleaseVersion      = "1.2.3-alpha"
+	buildMetadataVersion   = "1.2.3+build.5"
+	overflowVersion        = "1.5e999"
+	versionTwoFive         = "2.5"
+	overflowInteger        = "99999999999999999999"
+	floats                 = "floats"
+	hello                  = `"hello"`
+	ints2                  = "ints"
+	nested2                = "nested"
+	null2                  = "null"
+	plan                   = "plan"
+	strings2               = "strings"
+	u0041                  = `"\u0041"`
+	uPlanEqPro             = `u.plan eq "pro" and u.age gt 18`
+	xIn12                  = `x in [1, 2]`
+	yIn12                  = `y in [1, 2, 3]`
+	zzz                    = "zzz"
 )
 
 var errUnexpectedVisitorResultType = errors.New("unexpected visitor result type")
@@ -150,7 +150,7 @@ func differentialInputs() []diffKV {
 		nil,
 		{
 			"i": 5, "i64": int64(7), "i32": int32(3), "f": 2.5, "s": "Hello", "b": true, "n": nil,
-			"v": fixture123, "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": xY,
+			"v": versionOneTwoThree, "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": xY,
 			"u":  diffKV{plan: pro, age: 31, "n": nil, "deep": diffKV{"x": 1, "s": abc, "o": diffKV{}}},
 			str2: "5", "stringer": fmt.Stringer(nil), "e": "",
 			"nilmap": diffKV(nil), "nm": map[string]string{"a": "b"},
@@ -231,14 +231,14 @@ func differentialRuleValues() []string {
 		`"a\"b"`,
 		u0041,
 		`"\\"`,
-		fixture25,
-		fixture05,
+		versionTwoFive,
+		negativeVersion,
 		`1.0e2`,
 		hello,
 		`"HELLO"`,
 		`""`,
 		`"1.2.4"`,
-		fixture123,
+		versionOneTwoThree,
 		`0.0.1`,
 		fixtureTrue,
 		`false`,
@@ -249,11 +249,11 @@ func differentialRuleValues() []string {
 		`[2.5]`,
 		`["a", "hello"]`,
 		`["x"]`,
-		fixture99999999999999999999,
+		overflowInteger,
 		`[1, 99999999999999999999]`,
 		`[99999999999999999999, 2]`,
 		`1e999`,
-		fixture15E999,
+		overflowVersion,
 		`[1.5, 1.5e999]`,
 		`[1.5e999]`,
 	}
@@ -443,8 +443,8 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 // versions but rejected by semver.Make.
 func versionRuleValues() []string {
 	return []string{
-		fixture123, fixture000, fixture102030, fixture123Alpha, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
-		fixture123Build, `1.2.3+-`, `1.2.3--x`,
+		versionOneTwoThree, zeroVersion, versionTenTwentyThirty, prereleaseVersion, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
+		buildMetadataVersion, `1.2.3+-`, `1.2.3--x`,
 		`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
 		`1.2.3-99999999999999999999`, `"1.2.3"`,
 	}
@@ -453,12 +453,12 @@ func versionRuleValues() []string {
 // versionLeftValues are object values compared against rule versions.
 func versionLeftValues() []any {
 	return []any{
-		fixture123, "1.2.4", "1.2.2", fixture000, fixture102030, fixture200, "1.10.0",
-		fixture123Alpha, "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
-		fixture123Build, "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
+		versionOneTwoThree, "1.2.4", "1.2.2", zeroVersion, versionTenTwentyThirty, versionTwoZeroZero, "1.10.0",
+		prereleaseVersion, "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
+		buildMetadataVersion, "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
 		"v1.2.3", "1.2", "1.2.3.4", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "", " 1.2.3", "1.2.3 ",
 		"99999999999999999999.0.0", "1.2.99999999999999999999", "1..3", "1.2.", ".2.3", "1.2.3-", "x.y.z", "1.2.٣",
-		5, 1.5, true, nil, []string{fixture123}, testStringer{fixture123},
+		5, 1.5, true, nil, []string{versionOneTwoThree}, testStringer{versionOneTwoThree},
 	}
 }
 
@@ -483,9 +483,9 @@ func fuzzAttrs() []string {
 
 func fuzzVals() []string {
 	return []string{
-		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, fixture25, fixture05, `1.0e2`, fixture15E999,
-		hello, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, u0041, `"1.2.3"`, fixture123, `1.2.3-alpha+b`,
-		fixtureTrue, `false`, null2, fixture99999999999999999999, `-99999999999999999999`,
+		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, versionTwoFive, negativeVersion, `1.0e2`, overflowVersion,
+		hello, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, u0041, `"1.2.3"`, versionOneTwoThree, `1.2.3-alpha+b`,
+		fixtureTrue, `false`, null2, overflowInteger, `-99999999999999999999`,
 	}
 }
 
@@ -507,9 +507,9 @@ func genList(r *rand.Rand) string {
 
 	switch r.Intn(3) {
 	case 0:
-		pool = []string{"1", "2", "5", "0", fixture99999999999999999999}
+		pool = []string{"1", "2", "5", "0", overflowInteger}
 	case 1:
-		pool = []string{"1.5", fixture25, fixture05, fixture15E999, "1.0"}
+		pool = []string{"1.5", versionTwoFive, negativeVersion, overflowVersion, "1.0"}
 	default:
 		pool = []string{`"a"`, hello, `""`, `"x"`, u0041}
 	}
@@ -563,7 +563,7 @@ func genVal(r *rand.Rand, depth int) any {
 	case 5:
 		return "hello"
 	case 6:
-		return fixture123
+		return versionOneTwoThree
 	case 7:
 		return true
 	case 8:
@@ -990,7 +990,7 @@ func testProcessVersionFastPath(t *testing.T) {
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 
-			items := map[string]any{"v": fixture123}
+			items := map[string]any{"v": versionOneTwoThree}
 			want, wantErr := eval.Process(items)
 			assert.Equal(t, tt.wantFast, eval.root.cmp.version != nil, "fast path")
 			// the fast path must be what evaluates the rule: with apply
@@ -1069,10 +1069,10 @@ func TestParsePlainVersion(t *testing.T) {
 	t.Parallel()
 
 	literals := []string{
-		fixture123, fixture000, fixture102030, "18446744073709551615.0.1", "18446744073709551616.0.1",
-		"1.2.3+b", fixture123Build, "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
+		versionOneTwoThree, zeroVersion, versionTenTwentyThirty, "18446744073709551615.0.1", "18446744073709551616.0.1",
+		"1.2.3+b", buildMetadataVersion, "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
 		"1.2.3+a+b", "1.2.3+a_b", "1.2.3+é", "1+a.2.3", "1.2+a.3",
-		fixture123Alpha, "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
+		prereleaseVersion, "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
 		"01.2.3", "1.02.3", "1.2.03", "0.0.00", "v1.2.3", " 1.2.3", "1.2.3 ", "1.2.٣", "-1.2.3", "+1.2.3",
 	}
 
@@ -1111,7 +1111,7 @@ func TestParsePlainVersion(t *testing.T) {
 		assert.Nil(t, got.Build, "%q", input)
 	}
 
-	for _, input := range []string{fixture123, fixture000, "1.2.3+b.5"} {
+	for _, input := range []string{versionOneTwoThree, zeroVersion, "1.2.3+b.5"} {
 		_, ok := parsePlainVersion(input)
 		assert.True(t, ok, "%q: not parsed by the fast path", input)
 	}

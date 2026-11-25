@@ -60,7 +60,7 @@ const (
 	fakeDataset                  = "fake-dataset"
 	fakeProjectID                = "fake-project-id"
 	file2                        = "file"
-	fixture1234                  = "1234"
+	clientSecret                 = "1234"
 	flagsConfigGoffYaml          = "flags/config.goff.yaml"
 	gofeatureflagConfigRepo      = "gofeatureflag/config-repo"
 	httpsAPIBitbucketGoff        = "https://api.bitbucket.goff.org"
@@ -235,12 +235,12 @@ func Test_initExporters(t *testing.T) {
 				{
 					Kind:        webhook2,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 				},
 				{
 					Kind:        webhook2,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 				},
 			},
 		},
@@ -251,7 +251,7 @@ func Test_initExporters(t *testing.T) {
 				{
 					Kind:        webhook2,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 				},
 			},
 		},
@@ -265,7 +265,7 @@ func Test_initExporters(t *testing.T) {
 				{
 					Kind:        webhook2,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 				},
 			},
 		},
@@ -277,7 +277,7 @@ func Test_initExporters(t *testing.T) {
 
 					Kind:        webhook2,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 				},
 				{
 					Kind: "invalid",
@@ -336,14 +336,14 @@ func Test_initExporter(t *testing.T) {
 			conf: &config.ExporterConf{
 				Kind:        webhook2,
 				EndpointURL: httpsGofeatureflagOrgWebhook,
-				Secret:      fixture1234,
+				Secret:      clientSecret,
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &webhookexporter.Exporter{
 					EndpointURL: httpsGofeatureflagOrgWebhook,
-					Secret:      fixture1234,
+					Secret:      clientSecret,
 					Meta:        nil,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,

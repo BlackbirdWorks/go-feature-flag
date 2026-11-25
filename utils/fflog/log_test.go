@@ -14,20 +14,20 @@ import (
 )
 
 const (
-	debugMessage               = "Debug message"
-	errorMessage               = "Error message"
-	fFLoggerNil                = "FFLogger nil"
-	fFLoggerNoLoggerConfigured = "FFLogger no logger configured"
-	fixture2006010215          = "2006/01/02 15:04:05 "
-	infoMessage                = "Info message"
-	req1                       = "req-1"
-	test                       = "test"
-	testHappyPathLegacy        = "Test Happy Path - legacy"
-	testHappyPathLegacy2       = "Test Happy Path - legacy with keys and values"
-	testHappyPathSlog          = "Test Happy Path - slog"
-	testHappyPathSlog2         = "Test Happy Path - slog with keys and values"
-	toto                       = "toto"
-	warnMessage                = "Warn message"
+	debugMessage                 = "Debug message"
+	errorMessage                 = "Error message"
+	ffLoggerNilMessage           = "FFLogger nil"
+	ffLoggerNotConfiguredMessage = "FFLogger no logger configured"
+	timestampSample              = "2006/01/02 15:04:05 "
+	infoMessage                  = "Info message"
+	req1                         = "req-1"
+	test                         = "test"
+	testHappyPathLegacy          = "Test Happy Path - legacy"
+	testHappyPathLegacy2         = "Test Happy Path - legacy with keys and values"
+	testHappyPathSlog            = "Test Happy Path - slog"
+	testHappyPathSlog2           = "Test Happy Path - slog with keys and values"
+	toto                         = "toto"
+	warnMessage                  = "Warn message"
 )
 
 type ctxKey string
@@ -116,7 +116,7 @@ func TestFFLogger_Error(t *testing.T) {
 			expectedLog: "ERROR Error message test=toto toto=test" + "\n",
 		},
 		{
-			name:   fFLoggerNil,
+			name:   ffLoggerNilMessage,
 			logger: nil,
 			fields: fields{
 				msg:           errorMessage,
@@ -125,7 +125,7 @@ func TestFFLogger_Error(t *testing.T) {
 			expectedLog: "",
 		},
 		{
-			name:   fFLoggerNoLoggerConfigured,
+			name:   ffLoggerNotConfiguredMessage,
 			logger: &fflog.FFLogger{},
 			fields: fields{
 				msg:           errorMessage,
@@ -176,7 +176,7 @@ func TestFFLogger_Error(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len(fixture2006010215)
+				const timestampLen = len(timestampSample)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -254,7 +254,7 @@ func TestFFLogger_Warn(t *testing.T) {
 			expectedLog: "WARN Warn message test=toto toto=test" + "\n",
 		},
 		{
-			name:   fFLoggerNil,
+			name:   ffLoggerNilMessage,
 			logger: nil,
 			fields: fields{
 				msg:           warnMessage,
@@ -263,7 +263,7 @@ func TestFFLogger_Warn(t *testing.T) {
 			expectedLog: "",
 		},
 		{
-			name:   fFLoggerNoLoggerConfigured,
+			name:   ffLoggerNotConfiguredMessage,
 			logger: &fflog.FFLogger{},
 			fields: fields{
 				msg:           warnMessage,
@@ -314,7 +314,7 @@ func TestFFLogger_Warn(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len(fixture2006010215)
+				const timestampLen = len(timestampSample)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -392,7 +392,7 @@ func TestFFLogger_Info(t *testing.T) {
 			expectedLog: "INFO Info message test=toto toto=test" + "\n",
 		},
 		{
-			name:   fFLoggerNil,
+			name:   ffLoggerNilMessage,
 			logger: nil,
 			fields: fields{
 				msg:           infoMessage,
@@ -401,7 +401,7 @@ func TestFFLogger_Info(t *testing.T) {
 			expectedLog: "",
 		},
 		{
-			name:   fFLoggerNoLoggerConfigured,
+			name:   ffLoggerNotConfiguredMessage,
 			logger: &fflog.FFLogger{},
 			fields: fields{
 				msg:           infoMessage,
@@ -452,7 +452,7 @@ func TestFFLogger_Info(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len(fixture2006010215)
+				const timestampLen = len(timestampSample)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -530,7 +530,7 @@ func TestFFLogger_Debug(t *testing.T) {
 			expectedLog: "DEBUG Debug message test=toto toto=test" + "\n",
 		},
 		{
-			name:   fFLoggerNil,
+			name:   ffLoggerNilMessage,
 			logger: nil,
 			fields: fields{
 				msg:           debugMessage,
@@ -539,7 +539,7 @@ func TestFFLogger_Debug(t *testing.T) {
 			expectedLog: "",
 		},
 		{
-			name:   fFLoggerNoLoggerConfigured,
+			name:   ffLoggerNotConfiguredMessage,
 			logger: &fflog.FFLogger{},
 			fields: fields{
 				msg:           debugMessage,
@@ -592,7 +592,7 @@ func TestFFLogger_Debug(t *testing.T) {
 
 			if legacy {
 				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
-				const timestampLen = len(fixture2006010215)
+				const timestampLen = len(timestampSample)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}
@@ -801,7 +801,7 @@ func TestFFLogger_ContextMethods(t *testing.T) {
 			actual := string(content)
 
 			if tt.useLegacy {
-				const timestampLen = len(fixture2006010215)
+				const timestampLen = len(timestampSample)
 				if len(actual) >= timestampLen {
 					actual = actual[timestampLen:]
 				}

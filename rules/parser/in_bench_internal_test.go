@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	fixtureInt = "int"
-	str2       = "str"
+	intType = "int"
+	str2    = "str"
 )
 
 func inBenchSizes() []int { return []int{8, 16, 32, 64, 1000, 10000, 300000} }
@@ -31,7 +31,7 @@ func inBenchList(kind string, n int) string {
 // NOT IN, with the looked-up value present (hit) and absent (miss). The hit
 // is the last element, the worst case for a linear scan.
 func BenchmarkIn(b *testing.B) {
-	for _, kind := range []string{str2, fixtureInt} {
+	for _, kind := range []string{str2, intType} {
 		for _, size := range inBenchSizes() {
 			list := inBenchList(kind, size)
 
@@ -80,7 +80,7 @@ func BenchmarkIn(b *testing.B) {
 // BenchmarkInCompile measures NewEvaluator plus the first Process call, which
 // is when the rule is compiled (and the hash set built, if any).
 func BenchmarkInCompile(b *testing.B) {
-	for _, kind := range []string{str2, fixtureInt} {
+	for _, kind := range []string{str2, intType} {
 		for _, size := range inBenchSizes() {
 			rule := xIn + inBenchList(kind, size)
 

@@ -22,14 +22,14 @@ import (
 )
 
 const (
-	debug        = "debug"
-	fatal        = "fatal"
-	fixtureError = "error"
-	info         = "info"
-	json2        = "json"
-	logfmt       = "logfmt"
-	request      = "request"
-	warn         = "warn"
+	debug      = "debug"
+	fatal      = "fatal"
+	errorLevel = "error"
+	info       = "info"
+	json2      = "json"
+	logfmt     = "logfmt"
+	request    = "request"
+	warn       = "warn"
 )
 
 // goldenTime returns the time of the records of the golden files.
@@ -248,15 +248,15 @@ func TestLevels(t *testing.T) {
 		level     string
 		wantShown []string
 	}{
-		{name: debug, level: debug, wantShown: []string{debug, info, warn, fixtureError, fatal}},
-		{name: "empty is info", level: "", wantShown: []string{info, warn, fixtureError, fatal}},
-		{name: "upper case", level: "WARN", wantShown: []string{warn, fixtureError, fatal}},
-		{name: fixtureError, level: fixtureError, wantShown: []string{fixtureError, fatal}},
+		{name: debug, level: debug, wantShown: []string{debug, info, warn, errorLevel, fatal}},
+		{name: "empty is info", level: "", wantShown: []string{info, warn, errorLevel, fatal}},
+		{name: "upper case", level: "WARN", wantShown: []string{warn, errorLevel, fatal}},
+		{name: errorLevel, level: errorLevel, wantShown: []string{errorLevel, fatal}},
 		{name: fatal, level: fatal, wantShown: []string{fatal}},
 		{name: "dpanic", level: "dpanic", wantShown: []string{fatal}},
-		{name: "mixed case", level: "DeBuG", wantShown: []string{debug, info, warn, fixtureError, fatal}},
-		{name: "warning alias", level: "warning", wantShown: []string{warn, fixtureError, fatal}},
-		{name: "upper warning alias", level: "WARNING", wantShown: []string{warn, fixtureError, fatal}},
+		{name: "mixed case", level: "DeBuG", wantShown: []string{debug, info, warn, errorLevel, fatal}},
+		{name: "warning alias", level: "warning", wantShown: []string{warn, errorLevel, fatal}},
+		{name: "upper warning alias", level: "WARNING", wantShown: []string{warn, errorLevel, fatal}},
 		{name: "mixed case panic", level: "PaNiC", wantShown: []string{fatal}},
 		{name: "unknown", level: "verbose", wantErr: log.ErrUnrecognizedLevel},
 		{name: "padded", level: " info", wantErr: log.ErrUnrecognizedLevel},

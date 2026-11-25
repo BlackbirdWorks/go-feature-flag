@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	aBIn          = "a.b in "
-	fixtureString = "string"
-	nIn           = "n in "
-	notSIn        = "not (s in "
-	sIn           = "s in "
-	uD            = "u%d"
-	xIn           = "x in "
+	aBIn       = "a.b in "
+	stringType = "string"
+	nIn        = "n in "
+	notSIn     = "not (s in "
+	sIn        = "s in "
+	uD         = "u%d"
+	xIn        = "x in "
 )
 
 func countSets(curr *node) int {
@@ -66,7 +66,7 @@ func randStrList(r *rand.Rand, count int) string {
 		"ß",
 		"é",
 		"é",
-		fixture123,
+		versionOneTwoThree,
 		"5",
 		fixtureTrue,
 		null2,
@@ -106,7 +106,7 @@ func randIntList(r *rand.Rand, count int, bad bool) string {
 	}
 
 	if bad && count > 2 {
-		parts[r.Intn(count)] = fixture99999999999999999999
+		parts[r.Intn(count)] = overflowInteger
 	}
 
 	return "[" + strings.Join(parts, ", ") + "]"
@@ -239,7 +239,7 @@ func TestInSetThreshold(t *testing.T) {
 		{"at", inSetMinLen, true},
 		{"above", inSetMinLen + 1, true},
 	}
-	for _, kind := range []string{fixtureString, fixtureInt} {
+	for _, kind := range []string{stringType, intType} {
 		for _, tt := range tests {
 			t.Run(kind+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -248,7 +248,7 @@ func TestInSetThreshold(t *testing.T) {
 					rule              string
 					first, last, miss any
 				)
-				if kind == fixtureString {
+				if kind == stringType {
 					rule, first, last, miss = xIn+seqStrs(
 						tt.n,
 					), "u0", fmt.Sprintf(
@@ -298,7 +298,7 @@ func TestInSetDifferential(t *testing.T) {
 		"ß",
 		"SS",
 		"5",
-		fixture123,
+		versionOneTwoThree,
 		null2,
 		"i",
 		"İ",
@@ -438,13 +438,13 @@ func TestInSetConcurrent(t *testing.T) {
 		rule string
 	}{
 		{
-			name: fixtureString,
+			name: stringType,
 			rule: sIn + seqStrs(300),
 			val:  func(i int) any { return fmt.Sprintf(uD, i%600) },
 			want: func(i int) bool { return i%600 < 300 },
 		},
 		{
-			name: fixtureInt,
+			name: intType,
 			rule: sIn + seqInts(300),
 			val:  func(i int) any { return i % 600 },
 			want: func(i int) bool { return i%600 < 300 },

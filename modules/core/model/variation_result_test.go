@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	disabled   = "disabled"
-	enabled    = "enabled"
-	fixture100 = "1.0.0"
-	fixture200 = "2.0.0"
-	key        = "key"
-	value      = "value"
+	disabled           = "disabled"
+	enabled            = "enabled"
+	versionOneZeroZero = "1.0.0"
+	versionTwoZeroZero = "2.0.0"
+	key                = "key"
+	value              = "value"
 )
 
 func TestVariationResultToJSONStr(t *testing.T) {
@@ -35,7 +35,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				ErrorDetails:  "test error",
@@ -53,7 +53,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: enabled,
 				Failed:        false,
-				Version:       fixture200,
+				Version:       versionTwoZeroZero,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
 				Value:         "test-value",
@@ -146,7 +146,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: enabled,
 				Failed:        false,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonOffline,
 				ErrorCode:     flag.ErrorFlagConfiguration,
 				Value:         false,
@@ -162,7 +162,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        true,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonUnknown,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         0,
@@ -261,7 +261,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				ErrorDetails:  "test error",
@@ -279,7 +279,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: enabled,
 				Failed:        false,
-				Version:       fixture200,
+				Version:       versionTwoZeroZero,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
 				Value:         true,
@@ -372,7 +372,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        true,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonUnknown,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         nil,
@@ -436,7 +436,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       fixture100,
+				Version:       versionOneZeroZero,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         "test",
@@ -452,7 +452,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: enabled,
 				Failed:        false,
-				Version:       fixture200,
+				Version:       versionTwoZeroZero,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
 				Value:         value,

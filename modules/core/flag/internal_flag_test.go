@@ -23,7 +23,7 @@ const (
 	environment2                 = "environment"
 	errorInTheConfiguration      = "error in the configuration, no variation available for this rule"
 	evaluatedRuleName2           = "evaluatedRuleName"
-	fixture100                   = "1.0.0"
+	versionOneZeroZero           = "1.0.0"
 	gofeatureflag                = "gofeatureflag"
 	httpsIssueLinkGOFF           = "https://issue.link/GOFF-1"
 	invalidPercentagesShouldNot  = "invalid percentages: should not be empty"
@@ -62,7 +62,7 @@ const (
 	variationB                   = "variation_B"
 	variationC                   = "variation_C"
 	variationD                   = "variation_D"
-	variationFalse2              = "variationFalse"
+	variationFalse2              = "fixtureFalse"
 )
 
 type internalFlagValueArgs struct {
@@ -1215,7 +1215,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			name: "Should apply the most recent scheduled step when two steps edit the same rule name (newest date wins)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variationTrue": new(any(true)),
+					"fixtureTrue":   new(any(true)),
 					variationFalse2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
@@ -1255,7 +1255,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 								Query: new(
 									varEnvironmentUUID0Ffcc,
 								),
-								VariationResult: new("variationTrue"),
+								VariationResult: new("fixtureTrue"),
 							},
 						},
 						Date: new(time.Date(2026, 6, 11, 9, 49, 0, 0, time.UTC)),
@@ -1276,8 +1276,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					DefaultSdkValue: false,
 				},
 			},
-			// Newest scheduled step (09:50, variationFalse) must win over the
-			// older one (09:49, variationTrue).
+			// Newest scheduled step (09:50, fixtureFalse) must win over the
+			// older one (09:49, fixtureTrue).
 			want: false,
 			want1: flag.ResolutionDetails{
 				Variant:   variationFalse2,
@@ -1631,7 +1631,7 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 					{
 						Disable:     new(true),
 						TrackEvents: new(false),
-						Version:     new(fixture100),
+						Version:     new(versionOneZeroZero),
 						Date:        new(fixedNow().Add(-2 * time.Second)),
 					},
 				},
@@ -3411,9 +3411,9 @@ func TestInternalFlag_GetVersion(t *testing.T) {
 		{
 			name: "Should return version if not nil",
 			flag: flag.InternalFlag{
-				Version: new(fixture100),
+				Version: new(versionOneZeroZero),
 			},
-			want: fixture100,
+			want: versionOneZeroZero,
 		},
 	}
 	for _, tt := range tests {

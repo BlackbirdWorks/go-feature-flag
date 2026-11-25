@@ -29,7 +29,7 @@ import (
 
 const (
 	evaluationContextKey08B = `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
-	fixture1031             = "1031"
+	placeholderPort         = "1031"
 )
 
 const (
@@ -96,7 +96,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, fixture1031, portStr)
+			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -120,7 +120,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, fixture1031, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
 
 			// Wait for the callback to be called
 			select {
@@ -204,7 +204,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, fixture1031, portStr)
+			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -228,7 +228,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, fixture1031, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
 
 			// Wait for the callback to be called
 			select {
@@ -291,7 +291,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, fixture1031, portStr)
+			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
@@ -317,7 +317,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			}
 
 			// Modify the config to create an invalid config
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, fixture1031, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
 
 			// The callback should be called even for invalid configs (validation happens after)
 			select {
@@ -392,7 +392,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, fixture1031, portStr)
+			testutils.ReplaceInFile(t, configFile, placeholderPort, portStr)
 
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
@@ -414,7 +414,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 				doHTTPRequestAndCheck(t, urlAPIAllFlags, body, check, phaseBeforeChange)
 			}
 
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, fixture1031, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
 
 			select {
 			case <-callbackCalled:
@@ -439,7 +439,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
-	testutils.ReplaceInFile(t, configFile, fixture1031, port)
+	testutils.ReplaceInFile(t, configFile, placeholderPort, port)
 
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := slogutil.NewObserver(slog.LevelError)
@@ -468,7 +468,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 	// Change the retriever of the existing flagset: this is a forbidden modification.
 	_ = testutils.ReplaceAndCopyFileToExistingFile(
-		t, "../testdata/config/flagset-modify-config-MODIFIED.yaml", configFile, fixture1031, port)
+		t, "../testdata/config/flagset-modify-config-MODIFIED.yaml", configFile, placeholderPort, port)
 
 	select {
 	case <-callbackCalled:

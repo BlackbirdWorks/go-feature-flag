@@ -23,7 +23,7 @@ import (
 const (
 	applicationJSON = "application/json"
 	contentType     = "Content-Type"
-	gET             = "GET"
+	methodGET       = "GET"
 	health2         = "/health"
 )
 
@@ -45,7 +45,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			request: events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: gET,
+						Method: methodGET,
 						Path:   health2,
 					},
 				},
@@ -60,11 +60,11 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "APIGatewayV1",
 			wantStatus: http.StatusOK,
 			request: events.APIGatewayProxyRequest{
-				HTTPMethod: gET,
+				HTTPMethod: methodGET,
 				Path:       health2,
 				RequestContext: events.APIGatewayProxyRequestContext{
 					Path:       health2,
-					HTTPMethod: gET,
+					HTTPMethod: methodGET,
 				},
 				Headers: map[string]string{
 					contentType: applicationJSON,
@@ -77,7 +77,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "ALB",
 			wantStatus: http.StatusOK,
 			request: events.ALBTargetGroupRequest{
-				HTTPMethod: gET,
+				HTTPMethod: methodGET,
 				Path:       health2,
 				Headers: map[string]string{
 					contentType: applicationJSON,
@@ -222,7 +222,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 			request := events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: gET,
+						Method: methodGET,
 						Path:   tt.requestPath,
 					},
 				},

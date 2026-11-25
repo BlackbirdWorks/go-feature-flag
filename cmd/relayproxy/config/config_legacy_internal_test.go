@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	fixture0GoffProxyYaml      = "0/goff-proxy.yaml"
-	fixture0SemaphoreProxyYaml = "0/semaphore-proxy.yaml"
-	sEMAPHORESERVERPORT2       = "SEMAPHORE_SERVER_PORT=2"
-	sERVERPORT1                = "SERVER_PORT=1"
+	goffProxyYamlPath      = "0/goff-proxy.yaml"
+	semaphoreProxyYamlPath = "0/semaphore-proxy.yaml"
+	sEMAPHORESERVERPORT2   = "SEMAPHORE_SERVER_PORT=2"
+	sERVERPORT1            = "SERVER_PORT=1"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
@@ -56,18 +56,18 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 		wantWarnings []string
 		wantErr      bool
 	}{
-		{name: "semaphore-proxy.yaml", files: []string{fixture0SemaphoreProxyYaml}, wantFile: fixture0SemaphoreProxyYaml},
+		{name: "semaphore-proxy.yaml", files: []string{semaphoreProxyYamlPath}, wantFile: semaphoreProxyYamlPath},
 		{
 			name:         "legacy goff-proxy.yaml still found",
-			files:        []string{fixture0GoffProxyYaml},
-			wantFile:     fixture0GoffProxyYaml,
+			files:        []string{goffProxyYamlPath},
+			wantFile:     goffProxyYamlPath,
 			wantWarnings: []string{legacy.KindConfigFile},
 		},
 		{name: "new name wins over the legacy one in the same folder",
-			files:    []string{fixture0GoffProxyYaml, fixture0SemaphoreProxyYaml},
-			wantFile: fixture0SemaphoreProxyYaml},
+			files:    []string{goffProxyYamlPath, semaphoreProxyYamlPath},
+			wantFile: semaphoreProxyYamlPath},
 		{name: "new name wins whatever the extension",
-			files:    []string{fixture0GoffProxyYaml, "0/semaphore-proxy.json"},
+			files:    []string{goffProxyYamlPath, "0/semaphore-proxy.json"},
 			wantFile: "0/semaphore-proxy.json"},
 		{name: "every extension is supported for both names",
 			files: []string{"0/goff-proxy.toml"}, wantFile: "0/goff-proxy.toml",

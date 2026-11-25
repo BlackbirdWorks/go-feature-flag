@@ -37,7 +37,7 @@ const (
 	badFlag                = "bad-flag"
 	big                    = "big"
 	bigFlag                = "big-flag"
-	cREATETABLE            = "CREATE TABLE"
+	createTableSQL         = "CREATE TABLE"
 	checkout               = "checkout"
 	count1                 = "count=1"
 	didNotComplete         = "did not complete"
@@ -658,7 +658,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			var creates []string
 
 			for _, input := range client.executed {
-				if strings.HasPrefix(input.Sqls[0], cREATETABLE) {
+				if strings.HasPrefix(input.Sqls[0], createTableSQL) {
 					creates = append(creates, input.Sqls...)
 					assert.Nil(t, input.Parameters)
 				}
@@ -900,7 +900,7 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
-	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], cREATETABLE))
+	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], createTableSQL))
 	assert.True(t, strings.HasPrefix(client.executed[1].Sqls[0], "INSERT INTO"))
 	assert.Empty(t, client.cancelled)
 }
@@ -926,7 +926,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// the migration has been cancelled, no insert has been sent
 	require.Len(t, client.executed, 1)
-	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], cREATETABLE))
+	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], createTableSQL))
 	assert.Len(t, client.cancelled, 1)
 }
 

@@ -25,8 +25,8 @@ import (
 
 const (
 	aYaml         = "a.yaml"
-	fAYaml        = "f/a.yaml"
-	fBYaml        = "f/b.yaml"
+	fileAYAML     = "f/a.yaml"
+	fileBYAML     = "f/b.yaml"
 	flagA2        = "flagA"
 	flagB2        = "flagB"
 	flagC2        = "flagC: {}\n"
@@ -244,8 +244,8 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "pagination",
 			setup: func(mockS3 *testutils.S3PrefixMock) {
 				mockS3.PageSize = 2
-				mockS3.Put(fAYaml, yamlA)
-				mockS3.Put(fBYaml, yamlB)
+				mockS3.Put(fileAYAML, yamlA)
+				mockS3.Put(fileBYAML, yamlB)
 				mockS3.Put("f/c.yaml", flagC2)
 				mockS3.Put("f/d.yaml", flagD2)
 				mockS3.Put("f/e.yaml", "flagE: {}\n")
@@ -266,7 +266,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		{
 			name: "download error",
 			setup: func(m *testutils.S3PrefixMock) {
-				m.Put(fAYaml, yamlA)
+				m.Put(fileAYAML, yamlA)
 				m.DownloadErr = errKaboom
 			},
 			r:     cfg{Prefix: "f/"},
@@ -275,14 +275,14 @@ func TestRetriever_Retrieve(t *testing.T) {
 		{
 			name: "concurrent calls are serialized",
 			setup: func(m *testutils.S3PrefixMock) {
-				m.Put(fAYaml, yamlA)
-				m.Put(fBYaml, yamlB)
+				m.Put(fileAYAML, yamlA)
+				m.Put(fileBYAML, yamlB)
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{{
 				concurrent:    20,
 				wantFlags:     []string{flagA2, flagB2},
-				wantDownloads: map[string]int{fAYaml: 1, fBYaml: 1},
+				wantDownloads: map[string]int{fileAYAML: 1, fileBYAML: 1},
 			}},
 		},
 		{
@@ -290,7 +290,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			// of the downloaded content, so that the next list (A again) triggers a new download
 			name: "object replaced between list and download is downloaded again on the next poll",
 			setup: func(mockS3 *testutils.S3PrefixMock) {
-				mockS3.Put(fAYaml, yamlA)
+				mockS3.Put(fileAYAML, yamlA)
 
 				swapped := false
 				mockS3.BeforeDownload = func(key string) {
@@ -305,9 +305,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			steps: []step{
 				{wantFlags: []string{flagB2}},
 				{
-					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fAYaml, yamlA) },
+					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fileAYAML, yamlA) },
 					wantFlags:     []string{flagA2},
-					wantDownloads: map[string]int{fAYaml: 2},
+					wantDownloads: map[string]int{fileAYAML: 2},
 				},
 			},
 		},
@@ -315,16 +315,16 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "no etag never hits the cache",
 			setup: func(m *testutils.S3PrefixMock) {
 				m.NoETag = true
-				m.Put(fAYaml, yamlA)
+				m.Put(fileAYAML, yamlA)
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fAYaml: 1}},
-				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fAYaml: 2}},
+				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 1}},
+				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 2}},
 				{
-					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fAYaml, yamlB) },
+					mutate:        func(m *testutils.S3PrefixMock) { m.Put(fileAYAML, yamlB) },
 					wantFlags:     []string{flagB2},
-					wantDownloads: map[string]int{fAYaml: 3},
+					wantDownloads: map[string]int{fileAYAML: 3},
 				},
 			},
 		},
@@ -580,7 +580,7 @@ func TestRetriever_Shutdown(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testutils.S3PrefixMock{}
-	mockS3.Put(fAYaml, yamlA)
+	mockS3.Put(fileAYAML, yamlA)
 	mockS3.Put("f/readme.txt", "hello")
 
 	r := cfg{Prefix: "f/"}.build()
@@ -614,7 +614,7 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testutils.S3PrefixMock{}
-	mockS3.Put(fAYaml, yamlA)
+	mockS3.Put(fileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
@@ -629,14 +629,14 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	assert.Equal(t, yaml2, r.OutputFormat())
 	_, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, mockS3.DownloadCalls(fAYaml))
+	assert.Equal(t, 1, mockS3.DownloadCalls(fileAYAML))
 }
 
 func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	t.Parallel()
 
 	mock := &testutils.S3PrefixMock{}
-	mock.Put(fAYaml, yamlA)
+	mock.Put(fileAYAML, yamlA)
 	mock.Put("g/b.yaml", yamlB)
 
 	r := cfg{Prefix: "f/"}.build()
@@ -665,7 +665,7 @@ func TestRetriever_SetLister(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testutils.S3PrefixMock{}
-	mockS3.Put(fAYaml, yamlA)
+	mockS3.Put(fileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)

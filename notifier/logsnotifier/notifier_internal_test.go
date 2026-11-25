@@ -12,13 +12,13 @@ import (
 )
 
 const (
-	defaultRule    = "defaultRule"
-	fixtureDefault = "Default"
-	fixtureFalse   = "False"
-	fixtureTrue    = "True"
-	keyEqRandomKey = "key eq \"random-key\""
-	rule1          = "rule1"
-	testFlag       = "test-flag"
+	defaultRule      = "defaultRule"
+	variationDefault = "Default"
+	variationFalse   = "False"
+	variationTrue    = "True"
+	keyEqRandomKey   = "key eq \"random-key\""
+	rule1            = "rule1"
+	testFlag         = "test-flag"
 )
 
 type logNotifierCase struct {
@@ -55,15 +55,15 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							fixtureDefault: new(any(false)),
-							fixtureFalse:   new(any(false)),
-							fixtureTrue:    new(any(true)),
+							variationDefault: new(any(false)),
+							variationFalse:   new(any(false)),
+							variationTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new(defaultRule),
 							Percentages: &map[string]float64{
-								fixtureFalse: 0,
-								fixtureTrue:  100,
+								variationFalse: 0,
+								variationTrue:  100,
 							},
 						},
 					},
@@ -92,32 +92,32 @@ func TestLogNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									fixtureFalse: 0,
-									fixtureTrue:  100,
+									variationFalse: 0,
+									variationTrue:  100,
 								},
 							},
 						},
@@ -146,19 +146,19 @@ func TestLogNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 						After: &flag.InternalFlag{
@@ -167,19 +167,19 @@ func TestLogNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 							Disable: new(true),
 						},
@@ -215,19 +215,19 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 								Name:  new(rule1),
 								Query: new(keyEqRandomKey),
 								Percentages: &map[string]float64{
-									fixtureFalse: 0,
-									fixtureTrue:  100,
+									variationFalse: 0,
+									variationTrue:  100,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							fixtureDefault: new(any(false)),
-							fixtureFalse:   new(any(false)),
-							fixtureTrue:    new(any(true)),
+							variationDefault: new(any(false)),
+							variationFalse:   new(any(false)),
+							variationTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(defaultRule),
-							VariationResult: new(fixtureDefault),
+							VariationResult: new(variationDefault),
 						},
 					},
 				},
@@ -253,19 +253,19 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 						Before: &flag.InternalFlag{
@@ -274,19 +274,19 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 									Name:  new(rule1),
 									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 							Disable: new(true),
 						},

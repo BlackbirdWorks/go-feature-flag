@@ -255,7 +255,7 @@ func TestEndpoints_Loading(t *testing.T) {
 			fs := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 			fs.String(config3, "", locationOfYourConfig)
 			require.NoError(t, fs.Parse([]string{config2 + path}))
-			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(environ...))
+			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), versionOneZeroZero, false, withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)

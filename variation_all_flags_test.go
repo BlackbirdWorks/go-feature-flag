@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	fixture123                    = "123"
+	numericValue123               = "123"
 	gofeatureflag                 = "gofeatureflag"
 	offline2                      = "offline"
 	testdataFfclientAllFlags      = "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml"
@@ -203,7 +203,7 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixture123).
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).
 				AddCustom(gofeatureflag, map[string]any{
 					"flagList": []string{"test-flag1", "test-flag4"},
 				}).
@@ -219,7 +219,7 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:    true,
 			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:   true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixture123).
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).
 				AddCustom(gofeatureflag, map[string]any{
 					"flagList": []string{},
 				}).
@@ -235,7 +235,7 @@ func TestGetFlagStates(t *testing.T) {
 			wantValid:         true,
 			wantJSONFile:      "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:        true,
-			evaluationContext: ffcontext.NewEvaluationContextBuilder(fixture123).Build(),
+			evaluationContext: ffcontext.NewEvaluationContextBuilder(numericValue123).Build(),
 		},
 		{
 			name: offline2,

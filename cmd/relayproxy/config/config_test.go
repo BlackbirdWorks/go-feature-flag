@@ -37,14 +37,14 @@ const (
 	extraInfo2                     = "extraInfo"
 	fb124Cf9                       = "fb124cf9-e058-4f34-8385-ad225ff85a3"
 	file2                          = "file"
-	fixture0359Cdb35               = "0359cdb3-5fb5-4d65-b25f-b8909ec3c44"
-	fixture04D9F                   = "04d9f1b7-f50c-4407-83bb-e9c4ddc5d45"
-	fixture11213123                = "11213123"
-	fixture1XX                     = "1.X.X"
-	fixture49B67Ab                 = "49b67ab9-20fc-42ac-ac53-b36e29834c7"
-	fixture5082A8Df                = "5082a8df-cc67-48b4-aca4-26ce1425645"
-	fixture62507779Bd2D            = "62507779-bd2d-4170-b715-8d93ee7110f"
-	fixture6Bfd6B                  = "6bfd6b61-f8a9-45b3-9ca8-37125438be4"
+	apiKeyFirst                    = "0359cdb3-5fb5-4d65-b25f-b8909ec3c44"
+	apiKeyThird                    = "04d9f1b7-f50c-4407-83bb-e9c4ddc5d45"
+	numericAPIKey                  = "11213123"
+	wildcardVersion                = "1.X.X"
+	apiKeySixth                    = "49b67ab9-20fc-42ac-ac53-b36e29834c7"
+	apiKeySecond                   = "5082a8df-cc67-48b4-aca4-26ce1425645"
+	apiKeyFourth                   = "62507779-bd2d-4170-b715-8d93ee7110f"
+	apiKeyFifth                    = "6bfd6b61-f8a9-45b3-9ca8-37125438be4"
 	flagSetAPIKey                  = "flag-set-api-key-2"
 	flagset1                       = "flagset-1"
 	flagset2                       = "flagset-2"
@@ -109,7 +109,7 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 			flagSet.String(config3, "", locationOfYourConfig)
 			require.NoError(t, flagSet.Parse([]string{config2 + configPath}))
 
-			got, err := config.New(flagSet, slog.New(slog.DiscardHandler), fixture1XX, withEnviron(environ...))
+			got, err := config.New(flagSet, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDisabled, got.DisableFlagDetailsInStream)
 		})
@@ -134,7 +134,7 @@ func runParseConfigFromPflag(t *testing.T, tests []parseConfigFileCase) {
 			f.String(config3, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX, withEnviron("version=1.X.X"))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron("version=1.X.X"))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -168,7 +168,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Port: 1031,
 				},
 				Swagger: config.Swagger{Enabled: true, Host: "gofeatureflag.org"},
-				Version: fixture1XX,
+				Version: wildcardVersion,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
 						apikey32,
@@ -204,7 +204,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -242,7 +242,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -283,7 +283,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -327,7 +327,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -368,7 +368,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				APIKeys: []string{
 					apikey12,
@@ -397,7 +397,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				APIKeys: []string{
 					apikey12,
@@ -414,7 +414,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				PollingInterval:         60000,
 				FileFormat:              yaml2,
 				StartWithRetrieverError: false,
-				Version:                 fixture1XX,
+				Version:                 wildcardVersion,
 				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
@@ -441,7 +441,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  fixture1XX,
+				Version:  wildcardVersion,
 				OtelConfig: config.OpenTelemetryConfiguration{
 					Exporter: config.OtelExporter{
 						Otlp: config.OtelExporterOtlp{
@@ -489,7 +489,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version: fixture1XX,
+				Version: wildcardVersion,
 				Swagger: config.Swagger{Enabled: true, Host: "gofeatureflag.org"},
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -511,7 +511,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				PollingInterval:         60000,
 				FileFormat:              yaml2,
 				StartWithRetrieverError: false,
-				Version:                 fixture1XX,
+				Version:                 wildcardVersion,
 				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
@@ -529,7 +529,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				PollingInterval:         60000,
 				FileFormat:              yaml2,
 				StartWithRetrieverError: false,
-				Version:                 fixture1XX,
+				Version:                 wildcardVersion,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -541,7 +541,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				PollingInterval:         60000,
 				FileFormat:              yaml2,
 				StartWithRetrieverError: false,
-				Version:                 fixture1XX,
+				Version:                 wildcardVersion,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -553,7 +553,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				PollingInterval:         60000,
 				FileFormat:              yaml2,
 				StartWithRetrieverError: false,
-				Version:                 fixture1XX,
+				Version:                 wildcardVersion,
 				LogLevel:                config.DefaultLogLevel,
 			},
 		},
@@ -566,7 +566,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			f.String(config3, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX)
+			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion)
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1143,25 +1143,25 @@ func TestConfig_APIKeyExists(t *testing.T) {
 					Evaluation: []string{},
 				},
 			},
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			want:   false,
 		},
 		{
 			name:   "key exists in a list of keys (legacy)",
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						fixture0359Cdb35,
+						apiKeyFirst,
 						fb124Cf9,
 						d05087DdEfff,
-						fixture5082A8Df,
-						fixture04D9F,
-						fixture62507779Bd2D,
+						apiKeySecond,
+						apiKeyThird,
+						apiKeyFourth,
 						e0Dcb798,
-						fixture6Bfd6B,
+						apiKeyFifth,
 						aecd6Aea1350,
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 				},
 			},
@@ -1169,20 +1169,20 @@ func TestConfig_APIKeyExists(t *testing.T) {
 		},
 		{
 			name:   "key exists in a list of keys",
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						fixture0359Cdb35,
+						apiKeyFirst,
 						fb124Cf9,
 						d05087DdEfff,
-						fixture5082A8Df,
-						fixture04D9F,
-						fixture62507779Bd2D,
+						apiKeySecond,
+						apiKeyThird,
+						apiKeyFourth,
 						e0Dcb798,
-						fixture6Bfd6B,
+						apiKeyFifth,
 						aecd6Aea1350,
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 				},
 			},
@@ -1190,11 +1190,11 @@ func TestConfig_APIKeyExists(t *testing.T) {
 		},
 		{
 			name:   "admin key works for evaluation",
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 					Evaluation: []string{
 						xxx2,
@@ -1208,16 +1208,16 @@ func TestConfig_APIKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						fixture0359Cdb35,
+						apiKeyFirst,
 						fb124Cf9,
 						d05087DdEfff,
-						fixture5082A8Df,
-						fixture04D9F,
-						fixture62507779Bd2D,
+						apiKeySecond,
+						apiKeyThird,
+						apiKeyFourth,
 						e0Dcb798,
-						fixture6Bfd6B,
+						apiKeyFifth,
 						aecd6Aea1350,
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 				},
 			},
@@ -1229,16 +1229,16 @@ func TestConfig_APIKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Evaluation: []string{
-						fixture0359Cdb35,
+						apiKeyFirst,
 						fb124Cf9,
 						d05087DdEfff,
-						fixture5082A8Df,
-						fixture04D9F,
-						fixture62507779Bd2D,
+						apiKeySecond,
+						apiKeyThird,
+						apiKeyFourth,
 						e0Dcb798,
-						fixture6Bfd6B,
+						apiKeyFifth,
 						aecd6Aea1350,
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 				},
 			},
@@ -1326,17 +1326,17 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 					Evaluation: []string{},
 				},
 			},
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			want:   false,
 		},
 		{
 			name:   "key exists in a list of keys",
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
 						aecd6Aea1350,
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 				},
 			},
@@ -1344,11 +1344,11 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 		},
 		{
 			name:   "admin key works for evaluation",
-			apiKey: fixture49B67Ab,
+			apiKey: apiKeySixth,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 					Evaluation: []string{
 						xxx2,
@@ -1362,7 +1362,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 					Evaluation: []string{
 						xxx2,
@@ -1377,7 +1377,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 					Evaluation: []string{
 						xxx2,
@@ -1392,7 +1392,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
-						fixture49B67Ab,
+						apiKeySixth,
 					},
 					Evaluation: []string{
 						xxx2,
@@ -1443,7 +1443,7 @@ func runMergeConfigFromOSEnvTests(t *testing.T, tests []mergeConfigFromOSEnvCase
 			f.String(config3, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX, withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1486,7 +1486,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							token2: {
-								fixture11213123,
+								numericAPIKey,
 							},
 							authorization2: {
 								test12,
@@ -1512,7 +1512,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version: fixture1XX,
+				Version: wildcardVersion,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
 						apikey32,
@@ -1565,7 +1565,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							token2: {
-								fixture11213123,
+								numericAPIKey,
 							},
 							authorization2: {
 								test12,
@@ -1591,7 +1591,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -1638,7 +1638,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							token2: {
-								fixture11213123,
+								numericAPIKey,
 							},
 							authorization2: {
 								test12,
@@ -1665,7 +1665,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
 				},
-				Version:       fixture1XX,
+				Version:       wildcardVersion,
 				EnableSwagger: true,
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
@@ -1718,7 +1718,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							token2: {
-								fixture11213123,
+								numericAPIKey,
 							},
 						},
 					},
@@ -1744,7 +1744,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						apikey22,
 					},
 				},
-				Version:  fixture1XX,
+				Version:  wildcardVersion,
 				LogLevel: info2,
 			},
 			wantErr: assert.NoError,
@@ -1770,7 +1770,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							token2: {
-								fixture11213123,
+								numericAPIKey,
 							},
 						},
 					},
@@ -1799,7 +1799,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						apikey22,
 					},
 				},
-				Version:  fixture1XX,
+				Version:  wildcardVersion,
 				LogLevel: info2,
 			},
 			wantErr: assert.NoError,
@@ -1824,7 +1824,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  fixture1XX,
+				Version:  wildcardVersion,
 				OtelConfig: config.OpenTelemetryConfiguration{
 					Exporter: config.OtelExporter{
 						Otlp: config.OtelExporterOtlp{
@@ -1857,7 +1857,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 					Port: 1031,
 				},
 				LogLevel: config.DefaultLogLevel,
-				Version:  fixture1XX,
+				Version:  wildcardVersion,
 				FlagSets: []config.FlagSet{
 					{
 						Name:                    xxx2,
@@ -1939,7 +1939,7 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 			f.String(config3, "", locationOfYourConfig)
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-			got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX, withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
 			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
@@ -2067,7 +2067,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 
 		f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 
-		got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX, withEnviron(
+		got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(
 			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
 			"RETRIEVERS_0_PATH=cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 		))
@@ -2081,7 +2081,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 		t.Parallel()
 
 		f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
-		got, err := config.New(f, slog.New(slog.DiscardHandler), fixture1XX, withEnviron(
+		got, err := config.New(f, slog.New(slog.DiscardHandler), wildcardVersion, withEnviron(
 			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
 			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
 		))
@@ -2179,7 +2179,7 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 	flagSet.String(config3, "", locationOfYourConfig)
 	require.NoError(t, flagSet.Parse([]string{config2 + configPath}))
-	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), fixture1XX, opts...)
+	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), wildcardVersion, opts...)
 	require.NoError(t, err)
 
 	return got
@@ -2292,7 +2292,7 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 
 			core, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			_, err := config.New(pflag.NewFlagSet(config3, pflag.ContinueOnError), core, fixture1XX,
+			_, err := config.New(pflag.NewFlagSet(config3, pflag.ContinueOnError), core, wildcardVersion,
 				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes))
 			require.NoError(t, err)
 

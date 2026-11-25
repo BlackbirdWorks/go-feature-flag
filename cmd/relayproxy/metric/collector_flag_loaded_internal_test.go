@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	fixtureDefault      = "default"
+	defaultFlagset      = "default"
 	semaphoreFlagLoaded = "semaphore_flag_loaded"
 )
 
@@ -177,7 +177,7 @@ experiment-over-with-nested-bucketing-key:
 	metrics, err := NewMetrics()
 	require.NoError(t, err)
 	require.NoError(t, metrics.RegisterFlagLoaded(fakeFlagsetSource{
-		flagsets: map[string]*ffclient.GoFeatureFlag{fixtureDefault: client},
+		flagsets: map[string]*ffclient.GoFeatureFlag{defaultFlagset: client},
 	}))
 
 	expected := `
@@ -203,7 +203,7 @@ func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
 	metrics, err := NewMetrics()
 	require.NoError(t, err)
 	require.NoError(t, metrics.RegisterFlagLoaded(fakeFlagsetSource{
-		flagsets: map[string]*ffclient.GoFeatureFlag{fixtureDefault: client},
+		flagsets: map[string]*ffclient.GoFeatureFlag{defaultFlagset: client},
 	}))
 	count, err := testutil.GatherAndCount(metrics.Registry, semaphoreFlagLoaded)
 	require.NoError(t, err)
@@ -237,12 +237,12 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 		{name: "source error", source: fakeFlagsetSource{err: errNoFlagsetsConfigured}, wantSeries: 0},
 		{
 			name:       "nil flagset",
-			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{fixtureDefault: nil}},
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{defaultFlagset: nil}},
 			wantSeries: 0,
 		},
 		{
 			name:       "cache not initialized",
-			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{fixtureDefault: {}}},
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{defaultFlagset: {}}},
 			wantSeries: 0,
 		},
 	}

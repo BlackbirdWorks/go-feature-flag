@@ -38,7 +38,7 @@ const (
 	bOff             = "B-off"
 	bOn              = "B-on"
 	bOnly            = "B-only"
-	fLAGNOTFOUND     = "FLAG_NOT_FOUND"
+	flagNotFoundCode = "FLAG_NOT_FOUND"
 	flagsAYaml       = "flags/a.yaml"
 	group            = "group"
 	keyA             = "key-a"
@@ -296,7 +296,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyA,
 			body:        ofrepCtx("u1"),
 			wantStatus:  404,
-			wantErrCode: fLAGNOTFOUND,
+			wantErrCode: flagNotFoundCode,
 		},
 		{
 			name:        "ofrep flag only in own flag set",
@@ -314,7 +314,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyA,
 			body:        ofrepCtx("u1"),
 			wantStatus:  404,
-			wantErrCode: fLAGNOTFOUND,
+			wantErrCode: flagNotFoundCode,
 		},
 		{
 			name:        "ofrep missing context",
@@ -388,7 +388,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			wantValue:   "sdk-default",
 			wantVariant: "SdkDefault",
 			wantReason:  "ERROR",
-			wantErrCode: fLAGNOTFOUND,
+			wantErrCode: flagNotFoundCode,
 		},
 		{
 			name:       "goff wrong api key",

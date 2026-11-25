@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	fixtureBool = "bool"
+	boolType = "bool"
 )
 
 func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFeatureFlag {
@@ -94,7 +94,7 @@ func BenchmarkScenarios(b *testing.B) {
 			for _, track := range []bool{false, true} {
 				// to keep the matrix readable, only bool is run for every scenario;
 				// string and json are run for the no-rule and the targeting scenarios.
-				if typ != fixtureBool && scenario != "norule" && scenario != "rule" {
+				if typ != boolType && scenario != "norule" && scenario != "rule" {
 					continue
 				}
 
@@ -118,7 +118,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
-			key := loadtest.FlagKey(sc, fixtureBool, track)
+			key := loadtest.FlagKey(sc, boolType, track)
 			b.Run(fmt.Sprintf("%s/bool/track=%t", sc, track), func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
@@ -126,7 +126,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 					for pb.Next() {
 						i++
 
-						err := evalOne(client, key, fixtureBool, benchContext(i))
+						err := evalOne(client, key, boolType, benchContext(i))
 						if err != nil {
 							assert.NoError(b, err)
 
@@ -173,20 +173,20 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
-			key := loadtest.FlagKey(sc, fixtureBool, track)
+			key := loadtest.FlagKey(sc, boolType, track)
 			name := fmt.Sprintf("%s/track=%t", sc, track)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
 
 				for range b.N {
-					require.NoError(b, evalOne(client, key, fixtureBool, ctx))
+					require.NoError(b, evalOne(client, key, boolType, ctx))
 				}
 			})
 			b.Run(name+"/parallel", func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						err := evalOne(client, key, fixtureBool, ctx)
+						err := evalOne(client, key, boolType, ctx)
 						if err != nil {
 							assert.NoError(b, err)
 

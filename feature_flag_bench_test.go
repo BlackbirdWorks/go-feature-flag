@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	fixtureError = "error"
-	sdkDefault   = "sdkDefault"
-	userD        = "user-%d"
+	errorLevel = "error"
+	sdkDefault = "sdkDefault"
+	userD      = "user-%d"
 )
 
 // newFixtureClient starts a client on the benchmark fixture, closed when the benchmark ends. It fails the
@@ -138,7 +138,7 @@ func BenchmarkStringVar_NoRule100(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-no-rule-100", user, fixtureError)
+		_, err := client.StringVariation("string-no-rule-100", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -150,7 +150,7 @@ func BenchmarkStringVar_NoRule0(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-no-rule-0", user, fixtureError)
+		_, err := client.StringVariation("string-no-rule-0", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -162,7 +162,7 @@ func BenchmarkStringVar_NoRule50(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-no-rule-50", user, fixtureError)
+		_, err := client.StringVariation("string-no-rule-50", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -174,7 +174,7 @@ func BenchmarkStringVar_Rule(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-rule", user, fixtureError)
+		_, err := client.StringVariation("string-rule", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -186,7 +186,7 @@ func BenchmarkStringVar_RuleComplex(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-rule-complex", user, fixtureError)
+		_, err := client.StringVariation("string-rule-complex", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -198,7 +198,7 @@ func BenchmarkStringVar_RolloutProgressive(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-rollout-progressive", user, fixtureError)
+		_, err := client.StringVariation("string-rollout-progressive", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -210,7 +210,7 @@ func BenchmarkStringVar_RolloutScheduled(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.StringVariation("string-rollout-scheduled", user, fixtureError)
+		_, err := client.StringVariation("string-rollout-scheduled", user, errorLevel)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -393,7 +393,7 @@ func BenchmarkJSONVar_NoRule100(b *testing.B) {
 		_, err := client.JSONVariation(
 			"json-no-rule-100",
 			user,
-			map[string]any{sdkDefault: fixtureDefault},
+			map[string]any{sdkDefault: variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -406,7 +406,7 @@ func BenchmarkJSONVar_NoRule0(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.JSONVariation("json-no-rule-0", user, map[string]any{sdkDefault: fixtureDefault})
+		_, err := client.JSONVariation("json-no-rule-0", user, map[string]any{sdkDefault: variationDefault})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -421,7 +421,7 @@ func BenchmarkJSONVar_NoRule50(b *testing.B) {
 		_, err := client.JSONVariation(
 			"json-no-rule-50",
 			user,
-			map[string]any{sdkDefault: fixtureDefault},
+			map[string]any{sdkDefault: variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -434,7 +434,7 @@ func BenchmarkJSONVar_Rule(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.JSONVariation("json-rule", user, map[string]any{sdkDefault: fixtureDefault})
+		_, err := client.JSONVariation("json-rule", user, map[string]any{sdkDefault: variationDefault})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -449,7 +449,7 @@ func BenchmarkJSONVar_RuleComplex(b *testing.B) {
 		_, err := client.JSONVariation(
 			"json-rule-complex",
 			user,
-			map[string]any{sdkDefault: fixtureDefault},
+			map[string]any{sdkDefault: variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -465,7 +465,7 @@ func BenchmarkJSONVar_RolloutProgressive(b *testing.B) {
 		_, err := client.JSONVariation(
 			"json-rollout-progressive",
 			user,
-			map[string]any{sdkDefault: fixtureDefault},
+			map[string]any{sdkDefault: variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -481,7 +481,7 @@ func BenchmarkJSONVar_RolloutScheduled(b *testing.B) {
 		_, err := client.JSONVariation(
 			"json-rollout-scheduled",
 			user,
-			map[string]any{sdkDefault: fixtureDefault},
+			map[string]any{sdkDefault: variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -497,7 +497,7 @@ func BenchmarkJSONArrayVar_NoRule100(b *testing.B) {
 		_, err := client.JSONArrayVariation(
 			"jsonArr-no-rule-100",
 			user,
-			[]any{sdkDefault, fixtureDefault},
+			[]any{sdkDefault, variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -510,7 +510,7 @@ func BenchmarkJSONArrayVar_NoRule0(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.JSONArrayVariation("jsonArr-no-rule-0", user, []any{sdkDefault, fixtureDefault})
+		_, err := client.JSONArrayVariation("jsonArr-no-rule-0", user, []any{sdkDefault, variationDefault})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -522,7 +522,7 @@ func BenchmarkJSONArrayVar_NoRule50(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.JSONArrayVariation("jsonArr-no-rule-50", user, []any{sdkDefault, fixtureDefault})
+		_, err := client.JSONArrayVariation("jsonArr-no-rule-50", user, []any{sdkDefault, variationDefault})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -534,7 +534,7 @@ func BenchmarkJSONArrayVar_Rule(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(userD, i))
 
-		_, err := client.JSONArrayVariation("jsonArr-rule", user, []any{sdkDefault, fixtureDefault})
+		_, err := client.JSONArrayVariation("jsonArr-rule", user, []any{sdkDefault, variationDefault})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -549,7 +549,7 @@ func BenchmarkJSONArrayVar_RuleComplex(b *testing.B) {
 		_, err := client.JSONArrayVariation(
 			"jsonArr-rule-complex",
 			user,
-			[]any{sdkDefault, fixtureDefault},
+			[]any{sdkDefault, variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -565,7 +565,7 @@ func BenchmarkJSONArrayVar_RolloutProgressive(b *testing.B) {
 		_, err := client.JSONArrayVariation(
 			"jsonArr-rollout-progressive",
 			user,
-			[]any{sdkDefault, fixtureDefault},
+			[]any{sdkDefault, variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)
@@ -581,7 +581,7 @@ func BenchmarkJSONArrayVar_RolloutScheduled(b *testing.B) {
 		_, err := client.JSONArrayVariation(
 			"jsonArr-rollout-scheduled",
 			user,
-			[]any{sdkDefault, fixtureDefault},
+			[]any{sdkDefault, variationDefault},
 		)
 		if err != nil {
 			require.NoError(b, err)

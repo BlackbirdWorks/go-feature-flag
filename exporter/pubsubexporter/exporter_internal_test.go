@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	aBCD           = "ABCD"
-	anonymousUser  = "anonymousUser"
-	feature        = "feature"
-	fixtureDefault = "Default"
-	randomKey      = "random-key"
+	aBCD             = "ABCD"
+	anonymousUser    = "anonymousUser"
+	feature          = "feature"
+	variationDefault = "Default"
+	randomKey        = "random-key"
 )
 
 var (
@@ -73,7 +73,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -91,7 +91,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          "random-key1",
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -101,7 +101,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970527,
 					Key:          "random-key2",
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      true,
 				},
@@ -131,7 +131,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -150,7 +150,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -169,7 +169,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -199,7 +199,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      aBCD,
 					CreationDate: 1617970547,
 					Key:          randomKey,
-					Variation:    fixtureDefault,
+					Variation:    variationDefault,
 					Value:        "YO",
 					Default:      false,
 				},

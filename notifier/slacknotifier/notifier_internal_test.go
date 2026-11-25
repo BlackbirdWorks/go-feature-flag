@@ -17,9 +17,9 @@ import (
 
 const (
 	defaultRule        = "defaultRule"
-	fixtureDefault     = "Default"
-	fixtureFalse       = "False"
-	fixtureTrue        = "True"
+	variationDefault   = "Default"
+	variationFalse     = "False"
+	variationTrue      = "True"
 	httpsHooksSlackCom = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	jane               = "jane"
 	rule1              = "rule1"
@@ -64,19 +64,19 @@ func TestSlackNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
-										fixtureFalse: 95,
-										fixtureTrue:  5,
+										variationFalse: 95,
+										variationTrue:  5,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any("default")),
-								fixtureFalse:   new(any("false")),
-								fixtureTrue:    new(any("test")),
+								variationDefault: new(any("default")),
+								variationFalse:   new(any("false")),
+								variationTrue:    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 							TrackEvents: new(true),
 							Disable:     new(false),
@@ -91,20 +91,20 @@ func TestSlackNotifier_Notify(t *testing.T) {
 									Name:  new(rule1),
 									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								fixtureDefault: new(any(false)),
-								fixtureFalse:   new(any(false)),
-								fixtureTrue:    new(any(true)),
+								variationDefault: new(any(false)),
+								variationFalse:   new(any(false)),
+								variationTrue:    new(any(true)),
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: jane},
 							DefaultRule: &flag.Rule{
 								Name:            new(defaultRule),
-								VariationResult: new(fixtureDefault),
+								VariationResult: new(variationDefault),
 							},
 						},
 					},
@@ -112,15 +112,15 @@ func TestSlackNotifier_Notify(t *testing.T) {
 						"test-flag2": {
 							Before: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									fixtureDefault: new(any(false)),
-									fixtureFalse:   new(any(false)),
-									fixtureTrue:    new(any(true)),
+									variationDefault: new(any(false)),
+									variationFalse:   new(any(false)),
+									variationTrue:    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name: new(defaultRule),
 									Percentages: &map[string]float64{
-										fixtureFalse: 0,
-										fixtureTrue:  100,
+										variationFalse: 0,
+										variationTrue:  100,
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
@@ -131,23 +131,23 @@ func TestSlackNotifier_Notify(t *testing.T) {
 							},
 							After: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									fixtureDefault: new(any("strDefault")),
-									fixtureFalse:   new(any("strFalse")),
-									fixtureTrue:    new(any("strTrue")),
+									variationDefault: new(any("strDefault")),
+									variationFalse:   new(any("strFalse")),
+									variationTrue:    new(any("strTrue")),
 								},
 								Rules: &[]flag.Rule{
 									{
 										Name:  new(rule1),
 										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
-											fixtureFalse: 20,
-											fixtureTrue:  80,
+											variationFalse: 20,
+											variationTrue:  80,
 										},
 									},
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new(defaultRule),
-									VariationResult: new(fixtureDefault),
+									VariationResult: new(variationDefault),
 								},
 								Disable:     new(true),
 								TrackEvents: new(false),

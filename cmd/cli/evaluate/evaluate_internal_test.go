@@ -27,7 +27,7 @@ const (
 	description2                = "description"
 	falseVar                    = "false_var"
 	file2                       = "file"
-	fixtureDefault              = "Default"
+	variationDefault            = "Default"
 	httpsJiraXxxGOFF            = "https://jira.xxx/GOFF-01"
 	issueLink                   = "issue-link"
 	sTATIC                      = "STATIC"
@@ -218,7 +218,7 @@ func Test_Evaluate(t *testing.T) {
 			expectedResult: map[string]model.RawVarResult{
 				testFlag: {
 					TrackEvents:   true,
-					VariationType: fixtureDefault,
+					VariationType: variationDefault,
 					Failed:        false,
 					Version:       "",
 					Reason:        dEFAULT,
@@ -244,7 +244,7 @@ func Test_Evaluate(t *testing.T) {
 			expectedResult: map[string]model.RawVarResult{
 				testFlag: {
 					TrackEvents:   true,
-					VariationType: fixtureDefault,
+					VariationType: variationDefault,
 					Failed:        false,
 					Version:       "",
 					Reason:        dEFAULT,
@@ -259,7 +259,7 @@ func Test_Evaluate(t *testing.T) {
 				},
 				"test-flag2": {
 					TrackEvents:   true,
-					VariationType: fixtureDefault,
+					VariationType: variationDefault,
 					Failed:        false,
 					Version:       "",
 					Reason:        dEFAULT,
@@ -406,7 +406,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			expectedResult: map[string]model.RawVarResult{
 				testFlag: {
 					TrackEvents:   true,
-					VariationType: fixtureDefault,
+					VariationType: variationDefault,
 					Failed:        false,
 					Version:       "",
 					Reason:        dEFAULT,
@@ -473,7 +473,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 			expectedResult: map[string]model.RawVarResult{
 				testFlag: {
 					TrackEvents:   true,
-					VariationType: fixtureDefault,
+					VariationType: variationDefault,
 					Failed:        false,
 					Version:       "",
 					Reason:        dEFAULT,

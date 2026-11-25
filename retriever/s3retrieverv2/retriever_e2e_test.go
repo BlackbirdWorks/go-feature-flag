@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	fAJson    = "f/a.json"
+	fileAJSON = "f/a.json"
 	flagA     = "flag-a"
 	flagB     = "flag-b"
 	flagC     = "flag-c"
@@ -302,7 +302,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "dirchg")
 	cfg := srv.MustAwsConfig(t)
-	srv.PutObject(t, bucket, fAJson, flagJSON(flagA, "v1"))
+	srv.PutObject(t, bucket, fileAJSON, flagJSON(flagA, "v1"))
 
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Prefix: "f/", Pattern: "*.json", AwsConfig: &cfg}
 	require.NoError(t, r.Init(context.Background(), nil))
@@ -314,7 +314,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 
 	// a new file appears and the first one is modified
 	srv.PutObject(t, bucket, "f/b.json", flagJSON(flagB, "v1"))
-	srv.PutObject(t, bucket, fAJson, flagJSON(flagA, "v2"))
+	srv.PutObject(t, bucket, fileAJSON, flagJSON(flagA, "v2"))
 
 	got, err = r.Retrieve(context.Background())
 	require.NoError(t, err)
@@ -331,7 +331,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	// a deleted file disappears from the merged set
 	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, "f/c.json"))
 	require.NoError(t, err)
-	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, fAJson))
+	_, err = srv.S3Client(t).DeleteObject(context.Background(), deleteInput(bucket, fileAJSON))
 	require.NoError(t, err)
 	got, err = r.Retrieve(context.Background())
 	require.NoError(t, err)

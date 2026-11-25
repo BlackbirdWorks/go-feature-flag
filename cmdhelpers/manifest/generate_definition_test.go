@@ -21,8 +21,8 @@ const (
 	defaultValue2               = "defaultValue"
 	description2                = "description"
 	emptyJSON                   = "empty.json"
-	fixtureFalse                = "False"
-	fixtureTrue                 = "True"
+	variationFalse              = "False"
+	variationTrue               = "True"
 	half                        = "Half"
 	invalidConfigurationForFlag = "invalid configuration for flag bad-flag: impossible to find type"
 	key                         = "key"
@@ -85,7 +85,7 @@ func defaultRule(variation string) *flag.Rule {
 // and whose default rule selects the variation passed in.
 func boolFlag(defaultVariation string, metadata map[string]any) flag.InternalFlag {
 	return flag.InternalFlag{
-		Variations:  variationsPtr(map[string]any{fixtureTrue: true, fixtureFalse: false}),
+		Variations:  variationsPtr(map[string]any{variationTrue: true, variationFalse: false}),
 		DefaultRule: defaultRule(defaultVariation),
 		Metadata:    metadataPtr(metadata),
 	}
@@ -174,7 +174,7 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name: "boolean flag",
 			flags: map[string]flag.InternalFlag{
-				"boolean-flag": boolFlag(fixtureFalse, map[string]any{
+				"boolean-flag": boolFlag(variationFalse, map[string]any{
 					defaultValue2: false,
 					description2:  "a boolean flag",
 				}),
@@ -185,7 +185,7 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "boolean flag with experimentation",
 			flags: map[string]flag.InternalFlag{
 				"exp-flag": boolFlagWithExperimentation(
-					fixtureFalse,
+					variationFalse,
 					map[string]any{
 						defaultValue2: false,
 						description2:  "A/B experiment",
@@ -285,7 +285,7 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name: "missing description metadata defaults to empty string",
 			flags: map[string]flag.InternalFlag{
-				"minimal-flag": boolFlag(fixtureFalse, map[string]any{
+				"minimal-flag": boolFlag(variationFalse, map[string]any{
 					defaultValue2: false,
 				}),
 			},
@@ -294,7 +294,7 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name: "non-string description is ignored",
 			flags: map[string]flag.InternalFlag{
-				"weird-flag": boolFlag(fixtureFalse, map[string]any{
+				"weird-flag": boolFlag(variationFalse, map[string]any{
 					defaultValue2: false,
 					description2:  42,
 				}),
@@ -312,8 +312,8 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "flag without metadata is skipped and logged",
 			flags: map[string]flag.InternalFlag{
 				"no-meta": {
-					Variations:  variationsPtr(map[string]any{fixtureTrue: true, fixtureFalse: false}),
-					DefaultRule: defaultRule(fixtureFalse),
+					Variations:  variationsPtr(map[string]any{variationTrue: true, variationFalse: false}),
+					DefaultRule: defaultRule(variationFalse),
 				},
 			},
 			goldenFile: emptyJSON,
@@ -322,7 +322,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		{
 			name: "metadata without defaultValue is skipped and logged",
 			flags: map[string]flag.InternalFlag{
-				"no-default": boolFlag(fixtureFalse, map[string]any{
+				"no-default": boolFlag(variationFalse, map[string]any{
 					description2: "no default",
 				}),
 			},
@@ -332,10 +332,10 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		{
 			name: "valid flag is kept while invalid sibling is skipped",
 			flags: map[string]flag.InternalFlag{
-				"valid-flag": boolFlag(fixtureTrue, map[string]any{
+				"valid-flag": boolFlag(variationTrue, map[string]any{
 					defaultValue2: true,
 				}),
-				"skipped-flag": boolFlag(fixtureTrue, map[string]any{
+				"skipped-flag": boolFlag(variationTrue, map[string]any{
 					description2: "no default",
 				}),
 			},
@@ -345,7 +345,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		{
 			name: "multiple valid flags are all serialized",
 			flags: map[string]flag.InternalFlag{
-				"flag-a": boolFlag(fixtureTrue, map[string]any{
+				"flag-a": boolFlag(variationTrue, map[string]any{
 					defaultValue2: true,
 				}),
 				"flag-b": {

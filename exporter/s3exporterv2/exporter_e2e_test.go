@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	enabled       = "enabled"
-	fixture09Json = `-[0-9]+\.json$`
-	myFlag        = "my-flag"
-	userD         = "user-%d"
+	enabled               = "enabled"
+	jsonFileSuffixPattern = `-[0-9]+\.json$`
+	myFlag                = "my-flag"
+	userD                 = "user-%d"
 )
 
 func events(n int) []exporter.ExportableEvent {
@@ -67,18 +67,18 @@ func TestE2E_Export(t *testing.T) {
 	}{
 		{
 			name: "json default format", format: "", s3Path: "exports/json", nbEvents: 3,
-			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + fixture09Json,
+			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{
 			name: "json explicit with custom filename", format: "JSON", s3Path: "a/b/c", nbEvents: 5,
 			filename:     "custom-{{ .Hostname }}-{{ .Timestamp }}.{{ .Format }}",
-			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + fixture09Json,
+			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{
 			name: "empty S3Path gives a key starting with a slash", format: "json", s3Path: "", nbEvents: 1,
-			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + fixture09Json,
+			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + jsonFileSuffixPattern,
 			check:        checkJSON,
 		},
 		{

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	consumer1   = "consumer1"
-	fixtureInit = "init"
+	consumer1 = "consumer1"
+	initEvent = "init"
 )
 
 const defaultTestCleanQueueDuration = 100 * time.Millisecond
@@ -346,7 +346,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
+		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
 	}
 
 	processingStarted := make(chan struct{})
@@ -391,7 +391,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	<-processingDone
 
 	// the exporter got the 10 events that were pending when it started, the one added meanwhile still is
-	assert.Equal(t, []string{fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit},
+	assert.Equal(t, []string{initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent},
 		processedBatch)
 
 	pending, err := eventStore.GetPendingEventCount(consumerName)
@@ -411,7 +411,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
+		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
 	}
 
 	processingStarted := make(chan struct{})
@@ -516,7 +516,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
+		eventStore.Add(testutils.NewExportableMockEvent(initEvent))
 	}
 
 	var (

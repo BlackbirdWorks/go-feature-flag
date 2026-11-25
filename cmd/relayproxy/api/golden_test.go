@@ -38,7 +38,7 @@ const (
 	bodyNotRecordedN            = "(body not recorded)\n"
 	contentType                 = "Content-Type"
 	debugPprof                  = "/debug/pprof/"
-	gET                         = "GET"
+	methodGET                   = "GET"
 	gOLDENUPDATE                = "GOLDEN_UPDATE"
 	health2                     = "/health"
 	httpsExampleCom             = "https://example.com"
@@ -441,7 +441,7 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 		{
 			name: "options_preflight_unknown_path", method: http.MethodOptions, path: nope,
 			headers: map[string]string{
-				origin: httpsExampleCom, accessControlRequestMethod: gET,
+				origin: httpsExampleCom, accessControlRequestMethod: methodGET,
 			},
 		},
 		{
@@ -452,7 +452,7 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 		{
 			name: "options_health_preflight", method: http.MethodOptions, path: health2,
 			headers: map[string]string{
-				origin: httpsExampleCom, accessControlRequestMethod: gET,
+				origin: httpsExampleCom, accessControlRequestMethod: methodGET,
 			},
 		},
 		{
@@ -462,7 +462,7 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 		{
 			name: "options_swagger_preflight", method: http.MethodOptions, path: swaggerIndexHTML,
 			headers: map[string]string{
-				origin: httpsExampleCom, accessControlRequestMethod: gET,
+				origin: httpsExampleCom, accessControlRequestMethod: methodGET,
 				accessControlRequestHeaders: "x-api-key",
 			},
 		},

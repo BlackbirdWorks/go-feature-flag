@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	data2       = "data"
-	gETStreamV1 = "GET /stream/v1/sse/flag/change"
+	data2            = "data"
+	getStreamV1Route = "GET /stream/v1/sse/flag/change"
 )
 
 var (
@@ -139,13 +139,13 @@ func Test_SSE_FlagChange(t *testing.T) {
 			})
 
 			flagsetMgr := &mockFlagsetManagerSSE{
-				flagsetName: fixtureDefault,
+				flagsetName: defaultFlagset,
 				isDefault:   true,
 			}
 
 			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 			e := http.NewServeMux()
-			e.Handle(gETStreamV1, helper.Handle(ctrl.Handler, false))
+			e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 			srv := httptest.NewServer(e)
 			defer srv.Close()
@@ -170,7 +170,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 			before := clock.Now().Unix()
 
-			require.NoError(t, sseService.BroadcastFlagChanges(fixtureDefault, tt.flagChange))
+			require.NoError(t, sseService.BroadcastFlagChanges(defaultFlagset, tt.flagChange))
 
 			event := readSSEEvent(t, resp)
 			assert.NotEmpty(t, event["id"], "events should have an id")
@@ -209,7 +209,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 
 	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr)
 	e := http.NewServeMux()
-	e.Handle(gETStreamV1, helper.Handle(ctrl.Handler, false))
+	e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 	srv := httptest.NewServer(e)
 	defer srv.Close()
@@ -317,7 +317,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 
 			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr)
 			e := http.NewServeMux()
-			e.Handle(gETStreamV1, helper.Handle(ctrl.Handler, false))
+			e.Handle(getStreamV1Route, helper.Handle(ctrl.Handler, false))
 
 			srv := httptest.NewServer(e)
 			defer srv.Close()
