@@ -16,8 +16,8 @@ type compiledQuery struct {
 // compiledQuery returns the compiled form of raw. It is memoized per raw query by the Service: only
 // evaluation stores entries, so the set is bounded by the flag config that the Service evaluates.
 func (s *Service) compiledQuery(raw string) *compiledQuery {
-	if v, ok := s.compiled.Load(raw); ok {
-		return v.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
+	if v, ok := loadAs[*compiledQuery](&s.compiled, raw); ok {
+		return v
 	}
 
 	trimmed := utils.StrTrim(raw)
@@ -32,5 +32,5 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 
 	actual, _ := s.compiled.LoadOrStore(raw, compiled)
 
-	return actual.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
+	return asOr(actual, compiled)
 }

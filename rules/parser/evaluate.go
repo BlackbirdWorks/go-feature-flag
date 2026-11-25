@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -191,8 +192,7 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 		return false, visitor.err
 	}
 
-	//nolint:errcheck,forcetypeassert // evaluation path: preserves panic-on-mismatch contract for visitor result
-	return result.(bool), visitor.err
+	return assertType[bool](result), visitor.err
 }
 
 func Evaluate(rule string, items map[string]any) bool {
@@ -210,3 +210,14 @@ func Evaluate(rule string, items map[string]any) bool {
 type recoveredPanicError struct{ info any }
 
 func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }
+
+// assertType returns v as a T. A mismatch is a bug of the evaluator, not a bad rule: it panics, and the recover of
+// the evaluation reports it as an error, as the unchecked type assertion it replaces did.
+func assertType[T any](v any) T {
+	res, ok := v.(T)
+	if !ok {
+		panic(fmt.Sprintf("interface conversion: %T is not %s", v, reflect.TypeFor[T]()))
+	}
+
+	return res
+}

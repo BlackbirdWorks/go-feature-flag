@@ -695,8 +695,7 @@ func cloneMetadata(metadata map[string]any) map[string]any {
 		return nil
 	}
 
-	//nolint:errcheck,forcetypeassert // cloneVariationValue returns the type it is given
-	return cloneVariationValue(metadata).(map[string]any)
+	return asOr(cloneVariationValue(metadata), metadata)
 }
 
 // cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the

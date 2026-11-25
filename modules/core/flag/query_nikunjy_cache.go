@@ -151,8 +151,8 @@ func newNikunjyEvaluatorCache() *nikunjyEvaluatorCache {
 }
 
 func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
-	if v, ok := c.entries.Load(query); ok {
-		return v.(*parser.Evaluator), nil //nolint:errcheck,forcetypeassert // the maps only ever store this type
+	if v, ok := loadAs[*parser.Evaluator](&c.entries, query); ok {
+		return v, nil
 	}
 
 	eval, err := parser.NewEvaluator(query)
@@ -162,7 +162,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 
 	actual, _ := c.entries.LoadOrStore(query, eval)
 
-	return actual.(*parser.Evaluator), nil //nolint:errcheck,forcetypeassert // the maps only ever store this type
+	return asOr(actual, eval), nil
 }
 
 // validate parses the query through the cache and evaluates it on an empty context. That
@@ -391,15 +391,14 @@ func (c *nikunjyEvaluatorCache) referenceEntry(key uint64, raw string) *nikunjyK
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
 
-	val, ok := c.byKey.Load(key)
-	//nolint:errcheck,forcetypeassert // the maps only ever store this type
-	if !ok || val.(*nikunjyKeyedEvaluator).query != raw {
+	entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	if !ok || entry.query != raw {
 		return nil
 	}
 
 	c.keyRefs[key]++
 
-	return val.(*nikunjyKeyedEvaluator) //nolint:errcheck,forcetypeassert // the maps only ever store this type
+	return entry
 }
 
 // find counts a reference to the entry of the text raw, whose hash is hash, and returns its key
@@ -413,12 +412,12 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 			continue
 		}
 
-		v, ok := c.byKey.Load(key)
+		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
 			return 0, nil
 		}
-		//nolint:errcheck,forcetypeassert // the maps only ever store this type
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
+
+		if entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -444,16 +443,16 @@ func (c *nikunjyEvaluatorCache) intern(
 			continue
 		}
 
-		val, ok := c.byKey.Load(key)
+		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
-			entry := &nikunjyKeyedEvaluator{query: raw, evaluator: evaluator}
+			entry = &nikunjyKeyedEvaluator{query: raw, evaluator: evaluator}
 			c.byKey.Store(key, entry)
 			c.keyRefs[key]++
 
 			return key, entry
 		}
-		//nolint:errcheck,forcetypeassert // the maps only ever store this type
-		if entry := val.(*nikunjyKeyedEvaluator); entry.query == raw {
+
+		if entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -493,13 +492,8 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 		return nil
 	}
 
-	v, ok := c.byKey.Load(key)
-	if !ok {
-		return nil
-	}
-
-	e := v.(*nikunjyKeyedEvaluator) //nolint:errcheck,forcetypeassert // the maps only ever store this type
-	if e.query != raw {
+	e, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	if !ok || e.query != raw {
 		return nil
 	}
 

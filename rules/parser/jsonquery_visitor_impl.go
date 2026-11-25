@@ -68,17 +68,13 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 
 	switch val := tree.(type) {
 	case *LogicalExpContext:
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		return val.Accept(j).(bool)
+		return assertType[bool](val.Accept(j))
 	case *CompareExpContext:
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		return val.Accept(j).(bool)
+		return assertType[bool](val.Accept(j))
 	case *ParenExpContext:
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		return val.Accept(j).(bool)
+		return assertType[bool](val.Accept(j))
 	case *PresentExpContext:
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		return val.Accept(j).(bool)
+		return assertType[bool](val.Accept(j))
 	default:
 		j.setErr(errInvalidRule2)
 
@@ -87,8 +83,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	result := ctx.Query().Accept(j).(bool)
+	result := assertType[bool](ctx.Query().Accept(j))
 	if ctx.NOT() != nil {
 		return !result
 	}
@@ -97,8 +92,7 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	left := ctx.Query(0).Accept(j).(bool)
+	left := assertType[bool](ctx.Query(0).Accept(j))
 
 	op := ctx.LOGICAL_OPERATOR().GetText()
 	if op == "or" {
@@ -106,16 +100,14 @@ func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
 			return left
 		}
 
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		return ctx.Query(1).Accept(j).(bool)
+		return assertType[bool](ctx.Query(1).Accept(j))
 	}
 	// means it is and
 	if !left {
 		return left
 	}
 
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	return ctx.Query(1).Accept(j).(bool)
+	return assertType[bool](ctx.Query(1).Accept(j))
 }
 
 func (j *JSONQueryVisitorImpl) VisitPresentExp(ctx *PresentExpContext) any {
@@ -197,8 +189,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 			return nil
 		}
 
-		//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-		m := item.(map[string]any)
+		m := assertType[map[string]any](item)
 		j.leftOp = m[ctx.ATTRNAME().GetText()]
 		j.stack.clear()
 
@@ -215,8 +206,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 		return nil
 	}
 
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	m := item.(map[string]any)
+	m := assertType[map[string]any](item)
 	j.stack.push(m[ctx.ATTRNAME().GetText()])
 
 	return ctx.SubAttr().Accept(j)
@@ -321,8 +311,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) any
 		j.rightOp = make([]int, 0)
 	}
 
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	list := j.rightOp.([]int)
+	list := assertType[[]int](j.rightOp)
 
 	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
@@ -356,8 +345,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfDoubles(ctx *SubListOfDoublesContex
 		j.rightOp = make([]float64, 0)
 	}
 
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	list := j.rightOp.([]float64)
+	list := assertType[[]float64](j.rightOp)
 
 	val, err := strconv.ParseFloat(ctx.DOUBLE().GetText(), 64)
 	if err != nil {
@@ -392,8 +380,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 	}
 
 	val := getString(ctx.STRING().GetText())
-	//nolint:errcheck,forcetypeassert // visitor evaluation path: preserves panic-on-mismatch contract
-	list := j.rightOp.([]string)
+	list := assertType[[]string](j.rightOp)
 	list = append(list, val)
 	j.rightOp = list
 

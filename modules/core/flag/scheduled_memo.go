@@ -42,8 +42,8 @@ func (m *scheduledMemo) get(
 		}
 	}
 
-	entry := rawEntry.(*scheduledEntry) //nolint:errcheck,forcetypeassert // the map only ever stores *scheduledEntry
-	if due >= len(entry.byCount) {      // the steps changed after the entry was created
+	entry, ok := rawEntry.(*scheduledEntry)
+	if !ok || due >= len(entry.byCount) { // the steps changed after the entry was created
 		return build()
 	}
 

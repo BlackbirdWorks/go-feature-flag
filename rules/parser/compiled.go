@@ -150,8 +150,7 @@ func (st *evalState) resolve(path []string) {
 			return
 		}
 
-		//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
-		m := item.(map[string]any)
+		m := assertType[map[string]any](item)
 		st.stack.push(m[name])
 	}
 
@@ -167,8 +166,7 @@ func (st *evalState) resolve(path []string) {
 		return
 	}
 
-	//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
-	m := item.(map[string]any)
+	m := assertType[map[string]any](item)
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -221,12 +219,12 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []int{}
 		} else {
-			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
-			list = state.rightOp.([]int)
+			list = assertType[[]int](state.rightOp)
 		}
 
-		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
-		state.rightOp = append(list, n.listOp.([]int)...)
+		list = append(list, assertType[[]int](n.listOp)...)
+		state.rightOp = list
+
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
@@ -235,11 +233,12 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []float64{}
 		} else {
-			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
-			list = state.rightOp.([]float64)
+			list = assertType[[]float64](state.rightOp)
 		}
-		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
-		state.rightOp = append(list, n.listOp.([]float64)...)
+
+		list = append(list, assertType[[]float64](n.listOp)...)
+		state.rightOp = list
+
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
@@ -248,11 +247,11 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []string{}
 		} else {
-			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
-			list = state.rightOp.([]string)
+			list = assertType[[]string](state.rightOp)
 		}
-		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
-		state.rightOp = append(list, n.listValue().([]string)...)
+
+		list = append(list, assertType[[]string](n.listValue())...)
+		state.rightOp = list
 	default:
 		state.rightOp = n.rightOp
 		if n.valErr != nil {
@@ -442,8 +441,7 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		}
 
 		if _, ok := operation.(*VersionOperation); ok {
-			//nolint:errcheck,forcetypeassert // compile path: VersionOperation guarantees string rightOp
-			ruleVersion := cmpNode.rightOp.(string)
+			ruleVersion := assertType[string](cmpNode.rightOp)
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
 
