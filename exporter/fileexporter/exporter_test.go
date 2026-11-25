@@ -433,10 +433,9 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 	})
 }
 
-func TestFile_Export_OutputDirAndErrors(t *testing.T) {
+func TestFile_Export_InvalidFormatAndTemplates(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
 	hostname, _ := os.Hostname()
 	runFileExportTests(t, []fileExportCase{
 		{
@@ -474,44 +473,6 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			expected: fileExportExpected{
 				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + "-[0-9]*\\.xxx$",
-				content:       fixtures.AllDefaultJSONPath,
-			},
-		},
-		{
-			name:    "non-existent outputdir",
-			wantErr: false,
-			fields: fileExportFields{
-				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
-			},
-			args: fileExportArgs{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         fixtures.KindFeature,
-						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.UserKeyABCD,
-						CreationDate: 1617970547,
-						Key:          fixtures.UserKeyRandom,
-						Variation:    fixtures.VariationDefault,
-						Value:        "YO",
-						Default:      false,
-						Source:       fixtures.SourceServer,
-					},
-					exporter.FeatureEvent{
-						Kind:         fixtures.KindFeature,
-						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.UserKeyEFGH,
-						CreationDate: 1617970701,
-						Key:          fixtures.UserKeyRandom,
-						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.ValueYO2,
-						Default:      false,
-						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SourceServer,
-					},
-				},
-			},
-			expected: fileExportExpected{
-				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + fixtures.JSONFileSuffixPattern,
 				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
@@ -580,6 +541,53 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Source:       fixtures.SourceServer,
 					},
 				},
+			},
+		},
+	})
+}
+
+func TestFile_Export_OutputDir(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
+		{
+			name:    "non-existent outputdir",
+			wantErr: false,
+			fields: fileExportFields{
+				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyABCD,
+						CreationDate: 1617970547,
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        "YO",
+						Default:      false,
+						Source:       fixtures.SourceServer,
+					},
+					exporter.FeatureEvent{
+						Kind:         fixtures.KindFeature,
+						ContextKind:  fixtures.UserKeyAnonymous,
+						UserKey:      fixtures.UserKeyEFGH,
+						CreationDate: 1617970701,
+						Key:          fixtures.UserKeyRandom,
+						Variation:    fixtures.VariationDefault,
+						Value:        fixtures.ValueYO2,
+						Default:      false,
+						Version:      fixtures.VersionMajor127,
+						Source:       fixtures.SourceServer,
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + fixtures.JSONFileSuffixPattern,
+				content:       fixtures.AllDefaultJSONPath,
 			},
 		},
 		{

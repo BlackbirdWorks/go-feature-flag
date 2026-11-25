@@ -504,7 +504,6 @@ func createExporter(expConf *config.ExporterConf) (builtExporter, error) {
 }
 
 // createAWSExporter builds the exporters that load the default AWS configuration.
-//
 func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (builtExporter, error) {
 	var awsOpts []func(*awsconf.LoadOptions) error
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {

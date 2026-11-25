@@ -64,8 +64,9 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
 				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 				Build()
-			_, err := (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
+			got, err := (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
+			assert.Equal(t, "on", got)
 
 			assert.Equal(t, tt.wantFirstEntries, countEntries(&first.nikunjy.entries), "entries of the first Service")
 			assert.Equal(t, tt.wantOtherEntries, countEntries(&other.nikunjy.entries), "entries of the other Service")
@@ -73,8 +74,9 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			first.Close()
 			assert.Equal(t, tt.wantAfterClose, countEntries(&first.nikunjy.entries), "entries after Close")
 			// still usable after Close: it rebuilds what it needs
-			_, err = (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
+			got2, err := (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
+			assert.Equal(t, "on", got2)
 		})
 	}
 }

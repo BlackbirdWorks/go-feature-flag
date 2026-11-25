@@ -95,7 +95,7 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 			assert.Equal(t, tt.wantTrimmed, r.GetTrimmedQuery())
 
 			if tt.evaluate {
-				_, err := r.Evaluate(
+				got, err := r.Evaluate(
 					svc,
 					fixtures.UserKeyAbc,
 					ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
@@ -103,6 +103,7 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 					false,
 				)
 				require.NoError(t, err)
+				assert.Equal(t, "A", got)
 			}
 
 			count := 0

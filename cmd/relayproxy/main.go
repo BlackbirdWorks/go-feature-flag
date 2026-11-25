@@ -127,19 +127,22 @@ func run(exit func()) int {
 
 	logCryptoMode(logger.Slog)
 
-	// Initialize metrics
-	metricsV2 := newMetrics(logger.Slog, proxyConf)
+	return serve(proxyConf, logger.Slog, exit)
+}
 
-	// Init services
+// serve wires up services and runs the HTTP server until shutdown.
+func serve(proxyConf *config.Config, logger *slog.Logger, exit func()) int {
+	metricsV2 := newMetrics(logger, proxyConf)
+
 	wsService := stream.NewWebsocketService(stream.WithFlagDetails(!proxyConf.DisableFlagDetailsInStream))
 	sseService := stream.NewSSEService()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger.Slog, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger, []notifier.Notifier{
 		prometheusNotifier,
 	}, sseService, wsService)
 	if err != nil {
-		logger.Slog.LogAttrs(context.Background(), slog.LevelError,
+		logger.LogAttrs(context.Background(), slog.LevelError,
 			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
 			cmdlog.Err(err),
 		)
@@ -149,7 +152,7 @@ func run(exit func()) int {
 
 	registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager)
 	if registerFlagLoadedErr != nil {
-		logger.Slog.LogAttrs(
+		logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
 			"impossible to register the flag_loaded metric",
@@ -167,9 +170,9 @@ func run(exit func()) int {
 	// Init API server
 	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
 	opentelemetry.ExportEnvironment(proxyConf)
-	apiServer := api.New(proxyConf, &services, logger.Slog, api.WithGlobalTelemetry(), api.WithExit(exit))
+	apiServer := api.New(proxyConf, &services, logger, api.WithGlobalTelemetry(), api.WithExit(exit))
 
-	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
+	defer shutdown(logger, &apiServer, wsService, sseService, flagsetManager)
 
 	apiServer.StartWithContext(context.Background())
 
