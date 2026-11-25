@@ -32,7 +32,7 @@ const (
 
 // New is used to create a new instance of the API server.
 func New(cfg *config.Config,
-	services service.Services,
+	services *service.Services,
 	logger *slog.Logger,
 	opts ...Option,
 ) Server {
@@ -40,7 +40,7 @@ func New(cfg *config.Config,
 
 	srv := Server{
 		config:        cfg,
-		services:      services,
+		services:      *services,
 		logger:        logger,
 		exit:          func() { os.Exit(1) },
 		otelService:   opentelemetry.NewOtelService(),

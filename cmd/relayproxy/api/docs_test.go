@@ -43,7 +43,7 @@ func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 	flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
-	srv := api.New(conf, service.Services{
+	srv := api.New(conf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		FlagsetManager:    flagsetManager,
 	}, newTestLogger(t).Slog)
@@ -295,7 +295,7 @@ func Test_Upload(t *testing.T) {
 			flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(flagsetManager.Close)
-			srv := api.New(conf, service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
+			srv := api.New(conf, &service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
 				api.WithReadTimeout(tt.timeout))
 			req := httptest.NewRequestWithContext(
 				t.Context(),

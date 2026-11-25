@@ -540,7 +540,7 @@ func newAPIServerWithLogger(
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}
 
 	cfg.AttachConfigChangeCallback(callback)
@@ -551,7 +551,7 @@ func newAPIServerWithLogger(
 		runtime.Goexit()
 	}
 
-	s := api.New(cfg, services, logger, api.WithExit(exit), api.WithListener(listener))
+	s := api.New(cfg, &services, logger, api.WithExit(exit), api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, cfg

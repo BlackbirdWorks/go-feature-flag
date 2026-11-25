@@ -260,7 +260,7 @@ func TestConfigAddFlagSet(t *testing.T) {
 				{Name: fixtures.FlagsetOne, APIKeys: []string{fixtures.UserKeyFirst}},
 			},
 		}
-		err := cfg.AddFlagSet(config.FlagSet{Name: fixtures.FlagsetTwo, APIKeys: []string{fixtures.UserKeySecond}})
+		err := cfg.AddFlagSet(&config.FlagSet{Name: fixtures.FlagsetTwo, APIKeys: []string{fixtures.UserKeySecond}})
 		require.NoError(t, err)
 
 		got := cfg.GetFlagSets()
@@ -279,7 +279,7 @@ func TestConfigAddFlagSet(t *testing.T) {
 				{Name: fixtures.FlagsetOne, APIKeys: []string{fixtures.UserKeyFirst}},
 			},
 		}
-		err := cfg.AddFlagSet(config.FlagSet{Name: fixtures.FlagsetOne, APIKeys: []string{fixtures.UserKeySecond}})
+		err := cfg.AddFlagSet(&config.FlagSet{Name: fixtures.FlagsetOne, APIKeys: []string{fixtures.UserKeySecond}})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flagset flagset-1 already exists")
 		// The existing flagset must be untouched.

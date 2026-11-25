@@ -118,7 +118,7 @@ func Test_Listener(t *testing.T) {
 			}))
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			srv := api.New(conf, service.Services{
+			srv := api.New(conf, &service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				FlagsetManager:    flagsetManager,
 			}, logger, opts...)

@@ -155,7 +155,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			)
 			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -300,7 +300,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			)
 			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file

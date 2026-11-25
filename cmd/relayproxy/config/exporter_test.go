@@ -56,7 +56,8 @@ type exporterConfValidCase struct {
 func runExporterConfValidTests(t *testing.T, tests []exporterConfValidCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

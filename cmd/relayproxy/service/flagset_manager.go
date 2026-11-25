@@ -220,7 +220,8 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	registry.preRegisterAll(cfg.FlagSets)
 	defer registry.releasePending()
 
-	for index, flagset := range cfg.FlagSets {
+	for index := range cfg.FlagSets {
+		flagset := &cfg.FlagSets[index]
 		flagSetName := flagset.Name
 		if !isNamedFlagset(flagset) {
 			flagSetName = uuid.New().String()
@@ -237,7 +238,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
 
 		client, err := newGoFeatureFlagClient(
-			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
+			flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
 			withDefaultExporterCleanQueueInterval(cfg.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.LogAttrs(context.Background(), slog.LevelError,
@@ -444,12 +445,13 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	// the flagsets.
 	// The flagsets added by this reload are left out: their retriever warns about its own polling.
 	existing := make([]config.FlagSet, 0, len(newConfig.FlagSets))
-	for _, fs := range newConfig.FlagSets {
+	for i := range newConfig.FlagSets {
+		fs := &newConfig.FlagSets[i]
 		if _, current := currentByName[fs.Name]; isNamedFlagset(fs) && !current {
 			continue
 		}
 
-		existing = append(existing, fs)
+		existing = append(existing, *fs)
 	}
 
 	m.sharedRegistry.setPolling(
@@ -468,15 +470,15 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 
 	for name, newFlagset := range newByName {
 		if _, alreadyExists := currentByName[name]; !alreadyExists {
-			added = append(added, newFlagset)
+			added = append(added, *newFlagset)
 		}
 	}
 
 	m.sharedRegistry.preRegisterAll(added)
 	defer m.sharedRegistry.releasePending()
 
-	for _, newFlagset := range added {
-		m.addFlagset(newFlagset, newConfig.ExporterCleanQueueInterval)
+	for i := range added {
+		m.addFlagset(&added[i], newConfig.ExporterCleanQueueInterval)
 	}
 
 	// 3. Reconcile the flagsets that are present in both configurations: only their API keys
@@ -516,16 +518,18 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 // isNamedFlagset returns true if the flagset has an explicit, stable name that allows it to be
 // managed at runtime. Flagsets without a name (or named "default") get a generated name at
 // startup and cannot be added, removed or have their API keys changed at runtime.
-func isNamedFlagset(flagset config.FlagSet) bool {
+func isNamedFlagset(flagset *config.FlagSet) bool {
 	return flagset.Name != "" && flagset.Name != utils.DefaultFlagSetName
 }
 
 // indexNamedFlagsets indexes the given flagsets by their name, ignoring flagsets that do not
 // have an explicit name (empty or "default"): those cannot be tracked across reloads because
 // they are assigned a generated name at startup.
-func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
-	out := make(map[string]config.FlagSet, len(flagsets))
-	for _, flagset := range flagsets {
+func indexNamedFlagsets(flagsets []config.FlagSet) map[string]*config.FlagSet {
+	out := make(map[string]*config.FlagSet, len(flagsets))
+
+	for i := range flagsets {
+		flagset := &flagsets[i]
 		if !isNamedFlagset(flagset) {
 			continue
 		}
@@ -539,7 +543,7 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 // addFlagset creates a new GoFeatureFlag client for the given flagset and registers it so it
 // can serve evaluations immediately. defaultCleanQueueInterval is the top-level exporterCleanQueueInterval of the
 // configuration being applied, used when the flagset does not set its own.
-func (m *FlagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueueInterval time.Duration) {
+func (m *FlagsetManagerImpl) addFlagset(flagset *config.FlagSet, defaultCleanQueueInterval time.Duration) {
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
 	opts := append([]clientOption{
 		withSharedBucketRegistry(m.sharedRegistry),
@@ -547,7 +551,7 @@ func (m *FlagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
 	}, m.clientOptions...)
 
-	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)
+	client, err := newGoFeatureFlagClient(flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError,
 			"failed to create the flagset added at runtime, it will not be available until the "+
@@ -588,7 +592,7 @@ func (m *FlagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 }
 
 // removeFlagset closes the GoFeatureFlag client of the given flagset and unregisters it.
-func (m *FlagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
+func (m *FlagsetManagerImpl) removeFlagset(flagset *config.FlagSet) {
 	// Stop routing to this flagset (remove its client and API keys) before closing it; the
 	// remaining named flagsets' routing is rebuilt afterwards by rebuildNamedAPIKeysMapping.
 	m.flagsetsMutex.Lock()
@@ -619,7 +623,7 @@ func (m *FlagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 // reconcileExistingFlagset reconciles a flagset that is present in both the current and the new
 // configuration. Only the API keys can be changed at runtime: any other modification is
 // rejected with an error and ignored until the next restart of the relay proxy.
-func (m *FlagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config.FlagSet) {
+func (m *FlagsetManagerImpl) reconcileExistingFlagset(current, newFlagset *config.FlagSet) {
 	// slices.Equal is panic-safe on []string and treats nil and empty slices as equal.
 	apiKeysChanged := !slices.Equal(current.APIKeys, newFlagset.APIKeys)
 
@@ -687,8 +691,8 @@ func (m *FlagsetManagerImpl) warnIfUnnamedFlagsetsChanged(current, newFlagsets [
 func countUnnamedFlagsets(flagsets []config.FlagSet) int {
 	count := 0
 
-	for _, flagset := range flagsets {
-		if !isNamedFlagset(flagset) {
+	for i := range flagsets {
+		if !isNamedFlagset(&flagsets[i]) {
 			count++
 		}
 	}
@@ -705,7 +709,7 @@ func countUnnamedFlagsets(flagsets []config.FlagSet) int {
 //
 // Routing entries that target unnamed (UUID-named) flagsets are preserved: those flagsets cannot
 // be managed at runtime, so their mapping never changes here.
-func (m *FlagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName map[string]config.FlagSet) {
+func (m *FlagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName map[string]*config.FlagSet) {
 	// Authoritative API keys per named flagset after reconciliation. Reading from the config
 	// (not from newByName) preserves the previous keys of flagsets whose modification was
 	// rejected.
@@ -725,7 +729,7 @@ func (m *FlagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName
 // dropManagedAPIKeyRouting removes every routing entry that targets a named flagset involved in
 // this reload (added, removed or kept). Entries targeting unnamed flagsets are left untouched.
 // The caller must hold flagsetsMutex.
-func (m *FlagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName map[string]config.FlagSet) {
+func (m *FlagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName map[string]*config.FlagSet) {
 	for apiKey, target := range m.FlagSetRouting {
 		_, current := currentByName[target]
 
@@ -746,7 +750,7 @@ func (m *FlagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName m
 // Such a key must not route non-deterministically, so we fail closed — it is left out of the
 // returned assignments (resolves to no flagset) and reported as a collision.
 func resolveNamedAPIKeyRouting(
-	reconciled map[string]config.FlagSet,
+	reconciled map[string]*config.FlagSet,
 	running map[string]*ffclient.GoFeatureFlag,
 ) (map[string]string, map[string][2]string) {
 	assigned := make(map[string]string)

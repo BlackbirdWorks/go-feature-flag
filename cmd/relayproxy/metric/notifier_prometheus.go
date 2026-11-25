@@ -6,11 +6,11 @@ import (
 
 // NotifierPrometheus records flag changes as Prometheus metrics.
 type NotifierPrometheus struct {
-	metricsService Metrics
+	metricsService *Metrics
 }
 
 // NewPrometheusNotifier returns a notifier that records flag changes in metricsService.
-func NewPrometheusNotifier(metricsService Metrics) *NotifierPrometheus {
+func NewPrometheusNotifier(metricsService *Metrics) *NotifierPrometheus {
 	return &NotifierPrometheus{
 		metricsService: metricsService,
 	}

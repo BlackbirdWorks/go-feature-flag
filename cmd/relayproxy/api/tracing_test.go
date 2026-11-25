@@ -110,7 +110,7 @@ func Test_Tracing(t *testing.T) {
 			conf.LogLevel = "debug"
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			// without a flag set manager the endpoints that need one answer 500: the span of a failure is checked.
-			srv := api.New(conf, service.Services{MonitoringService: failingMonitoring()}, logger,
+			srv := api.New(conf, &service.Services{MonitoringService: failingMonitoring()}, logger,
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))

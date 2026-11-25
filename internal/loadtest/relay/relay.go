@@ -132,7 +132,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		Metrics:           metrics,
 	}
 	if opts.Listen {
-		s := api.New(conf, r.Services, logger.Slog, api.WithListener(listener))
+		s := api.New(conf, &r.Services, logger.Slog, api.WithListener(listener))
 
 		r.server = &s
 		go s.StartWithContext(context.Background())

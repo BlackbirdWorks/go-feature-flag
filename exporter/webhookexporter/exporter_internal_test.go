@@ -50,7 +50,8 @@ type webhookExportCase struct {
 func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

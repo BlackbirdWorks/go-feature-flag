@@ -57,7 +57,7 @@ func TestNewGenerateCmd(t *testing.T) {
 
 			err := cmd.Execute()
 
-			verifyGenerateCmdResult(t, tt, cmd, &buf, err)
+			verifyGenerateCmdResult(t, &tt, cmd, &buf, err)
 		})
 	}
 }
@@ -67,7 +67,7 @@ func TestNewGenerateCmd(t *testing.T) {
 // cognitive complexity of the parent test.
 func verifyGenerateCmdResult(
 	t *testing.T,
-	tt generateCmdTestCase,
+	tt *generateCmdTestCase,
 	cmd *cobra.Command,
 	buf *bytes.Buffer,
 	err error,

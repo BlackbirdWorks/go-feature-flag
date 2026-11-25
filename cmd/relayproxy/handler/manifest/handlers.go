@@ -29,12 +29,12 @@ const (
 // Ctrl is the controller of the manifest endpoint.
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
 // NewManifest returns the handler that serves the flag manifest of a flagset.
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
+	flagsetManager service.FlagsetManager, metrics *metric.Metrics) *Ctrl {
 	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,

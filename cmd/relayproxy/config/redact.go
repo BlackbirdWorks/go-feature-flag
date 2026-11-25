@@ -146,7 +146,7 @@ func isOwnType(t reflect.Type) bool {
 	return strings.HasPrefix(t.PkgPath(), modulePathPrefix)
 }
 
-func koanfName(field reflect.StructField) string {
+func koanfName(field *reflect.StructField) string {
 	name, _, _ := strings.Cut(field.Tag.Get("koanf"), ",")
 	if name == "" {
 		name, _, _ = strings.Cut(field.Tag.Get("mapstructure"), ",")
@@ -180,15 +180,15 @@ func redactStruct(val reflect.Value, depth int) map[string]any {
 
 		if IsSecretField(typeName, field.Name) {
 			if isZeroValue(val.Field(i)) {
-				out[koanfName(field)] = nil
+				out[koanfName(&field)] = nil
 			} else {
-				out[koanfName(field)] = RedactedValue
+				out[koanfName(&field)] = RedactedValue
 			}
 
 			continue
 		}
 
-		out[koanfName(field)] = redactValue(val.Field(i), depth+1)
+		out[koanfName(&field)] = redactValue(val.Field(i), depth+1)
 	}
 
 	return out

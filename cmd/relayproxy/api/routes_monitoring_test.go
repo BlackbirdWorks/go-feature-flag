@@ -79,11 +79,11 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
-			apiServer := newTestServer(t, cfg, service.Services{
+			apiServer := newTestServer(t, cfg, &service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
-				Metrics:           metric.Metrics{},
+				Metrics:           &metric.Metrics{},
 			}, logger, opts...)
 
 			portToCheck := port

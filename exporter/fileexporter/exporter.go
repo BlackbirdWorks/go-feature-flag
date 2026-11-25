@@ -192,7 +192,8 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 		pqWriter.CompressionType = ct
 	}
 
-	for _, event := range events {
+	for i := range events {
+		event := &events[i]
 		eventValue, convertValueForParquetErr := event.ConvertValueForParquet()
 		if convertValueForParquetErr != nil {
 			return fmt.Errorf("convert event value for parquet: %w", convertValueForParquetErr)

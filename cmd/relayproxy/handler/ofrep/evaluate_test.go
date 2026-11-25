@@ -152,7 +152,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -279,7 +279,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, tt.args.eventStream)
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, tt.args.eventStream)
 			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
@@ -458,7 +458,7 @@ func Test_Evaluate(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 			mux := http.NewServeMux()
 			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
@@ -599,7 +599,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
 			mux := http.NewServeMux()
 			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 

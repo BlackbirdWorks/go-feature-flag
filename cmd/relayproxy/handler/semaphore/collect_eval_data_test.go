@@ -95,7 +95,7 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 			)
 			require.NoError(t, err)
 
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 
 			// read wantBody request file
 			var bodyReq []byte
@@ -365,7 +365,8 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 	}
 
 	out := make([]config.FlagSet, len(cfg.FlagSets))
-	for index, flagSet := range cfg.FlagSets {
+	for index := range cfg.FlagSets {
+		flagSet := cfg.FlagSets[index]
 		flagSet.Exporters = &[]config.ExporterConf{exporter}
 		out[index] = flagSet
 	}
@@ -403,7 +404,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
+	ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 
 	// large payload with 20,000 events to ensure processing takes time
 	event := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"f","variation":"` +
@@ -559,7 +560,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)

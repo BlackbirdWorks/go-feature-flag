@@ -56,12 +56,12 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
 
-	srv := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 

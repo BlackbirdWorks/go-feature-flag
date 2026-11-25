@@ -18,7 +18,7 @@ import (
 func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 	t.Parallel()
 
-	ctrl := controller.NewForceFlagsRefresh(nil, metric.Metrics{})
+	ctrl := controller.NewForceFlagsRefresh(nil, &metric.Metrics{})
 	_, handlerErr := ctrl.Handle(t.Context(), &controller.RetrieverRefreshInput{})
 	require.Error(t, handlerErr)
 	assert.Equal(
@@ -53,7 +53,7 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 	previousRefresh := defaultFlagset.GetCacheRefreshDate()
 
 	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
-	ctrl := controller.NewForceFlagsRefresh(flagsetManager, metric.Metrics{})
+	ctrl := controller.NewForceFlagsRefresh(flagsetManager, &metric.Metrics{})
 	_, handlerErr := ctrl.Handle(t.Context(), &controller.RetrieverRefreshInput{})
 	require.NoError(t, handlerErr)
 

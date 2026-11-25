@@ -159,7 +159,8 @@ func (c *Config) validateFlagSets() error {
 	// The error messages below must never contain the credential itself, only flagset names.
 	ownerByCredential := make(map[string]string) // credential -> flagsetName
 
-	for _, flagset := range c.FlagSets {
+	for i := range c.FlagSets {
+		flagset := &c.FlagSets[i]
 		// Validate API keys
 		if len(flagset.APIKeys) == 0 {
 			return fmt.Errorf("%w %s has no API keys", errFlagset, flagset.Name)
@@ -175,7 +176,7 @@ func (c *Config) validateFlagSets() error {
 		}
 
 		// Validate the CommonFlagSet embedded in the flagset
-		err := c.validateFlagSetCommonConfig(&flagset)
+		err := c.validateFlagSetCommonConfig(flagset)
 		if err != nil {
 			return fmt.Errorf("flagset %s: %w", flagset.Name, err)
 		}
@@ -229,7 +230,8 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 	}
 
 	if retrievers != nil {
-		for i, retriever := range *retrievers {
+		for i := range *retrievers {
+			retriever := &(*retrievers)[i]
 			err := retriever.IsValid()
 			if err != nil {
 				return fmt.Errorf("retriever at index %d validation failed: %w", i, err)
@@ -250,7 +252,8 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 	}
 
 	if exporters != nil {
-		for i, exporter := range *exporters {
+		for i := range *exporters {
+			exporter := &(*exporters)[i]
 			err := exporter.IsValid()
 			if err != nil {
 				return fmt.Errorf("exporter at index %d validation failed: %w", i, err)

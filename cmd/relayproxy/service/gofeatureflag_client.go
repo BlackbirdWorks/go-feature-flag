@@ -178,7 +178,7 @@ func newGoFeatureFlagClient(
 	}
 	// If the client can't be created, the shared-poller retrievers must leave their shared group,
 	// otherwise their item stays registered forever. Their Shutdown is idempotent.
-	defer releaseSharedPollerRetrievers(retrievers, &retErr)
+	defer func() { releaseSharedPollerRetrievers(retrievers, retErr) }()
 
 	exporters, err := initDataExporters(cFlagSet)
 	if err != nil {
@@ -189,6 +189,9 @@ func newGoFeatureFlagClient(
 	if err != nil {
 		return nil, err
 	}
+
+	// the client keeps the name: it must not point into the configuration, which changes at runtime.
+	flagSetName := cFlagSet.Name
 
 	clientCfg := ffclient.Config{
 		PollingInterval:                 clientPollingInterval(cFlagSet),
@@ -203,7 +206,7 @@ func newGoFeatureFlagClient(
 		DisableNotifierOnInit:           cFlagSet.DisableNotifierOnInit,
 		EvaluationContextEnrichment:     cFlagSet.EvaluationContextEnrichment,
 		PersistentFlagConfigurationFile: cFlagSet.PersistentFlagConfigurationFile,
-		Name:                            &cFlagSet.Name,
+		Name:                            &flagSetName,
 	}
 
 	newClient := options.newClient
@@ -262,8 +265,8 @@ func firstSharedRetriever(retrievers []retriever.Retriever) (*releasingRetriever
 
 // releaseSharedPollerRetrievers makes the shared-poller retrievers leave their shared group when the client
 // creation failed, otherwise their item stays registered forever. Their Shutdown is idempotent.
-func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *error) {
-	if *retErr == nil {
+func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr error) {
+	if retErr == nil {
 		return
 	}
 
@@ -315,8 +318,8 @@ func initRetrieversWithRegistry(
 	}
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
-		for _, r := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.Retriever(&r, retrieverOpts...)
+		for i := range *proxyConf.Retrievers {
+			currentRetriever, err := retrieverInit.Retriever(&(*proxyConf.Retrievers)[i], retrieverOpts...)
 			if err != nil {
 				return nil, fmt.Errorf("init retriever: %w", err)
 			}
@@ -343,8 +346,8 @@ func initDataExporters(proxyConf *config.FlagSet) ([]ffclient.DataExporter, erro
 	}
 
 	if proxyConf.Exporters != nil {
-		for _, e := range *proxyConf.Exporters {
-			currentExporter, err := initDataExporter(&e)
+		for i := range *proxyConf.Exporters {
+			currentExporter, err := initDataExporter(&(*proxyConf.Exporters)[i])
 			if err != nil {
 				return nil, err
 			}

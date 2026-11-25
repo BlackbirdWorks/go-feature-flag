@@ -47,7 +47,7 @@ func normalizeAltMessage(got []controller.FlagValidationError, alt string, want 
 }
 
 // validateOutcomeCounts returns the validate flags counter value per outcome label.
-func validateOutcomeCounts(t *testing.T, m metric.Metrics) map[string]float64 {
+func validateOutcomeCounts(t *testing.T, m *metric.Metrics) map[string]float64 {
 	t.Helper()
 
 	families, err := m.Registry.Gather()

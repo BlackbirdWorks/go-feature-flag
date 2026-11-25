@@ -25,7 +25,7 @@ import (
 // EvaluateCtrl serves the OFREP evaluation requests of the relay proxy.
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 	eventStream    config.OfrepEventStream
 	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
 	legacyMetadataOnly bool
@@ -43,7 +43,7 @@ func WithLegacyMetadataOnly(legacyOnly bool) Option {
 // NewOFREPEvaluate returns the controller that evaluates flags through the OFREP API.
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
-	metrics metric.Metrics,
+	metrics *metric.Metrics,
 	eventStream config.OfrepEventStream,
 	opts ...Option,
 ) EvaluateCtrl {

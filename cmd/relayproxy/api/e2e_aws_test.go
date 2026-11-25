@@ -392,7 +392,8 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			wantStatus: 401,
 		},
 	}
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			res := postJSON(t, url+tt.path, tt.apiKey, tt.body)
 			require.Equal(t, tt.wantStatus, res.Status, res.Raw)

@@ -795,7 +795,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 		for _, tt := range cases {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				got := recordGolden(t, baseURL, tt)
+				got := recordGolden(t, baseURL, &tt)
 
 				path := filepath.Join(goldenDir, variant, tt.name+".golden")
 				if os.Getenv(goldenUpdate) != "" {
@@ -839,7 +839,7 @@ func startWrappedServer(
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	srv := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
@@ -881,7 +881,7 @@ func goldenHeaders() []string {
 	}
 }
 
-func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
+func recordGolden(t *testing.T, baseURL string, tt *goldenCase) string {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
@@ -978,7 +978,7 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 		{method: http.MethodGet, path: v1FlagChange},
 	}
 	for _, r := range requests {
-		_ = recordGolden(t, baseURL, r)
+		_ = recordGolden(t, baseURL, &r)
 	}
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metricsPath, http.NoBody)

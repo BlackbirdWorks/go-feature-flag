@@ -71,7 +71,8 @@ func testSharedPollerManager(t *testing.T) {
 	assert.EqualValues(t, 2, fake.gets.Load())
 
 	// a flagset added at runtime joins the same group
-	mgr.addFlagset(s3FlagSet("u3", fixtures.FlagsDir, pCYaml), 0)
+	u3 := s3FlagSet("u3", fixtures.FlagsDir, pCYaml)
+	mgr.addFlagset(&u3, 0)
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
 
@@ -80,8 +81,10 @@ func testSharedPollerManager(t *testing.T) {
 	assert.Contains(t, all, "u3")
 
 	// removing flagsets releases the group once the last one is gone
-	mgr.removeFlagset(s3FlagSet("u1", fixtures.FlagsDir, pAYaml))
-	mgr.removeFlagset(s3FlagSet("u2", fixtures.FlagsDir, pBYaml))
+	u1 := s3FlagSet("u1", fixtures.FlagsDir, pAYaml)
+	u2 := s3FlagSet("u2", fixtures.FlagsDir, pBYaml)
+	mgr.removeFlagset(&u1)
+	mgr.removeFlagset(&u2)
 	assert.Equal(t, 1, reg.groupCount())
 	mgr.Close()
 	assert.Equal(t, 0, reg.groupCount())
@@ -100,7 +103,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 
 		// the flagset name is already in the configuration: the new client is closed and released
 		dup := s3FlagSet("u1", fixtures.FlagsDir, pBYaml)
-		mgr.addFlagset(dup, 0)
+		mgr.addFlagset(&dup, 0)
 		assert.Equal(t, 1, reg.groupCount())
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())

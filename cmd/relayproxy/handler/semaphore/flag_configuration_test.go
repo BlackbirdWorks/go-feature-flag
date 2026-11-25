@@ -104,7 +104,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			)
 			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
@@ -233,7 +233,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			)
 			require.NoError(t, err, impossibleToCreateFlagset)
 
-			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)

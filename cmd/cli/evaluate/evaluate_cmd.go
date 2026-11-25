@@ -250,21 +250,21 @@ func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) err
 	}
 
 	if flags.checkMode {
-		return runCheck(cmd, retrieverConf)
+		return runCheck(cmd, &retrieverConf)
 	}
 
-	return runEvaluate(cmd, args, flags.evalFlagFormat, retrieverConf, flags.evalFlag, flags.evalCtx)
+	return runEvaluate(cmd, args, flags.evalFlagFormat, &retrieverConf, flags.evalFlag, flags.evalCtx)
 }
 
 func runEvaluate(
 	cmd *cobra.Command,
 	_ []string,
 	flagFormat string,
-	retrieverConf retrieverconf.RetrieverConf,
+	retrieverConf *retrieverconf.RetrieverConf,
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverInit.Retriever(&retrieverConf)
+	r, err := retrieverInit.Retriever(retrieverConf)
 	if err != nil {
 		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}
@@ -315,7 +315,7 @@ func runEvaluate(
 
 func runCheck(
 	cmd *cobra.Command,
-	retrieverConf retrieverconf.RetrieverConf) error {
+	retrieverConf *retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
 	//nolint:musttag,gosec // G117: CLI --check-mode outputs the parsed retriever config as JSON

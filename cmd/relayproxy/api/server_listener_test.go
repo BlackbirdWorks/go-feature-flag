@@ -42,10 +42,10 @@ func TestServer_WithListener(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 
-	srv := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, &service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 

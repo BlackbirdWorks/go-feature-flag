@@ -118,7 +118,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 
 			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
 			out, handlerErr := ctrl.Handle(t.Context(), input)
@@ -244,7 +244,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
+			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 
 			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
 			out, handlerErr := ctrl.Handle(t.Context(), input)

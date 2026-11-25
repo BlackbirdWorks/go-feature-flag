@@ -197,7 +197,7 @@ func newMetricCounterVecs() metricCounterVecs {
 
 func registerMetricCollectors(
 	reg *prom.Registry,
-	counters metricCounters,
+	counters *metricCounters,
 	counterVecs metricCounterVecs,
 	version string,
 ) error {
@@ -233,8 +233,14 @@ func registerMetricCollectors(
 	return nil
 }
 
+// Enabled reports whether the metrics are set up: the zero value, or no Metrics at all, means that no metric is
+// recorded or served.
+func (m *Metrics) Enabled() bool {
+	return m != nil && m.Registry != nil
+}
+
 // NewMetrics is the constructor for the custom metrics.
-func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
+func NewMetrics(opts ...MetricsOpts) (*Metrics, error) {
 	// default opts
 	metricsOpts := &MetricsOpts{
 		EnableBulkMetricFlagNames: false,
@@ -249,12 +255,12 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	counters := newMetricCounters()
 	counterVecs := newMetricCounterVecs()
 
-	err := registerMetricCollectors(customRegistry, counters, counterVecs, metricsOpts.Version)
+	err := registerMetricCollectors(customRegistry, &counters, counterVecs, metricsOpts.Version)
 	if err != nil {
-		return Metrics{}, err
+		return nil, err
 	}
 
-	return Metrics{
+	return &Metrics{
 		opts:                     *metricsOpts,
 		flagEvaluationCounter:    *counterVecs.flagEvaluationCounter,
 		allFlagCounter:           counters.allFlagCounter,

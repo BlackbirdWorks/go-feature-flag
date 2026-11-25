@@ -192,7 +192,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			)
 			require.NoError(t, err, impossibleToCreateFlagset)
 
-			flagEval := controller.NewFlagEval(flagsetManager, metric.Metrics{})
+			flagEval := controller.NewFlagEval(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file

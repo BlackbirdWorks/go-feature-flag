@@ -65,7 +65,8 @@ func (c *Config) preloadAPIKeysLocked() {
 		addAPIKeys(c.AuthorizedKeys.Evaluation, EvaluationKeyType)
 	}
 
-	for _, flagSet := range c.FlagSets {
+	for i := range c.FlagSets {
+		flagSet := &c.FlagSets[i]
 		addAPIKeys(flagSet.APIKeys, FlagSetKeyType)
 	}
 

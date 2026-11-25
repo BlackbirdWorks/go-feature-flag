@@ -298,7 +298,7 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 				created, err := NewMetrics()
 				require.NoError(t, err)
 
-				metrics = &created
+				metrics = created
 			}
 
 			before := metricFamilyNames(t, metrics)

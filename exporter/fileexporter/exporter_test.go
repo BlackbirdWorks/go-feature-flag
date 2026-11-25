@@ -62,7 +62,8 @@ type fileExportCase struct {
 func runFileExportTests(t *testing.T, tests []fileExportCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -47,7 +47,8 @@ flagSets:
 // flagSetNames returns the names of the flagSets of a configuration.
 func flagSetNames(c *config.Config) []string {
 	names := make([]string, 0, len(c.FlagSets))
-	for _, flagSet := range c.FlagSets {
+	for i := range c.FlagSets {
+		flagSet := &c.FlagSets[i]
 		names = append(names, flagSet.Name)
 	}
 

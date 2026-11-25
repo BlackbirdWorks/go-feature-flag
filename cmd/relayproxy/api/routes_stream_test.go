@@ -53,12 +53,12 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	sseService := stream.NewSSEService()
 	defer sseService.Close()
 
-	apiServer := newTestServer(t, cfg, service.Services{
+	apiServer := newTestServer(t, cfg, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 
 	go apiServer.StartWithContext(context.Background())
@@ -178,11 +178,11 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	apiServer := newTestServer(t, cfg, service.Services{
+	apiServer := newTestServer(t, cfg, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
-		Metrics:           metric.Metrics{},
+		Metrics:           &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 	go apiServer.StartWithContext(context.Background())
 

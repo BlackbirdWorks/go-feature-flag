@@ -21,7 +21,7 @@ import (
 // ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
 type ValidateFlags struct {
 	version string
-	metrics metric.Metrics
+	metrics *metric.Metrics
 	limits  config.ValidateFlagsEndpoint
 }
 
@@ -41,7 +41,7 @@ type FlagValidationResponse struct {
 // NewValidateFlags initializes the controller for the /admin/v1/flags/validate endpoint.
 // The unset (zero) limits are replaced by their default.
 func NewValidateFlags(
-	version string, metrics metric.Metrics, limits config.ValidateFlagsEndpoint,
+	version string, metrics *metric.Metrics, limits config.ValidateFlagsEndpoint,
 ) *ValidateFlags {
 	return &ValidateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
 }

@@ -354,8 +354,8 @@ func operationPprof() *huma.Operation {
 
 // typedOperations are the operations huma serves (typed input and output). Their descriptions are here, the
 // parameters and the responses come from the input and output types.
-func operationHealth() huma.Operation {
-	return huma.Operation{
+func operationHealth() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "health",
 		Method:      http.MethodGet,
 		Path:        "/health",
@@ -367,8 +367,8 @@ func operationHealth() huma.Operation {
 	}
 }
 
-func operationInfo() huma.Operation {
-	return huma.Operation{
+func operationInfo() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "info",
 		Method:      http.MethodGet,
 		Path:        "/info",
@@ -381,8 +381,8 @@ func operationInfo() huma.Operation {
 	}
 }
 
-func operationRefresh() huma.Operation {
-	return huma.Operation{
+func operationRefresh() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "retrieverRefresh", Method: http.MethodPost, Path: "/admin/v1/retriever/refresh",
 		Summary: "This endpoint is used to force the refresh of the flags in the cache.", Tags: []string{tagAdmin},
 		Security: securityAuthorization(),
@@ -393,8 +393,8 @@ func operationRefresh() huma.Operation {
 	}
 }
 
-func operationManifest() huma.Operation {
-	return huma.Operation{
+func operationManifest() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "getManifest",
 		Method:      http.MethodGet,
 		Path:        "/openfeature/v0/manifest",
@@ -407,8 +407,8 @@ func operationManifest() huma.Operation {
 	}
 }
 
-func operationFlagChange() huma.Operation {
-	return huma.Operation{
+func operationFlagChange() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "flagChange", Method: http.MethodGet, Path: "/v1/flag/change",
 		Summary: "Endpoint to poll if you want to know if there is a configuration change in the flags",
 		Tags:    []string{tagEvaluation}, Security: securityAll(),
@@ -419,8 +419,8 @@ func operationFlagChange() huma.Operation {
 	}
 }
 
-func operationFlagConfiguration() huma.Operation {
-	return huma.Operation{
+func operationFlagConfiguration() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "flagConfiguration", Method: http.MethodPost, Path: "/v1/flag/configuration",
 		Summary: "Endpoint to poll if you want to get the configuration of the flags.",
 		Tags:    []string{tagEvaluation}, Security: securityAll(),
@@ -431,8 +431,8 @@ func operationFlagConfiguration() huma.Operation {
 	}
 }
 
-func operationCollector() huma.Operation {
-	return huma.Operation{
+func operationCollector() *huma.Operation {
+	return &huma.Operation{
 		OperationID: "collectEvalData",
 		Method:      http.MethodPost,
 		Path:        "/v1/data/collector",

@@ -75,7 +75,7 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	srv := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, &service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,

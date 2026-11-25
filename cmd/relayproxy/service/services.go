@@ -16,5 +16,5 @@ type Services struct {
 	// FlagsetManager is the service in charge of managing the flagsets
 	FlagsetManager FlagsetManager
 	// Metrics is the service containing all the prometheus metrics
-	Metrics metric.Metrics
+	Metrics *metric.Metrics
 }

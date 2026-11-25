@@ -31,13 +31,13 @@ const (
 // CollectEvalData is the controller of the endpoint that collects the events of the providers.
 type CollectEvalData struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
+	metrics        *metric.Metrics
 }
 
 // NewCollectEvalData initialize the controller for the /data/collector endpoint.
 func NewCollectEvalData(
 	flagsetManager service.FlagsetManager,
-	metrics metric.Metrics,
+	metrics *metric.Metrics,
 ) *CollectEvalData {
 	return &CollectEvalData{
 		flagsetManager: flagsetManager,

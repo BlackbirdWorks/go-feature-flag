@@ -124,7 +124,7 @@ func (c *Config) GetFlagSets() []FlagSet {
 
 // AddFlagSet adds a new flag set to the configuration.
 // It returns an error if a flag set with the same name already exists.
-func (c *Config) AddFlagSet(flagset FlagSet) error {
+func (c *Config) AddFlagSet(flagset *FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -133,7 +133,7 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
 
-	c.FlagSets = append(c.FlagSets, flagset)
+	c.FlagSets = append(c.FlagSets, *flagset)
 
 	return nil
 }
@@ -186,7 +186,8 @@ func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 // If the flagset is not found, it returns -1.
 // This function is not thread safe, it is expected to be called with the mutex locked.
 func (c *Config) getFlagSetIndexFromName(flagsetName string) (int, error) {
-	for index, flagset := range c.FlagSets {
+	for index := range c.FlagSets {
+		flagset := &c.FlagSets[index]
 		if flagset.Name == flagsetName {
 			return index, nil
 		}

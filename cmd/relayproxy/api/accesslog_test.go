@@ -81,7 +81,7 @@ func Test_AccessLog(t *testing.T) {
 			conf := testConfig(t)
 			// /health is not logged at the default level: the debug level logs everything.
 			conf.LogLevel = "debug"
-			srv := api.New(conf, service.Services{MonitoringService: tt.monitoring}, logger)
+			srv := api.New(conf, &service.Services{MonitoringService: tt.monitoring}, logger)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, healthPath, nil)
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]

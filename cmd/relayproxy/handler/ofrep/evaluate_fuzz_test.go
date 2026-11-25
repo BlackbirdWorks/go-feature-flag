@@ -47,7 +47,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	require.NoError(f, err)
 	f.Cleanup(flagsetManager.Close)
 
-	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
+	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
 	mux := http.NewServeMux()
 	mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 	mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))

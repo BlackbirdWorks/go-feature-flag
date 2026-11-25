@@ -66,7 +66,7 @@ func newTestLogger(t *testing.T) *cmdlog.Logger {
 // the server, instead of calling [os.Exit], which would take the whole test binary down and silently skip the
 // remaining tests. Every test server is built with it.
 func newTestServer(
-	t *testing.T, conf *config.Config, services service.Services, logger *slog.Logger, opts ...api.Option,
+	t *testing.T, conf *config.Config, services *service.Services, logger *slog.Logger, opts ...api.Option,
 ) api.Server {
 	t.Helper()
 
@@ -148,7 +148,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -232,7 +232,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	srv := newTestServer(t,
 		proxyConf,
-		services,
+		&services,
 		log.Slog,
 		api.WithListener(listener),
 		api.WithMonitoringListener(monitoringLn),
@@ -350,7 +350,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -432,7 +432,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -486,7 +486,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -661,7 +661,7 @@ func runAuthMiddlewareTests(
 				Metrics:           metricsV2,
 			}
 
-			s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+			s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 			go func() { s.StartWithContext(context.Background()) }()
 
 			defer s.Stop(context.Background())
@@ -751,7 +751,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog)
+	s := newTestServer(t, proxyConf, &services, log.Slog)
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -858,7 +858,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithMonitoringListener(monitoringLn))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithMonitoringListener(monitoringLn))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -967,7 +967,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog)
+	s := newTestServer(t, proxyConf, &services, log.Slog)
 	go func() { s.StartWithContext(context.Background()) }()
 
 	defer s.Stop(context.Background())
@@ -1157,7 +1157,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 				Metrics:           metricsV2,
 			}
 
-			s := newTestServer(t, proxyConf, services, log.Slog)
+			s := newTestServer(t, proxyConf, &services, log.Slog)
 			go func() { s.StartWithContext(context.Background()) }()
 
 			defer s.Stop(context.Background())
@@ -1272,7 +1272,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 				Metrics:           metricsV2,
 			}
 
-			s := newTestServer(t, proxyConf, services, log.Slog)
+			s := newTestServer(t, proxyConf, &services, log.Slog)
 			go func() { s.StartWithContext(context.Background()) }()
 
 			defer s.Stop(context.Background())
@@ -1353,7 +1353,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
+	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(ctx) }()
 
 	defer s.Stop(ctx)
@@ -1471,7 +1471,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		FlagsetManager:    flagsetManager,
 	}
 
-	srv := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
+	srv := newTestServer(t, proxyConf, &services, testLogger.Slog, api.WithListener(listener))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1555,7 +1555,7 @@ func Test_StopBeforeStart(t *testing.T) {
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
 	}
-	srv := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
+	srv := newTestServer(t, proxyConf, &services, testLogger.Slog, api.WithListener(listener))
 
 	// StartWithContext has not run, so Stop cannot see the servers drain and must give up
 	// when its context is done instead of blocking forever.

@@ -172,7 +172,7 @@ func main() {
 	// Init API server
 	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
 	opentelemetry.ExportEnvironment(proxyConf)
-	apiServer := api.New(proxyConf, services, logger.Slog, api.WithGlobalTelemetry())
+	apiServer := api.New(proxyConf, &services, logger.Slog, api.WithGlobalTelemetry())
 
 	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
 

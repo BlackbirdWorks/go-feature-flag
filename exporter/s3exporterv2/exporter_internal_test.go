@@ -48,7 +48,8 @@ type s3ExportCase struct {
 func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
