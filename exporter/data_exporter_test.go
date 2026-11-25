@@ -18,7 +18,6 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -35,7 +34,7 @@ type slowExporter struct {
 	exportCall atomic.Int32
 }
 
-func (s *slowExporter) Export(ctx context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (s *slowExporter) Export(ctx context.Context, _ *slog.Logger, _ []exporter.ExportableEvent) error {
 	s.exportCall.Add(1)
 	time.Sleep(s.delay)
 

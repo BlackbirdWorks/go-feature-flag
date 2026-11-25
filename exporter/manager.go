@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // DefaultExporterCleanQueueInterval is the interval at which the exporter queues are cleaned.
@@ -53,7 +51,7 @@ type managerImpl[T ExportableEvent] struct {
 	stopCh     chan struct{}
 	eventStore *EventStore[T]
 	flushEnded chan struct{}
-	logger     *fflog.FFLogger
+	logger     *slog.Logger
 	// background flushes (QueueEvent), one goroutine at most per consumer
 	flushRunning []atomic.Bool
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
@@ -85,7 +83,7 @@ const flushRetryBackoff = 1 * time.Second
 
 // NewManager returns a manager that sends evaluation events to the exporters.
 func NewManager[T ExportableEvent](exporters []Config,
-	exporterCleanQueueInterval time.Duration, logger *fflog.FFLogger,
+	exporterCleanQueueInterval time.Duration, logger *slog.Logger,
 ) Manager[T] {
 	if exporterCleanQueueInterval == 0 {
 		// default value for the exporterCleanQueueDuration is 1 minute

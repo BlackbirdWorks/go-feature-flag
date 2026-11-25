@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // firstFailsExporter blocks its first Export until release is closed, then fails it; the following
@@ -24,7 +24,7 @@ type firstFailsExporter struct {
 }
 
 func (*firstFailsExporter) IsBulk() bool { return true }
-func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (e *firstFailsExporter) Export(_ context.Context, _ *slog.Logger, _ []exporter.ExportableEvent) error {
 	e.mu.Lock()
 	e.starts = append(e.starts, time.Now())
 	n := len(e.starts)

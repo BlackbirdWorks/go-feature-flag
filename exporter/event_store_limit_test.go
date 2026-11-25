@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -246,7 +246,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 type failingExporter struct{ calls atomic.Int32 }
 
 func (*failingExporter) IsBulk() bool { return true }
-func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
+func (f *failingExporter) Export(context.Context, *slog.Logger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
 
 	return errAlwaysFailing

@@ -3,8 +3,7 @@ package exporter
 import (
 	"context"
 	"log"
-
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"log/slog"
 )
 
 // DeprecatedExporterV1 is an interface to describe how an exporter looks like.
@@ -19,13 +18,13 @@ type DeprecatedExporterV1 interface {
 // DeprecatedExporterV2 is the previous exporter interface, kept for compatibility.
 type DeprecatedExporterV2 interface {
 	CommonExporter
-	Export(ctx context.Context, logger *fflog.FFLogger, events []FeatureEvent) error
+	Export(ctx context.Context, logger *slog.Logger, events []FeatureEvent) error
 }
 
 // Exporter sends evaluation events to a destination.
 type Exporter interface {
 	CommonExporter
-	Export(ctx context.Context, logger *fflog.FFLogger, events []ExportableEvent) error
+	Export(ctx context.Context, logger *slog.Logger, events []ExportableEvent) error
 }
 
 // CommonExporter is the interface shared by the exporters.

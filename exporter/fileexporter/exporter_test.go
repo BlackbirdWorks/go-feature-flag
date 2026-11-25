@@ -21,7 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -39,7 +38,7 @@ type fileExportFields struct {
 }
 
 type fileExportArgs struct {
-	logger *fflog.FFLogger
+	logger *slog.Logger
 	events []exporter.ExportableEvent
 }
 

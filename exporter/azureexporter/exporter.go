@@ -13,7 +13,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -53,7 +52,7 @@ type Exporter struct {
 // Export writes the events to Azure Blob Storage.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	if f.AccountName == "" {
@@ -161,7 +160,7 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 func (f *Exporter) uploadFile(
 	ctx context.Context,
 	client *azblob.Client,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	fileHandle *os.File,
 	outputDir, fileName string,
 ) error {

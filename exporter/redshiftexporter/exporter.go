@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,7 +22,6 @@ import (
 	smithyjson "github.com/aws/smithy-go/encoding/json"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -233,7 +233,7 @@ type batch struct {
 // Each group of up to maxStatementsPerBatch INSERT statements (and maxBatchBytes) runs in a single transaction.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	rows, eventType, err := buildRows(ctx, logger, events)
@@ -553,7 +553,7 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 // Events this exporter does not handle are skipped. Events that cannot be converted to JSON
 // (e.g. a NaN value) are skipped with a warning: a failed export is retried with the same
 // events, so a single invalid event would block the exporter forever.
-func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row, string, error) {
+func buildRows(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) ([]row, string, error) {
 	rows := make([]row, 0, len(events))
 	eventType := ""
 

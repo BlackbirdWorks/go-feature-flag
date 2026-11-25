@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // outageExporter fails until recovered is set, then counts what it receives.
@@ -20,7 +20,7 @@ type outageExporter struct {
 }
 
 func (*outageExporter) IsBulk() bool { return true }
-func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (e *outageExporter) Export(_ context.Context, _ *slog.Logger, ev []exporter.ExportableEvent) error {
 	if !e.recovered.Load() {
 		return assert.AnError
 	}

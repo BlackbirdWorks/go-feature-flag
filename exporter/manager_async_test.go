@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 type batchAdder interface {
@@ -78,7 +78,7 @@ type countingExporter struct {
 }
 
 func (c *countingExporter) IsBulk() bool { return c.bulk }
-func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, evts []exporter.ExportableEvent) error {
+func (c *countingExporter) Export(_ context.Context, _ *slog.Logger, evts []exporter.ExportableEvent) error {
 	c.calls.Add(1)
 
 	if c.fail {

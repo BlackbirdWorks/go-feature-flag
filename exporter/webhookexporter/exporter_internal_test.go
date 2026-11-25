@@ -12,7 +12,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -29,7 +28,7 @@ type webhookExportFields struct {
 }
 
 type webhookExportArgs struct {
-	logger        *fflog.FFLogger
+	logger        *slog.Logger
 	featureEvents []exporter.ExportableEvent
 }
 

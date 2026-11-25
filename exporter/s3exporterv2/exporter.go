@@ -15,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/internal"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -62,7 +61,7 @@ type Exporter struct {
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	ctx = internal.ContextOrBackground(ctx)
@@ -156,7 +155,7 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 // most one file descriptor is open at a time, regardless of batch size.
 func (f *Exporter) uploadFile(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	fileHandle *os.File,
 	fileName string,
 ) error {

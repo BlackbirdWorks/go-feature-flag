@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -174,7 +174,7 @@ func NewSettings(options ...Option) *Settings {
 // Export sends the events to Kinesis.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	err := e.initializeProducer(ctx)
@@ -390,7 +390,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 // rejected events; duplicates are limited to the retries-exhausted case.
 func (e *Exporter) sendChunk(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	input *kinesis.PutRecordsInput,
 ) error {
 	pending := input.Records

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: the v1 pubsub client is still used by the v1 exporter
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -40,7 +40,7 @@ type Exporter struct {
 // Export publishes a PubSub message for each exporter.FeatureEvent received.
 func (e *Exporter) Export(
 	ctx context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	if e.publisher == nil {

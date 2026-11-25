@@ -3,6 +3,7 @@ package fileexporter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,7 +16,6 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -54,7 +54,7 @@ type Exporter struct {
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	// Parse the template only once

@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -43,7 +42,7 @@ type Exporter struct {
 // Export sends the events as OpenTelemetry logs.
 func (e *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	if logger == nil {
@@ -87,7 +86,7 @@ func (e *Exporter) init() {
 	})
 }
 
-func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *fflog.FFLogger) {
+func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *slog.Logger) {
 	startTime := time.Unix(event.CreationDate, 0)
 
 	_, span := e.tracer.Start(

@@ -3,11 +3,11 @@ package logsexporter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"text/template"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -33,7 +33,7 @@ type Exporter struct {
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	f.initTemplates.Do(func() {

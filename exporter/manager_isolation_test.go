@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // gatedExporter counts what it exports; while gate is not nil its Export waits for it to be
@@ -26,7 +26,7 @@ type gatedExporter struct {
 }
 
 func (*gatedExporter) IsBulk() bool { return true }
-func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
+func (g *gatedExporter) Export(_ context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
 	if g.started != nil {
 		g.once.Do(func() { close(g.started) })
 	}
