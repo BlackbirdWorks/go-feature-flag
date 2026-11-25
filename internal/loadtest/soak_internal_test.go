@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -201,7 +202,7 @@ func TestExporter_Export(t *testing.T) {
 			exp := NewExporter(tt.mode)
 			exp.Delay = time.Millisecond
 			assert.True(t, exp.IsBulk())
-			err := exp.Export(context.Background(), nil, events)
+			err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), events)
 			assert.Equal(t, tt.wantErr, err != nil)
 			assert.Equal(t, tt.wantBatches, exp.Batches.Load())
 			assert.Equal(t, tt.wantEvents, exp.Events.Load())
@@ -215,7 +216,7 @@ func TestExporter_Export(t *testing.T) {
 		e := NewExporter(ExporterSlow)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		require.ErrorIs(t, e.Export(ctx, nil, events), context.Canceled)
+		require.ErrorIs(t, e.Export(ctx, slog.New(slog.DiscardHandler), events), context.Canceled)
 		assert.Zero(t, e.Batches.Load())
 	})
 }

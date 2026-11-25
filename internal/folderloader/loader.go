@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/blackbirdworks/semaphore/internal"
 	"path"
 	"slices"
 	"strings"
@@ -54,7 +55,7 @@ type Store interface {
 
 // Options are the settings of a Loader.
 type Options struct {
-	// Logger is used for the warnings, it can be nil.
+	// Logger is used for the warnings, nothing is logged when it is nil.
 	Logger *fflog.FFLogger
 	// Prefix is the folder to load. Leading "/" are trimmed and a trailing "/" is added if missing.
 	// "" and "/" are the root.
@@ -88,11 +89,15 @@ type Loader struct {
 	skipped map[string]struct{}
 	prefix  string
 	opts    Options
+	// logger is the logger of the options, or one that discards everything.
+	logger *fflog.FFLogger
 }
 
 // New creates a Loader reading the files from store.
 func New(store Store, opts *Options) *Loader {
-	return &Loader{store: store, opts: *opts, prefix: normalizePrefix(opts.Prefix)}
+	return &Loader{
+		store: store, opts: *opts, prefix: normalizePrefix(opts.Prefix), logger: internal.LoggerOrDiscard(opts.Logger),
+	}
 }
 
 // normalizePrefix returns the prefix as sent to the store: keys never start with "/", so leading
@@ -164,7 +169,7 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	}
 
 	if len(keys) == 0 {
-		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
+		l.logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
 
@@ -352,7 +357,7 @@ func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 	slices.Sort(newKeys)
 
 	for _, key := range newKeys {
-		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
+		l.logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
 			"(supported: .json, .yaml, .yml, .toml)", l.locationKey(), l.opts.Location, "key", key)
 	}
 

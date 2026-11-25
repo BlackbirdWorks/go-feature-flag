@@ -9,7 +9,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 type logNotifierCase struct {
@@ -28,7 +27,7 @@ func runLogNotifierTests(t *testing.T, tests []logNotifierCase) {
 			handler := slogassert.New(t, slog.LevelDebug, nil)
 			logger := slog.New(handler)
 			c := &Notifier{
-				Logger: &fflog.FFLogger{LeveledLogger: logger},
+				Logger: logger,
 			}
 			_ = c.Notify(tt.diff)
 			handler.AssertPrecise(*tt.expectedLog)

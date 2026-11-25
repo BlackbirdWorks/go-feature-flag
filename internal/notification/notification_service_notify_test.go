@@ -12,7 +12,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -47,7 +46,7 @@ func TestNotificationServiceNotify(t *testing.T) {
 			mockNotifier := &notifierMock{err: tt.notifierErr}
 			c := notification.NewService([]notifier.Notifier{mockNotifier})
 
-			c.Notify(tt.oldCache, tt.newCache, &fflog.FFLogger{LeveledLogger: slog.New(handler)})
+			c.Notify(tt.oldCache, tt.newCache, slog.New(handler))
 			c.Close() // waits for the notifier goroutines
 
 			assert.Equal(t, tt.wantCalls, mockNotifier.calls.Load())

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,7 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -150,7 +150,7 @@ func TestE2E_Export(t *testing.T) {
 				Bucket: bucket, AwsConfig: &cfg, Format: tt.format, S3Path: tt.s3Path,
 				Filename: tt.filename, CsvTemplate: tt.csvTemplate,
 			}
-			require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)))
+			require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)))
 
 			keys := srv.ListKeys(t, bucket, "")
 			require.Len(t, keys, 1, "keys: %v", keys)
@@ -200,7 +200,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &s3exporterv2.Exporter{Bucket: tt.bucket(t), AwsConfig: &cfg, S3Path: "x"}
-			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)), tt.wantErr)
+			require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)), tt.wantErr)
 		})
 	}
 }
@@ -214,7 +214,7 @@ func TestE2E_Export_EachCallCreatesAFile(t *testing.T) {
 	// distinct fixed names: the default timestamp-based name may collide within the same second
 	for _, name := range []string{"one.json", "two.json", "three.json"} {
 		e.Filename = name
-		require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(2)))
+		require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(2)))
 	}
 
 	assert.ElementsMatch(t, []string{"p/one.json", "p/two.json", "p/three.json"}, srv.ListKeys(t, bucket, "p/"))

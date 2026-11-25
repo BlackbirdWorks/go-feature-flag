@@ -18,7 +18,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const containerName = "testcontainer"
@@ -261,7 +260,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			require.NoError(t, err)
 
 			tt.exporter.ServiceURL = fmt.Sprintf("%s/%s", blobServiceURL, azurite.AccountName)
-			err = tt.exporter.Export(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()}, tt.events)
+			err = tt.exporter.Export(context.Background(), slog.Default(), tt.events)
 			tt.wantErr(t, err, "Export() error")
 
 			if err == nil {

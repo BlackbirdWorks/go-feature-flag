@@ -14,7 +14,6 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestLog_Export(t *testing.T) {
@@ -121,7 +120,7 @@ func TestLog_Export(t *testing.T) {
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+			logger := slog.New(&textHandler)
 			err := logsExp.Export(context.Background(), logger, tt.args.featureEvents)
 
 			if tt.wantErr {

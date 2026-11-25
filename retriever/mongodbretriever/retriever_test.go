@@ -5,6 +5,7 @@ package mongodbretriever_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -91,7 +91,7 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 				Database:   database,
 			}
 			assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
-			err = mdb.Init(context.TODO(), &fflog.FFLogger{})
+			err = mdb.Init(context.TODO(), slog.New(slog.DiscardHandler))
 
 			require.NoError(t, err)
 			defer func() {
@@ -124,7 +124,7 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 		Database:   database,
 	}
 	assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
-	err := mdb.Init(context.TODO(), &fflog.FFLogger{})
+	err := mdb.Init(context.TODO(), slog.New(slog.DiscardHandler))
 	require.Error(t, err)
 	assert.Equal(t, retriever.RetrieverError, mdb.Status())
 }

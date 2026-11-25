@@ -269,7 +269,7 @@ func runEvaluate(
 		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	tryInitializeStandardErr := tryInitializeStandard(
 		context.Background(),

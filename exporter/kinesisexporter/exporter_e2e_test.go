@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
 	"testing"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/kinesisexporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
@@ -164,7 +164,7 @@ func TestE2E_Export(t *testing.T) {
 
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, exp.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
+				require.NoError(t, exp.Export(context.Background(), slog.New(slog.DiscardHandler), all[i:min(i+per, len(all))]))
 			}
 
 			got := readAll(t, client, stream, tt.nbEvents)
@@ -215,7 +215,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: tt.settings(t)}
-			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)), tt.wantErr)
+			require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(tt.nbEvents)), tt.wantErr)
 		})
 	}
 }
@@ -232,6 +232,6 @@ func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 		AwsConfig: &cfg,
 		Settings:  kinesisexporter.NewSettings(kinesisexporter.WithStreamName(stream)),
 	}
-	require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(501)))
+	require.NoError(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(501)))
 	assert.Len(t, readAll(t, client, stream, 501), 501)
 }

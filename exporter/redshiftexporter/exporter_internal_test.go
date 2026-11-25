@@ -27,7 +27,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -85,7 +84,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -136,7 +135,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -166,7 +165,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := e.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -186,7 +185,7 @@ func TestExporter_QuotesTableName(t *testing.T) {
 		client:            client,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
@@ -225,7 +224,7 @@ func TestExporter_ValuesAreSentAsParameters(t *testing.T) {
 	event.UserKey = malicious
 	event.Key = malicious
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -272,7 +271,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 			client := &mockRedshiftDataClient{}
 			e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
-			err := e.Export(context.TODO(), nil, tt.events)
+			err := e.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, len(tt.wantStatements))
@@ -341,7 +340,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 		events = append(events, event)
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	require.Greater(t, len(client.executed), 1)
@@ -380,7 +379,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	event.Version = "v1\xff"                       // invalid UTF-8
 	event.Default = true
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -457,7 +456,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 
 			var logs bytes.Buffer
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
 			oversized := newFeatureEvent(1)
 			oversized.Key = bigFlag
 			oversized.UserKey = secretUser
@@ -483,7 +482,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 	}
 }
 
-func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
+func TestExporter_SkipsAllRowsWithDiscardingLogger(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
@@ -496,7 +495,7 @@ func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
 	event := newFeatureEvent(0)
 	event.Value = strings.Repeat("a", maxSuperBytes)
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	assert.Empty(t, client.executed)
@@ -566,7 +565,7 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 
 			var logs bytes.Buffer
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
+			logger := slog.New(slog.NewTextHandler(&logs, nil))
 
 			err := exp.Export(context.TODO(), logger, tt.events)
 
@@ -602,7 +601,7 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 
 	err := exp.Export(
 		context.TODO(),
-		nil,
+		slog.New(slog.DiscardHandler),
 		[]exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
 	)
 
@@ -656,8 +655,8 @@ func TestExporter_AutoMigrate(t *testing.T) {
 				client:            client,
 			}
 
-			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
-			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
+			require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
 
 			var creates []string
 
@@ -694,8 +693,8 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	}
 	events := []exporter.ExportableEvent{newFeatureEvent(0)}
 
-	require.ErrorContains(t, exp.Export(context.TODO(), nil, events), "create failed")
-	require.NoError(t, exp.Export(context.TODO(), nil, events))
+	require.ErrorContains(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events), "create failed")
+	require.NoError(t, exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events))
 
 	require.Len(t, client.executed, 3)
 	assert.True(t, strings.HasPrefix(client.executed[1].Sqls[0], "CREATE TABLE IF NOT EXISTS"))
@@ -850,7 +849,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				cancelTimeout:     20 * time.Millisecond,
 			}
 
-			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 			if len(tt.wantErr) == 0 {
 				require.NoError(t, err)
@@ -900,7 +899,7 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 		cancelTimeout:     20 * time.Millisecond,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
@@ -925,7 +924,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 		statementTimeout:  30 * time.Millisecond,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// the migration has been cancelled, no insert has been sent
@@ -948,7 +947,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := exp.Export(ctx, nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Len(t, client.cancelled, 1)
@@ -973,7 +972,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			// no database configured: an empty batch must not even validate the config
 			e := &Exporter{client: client}
 
-			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, e.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events))
 			assert.Len(t, client.executed, tt.wantStatements)
 		})
 	}
@@ -1046,7 +1045,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 				tt.exporter.client = &mockRedshiftDataClient{}
 			}
 
-			err := tt.exporter.Export(context.TODO(), nil, tt.events)
+			err := tt.exporter.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
@@ -1093,7 +1092,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 		client:            client,
 	}
 
-	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), fixtures.GoffWriter)

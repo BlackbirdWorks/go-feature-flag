@@ -58,7 +58,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 
 	logFile, _ := os.CreateTemp(t.TempDir(), "")
 	textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+	logger := slog.New(&textHandler)
 
 	defer func() { _ = os.Remove(logFile.Name()) }()
 
@@ -103,7 +103,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+			logger := slog.New(&textHandler)
 
 			defer func() { _ = os.Remove(logFile.Name()) }()
 
@@ -161,7 +161,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+			logger := slog.New(&textHandler)
 
 			defer func() { _ = os.Remove(logFile.Name()) }()
 

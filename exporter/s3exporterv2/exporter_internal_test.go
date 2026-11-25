@@ -17,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -82,7 +81,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 
 			err := s3Exp.Export(
 				ctx,
-				&fflog.FFLogger{LeveledLogger: slog.Default()},
+				slog.Default(),
 				tt.events,
 			)
 			if tt.wantErr {
@@ -375,7 +374,7 @@ func Test_errSDK(t *testing.T) {
 	}
 	err := f.Export(
 		context.Background(),
-		&fflog.FFLogger{LeveledLogger: slog.Default()},
+		slog.Default(),
 		[]exporter.ExportableEvent{},
 	)
 	assert.ErrorContains(t, err, "resolve endpoint: endpoint rule error, Invalid region")
@@ -389,9 +388,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	logger := &fflog.FFLogger{
-		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
-	}
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	s3ManagerMock := testhelpers.S3ManagerV2Mock{}
 	f := &Exporter{
@@ -441,7 +438,7 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 	f := &Exporter{Bucket: fixtures.PlaceholderTest, s3Uploader: &testhelpers.S3ManagerV2Mock{}}
 	err := f.Export(
 		context.TODO(),
-		&fflog.FFLogger{LeveledLogger: slog.Default()},
+		slog.Default(),
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
 				Kind: fixtures.KindFeature, ContextKind: fixtures.UserKeyAnonymous, UserKey: fixtures.UserKeyABCD,

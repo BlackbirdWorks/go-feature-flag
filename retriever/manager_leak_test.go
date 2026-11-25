@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -19,7 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // goroutinesLabeled counts the goroutines that carry the pprof label key=value. The goroutines started by
@@ -101,9 +101,9 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 				retrievers = append(retrievers, gatedRetriever{gate: gate, done: &retrieved})
 			}
 
-			logger := fflog.FFLogger{}
-			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
-			manager := retriever.NewManager(retriever.ManagerConfig{}, retrievers, cacheManager, &logger)
+			logger := slog.New(slog.DiscardHandler)
+			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
+			manager := retriever.NewManager(retriever.ManagerConfig{}, retrievers, cacheManager, logger)
 
 			var gotRefresh bool
 

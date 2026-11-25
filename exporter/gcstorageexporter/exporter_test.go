@@ -17,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/gcstorageexporter"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestGoogleStorage_Export(t *testing.T) {
@@ -253,7 +252,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 
 			err := gcsExp.Export(
 				context.Background(),
-				&fflog.FFLogger{LeveledLogger: slog.Default()},
+				slog.Default(),
 				tt.events,
 			)
 			if tt.wantErr {
@@ -318,7 +317,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 
 	err := gcsExp.Export(
 		context.Background(),
-		&fflog.FFLogger{LeveledLogger: slog.Default()},
+		slog.Default(),
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
 				Kind:         fixtures.KindFeature,

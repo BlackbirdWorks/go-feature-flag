@@ -22,7 +22,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -691,7 +690,7 @@ func runLoadCase(t *testing.T, testCase *loadCase) {
 	testCase.setup(store)
 
 	logs := &bytes.Buffer{}
-	testCase.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+	testCase.opts.Logger = slog.New(slog.NewTextHandler(logs, nil))
 	ldr := folderloader.New(store, &testCase.opts)
 
 	for i := range testCase.steps {
@@ -829,7 +828,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			t.Parallel()
 
 			logs := &bytes.Buffer{}
-			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+			tt.opts.Logger = slog.New(slog.NewTextHandler(logs, nil))
 
 			ls := &fakeStore{listErr: errBoom}
 			_, err := folderloader.New(ls, &tt.opts).Load(t.Context())
@@ -926,7 +925,7 @@ func TestLoader_Reset(t *testing.T) {
 	store.put(readmeFile, fixtures.BodyHello)
 
 	logs := &bytes.Buffer{}
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
 	ldr := folderloader.New(store, &folderloader.Options{Prefix: "f/", Logger: logger})
 
 	for range 2 {
@@ -948,7 +947,7 @@ func TestLoader_Reset(t *testing.T) {
 func TestReuse(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{}
+	logger := slog.New(slog.DiscardHandler)
 	base := folderloader.Options{Prefix: "f/", Pattern: "a.*", Recursive: true, Logger: logger, Location: "b"}
 
 	tests := []struct {
@@ -977,7 +976,7 @@ func TestReuse(t *testing.T) {
 		{
 			name: "logger changed",
 			opts: func(o folderloader.Options) folderloader.Options {
-				o.Logger = &fflog.FFLogger{}
+				o.Logger = slog.New(slog.DiscardHandler)
 
 				return o
 			},

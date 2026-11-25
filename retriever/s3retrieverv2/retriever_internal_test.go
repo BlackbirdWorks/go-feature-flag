@@ -4,6 +4,7 @@ package s3retrieverv2
 // downloader and lister fields. Not parallel because the subtests use t.Setenv.
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -118,7 +119,7 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 		ctx = nil
 	}
 
-	return r.Init(ctx, nil)
+	return r.Init(ctx, slog.New(slog.DiscardHandler))
 }
 
 // assertListerClient checks that the lister built by Init is a real S3 client with the expected

@@ -24,7 +24,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -279,7 +278,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	logger := slog.New(handler)
 
 	mgr := exporter.NewManager[exporter.FeatureEvent](dataExporterMock,
-		exporter.DefaultExporterCleanQueueInterval, &fflog.FFLogger{LeveledLogger: logger})
+		exporter.DefaultExporterCleanQueueInterval, logger)
 
 	go mgr.Start()
 	defer mgr.Stop()

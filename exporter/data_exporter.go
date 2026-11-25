@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/blackbirdworks/semaphore/internal"
 	"log"
 	"log/slog"
 	"sync"
@@ -77,7 +78,7 @@ func NewDataExporter[T ExportableEvent](exporter Config, consumerID string,
 	return &dataExporterImpl[T]{
 		consumerID: consumerID,
 		eventStore: eventStore,
-		logger:     logger,
+		logger:     internal.LoggerOrDiscard(logger),
 		exporter:   exporter,
 		daemonChan: make(chan struct{}),
 		ticker:     time.NewTicker(exporter.FlushInterval),
@@ -192,7 +193,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 func (d *dataExporterImpl[T]) sendEventsV1(ctx context.Context, exp DeprecatedExporterV1, events []T) error {
 	var legacyLogger *log.Logger
 	if d.logger != nil {
-		legacyLogger = d.logger.GetLogLogger(slog.LevelError)
+		legacyLogger = slog.NewLogLogger(d.logger.Handler(), slog.LevelError)
 	}
 
 	featureEvents, ok := any(events).([]FeatureEvent)

@@ -2,6 +2,7 @@ package fileexporter_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -817,7 +818,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 		Format:   protocol.FormatJSON,
 		Filename: filePrefix + "{{ .Timestamp}}.{{ .Format}}",
 	}
-	err := e.Export(context.Background(), nil, featureEvents)
+	err := e.Export(context.Background(), slog.New(slog.DiscardHandler), featureEvents)
 	require.NoError(t, err)
 
 	// check that a file exist

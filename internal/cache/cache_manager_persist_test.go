@@ -15,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -100,7 +99,7 @@ func TestCacheManagerPersist(t *testing.T) {
 			}
 
 			handler := slogassert.New(t, slog.LevelDebug, nil)
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(handler)}
+			logger := slog.New(handler)
 			m := cache.New(notification.NewService([]notifier.Notifier{}), path, logger)
 
 			require.NoError(t, m.UpdateCache(tt.flags(t), logger, false))

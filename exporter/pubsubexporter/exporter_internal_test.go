@@ -17,7 +17,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -35,7 +34,7 @@ func TestExporter_Export(t *testing.T) {
 	)
 
 	ctx := context.TODO()
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	type clientFactory = func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error)
 

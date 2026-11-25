@@ -2,6 +2,7 @@ package cache_test
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -52,7 +52,7 @@ func BenchmarkGetFlag(b *testing.B) {
 	for _, numFlags := range []int{10, 1000} {
 		flags := benchFlags(b, numFlags)
 		b.Run(fmt.Sprintf("flags=%d/serial", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			b.ReportAllocs()
@@ -66,7 +66,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			}
 		})
 		b.Run(fmt.Sprintf("flags=%d/parallel", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			b.ReportAllocs()
@@ -83,7 +83,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			})
 		})
 		b.Run(fmt.Sprintf("flags=%d/parallel-with-updates", numFlags), func(b *testing.B) {
-			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			cacheMgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			_ = cacheMgr.UpdateCache(flags, nil, false)
 
 			var (

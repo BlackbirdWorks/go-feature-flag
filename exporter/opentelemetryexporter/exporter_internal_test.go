@@ -2,6 +2,7 @@ package opentelemetryexporter
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"text/template"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
@@ -73,7 +73,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 		},
 	}
 
-	logger := &fflog.FFLogger{}
+	logger := slog.New(slog.DiscardHandler)
 
 	// Act
 	err := exp.Export(context.Background(), logger, events)
@@ -117,7 +117,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 	}
 
 	// Act
-	err := exp.Export(context.Background(), &fflog.FFLogger{}, []exporter.ExportableEvent{event})
+	err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{event})
 
 	// Assert
 	require.NoError(t, err)

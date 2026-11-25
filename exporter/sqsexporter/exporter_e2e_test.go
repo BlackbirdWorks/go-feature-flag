@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
 	"testing"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/sqsexporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func createQueue(t *testing.T, client *sqs.Client) string {
@@ -119,7 +119,7 @@ func TestE2E_Export(t *testing.T) {
 
 			per := (len(all) + tt.nbCalls - 1) / tt.nbCalls
 			for i := 0; i < len(all); i += per {
-				require.NoError(t, exp.Export(context.Background(), &fflog.FFLogger{}, all[i:min(i+per, len(all))]))
+				require.NoError(t, exp.Export(context.Background(), slog.New(slog.DiscardHandler), all[i:min(i+per, len(all))]))
 			}
 
 			got := receiveAll(t, client, queueURL, tt.nbEvents)
@@ -166,7 +166,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &sqsexporter.Exporter{QueueURL: tt.queueURL(t), AwsConfig: &cfg}
-			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)), tt.wantErr)
+			require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)), tt.wantErr)
 		})
 	}
 }
@@ -184,6 +184,6 @@ func TestE2E_Export_FifoQueue(t *testing.T) {
 	// The exporter sets neither MessageGroupId nor deduplication id: AWS rejects such messages on a
 	// FIFO queue (MissingParameter), so FIFO queues are not supported by this exporter.
 	e := &sqsexporter.Exporter{QueueURL: aws.ToString(out.QueueUrl), AwsConfig: &cfg}
-	require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)),
+	require.ErrorContains(t, e.Export(context.Background(), slog.New(slog.DiscardHandler), events(1)),
 		"InvalidParameterValue: The request must contain the parameter MessageGroupId.")
 }

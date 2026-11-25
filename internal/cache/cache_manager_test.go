@@ -21,7 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -280,7 +279,7 @@ variation = "false_var"
 			t.Parallel()
 
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "",
-				&fflog.FFLogger{LeveledLogger: slog.Default()})
+				slog.Default())
 
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
@@ -467,7 +466,7 @@ test-flag2:
 				return
 			}
 
-			err = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
+			err = fCache.UpdateCache(newFlags, slog.Default(), true)
 			require.NoError(t, err)
 
 			allFlags, err := fCache.AllFlags()
@@ -514,7 +513,7 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	timeBefore := fCache.GetLatestUpdateDate()
 	newFlags, _ := cache.ConvertToFlagStruct(loadedFlags, protocol.FormatYAML)
-	_ = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
+	_ = fCache.UpdateCache(newFlags, slog.Default(), true)
 	timeAfter := fCache.GetLatestUpdateDate()
 
 	assert.True(t, timeBefore.Before(timeAfter))
@@ -547,7 +546,7 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	require.NoError(t, err)
 
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), file.Name(), nil)
-	err = fCache.UpdateCache(loadedFlagsMap, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
+	err = fCache.UpdateCache(loadedFlagsMap, slog.Default(), true)
 	require.NoError(t, err)
 	allFlags1, err := fCache.AllFlags()
 	require.NoError(t, err)
@@ -570,7 +569,7 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	err = yaml.Unmarshal(content, &loadedFlagsMap2)
 	require.NoError(t, err)
 	require.Len(t, loadedFlagsMap2, 1)
-	err = fCache2.UpdateCache(loadedFlagsMap2, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
+	err = fCache2.UpdateCache(loadedFlagsMap2, slog.Default(), true)
 	require.NoError(t, err)
 	allFlags2, err := fCache2.AllFlags()
 	require.NoError(t, err)
@@ -676,7 +675,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			cacheMgr := cache.New(
 				mockNotificationService,
 				"",
-				&fflog.FFLogger{LeveledLogger: slog.Default()},
+				slog.Default(),
 			)
 
 			err := cacheMgr.UpdateCache(tt.initialFlags, nil, false)
@@ -701,7 +700,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			cacheMgr = cache.New(
 				mockNotificationService,
 				"",
-				&fflog.FFLogger{LeveledLogger: slog.Default()},
+				slog.Default(),
 			)
 
 			err = cacheMgr.UpdateCache(tt.initialFlags, nil, false)

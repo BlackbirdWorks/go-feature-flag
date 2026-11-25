@@ -1,16 +1,11 @@
 package ffclient
 
 import (
-	"bytes"
-	"log"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-)
-
-const (
-	legacyLogPrefix = "[legacy] "
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_serviceLogger(t *testing.T) {
@@ -19,98 +14,56 @@ func TestConfig_serviceLogger(t *testing.T) {
 	leveled := slog.New(slog.DiscardHandler)
 
 	tests := []struct {
-		leveled    *slog.Logger
-		name       string
-		wantOutput string
-		legacy     bool
-		wantNil    bool
-		wantSame   bool
+		leveled  *slog.Logger
+		name     string
+		wantNil  bool
+		wantSame bool
 	}{
-		{name: "the leveled logger wins", legacy: true, leveled: leveled, wantSame: true},
+		{name: "the leveled logger", leveled: leveled, wantSame: true},
 		{name: "no logger", wantNil: true},
-		{name: "the legacy logger is seen as a slog handler", legacy: true, wantOutput: "msg=hello"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
-
 			config := Config{LeveledLogger: tt.leveled}
-			if tt.legacy {
-				config.Logger = log.New(&buf, "", 0)
-			}
-
 			got := config.serviceLogger()
 
-			switch {
-			case tt.wantNil:
+			if tt.wantNil {
 				assert.Nil(t, got)
-			case tt.wantSame:
-				assert.Same(t, leveled, got)
-			default:
-				got.Info("hello")
-				assert.Contains(t, buf.String(), tt.wantOutput)
+
+				return
 			}
+
+			assert.Same(t, leveled, got)
 		})
 	}
 }
 
-func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
+func TestConfig_Initialize_Logger(t *testing.T) {
 	t.Parallel()
 
+	leveled := slog.New(slog.DiscardHandler)
+
 	tests := []struct {
-		name         string
-		prefix       string
-		wantFirst    string
-		wantSecond   string
-		wantNotFirst string
-		flags        int
-		redirect     bool
+		leveled  *slog.Logger
+		name     string
+		wantSame bool
 	}{
-		{name: "same output", prefix: "", flags: 0, wantFirst: "msg=one"},
-		{name: "the prefix of the legacy logger", prefix: legacyLogPrefix, flags: 0, wantFirst: legacyLogPrefix},
-		{
-			name:      "the flags of the legacy logger",
-			prefix:    legacyLogPrefix,
-			flags:     log.Lmsgprefix,
-			wantFirst: "[legacy] time=",
-		},
-		{
-			name:         "SetOutput is followed",
-			prefix:       "",
-			flags:        0,
-			redirect:     true,
-			wantFirst:    "msg=one",
-			wantSecond:   "msg=two",
-			wantNotFirst: "msg=two",
-		},
+		{name: "the leveled logger is kept", leveled: leveled, wantSame: true},
+		{name: "a discarding logger when none is configured"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var first, second bytes.Buffer
+			config := Config{LeveledLogger: tt.leveled}
+			config.Initialize()
 
-			legacy := log.New(&first, tt.prefix, tt.flags)
-			logger := (&Config{Logger: legacy}).serviceLogger()
+			require.NotNil(t, config.internalLogger)
 
-			logger.Info("one")
-
-			if tt.redirect {
-				legacy.SetOutput(&second)
-			}
-
-			logger.Info("two")
-
-			assert.Contains(t, first.String(), tt.wantFirst)
-
-			if tt.wantSecond != "" {
-				assert.Contains(t, second.String(), tt.wantSecond)
-			}
-
-			if tt.wantNotFirst != "" {
-				assert.NotContains(t, first.String(), tt.wantNotFirst)
+			if tt.wantSame {
+				assert.Same(t, leveled, config.internalLogger)
 			}
 		})
 	}

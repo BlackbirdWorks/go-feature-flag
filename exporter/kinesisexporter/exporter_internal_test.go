@@ -16,7 +16,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -47,7 +46,7 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -83,7 +82,7 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 		Settings: NewSettings(WithStreamArn(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -120,7 +119,7 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 		sender: &mock,
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	assert.Nil(t, exp.AwsConfig)
 	err := exp.Export(
@@ -151,7 +150,7 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 		},
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),
@@ -177,7 +176,7 @@ func TestExporter_ExportSenderError(t *testing.T) {
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),
@@ -268,7 +267,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	err := exp.Export(
 		context.Background(),

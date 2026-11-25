@@ -17,7 +17,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -101,7 +100,7 @@ func noSleep(context.Context, time.Duration) error { return nil }
 func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	t.Run("all succeed", func(t *testing.T) {
 		t.Parallel()
@@ -197,7 +196,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 
 	tests := []struct {
 		name   string
@@ -270,7 +269,7 @@ func (s *responseSender) SendMessages(
 func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	ok := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
 	bad := types.PutRecordsResultEntry{ErrorCode: aws.String(internalFailure)}
 
@@ -385,7 +384,7 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 func TestExporter_UnverifiableResponsesNeverAcknowledged(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	s := &responseSender{respond: func(int, *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
 		return nil, nil //nolint:nilnil // the test feeds the exporter an unverifiable (nil) response on purpose
 	}}

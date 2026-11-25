@@ -2,6 +2,7 @@ package retriever_test
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 	"sync"
@@ -18,7 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -146,8 +146,8 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			logger := fflog.FFLogger{}
-			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+			logger := slog.New(slog.DiscardHandler)
+			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 
 			config := retriever.ManagerConfig{
 				FileFormat:              protocol.FormatYAML,
@@ -155,7 +155,7 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				PollingInterval:         0, // Disable polling for tests
 			}
 
-			manager := retriever.NewManager(config, tt.retrievers, cacheManager, &logger)
+			manager := retriever.NewManager(config, tt.retrievers, cacheManager, logger)
 			err := manager.Init(ctx)
 
 			// Assert
@@ -333,15 +333,15 @@ variation = "A"
 			t.Parallel()
 
 			ctx := context.Background()
-			logger := fflog.FFLogger{}
-			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+			logger := slog.New(slog.DiscardHandler)
+			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 
 			r := &formatHintingRetriever{format: tt.hintFormat, content: tomlContent}
 			config := retriever.ManagerConfig{
 				FileFormat:      tt.globalFmt,
 				PollingInterval: 0,
 			}
-			manager := retriever.NewManager(config, []retriever.Retriever{r}, cacheManager, &logger)
+			manager := retriever.NewManager(config, []retriever.Retriever{r}, cacheManager, logger)
 			err := manager.Init(ctx)
 
 			if tt.wantErr != "" {
@@ -386,13 +386,13 @@ func (r *countingRetriever) Calls() int {
 func newPollingManager(t *testing.T, r retriever.Retriever) *retriever.Manager {
 	t.Helper()
 
-	logger := fflog.FFLogger{}
-	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+	logger := slog.New(slog.DiscardHandler)
+	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 	// ManagerConfig.PollingInterval is not clamped, the 1s floor lives in ffclient.Config.
 	return retriever.NewManager(retriever.ManagerConfig{
 		FileFormat:      protocol.FormatJSON,
 		PollingInterval: 10 * time.Millisecond,
-	}, []retriever.Retriever{r}, cacheManager, &logger)
+	}, []retriever.Retriever{r}, cacheManager, logger)
 }
 
 // TestManagerShutdownStopsThePolling makes sure that Shutdown stops the background updater.
@@ -445,12 +445,12 @@ func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	logger := fflog.FFLogger{}
-	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+	logger := slog.New(slog.DiscardHandler)
+	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 	manager := retriever.NewManager(retriever.ManagerConfig{
 		FileFormat:      protocol.FormatJSON,
 		PollingInterval: -1 * time.Second,
-	}, []retriever.Retriever{&countingRetriever{}}, cacheManager, &logger)
+	}, []retriever.Retriever{&countingRetriever{}}, cacheManager, logger)
 	require.NoError(t, manager.Init(ctx))
 
 	var shutdownErr error

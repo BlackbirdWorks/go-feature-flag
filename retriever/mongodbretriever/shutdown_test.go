@@ -1,6 +1,7 @@
 package mongodbretriever_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestMongoDBRetriever_ShutdownWithoutInit(t *testing.T) {
@@ -30,7 +30,7 @@ func TestMongoDBRetriever_ShutdownWithoutInit(t *testing.T) {
 			t.Parallel()
 
 			if tt.r.URI != "" {
-				require.NoError(t, tt.r.Init(t.Context(), &fflog.FFLogger{}))
+				require.NoError(t, tt.r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 				require.Equal(t, retriever.RetrieverReady, tt.r.Status())
 			}
 

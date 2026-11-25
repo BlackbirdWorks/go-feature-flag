@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"github.com/blackbirdworks/semaphore/internal"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -91,7 +92,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval
 	}
 
-	mgr := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
+	mgr := &managerImpl[T]{logger: internal.LoggerOrDiscard(logger), flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
 		dropSignal: make(chan struct{}, 1)}
 
 	var maxQueued int64
@@ -164,10 +165,8 @@ func (m *managerImpl[T]) reportDrops() {
 			return
 		}
 
-		if m.logger != nil {
-			m.logger.Error("the exporter is not keeping up, events are dropped",
-				slog.Int64("totalDroppedEvents", m.DroppedEvents()))
-		}
+		m.logger.Error("the exporter is not keeping up, events are dropped",
+			slog.Int64("totalDroppedEvents", m.DroppedEvents()))
 
 		timer := time.NewTimer(dropLogInterval)
 		select {
@@ -365,7 +364,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 
 		count, err := store.GetPendingEventCount(consumer.GetConsumerID())
 		if err != nil {
-			m.logger.Error("error while fetching pending events", err)
+			m.logger.Error("error while fetching pending events", slog.Any("error", err))
 
 			continue
 		}

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // gatedSink is a log handler that blocks the records about dropped events until gate is closed.
@@ -71,7 +70,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			}
 			defer release()
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.New(sink)}
+			logger := slog.New(sink)
 			// the exporter is down: the store fills up and the events are dropped.
 			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: &outageExporter{}, FlushInterval: time.Hour, MaxEventInMemory: 5, MaxQueuedEvents: 5,

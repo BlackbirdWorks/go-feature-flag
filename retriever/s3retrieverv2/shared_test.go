@@ -256,7 +256,7 @@ func initRetriever(t *testing.T, g *s3retrieverv2.SharedItems, item string) *s3r
 	t.Helper()
 
 	r := g.Retriever(item)
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 
 	return r
 }
@@ -318,7 +318,7 @@ func TestSharedItems_Retriever(t *testing.T) {
 			r := newGroup(t, newFakeBucket(nil)).Retriever(tt.item)
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 
-			err := r.Init(t.Context(), nil)
+			err := r.Init(t.Context(), slog.New(slog.DiscardHandler))
 			if tt.wantErrMsg != "" {
 				require.ErrorContains(t, err, tt.wantErrMsg)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
@@ -747,7 +747,7 @@ func TestSharedItemRetriever_Init(t *testing.T) {
 	t.Parallel()
 	g := newGroup(t, newFakeBucket(nil))
 	r := g.Retriever(fixtures.AYAML)
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	assert.Equal(t, retriever.RetrieverReady, r.Status())
 }
 
@@ -802,7 +802,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		b := newFakeBucket(map[string]fakeObject{a1Yaml: {etag: "1", data: "1"}})
 		r := initRetriever(t, newGroup(t, b), a1Yaml)
 		require.NoError(t, r.Shutdown(t.Context()))
-		require.NoError(t, r.Init(t.Context(), nil))
+		require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 		got, err := r.Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "1", string(got))
@@ -813,7 +813,7 @@ func TestSharedItemRetriever_Status(t *testing.T) {
 	t.Parallel()
 	r := newGroup(t, newFakeBucket(nil)).Retriever(fixtures.AYAML)
 	assert.Equal(t, retriever.RetrieverNotReady, r.Status())
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	assert.Equal(t, retriever.RetrieverReady, r.Status())
 	require.NoError(t, r.Shutdown(t.Context()))
 	assert.Equal(t, retriever.RetrieverNotReady, r.Status())

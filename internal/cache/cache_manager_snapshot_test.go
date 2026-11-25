@@ -3,6 +3,7 @@ package cache_test
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -57,7 +57,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 
 			snap, err := mgr.AllFlags()
@@ -85,7 +85,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	t.Parallel()
 
-	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 	flags := benchFlagsMap(t, 5)
 	require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
@@ -231,7 +231,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			var flags map[string]dto.DTO
 			require.NoError(t, yaml.Unmarshal([]byte(nestedFlagYAML), &flags))
 
-			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
 			live, err := mgr.GetFlag(fixtures.NestedKey)
 			require.NoError(t, err)
@@ -264,12 +264,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	t.Parallel()
 
-	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr := cache.New(nil, "", slog.New(slog.DiscardHandler))
 	mgr.Close()
 	_, err := mgr.AllFlagsReadOnly()
 	require.Error(t, err)
 
-	mgr = cache.New(nil, "", &fflog.FFLogger{})
+	mgr = cache.New(nil, "", slog.New(slog.DiscardHandler))
 	require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 	shared, err := mgr.AllFlagsReadOnly()
 	require.NoError(t, err)

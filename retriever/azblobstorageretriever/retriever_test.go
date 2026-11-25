@@ -18,7 +18,6 @@ import (
 
 	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const containerName = "testcontainer"
@@ -86,7 +85,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 			require.NoError(t, err)
 
 			tt.retriever.ServiceURL = fmt.Sprintf("%s/%s", blobURL, azurite.AccountName)
-			err = tt.retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
+			err = tt.retriever.Init(context.Background(), slog.Default())
 			require.NoError(t, err)
 
 			defer func() {
@@ -117,7 +116,7 @@ func TestInit(t *testing.T) {
 			AccountKey: azurite.AccountKey,
 			Object:     fixtures.FlagConfigFile,
 		}
-		err := retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
+		err := retriever.Init(context.Background(), slog.Default())
 		assert.EqualError(t, err, "unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
 	})
 

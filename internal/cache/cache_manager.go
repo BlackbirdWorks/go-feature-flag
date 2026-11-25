@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/blackbirdworks/semaphore/internal"
 	"log/slog"
 	"os"
 	"strings"
@@ -76,6 +77,8 @@ func New(
 	logger *fflog.FFLogger,
 	opts ...Option,
 ) *ManagerImpl {
+	logger = internal.LoggerOrDiscard(logger)
+
 	mgr := &ManagerImpl{
 		logger:                          logger,
 		mutex:                           sync.RWMutex{},

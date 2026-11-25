@@ -21,7 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -367,7 +366,7 @@ func runRetrieveCase(t *testing.T, setup func(*testhelpers.S3PrefixMock), conf c
 	r.SetLister(mockS3)
 
 	logs := &bytes.Buffer{}
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
 	require.NoError(t, r.Init(t.Context(), logger))
 
 	if conf.noLister {
@@ -547,7 +546,7 @@ func TestRetriever_Init(t *testing.T) {
 			r.SetDownloader(m)
 			r.SetLister(m)
 
-			err := r.Init(t.Context(), nil)
+			err := r.Init(t.Context(), slog.New(slog.DiscardHandler))
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
@@ -569,7 +568,7 @@ func TestRetriever_Init(t *testing.T) {
 
 		r := cfg{Item: fixtures.AYAML}.build()
 		r.SetDownloader(&testhelpers.S3PrefixMock{})
-		require.NoError(t, r.Init(t.Context(), nil))
+		require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 		assert.Nil(t, r.AwsConfig)
 	})
 }
@@ -583,7 +582,7 @@ func TestRetriever_Shutdown(t *testing.T) {
 
 	r := cfg{Prefix: "f/"}.build()
 	logs := &bytes.Buffer{}
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
 
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
@@ -614,16 +613,17 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	mockS3 := &testhelpers.S3PrefixMock{}
 	mockS3.Put(fixtures.FileAYAML, yamlA)
 
+	logger := slog.New(slog.DiscardHandler)
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), logger))
 	_, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "yaml", r.OutputFormat())
 
 	// a second Init keeps the cache and the last output format
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), logger))
 	assert.Equal(t, "yaml", r.OutputFormat())
 	_, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
@@ -640,13 +640,13 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mock)
 	r.SetLister(mock)
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	got, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, string(got), fixtures.FlagKeyA)
 
 	r.Prefix = "g/"
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	got, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, string(got), fixtures.FlagKeyB)
@@ -655,7 +655,7 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	// switching to single file mode drops the folder output format
 	r.Prefix = ""
 	r.Item = "g/b.yaml"
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	assert.Empty(t, r.OutputFormat())
 }
 
@@ -668,7 +668,7 @@ func TestRetriever_SetLister(t *testing.T) {
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
 	r.SetLister(mockS3)
-	require.NoError(t, r.Init(t.Context(), nil))
+	require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 	got, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, string(got), fixtures.FlagKeyA)
@@ -735,7 +735,7 @@ func TestRetriever_OutputFormat(t *testing.T) {
 			m := &testhelpers.S3PrefixMock{}
 			r.SetDownloader(m)
 			r.SetLister(m)
-			require.NoError(t, r.Init(t.Context(), nil))
+			require.NoError(t, r.Init(t.Context(), slog.New(slog.DiscardHandler)))
 			assert.Equal(t, tt.want, r.OutputFormat())
 		})
 	}

@@ -99,7 +99,7 @@ func TestWebhook_IsBulk(t *testing.T) {
 func TestWebhook_Export(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	runWebhookExportTests(t, []webhookExportCase{
 		{
 			name: "Invalid EndpointURL",
@@ -197,7 +197,7 @@ func TestWebhook_Export(t *testing.T) {
 func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 	t.Parallel()
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	logger := slog.Default()
 	runWebhookExportTests(t, []webhookExportCase{
 		{
 			name: "http error while calling webhook",
@@ -330,7 +330,7 @@ func TestWebhook_Export_impossibleToParse(t *testing.T) {
 
 	err := f.Export(
 		context.Background(),
-		&fflog.FFLogger{LeveledLogger: slog.Default()},
+		slog.Default(),
 		[]exporter.ExportableEvent{},
 	)
 	assert.EqualError(

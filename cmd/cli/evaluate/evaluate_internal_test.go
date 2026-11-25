@@ -2,6 +2,7 @@ package evaluate
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -389,7 +390,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 					s3Retriever, ok := r.(*s3retrieverv2.Retriever)
 					assert.True(t, ok, "failed to assert retriever to *s3retrieverv2.Retriever")
 					s3Retriever.SetDownloader(downloader)
-					_ = s3Retriever.Init(context.Background(), nil)
+					_ = s3Retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 				})
 			},
 			wantErr: assert.NoError,

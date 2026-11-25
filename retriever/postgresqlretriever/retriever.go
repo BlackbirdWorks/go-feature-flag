@@ -57,7 +57,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 
 	r.logger = logger
 	if r.logger == nil {
-		r.logger = &fflog.FFLogger{}
+		r.logger = slog.New(slog.DiscardHandler)
 	}
 
 	r.columnNames = r.getColumnNames()

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -116,7 +117,7 @@ func TestE2E_SingleItem(t *testing.T) {
 			}
 
 			r := &s3retrieverv2.Retriever{Bucket: bucket, Item: item, AwsConfig: &cfg}
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 			assert.Equal(t, retriever.RetrieverReady, r.Status())
 
@@ -162,7 +163,7 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 		},
 	}
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: flagsJSON, AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 	// steps are sequential by nature: each one depends on the previous object version.
 	for _, s := range steps {
@@ -180,7 +181,7 @@ func TestE2E_Retriever_NotFoundBeforeCreation(t *testing.T) {
 	bucket := srv.CreateBucket(t, "late")
 	cfg := srv.MustAwsConfig(t)
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: "late.json", AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	_, err := r.Retrieve(context.Background())
 	require.Error(t, err)
 
@@ -271,7 +272,7 @@ func TestE2E_FolderMode(t *testing.T) {
 				Bucket: bucket, Prefix: tt.prefix, Pattern: tt.pattern, Recursive: tt.recursive, AwsConfig: &cfg,
 			}
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -311,7 +312,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	srv.PutObject(t, bucket, fileAJSON, flagJSON(flagA, "v1"))
 
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Prefix: "f/", Pattern: "*.json", AwsConfig: &cfg}
-	require.NoError(t, r.Init(context.Background(), nil))
+	require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 
 	got, err := r.Retrieve(context.Background())
@@ -393,8 +394,8 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			require.NoError(t, err)
 
 			retA, retB := group.Retriever(keyA), group.Retriever(keyB)
-			require.NoError(t, retA.Init(context.Background(), nil))
-			require.NoError(t, retB.Init(context.Background(), nil))
+			require.NoError(t, retA.Init(context.Background(), slog.New(slog.DiscardHandler)))
+			require.NoError(t, retB.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() {
 				_ = retA.Shutdown(context.Background())
 				_ = retB.Shutdown(context.Background())
@@ -485,7 +486,7 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 			require.NoError(t, err)
 
 			r := group.Retriever(tt.item)
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 
 			got, err := r.Retrieve(context.Background())

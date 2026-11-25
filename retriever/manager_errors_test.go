@@ -3,6 +3,7 @@ package retriever_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,10 +49,10 @@ func (*shutdownFailingRetriever) Shutdown(context.Context) error              { 
 func (*shutdownFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverReady }
 
 func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retriever.Manager {
-	logger := fflog.FFLogger{}
-	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+	logger := slog.New(slog.DiscardHandler)
+	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", logger)
 
-	return retriever.NewManager(conf, []retriever.Retriever{r}, cacheManager, &logger)
+	return retriever.NewManager(conf, []retriever.Retriever{r}, cacheManager, logger)
 }
 
 func TestManagerInit_FirstRetrieverError(t *testing.T) {

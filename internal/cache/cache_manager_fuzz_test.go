@@ -11,7 +11,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // FuzzConvertToFlagStruct checks that loading any flag configuration file in the
@@ -44,7 +43,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
   experimentation: {start: 2026-01-01T00:00:00Z, end: 2026-03-01T00:00:00Z}
 `), uint8(0))
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.DiscardHandler)}
+	logger := slog.New(slog.DiscardHandler)
 
 	f.Fuzz(func(_ *testing.T, data []byte, format uint8) {
 		flags, err := cache.ConvertToFlagStruct(data, formats[int(format)%len(formats)])

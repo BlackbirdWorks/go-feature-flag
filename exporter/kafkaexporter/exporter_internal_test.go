@@ -14,7 +14,6 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -196,7 +195,7 @@ func TestExporter_Export(t *testing.T) {
 				dialer:   tt.dialer,
 			}
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+			logger := slog.Default()
 
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {

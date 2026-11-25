@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io/fs"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"os"
@@ -81,7 +82,7 @@ func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 		baseTransport: unsupportedTransport{},
 	}
 
-	err := retriever.Init(context.Background(), nil)
+	err := retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 	require.Error(t, err)
 	assert.Equal(
 		t,
@@ -132,7 +133,7 @@ func TestRetriever_Init(t *testing.T) {
 
 	assert.Equal(t, retrieverpkg.RetrieverNotReady, retriever.Status())
 
-	err := retriever.Init(context.Background(), nil)
+	err := retriever.Init(context.Background(), slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	assert.Equal(t, retrieverpkg.RetrieverReady, retriever.Status())
 
@@ -273,7 +274,7 @@ func TestRetriever_SetBaseTransport(t *testing.T) {
 			r := Retriever{CACertPath: caCertFile}
 			r.SetBaseTransport(tt.transport)
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)

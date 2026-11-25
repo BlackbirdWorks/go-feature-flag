@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -249,7 +250,7 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 			mock := &appMockHTTP{}
 			r := newAppRetriever(pemStr, mock)
 			tt.configure(t, r)
-			require.NoError(t, r.Init(context.Background(), nil))
+			require.NoError(t, r.Init(context.Background(), slog.New(slog.DiscardHandler)))
 
 			got, err := r.Retrieve(context.Background())
 			require.NoError(t, err)
@@ -511,7 +512,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 			r := tt.retriever
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 
-			err := r.Init(context.Background(), nil)
+			err := r.Init(context.Background(), slog.New(slog.DiscardHandler))
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)

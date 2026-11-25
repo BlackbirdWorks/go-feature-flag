@@ -16,7 +16,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -152,7 +151,7 @@ func TestExporterExport(t *testing.T) {
 				sqsService: &tt.fields.sqsService,
 			}
 
-			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+			logger := slog.Default()
 
 			err := sqsExp.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {

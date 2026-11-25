@@ -4,6 +4,7 @@ package redisretriever_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +64,7 @@ func Test_Redis_Retrieve(t *testing.T) {
 				Prefix:  tt.prefix,
 			}
 
-			err := retriever.Init(context.TODO(), nil)
+			err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
 
 			defer func() {
@@ -162,7 +163,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
@@ -190,7 +191,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
@@ -239,7 +240,7 @@ func TestRedisShutdown(t *testing.T) {
 		}
 
 		// Init should fail and set error status
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.Error(t, err)
 		assert.Equal(t, ret.RetrieverError, retriever.Status())
 
@@ -256,7 +257,7 @@ func TestRedisShutdown(t *testing.T) {
 			Options: options,
 		}
 
-		err := retriever.Init(context.TODO(), nil)
+		err := retriever.Init(context.TODO(), slog.New(slog.DiscardHandler))
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 

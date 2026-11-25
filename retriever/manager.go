@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/blackbirdworks/semaphore/internal"
 	"log/slog"
 	"maps"
 	"os"
@@ -62,7 +63,7 @@ func NewManager(
 	return &Manager{
 		retrievers:       retrievers,
 		onErrorRetriever: make([]Retriever, 0),
-		logger:           logger,
+		logger:           internal.LoggerOrDiscard(logger),
 		cacheManager:     cacheManager,
 		config:           config,
 	}
@@ -238,7 +239,7 @@ func (m *Manager) initRetrievers(ctx context.Context, retrieversToInit []Retriev
 // the legacy interface.
 func (m *Manager) tryInitializeLegacy(ctx context.Context, retriever Retriever) {
 	if r, ok := retriever.(InitializableRetrieverLegacy); ok {
-		if r.Init(ctx, m.logger.GetLogLogger(slog.LevelError)) != nil {
+		if r.Init(ctx, slog.NewLogLogger(m.logger.Handler(), slog.LevelError)) != nil {
 			m.onErrorRetriever = append(m.onErrorRetriever, retriever)
 		}
 	}
@@ -301,7 +302,7 @@ func (m *Manager) updateCacheWithRetriever(
 		!isInit || !m.config.DisableNotifierOnInit,
 	)
 	if err != nil {
-		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
+		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags", slog.Any("error", err))
 
 		return fmt.Errorf("updating the cache of the flags: %w", err)
 	}

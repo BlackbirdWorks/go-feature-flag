@@ -47,10 +47,8 @@ func (e *Exporter) Export(
 	events []exporter.ExportableEvent,
 ) error {
 	if logger == nil {
-		logger = &fflog.FFLogger{
-			// Noop logger to avoid any logging and nil issues
-			LeveledLogger: slog.New(slog.DiscardHandler),
-		}
+		// Noop logger to avoid any logging and nil issues
+		logger = slog.New(slog.DiscardHandler)
 	}
 
 	e.init()

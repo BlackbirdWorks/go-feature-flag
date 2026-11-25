@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -73,7 +74,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(ctx, nil, events)
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
@@ -122,7 +123,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(ctx, nil, events)
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
@@ -191,7 +192,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 		},
 	}
 
-	err := exp.Export(ctx, nil, events)
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), events)
 
 	require.ErrorContains(t, err, "mixed event types")
 	assert.Empty(t, client.inserters)
@@ -260,7 +261,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 				newClientFunc: mockNewClientFunc(client),
 			}
 
-			err := exp.Export(ctx, nil, tt.events)
+			err := exp.Export(ctx, slog.New(slog.DiscardHandler), tt.events)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnsureTableCalls, client.ensureTableCalls)
@@ -282,7 +283,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 		exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 	}
 
-	err := exp.Export(ctx, nil, events)
+	err := exp.Export(ctx, slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 	assert.Len(t, client.inserters["fake-dataset."+defaultTableName].puts, 1)
@@ -329,7 +330,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 				},
 			}
 
-			err := exp.Export(context.TODO(), nil, tt.events)
+			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantClientInit, initCalled)
@@ -488,7 +489,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 				},
 			}
 
-			err := exp.Export(context.TODO(), nil, tt.events)
+			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), tt.events)
 
 			require.ErrorContains(t, err, tt.wantErrContains)
 			assert.Equal(t, tt.wantNewClientCalled, newClientCalled)
@@ -518,7 +519,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 		})
 	}
 
-	err := exp.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), events)
 
 	require.NoError(t, err)
 
@@ -621,7 +622,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 				},
 			}
 
-			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{
+			err := exp.Export(context.TODO(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
 				exporter.FeatureEvent{Kind: fixtures.KindFeature, Value: true},
 			})
 

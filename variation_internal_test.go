@@ -155,7 +155,7 @@ func newVariationTestClient(
 		EnablePollingJitter:     true,
 		PollingInterval:         500,
 	}
-	ffLogger := &fflog.FFLogger{LeveledLogger: logger}
+	ffLogger := logger
 
 	return &GoFeatureFlag{
 		evaluationService: flag.NewService(),
@@ -2506,7 +2506,7 @@ func TestJSONVariationDetails(t *testing.T) {
 						mgrCfg,
 						[]retriever.Retriever{},
 						tt.args.cacheMock,
-						&fflog.FFLogger{LeveledLogger: logger},
+						logger,
 					),
 					config: Config{
 						PollingInterval: 0,
@@ -2524,7 +2524,7 @@ func TestJSONVariationDetails(t *testing.T) {
 								},
 							}},
 						exporter.DefaultExporterCleanQueueInterval,
-						&fflog.FFLogger{LeveledLogger: logger},
+						logger,
 					),
 				}
 			}
@@ -3012,7 +3012,7 @@ func TestStringVariationDetails(t *testing.T) {
 						mgrCfg,
 						[]retriever.Retriever{},
 						tt.args.cacheMock,
-						&fflog.FFLogger{LeveledLogger: logger},
+						logger,
 					),
 					config: Config{
 						PollingInterval: 0,
@@ -3029,7 +3029,7 @@ func TestStringVariationDetails(t *testing.T) {
 							},
 						}},
 						exporter.DefaultExporterCleanQueueInterval,
-						&fflog.FFLogger{LeveledLogger: logger},
+						logger,
 					),
 				}
 			}
