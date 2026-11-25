@@ -29,14 +29,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	areAllRequired = "are all required"
-	authorization2 = "Authorization"
 	ghpToken       = "ghp_token"
 	invalidBaseURL = "invalid base URL"
 )
@@ -158,7 +159,7 @@ func generateTestKey(t *testing.T) (*rsa.PrivateKey, string) {
 // newAppRetriever returns a retriever configured for GitHub App auth.
 func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retriever {
 	r := &githubretriever.Retriever{
-		RepositorySlug: myorgMyrepo,
+		RepositorySlug: fixtures.RepoMyOrg,
 		FilePath:       "flags/config.yaml",
 		AppID:          testAppID,
 		InstallationID: testInstallationID,
@@ -174,7 +175,7 @@ func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retrieve
 func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 	t.Helper()
 
-	jwt, ok := strings.CutPrefix(authorization, bearer)
+	jwt, ok := strings.CutPrefix(authorization, protocol.BearerPrefix)
 	require.True(t, ok, "access_tokens must be called with a Bearer JWT")
 
 	parts := strings.Split(jwt, ".")
@@ -261,12 +262,12 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 			assert.Equal(t, http.MethodPost, tokenReq.Method)
 			assert.Equal(t, tt.wantTokenURL, tokenReq.URL.String())
 			assert.Equal(t, "application/vnd.github+json", tokenReq.Header.Get("Accept"))
-			assertAppJWT(t, tokenReq.Header.Get(authorization2), &key.PublicKey)
+			assertAppJWT(t, tokenReq.Header.Get(protocol.HeaderAuthorization), &key.PublicKey)
 
 			// Contents request must carry the installation token as a Bearer token
 			assert.Equal(t, http.MethodGet, contentsReq.Method)
 			assert.Contains(t, contentsReq.URL.Path, "/repos/myorg/myrepo/contents/flags/config.yaml")
-			assert.Equal(t, "Bearer ghs_token_1", contentsReq.Header.Get(authorization2))
+			assert.Equal(t, "Bearer ghs_token_1", contentsReq.Header.Get(protocol.HeaderAuthorization))
 		})
 	}
 }
@@ -308,7 +309,7 @@ func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
 
 			assert.Equal(t, tt.wantMints, mock.tokenCalls)
 			lastReq := mock.recordedReqs[len(mock.recordedReqs)-1]
-			assert.Equal(t, tt.wantLastToken, lastReq.Header.Get(authorization2))
+			assert.Equal(t, tt.wantLastToken, lastReq.Header.Get(protocol.HeaderAuthorization))
 		})
 	}
 }
@@ -326,7 +327,7 @@ func TestGitHubAppAuth_401TriggersRetry(t *testing.T) {
 
 	// Requests: access_tokens (first mint) → contents (401) → access_tokens (re-mint) → contents (200)
 	require.Len(t, mock.recordedReqs, 4)
-	assert.Equal(t, "Bearer ghs_token_2", mock.recordedReqs[3].Header.Get(authorization2))
+	assert.Equal(t, "Bearer ghs_token_2", mock.recordedReqs[3].Header.Get(protocol.HeaderAuthorization))
 }
 
 func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {

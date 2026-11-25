@@ -10,26 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 const (
-	applicationJSON          = "application/json"
-	contentType              = "Content-Type"
 	httpLocalhostExampleFile = "http://localhost.example/file"
-	testFlagVariationsTrue   = `test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {
@@ -59,7 +47,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				body:       "",
 				header:     nil,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
@@ -72,7 +60,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				header:     nil,
 				withCtx:    true,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
@@ -83,7 +71,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				body:       "",
 				header:     nil,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
@@ -93,7 +81,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/httpError",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJSON}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -104,7 +92,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/error",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJSON}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -115,7 +103,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJSON}},
+				header:     map[string][]string{protocol.HeaderContentType: {protocol.MIMEApplicationJSON}},
 			},
 			wantErr: true,
 		},

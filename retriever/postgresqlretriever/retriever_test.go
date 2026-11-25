@@ -16,13 +16,13 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	config2                  = "config"
 	databaseConnectionPoolIs = "database connection pool is not initialized"
 	failedToExecuteQuery     = "failed to execute query"
-	flagName2                = "flag_name"
+	flagNameColumn           = "flag_name"
 	goFeatureFlag            = "go_feature_flag"
 	sqlInitSQL               = "sql/init.sql"
 	sqlInsertDataSQL         = "sql/insert_data.sql"
@@ -68,9 +68,9 @@ func TestPostgreSQLRetriever(t *testing.T) {
 			},
 			assertErr: assert.Error,
 			columns: map[string]string{
-				flagName2: "invalid_flag_name",
-				"flagset": "invalid_flagset",
-				config2:   "invalid_config",
+				flagNameColumn:  "invalid_flag_name",
+				"flagset":       "invalid_flagset",
+				fixtures.Config: "invalid_config",
 			},
 		},
 		{
@@ -304,8 +304,8 @@ func TestRetrieverQueryErrors(t *testing.T) {
 			URI:   connectionString,
 			Table: goFeatureFlag,
 			Columns: map[string]string{
-				flagName2: "nonexistent_column",
-				config2:   config2,
+				flagNameColumn:  "nonexistent_column",
+				fixtures.Config: fixtures.Config,
 			},
 		}
 
@@ -541,9 +541,9 @@ func TestRetrieverEdgeCases(t *testing.T) {
 			URI:   connectionString,
 			Table: "custom_flags",
 			Columns: map[string]string{
-				flagName2: "name",
-				"flagset": "environment",
-				config2:   "configuration",
+				flagNameColumn:  "name",
+				"flagset":       "environment",
+				fixtures.Config: "configuration",
 			},
 		}
 

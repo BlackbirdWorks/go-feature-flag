@@ -9,16 +9,17 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
 )
 
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {
 	t.Parallel()
 
-	simple := mockretriever.NewSimpleRetriever(simple2)
-	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy(legacy2)
-	initRetriever := mockretriever.NewInitializableRetriever(standard2)
-	intRetrieverFlagset := mockretriever.NewInitializableRetrieverWithFlagset(flagset2)
+	simple := mockretriever.NewSimpleRetriever(simpleName)
+	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy)
+	initRetriever := mockretriever.NewInitializableRetriever(standardName)
+	intRetrieverFlagset := mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone)
 	goff, err := ffclient.New(ffclient.Config{
 		PollingInterval: 10 * time.Second,
 		Retrievers: []retriever.Retriever{

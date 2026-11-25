@@ -19,6 +19,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
@@ -195,10 +196,10 @@ func TestE2E_FolderMode(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	objects := map[string][]byte{
-		flagsAYaml:              flagYAML(flagA, "1"),
-		flagsBYaml:              flagYAML(flagB, "1"),
+		fixtures.FlagsAYAML:     flagYAML(flagA, "1"),
+		fixtures.FlagsBYAML:     flagYAML(flagB, "1"),
 		"flags/notes.txt":       []byte("not a flag file"),
-		flagsSubCYaml:           flagYAML(flagC, "1"),
+		fixtures.FlagsSubCYAML:  flagYAML(flagC, "1"),
 		"flags/sub/deep/d.yaml": flagYAML(flagD, "1"),
 		"other/e.yaml":          flagYAML("flag-e", "1"),
 		"root.yaml":             flagYAML(flagRoot, "1"),
@@ -212,41 +213,46 @@ func TestE2E_FolderMode(t *testing.T) {
 		wantKeys  []string
 		recursive bool
 	}{
-		{name: "prefix direct children only", prefix: flags3, wantKeys: []string{flagA, flagB}},
-		{name: "prefix without trailing slash", prefix: flags2, wantKeys: []string{flagA, flagB}},
+		{name: "prefix direct children only", prefix: fixtures.FlagsDirSlash, wantKeys: []string{flagA, flagB}},
+		{name: "prefix without trailing slash", prefix: fixtures.FlagsDir, wantKeys: []string{flagA, flagB}},
 		{
 			name:      "prefix recursive",
-			prefix:    flags3,
+			prefix:    fixtures.FlagsDirSlash,
 			recursive: true,
 			wantKeys:  []string{flagA, flagB, flagC, flagD},
 		},
 		{
 			name:      "pattern restricts file names",
-			prefix:    flags3,
+			prefix:    fixtures.FlagsDirSlash,
 			pattern:   "a.*",
 			recursive: true,
 			wantKeys:  []string{flagA},
 		},
 		{
 			name:      "pattern matches basename in sub folders",
-			prefix:    flags3,
+			prefix:    fixtures.FlagsDirSlash,
 			pattern:   "[cd].yaml",
 			recursive: true,
 			wantKeys:  []string{flagC, flagD},
 		},
-		{name: "pattern without match gives empty set", prefix: flags3, pattern: "zzz*.yaml", wantKeys: []string{}},
-		{name: "root prefix not recursive", prefix: "", pattern: yaml, wantKeys: []string{flagRoot}},
+		{
+			name:     "pattern without match gives empty set",
+			prefix:   fixtures.FlagsDirSlash,
+			pattern:  "zzz*.yaml",
+			wantKeys: []string{},
+		},
+		{name: "root prefix not recursive", prefix: "", pattern: fixtures.YAMLGlob, wantKeys: []string{flagRoot}},
 		{
 			name:      "root prefix recursive",
 			prefix:    "/",
-			pattern:   yaml,
+			pattern:   fixtures.YAMLGlob,
 			recursive: true,
 			wantKeys:  []string{flagA, flagB, flagC, flagD, "flag-e", flagRoot},
 		},
 		{name: "unknown prefix gives empty set", prefix: "nothing/", wantKeys: []string{}},
 		{
 			name:    "pattern with slash is rejected",
-			prefix:  flags3,
+			prefix:  fixtures.FlagsDirSlash,
 			pattern: "sub/*.yaml",
 			wantErr: "impossible to init S3 retriever v2",
 		},
@@ -353,8 +359,8 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 	}{
 		{
 			name:           "same folder",
-			prefixA:        flags3,
-			prefixB:        flags3,
+			prefixA:        fixtures.FlagsDirSlash,
+			prefixB:        fixtures.FlagsDirSlash,
 			wantA:          string(flagJSON(flagA, "a1")),
 			wantB:          string(flagJSON(flagB, "b1")),
 			wantBUpdated:   string(flagJSON(flagB, "b2")),

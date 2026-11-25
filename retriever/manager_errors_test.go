@@ -12,14 +12,11 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-)
-
-const (
-	json     = "json"
-	testFlag = "test-flag"
 )
 
 var (
@@ -84,7 +81,7 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := retriever.ManagerConfig{FileFormat: yaml, StartWithRetrieverError: tt.startAnyway}
+			conf := retriever.ManagerConfig{FileFormat: protocol.FormatYAML, StartWithRetrieverError: tt.startAnyway}
 			if tt.withFile {
 				conf.PersistentFlagConfigurationFile = filepath.Join(t.TempDir(), "persist.yaml")
 				if tt.persisted != nil {
@@ -112,9 +109,9 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 
 			if tt.wantFlag {
 				require.NoError(t, err)
-				assert.Contains(t, flags, testFlag)
+				assert.Contains(t, flags, fixtures.FlagKeyTest)
 
-				f, getFlagErr := mgr.GetFlag(testFlag)
+				f, getFlagErr := mgr.GetFlag(fixtures.FlagKeyTest)
 				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
 				assert.False(t, mgr.GetCacheRefreshDate().IsZero())
@@ -143,7 +140,7 @@ func TestManagerForceRefresh(t *testing.T) {
 
 			mgr := newErrorManager(
 				tt.retriever,
-				retriever.ManagerConfig{FileFormat: json, StartWithRetrieverError: true},
+				retriever.ManagerConfig{FileFormat: protocol.FormatJSON, StartWithRetrieverError: true},
 			)
 
 			require.NoError(t, mgr.Init(context.Background()))
@@ -168,7 +165,7 @@ func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 	t.Parallel()
 
-	m := newErrorManager(&shutdownFailingRetriever{}, retriever.ManagerConfig{FileFormat: json})
+	m := newErrorManager(&shutdownFailingRetriever{}, retriever.ManagerConfig{FileFormat: protocol.FormatJSON})
 	require.NoError(t, m.Init(context.Background()))
 	assert.ErrorContains(t, m.Shutdown(context.Background()), "error while shutting down the retrievers")
 }
@@ -176,7 +173,7 @@ func TestManagerShutdownReportsTheRetrieversThatFail(t *testing.T) {
 func TestManagerInitFailsWhenARetrieverCannotInitialise(t *testing.T) {
 	t.Parallel()
 
-	m := newErrorManager(&initFailingRetriever{}, retriever.ManagerConfig{FileFormat: json})
+	m := newErrorManager(&initFailingRetriever{}, retriever.ManagerConfig{FileFormat: protocol.FormatJSON})
 	assert.ErrorContains(t, m.Init(context.Background()), "error while initializing the retrievers")
 }
 

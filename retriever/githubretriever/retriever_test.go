@@ -10,29 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
-)
-
-const (
-	bearer                 = "Bearer "
-	configFlagsYaml        = "config/flags.yaml"
-	myorgMyrepo            = "myorg/myrepo"
-	testFlagVariationsTrue = `test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`
-	testdataFlagConfigYaml      = "testdata/flag-config.yaml"
-	thomaspoignantGoFeatureFlag = "thomaspoignant/go-feature-flag"
 )
 
 func Test_github_Retrieve(t *testing.T) {
@@ -59,38 +41,38 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
 			name: "Success with context",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 				withCtx:        true,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
 			name: "Success with default method",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 		{
 			name: "HTTP Error",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
 				filePath:       "testdata/error",
 			},
 			wantErr: true,
@@ -100,7 +82,7 @@ func Test_github_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				repositorySlug: "",
-				filePath:       testdataFlagConfigYaml,
+				filePath:       fixtures.FlagConfigYAMLPath,
 			},
 			wantErr: true,
 		},
@@ -108,7 +90,7 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Error missing file path",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
 				filePath:       "",
 			},
 			wantErr: true,
@@ -117,8 +99,8 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Ratelimiting",
 			fields: fields{
 				httpClient:     mock.HTTP{RateLimit: true, EndRatelimit: endRatelimit},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 			},
 			errMsg: "request to https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config." +
 				"yaml?ref=main failed with code 429. GitHub Headers: map[X-Content-Type-Options:nosniff " +
@@ -134,11 +116,11 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Use GitHub token",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 				githubToken:    "XXX_GH_TOKEN",
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 		},
 	}
@@ -180,8 +162,8 @@ func Test_github_Retrieve(t *testing.T) {
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
-						bearer+tt.fields.githubToken,
-						tt.fields.httpClient.Req.Header.Get(authorization2),
+						protocol.BearerPrefix+tt.fields.githubToken,
+						tt.fields.httpClient.Req.Header.Get(protocol.HeaderAuthorization),
 					)
 				}
 			}
@@ -212,12 +194,12 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise base URL",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: myorgMyrepo,
-				filePath:       configFlagsYaml,
+				repositorySlug: fixtures.RepoMyOrg,
+				filePath:       fixtures.ConfigFlagsYAML,
 				githubToken:    ghpToken,
 				baseURL:        "https://github.acme.com/api/v3",
 			},
-			want:        []byte(testFlagVariationsTrue),
+			want:        []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr:     false,
 			expectedURL: "https://github.acme.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=main",
 		},
@@ -225,10 +207,10 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "Default GitHub API URL (empty BaseURL)",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: thomaspoignantGoFeatureFlag,
-				filePath:       testdataFlagConfigYaml,
+				repositorySlug: fixtures.RepoGoFeatureFlag,
+				filePath:       fixtures.FlagConfigYAMLPath,
 			},
-			want:    []byte(testFlagVariationsTrue),
+			want:    []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr: false,
 			expectedURL: "https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config.yaml?r" +
 				"ef=main",
@@ -237,12 +219,12 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise with different branch",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: myorgMyrepo,
-				filePath:       configFlagsYaml,
+				repositorySlug: fixtures.RepoMyOrg,
+				filePath:       fixtures.ConfigFlagsYAML,
 				baseURL:        "https://github.enterprise.com/api/v3",
 				branch:         "develop",
 			},
-			want:        []byte(testFlagVariationsTrue),
+			want:        []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr:     false,
 			expectedURL: "https://github.enterprise.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=develop",
 		},
@@ -250,19 +232,19 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise with trailing slash in BaseURL",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: myorgMyrepo,
-				filePath:       configFlagsYaml,
+				repositorySlug: fixtures.RepoMyOrg,
+				filePath:       fixtures.ConfigFlagsYAML,
 				baseURL:        "https://github.acme.com/api/v3/",
 			},
-			want:        []byte(testFlagVariationsTrue),
+			want:        []byte(fixtures.TestFlagTrueVarYAML),
 			wantErr:     false,
 			expectedURL: "https://github.acme.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=main",
 		},
 		{
 			name: "Invalid base URL",
 			fields: fields{
-				repositorySlug: myorgMyrepo,
-				filePath:       configFlagsYaml,
+				repositorySlug: fixtures.RepoMyOrg,
+				filePath:       fixtures.ConfigFlagsYAML,
 				baseURL:        ":invalid:url",
 			},
 			want:    nil,
@@ -271,7 +253,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		{
 			name: "Path traversal in FilePath",
 			fields: fields{
-				repositorySlug: myorgMyrepo,
+				repositorySlug: fixtures.RepoMyOrg,
 				filePath:       "../../../etc/passwd",
 			},
 			want:    nil,
@@ -281,7 +263,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "Path traversal in RepositorySlug",
 			fields: fields{
 				repositorySlug: "../../../etc/passwd",
-				filePath:       configFlagsYaml,
+				filePath:       fixtures.ConfigFlagsYAML,
 			},
 			want:    nil,
 			wantErr: true,
@@ -310,8 +292,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
-						bearer+tt.fields.githubToken,
-						tt.fields.httpClient.Req.Header.Get(authorization2),
+						protocol.BearerPrefix+tt.fields.githubToken,
+						tt.fields.httpClient.Req.Header.Get(protocol.HeaderAuthorization),
 					)
 				}
 			}
@@ -323,8 +305,8 @@ func TestRateLimiting(t *testing.T) {
 	t.Parallel()
 
 	ret := githubretriever.Retriever{
-		RepositorySlug: thomaspoignantGoFeatureFlag,
-		FilePath:       testdataFlagConfigYaml,
+		RepositorySlug: fixtures.RepoGoFeatureFlag,
+		FilePath:       fixtures.FlagConfigYAMLPath,
 	}
 
 	httpClient := &mock.HTTP{}

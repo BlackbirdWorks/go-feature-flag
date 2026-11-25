@@ -13,18 +13,17 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock/mockretriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	flagset2  = "flagset"
-	legacy2   = "legacy"
-	simple2   = "simple"
-	standard2 = "standard"
-	yaml      = "yaml"
+	simpleName   = "simple"
+	standardName = "standard"
 )
 
 // TestManagerInit_AllRetrieverTypes tests the Init function with all possible retriever types
@@ -44,54 +43,54 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 		{
 			name: "All retriever interface types - successful initialization",
 			retrievers: []retriever.Retriever{
-				mockretriever.NewSimpleRetriever(simple2),
-				mockretriever.NewInitializableRetrieverLegacy(legacy2),
-				mockretriever.NewInitializableRetriever(standard2),
-				mockretriever.NewInitializableRetrieverWithFlagset(flagset2),
+				mockretriever.NewSimpleRetriever(simpleName),
+				mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy),
+				mockretriever.NewInitializableRetriever(standardName),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
 			},
 			expectError: false,
 			expectedInitCalls: map[string]bool{
-				legacy2:   true,
-				standard2: true,
-				flagset2:  true,
+				fixtures.Legacy:      true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 			expectedStatusCalls: map[string]bool{
-				legacy2:   true,
-				standard2: true,
-				flagset2:  true,
+				fixtures.Legacy:      true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 			expectedShutdownCalls: map[string]bool{
-				legacy2:   true,
-				standard2: true,
-				flagset2:  true,
+				fixtures.Legacy:      true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 		},
 		{
 			name: "Mixed retriever types with one initialization failure",
 			retrievers: []retriever.Retriever{
-				mockretriever.NewSimpleRetriever(simple2),
-				mockretriever.NewInitializableRetrieverLegacy(legacy2),
-				mockretriever.NewInitializableRetriever(standard2),
-				mockretriever.NewInitializableRetrieverWithFlagset(flagset2),
+				mockretriever.NewSimpleRetriever(simpleName),
+				mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy),
+				mockretriever.NewInitializableRetriever(standardName),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
 			},
 			expectError: false,
 			expectedInitCalls: map[string]bool{
-				legacy2:   true,
-				standard2: true,
-				flagset2:  true,
+				fixtures.Legacy:      true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 		},
 		{
 			name: "All retrievers fail initialization",
 			retrievers: []retriever.Retriever{
 				func() *mockretriever.InitializableRetriever {
-					r := mockretriever.NewInitializableRetriever(standard2)
+					r := mockretriever.NewInitializableRetriever(standardName)
 					r.InitShouldFail = true
 
 					return r
 				}(),
 				func() *mockretriever.InitializableRetrieverWithFlagset {
-					r := mockretriever.NewInitializableRetrieverWithFlagset(flagset2)
+					r := mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone)
 					r.InitShouldFail = true
 
 					return r
@@ -99,12 +98,12 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			},
 			expectError: true,
 			expectedInitCalls: map[string]bool{
-				standard2: true,
-				flagset2:  true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 			expectedShutdownCalls: map[string]bool{
-				standard2: true,
-				flagset2:  true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 		},
 		{
@@ -125,19 +124,19 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			name: "Mixed success and failure with StartWithRetrieverError enabled",
 			retrievers: []retriever.Retriever{
 				func() *mockretriever.InitializableRetriever {
-					r := mockretriever.NewInitializableRetriever(standard2)
+					r := mockretriever.NewInitializableRetriever(standardName)
 					r.InitShouldFail = true
 
 					return r
 				}(),
-				mockretriever.NewInitializableRetrieverWithFlagset(flagset2),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
 			},
 			startWithRetrieverError: true,
 			// Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
 			expectError: true,
 			expectedInitCalls: map[string]bool{
-				standard2: true,
-				flagset2:  true,
+				standardName:         true,
+				fixtures.FlagsetNone: true,
 			},
 		},
 	}
@@ -151,7 +150,7 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 
 			config := retriever.ManagerConfig{
-				FileFormat:              yaml,
+				FileFormat:              protocol.FormatYAML,
 				StartWithRetrieverError: tt.startWithRetrieverError,
 				PollingInterval:         0, // Disable polling for tests
 			}
@@ -317,13 +316,13 @@ variation = "A"
 		{
 			name:       "FormatHinter toml overrides global yaml",
 			hintFormat: "toml",
-			globalFmt:  yaml,
-			wantFlags:  []string{testFlag},
+			globalFmt:  protocol.FormatYAML,
+			wantFlags:  []string{fixtures.FlagKeyTest},
 		},
 		{
 			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat: "",
-			globalFmt:  yaml,
+			globalFmt:  protocol.FormatYAML,
 			wantErr: "impossible to retrieve the flags, please check your configuration: decoding the flags: " +
 				"yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
@@ -391,7 +390,7 @@ func newPollingManager(t *testing.T, r retriever.Retriever) *retriever.Manager {
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 	// ManagerConfig.PollingInterval is not clamped, the 1s floor lives in ffclient.Config.
 	return retriever.NewManager(retriever.ManagerConfig{
-		FileFormat:      json,
+		FileFormat:      protocol.FormatJSON,
 		PollingInterval: 10 * time.Millisecond,
 	}, []retriever.Retriever{r}, cacheManager, &logger)
 }
@@ -449,7 +448,7 @@ func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	logger := fflog.FFLogger{}
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 	manager := retriever.NewManager(retriever.ManagerConfig{
-		FileFormat:      json,
+		FileFormat:      protocol.FormatJSON,
 		PollingInterval: -1 * time.Second,
 	}, []retriever.Retriever{&countingRetriever{}}, cacheManager, &logger)
 	require.NoError(t, manager.Init(ctx))

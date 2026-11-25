@@ -20,27 +20,14 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	aYaml         = "a.yaml"
-	fileAYAML     = "f/a.yaml"
-	fileBYAML     = "f/b.yaml"
-	flagA2        = "flagA"
-	flagB2        = "flagB"
-	flagC2        = "flagC: {}\n"
-	flagD2        = "flagD: {}\n"
+	flagDYAML     = "flagD: {}\n"
 	flagZ         = "flagZ: {}\n"
-	flags2        = "flags"
-	flags3        = "flags/"
-	flagsAYaml    = "flags/a.yaml"
-	flagsBYaml    = "flags/b.yaml"
 	flagsOldZYaml = "flags-old/z.yaml"
-	flagsSubCYaml = "flags/sub/c.yaml"
-	stepD         = "step %d"
-	yaml          = "*.yaml"
-	yaml2         = "yaml"
 )
 
 var (
@@ -101,12 +88,16 @@ func TestRetriever_Retrieve(t *testing.T) {
 	tests := slices.Concat([]retrieveCase{
 		{
 			name:  "item mode unchanged",
-			setup: func(m *testhelpers.S3PrefixMock) { m.Put(flagsAYaml, yamlA) },
-			r:     cfg{Item: flagsAYaml},
+			setup: func(m *testhelpers.S3PrefixMock) { m.Put(fixtures.FlagsAYAML, yamlA) },
+			r:     cfg{Item: fixtures.FlagsAYAML},
 			steps: []step{
-				{wantFlags: []string{flagA2}},
+				{wantFlags: []string{fixtures.FlagKeyA}},
 				// item mode has no ETag cache: every call downloads
-				{wantFlags: []string{flagA2}, nilCtx: true, wantDownloads: map[string]int{flagsAYaml: 2}},
+				{
+					wantFlags:     []string{fixtures.FlagKeyA},
+					nilCtx:        true,
+					wantDownloads: map[string]int{fixtures.FlagsAYAML: 2},
+				},
 			},
 		},
 		{
@@ -124,135 +115,135 @@ func TestRetriever_Retrieve(t *testing.T) {
 		{
 			name: "prefix non recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
-				m.Put(flagsSubCYaml, flagC2)
-				m.Put(flags3, "") // folder marker
-				m.Put("other/d.yaml", flagD2)
+				m.Put(fixtures.FlagsAYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
+				m.Put(fixtures.FlagsSubCYAML, fixtures.FlagCEmptyYAML)
+				m.Put(fixtures.FlagsDirSlash, "") // folder marker
+				m.Put("other/d.yaml", flagDYAML)
 			},
-			r:     cfg{Prefix: flags3},
-			steps: []step{{wantFlags: []string{flagA2, flagB2}}},
+			r:     cfg{Prefix: fixtures.FlagsDirSlash},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB}}},
 		},
 		{
 			name: "prefix without trailing slash non recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
-				m.Put(flagsSubCYaml, flagC2)
+				m.Put(fixtures.FlagsAYAML, yamlA)
+				m.Put(fixtures.FlagsSubCYAML, fixtures.FlagCEmptyYAML)
 				m.Put(flagsOldZYaml, flagZ)
 			},
-			r:     cfg{Prefix: flags2},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			r:     cfg{Prefix: fixtures.FlagsDir},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "prefix with a leading and trailing slash is the same folder",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
-				m.Put(flagsSubCYaml, flagC2)
+				m.Put(fixtures.FlagsAYAML, yamlA)
+				m.Put(fixtures.FlagsSubCYAML, fixtures.FlagCEmptyYAML)
 				m.Put(flagsOldZYaml, flagZ)
 			},
 			r:     cfg{Prefix: "/flags/"},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "prefix with a trailing slash is the same folder",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
-				m.Put(flagsSubCYaml, flagC2)
+				m.Put(fixtures.FlagsAYAML, yamlA)
+				m.Put(fixtures.FlagsSubCYAML, fixtures.FlagCEmptyYAML)
 				m.Put(flagsOldZYaml, flagZ)
 			},
-			r:     cfg{Prefix: flags3},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			r:     cfg{Prefix: fixtures.FlagsDirSlash},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "no item and no prefix reads the root, non recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
+				m.Put(fixtures.AYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
 			},
 			r:     cfg{},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "no item and no prefix reads the whole bucket when recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
+				m.Put(fixtures.AYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
 			},
 			r:     cfg{Recursive: true},
-			steps: []step{{wantFlags: []string{flagA2, flagB2}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB}}},
 		},
 		{
 			name: "pattern filter at the root",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
+				m.Put(fixtures.AYAML, yamlA)
 				m.Put("b.yml", yamlB)
 				m.Put("notes.txt", "x")
 			},
-			r:     cfg{Pattern: yaml},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			r:     cfg{Pattern: fixtures.YAMLGlob},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "root prefix non recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
+				m.Put(fixtures.AYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
 			},
 			r:     cfg{Prefix: "/"},
-			steps: []step{{wantFlags: []string{flagA2}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}}},
 		},
 		{
 			name: "root prefix recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
-				m.Put("flags/deep/c.yaml", flagC2)
+				m.Put(fixtures.AYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
+				m.Put("flags/deep/c.yaml", fixtures.FlagCEmptyYAML)
 			},
 			r:     cfg{Prefix: "/", Recursive: true},
-			steps: []step{{wantFlags: []string{flagA2, flagB2, "flagC"}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB, "flagC"}}},
 		},
 		{
 			name: "leading slash is trimmed",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(aYaml, yamlA)
-				m.Put(flagsBYaml, yamlB)
+				m.Put(fixtures.AYAML, yamlA)
+				m.Put(fixtures.FlagsBYAML, yamlB)
 			},
 			r:     cfg{Prefix: "/flags/"},
-			steps: []step{{wantFlags: []string{flagB2}}},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyB}}},
 		},
 		{
 			name: "prefix recursive",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
+				m.Put(fixtures.FlagsAYAML, yamlA)
 				m.Put("flags/sub/b.yml", yamlB)
 				m.Put("flags/sub/deep/", "")
-				m.Put("other/d.yaml", flagD2)
+				m.Put("other/d.yaml", flagDYAML)
 			},
-			r:     cfg{Prefix: flags3, Recursive: true},
-			steps: []step{{wantFlags: []string{flagA2, flagB2}}},
+			r:     cfg{Prefix: fixtures.FlagsDirSlash, Recursive: true},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB}}},
 		},
 		{
 			name: "pattern filter",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(flagsAYaml, yamlA)
+				m.Put(fixtures.FlagsAYAML, yamlA)
 				m.Put("flags/notes.txt", "not a flag file")
 				m.Put("flags/sub/b.yaml", yamlB)
 			},
-			r:     cfg{Prefix: flags3, Pattern: yaml, Recursive: true},
-			steps: []step{{wantFlags: []string{flagA2, flagB2}}},
+			r:     cfg{Prefix: fixtures.FlagsDirSlash, Pattern: fixtures.YAMLGlob, Recursive: true},
+			steps: []step{{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB}}},
 		},
 		{
 			name: "pagination",
 			setup: func(mockS3 *testhelpers.S3PrefixMock) {
 				mockS3.PageSize = 2
-				mockS3.Put(fileAYAML, yamlA)
-				mockS3.Put(fileBYAML, yamlB)
-				mockS3.Put("f/c.yaml", flagC2)
-				mockS3.Put("f/d.yaml", flagD2)
+				mockS3.Put(fixtures.FileAYAML, yamlA)
+				mockS3.Put(fixtures.FileBYAML, yamlB)
+				mockS3.Put("f/c.yaml", fixtures.FlagCEmptyYAML)
+				mockS3.Put("f/d.yaml", flagDYAML)
 				mockS3.Put("f/e.yaml", "flagE: {}\n")
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{flagA2, flagB2, "flagC", "flagD", "flagE"}},
+				{wantFlags: []string{fixtures.FlagKeyA, fixtures.FlagKeyB, "flagC", "flagD", "flagE"}},
 			},
 		},
 		{
@@ -266,7 +257,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		{
 			name: "download error",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(fileAYAML, yamlA)
+				m.Put(fixtures.FileAYAML, yamlA)
 				m.DownloadErr = errKaboom
 			},
 			r:     cfg{Prefix: "f/"},
@@ -275,14 +266,14 @@ func TestRetriever_Retrieve(t *testing.T) {
 		{
 			name: "concurrent calls are serialized",
 			setup: func(m *testhelpers.S3PrefixMock) {
-				m.Put(fileAYAML, yamlA)
-				m.Put(fileBYAML, yamlB)
+				m.Put(fixtures.FileAYAML, yamlA)
+				m.Put(fixtures.FileBYAML, yamlB)
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{{
 				concurrent:    20,
-				wantFlags:     []string{flagA2, flagB2},
-				wantDownloads: map[string]int{fileAYAML: 1, fileBYAML: 1},
+				wantFlags:     []string{fixtures.FlagKeyA, fixtures.FlagKeyB},
+				wantDownloads: map[string]int{fixtures.FileAYAML: 1, fixtures.FileBYAML: 1},
 			}},
 		},
 		{
@@ -290,7 +281,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			// of the downloaded content, so that the next list (A again) triggers a new download
 			name: "object replaced between list and download is downloaded again on the next poll",
 			setup: func(mockS3 *testhelpers.S3PrefixMock) {
-				mockS3.Put(fileAYAML, yamlA)
+				mockS3.Put(fixtures.FileAYAML, yamlA)
 
 				swapped := false
 				mockS3.BeforeDownload = func(key string) {
@@ -303,11 +294,11 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{flagB2}},
+				{wantFlags: []string{fixtures.FlagKeyB}},
 				{
-					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fileAYAML, yamlA) },
-					wantFlags:     []string{flagA2},
-					wantDownloads: map[string]int{fileAYAML: 2},
+					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fixtures.FileAYAML, yamlA) },
+					wantFlags:     []string{fixtures.FlagKeyA},
+					wantDownloads: map[string]int{fixtures.FileAYAML: 2},
 				},
 			},
 		},
@@ -315,16 +306,16 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "no etag never hits the cache",
 			setup: func(m *testhelpers.S3PrefixMock) {
 				m.NoETag = true
-				m.Put(fileAYAML, yamlA)
+				m.Put(fixtures.FileAYAML, yamlA)
 			},
 			r: cfg{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 1}},
-				{wantFlags: []string{flagA2}, wantDownloads: map[string]int{fileAYAML: 2}},
+				{wantFlags: []string{fixtures.FlagKeyA}, wantDownloads: map[string]int{fixtures.FileAYAML: 1}},
+				{wantFlags: []string{fixtures.FlagKeyA}, wantDownloads: map[string]int{fixtures.FileAYAML: 2}},
 				{
-					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fileAYAML, yamlB) },
-					wantFlags:     []string{flagB2},
-					wantDownloads: map[string]int{fileAYAML: 3},
+					mutate:        func(m *testhelpers.S3PrefixMock) { m.Put(fixtures.FileAYAML, yamlB) },
+					wantFlags:     []string{fixtures.FlagKeyB},
+					wantDownloads: map[string]int{fixtures.FileAYAML: 3},
 				},
 			},
 		},
@@ -400,15 +391,21 @@ func runRetrieveCase(t *testing.T, setup func(*testhelpers.S3PrefixMock), conf c
 		}
 
 		if currStep.wantLog != "" {
-			assert.Contains(t, logs.String(), currStep.wantLog, stepD, i)
+			assert.Contains(t, logs.String(), currStep.wantLog, fixtures.StepFormat, i)
 		}
 
 		if currStep.wantNoLog != "" {
-			assert.NotContains(t, logs.String(), currStep.wantNoLog, stepD, i)
+			assert.NotContains(t, logs.String(), currStep.wantNoLog, fixtures.StepFormat, i)
 		}
 
 		if currStep.wantLogCountOf != "" {
-			assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), stepD, i)
+			assert.Equal(
+				t,
+				currStep.wantLogCount,
+				strings.Count(logs.String(), currStep.wantLogCountOf),
+				fixtures.StepFormat,
+				i,
+			)
 		}
 	}
 }
@@ -446,24 +443,24 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step,
 	t.Helper()
 
 	if currStep.wantErr != "" {
-		require.ErrorContains(t, err, currStep.wantErr, stepD, i)
+		require.ErrorContains(t, err, currStep.wantErr, fixtures.StepFormat, i)
 
 		return
 	}
 
-	require.NoError(t, err, stepD, i)
+	require.NoError(t, err, fixtures.StepFormat, i)
 
 	if r.Item != "" {
 		// item mode returns the raw file
 		for _, f := range currStep.wantFlags {
-			assert.Contains(t, string(got), f, stepD, i)
+			assert.Contains(t, string(got), f, fixtures.StepFormat, i)
 		}
 	} else {
 		checkPrefixOutput(t, r.OutputFormat(), currStep, got, i)
 	}
 
 	for _, c := range currStep.wantContains {
-		assert.Contains(t, string(got), c, stepD, i)
+		assert.Contains(t, string(got), c, fixtures.StepFormat, i)
 	}
 }
 
@@ -471,7 +468,7 @@ func checkPrefixOutput(t *testing.T, format string, currStep step, got []byte, i
 	t.Helper()
 
 	flags, err := cache.ConvertToFlagStruct(got, format)
-	require.NoError(t, err, stepD, i)
+	require.NoError(t, err, fixtures.StepFormat, i)
 
 	if currStep.wantFlags != nil {
 		keys := make([]string, 0, len(flags))
@@ -479,7 +476,7 @@ func checkPrefixOutput(t *testing.T, format string, currStep step, got []byte, i
 			keys = append(keys, k)
 		}
 
-		assert.ElementsMatch(t, currStep.wantFlags, keys, stepD, i)
+		assert.ElementsMatch(t, currStep.wantFlags, keys, fixtures.StepFormat, i)
 	}
 
 	if len(currStep.wantSameAs) > 0 {
@@ -494,7 +491,7 @@ func checkPrefixOutput(t *testing.T, format string, currStep step, got []byte, i
 			maps.Copy(want, parsed)
 		}
 
-		assert.Equal(t, want, flags, stepD, i)
+		assert.Equal(t, want, flags, fixtures.StepFormat, i)
 	}
 }
 
@@ -509,24 +506,24 @@ func TestRetriever_Init(t *testing.T) {
 		// wantAwsConfigNil: item mode with an injected downloader must not load the AWS config.
 		wantAwsConfigNil bool
 	}{
-		{name: "item only", r: cfg{Item: aYaml}, wantAwsConfigNil: true},
+		{name: "item only", r: cfg{Item: fixtures.AYAML}, wantAwsConfigNil: true},
 		{name: "prefix only", r: cfg{Prefix: "f/"}, wantAwsConfigNil: true},
 		{name: "root prefix", r: cfg{Prefix: "/", Recursive: true}, wantAwsConfigNil: true},
-		{name: "prefix with pattern", r: cfg{Prefix: "f/", Pattern: yaml}, wantAwsConfigNil: true},
+		{name: "prefix with pattern", r: cfg{Prefix: "f/", Pattern: fixtures.YAMLGlob}, wantAwsConfigNil: true},
 		{
 			name:    "item and prefix",
-			r:       cfg{Item: aYaml, Prefix: "f/"},
+			r:       cfg{Item: fixtures.AYAML, Prefix: "f/"},
 			wantErr: "impossible to init S3 retriever v2: item and prefix are mutually exclusive",
 		},
 		{name: "neither item nor prefix is the bucket root", r: cfg{}, wantAwsConfigNil: true},
 		{
 			name:    "item with pattern",
-			r:       cfg{Item: aYaml, Pattern: yaml},
+			r:       cfg{Item: fixtures.AYAML, Pattern: fixtures.YAMLGlob},
 			wantErr: "impossible to init S3 retriever v2: pattern and recursive can only be used without item",
 		},
 		{
 			name:    "item with recursive",
-			r:       cfg{Item: aYaml, Recursive: true},
+			r:       cfg{Item: fixtures.AYAML, Recursive: true},
 			wantErr: "impossible to init S3 retriever v2: pattern and recursive can only be used without item",
 		},
 		{
@@ -569,7 +566,7 @@ func TestRetriever_Init(t *testing.T) {
 	t.Run("item mode with only a downloader does not need a lister", func(t *testing.T) {
 		t.Parallel()
 
-		r := cfg{Item: aYaml}.build()
+		r := cfg{Item: fixtures.AYAML}.build()
 		r.SetDownloader(&testhelpers.S3PrefixMock{})
 		require.NoError(t, r.Init(t.Context(), nil))
 		assert.Nil(t, r.AwsConfig)
@@ -580,7 +577,7 @@ func TestRetriever_Shutdown(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testhelpers.S3PrefixMock{}
-	mockS3.Put(fileAYAML, yamlA)
+	mockS3.Put(fixtures.FileAYAML, yamlA)
 	mockS3.Put("f/readme.txt", "hello")
 
 	r := cfg{Prefix: "f/"}.build()
@@ -614,7 +611,7 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testhelpers.S3PrefixMock{}
-	mockS3.Put(fileAYAML, yamlA)
+	mockS3.Put(fixtures.FileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
@@ -629,14 +626,14 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	assert.Equal(t, "yaml", r.OutputFormat())
 	_, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, mockS3.DownloadCalls(fileAYAML))
+	assert.Equal(t, 1, mockS3.DownloadCalls(fixtures.FileAYAML))
 }
 
 func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	t.Parallel()
 
 	mock := &testhelpers.S3PrefixMock{}
-	mock.Put(fileAYAML, yamlA)
+	mock.Put(fixtures.FileAYAML, yamlA)
 	mock.Put("g/b.yaml", yamlB)
 
 	r := cfg{Prefix: "f/"}.build()
@@ -645,14 +642,14 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	require.NoError(t, r.Init(t.Context(), nil))
 	got, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Contains(t, string(got), flagA2)
+	assert.Contains(t, string(got), fixtures.FlagKeyA)
 
 	r.Prefix = "g/"
 	require.NoError(t, r.Init(t.Context(), nil))
 	got, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Contains(t, string(got), flagB2)
-	assert.NotContains(t, string(got), flagA2)
+	assert.Contains(t, string(got), fixtures.FlagKeyB)
+	assert.NotContains(t, string(got), fixtures.FlagKeyA)
 
 	// switching to single file mode drops the folder output format
 	r.Prefix = ""
@@ -665,7 +662,7 @@ func TestRetriever_SetLister(t *testing.T) {
 	t.Parallel()
 
 	mockS3 := &testhelpers.S3PrefixMock{}
-	mockS3.Put(fileAYAML, yamlA)
+	mockS3.Put(fixtures.FileAYAML, yamlA)
 
 	r := cfg{Prefix: "f/"}.build()
 	r.SetDownloader(mockS3)
@@ -673,7 +670,7 @@ func TestRetriever_SetLister(t *testing.T) {
 	require.NoError(t, r.Init(t.Context(), nil))
 	got, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Contains(t, string(got), flagA2)
+	assert.Contains(t, string(got), fixtures.FlagKeyA)
 	assert.Equal(t, 1, mockS3.ListCalls())
 }
 
@@ -686,7 +683,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 		want    string
 		r       cfg
 	}{
-		{name: "single file works without Init", r: cfg{Item: aYaml}, want: yamlA},
+		{name: "single file works without Init", r: cfg{Item: fixtures.AYAML}, want: yamlA},
 		{
 			name:    "empty item without Init is not a single file",
 			r:       cfg{},
@@ -698,7 +695,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 			t.Parallel()
 
 			mockS3 := &testhelpers.S3PrefixMock{}
-			mockS3.Put(aYaml, yamlA)
+			mockS3.Put(fixtures.AYAML, yamlA)
 
 			r := tt.r.build()
 			r.SetDownloader(mockS3)
@@ -712,7 +709,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, string(got))
-			assert.Equal(t, 1, mockS3.DownloadCalls(aYaml))
+			assert.Equal(t, 1, mockS3.DownloadCalls(fixtures.AYAML))
 		})
 	}
 }
@@ -725,7 +722,7 @@ func TestRetriever_OutputFormat(t *testing.T) {
 		want string
 		r    cfg
 	}{
-		{name: "item mode keeps the global format", r: cfg{Item: aYaml}, want: ""},
+		{name: "item mode keeps the global format", r: cfg{Item: fixtures.AYAML}, want: ""},
 		{name: "prefix mode without pattern is unknown before the first retrieve", r: cfg{Prefix: "f/"}, want: ""},
 		{name: "prefix mode guesses from the pattern", r: cfg{Prefix: "f/", Pattern: "*.toml"}, want: "toml"},
 	}

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	fixtureError = "error"
+	errorLiteral = "error"
 )
 
 var errPersistentFile = errors.New("impossible to use the persistent flag configuration file")
@@ -107,7 +107,7 @@ func (m *Manager) StartPolling(ctx context.Context) {
 				m.logger.ErrorContext(
 					ctx,
 					"Error while updating the cache.",
-					slog.Any(fixtureError, err.Error()),
+					slog.Any(errorLiteral, err.Error()),
 				)
 			}
 		case <-m.bgUpdater.updaterChan:
@@ -211,7 +211,7 @@ func (m *Manager) ForceRefresh(ctx context.Context) bool {
 		m.logger.ErrorContext(
 			ctx,
 			"Error while force updating the cache.",
-			slog.Any(fixtureError, err.Error()),
+			slog.Any(errorLiteral, err.Error()),
 		)
 
 		return false
@@ -327,7 +327,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 	default:
 		// We accept to start with a retriever error, we will serve only default value
 		m.logger.ErrorContext(ctx, "Impossible to retrieve the flags, starting with the "+
-			"retriever error", slog.Any(fixtureError, err.Error()))
+			"retriever error", slog.Any(errorLiteral, err.Error()))
 	}
 
 	return nil

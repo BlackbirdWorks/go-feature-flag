@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 )
 
 const (
 	aaGoFeatureFlags = "aa/go-feature-flags-config"
 	featureAddFlags  = "feature/add+flags"
-	flagConfigYaml   = "flag-config.yaml"
 	flagsYaml        = "flags.yaml"
 	httpsGitlabCom   = "https://gitlab.com"
 	refFeature2Fadd  = "ref=feature%2Fadd%2Bflags"
@@ -61,7 +61,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				baseURL:        httpsGitlabCom,
 				repositorySlug: aaGoFeatureFlags,
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -72,7 +72,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				baseURL:        httpsGitlabCom,
 				repositorySlug: aaGoFeatureFlags,
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
@@ -84,7 +84,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				baseURL:        httpsGitlabCom,
 				repositorySlug: aaGoFeatureFlags,
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -105,7 +105,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient: mock.HTTP{},
 				baseURL:    "",
-				filePath:   flagConfigYaml,
+				filePath:   fixtures.FlagConfigFile,
 			},
 			wantErr: true,
 		},
@@ -123,7 +123,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				baseURL:        httpsGitlabCom,
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 				gitlabToken:    "XXX",
 				repositorySlug: aaGoFeatureFlags,
 			},
@@ -135,7 +135,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				baseURL:        "https://user:abc{DEf1=ghi@example.com:5432/",
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 				gitlabToken:    "XXX",
 				repositorySlug: aaGoFeatureFlags,
 			},
@@ -146,7 +146,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Use default values",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				filePath:       flagConfigYaml,
+				filePath:       fixtures.FlagConfigFile,
 				repositorySlug: aaGoFeatureFlags,
 			},
 			want:    []byte(sampleText()),

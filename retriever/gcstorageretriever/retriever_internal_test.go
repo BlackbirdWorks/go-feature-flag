@@ -10,11 +10,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/testhelpers"
-)
-
-const (
-	flagConfigYaml         = "flag-config.yaml"
-	testdataFlagConfigYaml = "testdata/flag-config.yaml"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestRetriever_Retrieve(t *testing.T) {
@@ -23,7 +19,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 	ctx := context.Background()
 
 	bucketFiles := map[string]string{
-		testdataFlagConfigYaml: flagConfigYaml,
+		fixtures.FlagConfigYAMLPath: fixtures.FlagConfigFile,
 	}
 
 	bucketName := "flags"
@@ -57,9 +53,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: flagConfigYaml,
+				Object: fixtures.FlagConfigFile,
 			},
-			want: testdataFlagConfigYaml,
+			want: fixtures.FlagConfigYAMLPath,
 		},
 		{
 			name: "get content from cache",
@@ -69,9 +65,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: flagConfigYaml,
+				Object: fixtures.FlagConfigFile,
 			},
-			want:          testdataFlagConfigYaml,
+			want:          fixtures.FlagConfigYAMLPath,
 			wantFromCache: true,
 		},
 		{
@@ -80,14 +76,14 @@ func TestRetriever_Retrieve(t *testing.T) {
 				bucket: bucketName,
 				files:  bucketFiles,
 				updatedFiles: map[string]string{
-					"testdata/flag-config-updated.yaml": flagConfigYaml,
+					"testdata/flag-config-updated.yaml": fixtures.FlagConfigFile,
 				},
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: flagConfigYaml,
+				Object: fixtures.FlagConfigFile,
 			},
-			want:            testdataFlagConfigYaml,
+			want:            fixtures.FlagConfigYAMLPath,
 			wantWhenUpdated: "testdata/flag-config-updated.yaml",
 			wantUpdated:     true,
 		},
