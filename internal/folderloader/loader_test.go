@@ -1014,7 +1014,7 @@ func TestReuse(t *testing.T) {
 
 			if tt.wantSame {
 				assert.Same(t, old, got)
-				assert.Equal(t, yaml3, got.OutputFormat())
+				assert.Equal(t, "yaml", got.OutputFormat())
 
 				return
 			}

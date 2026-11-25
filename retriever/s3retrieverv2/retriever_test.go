@@ -622,11 +622,11 @@ func TestRetriever_Init_KeepsLoader(t *testing.T) {
 	require.NoError(t, r.Init(t.Context(), nil))
 	_, err := r.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, yaml2, r.OutputFormat())
+	assert.Equal(t, "yaml", r.OutputFormat())
 
 	// a second Init keeps the cache and the last output format
 	require.NoError(t, r.Init(t.Context(), nil))
-	assert.Equal(t, yaml2, r.OutputFormat())
+	assert.Equal(t, "yaml", r.OutputFormat())
 	_, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, mockS3.DownloadCalls(fileAYAML))

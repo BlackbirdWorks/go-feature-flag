@@ -112,7 +112,7 @@ type variationCase[T any, R any] struct {
 	wantErr     bool
 }
 
-func NewCacheMock(flag flag.Flag, err error) cache.Manager {
+func NewCacheMock(flag flag.Flag, err error) *cacheMock {
 	return &cacheMock{
 		flag: flag,
 		err:  err,

@@ -33,7 +33,7 @@ var errNotInitialized = errors.New("not initialized")
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0e0e0e0e-01"
 
 // failingMonitoring is a monitoring service whose info endpoint fails.
-func failingMonitoring() service.Monitoring {
+func failingMonitoring() *mock.MockMonitoringService {
 	return &mock.MockMonitoringService{
 		HealthResponse: model.HealthResponse{Initialized: true},
 		InfoError:      errNotInitialized,

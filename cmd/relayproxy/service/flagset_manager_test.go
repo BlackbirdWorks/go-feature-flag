@@ -200,7 +200,7 @@ func (f *fakeWebsocketService) BroadcastFlagChanges(string, notifier.DiffCache) 
 // newStreamManager wires the stream services the way main.go does.
 func newStreamManager(
 	t *testing.T, cfg *config.Config,
-) (service.FlagsetManager, *fakeSSEService, *fakeWebsocketService) {
+) (*service.FlagsetManagerImpl, *fakeSSEService, *fakeWebsocketService) {
 	t.Helper()
 
 	sse, ws := &fakeSSEService{}, &fakeWebsocketService{}
@@ -749,7 +749,7 @@ func assertFlushedOnClose(t *testing.T, manager service.FlagsetManager, outputDi
 }
 
 // setupManager is a helper function to create a manager and capture log messages.
-func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *slogutil.ObservedLogs) {
+func setupManager(t *testing.T, cfg *config.Config) (*service.FlagsetManagerImpl, *slogutil.ObservedLogs) {
 	t.Helper()
 
 	obs, logs := slogutil.NewObserver(slog.LevelError)

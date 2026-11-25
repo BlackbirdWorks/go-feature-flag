@@ -286,7 +286,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	assert.Empty(t, mock.PutRecordsInputs)
 }
 
-func NewFeatureEvent() exporter.ExportableEvent {
+func NewFeatureEvent() *exporter.FeatureEvent {
 	return &exporter.FeatureEvent{
 		Kind:         feature,
 		ContextKind:  "anonymousUser",

@@ -56,7 +56,7 @@ func getScenarioClient(b *testing.B) *ffclient.GoFeatureFlag {
 }
 
 // benchContext builds a realistic evaluation context (about 10 attributes).
-func benchContext(i int) ffcontext.Context {
+func benchContext(i int) ffcontext.EvaluationContext {
 	return ffcontext.NewEvaluationContextBuilder(fmt.Sprintf(userD, i%1000)).
 		AddCustom("email", fmt.Sprintf("user-%d@example.com", i%1000)).
 		AddCustom("country", "FR").

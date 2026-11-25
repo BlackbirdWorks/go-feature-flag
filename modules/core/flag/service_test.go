@@ -160,7 +160,7 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 }
 
 // withDate returns a copy of ctx carrying date as its currentDateTime.
-func withDate(ctx ffcontext.Context, date time.Time) ffcontext.Context {
+func withDate(ctx ffcontext.Context, date time.Time) ffcontext.EvaluationContext {
 	out := ffcontext.NewEvaluationContext(ctx.GetKey())
 	for k, v := range ctx.GetCustom() {
 		out.AddCustomAttribute(k, v)

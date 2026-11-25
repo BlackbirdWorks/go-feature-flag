@@ -94,7 +94,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				assert.Equal(t, signer.Sign(body, []byte(whNotifier.Secret)), req.Header.Get(xHubSignature256))
-				assert.Equal(t, applicationJSON, req.Header.Get(contentType))
+				assert.Equal(t, "application/json", req.Header.Get(contentType))
 				assert.Equal(t, tt.wantAuthorization, req.Header.Get(authorization))
 			}
 
@@ -150,7 +150,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 				Secret:      tt.secret,
 				Headers:     tt.headers,
 				httpClient: headerTestHTTPClient(func(req *http.Request) (*http.Response, error) {
-					assert.Equal(t, applicationJSON, req.Header.Get(contentType))
+					assert.Equal(t, "application/json", req.Header.Get(contentType))
 					assert.Equal(t, original.Values(xCustom), req.Header.Values(xCustom))
 
 					if tt.secret == "" {

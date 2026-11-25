@@ -45,7 +45,7 @@ func atFixedNow(ctx ffcontext.Context) ffcontext.Context {
 
 // atDate returns a copy of ctx whose evaluation date is date, replacing the one it carries. The
 // given context is left untouched (test cases run in parallel).
-func atDate(ctx ffcontext.Context, date time.Time) ffcontext.Context {
+func atDate(ctx ffcontext.Context, date time.Time) ffcontext.EvaluationContext {
 	specifics := ctx.ExtractGOFFProtectedFields()
 	specifics.CurrentDateTime = &date
 

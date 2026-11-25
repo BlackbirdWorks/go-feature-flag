@@ -286,7 +286,7 @@ func TestE2E_FolderMode(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, yaml2, r.OutputFormat())
+			assert.Equal(t, "yaml", r.OutputFormat())
 
 			for _, k := range tt.wantKeys {
 				assert.Contains(t, string(got), k+":")

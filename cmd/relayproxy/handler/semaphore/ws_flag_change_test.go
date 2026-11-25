@@ -174,7 +174,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
 
 			defer func() {
-				assert.NoError(t, wsConn.SetWriteDeadline(time.Now().Add(5*time.Second)))
+				require.NoError(t, wsConn.SetWriteDeadline(time.Now().Add(5*time.Second)))
 				_ = wsConn.Close()
 			}()
 
