@@ -120,8 +120,8 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   the tag (`git push origin :refs/tags/v0.1.0`). Do this only if nobody can have used it: the Go
   module proxy and the container registry cache what they saw.
 - A Go module version, once fetched through `proxy.golang.org`, cannot be removed and the tag
-  must never be moved. Publish a fixed `v0.1.1` and add a `retract` directive to `go.mod` for the
-  bad one.
+  must never be moved. Publish a fixed release with the next `minor` bump (`v0.2.0`; there is no `patch`
+  bump) and add a `retract` directive to `go.mod` for the bad one.
 - Images: delete the bad version tags in the package settings (or `gh api -X DELETE
   /orgs/BlackbirdWorks/packages/container/semaphore/versions/<id>`), and re-point `latest` by
   re-running the workflow of the previous good tag (`gh workflow run release.yml --ref <tag> -f release_tag=<tag> -f dry_run=false`
