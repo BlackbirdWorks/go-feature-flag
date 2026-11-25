@@ -5,15 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	bucket                    = "bucket"
-	bucketName                = "bucketName"
-	http                      = "http"
-	invalidRetrieverNoBucket  = `invalid retriever: no "bucket" property found for kind "s3"`
-	invalidRetrieverNoBucket2 = `invalid retriever: no "bucket-name" property found for kind "s3"`
-	test                      = "test"
+	bucket                       = "bucket"
+	bucketName                   = "bucketName"
+	invalidRetrieverNoBucket     = `invalid retriever: no "bucket" property found for kind "s3"`
+	invalidRetrieverNoBucketName = `invalid retriever: no "bucket-name" property found for kind "s3"`
 )
 
 func TestNewRetrieverConfError(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRetrieverConfError_Error(t *testing.T) {
 		{
 			name:     "multiple words in camelCase",
 			property: "someLongPropertyName",
-			kind:     http,
+			kind:     fixtures.HTTP,
 			expected: `invalid retriever: no "someLongPropertyName" property found for kind "http"`,
 		},
 		{
@@ -126,18 +126,18 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 			name:     "camelCase to kebab-case",
 			property: bucketName,
 			kind:     "s3",
-			expected: invalidRetrieverNoBucket2,
+			expected: invalidRetrieverNoBucketName,
 		},
 		{
 			name:     "multiple camelCase words",
 			property: "someLongPropertyName",
-			kind:     http,
+			kind:     fixtures.HTTP,
 			expected: `invalid retriever: no "some-long-property-name" property found for kind "http"`,
 		},
 		{
 			name:     "single uppercase letter",
 			property: "a",
-			kind:     test,
+			kind:     fixtures.Test,
 			expected: `invalid retriever: no "a" property found for kind "test"`,
 		},
 		{
@@ -156,18 +156,18 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 			name:     "already kebab-case",
 			property: "bucket-name",
 			kind:     "s3",
-			expected: invalidRetrieverNoBucket2,
+			expected: invalidRetrieverNoBucketName,
 		},
 		{
 			name:     "starts with uppercase",
 			property: "BucketName",
 			kind:     "s3",
-			expected: invalidRetrieverNoBucket2,
+			expected: invalidRetrieverNoBucketName,
 		},
 		{
 			name:     "consecutive uppercase letters",
 			property: "HTTPSEndpoint",
-			kind:     http,
+			kind:     fixtures.HTTP,
 			expected: `invalid retriever: no "httpsendpoint" property found for kind "http"`,
 		},
 		{
@@ -194,8 +194,8 @@ func TestRetrieverConfError_ImplementsError(t *testing.T) {
 
 	var _ error = &RetrieverConfError{}
 
-	err := NewRetrieverConfError(test, test)
+	err := NewRetrieverConfError(fixtures.Test, fixtures.Test)
 	require.NotNil(t, err, "expected non-nil error")
-	assert.Equal(t, test, err.property, "property should match")
-	assert.Equal(t, test, err.kind, "kind should match")
+	assert.Equal(t, fixtures.Test, err.property, "property should match")
+	assert.Equal(t, fixtures.Test, err.kind, "kind should match")
 }

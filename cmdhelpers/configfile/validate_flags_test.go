@@ -10,6 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 var (
@@ -109,7 +110,7 @@ func TestFlagError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var err error = configfile.FlagError{Flag: myFlag, Err: tt.err}
+			var err error = configfile.FlagError{Flag: fixtures.FlagKeyMy, Err: tt.err}
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
 

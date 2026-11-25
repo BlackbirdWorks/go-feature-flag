@@ -9,24 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	defaultValue2        = "defaultValue"
-	description2         = "description"
-	flagsGoffYaml        = "flags.goff.yaml"
-	json2                = "json"
-	myFlag               = "my-flag"
-	testFlag             = "test-flag"
-	testFlag2            = "test-flag2"
-	testdataFlagGoffYaml = "testdata/flag.goff.yaml"
-	thisIsASimple        = "this is a simple feature flag"
-	toml2                = "toml"
-	varA                 = "var_a"
-	varB                 = "var_b"
-	yaml2                = "yaml"
+	flagsGoffYaml = "flags.goff.yaml"
+	varA          = "var_a"
+	varB          = "var_b"
 )
 
 func TestLoadConfigFile(t *testing.T) {
@@ -43,10 +35,10 @@ func TestLoadConfigFile(t *testing.T) {
 	}{
 		{
 			name:          "should load the flag file as yaml",
-			inputFilePath: testdataFlagGoffYaml,
-			configFormat:  yaml2,
+			inputFilePath: fixtures.FlagGoffYAMLPath,
+			configFormat:  protocol.FormatYAML,
 			expected: map[string]dto.DTO{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						varA: new(any(true)),
 						varB: new(any(false)),
@@ -55,11 +47,11 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						description2:  thisIsASimple,
-						defaultValue2: false,
+						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue: false,
 					},
 				},
-				testFlag2: {
+				fixtures.FlagKeyTestSecond: {
 					Variations: &map[string]*any{
 						varA: new(any(1)),
 						varB: new(any(2)),
@@ -68,7 +60,7 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
-						defaultValue2: 123,
+						fixtures.DefaultValue: 123,
 					},
 				},
 			},
@@ -76,9 +68,9 @@ func TestLoadConfigFile(t *testing.T) {
 		},
 		{
 			name:          "should load the flag file and use yaml as default parser",
-			inputFilePath: testdataFlagGoffYaml,
+			inputFilePath: fixtures.FlagGoffYAMLPath,
 			expected: map[string]dto.DTO{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						varA: new(any(true)),
 						varB: new(any(false)),
@@ -87,11 +79,11 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						description2:  thisIsASimple,
-						defaultValue2: false,
+						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue: false,
 					},
 				},
-				testFlag2: {
+				fixtures.FlagKeyTestSecond: {
 					Variations: &map[string]*any{
 						varA: new(any(1)),
 						varB: new(any(2)),
@@ -100,7 +92,7 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
-						defaultValue2: 123,
+						fixtures.DefaultValue: 123,
 					},
 				},
 			},
@@ -109,9 +101,9 @@ func TestLoadConfigFile(t *testing.T) {
 		{
 			name:          "should load the flag file as json",
 			inputFilePath: "testdata/flag.goff.json",
-			configFormat:  json2,
+			configFormat:  protocol.FormatJSON,
 			expected: map[string]dto.DTO{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						varA: new(any(true)),
 						varB: new(any(false)),
@@ -120,11 +112,11 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						description2:  thisIsASimple,
-						defaultValue2: false,
+						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue: false,
 					},
 				},
-				testFlag2: {
+				fixtures.FlagKeyTestSecond: {
 					Variations: &map[string]*any{
 						varA: new(any(1.0)),
 						varB: new(any(2.0)),
@@ -133,7 +125,7 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
-						defaultValue2: 123.0,
+						fixtures.DefaultValue: 123.0,
 					},
 				},
 			},
@@ -142,9 +134,9 @@ func TestLoadConfigFile(t *testing.T) {
 		{
 			name:          "should load the flag file as toml",
 			inputFilePath: "testdata/flag.goff.toml",
-			configFormat:  toml2,
+			configFormat:  protocol.FormatTOML,
 			expected: map[string]dto.DTO{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						varA: new(any(true)),
 						varB: new(any(false)),
@@ -153,11 +145,11 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						description2:  thisIsASimple,
-						defaultValue2: false,
+						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue: false,
 					},
 				},
-				testFlag2: {
+				fixtures.FlagKeyTestSecond: {
 					Variations: &map[string]*any{
 						varA: new(any(int64(1))),
 						varB: new(any(int64(2))),
@@ -166,7 +158,7 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
-						defaultValue2: int64(123),
+						fixtures.DefaultValue: int64(123),
 					},
 				},
 			},
@@ -175,10 +167,10 @@ func TestLoadConfigFile(t *testing.T) {
 		{
 			name:               "should load the flag file as yaml from a default location",
 			useDefaultLocation: true,
-			inputFilePath:      testdataFlagGoffYaml,
-			configFormat:       yaml2,
+			inputFilePath:      fixtures.FlagGoffYAMLPath,
+			configFormat:       protocol.FormatYAML,
 			expected: map[string]dto.DTO{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						varA: new(any(true)),
 						varB: new(any(false)),
@@ -187,11 +179,11 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						description2:  thisIsASimple,
-						defaultValue2: false,
+						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue: false,
 					},
 				},
-				testFlag2: {
+				fixtures.FlagKeyTestSecond: {
 					Variations: &map[string]*any{
 						varA: new(any(1)),
 						varB: new(any(2)),
@@ -200,7 +192,7 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
-						defaultValue2: 123,
+						fixtures.DefaultValue: 123,
 					},
 				},
 			},
@@ -209,7 +201,7 @@ func TestLoadConfigFile(t *testing.T) {
 		{
 			name:          "should error if file does not exist",
 			inputFilePath: "testdata/does-not-exist.yaml",
-			configFormat:  yaml2,
+			configFormat:  protocol.FormatYAML,
 			expectErr:     true,
 		},
 		{
@@ -219,19 +211,19 @@ func TestLoadConfigFile(t *testing.T) {
 		{
 			name:          "should error if json is invalid",
 			inputFilePath: "testdata/invalid.json",
-			configFormat:  json2,
+			configFormat:  protocol.FormatJSON,
 			expectErr:     true,
 		},
 		{
 			name:          "should error if yaml invalid",
 			inputFilePath: "testdata/invalid.yaml",
-			configFormat:  yaml2,
+			configFormat:  protocol.FormatYAML,
 			expectErr:     true,
 		},
 		{
 			name:          "should error if toml is invalid",
 			inputFilePath: "testdata/invalid.toml",
-			configFormat:  toml2,
+			configFormat:  protocol.FormatTOML,
 			expectErr:     true,
 		},
 	}
@@ -281,18 +273,28 @@ func TestParseConfig(t *testing.T) {
 		wantErr   string
 		wantFlags []string
 	}{
-		{name: json2, data: `{"f":{"variations":{"a":1}}}`, format: json2, wantFlags: []string{"f"}},
-		{name: yaml2, data: "f:\n  variations:\n    a: 1\n", format: yaml2, wantFlags: []string{"f"}},
+		{
+			name:      protocol.FormatJSON,
+			data:      `{"f":{"variations":{"a":1}}}`,
+			format:    protocol.FormatJSON,
+			wantFlags: []string{"f"},
+		},
+		{
+			name:      protocol.FormatYAML,
+			data:      "f:\n  variations:\n    a: 1\n",
+			format:    protocol.FormatYAML,
+			wantFlags: []string{"f"},
+		},
 		{
 			name:      "unknown format defaults to yaml",
 			data:      "f:\n  variations:\n    a: 1\n",
 			format:    "",
 			wantFlags: []string{"f"},
 		},
-		{name: toml2, data: "[f.variations]\na = 1\n", format: "TOML", wantFlags: []string{"f"}},
-		{name: "invalid json", data: `{`, format: json2, wantErr: "could not parse file (json)"},
-		{name: "invalid yaml", data: "a: [", format: yaml2, wantErr: "could not parse file (yaml)"},
-		{name: "invalid toml", data: "a = ", format: toml2, wantErr: "could not parse file (toml)"},
+		{name: protocol.FormatTOML, data: "[f.variations]\na = 1\n", format: "TOML", wantFlags: []string{"f"}},
+		{name: "invalid json", data: `{`, format: protocol.FormatJSON, wantErr: "could not parse file (json)"},
+		{name: "invalid yaml", data: "a: [", format: protocol.FormatYAML, wantErr: "could not parse file (yaml)"},
+		{name: "invalid toml", data: "a = ", format: protocol.FormatTOML, wantErr: "could not parse file (toml)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -326,9 +328,9 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 		files     []string
 		wantError bool
 	}{
-		{name: "flags.semaphore", files: []string{"flags.semaphore.yaml"}, wantFlag: myFlag},
-		{name: "legacy flags.goff", files: []string{flagsGoffYaml}, wantFlag: myFlag},
-		{name: "both names", files: []string{flagsGoffYaml, "flags.semaphore.yaml"}, wantFlag: myFlag},
+		{name: "flags.semaphore", files: []string{"flags.semaphore.yaml"}, wantFlag: fixtures.FlagKeyMy},
+		{name: "legacy flags.goff", files: []string{flagsGoffYaml}, wantFlag: fixtures.FlagKeyMy},
+		{name: "both names", files: []string{flagsGoffYaml, "flags.semaphore.yaml"}, wantFlag: fixtures.FlagKeyMy},
 		{name: "none", wantError: true},
 	}
 	for _, tt := range tests {
@@ -340,7 +342,7 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 				require.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
 			}
 
-			got, err := configfile.LoadConfigFile("", yaml2, []string{dir}, nil)
+			got, err := configfile.LoadConfigFile("", protocol.FormatYAML, []string{dir}, nil)
 			if tt.wantError {
 				assert.Error(t, err)
 

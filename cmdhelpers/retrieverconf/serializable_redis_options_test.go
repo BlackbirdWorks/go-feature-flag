@@ -11,15 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	admin               = "admin"
 	localhost6379       = "localhost:6379"
 	redisExampleCom6380 = "redis.example.com:6380"
-	secret              = "secret"
-	tcp                 = "tcp"
-	test                = "test"
 )
 
 func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
@@ -35,19 +33,19 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 			name: "basic configuration with addr and password",
 			input: &retrieverconf.SerializableRedisOptions{
 				Addr:     localhost6379,
-				Password: secret,
+				Password: fixtures.Secret,
 				DB:       1,
 			},
-			want: &redis.Options{Addr: localhost6379, Password: secret, DB: 1},
+			want: &redis.Options{Addr: localhost6379, Password: fixtures.Secret, DB: 1},
 		},
 		{
 			name: "full configuration",
 			input: &retrieverconf.SerializableRedisOptions{
-				Network:               tcp,
+				Network:               protocol.NetworkTCP,
 				Addr:                  redisExampleCom6380,
 				ClientName:            "semaphore",
 				Protocol:              3,
-				Username:              admin,
+				Username:              fixtures.UserAdmin,
 				Password:              "password123",
 				DB:                    2,
 				MaxRetries:            5,
@@ -65,17 +63,17 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				PoolFIFO:              true,
 				ContextTimeoutEnabled: true,
 				DisableIndentity:      false,
-				IdentitySuffix:        test,
+				IdentitySuffix:        fixtures.Test,
 			},
 			want: &redis.Options{
-				Network: tcp, Addr: redisExampleCom6380, ClientName: "semaphore", Protocol: 3,
-				Username: admin, Password: "password123", DB: 2, MaxRetries: 5,
+				Network: protocol.NetworkTCP, Addr: redisExampleCom6380, ClientName: "semaphore", Protocol: 3,
+				Username: fixtures.UserAdmin, Password: "password123", DB: 2, MaxRetries: 5,
 				MinRetryBackoff: 100 * time.Millisecond, MaxRetryBackoff: 1000 * time.Millisecond,
 				DialTimeout: 10000 * time.Millisecond, ReadTimeout: 5000 * time.Millisecond,
 				WriteTimeout: 5000 * time.Millisecond, PoolSize: 20, PoolTimeout: 6000 * time.Millisecond,
 				MinIdleConns: 5, MaxIdleConns: 15, ConnMaxIdleTime: 300000 * time.Millisecond,
 				ConnMaxLifetime: 600000 * time.Millisecond, PoolFIFO: true, ContextTimeoutEnabled: true,
-				IdentitySuffix: test,
+				IdentitySuffix: fixtures.Test,
 			},
 		},
 		{
@@ -122,11 +120,11 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 
 	basic := &retrieverconf.SerializableRedisOptions{
 		Addr:     localhost6379,
-		Password: secret,
+		Password: fixtures.Secret,
 		DB:       1,
 	}
 	full := &retrieverconf.SerializableRedisOptions{
-		Network:               tcp,
+		Network:               protocol.NetworkTCP,
 		Addr:                  redisExampleCom6380,
 		ClientName:            "test-client",
 		Protocol:              3,
@@ -149,7 +147,7 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 		PoolFIFO:              true,
 		ContextTimeoutEnabled: true,
 		DisableIndentity:      false,
-		IdentitySuffix:        test,
+		IdentitySuffix:        fixtures.Test,
 	}
 
 	tests := []struct {
@@ -198,9 +196,9 @@ func TestSerializableRedisOptions_JSONStructure(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, localhost6379, opts.Addr)
-	assert.Equal(t, secret, opts.Password)
+	assert.Equal(t, fixtures.Secret, opts.Password)
 	assert.Equal(t, 1, opts.DB)
-	assert.Equal(t, admin, opts.Username)
+	assert.Equal(t, fixtures.UserAdmin, opts.Username)
 	assert.Equal(t, 3, opts.MaxRetries)
 	assert.Equal(t, int64(5000), opts.DialTimeoutMs)
 	assert.Equal(t, int64(3000), opts.ReadTimeoutMs)
