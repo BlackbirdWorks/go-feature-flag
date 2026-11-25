@@ -141,8 +141,6 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		}
 	case HTTPRetriever, GitHubRetriever, GitlabRetriever, KubernetesRetriever, MongoDBRetriever, RedisRetriever, BitbucketRetriever, AzBlobStorageRetriever, PostgreSQLRetriever:
 		// not a storage retriever
-	default:
-		// not a storage retriever
 	}
 
 	return nil

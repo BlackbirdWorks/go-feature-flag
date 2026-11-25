@@ -312,9 +312,9 @@ func appendValue(buf []byte, isJSON bool, val slog.Value) []byte {
 		return appendSeconds(buf, val.Time())
 	case slog.KindAny, slog.KindGroup, slog.KindLogValuer:
 		return appendAny(buf, isJSON, val.Any())
-	default:
-		return appendString(buf, isJSON, val.String())
 	}
+
+	return appendString(buf, isJSON, val.String())
 }
 
 func appendFloat(buf []byte, isJSON bool, num float64) []byte {
