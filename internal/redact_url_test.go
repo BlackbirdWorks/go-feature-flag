@@ -18,7 +18,7 @@ import (
 const (
 	get                     = "Get"
 	parseREDACTEDInvalidURL = `parse "[REDACTED]": invalid URL`
-	sECRETMARKER            = "SECRETMARKER"
+	secretmarker            = "SECRETMARKER"
 )
 
 var (
@@ -110,7 +110,7 @@ func TestRedactURLError(t *testing.T) {
 				return
 			}
 
-			assert.NotContains(t, got.Error(), sECRETMARKER)
+			assert.NotContains(t, got.Error(), secretmarker)
 			assert.Contains(t, got.Error(), tt.wantMessage)
 
 			if tt.wantSame {
@@ -146,7 +146,7 @@ func TestRedactURL(t *testing.T) {
 
 			got := internal.RedactURL(tt.raw)
 			assert.Equal(t, tt.want, got)
-			assert.NotContains(t, got, sECRETMARKER)
+			assert.NotContains(t, got, secretmarker)
 		})
 	}
 }
@@ -200,7 +200,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 
 			_, parseErr := url.Parse(tt.raw)
 			require.Error(t, parseErr)
-			require.Contains(t, parseErr.Error(), sECRETMARKER, "the shape must make url.Parse quote the input")
+			require.Contains(t, parseErr.Error(), secretmarker, "the shape must make url.Parse quote the input")
 
 			_, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, http.NoBody)
 			require.Error(t, reqErr)
@@ -210,8 +210,8 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			for _, in := range []error{parseErr, reqErr, fmt.Errorf("wrapped: %w", parseErr)} {
 				got := internal.RedactURLError(in)
 				require.Error(t, got)
-				assert.NotContains(t, got.Error(), sECRETMARKER)
-				assert.NotContains(t, fmt.Sprintf("%v %+v %#v", got, got, got), sECRETMARKER)
+				assert.NotContains(t, got.Error(), secretmarker)
+				assert.NotContains(t, fmt.Sprintf("%v %+v %#v", got, got, got), secretmarker)
 				assert.Contains(t, got.Error(), internal.RedactedURL)
 			}
 		})

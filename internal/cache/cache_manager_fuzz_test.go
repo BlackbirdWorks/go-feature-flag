@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -17,7 +18,7 @@ import (
 // cache never panics: the file comes from a retriever, and a panic there takes
 // down the polling goroutine.
 func FuzzConvertToFlagStruct(f *testing.F) {
-	formats := []string{yaml2, json2, toml2}
+	formats := []string{protocol.FormatYAML, protocol.FormatJSON, protocol.FormatTOML}
 
 	for i, file := range []string{
 		"../../testdata/flag-config.yaml",

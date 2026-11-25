@@ -9,6 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestAllFlags(t *testing.T) {
@@ -27,7 +28,7 @@ func TestAllFlags(t *testing.T) {
 		Failed:        false,
 		Reason:        flag.ReasonStatic,
 	}
-	afs.AddFlag(myKey, state1)
+	afs.AddFlag(fixtures.UserKeyMy, state1)
 	assert.Len(t, afs.GetFlags(), 1)
 	assert.True(t, afs.IsValid())
 

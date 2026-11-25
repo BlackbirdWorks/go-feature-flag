@@ -7,10 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
-)
-
-const (
-	aYaml = "a.yaml"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestValidate(t *testing.T) {
@@ -25,26 +22,31 @@ func TestValidate(t *testing.T) {
 		wantErr   string
 		recursive bool
 	}{
-		{name: "item only", item: aYaml},
+		{name: "item only", item: fixtures.AYAML},
 		{name: "nothing is the bucket root"},
-		{name: "prefix only", prefix: flags2},
+		{name: "prefix only", prefix: fixtures.FlagsDirSlash},
 		{name: "root prefix recursive", prefix: "/", recursive: true},
-		{name: "prefix with pattern", prefix: flags2, pattern: yaml2, recursive: true},
-		{name: "item and prefix", item: aYaml, prefix: "f/", wantErr: "item and prefix are mutually exclusive"},
+		{name: "prefix with pattern", prefix: fixtures.FlagsDirSlash, pattern: fixtures.YAMLGlob, recursive: true},
 		{
-			name: "custom item name", itemName: "object", item: aYaml, prefix: "f/",
+			name:    "item and prefix",
+			item:    fixtures.AYAML,
+			prefix:  "f/",
+			wantErr: "item and prefix are mutually exclusive",
+		},
+		{
+			name: "custom item name", itemName: "object", item: fixtures.AYAML, prefix: "f/",
 			wantErr: "object and prefix are mutually exclusive",
 		},
 		{
-			name: "custom item name with pattern", itemName: "object", item: aYaml, pattern: "*",
+			name: "custom item name with pattern", itemName: "object", item: fixtures.AYAML, pattern: "*",
 			wantErr: "pattern and recursive can only be used without object",
 		},
 		{
-			name: "item with pattern", item: aYaml, pattern: yaml2,
+			name: "item with pattern", item: fixtures.AYAML, pattern: fixtures.YAMLGlob,
 			wantErr: "pattern and recursive can only be used without item",
 		},
 		{
-			name: "item with recursive", item: aYaml, recursive: true,
+			name: "item with recursive", item: fixtures.AYAML, recursive: true,
 			wantErr: "pattern and recursive can only be used without item",
 		},
 		{name: "invalid pattern", prefix: "f/", pattern: "[a-", wantErr: `invalid pattern "[a-"`},

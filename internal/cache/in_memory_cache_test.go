@@ -8,15 +8,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-)
-
-const (
-	defaultRule2     = "defaultRule"
-	variationDefault = "Default"
-	lowerDefault     = "default"
-	variationFalse   = "False"
-	variationTrue    = "True"
-	test2            = "test"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestAll(t *testing.T) {
@@ -30,31 +22,31 @@ func TestAll(t *testing.T) {
 		{
 			name: "all with 1 flag",
 			param: map[string]dto.DTO{
-				test2: {
+				fixtures.Test: {
 					Variations: &map[string]*any{
-						variationTrue:    new(any(lowerTrue)),
-						variationFalse:   new(any(lowerFalse)),
-						variationDefault: new(any(lowerDefault)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
-							variationTrue:  40,
-							variationFalse: 60,
+							fixtures.VariationTrue:  40,
+							fixtures.VariationFalse: 60,
 						},
 					},
 				},
 			},
 			want: map[string]flag.Flag{
-				test2: &flag.InternalFlag{
+				fixtures.Test: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						variationDefault: new(any(lowerDefault)),
-						variationFalse:   new(any(lowerFalse)),
-						variationTrue:    new(any(lowerTrue)),
+						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
-							variationFalse: 60,
-							variationTrue:  40,
+							fixtures.VariationFalse: 60,
+							fixtures.VariationTrue:  40,
 						},
 					},
 				},
@@ -63,61 +55,61 @@ func TestAll(t *testing.T) {
 		{
 			name: "all with multiple flags",
 			param: map[string]dto.DTO{
-				test2: {
+				fixtures.Test: {
 					Variations: &map[string]*any{
-						variationTrue:    new(any(lowerTrue)),
-						variationFalse:   new(any(lowerFalse)),
-						variationDefault: new(any(lowerDefault)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{
-						Name: new(defaultRule2),
+						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
-							variationTrue:  40,
-							variationFalse: 60,
+							fixtures.VariationTrue:  40,
+							fixtures.VariationFalse: 60,
 						},
 					},
 				},
 				"test1": {
 					Variations: &map[string]*any{
-						variationTrue:    new(any(true)),
-						variationFalse:   new(any(false)),
-						variationDefault: new(any(false)),
+						fixtures.VariationTrue:    new(any(true)),
+						fixtures.VariationFalse:   new(any(false)),
+						fixtures.VariationDefault: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						Name: new(defaultRule2),
+						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
-							variationTrue:  30,
-							variationFalse: 70,
+							fixtures.VariationTrue:  30,
+							fixtures.VariationFalse: 70,
 						},
 					},
 				},
 			},
 			want: map[string]flag.Flag{
-				test2: &flag.InternalFlag{
+				fixtures.Test: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						variationDefault: new(any(lowerDefault)),
-						variationFalse:   new(any(lowerFalse)),
-						variationTrue:    new(any(lowerTrue)),
+						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
 					},
 					DefaultRule: &flag.Rule{
-						Name: new(defaultRule2),
+						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
-							variationFalse: 60,
-							variationTrue:  40,
+							fixtures.VariationFalse: 60,
+							fixtures.VariationTrue:  40,
 						},
 					},
 				},
 				"test1": &flag.InternalFlag{
 					Variations: &map[string]*any{
-						variationDefault: new(any(false)),
-						variationFalse:   new(any(false)),
-						variationTrue:    new(any(true)),
+						fixtures.VariationDefault: new(any(false)),
+						fixtures.VariationFalse:   new(any(false)),
+						fixtures.VariationTrue:    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name: new(defaultRule2),
+						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
-							variationFalse: 70,
-							variationTrue:  30,
+							fixtures.VariationFalse: 70,
+							fixtures.VariationTrue:  30,
 						},
 					},
 				},
@@ -153,17 +145,17 @@ func TestCopy(t *testing.T) {
 			name:      "copy with 1 flag",
 			wantEqual: true,
 			param: map[string]dto.DTO{
-				test2: {
+				fixtures.Test: {
 					Variations: &map[string]*any{
-						variationTrue:    new(any(lowerTrue)),
-						variationFalse:   new(any(lowerFalse)),
-						variationDefault: new(any(lowerDefault)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{
-						Name: new(defaultRule2),
+						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
-							variationTrue:  40,
-							variationFalse: 60,
+							fixtures.VariationTrue:  40,
+							fixtures.VariationFalse: 60,
 						},
 					},
 				},

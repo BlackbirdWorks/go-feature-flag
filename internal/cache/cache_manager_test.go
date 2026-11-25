@@ -15,26 +15,18 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	falseVar                 = "false_var"
-	lowerFalse               = "false"
-	lowerTrue                = "true"
-	flag13                   = "flag1"
-	flag22                   = "flag2"
-	json2                    = "json"
-	keyEqRandomKey           = "key eq \"random-key\""
-	testFlag                 = "test-flag"
-	toml2                    = "toml"
 	trueVar                  = "true_var"
 	updateCacheErrorVWantErr = "UpdateCache() error = %v, wantErr %v"
-	yaml2                    = "yaml"
 )
 
 func Test_FlagCacheNotInit(t *testing.T) {
@@ -42,7 +34,7 @@ func Test_FlagCacheNotInit(t *testing.T) {
 
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
-	got, err := fCache.GetFlag(testFlag)
+	got, err := fCache.GetFlag(fixtures.FlagKeyTest)
 	assert.Nil(t, got)
 	assert.EqualError(t, err, "impossible to read the flag before the initialisation")
 }
@@ -126,27 +118,27 @@ trackEvents = false
 	}{
 		{
 			name:       "Yaml valid",
-			flagFormat: yaml2,
+			flagFormat: protocol.FormatYAML,
 			args: args{
 				loadedFlags: yamlFile,
 			},
 			expected: map[string]flag.InternalFlag{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 0,
-								trueVar:  100,
+								fixtures.FalseVar: 0,
+								trueVar:           100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						falseVar: new(any(false)),
-						trueVar:  new(any(true)),
+						fixtures.FalseVar: new(any(false)),
+						trueVar:           new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -155,7 +147,7 @@ trackEvents = false
 		},
 		{
 			name:       "Yaml invalid file",
-			flagFormat: yaml2,
+			flagFormat: protocol.FormatYAML,
 			args: args{
 				loadedFlags: []byte(`
 test-flag:
@@ -176,24 +168,24 @@ test-flag:
 			args: args{
 				loadedFlags: jsonFile,
 			},
-			flagFormat: json2,
+			flagFormat: protocol.FormatJSON,
 			expected: map[string]flag.InternalFlag{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 0,
-								trueVar:  100,
+								fixtures.FalseVar: 0,
+								trueVar:           100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						falseVar: new(any(false)),
-						trueVar:  new(any(true)),
+						fixtures.FalseVar: new(any(false)),
+						trueVar:           new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -202,7 +194,7 @@ test-flag:
 		},
 		{
 			name:       "JSON invalid file",
-			flagFormat: json2,
+			flagFormat: protocol.FormatJSON,
 			args: args{
 				loadedFlags: []byte(`{
   "test-flag": {
@@ -230,24 +222,24 @@ test-flag:
 			args: args{
 				loadedFlags: tomlFile,
 			},
-			flagFormat: toml2,
+			flagFormat: protocol.FormatTOML,
 			expected: map[string]flag.InternalFlag{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 0,
-								trueVar:  100,
+								fixtures.FalseVar: 0,
+								trueVar:           100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						falseVar: new(any(false)),
-						trueVar:  new(any(true)),
+						fixtures.FalseVar: new(any(false)),
+						trueVar:           new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -270,7 +262,7 @@ percentage = "toto
 variation = "false_var"
 `),
 			},
-			flagFormat: toml2,
+			flagFormat: protocol.FormatTOML,
 			wantErr:    true,
 		},
 		{
@@ -278,7 +270,7 @@ variation = "false_var"
 			args: args{
 				loadedFlags: []byte("a = " + strings.Repeat("{b=", 20000) + "1" + strings.Repeat("}", 20000)),
 			},
-			flagFormat: toml2,
+			flagFormat: protocol.FormatTOML,
 			wantErr:    true,
 		},
 	}
@@ -350,27 +342,27 @@ test-flag:
 	}{
 		{
 			name:       "Yaml valid",
-			flagFormat: yaml2,
+			flagFormat: protocol.FormatYAML,
 			args: args{
 				loadedFlags: yamlFile,
 			},
 			expected: map[string]flag.InternalFlag{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
-						falseVar: new(any(false)),
-						trueVar:  new(any(true)),
+						fixtures.FalseVar: new(any(false)),
+						trueVar:           new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 0,
-								trueVar:  100,
+								fixtures.FalseVar: 0,
+								trueVar:           100,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -379,7 +371,7 @@ test-flag:
 		},
 		{
 			name:       "Yaml multiple flags",
-			flagFormat: yaml2,
+			flagFormat: protocol.FormatYAML,
 			args: args{
 				loadedFlags: []byte(`
 test-flag:
@@ -410,41 +402,41 @@ test-flag2:
 `),
 			},
 			expected: map[string]flag.InternalFlag{
-				testFlag: {
+				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
-						falseVar: new(any(false)),
-						trueVar:  new(any(true)),
+						fixtures.FalseVar: new(any(false)),
+						trueVar:           new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 0,
-								trueVar:  100,
+								fixtures.FalseVar: 0,
+								trueVar:           100,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						falseVar: new(any(lowerFalse)),
-						trueVar:  new(any(lowerTrue)),
+						fixtures.FalseVar: new(any(fixtures.FalseLower)),
+						trueVar:           new(any(fixtures.TrueLower)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new(keyEqRandomKey),
+							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
-								falseVar: 100,
-								trueVar:  0,
+								fixtures.FalseVar: 100,
+								trueVar:           0,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(falseVar),
+						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -453,7 +445,7 @@ test-flag2:
 		},
 		{
 			name:       "empty",
-			flagFormat: yaml2,
+			flagFormat: protocol.FormatYAML,
 			args: args{
 				loadedFlags: []byte(``),
 			},
@@ -521,7 +513,7 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	timeBefore := fCache.GetLatestUpdateDate()
-	newFlags, _ := cache.ConvertToFlagStruct(loadedFlags, yaml2)
+	newFlags, _ := cache.ConvertToFlagStruct(loadedFlags, protocol.FormatYAML)
 	_ = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
 	timeAfter := fCache.GetLatestUpdateDate()
 
@@ -599,79 +591,79 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 		{
 			name: "Update existing flags",
 			initialFlags: map[string]dto.DTO{
-				flag13: {
+				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerTrue),
+						VariationResult: new(fixtures.TrueLower),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
-				flag13: {
+				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{
-						lowerTrue: new(any(true)),
+						fixtures.TrueLower: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerTrue),
+						VariationResult: new(fixtures.TrueLower),
 					},
 				},
-				flag22: {
+				fixtures.FlagKeyTwo: {
 					Variations: &map[string]*any{
-						lowerFalse: new(any(false)),
+						fixtures.FalseLower: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerFalse),
+						VariationResult: new(fixtures.FalseLower),
 					},
 				},
 			},
-			wantFlags: []string{flag13, flag22},
+			wantFlags: []string{fixtures.FlagKeyOne, fixtures.FlagKeyTwo},
 		},
 		{
 			name:         "Empty initial flags",
 			initialFlags: map[string]dto.DTO{},
 			updatedFlags: map[string]dto.DTO{
-				flag13: {
+				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{
-						lowerTrue: new(any(true)),
+						fixtures.TrueLower: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerTrue),
+						VariationResult: new(fixtures.TrueLower),
 					},
 				},
 			},
-			wantFlags: []string{flag13},
+			wantFlags: []string{fixtures.FlagKeyOne},
 		},
 		{
 			name: "Remove a flag",
 			initialFlags: map[string]dto.DTO{
-				flag13: {
+				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{
-						lowerTrue: new(any(true)),
+						fixtures.TrueLower: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerTrue),
+						VariationResult: new(fixtures.TrueLower),
 					},
 				},
-				flag22: {
+				fixtures.FlagKeyTwo: {
 					Variations: &map[string]*any{
-						lowerFalse: new(any(false)),
+						fixtures.FalseLower: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerFalse),
+						VariationResult: new(fixtures.FalseLower),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
-				flag13: {
+				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{
-						lowerTrue: new(any(true)),
+						fixtures.TrueLower: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new(lowerTrue),
+						VariationResult: new(fixtures.TrueLower),
 					},
 				},
 			},
-			wantFlags: []string{flag13},
+			wantFlags: []string{fixtures.FlagKeyOne},
 		},
 	}
 

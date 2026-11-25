@@ -19,11 +19,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	a1                      = "a: 1"
-	bad                     = "bad"
+	aOne                    = "a: 1"
 	badConfig               = "bad config"
 	cacheYaml               = "cache.yaml"
 	etagOne                 = `"1"`
@@ -32,8 +33,8 @@ const (
 	httpExampleInvalid      = "http://example.invalid"
 	theRetryIsUnconditional = "the retry is unconditional"
 	unexpectedStatus500     = "unexpected status 500"
-	v12                     = "v: 1"
-	v2                      = "v: 2"
+	vOne                    = "v: 1"
+	vTwo                    = "v: 2"
 )
 
 const (
@@ -81,8 +82,8 @@ func TestReadBytes(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			handler: func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(a1)) },
-			want:    a1,
+			handler: func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(aOne)) },
+			want:    aOne,
 		},
 		{
 			name: "headers sent",
@@ -149,7 +150,7 @@ func TestReadBytesInvalidURL(t *testing.T) {
 }
 
 func TestReadBytesValidationFails(t *testing.T) {
-	srv := newServer(t, bad)
+	srv := newServer(t, fixtures.Bad)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	errBad := errors.New(badConfig)
 
@@ -163,18 +164,18 @@ func TestReadBytesValidationFails(t *testing.T) {
 }
 
 func TestReadBytesWritesCache(t *testing.T) {
-	srv := newServer(t, a1)
+	srv := newServer(t, aOne)
 	dir := t.TempDir()
 	cache := filepath.Join(dir, cacheYaml)
 	require.NoError(t, os.WriteFile(cache, []byte("old"), 0o644))
 
 	got, err := Provider(srv.URL, WithCache(cache)).ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, a1, string(got))
+	assert.Equal(t, aOne, string(got))
 
 	b, err := os.ReadFile(cache)
 	require.NoError(t, err)
-	assert.Equal(t, a1, string(b))
+	assert.Equal(t, aOne, string(b))
 	fi, err := os.Stat(cache)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
@@ -186,12 +187,12 @@ func TestReadBytesWritesCache(t *testing.T) {
 }
 
 func TestReadBytesCacheWriteFailureStillLoads(t *testing.T) {
-	srv := newServer(t, a1)
+	srv := newServer(t, aOne)
 	cache := filepath.Join(t.TempDir(), "missing-dir", cacheYaml)
 
 	got, err := Provider(srv.URL, WithCache(cache)).ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, a1, string(got))
+	assert.Equal(t, aOne, string(got))
 	assert.NoFileExists(t, cache)
 }
 
@@ -302,25 +303,25 @@ func startWatch(t *testing.T, p *HTTP) *watcher {
 }
 
 func TestWatchChangeTriggersOneReload(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	p := Provider(srv.URL, WithPollInterval(poll), WithCache(cache))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(http.StatusOK, v2)
+	srv.set(http.StatusOK, vTwo)
 
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	assert.Never(t, func() bool { return w.reloads.Load() > 1 }, 5*poll, poll/2)
 	assert.Zero(t, w.errs.Load())
 	b, err := os.ReadFile(cache)
 	require.NoError(t, err)
-	assert.Equal(t, v2, string(b))
+	assert.Equal(t, vTwo, string(b))
 }
 
 func TestWatchUnchangedContentDoesNothing(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -332,7 +333,7 @@ func TestWatchUnchangedContentDoesNothing(t *testing.T) {
 }
 
 func TestWatchFailingServerReportsError(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -345,13 +346,13 @@ func TestWatchFailingServerReportsError(t *testing.T) {
 }
 
 func TestWatchInvalidContentDoesNotReload(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	p := Provider(srv.URL,
 		WithPollInterval(poll),
 		WithCache(cache),
 		WithValidate(func(b []byte) error {
-			if strings.Contains(string(b), bad) {
+			if strings.Contains(string(b), fixtures.Bad) {
 				return errors.New(badConfig)
 			}
 			return nil
@@ -361,17 +362,17 @@ func TestWatchInvalidContentDoesNotReload(t *testing.T) {
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(http.StatusOK, bad)
+	srv.set(http.StatusOK, fixtures.Bad)
 
 	assert.Eventually(t, func() bool { return w.errs.Load() > 0 }, waitFor, poll/2)
 	assert.Zero(t, w.reloads.Load())
 	b, err := os.ReadFile(cache)
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(b))
+	assert.Equal(t, vOne, string(b))
 }
 
 func TestWatchTwiceReturnsError(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	startWatch(t, p)
 
@@ -383,7 +384,7 @@ func TestWatchNilCallback(t *testing.T) {
 }
 
 func TestUnwatch(t *testing.T) {
-	srv := newServer(t, v12)
+	srv := newServer(t, vOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 
 	require.NoError(t, p.Unwatch(), "Unwatch without Watch")
@@ -485,7 +486,7 @@ func (s *etagServer) ifNoneMatch() string {
 }
 
 func TestReadBytesConditional(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL)
 
 	got, err := p.ReadBytes()
@@ -495,31 +496,31 @@ func TestReadBytesConditional(t *testing.T) {
 
 	got, err = p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(got))
+	assert.Equal(t, vOne, string(got))
 	assert.Equal(t, etagOne, srv.ifNoneMatch())
 	assert.Equal(t, int32(1), srv.full.Load())
 	assert.Equal(t, int32(1), srv.notModified.Load())
 }
 
 func TestReloadAfterWatchChangeSkipsDownload(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v2, etagTwo)
+	srv.set(vTwo, etagTwo)
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	require.NoError(t, p.Unwatch())
 
 	got, err := p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v2, string(got))
+	assert.Equal(t, vTwo, string(got))
 	assert.Equal(t, int32(2), srv.full.Load(), "initial load + the poll that saw the change")
 }
 
 func TestWatchETagUnchangedGets304(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -533,13 +534,13 @@ func TestWatchETagUnchangedGets304(t *testing.T) {
 }
 
 func TestWatchETagChangeReloadsOnce(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v2, etagTwo)
+	srv.set(vTwo, etagTwo)
 
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	before := srv.notModified.Load()
@@ -550,13 +551,13 @@ func TestWatchETagChangeReloadsOnce(t *testing.T) {
 }
 
 func TestWatchETagRetaggedSameContent(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(v12, etagOneB)
+	srv.set(vOne, etagOneB)
 
 	assert.Eventually(t, func() bool { return srv.ifNoneMatch() == etagOneB }, waitFor, poll/2)
 	assert.Zero(t, w.reloads.Load())
@@ -564,11 +565,11 @@ func TestWatchETagRetaggedSameContent(t *testing.T) {
 }
 
 func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL,
 		WithPollInterval(poll),
 		WithValidate(func(b []byte) error {
-			if string(b) == bad {
+			if string(b) == fixtures.Bad {
 				return errors.New(badConfig)
 			}
 			return nil
@@ -578,7 +579,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(bad, `"bad"`)
+	srv.set(fixtures.Bad, `"bad"`)
 
 	// A 304 would not report an error, so two errors mean the invalid body was refetched.
 	assert.Eventually(t, func() bool { return w.errs.Load() >= 2 }, waitFor, poll/2)
@@ -587,7 +588,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 }
 
 func rejectBad(b []byte) error {
-	if string(b) == bad {
+	if string(b) == fixtures.Bad {
 		return errors.New(badConfig)
 	}
 	return nil
@@ -614,29 +615,29 @@ func assertPending(t *testing.T, p *HTTP, cache string) {
 	p.mu.Lock()
 	last, etag, invalidated := string(p.last), p.etag, p.invalidated
 	p.mu.Unlock()
-	assert.Equal(t, v12, last)
+	assert.Equal(t, vOne, last)
 	assert.Empty(t, etag)
 	assert.True(t, invalidated)
-	assert.Equal(t, v12, readFile(t, cache))
+	assert.Equal(t, vOne, readFile(t, cache))
 }
 
 func TestInvalidateReadBytes(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL)
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
 
 	p.Invalidate()
-	srv.set(v12, etagOneB)
+	srv.set(vOne, etagOneB)
 
 	got, err := p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(got))
+	assert.Equal(t, vOne, string(got))
 	assert.Empty(t, srv.ifNoneMatch(), theRetryIsUnconditional)
 
 	got, err = p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(got))
+	assert.Equal(t, vOne, string(got))
 	assert.Equal(t, etagOneB, srv.ifNoneMatch(), "conditional requests resume with the new ETag")
 	assert.Equal(t, int32(2), srv.full.Load())
 	assert.Equal(t, int32(1), srv.notModified.Load())
@@ -649,7 +650,7 @@ func TestInvalidateWatchSameContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newETagServer(t, v12, tt.etag)
+			srv := newETagServer(t, vOne, tt.etag)
 			p := Provider(srv.URL, WithPollInterval(poll))
 			_, err := p.ReadBytes()
 			require.NoError(t, err)
@@ -672,11 +673,11 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 		fail func(*etagServer)
 	}{
 		{name: "server error", fail: func(s *etagServer) { s.setStatus(http.StatusServiceUnavailable) }},
-		{name: "invalid content", fail: func(s *etagServer) { s.set(bad, `"bad"`) }},
+		{name: "invalid content", fail: func(s *etagServer) { s.set(fixtures.Bad, `"bad"`) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newETagServer(t, v12, etagOne)
+			srv := newETagServer(t, vOne, etagOne)
 			cache := filepath.Join(t.TempDir(), cacheYaml)
 			p := Provider(srv.URL, WithPollInterval(poll), WithCache(cache), WithValidate(rejectBad))
 			_, err := p.ReadBytes()
@@ -692,7 +693,7 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 			assertPending(t, p, cache)
 
 			srv.setStatus(0)
-			srv.set(v12, etagOne)
+			srv.set(vOne, etagOne)
 
 			assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 			waitHits(t, srv, 3)
@@ -703,7 +704,7 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 }
 
 func TestInvalidateCacheFallback(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	fellBack := false
 	p := Provider(srv.URL, WithPollInterval(poll), WithCache(cache),
@@ -716,7 +717,7 @@ func TestInvalidateCacheFallback(t *testing.T) {
 
 	got, err := p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(got))
+	assert.Equal(t, vOne, string(got))
 	assert.True(t, fellBack)
 	assertPending(t, p, cache)
 
@@ -726,7 +727,7 @@ func TestInvalidateCacheFallback(t *testing.T) {
 	assert.Eventually(t, func() bool { return w.reloads.Load() == 1 }, waitFor, poll/2)
 	waitHits(t, srv, 3)
 	assert.Equal(t, int32(1), w.reloads.Load())
-	assert.Equal(t, v12, readFile(t, cache))
+	assert.Equal(t, vOne, readFile(t, cache))
 }
 
 // answer is a response the test sends to a request held by stepServer.
@@ -802,14 +803,14 @@ func readAsync(p *HTTP) <-chan readResult {
 }
 
 func TestInvalidateDuringFetch(t *testing.T) {
-	v1 := answer{http.StatusOK, v12, etagOne}
+	v1 := answer{http.StatusOK, vOne, etagOne}
 	tests := []struct {
 		name    string
 		stale   answer // answer to the request in flight when Invalidate is called
 		pollErr int32  // watch errors the stale answer causes
 	}{
-		{name: "changed content", stale: answer{http.StatusOK, v2, etagTwo}},
-		{name: "same content retagged", stale: answer{http.StatusOK, v12, etagOneB}},
+		{name: "changed content", stale: answer{http.StatusOK, vTwo, etagTwo}},
+		{name: "same content retagged", stale: answer{http.StatusOK, vOne, etagOneB}},
 		{name: "not modified", stale: answer{status: http.StatusNotModified}},
 		{name: "failed fetch", stale: answer{status: http.StatusServiceUnavailable}, pollErr: 1},
 	}
@@ -843,7 +844,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 			retry.reply(v1)
 			r := <-res
 			require.NoError(t, r.err)
-			assert.Equal(t, v12, r.body)
+			assert.Equal(t, vOne, r.body)
 
 			res = readAsync(p)
 			next := srv.await(t)
@@ -886,9 +887,9 @@ func TestInvalidateDuringFetch(t *testing.T) {
 		res := readAsync(p)
 		retry := srv.await(t)
 		assert.Empty(t, retry.inm)
-		retry.reply(answer{http.StatusOK, v12, `"1c"`})
+		retry.reply(answer{http.StatusOK, vOne, `"1c"`})
 		require.NoError(t, (<-res).err)
-		held.reply(answer{http.StatusOK, v12, etagOneB})
+		held.reply(answer{http.StatusOK, vOne, etagOneB})
 
 		next := srv.await(t)
 		assert.Equal(t, `"1c"`, next.inm, "the stale ETag is dropped")
@@ -898,7 +899,7 @@ func TestInvalidateDuringFetch(t *testing.T) {
 }
 
 func TestInvalidateFromWatchCallback(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	p := Provider(srv.URL, WithPollInterval(poll))
 	_, err := p.ReadBytes()
 	require.NoError(t, err)
@@ -911,14 +912,14 @@ func TestInvalidateFromWatchCallback(t *testing.T) {
 	}))
 	t.Cleanup(func() { _ = p.Unwatch() })
 
-	srv.set(v2, etagTwo)
+	srv.set(vTwo, etagTwo)
 
 	// Each notification invalidates again, so the unchanged document is delivered again.
 	assert.Eventually(t, func() bool { return reloads.Load() >= 3 }, waitFor, poll/2)
 }
 
 func TestInvalidateLifecycle(t *testing.T) {
-	srv := newETagServer(t, v12, etagOne)
+	srv := newETagServer(t, vOne, etagOne)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	p := Provider(srv.URL, WithPollInterval(time.Hour), WithCache(cache))
 
@@ -930,7 +931,7 @@ func TestInvalidateLifecycle(t *testing.T) {
 	// Repeated calls coalesce into one unconditional retry and keep the cache.
 	p.Invalidate()
 	p.Invalidate()
-	assert.Equal(t, v12, readFile(t, cache))
+	assert.Equal(t, vOne, readFile(t, cache))
 	_, err = p.ReadBytes()
 	require.NoError(t, err)
 	assert.Empty(t, srv.ifNoneMatch())
@@ -941,9 +942,9 @@ func TestInvalidateLifecycle(t *testing.T) {
 	startWatch(t, p)
 	require.NoError(t, p.Unwatch())
 	p.Invalidate()
-	assert.Equal(t, v12, readFile(t, cache))
+	assert.Equal(t, vOne, readFile(t, cache))
 	got, err := p.ReadBytes()
 	require.NoError(t, err)
-	assert.Equal(t, v12, string(got))
+	assert.Equal(t, vOne, string(got))
 	assert.Empty(t, srv.ifNoneMatch())
 }

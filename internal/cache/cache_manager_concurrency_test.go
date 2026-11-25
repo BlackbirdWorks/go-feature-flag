@@ -46,7 +46,7 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				wg.Go(func() {
 					for !stop.Load() {
 						// Only a reader racing with Close may see the "not initialised" error.
-						f, err := mgr.GetFlag(flag12)
+						f, err := mgr.GetFlag(flagOne)
 						if err == nil {
 							assert.NotNil(t, f)
 						} else if !tt.close {
