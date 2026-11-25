@@ -15,42 +15,85 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+type webhookNotifierFields struct {
+	Secret string
+}
+
+type webhookNotifierExpected struct {
+	headers   map[string][]string
+	errorMsg  string
+	bodyPath  string
+	signature string
+	err       bool
+}
+
+type webhookNotifierArgs struct {
+	diff       notifier.DiffCache
+	headers    map[string][]string
+	url        string
+	statusCode int
+	forceError bool
+}
+
+type webhookNotifierCase struct {
+	name     string
+	fields   webhookNotifierFields
+	expected webhookNotifierExpected
+	args     webhookNotifierArgs
+}
+
+func runWebhookNotifierTests(t *testing.T, tests []webhookNotifierCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockHTTPClient := &testutils.HTTPClientMock{
+				StatusCode: tt.args.statusCode,
+				ForceError: tt.args.forceError,
+			}
+
+			c := Notifier{
+				EndpointURL: tt.args.url,
+				Secret:      tt.fields.Secret,
+				Meta:        map[string]string{"hostname": "toto"},
+				httpClient:  mockHTTPClient,
+				init:        sync.Once{},
+				Headers:     tt.args.headers,
+			}
+
+			err := c.Notify(tt.args.diff)
+
+			if tt.expected.err {
+				assert.ErrorContains(t, err, tt.expected.errorMsg)
+			} else {
+				require.NoError(t, err)
+				content, _ := os.ReadFile(tt.expected.bodyPath)
+				assert.JSONEq(t, string(content), mockHTTPClient.Body)
+				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
+				if tt.expected.headers != nil {
+					assert.Equal(t, tt.expected.headers, mockHTTPClient.Headers)
+				}
+			}
+		})
+	}
+}
+
 func Test_webhookNotifier_Notify(t *testing.T) {
 	t.Parallel()
 
-	type fields struct {
-		Secret string
-	}
-	type expected struct {
-		headers   map[string][]string
-		errorMsg  string
-		bodyPath  string
-		signature string
-		err       bool
-	}
-	type args struct {
-		diff       notifier.DiffCache
-		headers    map[string][]string
-		url        string
-		statusCode int
-		forceError bool
-	}
-	tests := []struct {
-		name     string
-		fields   fields
-		expected expected
-		args     args
-	}{
+	runWebhookNotifierTests(t, []webhookNotifierCase{
 		{
 			name: "should call webhook and have valid results",
-			fields: fields{
+			fields: webhookNotifierFields{
 				Secret: "test-secret",
 			},
-			expected: expected{
+			expected: webhookNotifierExpected{
 				bodyPath:  "./testdata/should_call_webhook_and_have_valid_results.json",
 				signature: "sha256=813bb118d9ac870a1264c2e5ce2a9a95c46246c52312ff77201d6d6b826f4ed6",
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "http://webhook.example/hook",
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
@@ -145,11 +188,11 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "should not be signed if no secret",
-			expected: expected{
+			expected: webhookNotifierExpected{
 				bodyPath:  "./testdata/should_not_be_signed_if_no_secret.json",
 				signature: "",
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "http://webhook.example/hook",
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
@@ -174,13 +217,20 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
+	t.Parallel()
+
+	runWebhookNotifierTests(t, []webhookNotifierCase{
 		{
 			name: "should log if http code is superior to 399",
-			expected: expected{
+			expected: webhookNotifierExpected{
 				err:      true,
 				errorMsg: "error: while calling webhook, statusCode = 400",
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "http://webhook.example/hook",
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
@@ -188,11 +238,11 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "should log if error while calling webhook",
-			expected: expected{
+			expected: webhookNotifierExpected{
 				err:      true,
 				errorMsg: "error: while calling webhook: random error",
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "http://webhook.example/hook",
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
@@ -201,11 +251,11 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "no endpointURL",
-			expected: expected{
+			expected: webhookNotifierExpected{
 				err:      true,
 				errorMsg: "invalid notifier configuration, no endpointURL provided for the webhook notifier",
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "",
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
@@ -214,7 +264,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "should use custom Headers",
-			expected: expected{
+			expected: webhookNotifierExpected{
 				bodyPath:  "./testdata/should_not_be_signed_if_no_secret.json",
 				signature: "",
 				headers: map[string][]string{
@@ -222,7 +272,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					"Content-Type":  {"application/json"},
 				},
 			},
-			args: args{
+			args: webhookNotifierArgs{
 				url:        "http://webhook.example/hook",
 				statusCode: http.StatusOK,
 				headers: map[string][]string{
@@ -250,40 +300,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			mockHTTPClient := &testutils.HTTPClientMock{
-				StatusCode: tt.args.statusCode,
-				ForceError: tt.args.forceError,
-			}
-
-			c := Notifier{
-				EndpointURL: tt.args.url,
-				Secret:      tt.fields.Secret,
-				Meta:        map[string]string{"hostname": "toto"},
-				httpClient:  mockHTTPClient,
-				init:        sync.Once{},
-				Headers:     tt.args.headers,
-			}
-
-			err := c.Notify(tt.args.diff)
-
-			if tt.expected.err {
-				assert.ErrorContains(t, err, tt.expected.errorMsg)
-			} else {
-				require.NoError(t, err)
-				content, _ := os.ReadFile(tt.expected.bodyPath)
-				assert.JSONEq(t, string(content), mockHTTPClient.Body)
-				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
-				if tt.expected.headers != nil {
-					assert.Equal(t, tt.expected.headers, mockHTTPClient.Headers)
-				}
-			}
-		})
-	}
+	})
 }
 
 func Test_webhookNotifier_no_meta_data(t *testing.T) {

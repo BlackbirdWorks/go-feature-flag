@@ -11,17 +11,34 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+type logNotifierCase struct {
+	diff        notifier.DiffCache
+	expectedLog *slogassert.LogMessageMatch
+	name        string
+}
+
+func runLogNotifierTests(t *testing.T, tests []logNotifierCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := slogassert.New(t, slog.LevelDebug, nil)
+			logger := slog.New(handler)
+			c := &Notifier{
+				Logger: &fflog.FFLogger{LeveledLogger: logger},
+			}
+			_ = c.Notify(tt.diff)
+			handler.AssertPrecise(*tt.expectedLog)
+		})
+	}
+}
+
 func TestLogNotifier_Notify(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-	}
-	tests := []struct {
-		args        args
-		diff        notifier.DiffCache
-		expectedLog *slogassert.LogMessageMatch
-		name        string
-	}{
+	runLogNotifierTests(t, []logNotifierCase{
 		{
 			name: "Flag deleted",
 			diff: notifier.DiffCache{
@@ -169,6 +186,13 @@ func TestLogNotifier_Notify(t *testing.T) {
 				AllAttrsMatch: true,
 			},
 		},
+	})
+}
+
+func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
+	t.Parallel()
+
+	runLogNotifierTests(t, []logNotifierCase{
 		{
 			name: "Add flag",
 			diff: notifier.DiffCache{
@@ -269,18 +293,5 @@ func TestLogNotifier_Notify(t *testing.T) {
 				AllAttrsMatch: true,
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler := slogassert.New(t, slog.LevelDebug, nil)
-			logger := slog.New(handler)
-			c := &Notifier{
-				Logger: &fflog.FFLogger{LeveledLogger: logger},
-			}
-			_ = c.Notify(tt.diff)
-			handler.AssertPrecise(*tt.expectedLog)
-		})
-	}
+	})
 }

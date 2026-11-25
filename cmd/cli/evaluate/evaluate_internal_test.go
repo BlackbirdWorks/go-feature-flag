@@ -80,10 +80,22 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	}
 }
 
+func runEvaluateTests(t *testing.T, tests []evaluateTestCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertEvaluate(t, tt)
+		})
+	}
+}
+
 func Test_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	tests := []evaluateTestCase{
+	runEvaluateTests(t, []evaluateTestCase{
 		{
 			name: "Should error is config file does not exist",
 			initEvaluate: func() (evaluate, error) {
@@ -250,6 +262,13 @@ func Test_Evaluate(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func Test_Evaluate_RemoteRetrievers(t *testing.T) {
+	t.Parallel()
+
+	runEvaluateTests(t, []evaluateTestCase{
 		{
 			name: "Should evaluate a flag from a github repository",
 			initEvaluate: func() (evaluate, error) {
@@ -444,12 +463,5 @@ func Test_Evaluate(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assertEvaluate(t, tt)
-		})
-	}
+	})
 }

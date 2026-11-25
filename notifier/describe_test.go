@@ -13,43 +13,76 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+type describeChangesCase struct {
+	name   string
+	setup  func(f *flag.InternalFlag)
+	update func(f *flag.InternalFlag)
+	want   []string
+}
+
 func TestDescribeChanges(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
-	baseFlag := func() *flag.InternalFlag {
-		return &flag.InternalFlag{
-			Variations: &map[string]*any{
-				"on":  new(any(true)),
-				"off": new(any(false)),
+	runDescribeChangesTests(
+		t,
+		describeChangesCoreCases(start, end),
+		describeChangesRuleAndDefaultCases(start, end),
+		describeChangesScheduleAndMetaCases(start, end),
+	)
+}
+
+func describeBaseFlag() *flag.InternalFlag {
+	return &flag.InternalFlag{
+		Variations: &map[string]*any{
+			"on":  new(any(true)),
+			"off": new(any(false)),
+		},
+		Rules: &[]flag.Rule{
+			{
+				Name:            new("internal"),
+				Query:           new(`email ew "@example.com"`),
+				VariationResult: new("on"),
 			},
-			Rules: &[]flag.Rule{
-				{
-					Name:            new("internal"),
-					Query:           new(`email ew "@example.com"`),
-					VariationResult: new("on"),
-				},
-				{
-					Name:            new("beta"),
-					Query:           new(`beta eq true`),
-					VariationResult: new("on"),
-				},
+			{
+				Name:            new("beta"),
+				Query:           new(`beta eq true`),
+				VariationResult: new("on"),
 			},
-			DefaultRule: &flag.Rule{
-				Percentages: &map[string]float64{"on": 20, "off": 80},
-			},
-			Version:  new("1.0"),
-			Metadata: &map[string]any{"owner": "payments"},
+		},
+		DefaultRule: &flag.Rule{
+			Percentages: &map[string]float64{"on": 20, "off": 80},
+		},
+		Version:  new("1.0"),
+		Metadata: &map[string]any{"owner": "payments"},
+	}
+}
+
+func runDescribeChangesTests(t *testing.T, groups ...[]describeChangesCase) {
+	t.Helper()
+
+	for _, group := range groups {
+		for _, tt := range group {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				before, after := describeBaseFlag(), describeBaseFlag()
+				if tt.setup != nil {
+					tt.setup(before)
+					tt.setup(after)
+				}
+				tt.update(after)
+				got, err := notifier.DescribeChanges(before, after)
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			})
 		}
 	}
+}
 
-	tests := []struct {
-		name   string
-		setup  func(f *flag.InternalFlag)
-		update func(f *flag.InternalFlag)
-		want   []string
-	}{
+func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
+	return []describeChangesCase{
 		{
 			name:   "should describe a disabled flag",
 			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
@@ -246,6 +279,11 @@ func TestDescribeChanges(t *testing.T) {
 			},
 			want: []string{"Targeting rule #2 renamed to `beta`"},
 		},
+	}
+}
+
+func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesCase {
+	return []describeChangesCase{
 		{
 			name:   "should describe a value written out that is already the default",
 			update: func(f *flag.InternalFlag) { f.Disable = new(false) },
@@ -448,6 +486,11 @@ func TestDescribeChanges(t *testing.T) {
 				"Default rule variation changed from `\"on\"` to `\"off\"` (not used: the rule serves a progressive rollout)",
 			},
 		},
+	}
+}
+
+func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChangesCase {
+	return []describeChangesCase{
 		{
 			name: "should describe experimentation windows with one date or none",
 			setup: func(f *flag.InternalFlag) {
@@ -616,22 +659,6 @@ func TestDescribeChanges(t *testing.T) {
 			update: func(_ *flag.InternalFlag) {},
 			want:   nil,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			before, after := baseFlag(), baseFlag()
-			if tt.setup != nil {
-				tt.setup(before)
-				tt.setup(after)
-			}
-			tt.update(after)
-			got, err := notifier.DescribeChanges(before, after)
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
 	}
 }
 

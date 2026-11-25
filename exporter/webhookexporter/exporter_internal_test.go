@@ -14,250 +14,36 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-func TestWebhook_IsBulk(t *testing.T) {
-	t.Parallel()
-
-	exporter := Exporter{}
-	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
+type webhookExportFields struct {
+	Meta        map[string]string
+	Headers     map[string][]string
+	EndpointURL string
+	Secret      string
+	httpClient  testutils.HTTPClientMock
 }
 
-func TestWebhook_Export(t *testing.T) {
-	t.Parallel()
+type webhookExportArgs struct {
+	logger        *fflog.FFLogger
+	featureEvents []exporter.ExportableEvent
+}
 
-	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
-	type fields struct {
-		Meta        map[string]string
-		Headers     map[string][]string
-		EndpointURL string
-		Secret      string
-		httpClient  testutils.HTTPClientMock
-	}
-	type args struct {
-		logger        *fflog.FFLogger
-		featureEvents []exporter.ExportableEvent
-	}
-	type expected struct {
-		headers      map[string][]string
-		bodyFilePath string
-		signHeader   string
-	}
-	tests := []struct {
-		expected expected
-		name     string
-		args     args
-		fields   fields
-		wantErr  bool
-	}{
-		{
-			name: "Invalid EndpointURL",
-			fields: fields{
-				EndpointURL: " http://invalid.com",
-			},
-			wantErr: true,
-		},
-		{
-			name: "valid without signature",
-			fields: fields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-			},
-			args: args{
-				logger: logger,
-				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				bodyFilePath: "./testdata/valid_without_signature.json",
-				signHeader:   "",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid with signature",
-			fields: fields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
-			},
-			args: args{
-				logger: logger,
-				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				bodyFilePath: "./testdata/valid_with_signature.json",
-				signHeader:   "sha256=f1f9766836d4e513035986c035ee9f091b895709be47a802b5840467007e1ec0",
-			},
-			wantErr: false,
-		},
-		{
-			name: "http error while calling webhook",
-			fields: fields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 400, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
-			},
-			args: args{
-				logger: logger,
-				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "error in the during the Do call",
-			fields: fields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: true},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
-			},
-			args: args{
-				logger: logger,
-				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "expect exporter to send custom headers",
-			fields: fields{
-				EndpointURL: "http://valid.com/webhook",
-				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Headers:     map[string][]string{"Authorization": {"Bearer auth_token"}},
-			},
-			args: args{
-				logger: logger,
-				featureEvents: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				bodyFilePath: "./testdata/valid_without_signature.json",
-				signHeader:   "",
-				headers: map[string][]string{
-					"Authorization": {"Bearer auth_token"},
-					"Content-Type":  {"application/json"}},
-			},
-			wantErr: false,
-		},
-	}
+type webhookExportExpected struct {
+	headers      map[string][]string
+	bodyFilePath string
+	signHeader   string
+}
+
+type webhookExportCase struct {
+	expected webhookExportExpected
+	name     string
+	args     webhookExportArgs
+	fields   webhookExportFields
+	wantErr  bool
+}
+
+func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
+	t.Helper()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -292,6 +78,238 @@ func TestWebhook_Export(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWebhook_IsBulk(t *testing.T) {
+	t.Parallel()
+
+	exporter := Exporter{}
+	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
+}
+
+func TestWebhook_Export(t *testing.T) {
+	t.Parallel()
+
+	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	runWebhookExportTests(t, []webhookExportCase{
+		{
+			name: "Invalid EndpointURL",
+			fields: webhookExportFields{
+				EndpointURL: " http://invalid.com",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid without signature",
+			fields: webhookExportFields{
+				EndpointURL: "http://valid.com/webhook",
+				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{"hostname": "hostname"},
+			},
+			args: webhookExportArgs{
+				logger: logger,
+				featureEvents: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: webhookExportExpected{
+				bodyFilePath: "./testdata/valid_without_signature.json",
+				signHeader:   "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid with signature",
+			fields: webhookExportFields{
+				EndpointURL: "http://valid.com/webhook",
+				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{"hostname": "hostname"},
+				Secret:      "secret",
+			},
+			args: webhookExportArgs{
+				logger: logger,
+				featureEvents: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: webhookExportExpected{
+				bodyFilePath: "./testdata/valid_with_signature.json",
+				signHeader:   "sha256=f1f9766836d4e513035986c035ee9f091b895709be47a802b5840467007e1ec0",
+			},
+			wantErr: false,
+		},
+	})
+}
+
+func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
+	t.Parallel()
+
+	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	runWebhookExportTests(t, []webhookExportCase{
+		{
+			name: "http error while calling webhook",
+			fields: webhookExportFields{
+				EndpointURL: "http://valid.com/webhook",
+				httpClient:  testutils.HTTPClientMock{StatusCode: 400, ForceError: false},
+				Meta:        map[string]string{"hostname": "hostname"},
+				Secret:      "secret",
+			},
+			args: webhookExportArgs{
+				logger: logger,
+				featureEvents: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "error in the during the Do call",
+			fields: webhookExportFields{
+				EndpointURL: "http://valid.com/webhook",
+				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: true},
+				Meta:        map[string]string{"hostname": "hostname"},
+				Secret:      "secret",
+			},
+			args: webhookExportArgs{
+				logger: logger,
+				featureEvents: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "expect exporter to send custom headers",
+			fields: webhookExportFields{
+				EndpointURL: "http://valid.com/webhook",
+				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
+				Meta:        map[string]string{"hostname": "hostname"},
+				Headers:     map[string][]string{"Authorization": {"Bearer auth_token"}},
+			},
+			args: webhookExportArgs{
+				logger: logger,
+				featureEvents: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: webhookExportExpected{
+				bodyFilePath: "./testdata/valid_without_signature.json",
+				signHeader:   "",
+				headers: map[string][]string{
+					"Authorization": {"Bearer auth_token"},
+					"Content-Type":  {"application/json"}},
+			},
+			wantErr: false,
+		},
+	})
 }
 
 func TestWebhook_Export_impossibleToParse(t *testing.T) {

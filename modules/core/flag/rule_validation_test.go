@@ -10,6 +10,15 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+type validateProgressiveRolloutCase struct {
+	variations  map[string]*any
+	wantErr     assert.ErrorAssertionFunc
+	rule        flag.Rule
+	name        string
+	wantErrMsg  string
+	defaultRule bool
+}
+
 func TestRule_IsValid(t *testing.T) {
 	t.Parallel()
 
@@ -368,6 +377,22 @@ func TestRule_validatePercentages(t *testing.T) {
 	}
 }
 
+func runValidateProgressiveRolloutTests(t *testing.T, tests []validateProgressiveRolloutCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
+			tt.wantErr(t, err, "IsValid() error = %v", err)
+			if tt.wantErrMsg != "" && err != nil {
+				assert.Contains(t, err.Error(), tt.wantErrMsg)
+			}
+		})
+	}
+}
+
 func TestRule_validateProgressiveRollout(t *testing.T) {
 	t.Parallel()
 
@@ -377,14 +402,7 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		"variation_C": new(any("value_C")),
 	}
 
-	tests := []struct {
-		variations  map[string]*any
-		wantErr     assert.ErrorAssertionFunc
-		rule        flag.Rule
-		name        string
-		wantErrMsg  string
-		defaultRule bool
-	}{
+	runValidateProgressiveRolloutTests(t, []validateProgressiveRolloutCase{
 		{
 			name: "nil progressive rollout should be valid",
 			rule: flag.Rule{
@@ -545,6 +563,19 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 			wantErr:    assert.Error,
 			wantErrMsg: "invalid progressive rollout, initial and end steps are required",
 		},
+	})
+}
+
+func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
+	t.Parallel()
+
+	variations := map[string]*any{
+		"variation_A": new(any("value_A")),
+		"variation_B": new(any("value_B")),
+		"variation_C": new(any("value_C")),
+	}
+
+	runValidateProgressiveRolloutTests(t, []validateProgressiveRolloutCase{
 		{
 			name: "progressive rollout with negative initial percentage should fail",
 			rule: flag.Rule{
@@ -737,19 +768,7 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 			variations:  variations,
 			wantErr:     assert.NoError,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
-			if tt.wantErrMsg != "" && err != nil {
-				assert.Contains(t, err.Error(), tt.wantErrMsg)
-			}
-		})
-	}
+	})
 }
 
 func TestRule_validateVariationResult(t *testing.T) {

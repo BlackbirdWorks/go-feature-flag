@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -67,6 +68,14 @@ func withHeaders(extra map[string]string) map[string]string {
 
 // goldenOpenCases are served by a relay proxy that has no API keys.
 func goldenOpenCases() []goldenCase {
+	return slices.Concat(
+		goldenOpenSuccessCases(),
+		goldenOpenErrorCases(),
+		goldenOpenRoutingAndMethodCases(),
+	)
+}
+
+func goldenOpenSuccessCases() []goldenCase {
 	return []goldenCase{
 		// the 17 routes, success
 		{name: "allflags_ok", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: jsonHeaders()},
@@ -139,7 +148,11 @@ func goldenOpenCases() []goldenCase {
 			name: "admin_validate_noauth", method: http.MethodPost, path: "/admin/v1/flags/validate",
 			headers: jsonHeaders(), body: `{}`,
 		},
+	}
+}
 
+func goldenOpenErrorCases() []goldenCase {
+	return []goldenCase{
 		// error bodies of the handlers
 		{
 			name: "allflags_bad_json", method: http.MethodPost, path: "/v1/allflags", body: `{"evaluationContext":`,
@@ -285,7 +298,11 @@ func goldenOpenCases() []goldenCase {
 			path:        "/stream/v1/sse/flag/change?apiKey=zzz",
 			headersOnly: true,
 		},
+	}
+}
 
+func goldenOpenRoutingAndMethodCases() []goldenCase {
+	return []goldenCase{
 		// 404, 405, preflight and the other methods
 		{name: "notfound_root", method: http.MethodGet, path: "/"},
 		{name: "notfound_unknown", method: http.MethodGet, path: "/nope"},

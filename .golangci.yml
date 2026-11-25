@@ -129,6 +129,7 @@ linters:
     - intrange # finds places where for loops could make use of an integer range
     - ireturn # accept interfaces, return concrete types (genuine polymorphic seams allowed below)
     - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
+    - maintidx # measures the maintainability index of each function
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
     - mnd # detects magic numbers
@@ -199,7 +200,6 @@ linters:
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
-    - maintidx # complexity is bounded by cyclop, gocognit and funlen
     - noinlineerr # inline error handling is the project style
     - tagalign # struct tags are aligned by hand for the schema and config readability
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed

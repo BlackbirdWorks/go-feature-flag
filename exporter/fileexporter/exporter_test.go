@@ -21,605 +21,40 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-func TestFile_Export(t *testing.T) {
-	t.Parallel()
+type fileExportFields struct {
+	Format                  string
+	Filename                string
+	CsvTemplate             string
+	OutputDir               string
+	ParquetCompressionCodec string
+	EventType               string
+}
 
-	// Create a temporary directory for test file operations
-	tempDir := t.TempDir()
+type fileExportArgs struct {
+	logger *fflog.FFLogger
+	events []exporter.ExportableEvent
+}
 
-	hostname, _ := os.Hostname()
-	type fields struct {
-		Format                  string
-		Filename                string
-		CsvTemplate             string
-		OutputDir               string
-		ParquetCompressionCodec string
-		EventType               string
-	}
-	type args struct {
-		logger *fflog.FFLogger
-		events []exporter.ExportableEvent
-	}
-	type expected struct {
-		fileNameRegex  string
-		content        string
-		featureEvents  []exporter.FeatureEvent
-		trackingEvents []exporter.TrackingEvent
-	}
-	tests := []struct {
-		setup    func(t *testing.T, fields fields)
-		teardown func(t *testing.T, fields fields)
-		fields   fields
-		name     string
-		expected expected
-		args     args
-		wantErr  bool
-	}{
-		{
-			name:    "all default json",
-			wantErr: false,
-			fields:  fields{},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
-			},
-		},
-		{
-			name:    "all default csv",
-			wantErr: false,
-			fields: fields{
-				Format: "csv",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
-				content:       "./testdata/all_default.csv",
-			},
-		},
-		{
-			name:    "all default parquet",
-			wantErr: false,
-			fields: fields{
-				Format:                  "parquet",
-				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
-				featureEvents: []exporter.FeatureEvent{
-					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        `"YO"`,
-						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
-					},
-					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        `"YO2"`,
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-						Metadata:     map[string]any{},
-					},
-				},
-			},
-		},
-		{
-			name:    "all default parquet tracking events",
-			wantErr: false,
-			fields: fields{
-				Format:                  "parquet",
-				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
-				Filename:                "tracking-{{ .Hostname}}-{{ .Timestamp}}.parquet",
-				EventType:               "tracking",
-			},
-			args: args{
+type fileExportExpected struct {
+	fileNameRegex  string
+	content        string
+	featureEvents  []exporter.FeatureEvent
+	trackingEvents []exporter.TrackingEvent
+}
 
-				events: []exporter.ExportableEvent{
-					exporter.TrackingEvent{
-						Kind:              "feature",
-						ContextKind:       "anonymous",
-						UserKey:           "xxx",
-						CreationDate:      1617970547,
-						Key:               "what-ever-you-want",
-						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
-						TrackingDetails:   map[string]any{"foo": "bar"},
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^tracking-" + hostname + "-[0-9]*\\.parquet$",
-				trackingEvents: []exporter.TrackingEvent{
-					{
-						Kind:              "feature",
-						ContextKind:       "anonymous",
-						UserKey:           "xxx",
-						CreationDate:      1617970547,
-						Key:               "what-ever-you-want",
-						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
-						TrackingDetails:   map[string]any{"foo": "bar"},
-					},
-				},
-			},
-		},
-		{
-			name:    "custom CSV format",
-			wantErr: false,
-			fields: fields{
-				Format:      "csv",
-				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
-				content:       "./testdata/custom_csv_format.csv",
-			},
-		},
-		{
-			name:    "complex parquet value",
-			wantErr: false,
-			fields: fields{
-				Format:                  "parquet",
-				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value: map[string]any{
-							"string": "string",
-							"bool":   true,
-							"float":  1.23,
-							"int":    1,
-						},
-						Default:  false,
-						Source:   "SERVER",
-						Metadata: map[string]any{"test": "test"},
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
-				featureEvents: []exporter.FeatureEvent{
-					{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
-						Default:      false,
-						Source:       "SERVER",
-						Metadata:     map[string]any{"test": "test"},
-					},
-				},
-			},
-		},
-		{
-			name:    "custom file name",
-			wantErr: false,
-			fields: fields{
-				Format:   "json",
-				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^json-test-[0-9]*$",
-				content:       "./testdata/custom_file_name.json",
-			},
-		},
-		{
-			name:    "invalid format",
-			wantErr: false,
-			fields: fields{
-				Format: "xxx",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.xxx$",
-				content:       "./testdata/all_default.json",
-			},
-		},
-		{
-			name:    "non-existent outputdir",
-			wantErr: false,
-			fields: fields{
-				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
-			},
-		},
-		{
-			name:    "invalid filename template",
-			wantErr: true,
-			fields: fields{
-				Filename: "{{ .InvalidField}}",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-		},
-		{
-			name:    "invalid csv formatter",
-			wantErr: true,
-			fields: fields{
-				Format:      "csv",
-				CsvTemplate: "{{ .Foo}}",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-		},
-		{
-			name:    "outputdir with invalid permissions",
-			wantErr: true,
-			fields: fields{
-				Format:    "parquet",
-				OutputDir: filepath.Join(tempDir, "invalid-permissions-dir"),
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			setup: func(t *testing.T, fields fields) {
-				t.Helper()
-				// Unix permission bits (Chmod 0000) do not restrict directory writes
-				// on Windows, so the export would not fail there.
-				if runtime.GOOS == "windows" {
-					t.Skip("directory permissions are not enforced the same way on Windows")
-				}
-				err := os.MkdirAll(fields.OutputDir, 0755)
-				require.NoError(t, err)
-				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
-				assert.NoError(t, err)
-			},
-			teardown: func(t *testing.T, fields fields) {
-				t.Helper()
-				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name:    "outputdir with invalid parent folder",
-			wantErr: true,
-			fields: fields{
-				Format:    "parquet",
-				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-				},
-			},
-			setup: func(t *testing.T, fields fields) {
-				t.Helper()
-				// Unix permission bits (Chmod 0000) do not restrict directory writes
-				// on Windows, so the export would not fail there.
-				if runtime.GOOS == "windows" {
-					t.Skip("directory permissions are not enforced the same way on Windows")
-				}
-				// Only the dedicated parent of this case loses its permissions, the other
-				// cases of this table run in parallel in sibling directories of tempDir.
-				parent := filepath.Dir(fields.OutputDir)
-				err := os.MkdirAll(parent, 0755)
-				require.NoError(t, err)
-				err = os.Chmod(parent, 0000) // Remove all permissions
-				assert.NoError(t, err)
-			},
-			teardown: func(t *testing.T, fields fields) {
-				t.Helper()
-				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name:    "outputdir with trailing slash",
-			wantErr: false,
-			fields: fields{
-				Format:    "json",
-				OutputDir: filepath.Join(tempDir, "dir-with-trailing-slash") + "/",
-			},
-			args: args{
-				events: []exporter.ExportableEvent{
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
-						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO",
-						Default:      false,
-						Source:       "SERVER",
-					},
-					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
-						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
-						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
-					},
-				},
-			},
-			expected: expected{
-				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
-				content:       "./testdata/all_default.json",
-			},
-		},
-	}
+type fileExportCase struct {
+	setup    func(t *testing.T, fields fileExportFields)
+	teardown func(t *testing.T, fields fileExportFields)
+	fields   fileExportFields
+	name     string
+	expected fileExportExpected
+	args     fileExportArgs
+	wantErr  bool
+}
+
+func runFileExportTests(t *testing.T, tests []fileExportCase) {
+	t.Helper()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -672,6 +107,595 @@ func TestFile_Export(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestFile_Export(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
+		{
+			name:    "all default json",
+			wantErr: false,
+			fields:  fileExportFields{},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
+				content:       "./testdata/all_default.json",
+			},
+		},
+		{
+			name:    "all default csv",
+			wantErr: false,
+			fields: fileExportFields{
+				Format: "csv",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
+				content:       "./testdata/all_default.csv",
+			},
+		},
+		{
+			name:    "all default parquet",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:                  "parquet",
+				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+						Metadata:     map[string]any{"test": "test"},
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
+				featureEvents: []exporter.FeatureEvent{
+					{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        `"YO"`,
+						Default:      false,
+						Source:       "SERVER",
+						Metadata:     map[string]any{"test": "test"},
+					},
+					{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        `"YO2"`,
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+						Metadata:     map[string]any{},
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestFile_Export_FormatsAndEvents(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
+		{
+			name:    "all default parquet tracking events",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:                  "parquet",
+				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
+				Filename:                "tracking-{{ .Hostname}}-{{ .Timestamp}}.parquet",
+				EventType:               "tracking",
+			},
+			args: fileExportArgs{
+
+				events: []exporter.ExportableEvent{
+					exporter.TrackingEvent{
+						Kind:              "feature",
+						ContextKind:       "anonymous",
+						UserKey:           "xxx",
+						CreationDate:      1617970547,
+						Key:               "what-ever-you-want",
+						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
+						TrackingDetails:   map[string]any{"foo": "bar"},
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^tracking-" + hostname + "-[0-9]*\\.parquet$",
+				trackingEvents: []exporter.TrackingEvent{
+					{
+						Kind:              "feature",
+						ContextKind:       "anonymous",
+						UserKey:           "xxx",
+						CreationDate:      1617970547,
+						Key:               "what-ever-you-want",
+						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
+						TrackingDetails:   map[string]any{"foo": "bar"},
+					},
+				},
+			},
+		},
+		{
+			name:    "custom CSV format",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:      "csv",
+				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
+				content:       "./testdata/custom_csv_format.csv",
+			},
+		},
+		{
+			name:    "complex parquet value",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:                  "parquet",
+				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value: map[string]any{
+							"string": "string",
+							"bool":   true,
+							"float":  1.23,
+							"int":    1,
+						},
+						Default:  false,
+						Source:   "SERVER",
+						Metadata: map[string]any{"test": "test"},
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
+				featureEvents: []exporter.FeatureEvent{
+					{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
+						Default:      false,
+						Source:       "SERVER",
+						Metadata:     map[string]any{"test": "test"},
+					},
+				},
+			},
+		},
+		{
+			name:    "custom file name",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:   "json",
+				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^json-test-[0-9]*$",
+				content:       "./testdata/custom_file_name.json",
+			},
+		},
+	})
+}
+
+func TestFile_Export_OutputDirAndErrors(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
+		{
+			name:    "invalid format",
+			wantErr: false,
+			fields: fileExportFields{
+				Format: "xxx",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.xxx$",
+				content:       "./testdata/all_default.json",
+			},
+		},
+		{
+			name:    "non-existent outputdir",
+			wantErr: false,
+			fields: fileExportFields{
+				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
+				content:       "./testdata/all_default.json",
+			},
+		},
+		{
+			name:    "invalid filename template",
+			wantErr: true,
+			fields: fileExportFields{
+				Filename: "{{ .InvalidField}}",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+		},
+		{
+			name:    "invalid csv formatter",
+			wantErr: true,
+			fields: fileExportFields{
+				Format:      "csv",
+				CsvTemplate: "{{ .Foo}}",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+		},
+		{
+			name:    "outputdir with invalid permissions",
+			wantErr: true,
+			fields: fileExportFields{
+				Format:    "parquet",
+				OutputDir: filepath.Join(tempDir, "invalid-permissions-dir"),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			setup: func(t *testing.T, fields fileExportFields) {
+				t.Helper()
+				// Unix permission bits (Chmod 0000) do not restrict directory writes
+				// on Windows, so the export would not fail there.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory permissions are not enforced the same way on Windows")
+				}
+				err := os.MkdirAll(fields.OutputDir, 0755)
+				require.NoError(t, err)
+				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
+				assert.NoError(t, err)
+			},
+			teardown: func(t *testing.T, fields fileExportFields) {
+				t.Helper()
+				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name:    "outputdir with invalid parent folder",
+			wantErr: true,
+			fields: fileExportFields{
+				Format:    "parquet",
+				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+				},
+			},
+			setup: func(t *testing.T, fields fileExportFields) {
+				t.Helper()
+				// Unix permission bits (Chmod 0000) do not restrict directory writes
+				// on Windows, so the export would not fail there.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory permissions are not enforced the same way on Windows")
+				}
+				// Only the dedicated parent of this case loses its permissions, the other
+				// cases of this table run in parallel in sibling directories of tempDir.
+				parent := filepath.Dir(fields.OutputDir)
+				err := os.MkdirAll(parent, 0755)
+				require.NoError(t, err)
+				err = os.Chmod(parent, 0000) // Remove all permissions
+				assert.NoError(t, err)
+			},
+			teardown: func(t *testing.T, fields fileExportFields) {
+				t.Helper()
+				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name:    "outputdir with trailing slash",
+			wantErr: false,
+			fields: fileExportFields{
+				Format:    "json",
+				OutputDir: filepath.Join(tempDir, "dir-with-trailing-slash") + "/",
+			},
+			args: fileExportArgs{
+				events: []exporter.ExportableEvent{
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+					},
+					exporter.FeatureEvent{
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+					},
+				},
+			},
+			expected: fileExportExpected{
+				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
+				content:       "./testdata/all_default.json",
+			},
+		},
+	})
 }
 
 // readParquetFeatureEvents reads the parquet file at filePath and returns the

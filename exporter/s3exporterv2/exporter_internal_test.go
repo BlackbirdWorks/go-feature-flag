@@ -18,273 +18,29 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-func TestS3_Export(t *testing.T) {
-	t.Parallel()
+type s3ExportFields struct {
+	AwsConfig       *aws.Config
+	Bucket          string
+	Format          string
+	S3Path          string
+	Filename        string
+	CsvTemplate     string
+	S3ClientOptions []func(*s3.Options)
+	nilCtx          bool
+}
 
-	hostname, _ := os.Hostname()
-	type fields struct {
-		AwsConfig       *aws.Config
-		Bucket          string
-		Format          string
-		S3Path          string
-		Filename        string
-		CsvTemplate     string
-		S3ClientOptions []func(*s3.Options)
-		nilCtx          bool
-	}
+type s3ExportCase struct {
+	name         string
+	expectedFile string
+	expectedName string
+	events       []exporter.ExportableEvent
+	fields       s3ExportFields
+	wantErr      bool
+}
 
-	tests := []struct {
-		name         string
-		expectedFile string
-		expectedName string
-		events       []exporter.ExportableEvent
-		fields       fields
-		wantErr      bool
-	}{
-		{
-			name: "All default test",
-			fields: fields{
-				Bucket: "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
-		},
-		{
-			name: "All default test with nil context",
-			fields: fields{
-				Bucket: "test",
-				nilCtx: true,
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
-		},
-		{
-			name: "With DeprecatedExporterV1 Path",
-			fields: fields{
-				S3Path: "random/path",
-				Bucket: "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^random/path/flag-variation-" + hostname + "-[0-9]*\\.json$",
-		},
-		{
-			name: "All default CSV",
-			fields: fields{
-				Format: "csv",
-				Bucket: "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.csv",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.csv$",
-		},
-		{
-			name: "Custom CSV",
-			fields: fields{
-				Format:      "csv",
-				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
-				Bucket:      "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/custom_csv_format.csv",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.csv$",
-		},
-		{
-			name: "Custom FileName",
-			fields: fields{
-				Format:   "json",
-				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
-				Bucket:   "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^/json-test-[0-9]*$",
-		},
-		{
-			name: "Invalid format",
-			fields: fields{
-				Format: "xxx",
-				Bucket: "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.xxx$",
-		},
-		{
-			name: "Empty Bucket",
-			fields: fields{
-				Format: "xxx",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid filename template",
-			fields: fields{
-				Filename: "{{ .InvalidField}}",
-				Bucket:   "test",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid csv formatter",
-			fields: fields{
-				Format:      "csv",
-				CsvTemplate: "{{ .Foo}}",
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "With S3 Client Options",
-			fields: fields{
-				Bucket: "test",
-				S3ClientOptions: []func(*s3.Options){
-					func(o *s3.Options) {
-						o.UseAccelerate = true
-					},
-				},
-			},
-			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
-					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
-					Value:        "YO",
-					Default:      false,
-					Source:       "SERVER",
-				},
-			},
-			expectedFile: "./testdata/all_default.json",
-			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
-		},
-	}
+func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
+	t.Helper()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -339,6 +95,265 @@ func TestS3_Export(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestS3_Export(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runS3ExportTests(t, []s3ExportCase{
+		{
+			name: "All default test",
+			fields: s3ExportFields{
+				Bucket: "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
+		},
+		{
+			name: "All default test with nil context",
+			fields: s3ExportFields{
+				Bucket: "test",
+				nilCtx: true,
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
+		},
+		{
+			name: "With DeprecatedExporterV1 Path",
+			fields: s3ExportFields{
+				S3Path: "random/path",
+				Bucket: "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^random/path/flag-variation-" + hostname + "-[0-9]*\\.json$",
+		},
+		{
+			name: "All default CSV",
+			fields: s3ExportFields{
+				Format: "csv",
+				Bucket: "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.csv",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.csv$",
+		},
+		{
+			name: "Custom CSV",
+			fields: s3ExportFields{
+				Format:      "csv",
+				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
+				Bucket:      "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/custom_csv_format.csv",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.csv$",
+		},
+		{
+			name: "Custom FileName",
+			fields: s3ExportFields{
+				Format:   "json",
+				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
+				Bucket:   "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^/json-test-[0-9]*$",
+		},
+	})
+}
+
+func TestS3_Export_ErrorsAndOptions(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runS3ExportTests(t, []s3ExportCase{
+		{
+			name: "Invalid format",
+			fields: s3ExportFields{
+				Format: "xxx",
+				Bucket: "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.xxx$",
+		},
+		{
+			name: "Empty Bucket",
+			fields: s3ExportFields{
+				Format: "xxx",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid filename template",
+			fields: s3ExportFields{
+				Filename: "{{ .InvalidField}}",
+				Bucket:   "test",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid csv formatter",
+			fields: s3ExportFields{
+				Format:      "csv",
+				CsvTemplate: "{{ .Foo}}",
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "With S3 Client Options",
+			fields: s3ExportFields{
+				Bucket: "test",
+				S3ClientOptions: []func(*s3.Options){
+					func(o *s3.Options) {
+						o.UseAccelerate = true
+					},
+				},
+			},
+			events: []exporter.ExportableEvent{
+				exporter.FeatureEvent{
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
+				},
+			},
+			expectedFile: "./testdata/all_default.json",
+			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
+		},
+	})
 }
 
 func Test_errSDK(t *testing.T) {

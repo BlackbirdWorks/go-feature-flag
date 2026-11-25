@@ -931,6 +931,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		assert.True(t, cfg.APIKeyExists("old-api-key"))
 		assert.False(t, cfg.APIKeyExists("new-api-key"))
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should reject invalid configuration in flagsets mode - flagset with no API keys", func(t *testing.T) {
 		t.Parallel()
@@ -1046,6 +1052,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should successfully update API keys in flagsets mode", func(t *testing.T) {
 		t.Parallel()
@@ -1307,6 +1319,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "flagset-a", name)
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should not update when config is unchanged in flagsets mode", func(t *testing.T) {
 		t.Parallel()
@@ -1569,6 +1587,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		wsService.Close()
 		assert.Zero(t, conn1.writes.Load())
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should add a new flagset at runtime", func(t *testing.T) {
 		t.Parallel()
@@ -1718,6 +1742,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// No bundled API-key error since the API keys did not change.
 		assert.Equal(t, 0, logs.FilterMessageSnippet("API keys change for this flagset is also ignored").Len())
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should reject a bundled API key and configuration change", func(t *testing.T) {
 		t.Parallel()
@@ -1874,6 +1904,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		warnLogs := logs.FilterMessageSnippet("without an explicit name is not supported at runtime")
 		assert.Equal(t, 1, warnLogs.Len(), "expected a warning about unnamed flagsets")
 	})
+}
+
+func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should fail closed when an accepted key move collides with a rejected modification", func(t *testing.T) {
 		t.Parallel()

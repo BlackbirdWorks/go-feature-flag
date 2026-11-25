@@ -55,15 +55,37 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 	}
 }
 
+type parseConfigFileCase struct {
+	want         *config.Config
+	wantErr      assert.ErrorAssertionFunc
+	name         string
+	fileLocation string
+}
+
+func runParseConfigFromPflag(t *testing.T, tests []parseConfigFileCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			f.String("config", "", "Location of your config file")
+			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
+
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron("version=1.X.X"))
+			if !tt.wantErr(t, err) {
+				return
+			}
+			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
+		})
+	}
+}
+
 func TestParseConfig_fileFromPflag(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		want         *config.Config
-		wantErr      assert.ErrorAssertionFunc
-		name         string
-		fileLocation string
-	}{
+	runParseConfigFromPflag(t, []parseConfigFileCase{
 		{
 			name:         "Valid yaml file",
 			fileLocation: "../testdata/config/valid-file.yaml",
@@ -258,6 +280,13 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 		},
+	})
+}
+
+func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
+	t.Parallel()
+
+	runParseConfigFromPflag(t, []parseConfigFileCase{
 		{
 			name:         "Valid json file",
 			fileLocation: "../testdata/config/valid-file.json",
@@ -367,22 +396,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-
-			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron("version=1.X.X"))
-			if !tt.wantErr(t, err) {
-				return
-			}
-			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
-		})
-	}
+	})
 }
 
 func TestParseConfig_fileFromFolder(t *testing.T) {
@@ -498,34 +512,68 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 	}
 }
 
+type configIsValidFields struct {
+	Retriever               *retrieverconf.RetrieverConf
+	Retrievers              *[]retrieverconf.RetrieverConf
+	Exporter                *config.ExporterConf
+	LogLevel                string
+	FileFormat              string
+	LogFormat               string
+	FlagSets                []config.FlagSet
+	Swagger                 config.Swagger
+	Notifiers               []config.NotifierConf
+	OfrepEventStream        config.OfrepEventStream
+	Server                  config.Server
+	PollingInterval         int
+	StartWithRetrieverError bool
+	Debug                   bool
+	HideBanner              bool
+}
+
+type configIsValidCase struct {
+	wantErr assert.ErrorAssertionFunc
+	name    string
+	fields  configIsValidFields
+}
+
+func runConfigIsValidTests(t *testing.T, tests []configIsValidCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := &config.Config{
+				PollingInterval:         tt.fields.PollingInterval,
+				FileFormat:              tt.fields.FileFormat,
+				StartWithRetrieverError: tt.fields.StartWithRetrieverError,
+				Retriever:               tt.fields.Retriever,
+				Exporter:                tt.fields.Exporter,
+				Notifiers:               tt.fields.Notifiers,
+				Retrievers:              tt.fields.Retrievers,
+				Server:                  tt.fields.Server,
+				HideBanner:              tt.fields.HideBanner,
+				Swagger:                 tt.fields.Swagger,
+				LogLevel:                tt.fields.LogLevel,
+				LogFormat:               tt.fields.LogFormat,
+				FlagSets:                tt.fields.FlagSets,
+				OfrepEventStream:        tt.fields.OfrepEventStream,
+			}
+			if tt.name == "empty config" {
+				c = nil
+			}
+			tt.wantErr(t, c.IsValid(), "invalid configuration")
+		})
+	}
+}
+
 func TestConfig_IsValid(t *testing.T) {
 	t.Parallel()
 
-	type fields struct {
-		Retriever               *retrieverconf.RetrieverConf
-		Retrievers              *[]retrieverconf.RetrieverConf
-		Exporter                *config.ExporterConf
-		LogLevel                string
-		FileFormat              string
-		LogFormat               string
-		FlagSets                []config.FlagSet
-		Swagger                 config.Swagger
-		Notifiers               []config.NotifierConf
-		OfrepEventStream        config.OfrepEventStream
-		Server                  config.Server
-		PollingInterval         int
-		StartWithRetrieverError bool
-		Debug                   bool
-		HideBanner              bool
-	}
-	tests := []struct {
-		wantErr assert.ErrorAssertionFunc
-		name    string
-		fields  fields
-	}{
+	runConfigIsValidTests(t, []configIsValidCase{
 		{
 			name: "invalid ofrepEventStream",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -540,17 +588,17 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name:    "empty config",
-			fields:  fields{},
+			fields:  configIsValidFields{},
 			wantErr: assert.Error,
 		},
 		{
 			name:    "invalid port",
-			fields:  fields{},
+			fields:  configIsValidFields{},
 			wantErr: assert.Error,
 		},
 		{
 			name: "no retriever",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -571,7 +619,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "valid configuration",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -605,7 +653,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "valid configuration with notifier included",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -627,7 +675,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid retriever",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -640,7 +688,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "1 invalid retriever in the list of retrievers",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -663,7 +711,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid exporter",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -680,7 +728,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid notifier",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -699,7 +747,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid log level",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -714,7 +762,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "mixed case log level",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -729,7 +777,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "warning alias log level",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -744,7 +792,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "panic log level",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -759,7 +807,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "dpanic log level",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -774,7 +822,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "log level is not set but debug is set",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -790,7 +838,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid logFormat",
-			fields: fields{
+			fields: configIsValidFields{
 				LogFormat: "unknown",
 				Server: config.Server{
 					Port: 8080,
@@ -804,9 +852,16 @@ func TestConfig_IsValid(t *testing.T) {
 			},
 			wantErr: assert.Error,
 		},
+	})
+}
+
+func TestConfig_IsValid_FlagSets(t *testing.T) {
+	t.Parallel()
+
+	runConfigIsValidTests(t, []configIsValidCase{
 		{
 			name: "valid flagset configuration",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -826,7 +881,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "flagset without name",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -845,7 +900,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "flagset without API keys",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -864,7 +919,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "duplicate API keys across flagsets",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -892,7 +947,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "flagset with invalid retriever",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -912,7 +967,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "flagset with invalid exporter",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -936,7 +991,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "flagset with invalid notifier",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -962,7 +1017,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "multiple valid flagsets",
-			fields: fields{
+			fields: configIsValidFields{
 				Server: config.Server{
 					Port: 8080,
 					Mode: config.ServerModeHTTP,
@@ -990,7 +1045,7 @@ func TestConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "missing unix socket path",
-			fields: fields{
+			fields: configIsValidFields{
 				LogFormat: "unknown",
 				Server: config.Server{
 					Mode:           config.ServerModeUnixSocket,
@@ -1004,33 +1059,7 @@ func TestConfig_IsValid(t *testing.T) {
 			},
 			wantErr: assert.Error,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			c := &config.Config{
-				PollingInterval:         tt.fields.PollingInterval,
-				FileFormat:              tt.fields.FileFormat,
-				StartWithRetrieverError: tt.fields.StartWithRetrieverError,
-				Retriever:               tt.fields.Retriever,
-				Exporter:                tt.fields.Exporter,
-				Notifiers:               tt.fields.Notifiers,
-				Retrievers:              tt.fields.Retrievers,
-				Server:                  tt.fields.Server,
-				HideBanner:              tt.fields.HideBanner,
-				Swagger:                 tt.fields.Swagger,
-				LogLevel:                tt.fields.LogLevel,
-				LogFormat:               tt.fields.LogFormat,
-				FlagSets:                tt.fields.FlagSets,
-				OfrepEventStream:        tt.fields.OfrepEventStream,
-			}
-			if tt.name == "empty config" {
-				c = nil
-			}
-			tt.wantErr(t, c.IsValid(), "invalid configuration")
-		})
-	}
+	})
 }
 
 func TestConfig_APIKeyExists(t *testing.T) {
@@ -1325,16 +1354,42 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 	}
 }
 
+type mergeConfigFromOSEnvCase struct {
+	want         *config.Config
+	wantErr      assert.ErrorAssertionFunc
+	envVars      map[string]string
+	name         string
+	fileLocation string
+}
+
+func runMergeConfigFromOSEnvTests(t *testing.T, tests []mergeConfigFromOSEnvCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			environ := make([]string, 0, len(tt.envVars))
+			for k, v := range tt.envVars {
+				environ = append(environ, k+"="+v)
+			}
+
+			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			f.String("config", "", "Location of your config file")
+			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
+			if !tt.wantErr(t, err) {
+				return
+			}
+			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
+		})
+	}
+}
+
 func TestMergeConfig_FromOSEnv(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		want         *config.Config
-		wantErr      assert.ErrorAssertionFunc
-		envVars      map[string]string
-		name         string
-		fileLocation string
-	}{
+	runMergeConfigFromOSEnvTests(t, []mergeConfigFromOSEnvCase{
 		{
 			name:         "Valid file",
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
@@ -1566,6 +1621,13 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				"GOFF_RETRIEVERS_2_HEADERS_X-GOFF-CUSTOM": "custom",
 			},
 		},
+	})
+}
+
+func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
+	t.Parallel()
+
+	runMergeConfigFromOSEnvTests(t, []mergeConfigFromOSEnvCase{
 		{
 			name:         "Change kafka exporter",
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
@@ -1774,26 +1836,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				"FLAGSETS_0_RETRIEVERS_0_PATH":           "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			environ := make([]string, 0, len(tt.envVars))
-			for k, v := range tt.envVars {
-				environ = append(environ, k+"="+v)
-			}
-
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
-			if !tt.wantErr(t, err) {
-				return
-			}
-			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreUnexported(config.Config{})))
-		})
-	}
+	})
 }
 
 // The variables are given to the loader (withEnviron), the process environment is not modified.

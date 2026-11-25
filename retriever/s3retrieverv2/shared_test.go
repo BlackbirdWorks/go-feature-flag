@@ -66,6 +66,11 @@ type fakeObject struct {
 	data string
 }
 
+type sharedRefreshCase struct {
+	run  func(t *testing.T)
+	name string
+}
+
 func newFakeBucket(objects map[string]fakeObject) *fakeBucket {
 	return &fakeBucket{objects: objects, gets: map[string]int{}}
 }
@@ -1077,13 +1082,21 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 	assert.EqualValues(t, s3retrieverv2.MaxConcurrentDownloads, maxRunning.Load())
 }
 
+func runSynctestRefreshTests(t *testing.T, tests []sharedRefreshCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, tt.run)
+		})
+	}
+}
+
 func TestSharedItems_SetRefresh(t *testing.T) {
 	t.Parallel()
 	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
-	tests := []struct {
-		run  func(t *testing.T)
-		name string
-	}{
+	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "only the changed object is refreshed, after one listing per interval", run: func(t *testing.T) {
 			t.Helper()
 			pc := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev, prod)
@@ -1212,6 +1225,13 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			synctest.Wait()
 			assert.Equal(t, lists, pc.b.lists.Load(), "the poller stopped with the only item")
 		}},
+	})
+}
+
+func TestSharedItems_SetRefresh_ShutdownAndQueue(t *testing.T) {
+	t.Parallel()
+	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
+	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "shutting down while the bucket is being listed stops the poller", run: func(t *testing.T) {
 			t.Helper()
 			pc := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev)
@@ -1285,6 +1305,13 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			assert.Equal(t, 0, pc.count(dev))
 			pc.shutdown(t)
 		}},
+	})
+}
+
+func TestSharedItems_SetRefresh_InFlightAndCache(t *testing.T) {
+	t.Parallel()
+	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
+	runSynctestRefreshTests(t, []sharedRefreshCase{
 		{name: "shutdown waits for the refresh in flight", run: func(t *testing.T) {
 			t.Helper()
 			pc := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev, prod)
@@ -1370,13 +1397,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 				require.NoError(t, other.Shutdown(t.Context()))
 				pc.shutdown(t)
 			}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			synctest.Test(t, tt.run)
-		})
-	}
+	})
 }
 
 func TestSharedItems_SetPoller(t *testing.T) {

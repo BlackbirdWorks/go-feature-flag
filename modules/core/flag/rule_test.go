@@ -12,6 +12,19 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 )
 
+type ruleEvaluateArgs struct {
+	user      ffcontext.Context
+	isDefault bool
+}
+
+type ruleEvaluateCase struct {
+	wantErr assert.ErrorAssertionFunc
+	rule    flag.Rule
+	args    ruleEvaluateArgs
+	name    string
+	want    string
+}
+
 // ExpectRuleNotApplyError asserts that the error is (or wraps) a *RuleNotApplyError.
 func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bool {
 	var target *internalerror.RuleNotApplyError
@@ -19,27 +32,48 @@ func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bo
 	return assert.ErrorAs(t, err, &target, msgAndArgs...)
 }
 
+func runRuleEvaluateTests(t *testing.T, tests []ruleEvaluateCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			key := ""
+			if tt.args.user != nil {
+				key = tt.args.user.GetKey()
+			}
+			got, err := tt.rule.Evaluate(
+				flag.NewService(),
+				key,
+				atFixedNow(tt.args.user),
+				"flagname+",
+				tt.args.isDefault,
+			)
+
+			if !tt.wantErr(
+				t,
+				err,
+				fmt.Sprintf("Evaluate(%v, %v)", tt.args.user, tt.args.isDefault),
+			) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "Evaluate(%v, %v)", tt.args.user, tt.args.isDefault)
+		})
+	}
+}
+
 func TestRuleEvaluate(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		user      ffcontext.Context
-		isDefault bool
-	}
-	tests := []struct {
-		wantErr assert.ErrorAssertionFunc
-		rule    flag.Rule
-		args    args
-		name    string
-		want    string
-	}{
+	runRuleEvaluateTests(t, []ruleEvaluateCase{
 		{
 			name: "No query, default variation result",
 			rule: flag.Rule{
 				Name:            new("rule1"),
 				VariationResult: new("variation_A"),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("abc"),
 			},
 			want:    "variation_A",
@@ -52,7 +86,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("key eq \"def\""),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: true,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -66,7 +100,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("key eq \"def\""),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -79,7 +113,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"==": [{"var": "key"}, "def"]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -92,7 +126,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("key eq \"abc\""),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -106,7 +140,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("{\"cat\": [\"t\", \"r\", \"u\", \"e\"]}"),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -121,7 +155,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -136,7 +170,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"some":[{"var":"orgs"},{"==":[{"var":"plan"},"enterprise"]}]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user: ffcontext.NewEvaluationContextBuilder("abc").
 					AddCustom("orgs", []any{map[string]any{"id": 1}}).
@@ -152,7 +186,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -165,7 +199,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"xxx": [{"var": "key"}, "abc"]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -176,7 +210,7 @@ func TestRuleEvaluate(t *testing.T) {
 			rule: flag.Rule{
 				Name: new("rule1"),
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -189,7 +223,7 @@ func TestRuleEvaluate(t *testing.T) {
 					"variation_C": 100,
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -204,7 +238,7 @@ func TestRuleEvaluate(t *testing.T) {
 					"variation_B": 91,
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -219,7 +253,7 @@ func TestRuleEvaluate(t *testing.T) {
 					"variation_B": 91,
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -235,7 +269,7 @@ func TestRuleEvaluate(t *testing.T) {
 					"variation_B": 20,
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("randomUserID"),
 			},
 			wantErr: assert.NoError,
@@ -251,7 +285,7 @@ func TestRuleEvaluate(t *testing.T) {
 					"variation_B": 20,
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("96ac59e6-7492-436b-b15a-ba1d797d2423"),
 			},
 			wantErr: assert.NoError,
@@ -268,7 +302,7 @@ func TestRuleEvaluate(t *testing.T) {
 				},
 				Query: new("key eq \"96ac59e6-7492-436b-b15a-ba1d797d2423\""),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("96ac59e6-7492-436b-b15a-ba1d797d2423"),
 			},
 			wantErr: assert.NoError,
@@ -297,12 +331,19 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
 			want:    "variation_B",
 		},
+	})
+}
+
+func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
+	t.Parallel()
+
+	runRuleEvaluateTests(t, []ruleEvaluateCase{
 		{
 			name: "Progressive rollout before ramp",
 			rule: flag.Rule{
@@ -320,7 +361,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -343,7 +384,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -366,7 +407,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userKey"),
 			},
 			wantErr: assert.NoError,
@@ -389,7 +430,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
@@ -410,12 +451,19 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("userkey"),
 			},
 			wantErr: assert.NoError,
 			want:    "variation_C",
 		},
+	})
+}
+
+func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
+	t.Parallel()
+
+	runRuleEvaluateTests(t, []ruleEvaluateCase{
 		{
 			name: "Progressive rollout initial before end",
 			rule: flag.Rule{
@@ -433,7 +481,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -448,7 +496,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -463,7 +511,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -482,7 +530,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -501,7 +549,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -520,7 +568,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
 		{
@@ -539,9 +587,16 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 				},
 			},
-			args:    args{},
+			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
 		},
+	})
+}
+
+func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
+	t.Parallel()
+
+	runRuleEvaluateTests(t, []ruleEvaluateCase{
 		{
 			name: "User does not match the query (JsonLogic)",
 			rule: flag.Rule{
@@ -549,7 +604,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"==": [{"var": "key"}, "def"]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -562,7 +617,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"in": [{"var": "key"}, ["abcdef", "1234"]]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -575,7 +630,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]}`),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user:      ffcontext.NewEvaluationContext("abc"),
 			},
@@ -595,7 +650,7 @@ func TestRuleEvaluate(t *testing.T) {
 					`{"==": [{"var": "key"}, "96ac59e6-7492-436b-b15a-ba1d797d2423"]}`,
 				),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("96ac59e6-7492-436b-b15a-ba1d797d2423"),
 			},
 			wantErr: assert.NoError,
@@ -614,7 +669,7 @@ func TestRuleEvaluate(t *testing.T) {
 					`{"=": [{"var": "key"}, "96ac59e6-7492-436b-b15a-ba1d797d2423"]}`,
 				),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				user: ffcontext.NewEvaluationContext("96ac59e6-7492-436b-b15a-ba1d797d2423"),
 			},
 			wantErr: assert.Error,
@@ -626,7 +681,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("version gt 1.0.0-10"),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("version", "1.0.0-11").
@@ -642,7 +697,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new("variation_A"),
 				Query:           new("version gt 1.0.0-10"),
 			},
-			args: args{
+			args: ruleEvaluateArgs{
 				isDefault: false,
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("version", "1.0.0-2").
@@ -651,33 +706,7 @@ func TestRuleEvaluate(t *testing.T) {
 			want:    "",
 			wantErr: ExpectRuleNotApplyError,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			key := ""
-			if tt.args.user != nil {
-				key = tt.args.user.GetKey()
-			}
-			got, err := tt.rule.Evaluate(
-				flag.NewService(),
-				key,
-				atFixedNow(tt.args.user),
-				"flagname+",
-				tt.args.isDefault,
-			)
-
-			if !tt.wantErr(
-				t,
-				err,
-				fmt.Sprintf("Evaluate(%v, %v)", tt.args.user, tt.args.isDefault),
-			) {
-				return
-			}
-			assert.Equalf(t, tt.want, got, "Evaluate(%v, %v)", tt.args.user, tt.args.isDefault)
-		})
-	}
+	})
 }
 
 func TestRule_MergeRules(t *testing.T) {

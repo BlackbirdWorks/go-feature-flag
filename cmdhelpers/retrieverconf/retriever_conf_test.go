@@ -9,15 +9,34 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+type retrieverConfValidCase struct {
+	name     string
+	errValue string
+	fields   retrieverconf.RetrieverConf
+	wantErr  bool
+}
+
+func runRetrieverConfValidTests(t *testing.T, tests []retrieverConfValidCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := tt.fields
+			err := c.IsValid()
+			assert.Equal(t, tt.wantErr, err != nil)
+			if tt.wantErr {
+				assert.Equal(t, tt.errValue, err.Error())
+			}
+		})
+	}
+}
+
 func TestRetrieverConf_IsValid(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		errValue string
-		fields   retrieverconf.RetrieverConf
-		wantErr  bool
-	}{
+	runRetrieverConfValidTests(t, []retrieverConfValidCase{
 		{
 			name:     "no fields",
 			fields:   retrieverconf.RetrieverConf{},
@@ -232,6 +251,13 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			wantErr:  true,
 			errValue: "invalid retriever: no \"container\" property found for kind \"azureBlobStorage\"",
 		},
+	})
+}
+
+func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
+	t.Parallel()
+
+	runRetrieverConfValidTests(t, []retrieverConfValidCase{
 		{
 			name: "valid s3",
 			fields: retrieverconf.RetrieverConf{
@@ -479,19 +505,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			wantErr:  true,
 			errValue: "invalid retriever: no \"table\" property found for kind \"postgresql\"",
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			c := tt.fields
-			err := c.IsValid()
-			assert.Equal(t, tt.wantErr, err != nil)
-			if tt.wantErr {
-				assert.Equal(t, tt.errValue, err.Error())
-			}
-		})
-	}
+	})
 }
 
 func TestRetrieverConf_validateGitHubAuth(t *testing.T) {

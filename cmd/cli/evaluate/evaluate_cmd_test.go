@@ -12,16 +12,55 @@ import (
 
 const XAPIKeyHeader = "X-API-Key"
 
+type cmdEvaluateCase struct {
+	wantErr        assert.ErrorAssertionFunc
+	name           string
+	expectedResult string
+	expectedErr    string
+	args           []string
+}
+
+func runCmdEvaluateTests(t *testing.T, tests []cmdEvaluateCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
+			require.NoError(t, err)
+			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(stdOut.Name())
+				_ = os.Remove(stdErr.Name())
+			}()
+
+			cmd := evaluate.NewEvaluateCmd()
+			cmd.SetErr(stdErr)
+			cmd.SetOut(stdOut)
+			cmd.SetArgs(tt.args)
+			err = cmd.Execute()
+			tt.wantErr(t, err)
+			if tt.expectedResult != "" {
+				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
+				require.NoError(t, readFileErr)
+				gotContent, readFileErr := os.ReadFile(stdOut.Name())
+				require.NoError(t, readFileErr)
+				assert.JSONEq(t, string(expectedContent), string(gotContent))
+			}
+
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			}
+		})
+	}
+}
+
 func TestCmdEvaluate(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		wantErr        assert.ErrorAssertionFunc
-		name           string
-		expectedResult string
-		expectedErr    string
-		args           []string
-	}{
+	runCmdEvaluateTests(t, []cmdEvaluateCase{
 		{
 			name: "should return an error if flag does not exists",
 			args: []string{
@@ -117,6 +156,13 @@ func TestCmdEvaluate(t *testing.T) {
 			wantErr:        assert.NoError,
 			expectedResult: "testdata/res/all-flag-no-targeting.json",
 		},
+	})
+}
+
+func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
+	t.Parallel()
+
+	runCmdEvaluateTests(t, []cmdEvaluateCase{
 		{
 			name: "should return configuration of http retriever with headers set properly when using check-mode",
 			args: []string{
@@ -427,37 +473,5 @@ func TestCmdEvaluate(t *testing.T) {
 			wantErr:     assert.Error,
 			expectedErr: "invalid retriever: no \"bucket\" property found for kind \"s3\"",
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
-			require.NoError(t, err)
-			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
-			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(stdOut.Name())
-				_ = os.Remove(stdErr.Name())
-			}()
-
-			cmd := evaluate.NewEvaluateCmd()
-			cmd.SetErr(stdErr)
-			cmd.SetOut(stdOut)
-			cmd.SetArgs(tt.args)
-			err = cmd.Execute()
-			tt.wantErr(t, err)
-			if tt.expectedResult != "" {
-				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
-				require.NoError(t, readFileErr)
-				gotContent, readFileErr := os.ReadFile(stdOut.Name())
-				require.NoError(t, readFileErr)
-				assert.JSONEq(t, string(expectedContent), string(gotContent))
-			}
-
-			if tt.expectedErr != "" {
-				assert.EqualError(t, err, tt.expectedErr)
-			}
-		})
-	}
+	})
 }

@@ -41,217 +41,31 @@ func requestContext(t *testing.T, logger *slog.Logger, requestID string) context
 	return served.Context()
 }
 
-func Test_collect_eval_data_Handler(t *testing.T) {
-	t.Parallel()
+type collectEvalDataWant struct {
+	bodyFile          string
+	errorMsg          string
+	collectedDataFile string
+	httpCode          int
+	errorCode         int
+	warnings          int
+	handlerErr        bool
+}
 
-	type want struct {
-		bodyFile          string
-		errorMsg          string
-		collectedDataFile string
-		httpCode          int
-		errorCode         int
-		warnings          int
-		handlerErr        bool
-	}
-	type args struct {
-		bodyFile string
-	}
-	tests := []struct {
-		name   string
-		args   args
-		apiKey string
-		want   want
-		config config.Config
-	}{
-		{
-			name: "valid usecase",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
-			},
-		},
-		{
-			name:   "valid usecase flagset",
-			apiKey: "test",
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{"test"},
-						PollingInterval: 10,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: "file",
-								Path: configFlagsLocation,
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
-			},
-		},
-		{
-			name: "valid with source field",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
-			},
-		},
-		{
-			name:   "valid with source field flagset",
-			apiKey: "test",
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{"test"},
-						PollingInterval: 10,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: "file",
-								Path: configFlagsLocation,
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
-			},
-		},
-		{
-			name: "invalid json",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/invalid_request.json",
-			},
-			want: want{
-				handlerErr: true,
-				httpCode:   http.StatusBadRequest,
-				errorMsg: "collectEvalData: invalid input data code=400, message=Bad Request, " +
-					"err=invalid character '}' after array element",
-				errorCode: http.StatusBadRequest,
-			},
-		},
-		{
-			name: "invalid data field",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				bodyFile: testdataDir + "/collect_eval_data/invalid_request_data_null.json",
-			},
-			want: want{
-				handlerErr: true,
-				httpCode:   http.StatusBadRequest,
-				errorMsg:   "collectEvalData: invalid input data",
-				errorCode:  http.StatusBadRequest,
-			},
-		},
-		{
-			name: "be sure that the creation date is a unix timestamp",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				testdataDir + "/collect_eval_data/valid_request_with_timestamp_ms.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_with_timestamp_ms.json",
-				warnings:          1,
-			},
-		},
-		{
-			name: "should have the metadata in the exporter",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
-			args: args{
-				testdataDir + "/collect_eval_data/valid_request_metadata.json",
-			},
-			want: want{
-				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response_metadata.json",
-				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_metadata.json",
-			},
-		},
-	}
+type collectEvalDataArgs struct {
+	bodyFile string
+}
+
+type collectEvalDataCase struct {
+	name   string
+	args   collectEvalDataArgs
+	apiKey string
+	want   collectEvalDataWant
+	config config.Config
+}
+
+func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
+	t.Helper()
+
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
@@ -318,6 +132,208 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			assert.JSONEq(t, string(wantCollectData), string(exportedData), "Invalid exported data")
 		})
 	}
+}
+
+func Test_collect_eval_data_Handler(t *testing.T) {
+	t.Parallel()
+
+	runCollectEvalDataTests(t, []collectEvalDataCase{
+		{
+			name: "valid usecase",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
+			},
+		},
+		{
+			name:   "valid usecase flagset",
+			apiKey: "test",
+			config: config.Config{
+				FlagSets: []config.FlagSet{
+					{
+						APIKeys:         []string{"test"},
+						PollingInterval: 10,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: configFlagsLocation,
+							},
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
+			},
+		},
+		{
+			name: "valid with source field",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
+			},
+		},
+		{
+			name:   "valid with source field flagset",
+			apiKey: "test",
+			config: config.Config{
+				FlagSets: []config.FlagSet{
+					{
+						APIKeys:         []string{"test"},
+						PollingInterval: 10,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: configFlagsLocation,
+							},
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
+			},
+		},
+	})
+}
+
+func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	runCollectEvalDataTests(t, []collectEvalDataCase{
+		{
+			name: "invalid json",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/invalid_request.json",
+			},
+			want: collectEvalDataWant{
+				handlerErr: true,
+				httpCode:   http.StatusBadRequest,
+				errorMsg: "collectEvalData: invalid input data code=400, message=Bad Request, " +
+					"err=invalid character '}' after array element",
+				errorCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name: "invalid data field",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				bodyFile: testdataDir + "/collect_eval_data/invalid_request_data_null.json",
+			},
+			want: collectEvalDataWant{
+				handlerErr: true,
+				httpCode:   http.StatusBadRequest,
+				errorMsg:   "collectEvalData: invalid input data",
+				errorCode:  http.StatusBadRequest,
+			},
+		},
+		{
+			name: "be sure that the creation date is a unix timestamp",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				testdataDir + "/collect_eval_data/valid_request_with_timestamp_ms.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_with_timestamp_ms.json",
+				warnings:          1,
+			},
+		},
+		{
+			name: "should have the metadata in the exporter",
+			config: config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10,
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{
+							Kind: "file",
+							Path: configFlagsLocation,
+						},
+					},
+				},
+			},
+			args: collectEvalDataArgs{
+				testdataDir + "/collect_eval_data/valid_request_metadata.json",
+			},
+			want: collectEvalDataWant{
+				httpCode:          http.StatusOK,
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
+				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_metadata.json",
+			},
+		},
+	})
 }
 
 // setCollectEvalDataFileExporter configures cfg to export collected data to the

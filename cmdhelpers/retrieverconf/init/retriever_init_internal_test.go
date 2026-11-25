@@ -21,17 +21,38 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+type initRetrieverCase struct {
+	want                   retriever.Retriever
+	wantType               retriever.Retriever
+	conf                   *retrieverconf.RetrieverConf
+	wantErr                assert.ErrorAssertionFunc
+	name                   string
+	skipCompleteValidation bool
+}
+
+func runInitRetrieverTests(t *testing.T, tests []initRetrieverCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := Retriever(tt.conf)
+			tt.wantErr(t, err)
+			if err == nil {
+				assert.IsType(t, tt.wantType, got)
+				if !tt.skipCompleteValidation {
+					assert.Equal(t, tt.want, got)
+				}
+			}
+		})
+	}
+}
+
 func Test_InitRetriever(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		want                   retriever.Retriever
-		wantType               retriever.Retriever
-		conf                   *retrieverconf.RetrieverConf
-		wantErr                assert.ErrorAssertionFunc
-		name                   string
-		skipCompleteValidation bool
-	}{
+	runInitRetrieverTests(t, []initRetrieverCase{
 		{
 			name:    "Convert Github Retriever",
 			wantErr: assert.NoError,
@@ -149,6 +170,13 @@ func Test_InitRetriever(t *testing.T) {
 			},
 			wantType: &gitlabretriever.Retriever{},
 		},
+	})
+}
+
+func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
+	t.Parallel()
+
+	runInitRetrieverTests(t, []initRetrieverCase{
 		{
 			name:    "Convert File Retriever",
 			wantErr: assert.NoError,
@@ -310,21 +338,7 @@ func Test_InitRetriever(t *testing.T) {
 			},
 			wantType: &postgresqlretriever.Retriever{},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := Retriever(tt.conf)
-			tt.wantErr(t, err)
-			if err == nil {
-				assert.IsType(t, tt.wantType, got)
-				if !tt.skipCompleteValidation {
-					assert.Equal(t, tt.want, got)
-				}
-			}
-		})
-	}
+	})
 }
 
 func Test_InitRetriever_Redis(t *testing.T) {

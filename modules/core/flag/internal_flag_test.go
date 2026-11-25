@@ -13,21 +13,86 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
+type internalFlagValueArgs struct {
+	flagContext flag.Context
+	user        ffcontext.Context
+	flagName    string
+}
+
+type internalFlagValueCase struct {
+	flag  flag.InternalFlag
+	want  any
+	args  internalFlagValueArgs
+	name  string
+	want1 flag.ResolutionDetails
+}
+
+type internalFlagValidFields struct {
+	Variations      *map[string]*any
+	Rules           *[]flag.Rule
+	DefaultRule     *flag.Rule
+	Rollout         *flag.Rollout
+	TrackEvents     *bool
+	Disable         *bool
+	Version         *string
+	Experimentation *flag.ExperimentationRollout
+	Scheduled       *[]flag.ScheduledStep
+	Metadata        *map[string]any
+}
+
+type internalFlagValidCase struct {
+	name     string
+	fields   internalFlagValidFields
+	wantErr  assert.ErrorAssertionFunc
+	errorMsg string
+}
+
+func runInternalFlagValueTests(t *testing.T, tests []internalFlagValueCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, got1 := tt.flag.Value(tt.args.flagName, atFixedNow(tt.args.user), tt.args.flagContext)
+			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
+			assert.Equalf(t, tt.want1, got1, "not expected value: %s", cmp.Diff(tt.want1, got1))
+		})
+	}
+}
+
+func runInternalFlagValidTests(t *testing.T, tests []internalFlagValidCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := &flag.InternalFlag{
+				Variations:      tt.fields.Variations,
+				Rules:           tt.fields.Rules,
+				DefaultRule:     tt.fields.DefaultRule,
+				TrackEvents:     tt.fields.TrackEvents,
+				Disable:         tt.fields.Disable,
+				Version:         tt.fields.Version,
+				Scheduled:       tt.fields.Scheduled,
+				Experimentation: tt.fields.Experimentation,
+			}
+			err := f.IsValid(flag.NewService())
+			errMsg := ""
+			if err != nil {
+				errMsg = err.Error()
+			}
+			tt.wantErr(t, err, fmt.Sprintf("IsValid(): %s", err))
+			assert.Equal(t, tt.errorMsg, errMsg)
+		})
+	}
+}
+
 func TestInternalFlag_Value(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		flagContext flag.Context
-		user        ffcontext.Context
-		flagName    string
-	}
-	tests := []struct {
-		flag  flag.InternalFlag
-		want  any
-		args  args
-		name  string
-		want1 flag.ResolutionDetails
-	}{
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should use default value if no targeting",
 			flag: flag.InternalFlag{
@@ -43,7 +108,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -77,7 +142,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -104,7 +169,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -134,7 +199,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -164,7 +229,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("gofeatureflag", map[string]any{
@@ -198,7 +263,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -216,6 +281,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_Targeting(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should return the variation specified in the rule if rule match",
 			flag: flag.InternalFlag{
@@ -238,7 +310,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -281,7 +353,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -330,7 +402,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -381,7 +453,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -402,6 +474,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should match a rule with no name",
 			flag: flag.InternalFlag{
@@ -428,7 +507,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -475,7 +554,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -525,7 +604,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
@@ -581,7 +660,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
@@ -602,6 +681,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should ignore a rule that is disabled",
 			flag: flag.InternalFlag{
@@ -634,7 +720,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
@@ -678,7 +764,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -720,7 +806,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -762,7 +848,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -798,7 +884,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -817,6 +903,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				ErrorMessage: "error in the configuration, no variation available for this rule",
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should not have any change if all scheduled steps are in the future",
 			flag: flag.InternalFlag{
@@ -846,7 +939,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -892,7 +985,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("gofeatureflag", map[string]string{
@@ -942,7 +1035,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -988,7 +1081,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
@@ -1011,6 +1104,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should apply all scheduled steps in the past",
 			flag: flag.InternalFlag{
@@ -1040,7 +1140,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1108,7 +1208,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("EnvironmentUUID", "0ffcc8da-1f70-4229-8ef7-b5a3130cdd52").
@@ -1175,7 +1275,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-a").
 					AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
@@ -1203,6 +1303,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should ignore scheduled steps with no dates",
 			flag: flag.InternalFlag{
@@ -1225,7 +1332,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1278,7 +1385,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1325,7 +1432,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1379,7 +1486,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1399,6 +1506,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should apply all the changes if all scheduled steps are in the past",
 			flag: flag.InternalFlag{
@@ -1428,7 +1542,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1468,7 +1582,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1509,7 +1623,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1558,7 +1672,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1575,6 +1689,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should return the false value if not in between initial and end percentage",
 			flag: flag.InternalFlag{
@@ -1601,7 +1722,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1641,7 +1762,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1687,7 +1808,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1741,7 +1862,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1762,6 +1883,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should return the reason SPLIT if rule not apply and has percentage",
 			flag: flag.InternalFlag{
@@ -1787,7 +1915,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1827,7 +1955,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1860,7 +1988,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1896,7 +2024,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1940,7 +2068,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "feature",
 				user:     ffcontext.NewEvaluationContextBuilder("1").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -1962,6 +2090,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValueTests(t, []internalFlagValueCase{
 		{
 			name: "Should have a targeting match if common evaluation context match",
 			flag: flag.InternalFlag{
@@ -1979,7 +2114,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					VariationResult: new("B"),
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -2014,7 +2149,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					VariationResult: new("B"),
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("key1").
 					AddCustom("environment", "dev").
@@ -2055,7 +2190,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -2085,7 +2220,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext(""),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -2119,7 +2254,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				BucketingKey: new("teamId"),
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("toto").
 					AddCustom("teamId", "").
@@ -2157,7 +2292,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					"issue-link":  "https://issue.link/GOFF-1",
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext(""),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -2177,30 +2312,16 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, got1 := tt.flag.Value(tt.args.flagName, atFixedNow(tt.args.user), tt.args.flagContext)
-			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
-			assert.Equalf(t, tt.want1, got1, "not expected value: %s", cmp.Diff(tt.want1, got1))
-		})
-	}
+	})
 }
 
 func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		flagContext flag.Context
-		user        ffcontext.Context
-		flagName    string
-	}
 	tests := []struct {
 		name                string
 		flag                flag.InternalFlag
-		args                args
+		args                internalFlagValueArgs
 		wantForTargetingKey string
 		wantForTeamID       string
 	}{
@@ -2220,7 +2341,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("teamId", "team-123").
@@ -2248,7 +2369,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("teamId", "team-123").
@@ -2293,14 +2414,9 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		flagContext flag.Context
-		user        ffcontext.Context
-		flagName    string
-	}
 	tests := []struct {
 		flag flag.InternalFlag
-		args args
+		args internalFlagValueArgs
 		name string
 		want flag.ResolutionDetails
 	}{
@@ -2320,7 +2436,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName:    "my-flag",
 				user:        ffcontext.NewEvaluationContextBuilder("user-key").Build(),
 				flagContext: flag.Context{Service: flag.NewService()},
@@ -2348,7 +2464,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", map[string]any{
@@ -2380,7 +2496,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: internalFlagValueArgs{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", map[string]any{
@@ -2615,27 +2731,10 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 func TestInternalFlag_IsValid(t *testing.T) {
 	t.Parallel()
 
-	type fields struct {
-		Variations      *map[string]*any
-		Rules           *[]flag.Rule
-		DefaultRule     *flag.Rule
-		Rollout         *flag.Rollout
-		TrackEvents     *bool
-		Disable         *bool
-		Version         *string
-		Experimentation *flag.ExperimentationRollout
-		Scheduled       *[]flag.ScheduledStep
-		Metadata        *map[string]any
-	}
-	tests := []struct {
-		name     string
-		fields   fields
-		wantErr  assert.ErrorAssertionFunc
-		errorMsg string
-	}{
+	runInternalFlagValidTests(t, []internalFlagValidCase{
 		{
 			name: "no variation",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{},
 			},
 			wantErr:  assert.Error,
@@ -2643,7 +2742,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "different types in variation",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"C": new(any("C")),
@@ -2662,7 +2761,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "different types in variation int/float should be ok",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any(120)),
 					"B": new(any(120.1)),
@@ -2679,7 +2778,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "no default rule",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 				},
@@ -2700,7 +2799,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "multiple rule with same name",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 				},
@@ -2749,7 +2848,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "wrong percentages for default rule",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2770,7 +2869,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "empty percentages for default rule",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2786,9 +2885,16 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			errorMsg: "invalid percentages: should not be empty",
 			wantErr:  assert.Error,
 		},
+	})
+}
+
+func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValidTests(t, []internalFlagValidCase{
 		{
 			name: "wrong percentages for targeting",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2819,7 +2925,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "empty percentages for targeting",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 				},
@@ -2843,7 +2949,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "targeting without query",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2873,7 +2979,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "Nothing to return in rule",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2891,7 +2997,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "progressive rollout percentage initial > end",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2921,7 +3027,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "ignore invalid rule if disabled",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2951,7 +3057,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if default rule referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2965,7 +3071,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if default percentage rule referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -2981,9 +3087,16 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			errorMsg: "invalid percentage: variation C does not exist",
 			wantErr:  assert.Error,
 		},
+	})
+}
+
+func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
+	t.Parallel()
+
+	runInternalFlagValidTests(t, []internalFlagValidCase{
 		{
 			name: "should error if default progressive rule end rollout step referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3008,7 +3121,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if default progressive rule initial rollout step referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3033,7 +3146,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if targeting rule referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3053,7 +3166,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if percentage in targeting rule referencing a variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3077,7 +3190,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if progressive rollout in targeting rule referencing an initial variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3108,7 +3221,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if progressive rollout in targeting rule referencing an end variation that does not exist",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3139,7 +3252,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		},
 		{
 			name: "should error if rule query is not valid for the parser",
-			fields: fields{
+			fields: internalFlagValidFields{
 				Variations: &map[string]*any{
 					"A": new(any("A")),
 					"B": new(any("B")),
@@ -3157,31 +3270,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			errorMsg: "invalid query: invalid rule \"invalid\": line 1:7 no viable alternative at input 'invalid'",
 			wantErr:  assert.Error,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			f := &flag.InternalFlag{
-				Variations:      tt.fields.Variations,
-				Rules:           tt.fields.Rules,
-				DefaultRule:     tt.fields.DefaultRule,
-				TrackEvents:     tt.fields.TrackEvents,
-				Disable:         tt.fields.Disable,
-				Version:         tt.fields.Version,
-				Scheduled:       tt.fields.Scheduled,
-				Experimentation: tt.fields.Experimentation,
-			}
-			err := f.IsValid(flag.NewService())
-			errMsg := ""
-			if err != nil {
-				errMsg = err.Error()
-			}
-			tt.wantErr(t, err, fmt.Sprintf("IsValid(): %s", err))
-			assert.Equal(t, tt.errorMsg, errMsg)
-		})
-	}
+	})
 }
 
 func TestInternalFlag_ApplySheduledRollout(t *testing.T) {

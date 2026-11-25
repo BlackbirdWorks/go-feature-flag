@@ -180,7 +180,22 @@ type loadCase struct {
 
 func TestLoader_Load(t *testing.T) {
 	t.Parallel()
-	tests := slices.Concat([]loadCase{
+	tests := slices.Concat(
+		folderListingCases(),
+		cacheAndVersionCases(),
+		errorAndEmptyCases(),
+		roundTripCases(t),
+	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runLoadCase(t, tt)
+		})
+	}
+}
+
+func folderListingCases() []loadCase {
+	return []loadCase{
 		{
 			name: "non recursive only loads the direct children and ignores folder markers",
 			setup: func(s *fakeStore) {
@@ -354,6 +369,11 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
+	}
+}
+
+func cacheAndVersionCases() []loadCase {
+	return []loadCase{
 		{
 			name: "listed version is used when Get has none",
 			setup: func(s *fakeStore) {
@@ -539,6 +559,11 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
+	}
+}
+
+func errorAndEmptyCases() []loadCase {
+	return []loadCase{
 		{
 			name:  "empty result logs a warning",
 			setup: func(s *fakeStore) { s.put("other/a.yaml", yamlA) },
@@ -595,12 +620,6 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
-	}, roundTripCases(t))
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			runLoadCase(t, tt)
-		})
 	}
 }
 

@@ -18,6 +18,15 @@ import (
 
 var errUnexpectedVisitorResultType = errors.New("unexpected visitor result type")
 
+type (
+	diffKV    = map[string]any
+	diffGroup struct {
+		name   string
+		rules  []string
+		inputs []diffKV
+	}
+)
+
 type testStringer struct{ s string }
 
 func (s testStringer) String() string { return s.s }
@@ -98,24 +107,53 @@ func TestEvaluatorProcess(t *testing.T) {
 // and Evaluate against the visitor over a broad rule and input corpus.
 func testProcessDifferential(t *testing.T) {
 	t.Helper()
-	type kv = map[string]any
-	inputs := []kv{
+
+	inputs := differentialInputs()
+	groups := buildAttrDifferentialGroups(inputs)
+	groups = append(groups, buildVersionDifferentialGroup(), buildCombinationDifferentialGroup(inputs))
+	groups = append(groups, buildRandomDifferentialGroups()...)
+	runDifferentialGroups(t, groups)
+}
+
+func differentialInputs() []diffKV {
+	return []diffKV{
 		{},
 		nil,
 		{
 			"i": 5, "i64": int64(7), "i32": int32(3), "f": 2.5, "s": "Hello", "b": true, "n": nil,
-			"v": "1.2.3", "l": []int{1, 2}, "m": kv{"k": "v"}, "bad": "x.y",
-			"u":   kv{"plan": "pro", "age": 31, "n": nil, "deep": kv{"x": 1, "s": "abc", "o": kv{}}},
+			"v": "1.2.3", "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": "x.y",
+			"u":   diffKV{"plan": "pro", "age": 31, "n": nil, "deep": diffKV{"x": 1, "s": "abc", "o": diffKV{}}},
 			"str": "5", "stringer": fmt.Stringer(nil), "e": "",
-			"nilmap": kv(nil), "nm": map[string]string{"a": "b"},
+			"nilmap": diffKV(nil), "nm": map[string]string{"a": "b"},
 			"st": testStringer{"HELLO"}, "f32": float32(1.5), "esc": "a\"b", "uni": "A",
 			"r": deepMap(12), "q": deepMap(20),
 		},
 		{"i": "text", "f": "text", "s": 12, "b": "true", "v": 5, "u": "notamap", "u2": 3.5},
 	}
+}
 
+func buildAttrDifferentialGroups(inputs []diffKV) []diffGroup {
 	ops := []string{"eq", "==", "ne", "!=", "gt", ">", "lt", "<", "ge", ">=", "le", "<=", "co", "sw", "ew", "in", "IN"}
-	attrs := []string{
+	attrs := differentialAttrNames()
+	values := differentialRuleValues()
+
+	groups := make([]diffGroup, 0, len(attrs))
+	for _, a := range attrs {
+		rules := make([]string, 0, 2+len(values)*len(ops))
+		rules = append(rules, a+" pr", "not ("+a+" pr)")
+		for _, op := range ops {
+			for _, v := range values {
+				rules = append(rules, fmt.Sprintf("%s %s %s", a, op, v))
+			}
+		}
+		groups = append(groups, diffGroup{name: "attr/" + a, rules: rules, inputs: inputs})
+	}
+
+	return groups
+}
+
+func differentialAttrNames() []string {
+	return []string{
 		"i",
 		"i64",
 		"i32",
@@ -148,7 +186,10 @@ func testProcessDifferential(t *testing.T) {
 		"r.r.r.r.r.z",
 		"r.r.r.r.r.r.n.x",
 	}
-	values := []string{
+}
+
+func differentialRuleValues() []string {
+	return []string{
 		`1`,
 		`-3`,
 		`5`,
@@ -185,23 +226,9 @@ func testProcessDifferential(t *testing.T) {
 		`[1.5, 1.5e999]`,
 		`[1.5e999]`,
 	}
+}
 
-	type group struct {
-		name   string
-		rules  []string
-		inputs []kv
-	}
-	var groups []group
-	for _, a := range attrs {
-		rules := make([]string, 0, 2+len(values)*len(ops))
-		rules = append(rules, a+" pr", "not ("+a+" pr)")
-		for _, op := range ops {
-			for _, v := range values {
-				rules = append(rules, fmt.Sprintf("%s %s %s", a, op, v))
-			}
-		}
-		groups = append(groups, group{name: "attr/" + a, rules: rules, inputs: inputs})
-	}
+func buildCombinationDifferentialGroup(inputs []diffKV) diffGroup {
 	// combinations: stale state after errors and aborted paths, short circuits.
 	combinations := []string{
 		`i eq 1 or s eq "hello"`,
@@ -273,6 +300,10 @@ func testProcessDifferential(t *testing.T) {
 		``,
 	}
 
+	return diffGroup{name: "combinations", rules: combinations, inputs: inputs}
+}
+
+func buildVersionDifferentialGroup() diffGroup {
 	// versions: the compiled path pre-parses valid rule versions and parses
 	// plain left versions without semver.Make; invalid rule versions keep
 	// VersionOperation.
@@ -287,13 +318,16 @@ func testProcessDifferential(t *testing.T) {
 		`v gt 99999999999999999999.0.0 or w lt 2.0.0`,
 		`v eq 1.2.3 or missing gt 1.0.0`,
 	)
-	versionInputs := make([]kv, 0, 2+len(versionLeftValues()))
-	versionInputs = append(versionInputs, nil, kv{})
+	versionInputs := make([]diffKV, 0, 2+len(versionLeftValues()))
+	versionInputs = append(versionInputs, nil, diffKV{})
 	for _, left := range versionLeftValues() {
-		versionInputs = append(versionInputs, kv{"v": left, "w": left})
+		versionInputs = append(versionInputs, diffKV{"v": left, "w": left})
 	}
-	groups = append(groups, group{name: "versions", rules: versionRules, inputs: versionInputs})
-	groups = append(groups, group{name: "combinations", rules: combinations, inputs: inputs})
+
+	return diffGroup{name: "versions", rules: versionRules, inputs: versionInputs}
+}
+
+func buildRandomDifferentialGroups() []diffGroup {
 	rnd := rand.New(rand.NewSource(1))
 	count := randomRuleCount
 	if testing.Short() {
@@ -303,20 +337,27 @@ func testProcessDifferential(t *testing.T) {
 	for len(randRules) < count {
 		randRules = append(randRules, genRule(rnd, 4))
 	}
-	randInputs := make([]kv, 0, 8)
+	randInputs := make([]diffKV, 0, 8)
 	randInputs = append(randInputs, nil)
 	for range 7 {
 		randInputs = append(randInputs, genMap(rnd, 3))
 	}
 	// chunks run in parallel; one sequential group dominated the run time
 	const chunk = 250
+	groups := make([]diffGroup, 0, (len(randRules)+chunk-1)/chunk)
 	for start := 0; start < len(randRules); start += chunk {
 		end := min(start+chunk, len(randRules))
 		groups = append(
 			groups,
-			group{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs},
+			diffGroup{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs},
 		)
 	}
+
+	return groups
+}
+
+func runDifferentialGroups(t *testing.T, groups []diffGroup) {
+	t.Helper()
 
 	for _, tt := range groups {
 		t.Run(tt.name, func(t *testing.T) {
