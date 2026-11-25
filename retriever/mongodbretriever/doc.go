@@ -1,2 +1,2 @@
-// Package mongodbretriever It retrieves flag configurations from MongoDB.
+// Package mongodbretriever retrieves flag configurations from MongoDB.
 package mongodbretriever

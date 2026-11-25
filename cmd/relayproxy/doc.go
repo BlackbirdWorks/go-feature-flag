@@ -1,2 +1,2 @@
-// Package main It is the entry point of the relay proxy server.
+// Package main is the entry point of the relay proxy server.
 package main

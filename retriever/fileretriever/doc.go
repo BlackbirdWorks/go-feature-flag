@@ -1,2 +1,2 @@
-// Package fileretriever It retrieves flag configurations from local files.
+// Package fileretriever retrieves flag configurations from local files.
 package fileretriever

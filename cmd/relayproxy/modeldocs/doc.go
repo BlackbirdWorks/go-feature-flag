@@ -1,2 +1,2 @@
-// Package modeldocs It holds the documentation stubs of the relay proxy OpenAPI document.
+// Package modeldocs holds the documentation stubs of the relay proxy OpenAPI document.
 package modeldocs

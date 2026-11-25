@@ -1,2 +1,2 @@
-// Package httpretriever It retrieves flag configurations over HTTP.
+// Package httpretriever retrieves flag configurations over HTTP.
 package httpretriever

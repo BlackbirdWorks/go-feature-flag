@@ -1,2 +1,2 @@
-// Package microsoftteamsnotifier It implements the notifier that sends flag changes to Microsoft Teams.
+// Package microsoftteamsnotifier implements the notifier that sends flag changes to Microsoft Teams.
 package microsoftteamsnotifier

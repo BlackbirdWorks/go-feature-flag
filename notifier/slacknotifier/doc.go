@@ -1,2 +1,2 @@
-// Package slacknotifier It implements the notifier that sends flag changes to Slack.
+// Package slacknotifier implements the notifier that sends flag changes to Slack.
 package slacknotifier

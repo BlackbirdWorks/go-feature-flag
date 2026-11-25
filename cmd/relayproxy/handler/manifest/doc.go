@@ -1,2 +1,2 @@
-// Package manifest It implements the HTTP handler that returns the flag manifest of a flagset.
+// Package manifest implements the HTTP handler that returns the flag manifest of a flagset.
 package manifest

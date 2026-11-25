@@ -1,2 +1,2 @@
-// Package webhookexporter It implements the exporter that posts evaluation events to a webhook.
+// Package webhookexporter implements the exporter that posts evaluation events to a webhook.
 package webhookexporter
