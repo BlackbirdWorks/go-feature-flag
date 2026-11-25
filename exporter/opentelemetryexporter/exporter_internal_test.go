@@ -36,13 +36,13 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 
 	// Arrange
 	recorder := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(
+	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(recorder),
 	)
 
 	exp := &Exporter{
 		TracerName:     "test-tracer",
-		tracerProvider: tp,
+		tracerProvider: tracerProvider,
 	}
 
 	events := []exporter.ExportableEvent{

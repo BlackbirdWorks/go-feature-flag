@@ -56,10 +56,10 @@ func (r *Rule) validate(
 		return nil, errImpossibleToReturnValue
 	}
 
-	ev := known
-	if ev == nil {
+	evaluator := known
+	if evaluator == nil {
 		var queryErr error
-		ev, queryErr = r.validateQuery(svc, defaultRule)
+		evaluator, queryErr = r.validateQuery(svc, defaultRule)
 		if queryErr != nil {
 			return nil, queryErr
 		}
@@ -80,7 +80,7 @@ func (r *Rule) validate(
 		return nil, err
 	}
 
-	return ev, nil
+	return evaluator, nil
 }
 
 // validatePercentages validates the percentage configuration of the rule.
@@ -98,14 +98,14 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 	}
 
 	count := float64(0)
-	for k, p := range percentages {
-		err := r.validateSinglePercentage(p, fmt.Sprintf("variation %s", k))
+	for variationKey, pct := range percentages {
+		err := r.validateSinglePercentage(pct, fmt.Sprintf("variation %s", variationKey))
 		if err != nil {
 			return err
 		}
-		count += p
-		if _, ok := variations[k]; !ok {
-			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, k)
+		count += pct
+		if _, ok := variations[variationKey]; !ok {
+			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, variationKey)
 		}
 	}
 

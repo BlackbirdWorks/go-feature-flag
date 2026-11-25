@@ -182,10 +182,10 @@ func (q *queryContext) dataOnce() (any, error) {
 	return q.parsedEvalCtxAsData, nil
 }
 
-// evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
+// evaluateNikunjy is evaluateRule for the nikunjy query that eval evaluates.
 //
 //nolint:nonamedreturns // recover sets the result
-func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext) (success bool) {
+func evaluateNikunjy(eval *parser.Evaluator, query string, queryCtx *queryContext) (success bool) {
 	// Catch any panics that may occur during evaluation
 	defer func() {
 		if r := recover(); r != nil {
@@ -197,7 +197,7 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 		}
 	}()
 
-	return processNikunjy(queryCtx.svc.logger, ev, query, queryCtx.mapOnce())
+	return processNikunjy(queryCtx.svc.logger, eval, query, queryCtx.mapOnce())
 }
 
 func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, mapCtx map[string]any) bool {
@@ -255,7 +255,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 
 		return isJSONLogicTruthy(result)
 	default:
-		ev, err := queryCtx.svc.nikunjy.get(query)
+		evaluator, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
 			queryCtx.svc.logger.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))
@@ -263,7 +263,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 			return false
 		}
 
-		return processNikunjy(queryCtx.svc.logger, ev, query, mapCtx)
+		return processNikunjy(queryCtx.svc.logger, evaluator, query, mapCtx)
 	}
 }
 
@@ -367,15 +367,15 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 	}
 
 	if updatedRule.ProgressiveRollout != nil {
-		c := r.GetProgressiveRollout()
+		rollout := r.GetProgressiveRollout()
 		if updatedRule.ProgressiveRollout.Initial != nil {
-			c.Initial.mergeStep(updatedRule.ProgressiveRollout.Initial)
+			rollout.Initial.mergeStep(updatedRule.ProgressiveRollout.Initial)
 		}
 
 		if updatedRule.ProgressiveRollout.End != nil {
-			c.End.mergeStep(updatedRule.ProgressiveRollout.End)
+			rollout.End.mergeStep(updatedRule.ProgressiveRollout.End)
 		}
-		r.ProgressiveRollout = &c
+		r.ProgressiveRollout = &rollout
 	}
 
 	if updatedRule.Percentages != nil {
@@ -618,16 +618,16 @@ func cloneRuleForMerge(r Rule) Rule {
 		r.Percentages = &p
 	}
 	if r.ProgressiveRollout != nil {
-		pr := *r.ProgressiveRollout
-		if pr.Initial != nil {
-			initial := *pr.Initial
-			pr.Initial = &initial
+		rollout := *r.ProgressiveRollout
+		if rollout.Initial != nil {
+			initial := *rollout.Initial
+			rollout.Initial = &initial
 		}
-		if pr.End != nil {
-			end := *pr.End
-			pr.End = &end
+		if rollout.End != nil {
+			end := *rollout.End
+			rollout.End = &end
 		}
-		r.ProgressiveRollout = &pr
+		r.ProgressiveRollout = &rollout
 	}
 
 	return r

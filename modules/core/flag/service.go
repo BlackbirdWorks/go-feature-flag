@@ -52,7 +52,7 @@ var errNoService = errors.New("no flag.Service: pass the Service of the client i
 
 // NewService creates an empty Service.
 func NewService(opts ...ServiceOption) *Service {
-	s := &Service{
+	svc := &Service{
 		nikunjy: newNikunjyEvaluatorCache(),
 		queryMaps: sync.Pool{
 			New: func() any { return make(map[string]any, queryMapSize) },
@@ -60,13 +60,13 @@ func NewService(opts ...ServiceOption) *Service {
 		logger: slog.New(slog.DiscardHandler),
 	}
 	for _, opt := range opts {
-		opt(s)
+		opt(svc)
 	}
-	s.legacy = legacy.NewWarner(func(kind, message string) {
-		s.logger.Warn(message, slog.String("legacyName", kind))
+	svc.legacy = legacy.NewWarner(func(kind, message string) {
+		svc.logger.Warn(message, slog.String("legacyName", kind))
 	})
 
-	return s
+	return svc
 }
 
 // queryMapSize is the initial size of the maps that queryMaps hands out.

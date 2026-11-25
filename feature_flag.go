@@ -146,18 +146,18 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 	trackingEventExporterConfigs := make([]exporter.Config, 0)
 	if len(exporters) > 0 {
 		for _, exp := range exporters {
-			c := exporter.Config{
+			expCfg := exporter.Config{
 				Exporter:         exp.Exporter,
 				FlushInterval:    exp.FlushInterval,
 				MaxEventInMemory: exp.MaxEventInMemory,
 				MaxQueuedEvents:  exp.MaxQueuedEvents,
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
-				trackingEventExporterConfigs = append(trackingEventExporterConfigs, c)
+				trackingEventExporterConfigs = append(trackingEventExporterConfigs, expCfg)
 
 				continue
 			}
-			featureEventExporterConfigs = append(featureEventExporterConfigs, c)
+			featureEventExporterConfigs = append(featureEventExporterConfigs, expCfg)
 		}
 	}
 

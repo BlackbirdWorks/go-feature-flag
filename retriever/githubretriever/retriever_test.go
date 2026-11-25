@@ -168,18 +168,18 @@ func Test_github_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := githubretriever.Retriever{
+			ret := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
 				GithubToken:    tt.fields.githubToken,
 			}
 
-			h.SetHTTPClient(&tt.fields.httpClient)
+			ret.SetHTTPClient(&tt.fields.httpClient)
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
-			got, err := h.Retrieve(ctx)
+			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
@@ -351,7 +351,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := githubretriever.Retriever{
+			ret := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
 				GithubToken:    tt.fields.githubToken,
@@ -359,8 +359,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 				Branch:         tt.fields.branch,
 			}
 
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(context.Background())
+			ret.SetHTTPClient(&tt.fields.httpClient)
+			got, err := ret.Retrieve(context.Background())
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
 			if !tt.wantErr {
 				assert.Equal(t, string(tt.want), string(got))
@@ -380,26 +380,26 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 func TestRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	h := githubretriever.Retriever{
+	ret := githubretriever.Retriever{
 		RepositorySlug: "thomaspoignant/go-feature-flag",
 		FilePath:       "testdata/flag-config.yaml",
 	}
 
 	httpClient := &mock.HTTP{}
-	h.SetHTTPClient(httpClient)
-	_, err := h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err := ret.Retrieve(context.TODO())
 	require.NoError(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{RateLimit: true}
-	h.SetHTTPClient(httpClient)
-	_, err = h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err = ret.Retrieve(context.TODO())
 	require.Error(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{}
-	h.SetHTTPClient(httpClient)
-	_, err = h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err = ret.Retrieve(context.TODO())
 	require.Error(t, err)
 	assert.False(t, httpClient.HasBeenCalled)
 }

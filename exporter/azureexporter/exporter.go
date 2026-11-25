@@ -92,7 +92,7 @@ func (f *Exporter) Export(
 
 	for _, file := range files {
 		fileName := file.Name()
-		of, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
+		fileHandle, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
 		if openErr != nil {
 			logger.ErrorContext(
 				ctx,
@@ -102,7 +102,7 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName)
+		uploadFileErr := f.uploadFile(ctx, client, logger, fileHandle, outputDir, fileName)
 		if uploadFileErr != nil {
 			return uploadFileErr
 		}
@@ -144,10 +144,10 @@ func (f *Exporter) uploadFile(
 	ctx context.Context,
 	client *azblob.Client,
 	logger *fflog.FFLogger,
-	of *os.File,
+	fileHandle *os.File,
 	outputDir, fileName string,
 ) error {
-	defer func() { _ = of.Close() }()
+	defer func() { _ = fileHandle.Close() }()
 
 	// prepend the path
 	source := fileName
@@ -155,7 +155,7 @@ func (f *Exporter) uploadFile(
 		source = f.Path + "/" + fileName
 	}
 
-	_, err := client.UploadFile(ctx, f.Container, source, of, nil)
+	_, err := client.UploadFile(ctx, f.Container, source, fileHandle, nil)
 	if err != nil {
 		logger.ErrorContext(
 			ctx,

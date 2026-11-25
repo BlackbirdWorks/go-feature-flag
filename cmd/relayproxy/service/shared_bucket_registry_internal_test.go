@@ -46,7 +46,7 @@ type fakeS3 struct {
 }
 
 func (f *fakeS3) ListObjectsV2(
-	_ context.Context, in *s3.ListObjectsV2Input, _ ...func(*s3.Options),
+	_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
 	f.lists.Add(1)
 	if f.listErr != nil {
@@ -58,7 +58,7 @@ func (f *fakeS3) ListObjectsV2(
 		keys = []string{"p/a.yaml", "p/b.yaml", "p/c.yaml"}
 	}
 	for _, k := range keys {
-		if strings.HasPrefix(k, aws.ToString(in.Prefix)) {
+		if strings.HasPrefix(k, aws.ToString(input.Prefix)) {
 			out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(f.etagOf(k))})
 		}
 	}
@@ -67,21 +67,21 @@ func (f *fakeS3) ListObjectsV2(
 }
 
 func (f *fakeS3) DownloadObject(
-	_ context.Context, in *transfermanager.DownloadObjectInput, _ ...func(*transfermanager.Options),
+	_ context.Context, input *transfermanager.DownloadObjectInput, _ ...func(*transfermanager.Options),
 ) (*transfermanager.DownloadObjectOutput, error) {
 	f.gets.Add(1)
 	f.mu.Lock()
 	if f.getsByKey == nil {
 		f.getsByKey = map[string]int{}
 	}
-	f.getsByKey[aws.ToString(in.Key)]++
+	f.getsByKey[aws.ToString(input.Key)]++
 	f.mu.Unlock()
-	_, err := in.WriterAt.WriteAt(f.content, 0)
+	_, err := input.WriterAt.WriteAt(f.content, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return &transfermanager.DownloadObjectOutput{ETag: aws.String(f.etagOf(aws.ToString(in.Key)))}, nil
+	return &transfermanager.DownloadObjectOutput{ETag: aws.String(f.etagOf(aws.ToString(input.Key)))}, nil
 }
 
 func (f *fakeS3) setETag(key, etag string) {
@@ -117,7 +117,7 @@ func newFakeRegistry(t *testing.T, f *fakeS3, created *atomic.Int32) *sharedBuck
 }
 
 func newFakeRegistryWithPolling(
-	t *testing.T, f *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *slog.Logger,
+	t *testing.T, fake *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *slog.Logger,
 ) *sharedBucketRegistry {
 	t.Helper()
 
@@ -125,7 +125,7 @@ func newFakeRegistryWithPolling(
 		created.Add(1)
 
 		return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
-			Bucket: bucket, Lister: f, Downloader: f,
+			Bucket: bucket, Lister: fake, Downloader: fake,
 		})
 	}, interval, jitter, logger)
 }
@@ -167,7 +167,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
 			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
 				s3FlagSet("c", "b2", "p/c.yaml")
-			r1, err := reg.retrieverFor(&fs1)
+			ret1, err := reg.retrieverFor(&fs1)
 			require.NoError(t, err)
 			_, err = reg.retrieverFor(&fs2)
 			require.NoError(t, err)
@@ -177,7 +177,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			got = append(got, int(created.Load()), reg.groupCount())
 
 			// Shutdown twice is harmless
-			rel1, ok := r1.(*releasingRetriever)
+			rel1, ok := ret1.(*releasingRetriever)
 			require.True(t, ok)
 			require.NoError(t, rel1.Shutdown(t.Context()))
 			require.NoError(t, rel1.Shutdown(t.Context()))
@@ -188,16 +188,16 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml")
-			r1, err := reg.retrieverFor(&fs1)
+			ret1, err := reg.retrieverFor(&fs1)
 			require.NoError(t, err)
-			r2, err := reg.retrieverFor(&fs2)
+			ret2, err := reg.retrieverFor(&fs2)
 			require.NoError(t, err)
-			rel1, ok := r1.(*releasingRetriever)
+			rel1, ok := ret1.(*releasingRetriever)
 			require.True(t, ok)
 			require.NoError(t, rel1.Shutdown(t.Context()))
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
-			rel2, ok := r2.(*releasingRetriever)
+			rel2, ok := ret2.(*releasingRetriever)
 			require.True(t, ok)
 			require.NoError(t, rel2.Shutdown(t.Context()))
 

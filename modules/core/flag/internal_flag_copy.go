@@ -97,23 +97,23 @@ func (r *Rule) deepCopy() *Rule {
 	if r == nil {
 		return nil
 	}
-	c := *r
-	c.Name = copyPtr(r.Name)
-	c.Query = copyPtr(r.Query)
-	c.VariationResult = copyPtr(r.VariationResult)
-	c.Disable = copyPtr(r.Disable)
+	copied := *r
+	copied.Name = copyPtr(r.Name)
+	copied.Query = copyPtr(r.Query)
+	copied.VariationResult = copyPtr(r.VariationResult)
+	copied.Disable = copyPtr(r.Disable)
 	if r.Percentages != nil {
 		p := maps.Clone(*r.Percentages)
-		c.Percentages = &p
+		copied.Percentages = &p
 	}
 	if r.ProgressiveRollout != nil {
-		c.ProgressiveRollout = &ProgressiveRollout{
+		copied.ProgressiveRollout = &ProgressiveRollout{
 			Initial: r.ProgressiveRollout.Initial.deepCopy(),
 			End:     r.ProgressiveRollout.End.deepCopy(),
 		}
 	}
 
-	return &c
+	return &copied
 }
 
 func (p *ProgressiveRolloutStep) deepCopy() *ProgressiveRolloutStep {
@@ -138,59 +138,59 @@ func (e *ExperimentationRollout) deepCopy() *ExperimentationRollout {
 
 // deepCopyValue copies the maps and the slices of a value read from a configuration (variation values and
 // metadata), at any depth. The other values (strings, numbers, booleans, ...) are immutable and are returned as is.
-func deepCopyValue(v any) any {
-	switch x := v.(type) {
+func deepCopyValue(val any) any {
+	switch typed := val.(type) {
 	case nil:
 		return nil
 	case map[string]any:
-		out := make(map[string]any, len(x))
-		for k, e := range x {
+		out := make(map[string]any, len(typed))
+		for k, e := range typed {
 			out[k] = deepCopyValue(e)
 		}
 
 		return out
 	case []any:
-		out := make([]any, len(x))
-		for i, e := range x {
+		out := make([]any, len(typed))
+		for i, e := range typed {
 			out[i] = deepCopyValue(e)
 		}
 
 		return out
 	}
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
+	reflVal := reflect.ValueOf(val)
+	switch reflVal.Kind() {
 	case reflect.Map:
-		if rv.IsNil() {
-			return v
+		if reflVal.IsNil() {
+			return val
 		}
-		out := reflect.MakeMapWithSize(rv.Type(), rv.Len())
-		for it := rv.MapRange(); it.Next(); {
+		out := reflect.MakeMapWithSize(reflVal.Type(), reflVal.Len())
+		for it := reflVal.MapRange(); it.Next(); {
 			out.SetMapIndex(it.Key(), copyReflected(it.Value()))
 		}
 
 		return out.Interface()
 	case reflect.Slice:
-		if rv.IsNil() {
-			return v
+		if reflVal.IsNil() {
+			return val
 		}
-		out := reflect.MakeSlice(rv.Type(), rv.Len(), rv.Len())
-		for i := range rv.Len() {
-			out.Index(i).Set(copyReflected(rv.Index(i)))
+		out := reflect.MakeSlice(reflVal.Type(), reflVal.Len(), reflVal.Len())
+		for i := range reflVal.Len() {
+			out.Index(i).Set(copyReflected(reflVal.Index(i)))
 		}
 
 		return out.Interface()
 	default:
-		return v
+		return val
 	}
 }
 
-func copyReflected(v reflect.Value) reflect.Value {
-	if !v.CanInterface() || (v.Kind() == reflect.Interface && v.IsNil()) {
-		return v
+func copyReflected(val reflect.Value) reflect.Value {
+	if !val.CanInterface() || (val.Kind() == reflect.Interface && val.IsNil()) {
+		return val
 	}
-	c := deepCopyValue(v.Interface())
+	c := deepCopyValue(val.Interface())
 	if c == nil {
-		return reflect.Zero(v.Type())
+		return reflect.Zero(val.Type())
 	}
 
 	return reflect.ValueOf(c)

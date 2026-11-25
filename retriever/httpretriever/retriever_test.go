@@ -138,18 +138,18 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := httpretriever.Retriever{
+			ret := httpretriever.Retriever{
 				URL:    tt.fields.url,
 				Method: tt.fields.method,
 				Body:   tt.fields.body,
 				Header: tt.fields.header,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
+			ret.SetHTTPClient(&tt.fields.httpClient)
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
-			got, err := h.Retrieve(ctx)
+			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,

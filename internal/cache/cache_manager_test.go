@@ -654,16 +654,16 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			// Test UpdateCache without notification
 			mockNotificationService := &mock.NotificationService{}
-			cm := cache.New(
+			cacheMgr := cache.New(
 				mockNotificationService,
 				"",
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 			)
 
-			err := cm.UpdateCache(tt.initialFlags, nil, false)
+			err := cacheMgr.UpdateCache(tt.initialFlags, nil, false)
 			require.NoError(t, err)
 
-			err = cm.UpdateCache(tt.updatedFlags, nil, false)
+			err = cacheMgr.UpdateCache(tt.updatedFlags, nil, false)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
@@ -672,23 +672,23 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"Notify should not be called for UpdateCache",
 			)
 
-			flags, err := cm.AllFlags()
+			flags, err := cacheMgr.AllFlags()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
 				"Cache should hold the updated flags")
 
 			// Test UpdateCacache with notification
 			mockNotificationService = &mock.NotificationService{}
-			cm = cache.New(
+			cacheMgr = cache.New(
 				mockNotificationService,
 				"",
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 			)
 
-			err = cm.UpdateCache(tt.initialFlags, nil, false)
+			err = cacheMgr.UpdateCache(tt.initialFlags, nil, false)
 			require.NoError(t, err)
 
-			err = cm.UpdateCache(tt.updatedFlags, nil, true)
+			err = cacheMgr.UpdateCache(tt.updatedFlags, nil, true)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
@@ -697,7 +697,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"Notify should be called once for UpdateCache with notification",
 			)
 
-			flags, err = cm.AllFlags()
+			flags, err = cacheMgr.AllFlags()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
 				"Cache should hold the updated flags")

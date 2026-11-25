@@ -186,13 +186,13 @@ func findRetrieverByName(retrievers []retriever.Retriever, name string) retrieve
 // initCalled reports whether Init was recorded as called on a mock retriever.
 // The second return value is false when r is not an initializable mock type.
 func initCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	default:
 		return false, false
 	}
@@ -200,13 +200,13 @@ func initCalled(r retriever.Retriever) (bool, bool) {
 
 // statusCalled reports whether Status was recorded as called on a mock retriever.
 func statusCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	default:
 		return false, false
 	}
@@ -214,13 +214,13 @@ func statusCalled(r retriever.Retriever) (bool, bool) {
 
 // shutdownCalled reports whether Shutdown was recorded as called on a mock retriever.
 func shutdownCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	default:
 		return false, false
 	}

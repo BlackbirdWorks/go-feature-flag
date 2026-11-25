@@ -71,7 +71,7 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			exp := &collectingExporter{}
-			c, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval:             time.Hour,
 				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 				EvaluationContextEnrichment: tt.enrichment,
@@ -82,9 +82,9 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			for k, v := range tt.callerCustom {
 				ctx.AddCustomAttribute(k, v)
 			}
-			_, err = c.BoolVariation("test-flag", ctx, false)
+			_, err = client.BoolVariation("test-flag", ctx, false)
 			require.NoError(t, err)
-			c.Close()
+			client.Close()
 
 			exp.mu.Lock()
 			defer exp.mu.Unlock()

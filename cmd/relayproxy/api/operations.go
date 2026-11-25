@@ -293,7 +293,7 @@ func operationSSE(api huma.API) *huma.Operation {
 
 // operationWebsocket documents GET /stream/v1/ws/flag/change, and its deprecated alias GET /ws/v1/flag/change.
 func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
-	op := &huma.Operation{
+	operation := &huma.Operation{
 		OperationID: "wsFlagChange", Method: http.MethodGet, Path: "/stream/v1/ws/flag/change",
 		Summary: "Websocket endpoint to be notified about flag changes", Tags: []string{tagStream},
 		Description: "This endpoint is a websocket endpoint to be notified about flag changes;\n" +
@@ -308,16 +308,16 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 		},
 	}
 	if deprecated {
-		op.OperationID = "wsFlagChangeLegacy"
-		op.Path = "/ws/v1/flag/change"
-		op.Deprecated = true
-		op.Description = "Deprecated: use /stream/v1/ws/flag/change instead. This endpoint\n" +
+		operation.OperationID = "wsFlagChangeLegacy"
+		operation.Path = "/ws/v1/flag/change"
+		operation.Deprecated = true
+		operation.Description = "Deprecated: use /stream/v1/ws/flag/change instead. This endpoint\n" +
 			"is a websocket endpoint to be notified about flag changes; every\n" +
 			"change pushes a notifier.DiffCache message to the client.\n" +
 			"When disableFlagDetailsInStream is true, values are empty objects."
 	}
 
-	return op
+	return operation
 }
 
 func operationMetrics() *huma.Operation {

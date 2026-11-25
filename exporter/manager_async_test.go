@@ -118,18 +118,18 @@ func Test_Manager_QueueEvents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: tt.exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQueued,
 			}}, time.Hour, nil)
-			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
 			total := 0
 			for range tt.batches {
 				batch := make([]exporter.FeatureEvent, tt.batchSize)
-				am.QueueEvents(batch)
+				asyncMgr.QueueEvents(batch)
 				total += tt.batchSize
 			}
-			m.Stop()
+			mgr.Stop()
 			if tt.wantAll {
 				assert.Equal(t, int64(total), tt.exp.events.Load())
 			}
@@ -137,12 +137,12 @@ func Test_Manager_QueueEvents(t *testing.T) {
 				assert.LessOrEqual(t, tt.exp.calls.Load(), tt.maxCalls)
 			}
 			if tt.wantDroped {
-				dc, dcOK := m.(exporter.DroppedEventsCounter)
+				dc, dcOK := mgr.(exporter.DroppedEventsCounter)
 				require.True(t, dcOK)
 				assert.Positive(t, dc.DroppedEvents())
 			}
 			// events queued after Stop are only stored: no goroutine is started
-			am.QueueEvents(make([]exporter.FeatureEvent, 3))
+			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 3))
 		})
 	}
 }

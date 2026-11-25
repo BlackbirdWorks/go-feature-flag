@@ -572,18 +572,18 @@ func TestConvertToFFLogger(t *testing.T) {
 func TestGetLogLogger(t *testing.T) {
 	t.Parallel()
 
-	l := log.New(os.Stdout, "", 0)
+	stdLogger := log.New(os.Stdout, "", 0)
 	ffl := &fflog.FFLogger{
 		LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
-		LegacyLogger:  l,
+		LegacyLogger:  stdLogger,
 	}
 
 	ffl2 := &fflog.FFLogger{
-		LegacyLogger: l,
+		LegacyLogger: stdLogger,
 	}
 
-	assert.NotEqual(t, ffl.GetLogLogger(slog.LevelInfo), l)
-	assert.Equal(t, ffl2.GetLogLogger(slog.LevelInfo), l)
+	assert.NotEqual(t, ffl.GetLogLogger(slog.LevelInfo), stdLogger)
+	assert.Equal(t, ffl2.GetLogLogger(slog.LevelInfo), stdLogger)
 }
 
 func TestFFLogger_ContextMethods(t *testing.T) {

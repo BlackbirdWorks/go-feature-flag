@@ -138,15 +138,15 @@ func buildAttrDifferentialGroups(inputs []diffKV) []diffGroup {
 	values := differentialRuleValues()
 
 	groups := make([]diffGroup, 0, len(attrs))
-	for _, a := range attrs {
+	for _, attr := range attrs {
 		rules := make([]string, 0, 2+len(values)*len(ops))
-		rules = append(rules, a+" pr", "not ("+a+" pr)")
+		rules = append(rules, attr+" pr", "not ("+attr+" pr)")
 		for _, op := range ops {
 			for _, v := range values {
-				rules = append(rules, fmt.Sprintf("%s %s %s", a, op, v))
+				rules = append(rules, fmt.Sprintf("%s %s %s", attr, op, v))
 			}
 		}
-		groups = append(groups, diffGroup{name: "attr/" + a, rules: rules, inputs: inputs})
+		groups = append(groups, diffGroup{name: "attr/" + attr, rules: rules, inputs: inputs})
 	}
 
 	return groups
@@ -377,14 +377,14 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 				for i, input := range tt.inputs {
 					wantRet, wantErr, wantDebug := visitorProcess(tree, input)
 					fresh := &Evaluator{rule: rule, tree: tree}
-					for name, ev := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
-						gotRet, gotErr := ev.Process(input)
+					for name, eval := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
+						gotRet, gotErr := eval.Process(input)
 						assert.Equal(t, wantRet, gotRet, "%q input %d (%s): result", rule, i, name)
 						assert.Equal(t, errString(wantErr), errString(gotErr), "%q input %d (%s): err", rule, i, name)
 						assert.Equal(
 							t,
 							errString(wantDebug),
-							errString(ev.LastDebugErr()),
+							errString(eval.LastDebugErr()),
 							"%q input %d (%s): debug err",
 							rule,
 							i,
@@ -540,14 +540,14 @@ func genVal(r *rand.Rand, depth int) any {
 }
 
 func genMap(r *rand.Rand, depth int) map[string]any {
-	m := map[string]any{}
+	res := map[string]any{}
 	for _, a := range fuzzAttrs() {
 		if r.Intn(3) != 0 {
-			m[a] = genVal(r, depth)
+			res[a] = genVal(r, depth)
 		}
 	}
 
-	return m
+	return res
 }
 
 func testProcessZeroValue(t *testing.T) {
@@ -627,14 +627,14 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
-			_, err = ev.Process(tt.bad)
+			_, err = eval.Process(tt.bad)
 			require.NoError(t, err)
 			var ne *NestedError
-			require.ErrorAs(t, ev.LastDebugErr(), &ne)
+			require.ErrorAs(t, eval.LastDebugErr(), &ne)
 			tt.mutate(t, ne.Vals["rule_operand"])
-			got, _ := ev.Process(tt.probe)
+			got, _ := eval.Process(tt.probe)
 			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
 	}
@@ -687,15 +687,15 @@ func testProcessConcurrent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
 					for range 500 {
-						got, processErr := ev.Process(tt.items)
+						got, processErr := eval.Process(tt.items)
 						assert.Equal(t, tt.want, got)
-						_ = ev.LastDebugErr()
+						_ = eval.LastDebugErr()
 						assert.NoError(t, processErr)
 					}
 				})
@@ -757,28 +757,28 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
-			_, err = ev.Process(tt.items)
+			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
-			var ne *NestedError
-			require.ErrorAs(t, ev.LastDebugErr(), &ne)
+			var nestedErr *NestedError
+			require.ErrorAs(t, eval.LastDebugErr(), &nestedErr)
 			var eio *InvalidOperandError
-			require.ErrorAs(t, ne.Err, &eio)
+			require.ErrorAs(t, nestedErr.Err, &eio)
 			tt.mut(t, eio.Val)
 			if typeObj := reflect.ValueOf(eio.typeObj); typeObj.Kind() == reflect.Slice {
-				assert.NotEqual(t, reflect.ValueOf(ev.root.cmp.listOp).Pointer(), typeObj.Pointer(),
+				assert.NotEqual(t, reflect.ValueOf(eval.root.cmp.listOp).Pointer(), typeObj.Pointer(),
 					"typeObj shares the compiled list's backing array")
 				tt.mut(t, eio.typeObj)
 			} else {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
-			tt.mut(t, ne.Vals["rule_operand"])
-			assert.Equal(t, tt.want, ev.root.cmp.listOp, "compiled constant mutated")
-			_, err = ev.Process(tt.items)
+			tt.mut(t, nestedErr.Vals["rule_operand"])
+			assert.Equal(t, tt.want, eval.root.cmp.listOp, "compiled constant mutated")
+			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
 			var ne2 *NestedError
-			require.ErrorAs(t, ev.LastDebugErr(), &ne2)
+			require.ErrorAs(t, eval.LastDebugErr(), &ne2)
 			var eio2 *InvalidOperandError
 			require.ErrorAs(t, ne2.Err, &eio2)
 			assert.Equal(t, tt.want, eio2.Val, "later debug error affected")
@@ -806,14 +806,14 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for range 50 {
-				ev, err := NewEvaluator(tt.rule)
+				eval, err := NewEvaluator(tt.rule)
 				require.NoError(t, err)
 				var wg sync.WaitGroup
 				start := make(chan struct{})
 				for range 16 {
 					wg.Go(func() {
 						<-start
-						got, processErr := ev.Process(tt.items)
+						got, processErr := eval.Process(tt.items)
 						assert.Equal(t, tt.want, got)
 						assert.NoError(t, processErr)
 					})
@@ -843,30 +843,30 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			wantRet, wantErr, wantDebug := visitorProcess(tt.tree, tt.items)
-			ev := &Evaluator{tree: tt.tree}
+			eval := &Evaluator{tree: tt.tree}
 			for call := range 2 {
-				gotRet, gotErr := ev.Process(tt.items)
+				gotRet, gotErr := eval.Process(tt.items)
 				assert.Equal(t, wantRet, gotRet, "call %d", call)
 				assert.Equal(t, errString(wantErr), errString(gotErr), "call %d", call)
-				assert.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "call %d", call)
+				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "call %d", call)
 			}
-			assert.Nil(t, ev.root, "failed compile must leave no root")
-			assert.NotNil(t, ev.tree, "failed compile must keep the tree")
+			assert.Nil(t, eval.root, "failed compile must leave no root")
+			assert.NotNil(t, eval.tree, "failed compile must keep the tree")
 		})
 	}
 }
 
 func testProcessDropsTreeAfterCompile(t *testing.T) {
 	t.Helper()
-	ev, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(`x eq 1`)
 	require.NoError(t, err)
-	require.NotNil(t, ev.tree, "NewEvaluator must only parse")
-	require.Nil(t, ev.root, "NewEvaluator must only parse")
-	got, err := ev.Process(map[string]any{"x": 1})
+	require.NotNil(t, eval.tree, "NewEvaluator must only parse")
+	require.Nil(t, eval.root, "NewEvaluator must only parse")
+	got, err := eval.Process(map[string]any{"x": 1})
 	require.NoError(t, err)
 	assert.True(t, got)
-	assert.Nil(t, ev.tree, "tree should be dropped once compiled")
-	assert.NotNil(t, ev.root)
+	assert.Nil(t, eval.tree, "tree should be dropped once compiled")
+	assert.NotNil(t, eval.root)
 }
 
 func testProcessVersionFastPath(t *testing.T) {
@@ -891,21 +891,21 @@ func testProcessVersionFastPath(t *testing.T) {
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
 			// the differential versions group would skip a rule that does not parse
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			items := map[string]any{"v": "1.2.3"}
-			want, wantErr := ev.Process(items)
-			assert.Equal(t, tt.wantFast, ev.root.cmp.version != nil, "fast path")
+			want, wantErr := eval.Process(items)
+			assert.Equal(t, tt.wantFast, eval.root.cmp.version != nil, "fast path")
 			// the fast path must be what evaluates the rule: with apply
 			// replaced, only the slow path would notice
-			slow := ev.root.cmp.apply
+			slow := eval.root.cmp.apply
 			calledSlow := false
-			ev.root.cmp.apply = func(l, r Operand) (bool, error) {
+			eval.root.cmp.apply = func(l, r Operand) (bool, error) {
 				calledSlow = true
 
 				return slow(l, r)
 			}
-			got, err := ev.Process(items)
+			got, err := eval.Process(items)
 			assert.Equal(t, want, got)
 			assert.Equal(t, errString(wantErr), errString(err))
 			assert.Equal(t, tt.wantFast, !calledSlow, "evaluated by the fast path")
@@ -918,27 +918,27 @@ func testProcessStaleDebugErr(t *testing.T) {
 	bad := map[string]any{"x": "s"}
 	good := map[string]any{"x": 1}
 	tests := []struct {
-		clear func(ev *Evaluator)
+		clear func(eval *Evaluator)
 		name  string
 	}{
-		{name: "clean call", clear: func(ev *Evaluator) { _, _ = ev.Process(good) }},
-		{name: "reset", clear: func(ev *Evaluator) { _ = ev.Reset() }},
-		{name: "panicking call", clear: func(ev *Evaluator) {
-			ev.testHookPanic = func() { panic("p") }
-			_, _ = ev.Process(good)
-			ev.testHookPanic = nil
+		{name: "clean call", clear: func(eval *Evaluator) { _, _ = eval.Process(good) }},
+		{name: "reset", clear: func(eval *Evaluator) { _ = eval.Reset() }},
+		{name: "panicking call", clear: func(eval *Evaluator) {
+			eval.testHookPanic = func() { panic("p") }
+			_, _ = eval.Process(good)
+			eval.testHookPanic = nil
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(`x in [1, 2]`)
+			eval, err := NewEvaluator(`x in [1, 2]`)
 			require.NoError(t, err)
 			for round := range 3 {
-				_, _ = ev.Process(bad)
-				require.Error(t, ev.LastDebugErr(), "round %d: want a debug error", round)
-				tt.clear(ev)
-				require.NoError(t, ev.LastDebugErr(), "round %d: stale debug error", round)
+				_, _ = eval.Process(bad)
+				require.Error(t, eval.LastDebugErr(), "round %d: want a debug error", round)
+				tt.clear(eval)
+				require.NoError(t, eval.LastDebugErr(), "round %d: stale debug error", round)
 			}
 		})
 	}
@@ -948,18 +948,18 @@ func testProcessStaleDebugErr(t *testing.T) {
 // does not leave the debug error another call stored while it was running.
 func TestPanicClearsDebugErrStoredByOverlappingCall(t *testing.T) {
 	t.Parallel()
-	ev, err := NewEvaluator(`x in [1, 2]`)
+	eval, err := NewEvaluator(`x in [1, 2]`)
 	require.NoError(t, err)
-	ev.testHookPanic = func() {
-		ev.testHookPanic = nil
+	eval.testHookPanic = func() {
+		eval.testHookPanic = nil
 		// stands in for an overlapping call that failed after this one started
-		_, _ = ev.Process(map[string]any{"x": "not a number"})
-		require.Error(t, ev.LastDebugErr(), "overlapping call should have stored a debug error")
+		_, _ = eval.Process(map[string]any{"x": "not a number"})
+		require.Error(t, eval.LastDebugErr(), "overlapping call should have stored a debug error")
 		panic("p")
 	}
-	_, err = ev.Process(map[string]any{"x": 1})
+	_, err = eval.Process(map[string]any{"x": 1})
 	require.Error(t, err, "want the recovered panic as an error")
-	assert.NoError(t, ev.LastDebugErr(), "stale debug error")
+	assert.NoError(t, eval.LastDebugErr(), "stale debug error")
 }
 
 func TestParsePlainVersion(t *testing.T) {
@@ -985,23 +985,23 @@ func TestParsePlainVersion(t *testing.T) {
 		}
 		inputs = append(inputs, string(b))
 	}
-	for _, in := range inputs {
-		got, ok := parsePlainVersion(in)
-		want, err := semver.Make(in)
+	for _, input := range inputs {
+		got, ok := parsePlainVersion(input)
+		want, err := semver.Make(input)
 		if !ok {
 			continue
 		}
-		require.NoError(t, err, "%q: accepted but semver.Make fails", in)
-		assert.Empty(t, want.Pre, "%q", in)
-		assert.Equal(t, want.Major, got.Major, "%q", in)
-		assert.Equal(t, want.Minor, got.Minor, "%q", in)
-		assert.Equal(t, want.Patch, got.Patch, "%q", in)
-		assert.Nil(t, got.Pre, "%q", in)
-		assert.Nil(t, got.Build, "%q", in)
+		require.NoError(t, err, "%q: accepted but semver.Make fails", input)
+		assert.Empty(t, want.Pre, "%q", input)
+		assert.Equal(t, want.Major, got.Major, "%q", input)
+		assert.Equal(t, want.Minor, got.Minor, "%q", input)
+		assert.Equal(t, want.Patch, got.Patch, "%q", input)
+		assert.Nil(t, got.Pre, "%q", input)
+		assert.Nil(t, got.Build, "%q", input)
 	}
-	for _, in := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
-		_, ok := parsePlainVersion(in)
-		assert.True(t, ok, "%q: not parsed by the fast path", in)
+	for _, input := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
+		_, ok := parsePlainVersion(input)
+		assert.True(t, ok, "%q: not parsed by the fast path", input)
 	}
 }
 
@@ -1066,13 +1066,13 @@ func testProcessConcurrentStaleList(t *testing.T) {
 			tree, err := parseRule(tt.rule)
 			require.NoError(t, err)
 			wantRet, wantErr, wantDebug := visitorProcess(tree, tt.items)
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			var wg sync.WaitGroup
 			for range 8 {
 				wg.Go(func() {
 					for range 200 {
-						got, processErr := ev.Process(tt.items)
+						got, processErr := eval.Process(tt.items)
 						if !assert.Equal(t, wantRet, got) ||
 							!assert.Equal(t, errString(wantErr), errString(processErr)) {
 							return
@@ -1081,7 +1081,7 @@ func testProcessConcurrentStaleList(t *testing.T) {
 				})
 			}
 			wg.Wait()
-			assert.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "debug err")
+			assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "debug err")
 		})
 	}
 }
@@ -1103,25 +1103,25 @@ func TestAttrStack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var s attrStack
+			var stack attrStack
 			var want []any
 			for i, op := range tt.ops {
 				switch {
 				case op > 0:
-					s.push(op)
+					stack.push(op)
 					want = append(want, op)
 				case op == 0:
-					s.pop()
+					stack.pop()
 					want = want[:len(want)-1]
 				default:
-					s.clear()
+					stack.clear()
 					want = want[:0]
 				}
 				wantMore := max(len(want)-attrStackInline, 0)
-				require.Equal(t, len(want), s.n, "op %d: n", i)
-				require.Len(t, s.more, wantMore, "op %d: len(more)", i)
-				if s.n > 0 {
-					require.Equal(t, want[len(want)-1], s.top(), "op %d: top", i)
+				require.Equal(t, len(want), stack.n, "op %d: n", i)
+				require.Len(t, stack.more, wantMore, "op %d: len(more)", i)
+				if stack.n > 0 {
+					require.Equal(t, want[len(want)-1], stack.top(), "op %d: top", i)
 				}
 			}
 		})

@@ -143,14 +143,14 @@ func TestExporterExport(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := &Exporter{
+			sqsExp := &Exporter{
 				QueueURL:   tt.fields.QueueURL,
 				AwsConfig:  tt.fields.AwsConfig,
 				sqsService: &tt.fields.sqsService,
 			}
 
 			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
-			err := f.Export(context.TODO(), logger, tt.events)
+			err := sqsExp.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
 

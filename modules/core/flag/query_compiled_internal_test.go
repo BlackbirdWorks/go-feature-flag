@@ -90,13 +90,13 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			n := 0
+			count := 0
 			svc.compiled.Range(func(_, _ any) bool {
-				n++
+				count++
 
 				return true
 			})
-			assert.Equal(t, tt.wantStoredSize, n)
+			assert.Equal(t, tt.wantStoredSize, count)
 		})
 	}
 }

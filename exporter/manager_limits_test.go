@@ -56,24 +56,24 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 			t.Parallel()
 			// the small exporter is down: its events wait for it to recover (final flush).
 			small, large := &outageExporter{}, &countingExporter{bulk: true}
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
-			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			am, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
 			for range tt.events {
 				if tt.async {
 					am.QueueEvents(make([]exporter.FeatureEvent, 1))
 				} else {
-					m.AddEvent(exporter.FeatureEvent{})
+					mgr.AddEvent(exporter.FeatureEvent{})
 				}
 			}
-			dc, ok := m.(exporter.DroppedEventsCounter)
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
 			dropped := dc.DroppedEvents()
 			small.recovered.Store(true)
-			m.Stop()
+			mgr.Stop()
 			assert.LessOrEqual(t, small.events.Load(), tt.wantSmallMax, "the small exporter keeps at most its limit")
 			assert.Equal(t, tt.wantLarge, large.events.Load(), "the other exporter loses nothing")
 			assert.Equal(t, tt.wantDropped, dropped, "every event given up is counted")

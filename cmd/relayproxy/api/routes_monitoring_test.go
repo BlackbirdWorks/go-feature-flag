@@ -48,7 +48,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			z := slog.New(slog.DiscardHandler)
+			logger := slog.New(slog.DiscardHandler)
 			ln, port := testutils.ListenLocal(t)
 			opts := []api.Option{api.WithListener(ln)}
 			monitoringPort := 0
@@ -57,7 +57,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 				monitoringLn, monitoringPort = testutils.ListenLocal(t)
 				opts = append(opts, api.WithMonitoringListener(monitoringLn))
 			}
-			c := &config.Config{
+			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "file",
@@ -72,14 +72,14 @@ func TestPprofEndpointsStarts(t *testing.T) {
 				EnablePprof:    tt.EnablePprof,
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
-			apiServer := newTestServer(t, c, service.Services{
+			apiServer := newTestServer(t, cfg, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
 				Metrics:           metric.Metrics{},
-			}, z, opts...)
+			}, logger, opts...)
 
 			portToCheck := port
 			if tt.dedicatedMonitoring {

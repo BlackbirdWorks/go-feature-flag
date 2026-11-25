@@ -82,8 +82,8 @@ func (e *Exporter) init() {
 	})
 }
 
-func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logger *fflog.FFLogger) {
-	startTime := time.Unix(f.CreationDate, 0)
+func (e *Exporter) createSpan(ctx context.Context, event exporter.FeatureEvent, logger *fflog.FFLogger) {
+	startTime := time.Unix(event.CreationDate, 0)
 	_, span := e.tracer.Start(
 		ctx,
 		spanName,
@@ -92,21 +92,21 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 	defer span.End()
 
 	// Collect all attributes into a single slice, then set them once on the span.
-	attributes := make([]attribute.KeyValue, 0, fixedAttributes+len(f.Metadata))
+	attributes := make([]attribute.KeyValue, 0, fixedAttributes+len(event.Metadata))
 	attributes = append(attributes,
-		attribute.String("feature_flag.key", f.Key),
-		attribute.String("feature_flag.user_key", f.UserKey),
-		attribute.String("feature_flag.context_kind", f.ContextKind),
-		attribute.String("feature_flag.variation", f.Variation),
-		attribute.Bool("feature_flag.default", f.Default),
-		attribute.String("feature_flag.version", f.Version),
-		attribute.String("feature_flag.source", f.Source),
+		attribute.String("feature_flag.key", event.Key),
+		attribute.String("feature_flag.user_key", event.UserKey),
+		attribute.String("feature_flag.context_kind", event.ContextKind),
+		attribute.String("feature_flag.variation", event.Variation),
+		attribute.Bool("feature_flag.default", event.Default),
+		attribute.String("feature_flag.version", event.Version),
+		attribute.String("feature_flag.source", event.Source),
 	)
 	logger.DebugContext(ctx, "Exporting feature flag evaluation")
 
 	// Value (safe stringification)
-	if f.Value != nil {
-		b, err := json.Marshal(f.Value)
+	if event.Value != nil {
+		b, err := json.Marshal(event.Value)
 		if err != nil {
 			if logger != nil {
 				logger.DebugContext(ctx, "failed to marshal feature flag value for otel attribute", "error", err)
@@ -117,9 +117,9 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 	}
 
 	// Metadata
-	for k, v := range f.Metadata {
+	for k, val := range event.Metadata {
 		key := "feature_flag.metadata." + k
-		switch value := v.(type) {
+		switch value := val.(type) {
 		case bool:
 			attributes = append(attributes, attribute.Bool(key, value))
 		case int:
@@ -131,7 +131,7 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 		case string:
 			attributes = append(attributes, attribute.String(key, value))
 		default:
-			attributes = append(attributes, attribute.String(key, fmt.Sprint(v)))
+			attributes = append(attributes, attribute.String(key, fmt.Sprint(val)))
 		}
 	}
 
@@ -142,7 +142,7 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 	}
 
 	// Status
-	if f.Default {
+	if event.Default {
 		span.SetStatus(codes.Error, "default value used")
 	} else {
 		span.SetStatus(codes.Ok, "evaluation successful")

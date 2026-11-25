@@ -169,19 +169,19 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			t.Parallel()
 
 			var jsonStr string
-			switch v := tt.result.(type) {
+			switch res := tt.result.(type) {
 			case model.VariationResult[bool]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[string]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[int]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[float64]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[map[string]any]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[[]any]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			}
 
 			// Verify JSON is valid and matches expected

@@ -151,16 +151,16 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 					return nil, nil //nolint:nilnil // the test simulates a factory that returns no client
 				}
 			}
-			s := Retriever{
+			ret := Retriever{
 				ConfigMapName: tt.fields.configMapName,
 				Key:           tt.fields.key,
 				Namespace:     tt.fields.namespace,
 				newClient:     newClient,
 			}
 			if tt.fields.setClient {
-				s.client = fake.NewSimpleClientset()
+				ret.client = fake.NewSimpleClientset()
 			}
-			got, err := s.Retrieve(t.Context())
+			got, err := ret.Retrieve(t.Context())
 			if tt.wantErr != nil {
 				require.EqualError(t, err, tt.wantErr.Error(), "retrieve() error")
 			} else {

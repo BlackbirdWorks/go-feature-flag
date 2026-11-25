@@ -170,6 +170,7 @@ linters:
     - unused # checks for unused constants, variables, functions and types
     - usestdlibvars # detects the possibility to use variables/constants from the Go standard library
     - usetesting # reports uses of functions with replacement inside the testing package
+    - varnamelen # checks that the length of a variable's name matches its scope
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
 
@@ -206,7 +207,6 @@ linters:
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
-    - varnamelen # too many false positives (short loop and receiver names)
     - wrapcheck # errors are wrapped where the context adds something
     - wsl_v5 # too strict, mostly not more readable
 
@@ -605,6 +605,25 @@ linters:
       # Enable/disable `os.TempDir()` detections.
       # Default: false
       os-temp-dir: true
+
+    varnamelen:
+      ignore-type-assert-ok: true
+      ignore-map-index-ok: true
+      ignore-chan-recv-ok: true
+      ignore-names:
+        - i
+        - ok
+        - t
+        - b
+        - tb
+        - w
+        - r
+        - ctx
+        - err
+        - tt
+        - wg
+        - mu
+        - id
 
   exclusions:
     # Log a warning if an exclusion rule is unused.

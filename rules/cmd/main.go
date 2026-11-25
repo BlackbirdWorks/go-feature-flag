@@ -32,11 +32,11 @@ func run() error {
 	if unmarshalErr != nil {
 		return fmt.Errorf("error decoding obj from file: %w", unmarshalErr)
 	}
-	ev, err := parser.NewEvaluator(rulesString)
+	evaluator, err := parser.NewEvaluator(rulesString)
 	if err != nil {
 		return fmt.Errorf("error making evaluator from the rule %v: %w", rulesString, err)
 	}
-	ans, err := ev.Process(info)
+	ans, err := evaluator.Process(info)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func run() error {
 		Object: %v
 		Answer: %v
 	`+"\n", rulesString, info, ans)
-	debugErr := ev.LastDebugErr()
+	debugErr := evaluator.LastDebugErr()
 	if debugErr != nil {
 		fmt.Fprintln(os.Stdout, "Last debug error", debugErr)
 	}

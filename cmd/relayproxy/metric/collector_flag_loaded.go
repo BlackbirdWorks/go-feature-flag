@@ -39,7 +39,7 @@ func (c *flagLoadedCollector) Describe(ch chan<- *prom.Desc) {
 	ch <- c.desc
 }
 
-func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
+func (c *flagLoadedCollector) Collect(metricsCh chan<- prom.Metric) {
 	flagsets, err := c.source.AllFlagSets()
 	if err != nil {
 		return
@@ -54,32 +54,32 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 			continue
 		}
 		svc := flagset.EvaluationService()
-		for flagName, f := range flags {
+		for flagName, targetFlag := range flags {
 			metric, constMetricErr := prom.NewConstMetric(
 				c.desc,
 				prom.GaugeValue,
 				1,
 				flagsetName,
 				flagName,
-				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, f)),
+				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, targetFlag)),
 			)
 			if constMetricErr != nil {
 				continue
 			}
-			ch <- metric
+			metricsCh <- metric
 		}
 	}
 }
 
 // isEffectivelyDisabled evaluates the flag so scheduled steps and experimentation windows are taken into account.
-func isEffectivelyDisabled(svc *flag.Service, flagName string, f flag.Flag) bool {
+func isEffectivelyDisabled(svc *flag.Service, flagName string, targetFlag flag.Flag) bool {
 	ctx := ffcontext.NewEvaluationContext(flagLoadedEvaluationKey)
-	if internal, ok := f.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
+	if internal, ok := targetFlag.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
 		addNestedAttribute(ctx, internal.GetBucketingKey(), flagLoadedEvaluationKey)
 	}
-	_, details := f.Value(flagName, ctx, flag.Context{Service: svc})
+	_, details := targetFlag.Value(flagName, ctx, flag.Context{Service: svc})
 	if details.Reason == flag.ReasonError {
-		return f.IsDisable()
+		return targetFlag.IsDisable()
 	}
 
 	return details.Reason == flag.ReasonDisabled

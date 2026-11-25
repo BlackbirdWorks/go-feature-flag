@@ -104,14 +104,14 @@ func (f *Exporter) Export(
 	}
 
 	for _, file := range files {
-		of, openErr := os.Open(path.Clean(outputDir + "/" + file.Name()))
+		fileHandle, openErr := os.Open(path.Clean(outputDir + "/" + file.Name()))
 		if openErr != nil {
 			logger.ErrorContext(ctx, "[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
 
 			continue
 		}
-		uploadFileErr := f.uploadFile(ctx, client, of, file.Name())
+		uploadFileErr := f.uploadFile(ctx, client, fileHandle, file.Name())
 		if uploadFileErr != nil {
 			return uploadFileErr
 		}
@@ -126,10 +126,10 @@ func (f *Exporter) Export(
 func (f *Exporter) uploadFile(
 	ctx context.Context,
 	client *storage.Client,
-	of *os.File,
+	fileHandle *os.File,
 	fileName string,
 ) error {
-	defer func() { _ = of.Close() }()
+	defer func() { _ = fileHandle.Close() }()
 
 	// prepend the path
 	source := fileName
@@ -138,7 +138,7 @@ func (f *Exporter) uploadFile(
 	}
 
 	wc := client.Bucket(f.Bucket).Object(source).NewWriter(ctx)
-	_, err := io.Copy(wc, of)
+	_, err := io.Copy(wc, fileHandle)
 	// The GCS writer buffers the payload and flushes it on Close, so upload
 	// failures surface from Close rather than from io.Copy. Capture both so a
 	// failed upload is reported instead of silently swallowed.

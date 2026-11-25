@@ -49,13 +49,13 @@ func NewDefault(opts ...Option) *Logger {
 
 // New builds a logger. An empty format is json, an empty level is info.
 func New(format, level string, opts ...Option) (*Logger, error) {
-	l := NewDefault(opts...)
-	err := l.Update(format, level)
+	logger := NewDefault(opts...)
+	err := logger.Update(format, level)
 	if err != nil {
 		return nil, err
 	}
 
-	return l, nil
+	return logger, nil
 }
 
 // ParseFormat converts a configured log format.
@@ -73,7 +73,7 @@ func ParseFormat(name string) (Format, error) {
 // Update changes the format and the level of the logger, and of every logger derived from it.
 // It is safe for concurrent use. When it fails nothing changes.
 func (l *Logger) Update(format, level string) error {
-	f, err := ParseFormat(format)
+	parsedFormat, err := ParseFormat(format)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (l *Logger) Update(format, level string) error {
 	if err != nil {
 		return err
 	}
-	l.core.format.Store(int32(f))
+	l.core.format.Store(int32(parsedFormat))
 	l.core.level.Set(lvl)
 
 	return nil

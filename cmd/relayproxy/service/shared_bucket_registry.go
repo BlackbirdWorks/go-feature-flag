@@ -95,13 +95,13 @@ func pendingKey(fs *config.FlagSet) string {
 
 // retrieverFor returns the retriever of the flagset (its configuration is expected to be valid).
 // The reference on the bucket group is released when the retriever is shut down.
-func (r *sharedBucketRegistry) retrieverFor(fs *config.FlagSet) (retriever.Retriever, error) {
-	err := checkSharedPollerFlagSet(fs)
+func (r *sharedBucketRegistry) retrieverFor(flagset *config.FlagSet) (retriever.Retriever, error) {
+	err := checkSharedPollerFlagSet(flagset)
 	if err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
-	key := pendingKey(fs)
+	key := pendingKey(flagset)
 	if p := r.pending[key]; len(p) > 0 {
 		r.pending[key] = p[1:]
 		r.mu.Unlock()
@@ -110,25 +110,25 @@ func (r *sharedBucketRegistry) retrieverFor(fs *config.FlagSet) (retriever.Retri
 	}
 	r.mu.Unlock()
 
-	return r.newRetriever(fs)
+	return r.newRetriever(flagset)
 }
 
 // preRegister registers the item of the flagset in its bucket group so that the first listing
 // already covers it. The next retrieverFor with the same configuration returns this retriever,
 // the ones that are not claimed must be released with releasePending.
-func (r *sharedBucketRegistry) preRegister(fs *config.FlagSet) error {
-	err := checkSharedPollerFlagSet(fs)
+func (r *sharedBucketRegistry) preRegister(flagset *config.FlagSet) error {
+	err := checkSharedPollerFlagSet(flagset)
 	if err != nil {
 		return err
 	}
-	rr, err := r.newRetriever(fs)
+	relRetriever, err := r.newRetriever(flagset)
 	if err != nil {
 		return err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	key := pendingKey(fs)
-	r.pending[key] = append(r.pending[key], rr)
+	key := pendingKey(flagset)
+	r.pending[key] = append(r.pending[key], relRetriever)
 
 	return nil
 }
@@ -180,11 +180,11 @@ func checkSharedPollerFlagSet(fs *config.FlagSet) error {
 // the lock (it loads the AWS configuration), if another caller built it meanwhile theirs is used.
 func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 	r.mu.Lock()
-	if g, ok := r.groups[bucket]; ok {
-		g.refs++
+	if grp, ok := r.groups[bucket]; ok {
+		grp.refs++
 		r.mu.Unlock()
 
-		return g, nil
+		return grp, nil
 	}
 	r.mu.Unlock()
 
@@ -194,30 +194,30 @@ func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	g, ok := r.groups[bucket]
+	grp, ok := r.groups[bucket]
 	if !ok {
-		g = &registryGroup{items: items}
+		grp = &registryGroup{items: items}
 		items.SetPoller(r.pollerConfig(bucket))
-		r.groups[bucket] = g
+		r.groups[bucket] = grp
 	}
-	g.refs++
+	grp.refs++
 
-	return g, nil
+	return grp, nil
 }
 
 // newRetriever creates the retriever of the flagset in the group of its bucket.
-func (r *sharedBucketRegistry) newRetriever(fs *config.FlagSet) (*releasingRetriever, error) {
-	rc := fs.Retriever
-	g, err := r.acquire(rc.Bucket)
+func (r *sharedBucketRegistry) newRetriever(flagset *config.FlagSet) (*releasingRetriever, error) {
+	retConf := flagset.Retriever
+	grp, err := r.acquire(retConf.Bucket)
 	if err != nil {
 		return nil, err
 	}
-	r.warnPollingMismatch(fs)
+	r.warnPollingMismatch(flagset)
 
 	return &releasingRetriever{
-		SharedItemRetriever: g.items.Retriever(rc.Item),
-		group:               g.items,
-		release:             func() { r.release(rc.Bucket, g) },
+		SharedItemRetriever: grp.items.Retriever(retConf.Item),
+		group:               grp.items,
+		release:             func() { r.release(retConf.Bucket, grp) },
 	}, nil
 }
 
@@ -241,30 +241,30 @@ func (r *sharedBucketRegistry) pollerConfig(bucket string) s3retrieverv2.PollerC
 
 // warnPollingMismatch warns when a flagset sets a pollingInterval or an enablePollingJitter that
 // differs from the top-level ones, which are the ones used by the shared poller.
-func (r *sharedBucketRegistry) warnPollingMismatch(fs *config.FlagSet) {
+func (r *sharedBucketRegistry) warnPollingMismatch(flagset *config.FlagSet) {
 	r.mu.Lock()
 	parent := r.polling
 	r.mu.Unlock()
-	own := time.Duration(fs.PollingInterval) * time.Millisecond
+	own := time.Duration(flagset.PollingInterval) * time.Millisecond
 	if own != 0 && own != parent.Interval {
-		r.warnIgnored(fs, "pollingInterval",
+		r.warnIgnored(flagset, "pollingInterval",
 			slog.Duration("flagsetPollingInterval", own), slog.Duration("pollingInterval", parent.Interval))
 	}
-	if fs.EnablePollingJitter && !parent.Jitter {
-		r.warnIgnored(fs, "enablePollingJitter",
-			slog.Bool("flagsetEnablePollingJitter", fs.EnablePollingJitter),
+	if flagset.EnablePollingJitter && !parent.Jitter {
+		r.warnIgnored(flagset, "enablePollingJitter",
+			slog.Bool("flagsetEnablePollingJitter", flagset.EnablePollingJitter),
 			slog.Bool("enablePollingJitter", parent.Jitter))
 	}
 }
 
 // warnIgnored warns that a polling setting of the flagset is ignored in favour of the top-level one.
-func (r *sharedBucketRegistry) warnIgnored(fs *config.FlagSet, setting string, fields ...slog.Attr) {
+func (r *sharedBucketRegistry) warnIgnored(flagset *config.FlagSet, setting string, fields ...slog.Attr) {
 	r.logger.LogAttrs(
 		context.Background(),
 		slog.LevelWarn,
 		"enableSharedPollerPerBucket: the "+setting+" of the flagset is ignored, "+
 			"the top-level "+setting+" is used",
-		append([]slog.Attr{slog.String("flagset", fs.Name)}, fields...)...)
+		append([]slog.Attr{slog.String("flagset", flagset.Name)}, fields...)...)
 }
 
 // setPolling applies a new top-level pollingInterval and enablePollingJitter to the running

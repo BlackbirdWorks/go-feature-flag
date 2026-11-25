@@ -121,15 +121,15 @@ func TestKeyAuth(t *testing.T) {
 				Skipper: func() bool { return tt.skip },
 			})
 			var gotKey string
-			var h http.Handler
+			var handler http.Handler
 			if tt.entry == "huma" {
-				h = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
+				handler = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
 					gotKey, _ = ctx.Value(key{}).(string)
 
 					return okDocument(ctx, in)
 				}, auth.Huma())
 			} else {
-				h = auth.HTTP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handler = auth.HTTP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					gotKey, _ = r.Context().Value(key{}).(string)
 					newOK().ServeHTTP(w, r)
 				}))
@@ -138,7 +138,7 @@ func TestKeyAuth(t *testing.T) {
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
-			rec := serve(h, req)
+			rec := serve(handler, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantKey, gotKey)
 			if tt.wantBody != "" {
@@ -268,25 +268,25 @@ func TestETag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var h http.Handler
+			var handler http.Handler
 			switch {
 			case tt.entry == "huma" && tt.failing:
-				h = humaHandler(func(context.Context, *struct{}) (*document, error) {
+				handler = humaHandler(func(context.Context, *struct{}) (*document, error) {
 					return nil, helper.NewHTTPError(http.StatusTeapot, "tea")
 				}, middleware.ETagHuma())
 			case tt.entry == "huma":
-				h = humaHandler(okDocument, middleware.ETagHuma())
+				handler = humaHandler(okDocument, middleware.ETagHuma())
 			case tt.failing:
-				h = middleware.ETag()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				handler = middleware.ETag()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusTeapot)
 					_, _ = w.Write([]byte("tea"))
 				}))
 			default:
-				h = middleware.ETag()(newOK())
+				handler = middleware.ETag()(newOK())
 			}
 
 			// the ETag of the document
-			etag := serve(h, httptest.NewRequest(http.MethodGet, "/doc", nil)).Header().Get("ETag")
+			etag := serve(handler, httptest.NewRequest(http.MethodGet, "/doc", nil)).Header().Get("ETag")
 			if tt.wantETag {
 				require.NotEmpty(t, etag)
 			}
@@ -300,7 +300,7 @@ func TestETag(t *testing.T) {
 			case "other":
 				req.Header.Set("If-None-Match", `"x"`)
 			}
-			rec := serve(h, req)
+			rec := serve(handler, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 			if tt.wantETag {
@@ -332,7 +332,7 @@ func TestBodyDump(t *testing.T) {
 
 			var dumped, read string
 			var called bool
-			h := middleware.BodyDump(
+			handler := middleware.BodyDump(
 				func(r *http.Request) bool { return r.URL.Path == "/skip" },
 				func(_ *http.Request, body []byte) { called, dumped = true, string(body) },
 			)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -340,7 +340,7 @@ func TestBodyDump(t *testing.T) {
 				read = string(b)
 			}))
 
-			serve(h, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader("hello")))
+			serve(handler, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader("hello")))
 			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")
 			assert.Equal(t, tt.wantDump, dumped)
 			assert.Equal(t, tt.wantRead, read)
@@ -454,13 +454,13 @@ func TestPrometheus(t *testing.T) {
 			families, err := reg.Gather()
 			require.NoError(t, err)
 			got := map[string][]string{}
-			for _, f := range families {
-				for _, m := range f.GetMetric() {
+			for _, family := range families {
+				for _, m := range family.GetMetric() {
 					labels := make([]string, 0, len(m.GetLabel()))
 					for _, l := range m.GetLabel() {
 						labels = append(labels, l.GetName()+"="+l.GetValue())
 					}
-					got[f.GetName()] = labels
+					got[family.GetName()] = labels
 				}
 			}
 			assert.Equal(t, tt.wantSeries, got)

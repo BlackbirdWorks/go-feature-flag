@@ -89,13 +89,13 @@ func TestRequestLogger500(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	logger := obs
-	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
@@ -109,13 +109,13 @@ func TestRequestLoggerHealth(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Empty(t, logs.All())
 }
 
@@ -123,13 +123,13 @@ func TestRequestLoggerHealthDebug(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	requestLogger(logger, true)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, true)(handler).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Len(t, logs.All(), 1)
 }
 
@@ -314,14 +314,14 @@ func TestRequestLoggerRequestID(t *testing.T) {
 				req.Header.Set("X-Request-ID", tt.requestHeader)
 			}
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.responseHeader != "" {
 					w.Header().Set("X-Request-ID", tt.responseHeader)
 				}
 				w.WriteHeader(http.StatusOK)
 			})
 
-			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+			requestLogger(obs, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 
 			require.Equal(t, 1, logs.Len())
 			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()["request_id"])

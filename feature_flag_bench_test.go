@@ -18,15 +18,15 @@ import (
 // benchmark on error so that it never runs against an empty flag set.
 func newFixtureClient(b *testing.B) *ffclient.GoFeatureFlag {
 	b.Helper()
-	c, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/benchmark/flag-config.yaml"},
 	})
 	require.NoError(b, err)
-	b.Cleanup(c.Close)
+	b.Cleanup(client.Close)
 	b.ResetTimer()
 
-	return c
+	return client
 }
 
 func BenchmarkAllFlags(b *testing.B) {

@@ -21,7 +21,7 @@ func (r *GCStorageReaderMock) Close() error {
 	return nil
 }
 
-func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
+func (r *GCStorageReaderMock) Read(buf []byte) (int, error) {
 	if r.ShouldFail {
 		return 0, errFailedToReadFrom
 	}
@@ -41,7 +41,7 @@ func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
 	}
 
 	// Copy unread bytes.
-	n := copy(p, r.data[r.readIndex:])
+	n := copy(buf, r.data[r.readIndex:])
 	r.readIndex += int64(n)
 
 	return n, nil

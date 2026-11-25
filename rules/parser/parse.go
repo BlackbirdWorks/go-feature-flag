@@ -54,28 +54,28 @@ func normalizeRuleInput(rule string) string {
 	escape := false
 	lastWasSpace := false
 	for i := range len(rule) {
-		c := rule[i]
+		cur := rule[i]
 		if inString {
-			b.WriteByte(c)
+			b.WriteByte(cur)
 			if escape { //nolint:gocritic // the if chain is measurably faster than a switch in this per character loop
 				escape = false
-			} else if c == '\\' {
+			} else if cur == '\\' {
 				escape = true
-			} else if c == '"' {
+			} else if cur == '"' {
 				inString = false
 			}
 			lastWasSpace = false
 
 			continue
 		}
-		if c == '"' {
+		if cur == '"' {
 			inString = true
-			b.WriteByte(c)
+			b.WriteByte(cur)
 			lastWasSpace = false
 
 			continue
 		}
-		if c == ' ' || c == '\t' {
+		if cur == ' ' || cur == '\t' {
 			if !lastWasSpace {
 				b.WriteByte(' ')
 				lastWasSpace = true
@@ -84,7 +84,7 @@ func normalizeRuleInput(rule string) string {
 			continue
 		}
 		lastWasSpace = false
-		b.WriteByte(c)
+		b.WriteByte(cur)
 	}
 
 	return strings.TrimSpace(b.String())

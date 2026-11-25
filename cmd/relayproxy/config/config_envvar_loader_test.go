@@ -103,14 +103,14 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 
 			path := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
-			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			fs.String("config", "", "Location of your config file")
-			require.NoError(t, fs.Parse([]string{"--config=" + path}))
+			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			flagSet.String("config", "", "Location of your config file")
+			require.NoError(t, flagSet.Parse([]string{"--config=" + path}))
 
 			var got *config.Config
 			var err error
 			require.NotPanics(t, func() {
-				got, err = config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
+				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
 					ToConfig()
 			})
 			if tt.wantUnmarshalError {

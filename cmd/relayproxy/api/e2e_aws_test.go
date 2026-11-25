@@ -32,7 +32,7 @@ import (
 // e2eFlags returns the flag file of a flag set. The same flag keys are used by every flag set with
 // values prefixed by tag, so a response proves which flag set served it.
 func e2eFlags(tag, ruleOnValue string, extraFlags ...string) []byte {
-	s := fmt.Sprintf(`
+	flagsYAML := fmt.Sprintf(`
 rule-flag:
   variations:
     on: %[2]s
@@ -72,18 +72,18 @@ only-in-%[1]s:
     variation: v
 `, tag, ruleOnValue)
 
-	return []byte(s + strings.Join(extraFlags, "\n"))
+	return []byte(flagsYAML + strings.Join(extraFlags, "\n"))
 }
 
 func ofrepCtx(key string, kv ...any) map[string]any {
-	c := map[string]any{"targetingKey": key}
+	ctxMap := map[string]any{"targetingKey": key}
 	for i := 0; i+1 < len(kv); i += 2 {
 		if k, ok := kv[i].(string); ok {
-			c[k] = kv[i+1]
+			ctxMap[k] = kv[i+1]
 		}
 	}
 
-	return map[string]any{"context": c}
+	return map[string]any{"context": ctxMap}
 }
 
 func goffCtx(key string, kv ...any) map[string]any {
@@ -580,19 +580,19 @@ retriever:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucket := srv.CreateBucket(t, "top")
-			for k, tag := range tt.objects {
+			for objKey, tag := range tt.objects {
 				switch tag {
 				case "A":
-					srv.PutObject(t, bucket, k, e2eFlags("A", "A-on"))
+					srv.PutObject(t, bucket, objKey, e2eFlags("A", "A-on"))
 				case "B":
 					srv.PutObject(
 						t,
 						bucket,
-						k,
+						objKey,
 						[]byte("only-in-B:\n  variations:\n    v: B-only\n  defaultRule:\n    variation: v\n"),
 					)
 				default:
-					srv.PutObject(t, bucket, k, []byte(tag))
+					srv.PutObject(t, bucket, objKey, []byte(tag))
 				}
 			}
 			yaml := strings.ReplaceAll(`
@@ -686,30 +686,30 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	srv.PutObject(t, bucket, "flags/a.yaml", e2eFlags("A", "A-on"))
 
 	cfg := srv.MustAwsConfig(t)
-	kc := kinesis.NewFromConfig(cfg)
+	kinesisClient := kinesis.NewFromConfig(cfg)
 	stream := gopherstack.UniqueName(t, "stream")
-	_, err := kc.CreateStream(
+	_, err := kinesisClient.CreateStream(
 		t.Context(),
 		&kinesis.CreateStreamInput{StreamName: aws.String(stream), ShardCount: aws.Int32(1)},
 	)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		out, describeStreamErr := kc.DescribeStream(
+		out, describeStreamErr := kinesisClient.DescribeStream(
 			t.Context(),
 			&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
 		)
 
 		return describeStreamErr == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond)
-	sc := sqs.NewFromConfig(cfg)
-	q, err := sc.CreateQueue(
+	sqsClient := sqs.NewFromConfig(cfg)
+	queue, err := sqsClient.CreateQueue(
 		t.Context(),
 		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
 	)
 	require.NoError(t, err)
 
 	url := startRelayProxyFromYAML(t, exportersYAML, map[string]any{
-		"Bucket": bucket, "Stream": stream, "QueueURL": aws.ToString(q.QueueUrl),
+		"Bucket": bucket, "Stream": stream, "QueueURL": aws.ToString(queue.QueueUrl),
 	})
 
 	// evaluations from the three entry points, each with its own user
@@ -799,24 +799,27 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			name: "kinesis exporter",
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
-				desc, describeStreamErr := kc.DescribeStream(
+				desc, describeStreamErr := kinesisClient.DescribeStream(
 					t.Context(),
 					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
 				)
 				require.NoError(t, describeStreamErr)
 				var res []sinkEvent
-				for _, s := range desc.StreamDescription.Shards {
-					it, getShardIteratorErr := kc.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
-						StreamName: aws.String(
-							stream,
-						),
-						ShardId:           s.ShardId,
-						ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
-					})
-					require.NoError(t, getShardIteratorErr)
-					out, getShardIteratorErr := kc.GetRecords(
+				for _, shard := range desc.StreamDescription.Shards {
+					iter, getShardIteratorErr := kinesisClient.GetShardIterator(
 						t.Context(),
-						&kinesis.GetRecordsInput{ShardIterator: it.ShardIterator, Limit: aws.Int32(1000)},
+						&kinesis.GetShardIteratorInput{
+							StreamName: aws.String(
+								stream,
+							),
+							ShardId:           shard.ShardId,
+							ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
+						},
+					)
+					require.NoError(t, getShardIteratorErr)
+					out, getShardIteratorErr := kinesisClient.GetRecords(
+						t.Context(),
+						&kinesis.GetRecordsInput{ShardIterator: iter.ShardIterator, Limit: aws.Int32(1000)},
 					)
 					require.NoError(t, getShardIteratorErr)
 					for _, r := range out.Records {
@@ -833,7 +836,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
 
-				return receiveSQS(t, sc, aws.ToString(q.QueueUrl), sqsReceived)
+				return receiveSQS(t, sqsClient, aws.ToString(queue.QueueUrl), sqsReceived)
 			},
 			wantUsers: wantUsers,
 		},
@@ -847,16 +850,16 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 // receiveSQS receives and deletes the messages available, and adds them to acc (message id -> event),
 // so the successive polls of an Eventually accumulate everything received.
-func receiveSQS(t *testing.T, sc *sqs.Client, queueURL string, acc map[string]sinkEvent) []sinkEvent {
+func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[string]sinkEvent) []sinkEvent {
 	t.Helper()
-	out, err := sc.ReceiveMessage(t.Context(), &sqs.ReceiveMessageInput{
+	out, err := sqsClient.ReceiveMessage(t.Context(), &sqs.ReceiveMessageInput{
 		QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
 	})
 	require.NoError(t, err)
 	for _, m := range out.Messages {
 		e := decodeFeatureEvent(t, []byte(aws.ToString(m.Body)))
 		acc[aws.ToString(m.MessageId)] = e
-		_, deleteMessageErr := sc.DeleteMessage(
+		_, deleteMessageErr := sqsClient.DeleteMessage(
 			t.Context(),
 			&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
 		)

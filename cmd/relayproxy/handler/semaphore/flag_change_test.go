@@ -111,8 +111,8 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
-			out, handlerErr := ctrl.Handle(t.Context(), in)
+			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
@@ -129,7 +129,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			require.NoError(t, err)
 			var after string
 			require.Eventually(t, func() bool {
-				out2, handlerErr2 := ctrl.Handle(t.Context(), in)
+				out2, handlerErr2 := ctrl.Handle(t.Context(), input)
 				if handlerErr2 != nil {
 					return false
 				}
@@ -231,8 +231,8 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
-			out, handlerErr := ctrl.Handle(t.Context(), in)
+			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
@@ -242,7 +242,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			time.Sleep(1500 * time.Millisecond)
 
-			out2, handlerErr2 := ctrl.Handle(t.Context(), in)
+			out2, handlerErr2 := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr2)
 			assert.JSONEq(t, string(want), jsonOf(t, out2.Body))
 		})

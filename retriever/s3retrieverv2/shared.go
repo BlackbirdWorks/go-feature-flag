@@ -516,23 +516,23 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 			return item, err
 		}
 		//nolint:contextcheck // shared listing uses group lifecycle context so one cancelled caller does not abort others
-		fl := g.listingLocked()
+		flight := g.listingLocked()
 		g.mu.Unlock()
 
 		select {
-		case <-fl.done:
+		case <-flight.done:
 		case <-ctx.Done():
 			return listedItem{}, ctx.Err()
 		}
 		// the waiters use the result of the listing they waited for, even if it is already older
 		// than the TTL (a slow listing), as long as it covers the key.
 		g.mu.Lock()
-		covered := g.coversLocked(key, fl.prefix, fl.seq)
+		covered := g.coversLocked(key, flight.prefix, flight.seq)
 		g.mu.Unlock()
 		if covered {
-			etag, ok := fl.listing[key]
+			etag, ok := flight.listing[key]
 
-			return listedItem{etag: etag, found: ok, start: fl.start}, fl.err
+			return listedItem{etag: etag, found: ok, start: flight.start}, flight.err
 		}
 	}
 
@@ -545,21 +545,21 @@ func (g *SharedItems) listingLocked() *sharedListing {
 	if g.inflight != nil {
 		return g.inflight
 	}
-	fl := &sharedListing{done: make(chan struct{})}
-	g.inflight = fl
+	flight := &sharedListing{done: make(chan struct{})}
+	g.inflight = flight
 	wanted := make(map[string]struct{}, len(g.keyRefs))
 	for k := range g.keyRefs {
 		wanted[k] = struct{}{}
 	}
-	go g.runListing(g.activeLocked(), fl, g.prefix, wanted, g.seq)
+	go g.runListing(g.activeLocked(), flight, g.prefix, wanted, g.seq)
 
-	return fl
+	return flight
 }
 
 // runListing lists the objects under prefix and publishes the result. It does not depend on the
 // context of a caller so that a cancelled caller does not fail the others.
 func (g *SharedItems) runListing(
-	active <-chan struct{}, fl *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
+	active <-chan struct{}, flight *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
 ) {
 	ctx, cancel := activeContext(active)
 	defer cancel()
@@ -569,7 +569,7 @@ func (g *SharedItems) runListing(
 
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	fl.start, fl.prefix, fl.seq, fl.listing, fl.err = start, prefix, seq, listing, err
+	flight.start, flight.prefix, flight.seq, flight.listing, flight.err = start, prefix, seq, listing, err
 	// a listing cancelled because every item left is not kept
 	select {
 	case <-active:
@@ -578,7 +578,7 @@ func (g *SharedItems) runListing(
 		g.listedAt, g.listStart, g.listedPrefix = time.Now(), start, prefix
 	}
 	g.inflight = nil
-	close(fl.done)
+	close(flight.done)
 }
 
 // list walks all the pages of the objects under prefix (recursively), each page request has its
@@ -637,17 +637,17 @@ func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, erro
 	}
 
 	g.mu.Lock()
-	c, ok := g.contents[key]
+	entry, ok := g.contents[key]
 	if !ok {
-		c = &sharedContent{}
+		entry = &sharedContent{}
 		// an item that left the group in the meantime must not be cached again
 		if g.keyRefs[key] > 0 {
-			g.contents[key] = c
+			g.contents[key] = entry
 		}
 	}
 	g.mu.Unlock()
 
-	data, etag, err := g.content(ctx, c, key, listed)
+	data, etag, err := g.content(ctx, entry, key, listed)
 	if err != nil {
 		return nil, "", fmt.Errorf("unable to download item from S3 %q, %w", key, err)
 	}
@@ -661,26 +661,27 @@ func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, erro
 // changed between the listing and the download). The callers of the same object share one
 // download, and a caller stops waiting when its ctx is done.
 func (g *SharedItems) content(
-	ctx context.Context, c *sharedContent, key string, listed listedItem,
+	ctx context.Context, entry *sharedContent, key string, listed listedItem,
 ) ([]byte, string, error) {
-	c.mu.Lock()
-	if c.data != nil && ((listed.etag != "" && c.etag == listed.etag) || !c.fetchedAt.Before(listed.start)) {
-		defer c.mu.Unlock()
+	entry.mu.Lock()
+	if entry.data != nil &&
+		((listed.etag != "" && entry.etag == listed.etag) || !entry.fetchedAt.Before(listed.start)) {
+		defer entry.mu.Unlock()
 
-		return c.data, c.etag, nil
+		return entry.data, entry.etag, nil
 	}
-	dl := c.dl
-	if dl == nil {
-		dl = &sharedDownload{done: make(chan struct{})}
-		c.dl = dl
+	dlOp := entry.dl
+	if dlOp == nil {
+		dlOp = &sharedDownload{done: make(chan struct{})}
+		entry.dl = dlOp
 		//nolint:contextcheck // shared download uses group lifecycle context so one cancelled caller does not abort others
-		go g.runDownload(g.activeChan(), c, dl, key)
+		go g.runDownload(g.activeChan(), entry, dlOp, key)
 	}
-	c.mu.Unlock()
+	entry.mu.Unlock()
 
 	select {
-	case <-dl.done:
-		return dl.data, dl.etag, dl.err
+	case <-dlOp.done:
+		return dlOp.data, dlOp.etag, dlOp.err
 	case <-ctx.Done():
 		return nil, "", ctx.Err()
 	}
@@ -688,22 +689,22 @@ func (g *SharedItems) content(
 
 // runDownload downloads the object and publishes the result, it does not depend on the context
 // of a caller so that a cancelled caller does not fail the others.
-func (g *SharedItems) runDownload(active <-chan struct{}, c *sharedContent, dl *sharedDownload, key string) {
+func (g *SharedItems) runDownload(active <-chan struct{}, entry *sharedContent, dlOp *sharedDownload, key string) {
 	ctx, cancel := activeContext(active)
 	defer cancel()
 
 	data, dlETag, startedAt, err := g.download(ctx, active, key)
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 	if err == nil {
 		// an empty ETag is never a hit
-		c.etag, c.data, c.fetchedAt = normalizeETag(dlETag), data, startedAt
-		dl.etag = c.etag
+		entry.etag, entry.data, entry.fetchedAt = normalizeETag(dlETag), data, startedAt
+		dlOp.etag = entry.etag
 	}
-	dl.data, dl.err = data, err
-	c.dl = nil
-	close(dl.done)
+	dlOp.data, dlOp.err = data, err
+	entry.dl = nil
+	close(dlOp.done)
 }
 
 // download waits for a free download slot, then downloads the object.
@@ -767,21 +768,21 @@ func (g *SharedItems) nextDelay() time.Duration {
 func (g *SharedItems) pollOnce(ctx context.Context) {
 	g.mu.Lock()
 	//nolint:contextcheck // shared listing uses group lifecycle context independent of caller cancellation
-	fl := g.listingLocked()
+	flight := g.listingLocked()
 	logger := g.logger
 	g.mu.Unlock()
 	select {
-	case <-fl.done:
+	case <-flight.done:
 	case <-ctx.Done():
 		return
 	}
-	if fl.err != nil {
+	if flight.err != nil {
 		logger.ErrorContext(ctx, "unable to list the S3 bucket, the flagsets are not refreshed",
-			slog.String("bucket", g.bucket), slog.Any("error", fl.err))
+			slog.String("bucket", g.bucket), slog.Any("error", flight.err))
 
 		return
 	}
-	g.refresh(ctx, g.changed(fl.listing))
+	g.refresh(ctx, g.changed(flight.listing))
 }
 
 // changed returns the items to refresh: the ones whose listed ETag differs from the ETag of the
@@ -807,22 +808,22 @@ func (g *SharedItems) changed(listing map[string]string) []*SharedItemRetriever 
 // refresh calls the refresh function of the items with a bounded number of workers. A failure
 // is remembered so that the item is tried again at the next poll, and does not stop the others.
 func (g *SharedItems) refresh(ctx context.Context, items []*SharedItemRetriever) {
-	ch := make(chan *SharedItemRetriever)
+	itemsCh := make(chan *SharedItemRetriever)
 	var wg sync.WaitGroup
 	for range min(MaxConcurrentDownloads, len(items)) {
 		wg.Go(func() {
-			for r := range ch {
+			for r := range itemsCh {
 				g.refreshOne(r)
 			}
 		})
 	}
 	defer func() {
-		close(ch)
+		close(itemsCh)
 		wg.Wait()
 	}()
 	for _, r := range items {
 		select {
-		case ch <- r:
+		case itemsCh <- r:
 		case <-ctx.Done():
 			return
 		}
@@ -833,8 +834,8 @@ func (g *SharedItems) refresh(ctx context.Context, items []*SharedItemRetriever)
 // waits for the refresh in flight.
 func (g *SharedItems) refreshOne(r *SharedItemRetriever) {
 	g.mu.Lock()
-	fn := r.refresh
-	if _, ok := g.items[r]; !ok || fn == nil {
+	refreshFn := r.refresh
+	if _, ok := g.items[r]; !ok || refreshFn == nil {
 		g.mu.Unlock()
 
 		return
@@ -843,7 +844,7 @@ func (g *SharedItems) refreshOne(r *SharedItemRetriever) {
 	r.inflight = inflight
 	g.mu.Unlock()
 
-	ok := fn()
+	ok := refreshFn()
 
 	g.mu.Lock()
 	r.retry = !ok

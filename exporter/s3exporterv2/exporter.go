@@ -101,7 +101,7 @@ func (f *Exporter) Export(
 	}
 	for _, file := range files {
 		// read file
-		of, openErr := os.Open(outputDir + "/" + file.Name())
+		fileHandle, openErr := os.Open(outputDir + "/" + file.Name())
 		if openErr != nil {
 			logger.ErrorContext(
 				ctx,
@@ -111,7 +111,7 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		uploadFileErr := f.uploadFile(ctx, logger, of, file.Name())
+		uploadFileErr := f.uploadFile(ctx, logger, fileHandle, file.Name())
 		if uploadFileErr != nil {
 			return uploadFileErr
 		}
@@ -150,15 +150,15 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 func (f *Exporter) uploadFile(
 	ctx context.Context,
 	logger *fflog.FFLogger,
-	of *os.File,
+	fileHandle *os.File,
 	fileName string,
 ) error {
-	defer func() { _ = of.Close() }()
+	defer func() { _ = fileHandle.Close() }()
 
 	result, err := f.s3Uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: aws.String(f.Bucket),
 		Key:    aws.String(f.S3Path + "/" + fileName),
-		Body:   of,
+		Body:   fileHandle,
 	})
 	if err != nil {
 		return err

@@ -46,7 +46,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 			t.Parallel()
 
 			s3ManagerMock := testutils.S3ManagerV2Mock{}
-			f := &Exporter{
+			s3Exp := &Exporter{
 				Bucket:          tt.fields.Bucket,
 				AwsConfig:       tt.fields.AwsConfig,
 				Format:          tt.fields.Format,
@@ -62,7 +62,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 				assert.Equal(
 					t,
 					tt.fields.S3ClientOptions,
-					f.S3ClientOptions,
+					s3Exp.S3ClientOptions,
 					"S3ClientOptions should be set correctly on the Exporter",
 				)
 			}
@@ -71,7 +71,7 @@ func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
 			if tt.fields.nilCtx {
 				ctx = nil
 			}
-			err := f.Export(
+			err := s3Exp.Export(
 				ctx,
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 				tt.events,

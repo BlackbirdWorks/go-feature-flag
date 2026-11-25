@@ -701,15 +701,15 @@ func buildBatches(table string, columns []column, rows []row) []batch {
 	var batches []batch
 	var b batch
 	batchBytes, batchParamBytes := 0, 0
-	for _, c := range chunkRows(rows, len(prefix)) {
-		if len(b.sqls) > 0 && (len(b.sqls) == maxStatementsPerBatch || batchBytes+c.size > maxBatchBytes ||
-			batchParamBytes+c.paramSize > maxBatchParamBytes) {
+	for _, rowChunk := range chunkRows(rows, len(prefix)) {
+		if len(b.sqls) > 0 && (len(b.sqls) == maxStatementsPerBatch || batchBytes+rowChunk.size > maxBatchBytes ||
+			batchParamBytes+rowChunk.paramSize > maxBatchParamBytes) {
 			batches = append(batches, b)
 			b, batchBytes, batchParamBytes = batch{}, 0, 0
 		}
 		var sql strings.Builder
 		sql.WriteString(prefix)
-		for i, r := range c.rows {
+		for i, r := range rowChunk.rows {
 			if i > 0 {
 				sql.WriteString(", ")
 			}
@@ -718,8 +718,8 @@ func buildBatches(table string, columns []column, rows []row) []batch {
 			b.params = append(b.params, params...)
 		}
 		b.sqls = append(b.sqls, sql.String())
-		batchBytes += c.size
-		batchParamBytes += c.paramSize
+		batchBytes += rowChunk.size
+		batchParamBytes += rowChunk.paramSize
 	}
 	if len(b.sqls) > 0 {
 		batches = append(batches, b)
@@ -775,13 +775,13 @@ func buildRowValues(columns []column, values []string, firstParam int) (string, 
 	placeholders := make([]string, 0, len(columns))
 	params := make([]types.SqlParameter, 0, len(columns))
 	size := 0
-	for i, c := range columns {
+	for i, col := range columns {
 		value := values[i]
 		switch {
-		case c.kind == bigintColumn:
+		case col.kind == bigintColumn:
 			// The value has been formatted from an int64 by strconv, it is safe to inline.
 			placeholders = append(placeholders, value)
-		case c.kind == booleanColumn:
+		case col.kind == booleanColumn:
 			placeholders = append(placeholders, booleanLiteral(value))
 		case value == "":
 			// The Redshift Data API rejects empty parameter values, we use an empty literal instead.
@@ -791,7 +791,7 @@ func buildRowValues(columns []column, values []string, firstParam int) (string, 
 			params = append(params, types.SqlParameter{Name: aws.String(name), Value: aws.String(value)})
 			size += len(name) + len(value)
 			placeholder := ":" + name
-			if c.kind == superColumn {
+			if col.kind == superColumn {
 				placeholder = "JSON_PARSE(" + placeholder + ")"
 			}
 			placeholders = append(placeholders, placeholder)

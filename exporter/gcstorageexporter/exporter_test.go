@@ -235,7 +235,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 			}
 
 			// init DeprecatedExporterV1
-			f := gcstorageexporter.Exporter{
+			gcsExp := gcstorageexporter.Exporter{
 				Bucket: tt.fields.Bucket,
 				Options: []option.ClientOption{
 					option.WithEndpoint(serv.URL),
@@ -248,7 +248,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				CsvTemplate: tt.fields.CsvTemplate,
 			}
 
-			err := f.Export(
+			err := gcsExp.Export(
 				context.Background(),
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 				tt.events,
@@ -303,7 +303,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 		},
 	}
 
-	f := gcstorageexporter.Exporter{
+	gcsExp := gcstorageexporter.Exporter{
 		Bucket: "test",
 		Options: []option.ClientOption{
 			option.WithEndpoint(serv.URL),
@@ -312,7 +312,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 		},
 	}
 
-	err := f.Export(
+	err := gcsExp.Export(
 		context.Background(),
 		&fflog.FFLogger{LeveledLogger: slog.Default()},
 		[]exporter.ExportableEvent{

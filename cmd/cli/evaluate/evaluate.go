@@ -45,14 +45,14 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 
 // initGOFF initializes the Semaphore client.
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
-	c := ffclient.Config{
+	cfg := ffclient.Config{
 		PollingInterval:       defaultPollingInterval,
 		DisableNotifierOnInit: true,
 		Retriever:             e.retriever,
 		FileFormat:            e.fileFormat,
 	}
 
-	return ffclient.New(c)
+	return ffclient.New(cfg)
 }
 
 // parseEvaluationContext parses the evaluation context from the command line arguments.

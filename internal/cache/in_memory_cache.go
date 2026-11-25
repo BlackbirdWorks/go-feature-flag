@@ -83,13 +83,13 @@ func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
 // getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
 // allocation-free. The caller must not modify it.
 func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
-	f, ok := fc.Flags[key]
+	cachedFlag, ok := fc.Flags[key]
 	if !ok {
 		// callers expect a usable (empty) flag next to the error
 		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
 	}
 
-	return f, nil
+	return cachedFlag, nil
 }
 
 // shared returns the flags of the cache without copying them. The caller must treat them as

@@ -45,9 +45,9 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	f.Cleanup(flagsetManager.Close)
 
 	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
-	e := http.NewServeMux()
-	e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
-	e.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
+	mux := http.NewServeMux()
+	mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+	mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
 
 	f.Fuzz(func(t *testing.T, flagKey, body string, bulk bool) {
 		target := "/ofrep/v1/evaluate/flags/" + url.PathEscape(flagKey)
@@ -57,7 +57,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
-		e.ServeHTTP(rec, req)
+		mux.ServeHTTP(rec, req)
 
 		assert.Less(t, rec.Code, http.StatusInternalServerError, "body: %s", rec.Body.String())
 		assert.True(t, json.Valid(rec.Body.Bytes()), "response is not JSON: %s", rec.Body.String())

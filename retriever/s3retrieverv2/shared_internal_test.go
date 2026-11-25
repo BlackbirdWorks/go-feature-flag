@@ -45,13 +45,13 @@ func (emptyBucket) DownloadObject(
 
 func TestSharedItems_etagOf(t *testing.T) {
 	t.Parallel()
-	g, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
 		Bucket: "b", Lister: emptyBucket{}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
-	g.Retriever("a/registered.yaml")
+	group.Retriever("a/registered.yaml")
 	// the key is not registered and out of the listed prefix, so the loop gives up.
-	_, err = g.etagOf(t.Context(), "b/unregistered.yaml")
+	_, err = group.etagOf(t.Context(), "b/unregistered.yaml")
 	assert.ErrorContains(t, err, "not registered")
 }
 
@@ -107,15 +107,15 @@ func (u unrelatedBucket) ListObjectsV2(
 
 func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 	t.Parallel()
-	g, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
 		Bucket: "b", Lister: unrelatedBucket{n: 5000}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
-	_, err = g.etagOf(t.Context(), g.Retriever("d/flags.yaml").item)
+	_, err = group.etagOf(t.Context(), group.Retriever("d/flags.yaml").item)
 	require.NoError(t, err)
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, g.listing)
+	group.mu.Lock()
+	defer group.mu.Unlock()
+	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, group.listing)
 }
 
 // tokenLister returns truncated pages following a token policy.

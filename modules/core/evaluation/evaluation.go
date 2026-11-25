@@ -15,13 +15,13 @@ import (
 var errWrongVariationUsed = errors.New("wrong variation used for flag")
 
 func Evaluate[T model.JSONType](
-	f flag.Flag,
+	targetFlag flag.Flag,
 	flagKey string,
 	evaluationCtx ffcontext.Context,
 	flagCtx flag.Context,
 	expectedType string,
 	sdkDefaultValue T) (model.VariationResult[T], error) {
-	flagValue, resolutionDetails := f.Value(flagKey, evaluationCtx, flagCtx)
+	flagValue, resolutionDetails := targetFlag.Value(flagKey, evaluationCtx, flagCtx)
 	var convertedValue any
 	switch value := flagValue.(type) {
 	case float64:
@@ -35,10 +35,10 @@ func Evaluate[T model.JSONType](
 		convertedValue = value
 	}
 
-	var v T
+	var typedValue T
 	switch val := convertedValue.(type) {
 	case T:
-		v = val
+		typedValue = val
 	default:
 		if val != nil {
 			return model.VariationResult[T]{
@@ -48,23 +48,23 @@ func Evaluate[T model.JSONType](
 				ErrorCode:     flag.ErrorCodeTypeMismatch,
 				ErrorDetails:  "",
 				Failed:        true,
-				TrackEvents:   f.IsTrackEvents(),
-				Version:       f.GetVersion(),
-				Metadata:      f.GetMetadata(),
+				TrackEvents:   targetFlag.IsTrackEvents(),
+				Version:       targetFlag.GetVersion(),
+				Metadata:      targetFlag.GetMetadata(),
 				Cacheable:     false,
 			}, fmt.Errorf("%w %v", errWrongVariationUsed, flagKey)
 		}
 	}
 
 	return model.VariationResult[T]{
-		Value:         v,
+		Value:         typedValue,
 		VariationType: resolutionDetails.Variant,
 		Reason:        resolutionDetails.Reason,
 		ErrorCode:     resolutionDetails.ErrorCode,
 		ErrorDetails:  resolutionDetails.ErrorMessage,
 		Failed:        resolutionDetails.ErrorCode != "",
-		TrackEvents:   f.IsTrackEvents(),
-		Version:       f.GetVersion(),
+		TrackEvents:   targetFlag.IsTrackEvents(),
+		Version:       targetFlag.GetVersion(),
 		Cacheable:     resolutionDetails.Cacheable,
 		Metadata:      resolutionDetails.Metadata,
 	}, nil

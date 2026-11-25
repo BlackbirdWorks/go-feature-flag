@@ -278,14 +278,14 @@ func runEvaluate(
 		return tryInitializeWithFlagsetErr
 	}
 
-	e := evaluate{
+	eval := evaluate{
 		retriever:     r,
 		fileFormat:    flagFormat,
 		flag:          flag,
 		evaluationCtx: ctx,
 	}
 
-	result, err := e.Evaluate()
+	result, err := eval.Evaluate()
 	if err != nil {
 		return err
 	}

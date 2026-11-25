@@ -543,7 +543,7 @@ func runConfigIsValidTests(t *testing.T, tests []configIsValidCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &config.Config{
+			cfg := &config.Config{
 				PollingInterval:         tt.fields.PollingInterval,
 				FileFormat:              tt.fields.FileFormat,
 				StartWithRetrieverError: tt.fields.StartWithRetrieverError,
@@ -560,9 +560,9 @@ func runConfigIsValidTests(t *testing.T, tests []configIsValidCase) {
 				OfrepEventStream:        tt.fields.OfrepEventStream,
 			}
 			if tt.name == "empty config" {
-				c = nil
+				cfg = nil
 			}
-			tt.wantErr(t, c.IsValid(), "invalid configuration")
+			tt.wantErr(t, cfg.IsValid(), "invalid configuration")
 		})
 	}
 }

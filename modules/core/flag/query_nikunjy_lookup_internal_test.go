@@ -27,24 +27,24 @@ func newIndexingService() *Service {
 
 // idList returns `key in ["user-0000000", ...]` with n ids, where the id at position
 // replaced (if it is not negative) is changed to replacement.
-func idList(n, replaced int, replacement string) string {
-	var sb strings.Builder
-	sb.Grow(n*16 + 16)
-	sb.WriteString(`key in [`)
-	for i := range n {
+func idList(count, replaced int, replacement string) string {
+	var builder strings.Builder
+	builder.Grow(count*16 + 16)
+	builder.WriteString(`key in [`)
+	for i := range count {
 		if i > 0 {
-			sb.WriteString(", ")
+			builder.WriteString(", ")
 		}
 		if i == replaced {
-			fmt.Fprintf(&sb, `"%s"`, replacement)
+			fmt.Fprintf(&builder, `"%s"`, replacement)
 
 			continue
 		}
-		fmt.Fprintf(&sb, `"user-%07d"`, i)
+		fmt.Fprintf(&builder, `"user-%07d"`, i)
 	}
-	sb.WriteString(`]`)
+	builder.WriteString(`]`)
 
-	return sb.String()
+	return builder.String()
 }
 
 // applies reports whether the rule applies to the evaluation context of key.
@@ -66,36 +66,38 @@ func indexedEvaluator(c *nikunjyEvaluatorCache, r *Rule) *parser.Evaluator {
 	return c.lookup(r.QueryHash, r.GetQuery())
 }
 
-func indexSize(c *nikunjyEvaluatorCache) int {
-	n := 0
-	c.byKey.Range(func(_, _ any) bool {
-		n++
+func indexSize(evalCache *nikunjyEvaluatorCache) int {
+	count := 0
+	evalCache.byKey.Range(func(_, _ any) bool {
+		count++
 
 		return true
 	})
 
-	return n
+	return count
 }
 
 // assertSharedEvaluators checks that every rule of flags is found by its hash, that rules with
 // one text share its bytes, and that wantEvaluators distinct evaluators are behind the rules.
-func assertSharedEvaluators(t *testing.T, c *nikunjyEvaluatorCache, flags []*InternalFlag, wantEvaluators int) {
+func assertSharedEvaluators(
+	t *testing.T, evalCache *nikunjyEvaluatorCache, flags []*InternalFlag, wantEvaluators int,
+) {
 	t.Helper()
 	distinct := map[*parser.Evaluator]string{}
 	bytesOf := map[string]*byte{}
-	for _, f := range flags {
-		for i := range *f.Rules {
-			r := &(*f.Rules)[i]
-			ev := indexedEvaluator(c, r)
-			require.NotNil(t, ev, "a validated rule must be found by its hash")
-			distinct[ev] = r.GetQuery()
-			if shared, ok := bytesOf[r.GetQuery()]; ok {
-				assert.Same(t, shared, unsafe.StringData(r.GetQuery()), "rules with one text share its bytes")
+	for _, flg := range flags {
+		for i := range *flg.Rules {
+			rule := &(*flg.Rules)[i]
+			evaluator := indexedEvaluator(evalCache, rule)
+			require.NotNil(t, evaluator, "a validated rule must be found by its hash")
+			distinct[evaluator] = rule.GetQuery()
+			if shared, ok := bytesOf[rule.GetQuery()]; ok {
+				assert.Same(t, shared, unsafe.StringData(rule.GetQuery()), "rules with one text share its bytes")
 			}
-			bytesOf[r.GetQuery()] = unsafe.StringData(r.GetQuery())
-			want, err := c.get(r.GetTrimmedQuery())
+			bytesOf[rule.GetQuery()] = unsafe.StringData(rule.GetQuery())
+			want, err := evalCache.get(rule.GetTrimmedQuery())
 			require.NoError(t, err)
-			assert.Same(t, want, ev, "the hash lookup must give the evaluator of the query text")
+			assert.Same(t, want, evaluator, "the hash lookup must give the evaluator of the query text")
 		}
 	}
 	assert.Len(t, distinct, wantEvaluators)
@@ -143,16 +145,16 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
+			evalCache := svc.nikunjy
 			flags := make([]*InternalFlag, tt.flags)
-			for f := range flags {
+			for flagIdx := range flags {
 				queries := make([]string, tt.rules)
-				for r := range queries {
-					queries[r] = tt.queryOf(f, r)
+				for ruleIdx := range queries {
+					queries[ruleIdx] = tt.queryOf(flagIdx, ruleIdx)
 				}
-				flags[f] = validatedFlag(t, svc, queries...)
+				flags[flagIdx] = validatedFlag(t, svc, queries...)
 			}
-			assertSharedEvaluators(t, c, flags, tt.wantEvaluators)
+			assertSharedEvaluators(t, evalCache, flags, tt.wantEvaluators)
 			runtime.KeepAlive(flags)
 		})
 	}
@@ -177,17 +179,17 @@ func splitRulesByQuery(flags []*InternalFlag, listA string) ([]*Rule, []*Rule) {
 
 // assertListsHaveOwnEvaluators checks that the rules of a list share an evaluator, and that the
 // two lists never share one.
-func assertListsHaveOwnEvaluators(t *testing.T, c *nikunjyEvaluatorCache, rulesA, rulesB []*Rule) {
+func assertListsHaveOwnEvaluators(t *testing.T, evalCache *nikunjyEvaluatorCache, rulesA, rulesB []*Rule) {
 	t.Helper()
-	evA, evB := indexedEvaluator(c, rulesA[0]), indexedEvaluator(c, rulesB[0])
+	evA, evB := indexedEvaluator(evalCache, rulesA[0]), indexedEvaluator(evalCache, rulesB[0])
 	require.NotNil(t, evA)
 	require.NotNil(t, evB)
 	assert.NotSame(t, evA, evB, "two different queries must never share an evaluator")
 	for _, r := range rulesA {
-		assert.Same(t, evA, indexedEvaluator(c, r))
+		assert.Same(t, evA, indexedEvaluator(evalCache, r))
 	}
 	for _, r := range rulesB {
-		assert.Same(t, evB, indexedEvaluator(c, r))
+		assert.Same(t, evB, indexedEvaluator(evalCache, r))
 	}
 }
 
@@ -259,7 +261,7 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
+			evalCache := svc.nikunjy
 			listA, listB := idList(tt.n, -1, ""), tt.listB(tt.n)
 			require.NotEqual(t, listA, listB)
 
@@ -273,7 +275,7 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 			rulesA, rulesB := splitRulesByQuery(flags, listA)
 			require.Len(t, rulesA, 3)
 			require.Len(t, rulesB, 2)
-			assertListsHaveOwnEvaluators(t, c, rulesA, rulesB)
+			assertListsHaveOwnEvaluators(t, evalCache, rulesA, rulesB)
 
 			check := func(t assert.TestingT) {
 				assertListsApply(t, svc, rulesA, rulesB, tt.wantOnlyA, tt.wantOnlyB)
@@ -380,40 +382,45 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 
 			svc := newIndexingService()
 			c := svc.nikunjy
-			f := validatedFlag(t, svc, `key eq "a"`)
-			require.NotZero(t, (*f.Rules)[0].QueryHash)
-			r := tt.mutate(&(*f.Rules)[0])
+			flg := validatedFlag(t, svc, `key eq "a"`)
+			require.NotZero(t, (*flg.Rules)[0].QueryHash)
+			r := tt.mutate(&(*flg.Rules)[0])
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
 			assert.True(t, applies(svc, r, tt.wantMatches))
 			assert.False(t, applies(svc, r, tt.wantNoMatch))
-			runtime.KeepAlive(f)
+			runtime.KeepAlive(flg)
 		})
 	}
 }
 
 // assertOneTextPerKeyAndEvaluator checks that every rule of flags is found by its hash, that no
 // key and no evaluator belongs to two texts, and that there are n of each.
-func assertOneTextPerKeyAndEvaluator(t *testing.T, c *nikunjyEvaluatorCache, flags []*InternalFlag, n int) {
+func assertOneTextPerKeyAndEvaluator(
+	t *testing.T,
+	evalCache *nikunjyEvaluatorCache,
+	flags []*InternalFlag,
+	count int,
+) {
 	t.Helper()
 	keys := map[uint64]string{}
 	evaluators := map[*parser.Evaluator]string{}
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
-			ev := indexedEvaluator(c, r)
-			require.NotNil(t, ev)
+			eval := indexedEvaluator(evalCache, r)
+			require.NotNil(t, eval)
 			if other, ok := keys[r.QueryHash]; ok {
 				require.Equal(t, other, r.GetQuery(), "a key must belong to one text")
 			}
 			keys[r.QueryHash] = r.GetQuery()
-			if other, ok := evaluators[ev]; ok {
+			if other, ok := evaluators[eval]; ok {
 				require.Equal(t, other, r.GetQuery(), "an evaluator must belong to one text")
 			}
-			evaluators[ev] = r.GetQuery()
+			evaluators[eval] = r.GetQuery()
 		}
 	}
-	assert.Len(t, keys, n)
-	assert.Len(t, evaluators, n)
+	assert.Len(t, keys, count)
+	assert.Len(t, evaluators, count)
 	assert.NotContains(t, keys, uint64(0))
 }
 
@@ -457,8 +464,8 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
-			c.hash = tt.hash
+			evalCache := svc.nikunjy
+			evalCache.hash = tt.hash
 			queries := make([]string, 0, tt.wantQueries)
 			for i := range tt.wantQueries {
 				queries = append(queries, fmt.Sprintf(`key eq "collide-%d"`, i))
@@ -470,19 +477,19 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			}
 			flags := []*InternalFlag{validatedFlag(t, svc, queries...), validatedFlag(t, svc, reversed...)}
 
-			assertOneTextPerKeyAndEvaluator(t, c, flags, len(queries))
+			assertOneTextPerKeyAndEvaluator(t, evalCache, flags, len(queries))
 			assertCollidingQueriesApply(t, svc, flags, len(queries))
 
 			// Releasing one flag keeps the keys of the other.
 			flags[0] = nil
 			gcUntil(
 				t,
-				func() bool { return c.keyRefsTotal() == len(queries) },
+				func() bool { return evalCache.keyRefsTotal() == len(queries) },
 				"the collected flag must release its keys",
 			)
 			for i := range *flags[1].Rules {
 				r := &(*flags[1].Rules)[i]
-				assert.NotNil(t, indexedEvaluator(c, r))
+				assert.NotNil(t, indexedEvaluator(evalCache, r))
 			}
 			runtime.KeepAlive(flags[1])
 		})
@@ -565,21 +572,21 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
-			f := newFlagWithQueries(tt.query)
-			err := f.IsValid(svc)
+			evalCache := svc.nikunjy
+			flg := newFlagWithQueries(tt.query)
+			err := flg.IsValid(svc)
 			if !tt.wantValid {
 				require.Error(t, err)
-				assert.Zero(t, indexSize(c), "an invalid flag must not index its queries")
+				assert.Zero(t, indexSize(evalCache), "an invalid flag must not index its queries")
 
 				return
 			}
 			require.NoError(t, err)
-			r := &(*f.Rules)[0]
-			assert.Equal(t, strings.Contains(tt.query, "eq"), indexedEvaluator(c, r) != nil)
-			assert.True(t, applies(svc, r, tt.wantMatches))
-			assert.False(t, applies(svc, r, tt.wantNoMatch))
-			runtime.KeepAlive(f)
+			rule := &(*flg.Rules)[0]
+			assert.Equal(t, strings.Contains(tt.query, "eq"), indexedEvaluator(evalCache, rule) != nil)
+			assert.True(t, applies(svc, rule, tt.wantMatches))
+			assert.False(t, applies(svc, rule, tt.wantNoMatch))
+			runtime.KeepAlive(flg)
 		})
 	}
 }
@@ -598,7 +605,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	t.Parallel()
 
 	svc := newIndexingService()
-	c := svc.nikunjy
+	evalCache := svc.nikunjy
 	const flags = 10
 	load := func(query func(f int) string) []*InternalFlag {
 		set := make([]*InternalFlag, flags)
@@ -610,13 +617,13 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	}
 	current := load(func(f int) string { return fmt.Sprintf(`key eq "gen-0-%d"`, f%3) })
 	check := func(set []*InternalFlag, gen int) {
-		for f, flg := range set {
+		for idx, flg := range set {
 			r := &(*flg.Rules)[0]
-			assert.NotNil(t, indexedEvaluator(c, r))
-			assert.True(t, applies(svc, r, fmt.Sprintf("gen-%d-%d", gen, f%3)))
+			assert.NotNil(t, indexedEvaluator(evalCache, r))
+			assert.True(t, applies(svc, r, fmt.Sprintf("gen-%d-%d", gen, idx%3)))
 			assert.False(
 				t,
-				applies(svc, r, fmt.Sprintf("gen-%d-%d", gen-1, f%3)),
+				applies(svc, r, fmt.Sprintf("gen-%d-%d", gen-1, idx%3)),
 				"stale evaluator of the previous load",
 			)
 		}
@@ -642,14 +649,14 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 		current = next
 		runtime.GC()
 	}
-	gcUntil(t, func() bool { return indexSize(c) <= flags }, "the rules of the old loads must be unindexed")
-	assert.LessOrEqual(t, indexSize(c), flags)
+	gcUntil(t, func() bool { return indexSize(evalCache) <= flags }, "the rules of the old loads must be unindexed")
+	assert.LessOrEqual(t, indexSize(evalCache), flags)
 	runtime.KeepAlive(current)
 
 	clear(current) // drop the last references to the flags
-	gcUntil(t, func() bool { return indexSize(c) == 0 }, "no rule left to index")
+	gcUntil(t, func() bool { return indexSize(evalCache) == 0 }, "no rule left to index")
 	cached := 0
-	c.entries.Range(func(_, _ any) bool {
+	evalCache.entries.Range(func(_, _ any) bool {
 		cached++
 
 		return true
@@ -775,22 +782,26 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
-			f := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
+			evalCache := svc.nikunjy
+			flg := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
 			for range tt.validations {
-				require.NoError(t, f.IsValid(svc))
+				require.NoError(t, flg.IsValid(svc))
 			}
-			hashes := []uint64{(*f.Rules)[0].QueryHash, (*f.Rules)[1].QueryHash}
+			hashes := []uint64{(*flg.Rules)[0].QueryHash, (*flg.Rules)[1].QueryHash}
 			assert.NotZero(t, hashes[0])
 			assert.NotEqual(t, hashes[0], hashes[1])
-			assert.Equal(t, tt.wantRefs, c.keyRefsTotal(), "one reference per rule and validation")
-			assert.Equal(t, 2, indexSize(c))
-			assert.True(t, applies(svc, &(*f.Rules)[0], "a"))
-			assert.False(t, applies(svc, &(*f.Rules)[1], "a"))
+			assert.Equal(t, tt.wantRefs, evalCache.keyRefsTotal(), "one reference per rule and validation")
+			assert.Equal(t, 2, indexSize(evalCache))
+			assert.True(t, applies(svc, &(*flg.Rules)[0], "a"))
+			assert.False(t, applies(svc, &(*flg.Rules)[1], "a"))
 
-			runtime.KeepAlive(f)
-			*f = InternalFlag{} // drop the rules
-			gcUntil(t, func() bool { return indexSize(c) == 0 }, "the keys of a collected flag must be released")
+			runtime.KeepAlive(flg)
+			*flg = InternalFlag{} // drop the rules
+			gcUntil(
+				t,
+				func() bool { return indexSize(evalCache) == 0 },
+				"the keys of a collected flag must be released",
+			)
 		})
 	}
 }
@@ -819,13 +830,13 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
-			ev, err := tt.rule.validate(svc, tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
+			eval, err := tt.rule.validate(svc, tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, tt.wantEval, ev != nil)
+			assert.Equal(t, tt.wantEval, eval != nil)
 		})
 	}
 }
@@ -846,16 +857,16 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
-			c.keysEnabled = tt.enabled
+			evalCache := svc.nikunjy
+			evalCache.keysEnabled = tt.enabled
 
-			f := validatedFlag(t, svc, `key eq "a"`)
-			r := &(*f.Rules)[0]
-			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
-			assert.Equal(t, tt.wantIndexed, indexSize(c) == 1)
-			assert.True(t, applies(svc, r, "a"), "the rule evaluates through the evaluator cache")
-			assert.False(t, applies(svc, r, "b"))
-			runtime.KeepAlive(f)
+			flg := validatedFlag(t, svc, `key eq "a"`)
+			rule := &(*flg.Rules)[0]
+			assert.Equal(t, tt.wantIndexed, indexedEvaluator(evalCache, rule) != nil)
+			assert.Equal(t, tt.wantIndexed, indexSize(evalCache) == 1)
+			assert.True(t, applies(svc, rule, "a"), "the rule evaluates through the evaluator cache")
+			assert.False(t, applies(svc, rule, "b"))
+			runtime.KeepAlive(flg)
 		})
 	}
 }
@@ -885,18 +896,18 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
-			c := svc.nikunjy
-			f := newFlagWithQueries(tt.query)
-			require.NoError(t, f.IsValid(svc))
-			r := &(*f.Rules)[0]
-			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
-			assert.Equal(t, tt.wantIndexed, r.QueryHash != 0)
+			evalCache := svc.nikunjy
+			flg := newFlagWithQueries(tt.query)
+			require.NoError(t, flg.IsValid(svc))
+			rule := &(*flg.Rules)[0]
+			assert.Equal(t, tt.wantIndexed, indexedEvaluator(evalCache, rule) != nil)
+			assert.Equal(t, tt.wantIndexed, rule.QueryHash != 0)
 			assert.True(
 				t,
-				applies(svc, r, "user-0000001") || !strings.Contains(tt.query, "user-"),
+				applies(svc, rule, "user-0000001") || !strings.Contains(tt.query, "user-"),
 				"the rule evaluates either way",
 			)
-			runtime.KeepAlive(f)
+			runtime.KeepAlive(flg)
 		})
 	}
 }
@@ -923,29 +934,29 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
+			evalCache := svc.nikunjy
 			flags := make([]*InternalFlag, tt.loads)
 			for i := range flags {
 				flags[i] = validatedFlag(t, svc, strings.Clone(query))
 			}
 			trimmed := (&(*flags[0].Rules)[0]).GetTrimmedQuery()
-			assert.Equal(t, tt.wantTextRefs, refCount(c, trimmed))
-			assert.Equal(t, tt.wantKeyRefs, c.keyRefsTotal())
+			assert.Equal(t, tt.wantTextRefs, refCount(evalCache, trimmed))
+			assert.Equal(t, tt.wantKeyRefs, evalCache.keyRefsTotal())
 
-			first := indexedEvaluator(c, &(*flags[0].Rules)[0])
+			first := indexedEvaluator(evalCache, &(*flags[0].Rules)[0])
 			require.NotNil(t, first)
-			for _, f := range flags {
-				r := &(*f.Rules)[0]
-				assert.Same(t, first, indexedEvaluator(c, r), "one evaluator for the query")
-				assert.True(t, applies(svc, r, "user-0000199"))
-				assert.False(t, applies(svc, r, "nobody"))
+			for _, flg := range flags {
+				rule := &(*flg.Rules)[0]
+				assert.Same(t, first, indexedEvaluator(evalCache, rule), "one evaluator for the query")
+				assert.True(t, applies(svc, rule, "user-0000199"))
+				assert.False(t, applies(svc, rule, "nobody"))
 			}
 
 			runtime.KeepAlive(flags)
 			clear(flags)
-			gcUntil(t, func() bool { return c.keyRefsTotal() == 0 && refCount(c, trimmed) == 0 },
+			gcUntil(t, func() bool { return evalCache.keyRefsTotal() == 0 && refCount(evalCache, trimmed) == 0 },
 				"every reference must be released once the flags are collected")
-			assert.Zero(t, indexSize(c))
+			assert.Zero(t, indexSize(evalCache))
 		})
 	}
 }
@@ -979,9 +990,9 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
+			evalCache := svc.nikunjy
 			valid := validatedFlag(t, svc, strings.Clone(query))
-			require.Equal(t, 1, c.keyRefsTotal())
+			require.Equal(t, 1, evalCache.keyRefsTotal())
 
 			invalid := newFlagWithQueries(strings.Clone(query))
 			tt.invalid(invalid)
@@ -989,7 +1000,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 			assert.Equal(
 				t,
 				tt.wantRefsWhileInvalid,
-				c.keyRefsTotal(),
+				evalCache.keyRefsTotal(),
 				"the reference taken by the invalid flag is released with it",
 			)
 
@@ -997,7 +1008,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 			*invalid = InternalFlag{} // drop the rules
 			gcUntil(
 				t,
-				func() bool { return c.keyRefsTotal() == tt.wantRefsAfter },
+				func() bool { return evalCache.keyRefsTotal() == tt.wantRefsAfter },
 				"the invalid flag must release its reference once",
 			)
 			assert.True(t, applies(svc, &(*valid.Rules)[0], "user-0000199"), "the query is still evaluated")

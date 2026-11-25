@@ -46,13 +46,13 @@ type strSet struct {
 
 func (s *strSet) at(i uint32) string { return s.data[s.ends[i]:s.ends[i+1]] }
 
-func (s *strSet) has(v string) bool {
-	for i := maphash.String(s.seed, v) & s.mask; ; i = (i + 1) & s.mask {
+func (s *strSet) has(target string) bool {
+	for i := maphash.String(s.seed, target) & s.mask; ; i = (i + 1) & s.mask {
 		e := s.tab[i]
 		if e == 0 {
 			return false
 		}
-		if s.at(e-1) == v {
+		if s.at(e-1) == target {
 			return true
 		}
 	}
@@ -113,20 +113,20 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 			ends = append(ends, uint32(b.Len())) //nolint:gosec // G115: b.Len() <= total < MaxUint32, checked above
 		}
 	}
-	s := &strSet{seed: maphash.MakeSeed(), data: b.String(), ends: ends}
+	set := &strSet{seed: maphash.MakeSeed(), data: b.String(), ends: ends}
 	size := tableSize(len(tokens))
-	s.tab = make([]uint32, size)
-	s.mask = uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
-	seed := s.seed
+	set.tab = make([]uint32, size)
+	set.mask = uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
+	seed := set.seed
 	for i := range tokens {
-		j := maphash.String(seed, s.at(uint32(i))) & s.mask
-		for s.tab[j] != 0 {
-			j = (j + 1) & s.mask
+		j := maphash.String(seed, set.at(uint32(i))) & set.mask
+		for set.tab[j] != 0 {
+			j = (j + 1) & set.mask
 		}
-		s.tab[j] = uint32(i + 1)
+		set.tab[j] = uint32(i + 1)
 	}
 
-	return s
+	return set
 }
 
 // sourceText gives the rule text the lexer read, once per compile.
@@ -164,14 +164,14 @@ func (s *intSet) slot(v int) uint64 {
 	return (uint64(v) * fibonacciMultiplier) >> s.shift //nolint:gosec // G115: bit reinterpretation
 }
 
-func (s *intSet) has(v int) bool {
+func (s *intSet) has(target int) bool {
 	mask := uint64(len(s.tab) - 1) //nolint:gosec // G115: len(tab) >= 8 (tableSize), so len-1 >= 7
-	for i := s.slot(v); ; i = (i + 1) & mask {
+	for i := s.slot(target); ; i = (i + 1) & mask {
 		e := s.tab[i]
 		if e == 0 {
 			return false
 		}
-		if s.ints[e-1] == v {
+		if s.ints[e-1] == target {
 			return true
 		}
 	}
@@ -179,15 +179,15 @@ func (s *intSet) has(v int) bool {
 
 func newIntSet(ints []int) *intSet {
 	size := tableSize(len(ints))
-	s := &intSet{ints: ints, tab: make([]uint32, size), shift: uint(wordBits - bits.Len(uint(size-1)))}
+	set := &intSet{ints: ints, tab: make([]uint32, size), shift: uint(wordBits - bits.Len(uint(size-1)))}
 	mask := uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
 	for i, v := range ints {
-		j := s.slot(v)
-		for s.tab[j] != 0 {
+		j := set.slot(v)
+		for set.tab[j] != 0 {
 			j = (j + 1) & mask
 		}
-		s.tab[j] = uint32(i + 1)
+		set.tab[j] = uint32(i + 1)
 	}
 
-	return s
+	return set
 }

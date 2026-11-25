@@ -69,19 +69,19 @@ type Server struct {
 
 // Start starts a container (or attaches to GOPHERSTACK_ENDPOINT) and waits until it is healthy.
 func Start(ctx context.Context) (*Server, error) {
-	if ep := strings.TrimRight(os.Getenv(EnvEndpoint), "/"); ep != "" {
-		err := waitHealthy(ctx, ep)
+	if endpoint := strings.TrimRight(os.Getenv(EnvEndpoint), "/"); endpoint != "" {
+		err := waitHealthy(ctx, endpoint)
 		if err != nil {
 			return nil, err
 		}
 
-		return &Server{Endpoint: ep}, nil
+		return &Server{Endpoint: endpoint}, nil
 	}
 	image := Image
 	if v := os.Getenv(EnvImage); v != "" {
 		image = v
 	}
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		Image:        image,
 		ExposedPorts: []string{Port},
 		WaitingFor: wait.ForHTTP(HealthPath).
@@ -90,30 +90,30 @@ func Start(ctx context.Context) (*Server, error) {
 		Started: true,
 	})
 	if err != nil {
-		if c != nil {
-			_ = testcontainers.TerminateContainer(c)
+		if container != nil {
+			_ = testcontainers.TerminateContainer(container)
 		}
 
 		return nil, fmt.Errorf("start gopherstack: %w", err)
 	}
-	host, err := c.Host(ctx)
+	host, err := container.Host(ctx)
 	if err != nil {
-		_ = testcontainers.TerminateContainer(c)
+		_ = testcontainers.TerminateContainer(container)
 
 		return nil, err
 	}
 	if host == "localhost" {
 		host = "127.0.0.1" // keep an IP host for path-style S3
 	}
-	port, err := c.MappedPort(ctx, Port)
+	port, err := container.MappedPort(ctx, Port)
 	if err != nil {
-		_ = testcontainers.TerminateContainer(c)
+		_ = testcontainers.TerminateContainer(container)
 
 		return nil, err
 	}
 	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, port.Port())}
 
-	return &Server{Endpoint: u.String(), container: c}, nil
+	return &Server{Endpoint: u.String(), container: container}, nil
 }
 
 func waitHealthy(ctx context.Context, endpoint string) error {

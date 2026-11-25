@@ -135,13 +135,13 @@ func TestGolden(t *testing.T) {
 			records := goldenRecords()
 			require.Len(t, wantLines, len(records))
 			for _, rec := range records {
-				h := logger.Slog.Handler()
+				handler := logger.Slog.Handler()
 				if len(rec.with) > 0 {
-					h = h.WithAttrs(rec.with)
+					handler = handler.WithAttrs(rec.with)
 				}
 				r := slog.NewRecord(goldenTime(), rec.level, rec.msg, callerPC(t))
 				r.AddAttrs(rec.attrs...)
-				require.NoError(t, h.Handle(context.Background(), r))
+				require.NoError(t, handler.Handle(context.Background(), r))
 			}
 
 			gotLines := strings.Split(strings.TrimSuffix(normalize(out.String()), "\n"), "\n")

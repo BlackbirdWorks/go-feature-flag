@@ -39,13 +39,13 @@ type WebsocketServiceImpl struct {
 
 // NewWebsocketService is a constructor to create a new WebsocketServiceImpl.
 func NewWebsocketService(opts ...Option) *WebsocketServiceImpl {
-	o := newOptions(opts...)
+	streamOpts := newOptions(opts...)
 
 	return &WebsocketServiceImpl{
 		clients:            map[WebsocketConnector]string{},
 		mutex:              &sync.RWMutex{},
 		closed:             make(chan struct{}),
-		includeFlagDetails: o.includeFlagDetails,
+		includeFlagDetails: streamOpts.includeFlagDetails,
 	}
 }
 
@@ -54,14 +54,14 @@ func (w *WebsocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff not
 	w.mutex.RLock()
 	defer w.mutex.RUnlock()
 	payload := flagChangePayload(diff, w.includeFlagDetails)
-	for c, clientFlagsetName := range w.clients {
+	for conn, clientFlagsetName := range w.clients {
 		if clientFlagsetName != flagsetName {
 			continue
 		}
-		err := c.WriteJSON(payload)
+		err := conn.WriteJSON(payload)
 		if err != nil {
 			w.mutex.RUnlock()
-			w.Deregister(c)
+			w.Deregister(conn)
 			w.mutex.RLock()
 		}
 	}

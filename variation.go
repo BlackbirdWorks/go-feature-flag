@@ -255,15 +255,15 @@ func (g *GoFeatureFlag) CollectTrackingEventData(event exporter.TrackingEvent) {
 // notifyVariation is logging the evaluation result for a flag
 // if no logger is provided in the configuration we are not logging anything.
 func notifyVariation[T model.JSONType](
-	g *GoFeatureFlag,
+	client *GoFeatureFlag,
 	flagKey string,
 	ctx ffcontext.Context,
 	result model.VariationResult[T],
 ) {
-	if result.TrackEvents && g.featureEventDataExporter != nil {
+	if result.TrackEvents && client.featureEventDataExporter != nil {
 		// the event describes the context as it was evaluated: with the configured enrichment
 		// (only what the event reads is worth merging: the exporter metadata and the anonymous status).
-		if enrichment := g.evaluationEnrichment(); changesEventFields(enrichment) {
+		if enrichment := client.evaluationEnrichment(); changesEventFields(enrichment) {
 			ctx = flag.EnrichContext(ctx, enrichment)
 		}
 		event := exporter.NewFeatureEvent(
@@ -276,20 +276,20 @@ func notifyVariation[T model.JSONType](
 			"SERVER",
 			ctx.ExtractGOFFProtectedFields().ExporterMetadata,
 		)
-		g.enqueueEvent(event)
+		client.enqueueEvent(event)
 	}
 }
 
 // getVariation is the internal generic func that handle the logic of a variation the result will always
 // contain a valid model.VariationResult.
 func getVariation[T model.JSONType](
-	g *GoFeatureFlag,
+	client *GoFeatureFlag,
 	flagKey string,
 	evaluationCtx ffcontext.Context,
 	sdkDefaultValue T,
 	expectedType string,
 ) (model.VariationResult[T], error) {
-	if g == nil {
+	if client == nil {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
@@ -303,7 +303,7 @@ func getVariation[T model.JSONType](
 			Cacheable:     false,
 		}, errSemaphoreIsNotInitialised
 	}
-	if g.config.Offline {
+	if client.config.Offline {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
@@ -318,7 +318,7 @@ func getVariation[T model.JSONType](
 		}, nil
 	}
 
-	f, err := g.getFlagFromCache(flagKey)
+	targetFlag, err := client.getFlagFromCache(flagKey)
 	if err != nil {
 		varResult := model.VariationResult[T]{
 			Value:         sdkDefaultValue,
@@ -332,10 +332,10 @@ func getVariation[T model.JSONType](
 			Metadata:      nil,
 			Cacheable:     false,
 		}
-		if f != nil {
-			varResult.TrackEvents = f.IsTrackEvents()
-			varResult.Version = f.GetVersion()
-			varResult.Metadata = f.GetMetadata()
+		if targetFlag != nil {
+			varResult.TrackEvents = targetFlag.IsTrackEvents()
+			varResult.Version = targetFlag.GetVersion()
+			varResult.Metadata = targetFlag.GetMetadata()
 		}
 
 		return varResult, err
@@ -343,11 +343,11 @@ func getVariation[T model.JSONType](
 
 	flagCtx := flag.Context{
 		DefaultSdkValue:             sdkDefaultValue,
-		EvaluationContextEnrichment: g.evaluationEnrichment(),
-		Service:                     g.evaluationService,
+		EvaluationContextEnrichment: client.evaluationEnrichment(),
+		Service:                     client.evaluationService,
 	}
 
-	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
+	return evaluation.Evaluate[T](targetFlag, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
 }
 
 // startEventWorker starts the goroutines that move the evaluation events from the queue to the

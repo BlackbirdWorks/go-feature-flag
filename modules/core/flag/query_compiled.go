@@ -20,14 +20,14 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 		return v.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
 	}
 	trimmed := utils.StrTrim(raw)
-	c := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
-	if c.format == JSONLogicQueryFormat {
+	compiled := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
+	if compiled.format == JSONLogicQueryFormat {
 		var rule any
-		if json.Unmarshal([]byte(c.trimmed), &rule) == nil {
-			c.jsonLogic = rule
+		if json.Unmarshal([]byte(compiled.trimmed), &rule) == nil {
+			compiled.jsonLogic = rule
 		}
 	}
-	actual, _ := s.compiled.LoadOrStore(raw, c)
+	actual, _ := s.compiled.LoadOrStore(raw, compiled)
 
 	return actual.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
 }

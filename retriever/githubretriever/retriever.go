@@ -279,7 +279,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		return "", time.Time{}, err
 	}
 
-	u, err := r.apiURL("app", "installations", strconv.FormatInt(r.InstallationID, 10), "access_tokens")
+	parsedURL, err := r.apiURL("app", "installations", strconv.FormatInt(r.InstallationID, 10), "access_tokens")
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -288,7 +288,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	header := r.buildHeaders(jwt)
 	header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := shared.CallHTTPAPI(ctx, u.String(), http.MethodPost, "", r.Timeout, header, r.httpClient)
+	resp, err := shared.CallHTTPAPI(ctx, parsedURL.String(), http.MethodPost, "", r.Timeout, header, r.httpClient)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -383,16 +383,16 @@ func (r *Retriever) buildURL(branch string) (string, error) {
 		return "", errRepositorySlugMustNot
 	}
 
-	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
+	parsedURL, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
 	if err != nil {
 		return "", err
 	}
 
-	q := u.Query()
+	q := parsedURL.Query()
 	q.Set("ref", branch)
-	u.RawQuery = q.Encode()
+	parsedURL.RawQuery = q.Encode()
 
-	return u.String(), nil
+	return parsedURL.String(), nil
 }
 
 // apiURL returns the GitHub API base URL (BaseURL or api.github.com) with elem appended to its path.
@@ -402,13 +402,13 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 		baseURL = "https://api.github.com"
 	}
 
-	u, err := url.Parse(baseURL)
+	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
-	u.Path = path.Join(append([]string{u.Path}, elem...)...)
+	parsedURL.Path = path.Join(append([]string{parsedURL.Path}, elem...)...)
 
-	return u, nil
+	return parsedURL, nil
 }
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.

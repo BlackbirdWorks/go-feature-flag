@@ -60,13 +60,13 @@ func buildEvaluate(
 // assertEvaluate runs a single evaluateTestCase and verifies its outcome.
 func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	t.Helper()
-	e, err := tt.initEvaluate()
+	eval, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)
 
 		return
 	}
-	m, err := e.Evaluate()
+	got, err := eval.Evaluate()
 	tt.wantErr(t, err)
 
 	if tt.expectedErr != "" {
@@ -76,7 +76,7 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 		assert.Contains(t, err.Error(), tt.expectedErr)
 	}
 	if tt.expectedResult != nil {
-		assert.Equal(t, tt.expectedResult, m)
+		assert.Equal(t, tt.expectedResult, got)
 	}
 }
 

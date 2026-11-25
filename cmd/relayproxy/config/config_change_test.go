@@ -87,14 +87,14 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+			s, c := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -191,14 +191,14 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+			s, c := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -274,7 +274,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
@@ -283,13 +283,13 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			// Create observed logger to capture error logs
 			core, observedLogs := slogutil.NewObserver(slog.LevelError)
 			observedLogger := core
-			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
+			s, cfg := newAPIServerWithLogger(t, listener, configFile, observedLogger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 
 			defer func() {
 				s.Stop(context.Background())
-				_ = c.StopConfigChangeWatcher()
+				_ = cfg.StopConfigChangeWatcher()
 			}()
 			waitForHealth(t, localhostURL+portStr)
 
@@ -372,14 +372,14 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+			s, c := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -415,7 +415,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	t.Parallel()
 
-	ln, listenPort := testutils.ListenLocal(t)
+	listener, listenPort := testutils.ListenLocal(t)
 	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
@@ -423,7 +423,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := slogutil.NewObserver(slog.LevelError)
 	observedLogger := core
-	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
+	s, c := newAPIServerWithLogger(t, listener, configFile, observedLogger, func(_ *config.Config) {
 		callbackCalled <- true
 	})
 	defer func() {
@@ -468,7 +468,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 func newAPIServerWithLogger(
 	t *testing.T,
-	ln net.Listener,
+	listener net.Listener,
 	configFile *os.File,
 	logger *slog.Logger,
 	callback func(newConfig *config.Config),
@@ -479,10 +479,10 @@ func newAPIServerWithLogger(
 	err := f.Parse([]string{"--config=" + configFile.Name()})
 	require.NoError(t, err)
 
-	c, err := config.New(f, logger, "v0.0.0")
+	cfg, err := config.New(f, logger, "v0.0.0")
 	require.NoError(t, err)
 
-	flagsetManager, err := service.NewFlagsetManager(c, logger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -492,17 +492,17 @@ func newAPIServerWithLogger(
 		Metrics:           metric.Metrics{},
 	}
 
-	c.AttachConfigChangeCallback(callback)
+	cfg.AttachConfigChangeCallback(callback)
 
 	// a fatal error of the server fails the test and ends the goroutine of the server instead of the process.
 	exit := func() {
 		assert.Fail(t, "the server exited with a fatal error")
 		runtime.Goexit()
 	}
-	s := api.New(c, services, logger, api.WithExit(exit), api.WithListener(ln))
+	s := api.New(cfg, services, logger, api.WithExit(exit), api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
-	return s, c
+	return s, cfg
 }
 
 // doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks.

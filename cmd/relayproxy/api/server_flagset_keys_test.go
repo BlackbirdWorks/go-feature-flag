@@ -27,7 +27,7 @@ import (
 func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
@@ -51,15 +51,15 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
 
-	s := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, log.Slog, api.WithListener(ln))
-	go s.StartWithContext(context.Background())
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	}, log.Slog, api.WithListener(listener))
+	go srv.StartWithContext(context.Background())
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
@@ -99,24 +99,24 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		{name: "unknown", key: "unknown-key", want: http.StatusUnauthorized},
 	}
 
-	for _, ep := range endpoints {
-		for _, k := range keys {
-			t.Run(ep.name+" with "+k.name+" key", func(t *testing.T) {
+	for _, endpoint := range endpoints {
+		for _, keyCase := range keys {
+			t.Run(endpoint.name+" with "+keyCase.name+" key", func(t *testing.T) {
 				t.Parallel()
-				if ep.keyInQuery && k.skipStreams {
+				if endpoint.keyInQuery && keyCase.skipStreams {
 					t.Skip("a stream stays open when the key is accepted")
 				}
 
-				target := baseURL + ep.path
-				if ep.keyInQuery {
-					target += "?apiKey=" + url.QueryEscape(k.key)
+				target := baseURL + endpoint.path
+				if endpoint.keyInQuery {
+					target += "?apiKey=" + url.QueryEscape(keyCase.key)
 				}
 				req, requestWithContextErr := http.NewRequestWithContext(
-					t.Context(), ep.method, target, strings.NewReader(ep.body))
+					t.Context(), endpoint.method, target, strings.NewReader(endpoint.body))
 				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
-				if !ep.keyInQuery {
-					req.Header.Set("X-Api-Key", k.key)
+				if !endpoint.keyInQuery {
+					req.Header.Set("X-Api-Key", keyCase.key)
 				}
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
 				require.NoError(t, requestWithContextErr)
@@ -124,7 +124,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 				body, requestWithContextErr := io.ReadAll(resp.Body)
 				require.NoError(t, requestWithContextErr)
 
-				assert.Equal(t, k.want, resp.StatusCode, string(body))
+				assert.Equal(t, keyCase.want, resp.StatusCode, string(body))
 			})
 		}
 	}

@@ -68,7 +68,7 @@ func runInternalFlagValidTests(t *testing.T, tests []internalFlagValidCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := &flag.InternalFlag{
+			internalFlag := &flag.InternalFlag{
 				Variations:      tt.fields.Variations,
 				Rules:           tt.fields.Rules,
 				DefaultRule:     tt.fields.DefaultRule,
@@ -78,7 +78,7 @@ func runInternalFlagValidTests(t *testing.T, tests []internalFlagValidCase) {
 				Scheduled:       tt.fields.Scheduled,
 				Experimentation: tt.fields.Experimentation,
 			}
-			err := f.IsValid(flag.NewService())
+			err := internalFlag.IsValid(flag.NewService())
 			errMsg := ""
 			if err != nil {
 				errMsg = err.Error()
@@ -2526,7 +2526,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 func TestFlag_ProgressiveRollout(t *testing.T) {
 	t.Parallel()
 
-	f := &flag.InternalFlag{
+	flg := &flag.InternalFlag{
 		Variations: &map[string]*any{
 			"variation_A": new(any("value_A")),
 			"variation_B": new(any("value_B")),
@@ -2565,8 +2565,8 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v, _ := f.Value(flagName, atDate(user, tt.date), flag.Context{Service: flag.NewService()})
-			assert.Equal(t, f.GetVariationValue(tt.want), v)
+			v, _ := flg.Value(flagName, atDate(user, tt.date), flag.Context{Service: flag.NewService()})
+			assert.Equal(t, flg.GetVariationValue(tt.want), v)
 		})
 	}
 }

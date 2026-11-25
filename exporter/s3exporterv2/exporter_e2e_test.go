@@ -81,7 +81,7 @@ func TestE2E_Export(t *testing.T) {
 				t.Helper()
 				lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 				require.Len(t, lines, n)
-				for i, l := range lines {
+				for i, line := range lines {
 					assert.Equal(
 						t,
 						fmt.Sprintf(
@@ -90,7 +90,7 @@ func TestE2E_Export(t *testing.T) {
 							1617970547+i,
 							i,
 						),
-						l,
+						line,
 					)
 				}
 			},
@@ -107,7 +107,7 @@ func TestE2E_Export(t *testing.T) {
 		{
 			name: "parquet", format: "parquet", s3Path: "exports/parquet", nbEvents: 6,
 			wantKeyRegex: "^exports/parquet/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.parquet$`,
-			check: func(t *testing.T, content []byte, n int) {
+			check: func(t *testing.T, content []byte, count int) {
 				t.Helper()
 				f := filepath.Join(t.TempDir(), "out.parquet")
 				require.NoError(t, os.WriteFile(f, content, 0o600))
@@ -117,7 +117,7 @@ func TestE2E_Export(t *testing.T) {
 				pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 				require.NoError(t, err)
 				defer pr.ReadStop()
-				require.Equal(t, int64(n), pr.GetNumRows())
+				require.Equal(t, int64(count), pr.GetNumRows())
 				got := make([]exporter.FeatureEvent, pr.GetNumRows())
 				require.NoError(t, pr.Read(&got))
 				for i, e := range got {

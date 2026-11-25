@@ -21,25 +21,25 @@ func largeInQuery() string {
 
 // largeInQueryVariant is largeInQuery with a prefix in its ids, so that variants differ.
 func largeInQueryVariant(n int, prefix string) string {
-	var sb strings.Builder
-	sb.Grow(n*16 + 16)
-	sb.WriteString(`key in [`)
+	var builder strings.Builder
+	builder.Grow(n*16 + 16)
+	builder.WriteString(`key in [`)
 	for i := range n {
 		if i > 0 {
-			sb.WriteString(", ")
+			builder.WriteString(", ")
 		}
-		fmt.Fprintf(&sb, `"%suser-%07d"`, prefix, i)
+		fmt.Fprintf(&builder, `"%suser-%07d"`, prefix, i)
 	}
-	sb.WriteString(`]`)
+	builder.WriteString(`]`)
 
-	return sb.String()
+	return builder.String()
 }
 
 // newValidatedFlag builds a flag with one targeting rule and validates it, as the flag
 // cache does when it loads a configuration.
 func newValidatedFlag(b *testing.B, svc *flag.Service, query string) *flag.InternalFlag {
 	b.Helper()
-	f := &flag.InternalFlag{
+	flg := &flag.InternalFlag{
 		Variations: &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 		Rules: &[]flag.Rule{{
 			Name:            new("targeting"),
@@ -48,9 +48,9 @@ func newValidatedFlag(b *testing.B, svc *flag.Service, query string) *flag.Inter
 		}},
 		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
-	require.NoError(b, f.IsValid(svc))
+	require.NoError(b, flg.IsValid(svc))
 
-	return f
+	return flg
 }
 
 // sharedBy100Flags returns 100 validated flags that carry the same 300000 ids list, each with
@@ -187,7 +187,7 @@ func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 // evaluations. The collections are not timed, what follows them is.
 func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 	svc := flag.NewService()
-	f := newValidatedFlag(b, svc, largeInQuery())
+	flg := newValidatedFlag(b, svc, largeInQuery())
 	ctx := ffcontext.NewEvaluationContext("someone-else")
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -198,24 +198,24 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 			runtime.GC()
 			b.StartTimer()
 		}
-		f.Value("flag", ctx, flag.Context{Service: svc})
+		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
 
 func newSmallFlag(i int, query string) *flag.InternalFlag {
-	f := &flag.InternalFlag{
+	flg := &flag.InternalFlag{
 		Variations:  &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	if query != "" {
-		f.Rules = &[]flag.Rule{{
+		flg.Rules = &[]flag.Rule{{
 			Name:            new(fmt.Sprintf("rule-%d", i)),
 			Query:           new(query),
 			VariationResult: new("on"),
 		}}
 	}
 
-	return f
+	return flg
 }
 
 func smallQueries(n int) []string {
@@ -227,23 +227,23 @@ func smallQueries(n int) []string {
 	return queries
 }
 
-// benchLoad measures IsValid of n flags that each carry a distinct short query, the shape of a
+// benchLoad measures IsValid of count flags that each carry a distinct short query, the shape of a
 // typical configuration file. The flags are built outside the measure.
-func benchLoad(b *testing.B, n int) {
+func benchLoad(b *testing.B, count int) {
 	b.Helper()
 	svc := flag.NewService()
-	queries := smallQueries(n)
+	queries := smallQueries(count)
 	var keep []*flag.InternalFlag
 	b.ReportAllocs()
 	for range b.N {
 		b.StopTimer()
-		flags := make([]*flag.InternalFlag, n)
+		flags := make([]*flag.InternalFlag, count)
 		for j := range flags {
 			flags[j] = newSmallFlag(j, strings.Clone(queries[j]))
 		}
 		b.StartTimer()
-		for _, f := range flags {
-			require.NoError(b, f.IsValid(svc))
+		for _, flg := range flags {
+			require.NoError(b, flg.IsValid(svc))
 		}
 		keep = flags
 	}
@@ -273,39 +273,39 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 
 func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 	svc := flag.NewService()
-	f := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
-	require.NoError(b, f.IsValid(svc))
+	flg := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
+	require.NoError(b, flg.IsValid(svc))
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			f.Value("flag", ctx, flag.Context{Service: svc})
+			flg.Value("flag", ctx, flag.Context{Service: svc})
 		}
 	})
 }
 
 func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 	svc := flag.NewService()
-	f := newSmallFlag(0, "")
-	require.NoError(b, f.IsValid(svc))
+	flg := newSmallFlag(0, "")
+	require.NoError(b, flg.IsValid(svc))
 	ctx := ffcontext.NewEvaluationContext("user-1")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		f.Value("flag", ctx, flag.Context{Service: svc})
+		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
 
 func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	svc := flag.NewService()
-	f := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
-	require.NoError(b, f.IsValid(svc))
+	flg := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
+	require.NoError(b, flg.IsValid(svc))
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		f.Value("flag", ctx, flag.Context{Service: svc})
+		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -329,21 +329,21 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 // flag through JSON on every evaluation.
 func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	svc := flag.NewService()
-	f := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
+	flg := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
 	past := clocktest.Instant().Add(-time.Hour)
-	f.Scheduled = &[]flag.ScheduledStep{{
+	flg.Scheduled = &[]flag.ScheduledStep{{
 		Rules: &[]flag.Rule{{
 			Name:  new("rule-0"),
 			Query: new(`key eq "user-1" and plan eq "pro"`),
 		}},
 		Date: &past,
 	}}
-	require.NoError(b, f.IsValid(svc))
+	require.NoError(b, flg.IsValid(svc))
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		f.Value("flag", ctx, flag.Context{Service: svc})
+		flg.Value("flag", ctx, flag.Context{Service: svc})
 	}
 }
 

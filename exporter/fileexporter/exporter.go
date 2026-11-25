@@ -166,21 +166,21 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 
 // writeParquetFeatureEvent writes the feature events in a parquet file.
 func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.FeatureEvent) error {
-	fw, err := local.NewLocalFileWriter(filePath)
+	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = fw.Close() }()
+	defer func() { _ = fileWriter.Close() }()
 
-	pw, err := writer.NewParquetWriter(fw, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 	if err != nil {
 		return err
 	}
 
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
+	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
 	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
 	if compressionCodecFromStringErr == nil {
-		pw.CompressionType = ct
+		pqWriter.CompressionType = ct
 	}
 
 	for _, event := range events {
@@ -189,13 +189,13 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 			return convertValueForParquetErr
 		}
 		event.Value = eventValue
-		convertValueForParquetErr = pw.Write(event)
+		convertValueForParquetErr = pqWriter.Write(event)
 		if convertValueForParquetErr != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", convertValueForParquetErr)
 		}
 	}
 
-	return pw.WriteStop()
+	return pqWriter.WriteStop()
 }
 
 // writeParquetTrackingEvent writes the tracking events in a parquet file.
@@ -203,29 +203,29 @@ func (f *Exporter) writeParquetTrackingEvent(
 	filePath string,
 	events []exporter.TrackingEvent,
 ) error {
-	fw, err := local.NewLocalFileWriter(filePath)
+	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = fw.Close() }()
+	defer func() { _ = fileWriter.Close() }()
 
-	pw, err := writer.NewParquetWriter(fw, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
+	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
 	if err != nil {
 		return err
 	}
 
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
+	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
 	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
 	if compressionCodecFromStringErr == nil {
-		pw.CompressionType = ct
+		pqWriter.CompressionType = ct
 	}
 
 	for _, event := range events {
-		err = pw.Write(event)
+		err = pqWriter.Write(event)
 		if err != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", err)
 		}
 	}
 
-	return pw.WriteStop()
+	return pqWriter.WriteStop()
 }

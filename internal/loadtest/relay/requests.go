@@ -35,21 +35,21 @@ func Endpoints() []Endpoint {
 }
 
 // ParseEndpoint validates an endpoint name. The legacy goff-eval and goff-allflags names are aliases.
-func ParseEndpoint(s string) (Endpoint, error) {
+func ParseEndpoint(name string) (Endpoint, error) {
 	// Legacy spellings from before the rename are still accepted.
-	switch s {
+	switch name {
 	case "goff-eval":
-		s = string(SemaphoreEval)
+		name = string(SemaphoreEval)
 	case "goff-allflags":
-		s = string(SemaphoreAllFlags)
+		name = string(SemaphoreAllFlags)
 	}
 	for _, e := range Endpoints() {
-		if string(e) == s {
+		if string(e) == name {
 			return e, nil
 		}
 	}
 
-	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, s, Endpoints())
+	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, name, Endpoints())
 }
 
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the

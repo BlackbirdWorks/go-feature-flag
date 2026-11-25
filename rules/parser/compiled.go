@@ -165,103 +165,104 @@ func (st *evalState) resolve(path []string) {
 	st.stack.clear()
 }
 
-func (n *node) eval(st *evalState) bool {
+func (n *node) eval(state *evalState) bool {
 	switch n.kind {
 	case nodeParen:
-		result := n.left.eval(st)
+		result := n.left.eval(state)
 		if n.not {
 			return !result
 		}
 
 		return result
 	case nodeLogical:
-		left := n.left.eval(st)
+		left := n.left.eval(state)
 		if n.isOr {
 			if left {
 				return left
 			}
 
-			return n.right.eval(st)
+			return n.right.eval(state)
 		}
 		if !left {
 			return left
 		}
 
-		return n.right.eval(st)
+		return n.right.eval(state)
 	case nodePresent:
-		st.resolve(n.cmp.path)
+		state.resolve(n.cmp.path)
 
-		return st.leftOp != nil
+		return state.leftOp != nil
 	case nodeCompare:
-		return n.cmp.evalCompare(st)
+		return n.cmp.evalCompare(state)
 	default:
 		panic(fmt.Sprintf("unexpected node kind %d", n.kind))
 	}
 }
 
-func (n *compareNode) setRight(st *evalState) {
-	if n.valKind != valueConst && n.listErr == nil && st.rightOp == nil {
-		st.rightOp = n.listValue()
+func (n *compareNode) setRight(state *evalState) {
+	if n.valKind != valueConst && n.listErr == nil && state.rightOp == nil {
+		state.rightOp = n.listValue()
 
 		return
 	}
 	switch n.valKind {
 	case valueInts:
 		var list []int
-		if st.rightOp == nil {
+		if state.rightOp == nil {
 			list = []int{}
 		} else {
-			list = st.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			list = state.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
+		state.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
 		if n.listErr != nil {
-			st.err = cloneErr(n.listErr)
+			state.err = cloneErr(n.listErr)
 		}
 	case valueDoubles:
 		var list []float64
-		if st.rightOp == nil {
+		if state.rightOp == nil {
 			list = []float64{}
 		} else {
-			list = st.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			list = state.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]float64)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
+		//nolint:errcheck,forcetypeassert,gocritic // stale operand
+		state.rightOp = append(list, n.listOp.([]float64)...)
 		if n.listErr != nil {
-			st.err = cloneErr(n.listErr)
+			state.err = cloneErr(n.listErr)
 		}
 	case valueStrings:
 		var list []string
-		if st.rightOp == nil {
+		if state.rightOp == nil {
 			list = []string{}
 		} else {
-			list = st.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			list = state.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
 		//nolint:errcheck,forcetypeassert,gocritic // stale operand
-		st.rightOp = append(list, n.listValue().([]string)...)
+		state.rightOp = append(list, n.listValue().([]string)...)
 	default:
-		st.rightOp = n.rightOp
+		state.rightOp = n.rightOp
 		if n.valErr != nil {
-			st.err = cloneErr(n.valErr)
+			state.err = cloneErr(n.valErr)
 		}
 	}
 }
 
-func (n *compareNode) evalCompare(st *evalState) bool {
-	st.resolve(n.path)
+func (n *compareNode) evalCompare(state *evalState) bool {
+	state.resolve(n.path)
 	if n.strSet != nil || n.intSet != nil {
-		if r, ok := n.setIN(st); ok {
+		if r, ok := n.setIN(state); ok {
 			return r
 		}
 	}
-	n.setRight(st)
-	if st.err != nil {
+	n.setRight(state)
+	if state.err != nil {
 		return false
 	}
 	var ret bool
 	var err error
 	if n.version != nil {
-		ret, err = n.version.compare(st.leftOp)
+		ret, err = n.version.compare(state.leftOp)
 	} else {
-		ret, err = n.apply(st.leftOp, st.rightOp)
+		ret, err = n.apply(state.leftOp, state.rightOp)
 	}
 	if err != nil {
 		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
@@ -273,10 +274,10 @@ func (n *compareNode) evalCompare(st *evalState) bool {
 			c.typeObj = copyOperand(c.typeObj)
 			err = &c
 		}
-		n.setDebugErr(st, err)
+		n.setDebugErr(state, err)
 		ret = false
 	}
-	st.rightOp = nil
+	state.rightOp = nil
 
 	return ret
 }
@@ -299,20 +300,21 @@ func (n *compareNode) listValue() Operand {
 // operand, no earlier error) and the left operand passes the same type check;
 // otherwise it reports false and the regular linear path runs, producing the
 // original errors and debug errors.
-func (n *compareNode) setIN(st *evalState) (bool, bool) {
-	if n.opType != JsonQueryParserIN || n.listErr != nil || n.version != nil || st.rightOp != nil || st.err != nil {
+func (n *compareNode) setIN(state *evalState) (bool, bool) {
+	if n.opType != JsonQueryParserIN || n.listErr != nil || n.version != nil || state.rightOp != nil ||
+		state.err != nil {
 		return false, false
 	}
 	switch {
 	case n.strSet != nil:
-		left, err := (&StringOperation{}).getString(st.leftOp)
+		left, err := (&StringOperation{}).getString(state.leftOp)
 		if err != nil {
 			return false, false
 		}
 
 		return n.strSet.has(left), true
 	case n.intSet != nil:
-		left, ok := st.leftOp.(int)
+		left, ok := state.leftOp.(int)
 		if !ok {
 			return false, false
 		}
@@ -323,7 +325,7 @@ func (n *compareNode) setIN(st *evalState) (bool, bool) {
 	return false, false
 }
 
-func (n *compareNode) setDebugErr(st *evalState, err error) {
+func (n *compareNode) setDebugErr(state *evalState, err error) {
 	// Operations return these sentinels and *InvalidOperandError unwrapped; the exact comparisons are kept
 	// because the wrapping-aware forms measurably slow the evaluation path.
 	switch err {
@@ -332,14 +334,14 @@ func (n *compareNode) setDebugErr(st *evalState, err error) {
 		// be conservative and return false because the rule doesn't even make
 		// sense. It can be argued that it would be false positive if we were
 		// to return true
-		st.err = err
-		st.debugErr = newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
+		state.err = err
+		state.debugErr = newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
 			errValOperation:     n.opType,
-			errValObjectOperand: st.leftOp,
-			errValRuleOperand:   copyOperand(st.rightOp),
+			errValObjectOperand: state.leftOp,
+			errValRuleOperand:   copyOperand(state.rightOp),
 		})
 	case ErrEvalOperandMissing:
-		st.debugErr = newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
+		state.debugErr = newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
 			errValAttrPath: n.attrPath,
 		})
 	default:
@@ -347,18 +349,18 @@ func (n *compareNode) setDebugErr(st *evalState, err error) {
 		if _, ok := err.(*InvalidOperandError); ok { //nolint:errorlint // see above
 			msg = "operands are not the right value type"
 		}
-		st.debugErr = newNestedError(err, msg).Set(ErrVals{
+		state.debugErr = newNestedError(err, msg).Set(ErrVals{
 			errValAttrPath:      n.attrPath,
-			errValObjectOperand: st.leftOp,
-			errValRuleOperand:   copyOperand(st.rightOp),
+			errValObjectOperand: state.leftOp,
+			errValRuleOperand:   copyOperand(state.rightOp),
 		})
 	}
 }
 
 // copyOperand copies compiled IN lists before they are exposed through a
 // debug error so callers cannot mutate the shared rule constants.
-func copyOperand(op Operand) Operand {
-	switch val := op.(type) {
+func copyOperand(operand Operand) Operand {
+	switch val := operand.(type) {
 	case []int:
 		return append(make([]int, 0, len(val)), val...)
 	case []float64:
@@ -367,7 +369,7 @@ func copyOperand(op Operand) Operand {
 		return append(make([]string, 0, len(val)), val...)
 	}
 
-	return op
+	return operand
 }
 
 // cloneErr returns a fresh copy of a pre-computed parse error so each call
@@ -400,20 +402,20 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 	case *PresentExpContext:
 		return &newCompareNode(nodePresent, compileAttrPath(val.AttrPath())).node
 	case *CompareExpContext:
-		n := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
-		n.attrPath = val.AttrPath().GetText()
-		n.opType = val.op.GetTokenType()
-		op := compileValue(n, val.Value(), src)
-		n.apply = applyFor(op, n.opType)
-		if n.apply == nil {
-			panic(fmt.Sprintf("no operation for operator token %d", n.opType))
+		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
+		cmpNode.attrPath = val.AttrPath().GetText()
+		cmpNode.opType = val.op.GetTokenType()
+		op := compileValue(cmpNode, val.Value(), src)
+		cmpNode.apply = applyFor(op, cmpNode.opType)
+		if cmpNode.apply == nil {
+			panic(fmt.Sprintf("no operation for operator token %d", cmpNode.opType))
 		}
 		if _, ok := op.(*VersionOperation); ok {
-			ruleVersion := n.rightOp.(string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
-			n.version = compileVersionCompare(ruleVersion, n.opType)
+			ruleVersion := cmpNode.rightOp.(string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
 
-		return &n.node
+		return &cmpNode.node
 	default:
 		// unreachable with the grammar; compile recovers and falls back to
 		// the visitor
@@ -433,28 +435,28 @@ func compileAttrPath(ctx IAttrPathContext) []string {
 	}
 }
 
-func applyFor(op Operation, opType int) func(Operand, Operand) (bool, error) {
+func applyFor(operation Operation, opType int) func(Operand, Operand) (bool, error) {
 	switch opType {
 	case JsonQueryParserEQ:
-		return op.EQ
+		return operation.EQ
 	case JsonQueryParserNE:
-		return op.NE
+		return operation.NE
 	case JsonQueryParserGT:
-		return op.GT
+		return operation.GT
 	case JsonQueryParserLT:
-		return op.LT
+		return operation.LT
 	case JsonQueryParserLE:
-		return op.LE
+		return operation.LE
 	case JsonQueryParserGE:
-		return op.GE
+		return operation.GE
 	case JsonQueryParserCO:
-		return op.CO
+		return operation.CO
 	case JsonQueryParserSW:
-		return op.SW
+		return operation.SW
 	case JsonQueryParserEW:
-		return op.EW
+		return operation.EW
 	case JsonQueryParserIN:
-		return op.IN
+		return operation.IN
 	}
 
 	return nil
@@ -522,15 +524,15 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 // accepts, and returns the same Major, Minor and Patch with no prerelease;
 // build metadata is validated but dropped since Compare ignores it. Anything
 // else (prerelease, errors) reports false so the caller uses semver.Make.
-func parsePlainVersion(s string) (semver.Version, bool) {
-	var v semver.Version
-	core := s
+func parsePlainVersion(raw string) (semver.Version, bool) {
+	var ver semver.Version
+	core := raw
 	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
-	if i := strings.IndexByte(s, '+'); i >= 0 { //nolint:modernize // see above
-		if !validBuild(s[i+1:]) {
-			return v, false
+	if i := strings.IndexByte(raw, '+'); i >= 0 { //nolint:modernize // see above
+		if !validBuild(raw[i+1:]) {
+			return ver, false
 		}
-		core = s[:i]
+		core = raw[:i]
 	}
 	var nums [3]uint64
 	for i := range nums {
@@ -538,45 +540,45 @@ func parsePlainVersion(s string) (semver.Version, bool) {
 		if i < versionDots {
 			end = strings.IndexByte(core, '.')
 			if end < 0 {
-				return v, false
+				return ver, false
 			}
 		}
 		n, ok := parseVersionNumber(core[:end])
 		if !ok {
-			return v, false
+			return ver, false
 		}
 		nums[i] = n
 		if i < versionDots {
 			core = core[end+1:]
 		}
 	}
-	v.Major, v.Minor, v.Patch = nums[0], nums[1], nums[2]
+	ver.Major, ver.Minor, ver.Patch = nums[0], nums[1], nums[2]
 
-	return v, true
+	return ver, true
 }
 
 // parseVersionNumber accepts a non-empty run of digits without leading
 // zeroes that fits in a uint64, like semver.Parse does for a version number.
-func parseVersionNumber(s string) (uint64, bool) {
-	if s == "" || (len(s) > 1 && s[0] == '0') {
+func parseVersionNumber(raw string) (uint64, bool) {
+	if raw == "" || (len(raw) > 1 && raw[0] == '0') {
 		return 0, false
 	}
-	for i := range len(s) {
-		if s[i] < '0' || s[i] > '9' {
+	for i := range len(raw) {
+		if raw[i] < '0' || raw[i] > '9' {
 			return 0, false
 		}
 	}
-	n, err := strconv.ParseUint(s, 10, 64)
+	n, err := strconv.ParseUint(raw, 10, 64)
 
 	return n, err == nil
 }
 
-// validBuild reports whether s is dot separated, non-empty identifiers of
+// validBuild reports whether build is dot separated, non-empty identifiers of
 // [0-9A-Za-z-], the build metadata semver.Parse accepts.
-func validBuild(s string) bool {
+func validBuild(build string) bool {
 	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == '.' {
+	for i := 0; i <= len(build); i++ {
+		if i == len(build) || build[i] == '.' {
 			if i == start {
 				return false
 			}
@@ -584,7 +586,7 @@ func validBuild(s string) bool {
 
 			continue
 		}
-		c := s[i]
+		c := build[i]
 		valid := c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-'
 		if !valid {
 			return false
@@ -594,52 +596,52 @@ func validBuild(s string) bool {
 	return true
 }
 
-// compileValue pre-parses the right-hand side of a comparison into n and
+// compileValue pre-parses the right-hand side of a comparison into target and
 // returns the Operation the visitor would have selected for it.
-func compileValue(n *compareNode, v IValueContext, src *sourceText) Operation {
+func compileValue(target *compareNode, v IValueContext, src *sourceText) Operation {
 	switch ctx := v.(type) {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
-		n.rightOp = ctx.GetText() == "true"
+		target.rightOp = ctx.GetText() == "true"
 
 		return &BoolOperation{}
 	case *NullContext:
 		return &NullOperation{}
 	case *StringContext:
-		n.rightOp = getString(ctx.GetText())
+		target.rightOp = getString(ctx.GetText())
 
 		return &StringOperation{}
 	case *DoubleContext:
 		// an unparsable double leaves the operand nil without an error
 		val, err := strconv.ParseFloat(ctx.GetText(), 64)
 		if err == nil {
-			n.rightOp = val
+			target.rightOp = val
 		}
 
 		return &FloatOperation{}
 	case *VersionContext:
-		n.rightOp = ctx.VERSION().GetText()
+		target.rightOp = ctx.VERSION().GetText()
 
 		return &VersionOperation{}
 	case *LongContext:
 		val, err := strconv.Atoi(ctx.GetText())
 		if err != nil {
-			n.valErr = err
+			target.valErr = err
 		} else {
-			n.rightOp = val
+			target.rightOp = val
 		}
 
 		return &IntOperation{}
 	case *ListOfIntsContext:
-		n.compileInts(ctx)
+		target.compileInts(ctx)
 
 		return &IntOperation{}
 	case *ListOfDoublesContext:
-		n.compileDoubles(ctx)
+		target.compileDoubles(ctx)
 
 		return &FloatOperation{}
 	case *ListOfStringsContext:
-		n.compileStrings(ctx, src)
+		target.compileStrings(ctx, src)
 
 		return &StringOperation{}
 	}

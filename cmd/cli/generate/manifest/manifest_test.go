@@ -50,7 +50,7 @@ func TestNewManifest(t *testing.T) {
 				destination = filepath.Join(t.TempDir(), "manifest.json")
 			}
 
-			m, err := manifest.NewManifest(tt.config, "", destination)
+			mfst, err := manifest.NewManifest(tt.config, "", destination)
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
 
@@ -58,7 +58,7 @@ func TestNewManifest(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			_, err = m.Generate()
+			_, err = mfst.Generate()
 			require.NoError(t, err)
 			want, err := os.ReadFile(tt.wantManifest)
 			require.NoError(t, err)

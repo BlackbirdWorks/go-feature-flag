@@ -55,13 +55,13 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 // ponytail: known gap, skipped so the fuzzer keeps looking for new ones. Drop it
 // once the validation rejects these rollouts.
 func hasProgressiveRolloutWithoutStep(flags map[string]dto.DTO) bool {
-	for _, d := range flags {
+	for _, flagDTO := range flags {
 		rules := []flag.Rule{}
-		if d.Rules != nil {
-			rules = append(rules, *d.Rules...)
+		if flagDTO.Rules != nil {
+			rules = append(rules, *flagDTO.Rules...)
 		}
-		if d.DefaultRule != nil {
-			rules = append(rules, *d.DefaultRule)
+		if flagDTO.DefaultRule != nil {
+			rules = append(rules, *flagDTO.DefaultRule)
 		}
 		for _, r := range rules {
 			if p := r.ProgressiveRollout; p != nil && (p.Initial == nil || p.End == nil) {

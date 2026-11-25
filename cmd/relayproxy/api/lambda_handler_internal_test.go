@@ -84,8 +84,8 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			z := slog.New(slog.DiscardHandler)
-			c := &config.Config{
+			logger := slog.New(slog.DiscardHandler)
+			cfg := &config.Config{
 				StartAsAwsLambda: true,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				AwsLambdaAdapter: tt.mode, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				Retrievers: &[]retrieverconf.RetrieverConf{
@@ -95,14 +95,14 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 					},
 				},
 			}
-			flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
-			apiServer := New(c, service.Services{
+			apiServer := New(cfg, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
 				Metrics:           metric.Metrics{},
-			}, z)
+			}, logger)
 
 			reqJSON, err := json.Marshal(tt.request)
 			require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 		},
 	}
 
-	z := slog.New(slog.DiscardHandler)
+	logger := slog.New(slog.DiscardHandler)
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -187,7 +187,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
-	}, z, nil, nil, nil)
+	}, logger, nil, nil, nil)
 	require.NoError(t, err)
 
 	commonServices := service.Services{
@@ -206,7 +206,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 				AwsLambdaAdapter:      "APIGatewayV2", //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				AwsAPIGatewayBasePath: tt.basePath,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			}
-			apiServer := New(c, commonServices, z)
+			apiServer := New(c, commonServices, logger)
 
 			request := events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{

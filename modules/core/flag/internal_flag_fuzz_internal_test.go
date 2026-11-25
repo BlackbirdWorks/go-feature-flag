@@ -67,19 +67,19 @@ func FuzzInternalFlagValue(f *testing.F) {
 // (scheduled steps included), and flags without default rule but with a
 // scheduled step updating it (Value panics).
 // ponytail: same as hasKnownValidationGap, drop the cases once they are fixed.
-func hasKnownFlagGap(f *InternalFlag) bool {
-	rules := f.GetRules()
-	if f.DefaultRule != nil {
-		rules = append(rules, *f.DefaultRule)
+func hasKnownFlagGap(targetFlag *InternalFlag) bool {
+	rules := targetFlag.GetRules()
+	if targetFlag.DefaultRule != nil {
+		rules = append(rules, *targetFlag.DefaultRule)
 	}
 	if slices.ContainsFunc(rules, hasKnownValidationGap) {
 		return true
 	}
-	if f.Scheduled == nil {
+	if targetFlag.Scheduled == nil {
 		return false
 	}
 
-	return slices.ContainsFunc(*f.Scheduled, func(step ScheduledStep) bool {
-		return (f.DefaultRule == nil && step.DefaultRule != nil) || hasKnownFlagGap(&step.InternalFlag)
+	return slices.ContainsFunc(*targetFlag.Scheduled, func(step ScheduledStep) bool {
+		return (targetFlag.DefaultRule == nil && step.DefaultRule != nil) || hasKnownFlagGap(&step.InternalFlag)
 	})
 }

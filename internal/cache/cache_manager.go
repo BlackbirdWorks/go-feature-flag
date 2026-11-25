@@ -71,21 +71,21 @@ func New(
 	logger *fflog.FFLogger,
 	opts ...Option,
 ) *ManagerImpl {
-	m := &ManagerImpl{
+	mgr := &ManagerImpl{
 		logger:                          logger,
 		mutex:                           sync.RWMutex{},
 		notificationService:             notificationService,
 		persistentFlagConfigurationFile: persistentFlagConfigurationFile,
 	}
 	for _, opt := range opts {
-		opt(m)
+		opt(mgr)
 	}
-	if m.service == nil {
-		m.service = flag.NewService()
+	if mgr.service == nil {
+		mgr.service = flag.NewService()
 	}
-	m.inMemoryCache.Store(NewInMemoryCache(m.service, logger))
+	mgr.inMemoryCache.Store(NewInMemoryCache(mgr.service, logger))
 
-	return m
+	return mgr
 }
 
 func ConvertToFlagStruct(

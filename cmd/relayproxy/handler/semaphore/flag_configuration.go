@@ -66,7 +66,7 @@ type FlagConfigurationOutput struct {
 // served is answered with the FlagConfigurationResponse that describes the error.
 func (h *FlagConfigurationAPICtrl) Handle(
 	ctx context.Context,
-	in *FlagConfigurationInput,
+	input *FlagConfigurationInput,
 ) (*FlagConfigurationOutput, error) {
 	h.metrics.IncFlagConfigurationCall()
 
@@ -74,7 +74,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	defer span.End()
 
 	reqBody := new(FlagConfigurationRequest)
-	err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody)
+	err := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
 	if err != nil {
 		return &FlagConfigurationOutput{
 			Status:       http.StatusBadRequest,
@@ -88,7 +88,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 		}, nil
 	}
 
-	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, input.APIKey())
 	if httpErr != nil {
 		return nil, httpErr
 	}

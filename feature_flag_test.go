@@ -458,15 +458,15 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
 	t.Parallel()
 
-	f, err := os.CreateTemp(t.TempDir(), "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	// close the handle before removing: Windows cannot delete a file that is still open
-	assert.NoError(t, f.Close())
+	assert.NoError(t, tmpFile.Close())
 	// we delete the fileTemp to be sure that the retriever will have to create the file
-	err = os.Remove(f.Name())
+	err = os.Remove(tmpFile.Name())
 	require.NoError(t, err)
 
-	r := mockretriever.NewFileInitializableRetriever(f.Name(), retriever.RetrieverReady)
+	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverReady)
 	gff, err := ffclient.New(ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
@@ -477,21 +477,21 @@ func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
 	assert.True(t, hasTestFlag, "User should have test flag")
 
 	gff.Close()
-	_, err = os.Stat(f.Name())
+	_, err = os.Stat(tmpFile.Name())
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 func TestInitializableRetrieverWithRetrieverNotReady(t *testing.T) {
 	t.Parallel()
 
-	f, err := os.CreateTemp(t.TempDir(), "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	// close the handle before removing: Windows cannot delete a file that is still open
-	assert.NoError(t, f.Close())
+	assert.NoError(t, tmpFile.Close())
 	// we delete the fileTemp to be sure that the retriever will have to create the file
-	err = os.Remove(f.Name())
+	err = os.Remove(tmpFile.Name())
 	require.NoError(t, err)
 
-	r := mockretriever.NewFileInitializableRetriever(f.Name(), retriever.RetrieverNotReady)
+	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverNotReady)
 	gff, err := ffclient.New(ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
@@ -762,14 +762,14 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// partially written file can never satisfy the condition.
 	var contentP2 []byte
 	require.Eventually(t, func() bool {
-		c, flags, ok := readPersistedFlags(persistFile.Name())
+		persistedBytes, flags, ok := readPersistedFlags(persistFile.Name())
 		if !ok || len(flags) != 2 {
 			return false
 		}
 		if _, hasFooFlag := flags["foo-flag"]; !hasFooFlag {
 			return false
 		}
-		contentP2 = c
+		contentP2 = persistedBytes
 
 		return true
 	}, eventuallyTimeout, eventuallyTick,

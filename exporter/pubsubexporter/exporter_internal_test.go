@@ -210,7 +210,7 @@ func TestExporter_Export(t *testing.T) {
 				newClientFunc = tt.fields.newClientFunc(client)
 			}
 
-			e := &Exporter{
+			exp := &Exporter{
 				ProjectID:             tt.fields.projectID,
 				Topic:                 tt.fields.topic,
 				Options:               tt.fields.options,
@@ -218,7 +218,7 @@ func TestExporter_Export(t *testing.T) {
 				EnableMessageOrdering: tt.fields.enableMessageOrdering,
 				newClientFunc:         newClientFunc,
 			}
-			err := e.Export(ctx, logger, tt.events)
+			err := exp.Export(ctx, logger, tt.events)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -228,8 +228,8 @@ func TestExporter_Export(t *testing.T) {
 
 			require.NoError(t, err)
 			assertMessages(t, tt.events, server.Messages())
-			assertPublisherSettings(t, tt.fields.publishSettings, e.publisher)
-			assert.Equal(t, tt.fields.enableMessageOrdering, e.publisher.EnableMessageOrdering)
+			assertPublisherSettings(t, tt.fields.publishSettings, exp.publisher)
+			assert.Equal(t, tt.fields.enableMessageOrdering, exp.publisher.EnableMessageOrdering)
 		})
 	}
 }

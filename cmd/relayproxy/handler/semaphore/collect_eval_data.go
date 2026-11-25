@@ -59,12 +59,12 @@ type CollectEvalDataOutput struct {
 }
 
 // Handle is the entry point for the data/collector endpoint.
-func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) (*CollectEvalDataOutput, error) {
+func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInput) (*CollectEvalDataOutput, error) {
 	ctx, span := otel.Tracer(configfile.OtelTracerName).Start(ctx, "collectEventData")
 	defer span.End()
 
 	reqBody := new(model.CollectEvalDataRequest)
-	bindErr := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody)
+	bindErr := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
 	if bindErr != nil {
 		return nil, helper.NewHTTPError(
 			http.StatusBadRequest,
@@ -78,7 +78,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 	// The flag set is looked up after the body is read, not taken from the authentication: the events are
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, in.APIKey())
+	flagset, httpErr := helper.FlagSet(h.flagsetManager, input.APIKey())
 	if httpErr != nil {
 		return nil, httpErr
 	}
@@ -108,7 +108,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 		switch event["kind"] {
 		case "tracking":
-			e, err := convertTrackingEvent(ctx, event, logger)
+			trackingEv, err := convertTrackingEvent(ctx, event, logger)
 			if err != nil {
 				logger.LogAttrs(ctx, slog.LevelError,
 					"impossible to convert the event to a tracking event",
@@ -117,10 +117,10 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 				continue
 			}
-			flagset.CollectTrackingEventData(e)
+			flagset.CollectTrackingEventData(trackingEv)
 			counterTracking++
 		default:
-			e, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
+			featureEv, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
 			if err != nil {
 				logger.LogAttrs(
 					ctx,
@@ -131,7 +131,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 				continue
 			}
-			flagset.CollectEventData(e)
+			flagset.CollectEventData(featureEv)
 			counterEvaluation++
 		}
 	}
@@ -152,18 +152,18 @@ func convertTrackingEvent(
 	event map[string]any,
 	logger *slog.Logger,
 ) (exporter.TrackingEvent, error) {
-	var e exporter.TrackingEvent
+	var trackingEv exporter.TrackingEvent
 	marshalled, err := json.Marshal(event)
 	if err != nil {
 		return exporter.TrackingEvent{}, err
 	}
-	err = json.Unmarshal(marshalled, &e)
+	err = json.Unmarshal(marshalled, &trackingEv)
 	if err != nil {
 		return exporter.TrackingEvent{}, err
 	}
-	e.CreationDate = formatCreationDate(ctx, e.CreationDate, logger)
+	trackingEv.CreationDate = formatCreationDate(ctx, trackingEv.CreationDate, logger)
 
-	return e, nil
+	return trackingEv, nil
 }
 
 func convertFeatureEvent(
@@ -171,20 +171,20 @@ func convertFeatureEvent(
 	event map[string]any,
 	metadata exporter.FeatureEventMetadata,
 	logger *slog.Logger) (exporter.FeatureEvent, error) {
-	var e exporter.FeatureEvent
-	err := mapstructure.Decode(event, &e)
+	var featureEv exporter.FeatureEvent
+	err := mapstructure.Decode(event, &featureEv)
 	if err != nil {
 		return exporter.FeatureEvent{}, err
 	}
-	if e.Source == "" {
-		e.Source = "PROVIDER_CACHE"
+	if featureEv.Source == "" {
+		featureEv.Source = "PROVIDER_CACHE"
 	}
 	if metadata != nil {
-		e.Metadata = metadata
+		featureEv.Metadata = metadata
 	}
-	e.CreationDate = formatCreationDate(ctx, e.CreationDate, logger)
+	featureEv.CreationDate = formatCreationDate(ctx, featureEv.CreationDate, logger)
 
-	return e, nil
+	return featureEv, nil
 }
 
 func formatCreationDate(ctx context.Context, input int64, logger *slog.Logger) int64 {

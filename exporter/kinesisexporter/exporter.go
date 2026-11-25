@@ -29,7 +29,8 @@ var _ exporter.Exporter = &Exporter{}
 
 const (
 	formatJSON = "json"
-	Mb         = 1024 * 1024
+	//nolint:varnamelen // exported constant kept for compatibility
+	Mb = 1024 * 1024
 
 	// Kinesis PutRecords limits: 500 records and 5 MiB per call.
 	maxRecordsPerCall = 500
@@ -114,26 +115,26 @@ func WithExplicitHashKey(hashKey string) Option {
 }
 
 func WithStreamName(streamName string) Option {
-	return func(s Settings) Settings {
+	return func(settings Settings) Settings {
 		if streamName == "" {
-			return s
+			return settings
 		}
-		s.StreamArn = nil
-		s.StreamName = &streamName
+		settings.StreamArn = nil
+		settings.StreamName = &streamName
 
-		return s
+		return settings
 	}
 }
 
 func WithStreamArn(streamArn string) Option {
-	return func(s Settings) Settings {
+	return func(settings Settings) Settings {
 		if streamArn == "" {
-			return s
+			return settings
 		}
-		s.StreamArn = &streamArn
-		s.StreamName = nil
+		settings.StreamArn = &streamArn
+		settings.StreamName = nil
 
-		return s
+		return settings
 	}
 }
 
@@ -227,13 +228,13 @@ func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRe
 	current := newChunk()
 	size := 0
 	for _, r := range records {
-		rs := len(r.Data) + len(aws.ToString(r.PartitionKey))
-		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+rs > maxBytesPerCall) {
+		recSize := len(r.Data) + len(aws.ToString(r.PartitionKey))
+		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+recSize > maxBytesPerCall) {
 			chunks = append(chunks, current)
 			current, size = newChunk(), 0
 		}
 		current = append(current, r)
-		size += rs
+		size += recSize
 	}
 	if len(current) > 0 {
 		chunks = append(chunks, current)

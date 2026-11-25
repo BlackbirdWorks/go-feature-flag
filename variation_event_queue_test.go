@@ -31,14 +31,14 @@ type queueTestExporter struct {
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
-func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
 	if e.block != nil {
 		<-e.block
 	}
 	if e.fail {
 		return errFailing
 	}
-	e.events.Add(int64(len(ev)))
+	e.events.Add(int64(len(events)))
 
 	return nil
 }
@@ -109,7 +109,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 				}
 			}
 			before := runtime.NumGoroutine()
-			c, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: flagFile},
 				EventQueueSize:  tt.queueSize,
@@ -124,7 +124,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			for range 4 {
 				wg.Go(func() {
 					for range tt.evals / 4 {
-						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)
 						}
@@ -147,13 +147,13 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 					"goroutines must not grow with the evaluations")
 			}
 			release()
-			c.Close()
+			client.Close()
 			if tt.wantAll {
 				assert.Equal(t, int64(tt.evals), exp.events.Load())
-				assert.Zero(t, c.DroppedEvents())
+				assert.Zero(t, client.DroppedEvents())
 			}
 			if tt.wantDropped {
-				assert.Positive(t, c.DroppedEvents())
+				assert.Positive(t, client.DroppedEvents())
 			}
 		})
 	}

@@ -130,8 +130,8 @@ func (m *S3PrefixMock) ListObjectsV2(
 	out := &s3.ListObjectsV2Output{IsTruncated: aws.Bool(false)}
 	seenPrefixes := map[string]bool{}
 	count := 0
-	for _, k := range m.sortedKeys(prefix) {
-		if k <= after {
+	for _, key := range m.sortedKeys(prefix) {
+		if key <= after {
 			continue
 		}
 		if count == pageSize {
@@ -140,8 +140,8 @@ func (m *S3PrefixMock) ListObjectsV2(
 			break
 		}
 		count++
-		out.NextContinuationToken = aws.String(k)
-		if cp := commonPrefix(k, prefix, delimiter); cp != "" {
+		out.NextContinuationToken = aws.String(key)
+		if cp := commonPrefix(key, prefix, delimiter); cp != "" {
 			if !seenPrefixes[cp] {
 				seenPrefixes[cp] = true
 				out.CommonPrefixes = append(out.CommonPrefixes, s3types.CommonPrefix{Prefix: aws.String(cp)})
@@ -149,9 +149,9 @@ func (m *S3PrefixMock) ListObjectsV2(
 
 			continue
 		}
-		obj := s3types.Object{Key: aws.String(k)}
+		obj := s3types.Object{Key: aws.String(key)}
 		if !m.NoETag {
-			obj.ETag = aws.String(etagOf(m.objects[k]))
+			obj.ETag = aws.String(etagOf(m.objects[key]))
 		}
 		out.Contents = append(out.Contents, obj)
 	}

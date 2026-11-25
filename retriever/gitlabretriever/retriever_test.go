@@ -147,19 +147,19 @@ func Test_gitlab_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := gitlabretriever.Retriever{
+			ret := gitlabretriever.Retriever{
 				BaseURL:        tt.fields.baseURL,
 				FilePath:       tt.fields.filePath,
 				GitlabToken:    tt.fields.gitlabToken,
 				Branch:         tt.fields.branch,
 				RepositorySlug: tt.fields.repositorySlug,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
+			ret.SetHTTPClient(&tt.fields.httpClient)
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
-			got, err := h.Retrieve(ctx)
+			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,

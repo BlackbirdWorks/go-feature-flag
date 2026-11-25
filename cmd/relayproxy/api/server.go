@@ -34,7 +34,7 @@ func New(config *config.Config,
 	opts ...Option,
 ) Server {
 	stopRequested := make(chan struct{})
-	s := Server{
+	srv := Server{
 		config:        config,
 		services:      services,
 		logger:        logger,
@@ -46,18 +46,18 @@ func New(config *config.Config,
 		readTimeout:   defaultReadTimeout,
 	}
 	for _, opt := range opts {
-		opt(&s)
+		opt(&srv)
 	}
 	// the metrics (Go runtime and HTTP server) are set up before the routes: the middleware gets the meter provider
 	// of the service when it is built.
-	err := s.otelService.InitMetrics(context.Background(), config)
+	err := srv.otelService.InitMetrics(context.Background(), config)
 	if err != nil {
 		logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
 	}
-	s.initRoutes()
+	srv.initRoutes()
 
-	return s
+	return srv
 }
 
 // Option customizes the Server that New creates.

@@ -28,7 +28,7 @@ func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 }
 
 // FromFlagEvaluationAt builds the state of a flag evaluated at the given instant.
-func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Context,
+func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcontext.Context,
 	flagCtx flag.Context, currentFlag flag.Flag) FlagState {
 	flagValue, resolutionDetails := currentFlag.Value(key, evaluationCtx, flagCtx)
 
@@ -36,7 +36,7 @@ func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Cont
 	if resolutionDetails.Reason == flag.ReasonDisabled {
 		return FlagState{
 			Value:         nil,
-			Timestamp:     at.Unix(),
+			Timestamp:     evaluatedAt.Unix(),
 			VariationType: "",
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        resolutionDetails.ErrorCode != "",
@@ -50,7 +50,7 @@ func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Cont
 	if resolutionDetails.Reason == flag.ReasonError {
 		return FlagState{
 			Value:         nil,
-			Timestamp:     at.Unix(),
+			Timestamp:     evaluatedAt.Unix(),
 			VariationType: "",
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        resolutionDetails.ErrorCode != "",
@@ -65,7 +65,7 @@ func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Cont
 	case int, float64, bool, string, []any, map[string]any:
 		return FlagState{
 			Value:         v,
-			Timestamp:     at.Unix(),
+			Timestamp:     evaluatedAt.Unix(),
 			VariationType: resolutionDetails.Variant,
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        resolutionDetails.ErrorCode != "",
@@ -81,7 +81,7 @@ func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Cont
 
 		return FlagState{
 			Value:         defaultVariationValue,
-			Timestamp:     at.Unix(),
+			Timestamp:     evaluatedAt.Unix(),
 			VariationType: defaultVariationName,
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        true,

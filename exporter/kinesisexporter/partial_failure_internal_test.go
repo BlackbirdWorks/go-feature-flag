@@ -28,15 +28,15 @@ type scriptedSender struct {
 }
 
 func (s *scriptedSender) SendMessages(
-	_ context.Context, in *kinesis.PutRecordsInput,
+	_ context.Context, input *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	call := len(s.calls)
-	datas := make([]string, 0, len(in.Records))
+	datas := make([]string, 0, len(input.Records))
 	out := &kinesis.PutRecordsOutput{}
 	failed := int32(0)
-	for i, r := range in.Records {
+	for i, r := range input.Records {
 		datas = append(datas, string(r.Data))
 		res := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
 		if code := s.fail(call, i, string(r.Data)); code != "" {
@@ -106,7 +106,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 	t.Run("partial failure then success resends only failed records once", func(t *testing.T) {
 		t.Parallel()
 		failing := map[string]bool{encoded(t, 1)[0]: true, encoded(t, 3)[0]: true}
-		s := &scriptedSender{fail: func(call, _ int, data string) string {
+		sender := &scriptedSender{fail: func(call, _ int, data string) string {
 			if call == 0 && failing[data] {
 				return "ProvisionedThroughputExceededException"
 			}
@@ -119,15 +119,15 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 			return nil
 		}
-		err := newTestExporter(s, sleep).Export(context.Background(), logger, testEvents(4))
+		err := newTestExporter(sender, sleep).Export(context.Background(), logger, testEvents(4))
 		require.NoError(t, err)
-		assert.Equal(t, [][]string{encoded(t, 0, 1, 2, 3), encoded(t, 1, 3)}, s.calls)
+		assert.Equal(t, [][]string{encoded(t, 0, 1, 2, 3), encoded(t, 1, 3)}, sender.calls)
 		assert.Len(t, sleeps, 1)
 	})
 
 	t.Run("persistent failure returns counts and codes", func(t *testing.T) {
 		t.Parallel()
-		s := &scriptedSender{fail: func(_, i int, _ string) string {
+		sender := &scriptedSender{fail: func(_, i int, _ string) string {
 			switch i {
 			case 0:
 				return "InternalFailure"
@@ -137,28 +137,28 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 
 			return ""
 		}}
-		err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(3))
+		err := newTestExporter(sender, noSleep).Export(context.Background(), logger, testEvents(3))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "2 of 3 records failed")
 		assert.Contains(t, err.Error(), "InternalFailure")
 		assert.Contains(t, err.Error(), "ProvisionedThroughputExceededException")
-		require.Len(t, s.calls, maxAttempts)
-		assert.Equal(t, encoded(t, 0, 1), s.calls[1])
-		assert.Equal(t, encoded(t, 0, 1), s.calls[2])
+		require.Len(t, sender.calls, maxAttempts)
+		assert.Equal(t, encoded(t, 0, 1), sender.calls[1])
+		assert.Equal(t, encoded(t, 0, 1), sender.calls[2])
 	})
 
 	t.Run("context cancelled during backoff", func(t *testing.T) {
 		t.Parallel()
-		s := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
+		sender := &scriptedSender{fail: func(int, int, string) string { return "InternalFailure" }}
 		ctx, cancel := context.WithCancel(context.Background())
 		sleep := func(ctx context.Context, _ time.Duration) error {
 			cancel()
 
 			return ctx.Err()
 		}
-		err := newTestExporter(s, sleep).Export(ctx, logger, testEvents(2))
+		err := newTestExporter(sender, sleep).Export(ctx, logger, testEvents(2))
 		require.ErrorIs(t, err, context.Canceled)
-		assert.Len(t, s.calls, 1)
+		assert.Len(t, sender.calls, 1)
 	})
 
 	t.Run("real backoff honours context", func(t *testing.T) {
@@ -219,18 +219,18 @@ type responseSender struct {
 }
 
 func (s *responseSender) SendMessages(
-	_ context.Context, in *kinesis.PutRecordsInput,
+	_ context.Context, input *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	call := len(s.calls)
-	datas := make([]string, 0, len(in.Records))
-	for _, r := range in.Records {
+	datas := make([]string, 0, len(input.Records))
+	for _, r := range input.Records {
 		datas = append(datas, string(r.Data))
 	}
 	s.calls = append(s.calls, datas)
 
-	return s.respond(call, in)
+	return s.respond(call, input)
 }
 
 func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
@@ -319,7 +319,7 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := &responseSender{
+			sender := &responseSender{
 				respond: func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
 					if call == 0 {
 						return tt.first(in), nil
@@ -332,13 +332,13 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 					return out, nil
 				},
 			}
-			err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))
+			err := newTestExporter(sender, noSleep).Export(context.Background(), logger, testEvents(2))
 			require.NoError(t, err)
 			want := make([][]string, 0, len(tt.wantCalls))
 			for _, idx := range tt.wantCalls {
 				want = append(want, encoded(t, idx...))
 			}
-			assert.Equal(t, want, s.calls)
+			assert.Equal(t, want, sender.calls)
 		})
 	}
 }

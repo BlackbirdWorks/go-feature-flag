@@ -121,7 +121,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 			VariationResult: new("on"),
 		})
 	}
-	f := flag.InternalFlag{
+	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -139,7 +139,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_, _ = f.Value("multi-rule", ctx, flagCtx)
+		_, _ = flg.Value("multi-rule", ctx, flagCtx)
 	}
 }
 
@@ -156,7 +156,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 			VariationResult: new("on"),
 		})
 	}
-	f := flag.InternalFlag{
+	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -174,7 +174,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_, _ = f.Value("multi-rule-jsonlogic", ctx, flagCtx)
+		_, _ = flg.Value("multi-rule-jsonlogic", ctx, flagCtx)
 	}
 }
 

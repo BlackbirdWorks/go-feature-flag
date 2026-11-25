@@ -158,14 +158,14 @@ func removeIDFromJSON(jsonStr string) (string, error) {
 }
 
 func removeIDFields(data any) {
-	switch v := data.(type) {
+	switch typed := data.(type) {
 	case map[string]any:
-		delete(v, "_id")
-		for _, value := range v {
+		delete(typed, "_id")
+		for _, value := range typed {
 			removeIDFields(value)
 		}
 	case []any:
-		for _, item := range v {
+		for _, item := range typed {
 			removeIDFields(item)
 		}
 	}

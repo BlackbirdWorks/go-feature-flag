@@ -55,7 +55,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 					return nil, ctx.Err()
 				}
 			})
-			n := Notifier{
+			whNotifier := Notifier{
 				EndpointURL: "https://example.com/hook",
 				Secret:      "test-secret",
 				Headers:     tt.headers,
@@ -66,7 +66,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			captured := make([]*http.Request, 0, 2)
 			for _, key := range []string{"first-flag", "second-flag"} {
 				go func() {
-					results <- n.Notify(notifier.DiffCache{Added: map[string]flag.Flag{key: &flag.InternalFlag{}}})
+					results <- whNotifier.Notify(notifier.DiffCache{Added: map[string]flag.Flag{key: &flag.InternalFlag{}}})
 				}()
 				select {
 				case req := <-requests:
@@ -80,7 +80,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			for _, req := range captured {
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
-				assert.Equal(t, signer.Sign(body, []byte(n.Secret)), req.Header.Get("X-Hub-Signature-256"))
+				assert.Equal(t, signer.Sign(body, []byte(whNotifier.Secret)), req.Header.Get("X-Hub-Signature-256"))
 				assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 				assert.Equal(t, tt.wantAuthorization, req.Header.Get("Authorization"))
 			}
@@ -130,7 +130,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 			t.Parallel()
 
 			original := http.Header(tt.headers).Clone()
-			n := Notifier{
+			whNotifier := Notifier{
 				EndpointURL: "https://example.com/hook",
 				Secret:      tt.secret,
 				Headers:     tt.headers,
@@ -152,8 +152,8 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 				}),
 			}
-			require.NoError(t, n.Notify(notifier.DiffCache{}))
-			assert.Equal(t, tt.wantHeaders, http.Header(n.Headers))
+			require.NoError(t, whNotifier.Notify(notifier.DiffCache{}))
+			assert.Equal(t, tt.wantHeaders, http.Header(whNotifier.Headers))
 			assert.Equal(t, tt.wantHeaders, http.Header(tt.headers))
 		})
 	}

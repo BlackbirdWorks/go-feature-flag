@@ -48,21 +48,21 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			require.NoError(t, m.UpdateCache(benchFlagsMap(t, 3), nil, false))
+			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
 
-			snap, err := m.AllFlags()
+			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 			f, ok := snap["flag-1"].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
 			delete(snap, "flag-2")
 
-			live, err := m.GetFlag("flag-1")
+			live, err := mgr.GetFlag("flag-1")
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, tt.read(live))
 
-			again, err := m.AllFlags()
+			again, err := mgr.AllFlags()
 			require.NoError(t, err)
 			assert.Len(t, again, 3)
 			assert.Equal(t, tt.want, tt.read(again["flag-1"]))
@@ -74,15 +74,15 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 // replaced concurrently (meant to run with -race).
 func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	t.Parallel()
-	m := cache.New(nil, "", &fflog.FFLogger{})
+	mgr := cache.New(nil, "", &fflog.FFLogger{})
 	flags := benchFlagsMap(t, 5)
-	require.NoError(t, m.UpdateCache(flags, nil, false))
+	require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
 	var wg sync.WaitGroup
 	for range 4 {
 		wg.Go(func() {
 			for range 200 {
-				snap, err := m.AllFlags()
+				snap, err := mgr.AllFlags()
 				if err != nil {
 					return
 				}
@@ -92,7 +92,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 						iflag.Disable = &d
 					}
 				}
-				live, getFlagErr := m.GetFlag("flag-1")
+				live, getFlagErr := mgr.GetFlag("flag-1")
 				if getFlagErr == nil {
 					_ = live.IsDisable()
 				}
@@ -100,11 +100,11 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 		})
 	}
 	for range 50 {
-		require.NoError(t, m.UpdateCache(flags, nil, false))
+		require.NoError(t, mgr.UpdateCache(flags, nil, false))
 	}
 	wg.Wait()
 
-	live, err := m.GetFlag("flag-1")
+	live, err := mgr.GetFlag("flag-1")
 	require.NoError(t, err)
 	assert.False(t, live.IsDisable())
 }
@@ -207,20 +207,20 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			t.Parallel()
 			var flags map[string]dto.DTO
 			require.NoError(t, yaml.Unmarshal([]byte(nestedFlagYAML), &flags))
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			require.NoError(t, m.UpdateCache(flags, nil, false))
-			live, err := m.GetFlag("nested")
+			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			require.NoError(t, mgr.UpdateCache(flags, nil, false))
+			live, err := mgr.GetFlag("nested")
 			require.NoError(t, err)
 			before, err := json.Marshal(live)
 			require.NoError(t, err)
 
-			snap, err := m.AllFlags()
+			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 			iflag, ok := snap["nested"].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
 
-			live, err = m.GetFlag("nested")
+			live, err = mgr.GetFlag("nested")
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -238,17 +238,17 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 // (same pointers as the evaluation lookup) and fails before the initialisation.
 func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	t.Parallel()
-	m := cache.New(nil, "", &fflog.FFLogger{})
-	m.Close()
-	_, err := m.AllFlagsReadOnly()
+	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr.Close()
+	_, err := mgr.AllFlagsReadOnly()
 	require.Error(t, err)
 
-	m = cache.New(nil, "", &fflog.FFLogger{})
-	require.NoError(t, m.UpdateCache(benchFlagsMap(t, 3), nil, false))
-	shared, err := m.AllFlagsReadOnly()
+	mgr = cache.New(nil, "", &fflog.FFLogger{})
+	require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
+	shared, err := mgr.AllFlagsReadOnly()
 	require.NoError(t, err)
 	require.Len(t, shared, 3)
-	live, err := m.GetFlag("flag-1")
+	live, err := mgr.GetFlag("flag-1")
 	require.NoError(t, err)
 	assert.Same(t, live, shared["flag-1"])
 }

@@ -145,45 +145,45 @@ func isOwnType(t reflect.Type) bool {
 	return strings.HasPrefix(t.PkgPath(), modulePathPrefix)
 }
 
-func koanfName(f reflect.StructField) string {
-	name, _, _ := strings.Cut(f.Tag.Get("koanf"), ",")
+func koanfName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("koanf"), ",")
 	if name == "" {
-		name, _, _ = strings.Cut(f.Tag.Get("mapstructure"), ",")
+		name, _, _ = strings.Cut(field.Tag.Get("mapstructure"), ",")
 	}
 	if name == "" {
-		name = f.Name
+		name = field.Name
 	}
 
 	return name
 }
 
-func redactStruct(v reflect.Value, depth int) map[string]any {
-	t := v.Type()
+func redactStruct(val reflect.Value, depth int) map[string]any {
+	t := val.Type()
 	typeName := t.String()
 	out := make(map[string]any, t.NumField())
 	for i := range t.NumField() {
-		f := t.Field(i)
-		if !f.IsExported() {
+		field := t.Field(i)
+		if !field.IsExported() {
 			continue
 		}
 		// embedded (inline / squash) structs are flattened, like the configuration file is.
-		if f.Anonymous && !IsSecretField(typeName, f.Name) {
-			if inner, ok := redactValue(v.Field(i), depth+1).(map[string]any); ok {
+		if field.Anonymous && !IsSecretField(typeName, field.Name) {
+			if inner, ok := redactValue(val.Field(i), depth+1).(map[string]any); ok {
 				maps.Copy(out, inner)
 
 				continue
 			}
 		}
-		if IsSecretField(typeName, f.Name) {
-			if isZeroValue(v.Field(i)) {
-				out[koanfName(f)] = nil
+		if IsSecretField(typeName, field.Name) {
+			if isZeroValue(val.Field(i)) {
+				out[koanfName(field)] = nil
 			} else {
-				out[koanfName(f)] = RedactedValue
+				out[koanfName(field)] = RedactedValue
 			}
 
 			continue
 		}
-		out[koanfName(f)] = redactValue(v.Field(i), depth+1)
+		out[koanfName(field)] = redactValue(val.Field(i), depth+1)
 	}
 
 	return out
@@ -199,33 +199,33 @@ func isZeroValue(v reflect.Value) bool {
 }
 
 // redactValue converts a value to a generic structure that is safe to log.
-func redactValue(v reflect.Value, depth int) any {
-	if !v.IsValid() || depth > maxRedactDepth {
+func redactValue(val reflect.Value, depth int) any {
+	if !val.IsValid() || depth > maxRedactDepth {
 		return nil
 	}
-	switch v.Kind() {
+	switch val.Kind() {
 	case reflect.Pointer, reflect.Interface:
-		if v.IsNil() {
+		if val.IsNil() {
 			return nil
 		}
 
-		return redactValue(v.Elem(), depth+1)
+		return redactValue(val.Elem(), depth+1)
 	case reflect.Struct:
-		if !isOwnType(v.Type()) {
+		if !isOwnType(val.Type()) {
 			return opaqueValue
 		}
 
-		return redactStruct(v, depth)
+		return redactStruct(val, depth)
 	case reflect.Slice, reflect.Array:
-		out := make([]any, 0, v.Len())
-		for i := range v.Len() {
-			out = append(out, redactValue(v.Index(i), depth+1))
+		out := make([]any, 0, val.Len())
+		for i := range val.Len() {
+			out = append(out, redactValue(val.Index(i), depth+1))
 		}
 
 		return out
 	case reflect.Map:
-		out := make(map[string]any, v.Len())
-		iter := v.MapRange()
+		out := make(map[string]any, val.Len())
+		iter := val.MapRange()
 		for iter.Next() {
 			key := fmt.Sprint(iter.Key().Interface())
 			if sensitiveNamePattern.MatchString(key) {
@@ -240,8 +240,8 @@ func redactValue(v reflect.Value, depth int) any {
 	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
 		return opaqueValue
 	default:
-		if v.CanInterface() {
-			return v.Interface()
+		if val.CanInterface() {
+			return val.Interface()
 		}
 
 		return opaqueValue

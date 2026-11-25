@@ -159,17 +159,17 @@ func TestTarget_Eval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tg, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: tt.mode},
+			tgt, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: tt.mode},
 				tt.ep, tt.flag, 1)
 			require.NoError(t, err)
-			defer tg.Close()
-			err = tg.Eval(0, 1)
+			defer tgt.Close()
+			err = tgt.Eval(0, 1)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Contains(t, tg.Extra(), "sink_requests")
+			assert.Contains(t, tgt.Extra(), "sink_requests")
 		})
 	}
 }
@@ -201,28 +201,32 @@ func TestStart_CleansUpOnFailure(t *testing.T) {
 func TestTarget_ProtocolAndFlagsPerCall(t *testing.T) {
 	t.Parallel()
 	for _, h2c := range []bool{false, true} {
-		for _, ep := range relay.Endpoints() {
-			name := "http1 " + string(ep)
+		for _, endpoint := range relay.Endpoints() {
+			name := "http1 " + string(endpoint)
 			wantProto := "HTTP/1.1"
 			if h2c {
-				name, wantProto = "h2c "+string(ep), "h2c"
+				name, wantProto = "h2c "+string(endpoint), "h2c"
 			}
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				mode := loadtest.ExporterMode("")
-				if ep.EmitsEvents() {
+				if endpoint.EmitsEvents() {
 					mode = loadtest.ExporterDiscard
 				}
-				tg, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: h2c},
-					ep, "rule-bool-track", 2)
+				tgt, err := relay.NewTarget(
+					relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: h2c},
+					endpoint,
+					"rule-bool-track",
+					2,
+				)
 				require.NoError(t, err)
-				defer tg.Close()
-				require.NoError(t, tg.Eval(0, 1), "the response is served with the expected protocol")
-				assert.Equal(t, wantProto, tg.Protocol())
-				if ep.EmitsEvents() {
-					assert.Equal(t, 1, tg.FlagsPerCall())
+				defer tgt.Close()
+				require.NoError(t, tgt.Eval(0, 1), "the response is served with the expected protocol")
+				assert.Equal(t, wantProto, tgt.Protocol())
+				if endpoint.EmitsEvents() {
+					assert.Equal(t, 1, tgt.FlagsPerCall())
 				} else {
-					assert.Greater(t, tg.FlagsPerCall(), 1, "a bulk response evaluates every flag")
+					assert.Greater(t, tgt.FlagsPerCall(), 1, "a bulk response evaluates every flag")
 				}
 			})
 		}

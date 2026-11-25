@@ -11,7 +11,7 @@ import (
 )
 
 func BenchmarkRequestLogger(b *testing.B) {
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name   string
 		level  string
 		status int
@@ -20,16 +20,16 @@ func BenchmarkRequestLogger(b *testing.B) {
 		{"info/404", "info", http.StatusNotFound},
 		{"debug/200", "debug", http.StatusOK},
 	} {
-		b.Run(tc.name, func(b *testing.B) {
-			l, err := cmdlog.New("json", tc.level, cmdlog.WithWriter(discard{}))
+		b.Run(testCase.name, func(b *testing.B) {
+			l, err := cmdlog.New("json", testCase.level, cmdlog.WithWriter(discard{}))
 			require.NoError(b, err)
-			h := requestLogger(l.Slog, true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(tc.status)
+			handler := requestLogger(l.Slog, true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(testCase.status)
 			}))
 			req := httptest.NewRequest(http.MethodGet, "/v1/feature/x/eval?a=b", nil)
 			b.ReportAllocs()
 			for b.Loop() {
-				h.ServeHTTP(httptest.NewRecorder(), req)
+				handler.ServeHTTP(httptest.NewRecorder(), req)
 			}
 		})
 	}

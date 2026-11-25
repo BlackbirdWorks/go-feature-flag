@@ -90,25 +90,25 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 
 // Retriever initialize the retriever based on the configuration.
 func Retriever(
-	c *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
-	var o options
+	conf *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
+	var parsedOpts options
 	for _, opt := range opts {
-		opt(&o)
+		opt(&parsedOpts)
 	}
 	retrieverTimeout := retrieverconf.DefaultTimeout
-	if c.Timeout != 0 {
-		retrieverTimeout = time.Duration(c.Timeout) * time.Millisecond
+	if conf.Timeout != 0 {
+		retrieverTimeout = time.Duration(conf.Timeout) * time.Millisecond
 	}
-	factory, exists := factoryFor(c.Kind)
+	factory, exists := factoryFor(conf.Kind)
 	if !exists {
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, conf.Kind)
 	}
-	r, err := factory(c, retrieverTimeout)
+	r, err := factory(conf, retrieverTimeout)
 	if err != nil {
 		return nil, err
 	}
-	if pg, ok := r.(*postgresqlretriever.Retriever); ok && o.postgresPools != nil {
-		pg.Pools = o.postgresPools
+	if pg, ok := r.(*postgresqlretriever.Retriever); ok && parsedOpts.postgresPools != nil {
+		pg.Pools = parsedOpts.postgresPools
 	}
 
 	return r, nil
@@ -116,64 +116,64 @@ func Retriever(
 
 // Factory functions for each retriever type.
 func createGitHubRetriever(
-	c *retrieverconf.RetrieverConf, timeout time.Duration) (*githubretriever.Retriever, error) {
-	token := c.AuthToken
-	if token == "" && c.GithubToken != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
-		token = c.GithubToken //nolint:staticcheck // SA1019: the deprecated setting is still supported
+	conf *retrieverconf.RetrieverConf, timeout time.Duration) (*githubretriever.Retriever, error) {
+	token := conf.AuthToken
+	if token == "" && conf.GithubToken != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
+		token = conf.GithubToken //nolint:staticcheck // SA1019: the deprecated setting is still supported
 	}
 
 	return &githubretriever.Retriever{
-		RepositorySlug: c.RepositorySlug,
+		RepositorySlug: conf.RepositorySlug,
 		Branch: func() string {
-			if c.Branch == "" {
+			if conf.Branch == "" {
 				return retrieverconf.DefaultGitBranch
 			}
 
-			return c.Branch
+			return conf.Branch
 		}(),
-		FilePath:       c.Path,
+		FilePath:       conf.Path,
 		GithubToken:    token,
-		BaseURL:        c.BaseURL,
+		BaseURL:        conf.BaseURL,
 		Timeout:        timeout,
-		AppID:          c.GitHubAppID,
-		InstallationID: c.GitHubInstallationID,
-		PrivateKey:     c.GitHubAppPrivateKey,
-		PrivateKeyFile: c.GitHubAppPrivateKeyFile,
+		AppID:          conf.GitHubAppID,
+		InstallationID: conf.GitHubInstallationID,
+		PrivateKey:     conf.GitHubAppPrivateKey,
+		PrivateKeyFile: conf.GitHubAppPrivateKeyFile,
 	}, nil
 }
 
 func createGitlabRetriever(
-	c *retrieverconf.RetrieverConf, timeout time.Duration) (*gitlabretriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, timeout time.Duration) (*gitlabretriever.Retriever, error) {
 	return &gitlabretriever.Retriever{
-		BaseURL: c.BaseURL,
+		BaseURL: conf.BaseURL,
 		Branch: func() string {
-			if c.Branch == "" {
+			if conf.Branch == "" {
 				return retrieverconf.DefaultGitBranch
 			}
 
-			return c.Branch
+			return conf.Branch
 		}(),
-		FilePath:       c.Path,
-		GitlabToken:    c.AuthToken,
-		RepositorySlug: c.RepositorySlug,
+		FilePath:       conf.Path,
+		GitlabToken:    conf.AuthToken,
+		RepositorySlug: conf.RepositorySlug,
 		Timeout:        timeout,
 	}, nil
 }
 
 func createBitbucketRetriever(
-	c *retrieverconf.RetrieverConf, timeout time.Duration) (*bitbucketretriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, timeout time.Duration) (*bitbucketretriever.Retriever, error) {
 	return &bitbucketretriever.Retriever{
-		RepositorySlug: c.RepositorySlug,
+		RepositorySlug: conf.RepositorySlug,
 		Branch: func() string {
-			if c.Branch == "" {
+			if conf.Branch == "" {
 				return retrieverconf.DefaultGitBranch
 			}
 
-			return c.Branch
+			return conf.Branch
 		}(),
-		FilePath:       c.Path,
-		BitBucketToken: c.AuthToken,
-		BaseURL:        c.BaseURL,
+		FilePath:       conf.Path,
+		BitBucketToken: conf.AuthToken,
+		BaseURL:        conf.BaseURL,
 		Timeout:        timeout,
 	}, nil
 }
@@ -182,36 +182,36 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*file
 	return &fileretriever.Retriever{Path: c.Path}, nil
 }
 
-func createS3Retriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*s3retrieverv2.Retriever, error) {
+func createS3Retriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*s3retrieverv2.Retriever, error) {
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
 
 	return &s3retrieverv2.Retriever{
-		Bucket:    c.Bucket,
-		Item:      c.Item,
-		Prefix:    c.Prefix,
-		Pattern:   c.Pattern,
-		Recursive: c.Recursive,
+		Bucket:    conf.Bucket,
+		Item:      conf.Item,
+		Prefix:    conf.Prefix,
+		Pattern:   conf.Pattern,
+		Recursive: conf.Recursive,
 		AwsConfig: &awsConfig,
 	}, err
 }
 
 func createHTTPRetriever(
-	c *retrieverconf.RetrieverConf, timeout time.Duration) (*httpretriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, timeout time.Duration) (*httpretriever.Retriever, error) {
 	return &httpretriever.Retriever{
-		URL: c.URL,
+		URL: conf.URL,
 		Method: func() string {
-			if c.HTTPMethod == "" {
+			if conf.HTTPMethod == "" {
 				return retrieverconf.DefaultHTTPMethod
 			}
 
-			return c.HTTPMethod
+			return conf.HTTPMethod
 		}(),
-		Body:           c.HTTPBody,
-		Header:         c.HTTPHeaders,
+		Body:           conf.HTTPBody,
+		Header:         conf.HTTPHeaders,
 		Timeout:        timeout,
-		ClientCertPath: c.HTTPClientCertPath,
-		ClientKeyPath:  c.HTTPClientKeyPath,
-		CACertPath:     c.HTTPCACertPath,
+		ClientCertPath: conf.HTTPClientCertPath,
+		ClientKeyPath:  conf.HTTPClientKeyPath,
+		CACertPath:     conf.HTTPCACertPath,
 	}, nil
 }
 
@@ -221,16 +221,16 @@ func createGoogleStorageRetriever(
 }
 
 func createKubernetesRetriever(
-	c *retrieverconf.RetrieverConf, _ time.Duration) (*k8sretriever.Retriever, error) {
+	conf *retrieverconf.RetrieverConf, _ time.Duration) (*k8sretriever.Retriever, error) {
 	client, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	return &k8sretriever.Retriever{
-		Namespace:     c.Namespace,
-		ConfigMapName: c.ConfigMap,
-		Key:           c.Key,
+		Namespace:     conf.Namespace,
+		ConfigMapName: conf.ConfigMap,
+		Key:           conf.Key,
 		ClientConfig:  *client,
 	}, nil
 }
@@ -239,13 +239,13 @@ func createMongoDBRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*m
 	return &mongodbretriever.Retriever{Database: c.Database, URI: c.URI, Collection: c.Collection}, nil
 }
 
-func createRedisRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (*redisretriever.Retriever, error) {
+func createRedisRetriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*redisretriever.Retriever, error) {
 	var options *redis.Options
-	if c.RedisOptions != nil {
-		options = c.RedisOptions.ToRedisOptions()
+	if conf.RedisOptions != nil {
+		options = conf.RedisOptions.ToRedisOptions()
 	}
 
-	return &redisretriever.Retriever{Options: options, Prefix: c.RedisPrefix}, nil
+	return &redisretriever.Retriever{Options: options, Prefix: conf.RedisPrefix}, nil
 }
 
 func createAzBlobStorageRetriever(

@@ -79,14 +79,14 @@ func main() {
 	}
 
 	// Init pFlag for config file
-	f := newConfigFlagSet()
-	_ = f.Parse(os.Args[1:])
+	flagSet := newConfigFlagSet()
+	_ = flagSet.Parse(os.Args[1:])
 
 	// Init logger
 	logger := log.NewDefault()
 
 	// Loading the configuration in viper
-	proxyConf, err := config.New(f, logger.Slog, version)
+	proxyConf, err := config.New(flagSet, logger.Slog, version)
 	if err != nil {
 		fatal(logger.Slog, "error while reading configuration", log.Err(err))
 	}

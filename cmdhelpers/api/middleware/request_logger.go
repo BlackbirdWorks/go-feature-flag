@@ -61,8 +61,8 @@ const errorKey = "error"
 // pooled, everything is copied during the call. The error of the request ([RecordError]) is not read from the
 // record: the logger the function receives is the one of the request logger, which adds the attributes of the request
 // (the error among them) to the line.
-func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
-	return func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
+func AccessLog() func(ctx context.Context, logger *slog.Logger, r *accesslog.Record) {
+	return func(ctx context.Context, logger *slog.Logger, r *accesslog.Record) {
 		rec := RequestRecord{
 			RemoteIP:  remoteIP(r.RemoteAddr),
 			Latency:   r.Duration,
@@ -74,7 +74,7 @@ func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) 
 			Status:    r.Status,
 			Size:      r.Size,
 		}
-		LogRequest(ctx, l, &rec)
+		LogRequest(ctx, logger, &rec)
 	}
 }
 

@@ -188,23 +188,23 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			exp := &failingExporter{}
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
-			defer m.Stop()
-			const n = 100000
+			defer mgr.Stop()
+			const totalEvents = 100000
 			// The flush backoff compares time.Now().UnixNano() (wall clock) against its deadline, on
 			// purpose: it paces real goroutines, and the package clock is frozen by TestMain. Measure
 			// the elapsed time on that same wall clock. A backwards wall-clock step during the test
 			// is out of scope (a negative elapsed is treated as 0).
 			begin := time.Now().UnixNano()
-			for range n {
-				m.AddEvent(exporter.FeatureEvent{Key: "k"})
+			for range totalEvents {
+				mgr.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
 			elapsed := max(time.Duration(time.Now().UnixNano()-begin), 0)
-			dc, ok := m.(exporter.DroppedEventsCounter)
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
-			assert.Equal(t, int64(n)-tt.wantCap, dc.DroppedEvents())
+			assert.Equal(t, int64(totalEvents)-tt.wantCap, dc.DroppedEvents())
 			// Without backoff the exporter would have been called for every event above the threshold.
 			// A failed flush delays the next event-count flush by flushRetryBackoff (1s) from the end
 			// of the failed attempt, so two attempts start at least 1s apart: during elapsed, at most

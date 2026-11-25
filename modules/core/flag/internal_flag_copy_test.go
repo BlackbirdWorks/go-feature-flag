@@ -115,7 +115,7 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	date := time.Date(2021, 1, 2, 3, 4, 5, 0, time.UTC)
 	build := func() *flag.InternalFlag {
 		step := &flag.ProgressiveRolloutStep{Variation: str("A"), Percentage: flt(1), Date: &date}
-		d := date
+		dateVal := date
 
 		return &flag.InternalFlag{
 			BucketingKey: str("k"), TrackEvents: boolean(true), Disable: boolean(false), Version: str("1"),
@@ -125,27 +125,27 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{Initial: step, End: step},
 			}},
 			DefaultRule:     &flag.Rule{Percentages: &map[string]float64{"A": 1}},
-			Experimentation: &flag.ExperimentationRollout{Start: &d, End: &d},
+			Experimentation: &flag.ExperimentationRollout{Start: &dateVal, End: &dateVal},
 			Scheduled: &[]flag.ScheduledStep{{
 				Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}},
-				Date: &d,
+				Date: &dateVal,
 			}},
 		}
 	}
 	orig := build()
-	cp := orig.DeepCopy()
-	assert.Equal(t, orig, cp)
+	copied := orig.DeepCopy()
+	assert.Equal(t, orig, copied)
 
-	(*cp.Rules)[0].ProgressiveRollout.End.Percentage = flt(9)
-	*(*cp.Rules)[0].ProgressiveRollout.Initial.Variation = "changed"
-	*(*cp.Rules)[0].Name = "changed"
-	(*(*cp.Rules)[0].Percentages)["A"] = 9
-	*cp.DefaultRule.Percentages = map[string]float64{}
-	*cp.Experimentation.Start = time.Time{}
-	*(*cp.Scheduled)[0].Date = time.Time{}
-	aVal, ok := (*(*cp.Scheduled)[0].Metadata)["a"].([]any)
+	(*copied.Rules)[0].ProgressiveRollout.End.Percentage = flt(9)
+	*(*copied.Rules)[0].ProgressiveRollout.Initial.Variation = "changed"
+	*(*copied.Rules)[0].Name = "changed"
+	(*(*copied.Rules)[0].Percentages)["A"] = 9
+	*copied.DefaultRule.Percentages = map[string]float64{}
+	*copied.Experimentation.Start = time.Time{}
+	*(*copied.Scheduled)[0].Date = time.Time{}
+	aVal, ok := (*(*copied.Scheduled)[0].Metadata)["a"].([]any)
 	require.True(t, ok)
 	aVal[0] = "changed"
-	*cp.Version = "changed"
+	*copied.Version = "changed"
 	assert.Equal(t, build(), orig)
 }

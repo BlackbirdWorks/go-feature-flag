@@ -1193,13 +1193,13 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: "flags",
 				})
 			}
-			var o clientOptions
-			o.ensurePostgresPools()
+			var opts clientOptions
+			opts.ensurePostgresPools()
 
 			got, err := initRetrieversWithRegistry(
 				&config.FlagSet{Retrievers: &retrievers},
 				nil,
-				o.retrieverOptions()...)
+				opts.retrieverOptions()...)
 
 			require.NoError(t, err)
 			require.Len(t, got, len(tt.uris))

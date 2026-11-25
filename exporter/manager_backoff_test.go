@@ -69,26 +69,26 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			exp := &firstFailsExporter{release: make(chan struct{}), started: make(chan struct{})}
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: 1000,
 			}}, time.Hour, nil)
-			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
 
-			am.QueueEvents(make([]exporter.FeatureEvent, tt.firstBatch))
+			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, tt.firstBatch))
 			select {
 			case <-exp.started:
 			case <-time.After(time.Minute):
 				require.Fail(t, "the export did not start")
 			}
 			// the export is blocked: the next batch asks for another flush
-			am.QueueEvents(make([]exporter.FeatureEvent, tt.queued))
+			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, tt.queued))
 			close(exp.release)
 
 			// keep feeding events until the exporter is called a second time.
 			var second time.Time
 			require.Eventually(t, func() bool {
-				am.QueueEvents(make([]exporter.FeatureEvent, 10))
+				asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 10))
 				exp.mu.Lock()
 				defer exp.mu.Unlock()
 				if len(exp.starts) >= 2 {
@@ -105,7 +105,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			exp.mu.Unlock()
 			assert.GreaterOrEqual(t, gap, tt.wantMinGap,
 				"the retry of a failed export must wait for the backoff")
-			m.Stop()
+			mgr.Stop()
 		})
 	}
 }

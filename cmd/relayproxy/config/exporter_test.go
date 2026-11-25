@@ -49,7 +49,7 @@ func runExporterConfValidTests(t *testing.T, tests []exporterConfValidCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &config.ExporterConf{
+			cfg := &config.ExporterConf{
 				Kind:                    config.ExporterKind(tt.fields.Kind),
 				OutputDir:               tt.fields.OutputDir,
 				Format:                  tt.fields.Format,
@@ -75,7 +75,7 @@ func runExporterConfValidTests(t *testing.T, tests []exporterConfValidCase) {
 				DBUser:                  tt.fields.DBUser,
 				SecretArn:               tt.fields.SecretArn,
 			}
-			err := c.IsValid()
+			err := cfg.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())

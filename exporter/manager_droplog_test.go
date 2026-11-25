@@ -68,20 +68,20 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			defer release()
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(sink)}
 			// the exporter is down: the store fills up and the events are dropped.
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: &outageExporter{}, FlushInterval: time.Hour, MaxEventInMemory: 5, MaxQueuedEvents: 5,
 			}}, time.Hour, logger)
 
 			done := make(chan struct{})
-			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
 			go func() {
 				defer close(done)
 				for range 100 {
 					if tt.async {
-						am.QueueEvents(make([]exporter.FeatureEvent, 2))
+						asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 2))
 					} else {
-						m.AddEvent(exporter.FeatureEvent{})
+						mgr.AddEvent(exporter.FeatureEvent{})
 					}
 				}
 			}()
@@ -90,7 +90,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			case <-time.After(time.Minute):
 				require.Fail(t, "adding events is blocked by the log sink")
 			}
-			dc, ok := m.(exporter.DroppedEventsCounter)
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
 			require.True(t, ok)
 			assert.Equal(t, tt.wantDropping, dc.DroppedEvents() > 0)
 			// the warning is still written, by another goroutine
@@ -100,7 +100,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 				require.Fail(t, "the drop warning was not written")
 			}
 			release()
-			m.Stop()
+			mgr.Stop()
 		})
 	}
 }

@@ -56,7 +56,7 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := &flag.InternalFlag{
+			targetFlag := &flag.InternalFlag{
 				Variations: &map[string]*any{"A": new(any("a")), "B": new(any("b"))},
 				Rules: &[]flag.Rule{{
 					Query: new(tt.query), VariationResult: new("B"),
@@ -68,7 +68,7 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 				b = b.AddCustom("anonymous", tt.callerAnon)
 			}
 			ctx := b.Build()
-			got, _ := f.Value(
+			got, _ := targetFlag.Value(
 				"flag",
 				ctx,
 				flag.Context{Service: flag.NewService(), EvaluationContextEnrichment: tt.enrichment},

@@ -54,7 +54,7 @@ func runWebhookNotifierTests(t *testing.T, tests []webhookNotifierCase) {
 				ForceError: tt.args.forceError,
 			}
 
-			c := Notifier{
+			whNotifier := Notifier{
 				EndpointURL: tt.args.url,
 				Secret:      tt.fields.Secret,
 				Meta:        map[string]string{"hostname": "toto"},
@@ -63,7 +63,7 @@ func runWebhookNotifierTests(t *testing.T, tests []webhookNotifierCase) {
 				Headers:     tt.args.headers,
 			}
 
-			err := c.Notify(tt.args.diff)
+			err := whNotifier.Notify(tt.args.diff)
 
 			if tt.expected.err {
 				assert.ErrorContains(t, err, tt.expected.errorMsg)
@@ -329,13 +329,13 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 	}
 
 	// no meta
-	c := Notifier{
+	whNotifier := Notifier{
 		EndpointURL: "http://webhook.example/hook",
 		httpClient:  mockHTTPClient,
 		init:        sync.Once{},
 	}
 
-	err := c.Notify(diff)
+	err := whNotifier.Notify(diff)
 
 	require.NoError(t, err)
 	var m map[string]any

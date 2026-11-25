@@ -14,7 +14,7 @@ import (
 )
 
 func scheduledFlag(base time.Time) *InternalFlag {
-	f := &InternalFlag{
+	flg := &InternalFlag{
 		Variations: &map[string]*any{
 			"A": new(any("a")),
 			"B": new(any("b")),
@@ -28,7 +28,7 @@ func scheduledFlag(base time.Time) *InternalFlag {
 		},
 	}
 
-	return f
+	return flg
 }
 
 func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
@@ -50,23 +50,23 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
-			f := scheduledFlag(base)
-			before := *f.Scheduled
+			flg := scheduledFlag(base)
+			before := *flg.Scheduled
 			runParallel(200, func(int) {
 				ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
 					"currentDateTime": base.Add(tt.offset).Format(time.RFC3339Nano)})
-				v, d := f.Value("flag", ctx, Context{Service: svc})
+				v, d := flg.Value("flag", ctx, Context{Service: svc})
 				assert.Equal(t, tt.wantVar == "A", v == "a")
 				assert.Equal(t, tt.wantVar, d.Variant)
 			})
-			res, err := f.applyScheduledRolloutSteps(svc, base.Add(tt.offset))
+			res, err := flg.applyScheduledRolloutSteps(svc, base.Add(tt.offset))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantVersion, res.GetVersion())
 			// the flag itself is never modified
-			assert.Empty(t, f.GetVersion())
-			assert.Equal(t, "A", f.GetDefaultRule().GetVariationResult())
-			assert.Equal(t, before, *f.Scheduled)
+			assert.Empty(t, flg.GetVersion())
+			assert.Equal(t, "A", flg.GetDefaultRule().GetVariationResult())
+			assert.Equal(t, before, *flg.Scheduled)
 		})
 	}
 }
@@ -121,13 +121,13 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			wantSecond: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
 			mutate: func(t *testing.T, v any) {
 				t.Helper()
-				a, ok := v.([]any)
+				arr, ok := v.([]any)
 				require.True(t, ok)
-				a[0] = "changed"
-				elem1, ok := a[1].(map[string]any)
+				arr[0] = "changed"
+				elem1, ok := arr[1].(map[string]any)
 				require.True(t, ok)
 				elem1["k"] = "changed"
-				elem2, ok := a[2].([]any)
+				elem2, ok := arr[2].([]any)
 				require.True(t, ok)
 				elem2[0] = "changed"
 			},
@@ -138,7 +138,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			t.Parallel()
 			base := clocktest.Instant()
 			val := tt.value()
-			f := &InternalFlag{
+			flg := &InternalFlag{
 				Variations:  &map[string]*any{"A": &val},
 				DefaultRule: &Rule{VariationResult: new("A")},
 				Scheduled: &[]ScheduledStep{{
@@ -147,9 +147,9 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 				}},
 			}
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			first, _ := f.Value("flag", ctx, Context{Service: NewService()})
+			first, _ := flg.Value("flag", ctx, Context{Service: NewService()})
 			tt.mutate(t, first)
-			second, _ := f.Value("flag", ctx, Context{Service: NewService()})
+			second, _ := flg.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.wantSecond(), second)
 		})
 	}

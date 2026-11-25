@@ -84,27 +84,27 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 					require.NoError(t, os.WriteFile(conf.PersistentFlagConfigurationFile, []byte(*tt.persisted), 0o600))
 				}
 			}
-			m := newErrorManager(failingRetriever{}, conf)
-			err := m.Init(context.Background())
+			mgr := newErrorManager(failingRetriever{}, conf)
+			err := mgr.Init(context.Background())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
 			require.NoError(t, err)
-			defer func() { _ = m.Shutdown(context.Background()) }()
+			defer func() { _ = mgr.Shutdown(context.Background()) }()
 
-			flags, err := m.GetFlagsFromCache(context.Background())
-			readOnly, errReadOnly := m.GetFlagsFromCacheReadOnly(context.Background())
+			flags, err := mgr.GetFlagsFromCache(context.Background())
+			readOnly, errReadOnly := mgr.GetFlagsFromCacheReadOnly(context.Background())
 			require.NoError(t, errReadOnly)
 			assert.Len(t, readOnly, len(flags))
 			if tt.wantFlag {
 				require.NoError(t, err)
 				assert.Contains(t, flags, "test-flag")
-				f, getFlagErr := m.GetFlag("test-flag")
+				f, getFlagErr := mgr.GetFlag("test-flag")
 				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
-				assert.False(t, m.GetCacheRefreshDate().IsZero())
+				assert.False(t, mgr.GetCacheRefreshDate().IsZero())
 			} else {
 				require.NoError(t, err)
 				assert.Empty(t, flags, "the relay starts, every flag evaluates to its default")
@@ -126,13 +126,13 @@ func TestManagerForceRefresh(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := newErrorManager(
+			mgr := newErrorManager(
 				tt.retriever,
 				retriever.ManagerConfig{FileFormat: "json", StartWithRetrieverError: true},
 			)
-			require.NoError(t, m.Init(context.Background()))
-			defer func() { _ = m.Shutdown(context.Background()) }()
-			assert.Equal(t, tt.want, m.ForceRefresh(context.Background()))
+			require.NoError(t, mgr.Init(context.Background()))
+			defer func() { _ = mgr.Shutdown(context.Background()) }()
+			assert.Equal(t, tt.want, mgr.ForceRefresh(context.Background()))
 		})
 	}
 }

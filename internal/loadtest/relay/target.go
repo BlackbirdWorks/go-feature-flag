@@ -41,13 +41,13 @@ type Target struct {
 // NewTarget starts a relay proxy and returns a soak target for the endpoint.
 // It rejects an unknown endpoint, and a slow or failing exporter on an endpoint that does not
 // emit events (the exporter would be bypassed and the soak would not measure what it claims).
-func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
-	err := validateTarget(o, endpoint, flagKey)
+func NewTarget(opts Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
+	err := validateTarget(opts, endpoint, flagKey)
 	if err != nil {
 		return nil, err
 	}
-	o.Listen = true
-	r, err := Start(o)
+	opts.Listen = true
+	r, err := Start(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 		relay:    r,
 		endpoint: endpoint,
 		flagKey:  flagKey,
-		h2c:      o.H2C,
+		h2c:      opts.H2C,
 		perCall:  1,
 		client: &http.Client{
 			Timeout: clientTimeout,
@@ -63,7 +63,7 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 				MaxIdleConns:        workers * connsPerWorker,
 				MaxIdleConnsPerHost: workers * connsPerWorker,
 				IdleConnTimeout:     time.Minute,
-				Protocols:           clientProtocols(o.H2C),
+				Protocols:           clientProtocols(opts.H2C),
 			},
 		},
 	}
@@ -82,33 +82,33 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 // clientProtocols is HTTP/1.1 with keep-alive, or HTTP/2 over cleartext with prior knowledge (no HTTP/1.1
 // fallback, so a server that does not speak h2c is an error and not a silent downgrade).
 func clientProtocols(h2c bool) *http.Protocols {
-	var p http.Protocols
+	var protocols http.Protocols
 	if h2c {
-		p.SetUnencryptedHTTP2(true)
+		protocols.SetUnencryptedHTTP2(true)
 	} else {
-		p.SetHTTP1(true)
+		protocols.SetHTTP1(true)
 	}
 
-	return &p
+	return &protocols
 }
 
 // countFlags returns the number of flags of a bulk response: the "flags" member is an object keyed by flag
 // (all flags endpoint) or an array (OFREP bulk).
 func countFlags(body []byte) (int, error) {
-	var v struct {
+	var resp struct {
 		Flags json.RawMessage `json:"flags"`
 	}
-	err := json.Unmarshal(body, &v)
+	err := json.Unmarshal(body, &resp)
 	if err != nil {
 		return 0, fmt.Errorf("invalid bulk response: %w", err)
 	}
 	var asArray []json.RawMessage
-	err = json.Unmarshal(v.Flags, &asArray)
+	err = json.Unmarshal(resp.Flags, &asArray)
 	if err == nil {
 		return max(1, len(asArray)), nil
 	}
 	var asMap map[string]json.RawMessage
-	err = json.Unmarshal(v.Flags, &asMap)
+	err = json.Unmarshal(resp.Flags, &asMap)
 	if err != nil {
 		return 0, fmt.Errorf("bulk response without flags: %w", err)
 	}
@@ -128,33 +128,33 @@ func (t *Target) Protocol() string {
 	return "HTTP/1.1"
 }
 
-func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
+func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 	_, err := ParseEndpoint(string(endpoint))
 	if err != nil {
 		return err
 	}
-	if o.ExporterMode != "" {
-		_, parseErr := loadtest.ParseExporterMode(string(o.ExporterMode))
+	if opts.ExporterMode != "" {
+		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
 		if parseErr != nil {
 			return parseErr
 		}
 	}
 	if !endpoint.EmitsEvents() &&
-		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) {
+		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) {
 		return fmt.Errorf(
 			"%w %q does not emit events, so exporter %q would never be exercised: use %s or %s",
 			errEndpoint,
 			endpoint,
-			o.ExporterMode,
+			opts.ExporterMode,
 			SemaphoreEval,
 			OFREPEval,
 		)
 	}
 	if endpoint.EmitsEvents() &&
-		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) &&
-		!tracksEvents(o.FlagsYAML, flagKey) {
+		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) &&
+		!tracksEvents(opts.FlagsYAML, flagKey) {
 		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: %w",
-			flagKey, o.ExporterMode, errChooseFlagWithTracking)
+			flagKey, opts.ExporterMode, errChooseFlagWithTracking)
 	}
 
 	return nil
@@ -182,16 +182,16 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 	if endpoint != SemaphoreEval {
 		return nil
 	}
-	var v struct {
+	var evalResp struct {
 		ErrorCode string `json:"errorCode"`
 		Failed    bool   `json:"failed"`
 	}
-	err := json.Unmarshal(body, &v)
+	err := json.Unmarshal(body, &evalResp)
 	if err != nil {
 		return fmt.Errorf("invalid response: %w", err)
 	}
-	if v.Failed {
-		return fmt.Errorf("%w: %s", errEvaluationFailed, v.ErrorCode)
+	if evalResp.Failed {
+		return fmt.Errorf("%w: %s", errEvaluationFailed, evalResp.ErrorCode)
 	}
 
 	return nil

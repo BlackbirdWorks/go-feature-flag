@@ -47,8 +47,8 @@ func jsonFormat() huma.Format {
 // status error for, which it wraps in its RFC 9457 model) are turned into the same body: huma has no error factory
 // per API (its factories are package variables), the transformer of the API is the place that is not global.
 func errorTransformer(exposeError bool) huma.Transformer {
-	return func(ctx huma.Context, _ string, v any) (any, error) {
-		if model, ok := v.(*huma.ErrorModel); ok {
+	return func(ctx huma.Context, _ string, val any) (any, error) {
+		if model, ok := val.(*huma.ErrorModel); ok {
 			ctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
 			herr := modelError(model)
 			reqlog.RecordError(ctx.Context(), herr)
@@ -56,9 +56,9 @@ func errorTransformer(exposeError bool) huma.Transformer {
 
 			return body, nil
 		}
-		herr, ok := errors.AsType[*helper.HTTPError](asError(v))
+		herr, ok := errors.AsType[*helper.HTTPError](asError(val))
 		if !ok {
-			return v, nil
+			return val, nil
 		}
 		_, body := helper.ErrorResponse(herr, exposeError)
 		reqlog.RecordError(ctx.Context(), herr)

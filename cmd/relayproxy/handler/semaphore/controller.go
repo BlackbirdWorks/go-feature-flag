@@ -47,12 +47,12 @@ func (r *Request) ContentType() string { return r.contentType }
 //
 // A readTimeout of zero or less means no bound: it is not the default (the server uses 30 seconds), an operator
 // who disabled the read timeout of the server asked for it.
-func BodyOpts(op *huma.Operation, readTimeout time.Duration) {
-	op.MaxBodyBytes = -1
-	op.BodyReadTimeout = readTimeout
+func BodyOpts(operation *huma.Operation, readTimeout time.Duration) {
+	operation.MaxBodyBytes = -1
+	operation.BodyReadTimeout = readTimeout
 	if readTimeout <= 0 {
-		op.BodyReadTimeout = -1
+		operation.BodyReadTimeout = -1
 	}
-	op.SkipValidateBody = true
-	op.SkipValidateParams = true
+	operation.SkipValidateBody = true
+	operation.SkipValidateParams = true
 }

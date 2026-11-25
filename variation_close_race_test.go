@@ -89,7 +89,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 				}
 			}
 			second := &queueTestExporter{bulk: tt.bulk}
-			c, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 				DataExporters: []ffclient.DataExporter{
@@ -101,7 +101,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 
 			// 1. a first evaluation, to learn how many calls build an event, and to have something to flush.
 			calls.Store(0)
-			_, _ = c.BoolVariation("test-flag", newCtx(0, nil, nil), false)
+			_, _ = client.BoolVariation("test-flag", newCtx(0, nil, nil), false)
 			perEvaluation := calls.Load()
 			require.Positive(t, perEvaluation)
 
@@ -109,7 +109,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			calls.Store(0)
 			go func() {
 				defer close(lateDone)
-				_, _ = c.BoolVariation("test-flag", newCtx(perEvaluation, reached, gate), false)
+				_, _ = client.BoolVariation("test-flag", newCtx(perEvaluation, reached, gate), false)
 			}()
 			select {
 			case <-reached:
@@ -118,14 +118,14 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			}
 
 			// 3. the client closes; its final flush releases the evaluation.
-			c.Close()
+			client.Close()
 			assert.Equal(
 				t,
 				tt.wantExported,
 				second.events.Load(),
 				"the event of the evaluation that was running is exported",
 			)
-			assert.Equal(t, tt.wantDropped, c.DroppedEvents())
+			assert.Equal(t, tt.wantDropped, client.DroppedEvents())
 		})
 	}
 }

@@ -88,7 +88,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval
 	}
 
-	m := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
+	mgr := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
 		dropSignal: make(chan struct{}, 1)}
 	var maxQueued int64
 	limits := make([]int64, len(exporters))
@@ -105,7 +105,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 		limits[idx] = limit
 		maxQueued = max(maxQueued, limit)
 	}
-	evStore := NewEventStoreWithLimit[T](exporterCleanQueueInterval, maxQueued, m.onDrop)
+	evStore := NewEventStoreWithLimit[T](exporterCleanQueueInterval, maxQueued, mgr.onDrop)
 	consumers := make([]DataExporter[T], len(exporters))
 	for index, exporter := range exporters {
 		consumerID := uuid.New().String()
@@ -119,19 +119,19 @@ func NewManager[T ExportableEvent](exporters []Config,
 			l.SetConsumerLimit(consumerID, limits[index])
 		}
 	}
-	m.consumers = consumers
-	m.eventStore = &evStore
-	m.flushThresholds = make([]int64, len(consumers))
-	for idx, c := range consumers {
-		m.flushThresholds[idx] = min(c.GetMaxEventInMemory(), limits[idx])
+	mgr.consumers = consumers
+	mgr.eventStore = &evStore
+	mgr.flushThresholds = make([]int64, len(consumers))
+	for idx, consumer := range consumers {
+		mgr.flushThresholds[idx] = min(consumer.GetMaxEventInMemory(), limits[idx])
 	}
-	m.nextFlushAfter = make([]atomic.Int64, len(consumers))
-	m.flushRunning = make([]atomic.Bool, len(consumers))
-	m.flushAgain = make([]atomic.Bool, len(consumers))
-	m.flushStalled = make([]atomic.Bool, len(consumers))
-	go m.reportDrops()
+	mgr.nextFlushAfter = make([]atomic.Int64, len(consumers))
+	mgr.flushRunning = make([]atomic.Bool, len(consumers))
+	mgr.flushAgain = make([]atomic.Bool, len(consumers))
+	mgr.flushStalled = make([]atomic.Bool, len(consumers))
+	go mgr.reportDrops()
 
-	return m
+	return mgr
 }
 
 // onDrop is called by the store, in the goroutine that adds the events (an evaluation for
@@ -228,18 +228,18 @@ func (m *managerImpl[T]) addEventsWaiting(
 	deadline := time.Now().Add(flushWaitBudget)
 	rest := events
 	for len(rest) > 0 {
-		n := fit.AddWhileRoom(rest)
-		rest = rest[n:]
+		added := fit.AddWhileRoom(rest)
+		rest = rest[added:]
 		m.triggerFlushes(store, true)
-		if len(rest) == 0 || n > 0 {
+		if len(rest) == 0 || added > 0 {
 			continue
 		}
 		if !m.waitForRoom(store, deadline) {
 			// the flush we would have waited for may have ended since the last attempt.
-			if n = fit.AddWhileRoom(rest); n == 0 {
+			if added = fit.AddWhileRoom(rest); added == 0 {
 				break
 			}
-			rest = rest[n:]
+			rest = rest[added:]
 			m.triggerFlushes(store, true)
 		}
 	}
@@ -377,13 +377,13 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 // delayed by flushRetryBackoff; a successful flush lifts the delay.
 func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	consumer := m.consumers[i]
-	f, ok := consumer.(interface{ flush() error })
+	flusher, ok := consumer.(interface{ flush() error })
 	if !ok {
 		consumer.Flush()
 
 		return
 	}
-	err := f.flush()
+	err := flusher.flush()
 	if err != nil {
 		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())

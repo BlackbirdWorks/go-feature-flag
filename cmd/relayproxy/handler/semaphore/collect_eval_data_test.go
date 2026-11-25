@@ -361,15 +361,15 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
 	require.Error(t, handlerErr, "handler should return an error")
-	he := &helper.HTTPError{}
-	ok := errors.As(handlerErr, &he)
+	httpErr := &helper.HTTPError{}
+	ok := errors.As(handlerErr, &httpErr)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
 
 		return
 	}
-	assert.Equal(t, errorCode, he.Code)
-	assert.Equal(t, errorMsg, he.Message)
+	assert.Equal(t, errorCode, httpErr.Code)
+	assert.Equal(t, errorMsg, httpErr.Message)
 }
 
 func TestCollectEvalData_Handler_cancellation(t *testing.T) {
@@ -391,7 +391,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	body := `{"events":[` + strings.Repeat(event+",", 19999) + event + `]}`
 
 	ctx, cancel := context.WithCancel(t.Context())
-	in := &controller.CollectEvalDataInput{
+	input := &controller.CollectEvalDataInput{
 		Request: controller.NewRequest("", "application/json"),
 		RawBody: []byte(body),
 	}
@@ -399,7 +399,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	// run handler in background, cancel after 10ms
 	done := make(chan error, 1)
 	go func() {
-		_, handleErr := ctrl.Handle(ctx, in)
+		_, handleErr := ctrl.Handle(ctx, input)
 		done <- handleErr
 	}()
 

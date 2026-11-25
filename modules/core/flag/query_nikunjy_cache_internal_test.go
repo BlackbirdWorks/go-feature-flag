@@ -46,17 +46,17 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := newNikunjyEvaluatorCache()
+			evalCache := newNikunjyEvaluatorCache()
 
-			tt.wantErr(t, c.validate(tt.query))
-			cached, ok := c.entries.Load(tt.query)
+			tt.wantErr(t, evalCache.validate(tt.query))
+			cached, ok := evalCache.entries.Load(tt.query)
 			require.Equal(t, tt.wantCached, ok, "is the query cached after validation")
 
 			runtime.GC()
 			runtime.GC()
-			tt.wantErr(t, c.validate(tt.query), "validating a query again must give the same result")
+			tt.wantErr(t, evalCache.validate(tt.query), "validating a query again must give the same result")
 			if tt.wantCached {
-				ev, err := c.get(tt.query)
+				ev, err := evalCache.get(tt.query)
 				require.NoError(t, err)
 				assert.Same(t, cached, ev, "evaluation after a GC must reuse the evaluator parsed by validation")
 			}
@@ -67,31 +67,31 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing.T) {
 	t.Parallel()
 
-	c := newNikunjyEvaluatorCache()
+	evalCache := newNikunjyEvaluatorCache()
 	const query = `group eq "match"`
-	ev, err := c.get(query)
+	expectedEval, err := evalCache.get(query)
 	require.NoError(t, err)
 
 	goroutines := 4 * runtime.GOMAXPROCS(0)
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for g := range goroutines {
+	for goroutineIdx := range goroutines {
 		go func() {
 			defer wg.Done()
 			for i := range 200 {
-				shared, getErr := c.get(query)
+				shared, getErr := evalCache.get(query)
 				if !assert.NoError(t, getErr) {
 					return
 				}
-				assert.Same(t, ev, shared, "every evaluation must share the cached evaluator")
-				wantMatch := (g+i)%2 == 0
+				assert.Same(t, expectedEval, shared, "every evaluation must share the cached evaluator")
+				wantMatch := (goroutineIdx+i)%2 == 0
 				group := "other"
 				if wantMatch {
 					group = "match"
 				}
 				ok, getErr := shared.Process(map[string]any{"group": group})
 				assert.NoError(t, getErr)
-				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", g, i)
+				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", goroutineIdx, i)
 			}
 		}()
 	}
@@ -227,25 +227,38 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
-			c := svc.nikunjy
+			evalCache := svc.nikunjy
 			queries := slices.Sorted(maps.Keys(tt.wantRefs))
 			oldFlag := newFlagWithQueries(tt.oldQueries...)
 			require.NoError(t, oldFlag.IsValid(svc))
 			newFlag := newFlagWithQueries(tt.newQueries...)
 			require.NoError(t, newFlag.IsValid(svc))
-			require.Equal(t, tt.wantRefs, refCounts(c, queries), "references once both rule lists are validated")
+			require.Equal(
+				t,
+				tt.wantRefs,
+				refCounts(evalCache, queries),
+				"references once both rule lists are validated",
+			)
 
 			runtime.KeepAlive(oldFlag)
-			gcUntil(t, func() bool { return haveRefs(c, tt.newQueries, 1) },
+			gcUntil(t, func() bool { return haveRefs(evalCache, tt.newQueries, 1) },
 				"the old rule list must release its queries once collected")
-			assert.Empty(t, cachedQueries(c, tt.wantEvicted), "queries that no rule uses anymore must be evicted")
-			assert.Equal(t, tt.wantCached, cachedQueries(c, tt.wantCached),
+			assert.Empty(
+				t,
+				cachedQueries(evalCache, tt.wantEvicted),
+				"queries that no rule uses anymore must be evicted",
+			)
+			assert.Equal(t, tt.wantCached, cachedQueries(evalCache, tt.wantCached),
 				"queries that the new rule list uses must stay cached")
 
 			runtime.KeepAlive(newFlag)
-			gcUntil(t, func() bool { return len(cachedQueries(c, tt.wantCached)) == 0 },
+			gcUntil(t, func() bool { return len(cachedQueries(evalCache, tt.wantCached)) == 0 },
 				"the last rule list using a query must evict it once collected")
-			assert.True(t, haveRefs(c, queries, 0), "no query may keep a reference once both rule lists are collected")
+			assert.True(
+				t,
+				haveRefs(evalCache, queries, 0),
+				"no query may keep a reference once both rule lists are collected",
+			)
 		})
 	}
 }

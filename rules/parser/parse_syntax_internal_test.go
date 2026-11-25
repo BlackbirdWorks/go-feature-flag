@@ -40,15 +40,15 @@ func TestIssue41RuleValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			if tt.wantErr {
 				require.Error(t, err, tt.rule)
-				assert.Nil(t, ev)
+				assert.Nil(t, eval)
 
 				return
 			}
 			require.NoError(t, err, tt.rule)
-			assert.NotNil(t, ev)
+			assert.NotNil(t, eval)
 		})
 	}
 }

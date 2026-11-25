@@ -49,17 +49,17 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 		if err != nil {
 			return false
 		}
-		for _, m := range out.Messages {
+		for _, msg := range out.Messages {
 			var e exporter.FeatureEvent
-			require.NoError(t, json.Unmarshal([]byte(aws.ToString(m.Body)), &e))
+			require.NoError(t, json.Unmarshal([]byte(aws.ToString(msg.Body)), &e))
 			r := received{event: e}
-			if a, ok := m.MessageAttributes["emitter"]; ok {
+			if a, ok := msg.MessageAttributes["emitter"]; ok {
 				r.emitter = aws.ToString(a.StringValue)
 			}
 			got = append(got, r)
 			_, deleteMessageErr := client.DeleteMessage(
 				t.Context(),
-				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
+				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
 			)
 			require.NoError(t, deleteMessageErr)
 		}

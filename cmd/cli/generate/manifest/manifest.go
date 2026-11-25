@@ -119,13 +119,13 @@ func slogHandlerForRecords(records *[]capturedRecord) slog.Handler {
 	return &captureHandler{records: records}
 }
 
-func slogLevelToOutputLevel(l slog.Level) helper.Level {
+func slogLevelToOutputLevel(level slog.Level) helper.Level {
 	switch {
-	case l >= slog.LevelError:
+	case level >= slog.LevelError:
 		return helper.ErrorLevel
-	case l >= slog.LevelWarn:
+	case level >= slog.LevelWarn:
 		return helper.WarnLevel
-	case l >= slog.LevelInfo:
+	case level >= slog.LevelInfo:
 		return helper.InfoLevel
 	default:
 		return helper.DefaultLevel

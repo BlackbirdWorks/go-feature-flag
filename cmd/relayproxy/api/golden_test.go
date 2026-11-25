@@ -746,8 +746,8 @@ func startWrappedServer(
 	t *testing.T, conf *config.Config, wrap func(net.Listener) net.Listener, opts ...api.Option,
 ) string {
 	t.Helper()
-	ln, port := testutils.ListenLocal(t)
-	ln = wrap(ln)
+	listener, port := testutils.ListenLocal(t)
+	listener = wrap(listener)
 	conf.Server.Port = port
 	log := newTestLogger(t)
 
@@ -758,15 +758,15 @@ func startWrappedServer(
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	s := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metrics,
-	}, log.Slog, append([]api.Option{api.WithListener(ln)}, opts...)...)
-	go func() { s.StartWithContext(context.Background()) }()
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	}, log.Slog, append([]api.Option{api.WithListener(listener)}, opts...)...)
+	go func() { srv.StartWithContext(context.Background()) }()
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 	// cleanups run last in, first out: the streams end first, so the graceful shutdown has nothing to wait for.
 	t.Cleanup(wsService.Close)
 	t.Cleanup(sseService.Close)
@@ -795,7 +795,7 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	do := func(extra map[string]string) *http.Response {
+	doReq := func(extra map[string]string) *http.Response {
 		var body io.Reader
 		if tt.body != "" {
 			body = strings.NewReader(tt.body)
@@ -814,44 +814,44 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 		return resp
 	}
 
-	resp := do(nil)
+	resp := doReq(nil)
 	if tt.followETag {
 		etag := resp.Header.Get("ETag")
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		require.NotEmpty(t, etag, "the first response has no ETag")
-		resp = do(map[string]string{"If-None-Match": etag})
+		resp = doReq(map[string]string{"If-None-Match": etag})
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "status: %d\n", resp.StatusCode)
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "status: %d\n", resp.StatusCode)
 	for _, h := range goldenHeaders() {
 		if vals := resp.Header.Values(h); len(vals) > 0 {
-			fmt.Fprintf(&sb, "%s: %s\n", h, strings.Join(vals, " | "))
+			fmt.Fprintf(&buf, "%s: %s\n", h, strings.Join(vals, " | "))
 		}
 	}
-	sb.WriteString("---\n")
+	buf.WriteString("---\n")
 	switch {
 	case tt.headersOnly:
-		sb.WriteString("(stream, body not recorded)\n")
+		buf.WriteString("(stream, body not recorded)\n")
 	case tt.noBody:
 		_, _ = io.Copy(io.Discard, resp.Body)
-		sb.WriteString("(body not recorded)\n")
+		buf.WriteString("(body not recorded)\n")
 	case tt.name == "swagger_index" || strings.HasPrefix(tt.name, "swagger_"):
 		// the document changes with the swagger library, status and content type are what is pinned.
 		_, _ = io.Copy(io.Discard, resp.Body)
-		sb.WriteString("(body not recorded)\n")
+		buf.WriteString("(body not recorded)\n")
 	case strings.HasPrefix(tt.path, "/debug/pprof/") && resp.StatusCode == http.StatusOK:
 		_, _ = io.Copy(io.Discard, resp.Body)
-		sb.WriteString("(body not recorded)\n")
+		buf.WriteString("(body not recorded)\n")
 	default:
 		b, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		fmt.Fprintf(&sb, "%q\n", string(b))
+		fmt.Fprintf(&buf, "%q\n", string(b))
 	}
 
-	return sb.String()
+	return buf.String()
 }
 
 // checkMetricSeries pins the series of the HTTP metrics after a fixed sequence of requests: the names, the labels
@@ -879,10 +879,10 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var lines []string
-	sc := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(resp.Body)
 	hostLabel := regexp.MustCompile(`host="[^"]*"`)
-	for sc.Scan() {
-		line := sc.Text()
+	for scanner.Scan() {
+		line := scanner.Text()
 		keep := strings.HasPrefix(line, "# TYPE semaphore_") ||
 			strings.HasPrefix(line, "semaphore_requests_total{") ||
 			(strings.HasPrefix(line, "semaphore_request_duration_seconds_count{")) ||
@@ -892,7 +892,7 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 			lines = append(lines, hostLabel.ReplaceAllString(line, `host="HOST"`))
 		}
 	}
-	require.NoError(t, sc.Err())
+	require.NoError(t, scanner.Err())
 	sort.Strings(lines)
 
 	got := strings.Join(lines, "\n") + "\n"

@@ -131,18 +131,18 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := bitbucketretriever.Retriever{
+			ret := bitbucketretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				Branch:         tt.fields.branch,
 				FilePath:       tt.fields.filePath,
 				BitBucketToken: tt.fields.bitbucketToken,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
+			ret.SetHTTPClient(&tt.fields.httpClient)
 			var ctx context.Context
 			if tt.fields.withCtx {
 				ctx = t.Context()
 			}
-			got, err := h.Retrieve(ctx)
+			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}

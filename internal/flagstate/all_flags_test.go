@@ -19,7 +19,7 @@ func TestAllFlags(t *testing.T) {
 	assert.Empty(t, afs.GetFlags())
 	assert.True(t, afs.IsValid())
 
-	fs := flagstate.FlagState{
+	state1 := flagstate.FlagState{
 		Value:         20,
 		Timestamp:     time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC).Unix(),
 		VariationType: "var_a",
@@ -27,7 +27,7 @@ func TestAllFlags(t *testing.T) {
 		Failed:        false,
 		Reason:        flag.ReasonStatic,
 	}
-	afs.AddFlag("my-key", fs)
+	afs.AddFlag("my-key", state1)
 	assert.Len(t, afs.GetFlags(), 1)
 	assert.True(t, afs.IsValid())
 	fs2 := flagstate.FlagState{

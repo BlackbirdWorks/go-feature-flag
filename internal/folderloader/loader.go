@@ -304,13 +304,13 @@ func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 	}
 	res := make(map[string]string)
 	skipped := make(map[string]struct{})
-	for _, e := range entries {
+	for _, entry := range entries {
 		switch {
-		case !l.isEligible(e.Key):
-		case formatOf(e.Key) == "":
-			skipped[e.Key] = struct{}{}
+		case !l.isEligible(entry.Key):
+		case formatOf(entry.Key) == "":
+			skipped[entry.Key] = struct{}{}
 		default:
-			res[e.Key] = e.Version
+			res[entry.Key] = entry.Version
 		}
 	}
 	l.warnSkipped(ctx, skipped)
@@ -366,15 +366,15 @@ func formatOf(key string) string {
 func checkFormats(keys []string) error {
 	var firstKey, firstFormat string
 	for _, key := range keys {
-		f := formatOf(key)
+		extFormat := formatOf(key)
 		if firstFormat == "" {
-			firstKey, firstFormat = key, f
+			firstKey, firstFormat = key, extFormat
 
 			continue
 		}
-		if f != firstFormat {
+		if extFormat != firstFormat {
 			return fmt.Errorf("%w: %q is %s but %q is %s", errAllTheFilesUnder,
-				firstKey, firstFormat, key, f)
+				firstKey, firstFormat, key, extFormat)
 		}
 	}
 

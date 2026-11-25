@@ -110,15 +110,15 @@ func Test_Listener(t *testing.T) {
 				runtime.Goexit()
 			}))
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
-			s := api.New(conf, service.Services{
+			srv := api.New(conf, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				FlagsetManager:    flagsetManager,
 			}, logger, opts...)
-			go func() { s.StartWithContext(context.Background()) }()
+			go func() { srv.StartWithContext(context.Background()) }()
 			t.Cleanup(func() {
 				stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				s.Stop(stopCtx)
+				srv.Stop(stopCtx)
 			})
 
 			select {

@@ -130,16 +130,16 @@ func newGoFeatureFlagClient(
 	if cFlagSet == nil {
 		return nil, errProxyConfigIsEmpty
 	}
-	var o clientOptions
+	var options clientOptions
 	for _, opt := range opts {
-		opt(&o)
+		opt(&options)
 	}
 
-	o.ensurePostgresPools()
-	if o.sharedRegistry == nil {
-		o.sharedRegistry = standaloneSharedRegistry(cFlagSet, logger)
+	options.ensurePostgresPools()
+	if options.sharedRegistry == nil {
+		options.sharedRegistry = standaloneSharedRegistry(cFlagSet, logger)
 	}
-	retrievers, err := initRetrieversWithRegistry(cFlagSet, o.sharedRegistry, o.retrieverOptions()...)
+	retrievers, err := initRetrieversWithRegistry(cFlagSet, options.sharedRegistry, options.retrieverOptions()...)
 	if err != nil {
 		return nil, err
 	}
@@ -173,14 +173,14 @@ func newGoFeatureFlagClient(
 	// end of backward compatibility for the notifier field in version v1.66.0
 	notif = append(notif, notifiers...)
 
-	f := ffclient.Config{
+	clientCfg := ffclient.Config{
 		PollingInterval:                 clientPollingInterval(cFlagSet),
 		LeveledLogger:                   initLeveledLogger(cFlagSet, logger),
 		Retrievers:                      retrievers,
 		Notifiers:                       notif,
 		FileFormat:                      cFlagSet.FileFormat,
 		DataExporters:                   exporters,
-		ExporterCleanQueueInterval:      exporterCleanQueueInterval(cFlagSet, &o),
+		ExporterCleanQueueInterval:      exporterCleanQueueInterval(cFlagSet, &options),
 		StartWithRetrieverError:         cFlagSet.StartWithRetrieverError,
 		EnablePollingJitter:             cFlagSet.EnablePollingJitter,
 		DisableNotifierOnInit:           cFlagSet.DisableNotifierOnInit,
@@ -188,11 +188,11 @@ func newGoFeatureFlagClient(
 		PersistentFlagConfigurationFile: cFlagSet.PersistentFlagConfigurationFile,
 		Name:                            &cFlagSet.Name,
 	}
-	newClient := o.newClient
+	newClient := options.newClient
 	if newClient == nil {
 		newClient = ffclient.New
 	}
-	client, err := newClient(f)
+	client, err := newClient(clientCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -326,22 +326,22 @@ func initDataExporters(proxyConf *config.FlagSet) ([]ffclient.DataExporter, erro
 	return exporters, nil
 }
 
-func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
-	exporterEventType := c.ExporterEventType
+func initDataExporter(expConf *config.ExporterConf) (ffclient.DataExporter, error) {
+	exporterEventType := expConf.ExporterEventType
 	if exporterEventType == "" {
 		exporterEventType = config.DefaultExporter().ExporterEventType
 	}
 	dataExp := ffclient.DataExporter{
 		FlushInterval: func() time.Duration {
-			if c.FlushInterval != 0 {
-				return time.Duration(c.FlushInterval) * time.Millisecond
+			if expConf.FlushInterval != 0 {
+				return time.Duration(expConf.FlushInterval) * time.Millisecond
 			}
 
 			return config.DefaultExporter().FlushInterval
 		}(),
 		MaxEventInMemory: func() int64 {
-			if c.MaxEventInMemory != 0 {
-				return c.MaxEventInMemory
+			if expConf.MaxEventInMemory != 0 {
+				return expConf.MaxEventInMemory
 			}
 
 			return config.DefaultExporter().MaxEventInMemory
@@ -350,7 +350,7 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 	}
 
 	var err error
-	dataExp.Exporter, err = createExporter(c)
+	dataExp.Exporter, err = createExporter(expConf)
 	if err != nil {
 		return ffclient.DataExporter{}, err
 	}
@@ -366,14 +366,14 @@ type exporterDefaults struct {
 	parquetCompressionCodec string
 }
 
-func newExporterDefaults(c *config.ExporterConf) exporterDefaults {
+func newExporterDefaults(expConf *config.ExporterConf) exporterDefaults {
 	def := config.DefaultExporter()
 
 	return exporterDefaults{
-		format:                  valueOrDefault(c.Format, def.Format),
-		filename:                valueOrDefault(c.Filename, def.FileName),
-		csvTemplate:             valueOrDefault(c.CsvTemplate, def.CsvFormat),
-		parquetCompressionCodec: valueOrDefault(c.ParquetCompressionCodec, def.ParquetCompressionCodec),
+		format:                  valueOrDefault(expConf.Format, def.Format),
+		filename:                valueOrDefault(expConf.Filename, def.FileName),
+		csvTemplate:             valueOrDefault(expConf.CsvTemplate, def.CsvFormat),
+		parquetCompressionCodec: valueOrDefault(expConf.ParquetCompressionCodec, def.ParquetCompressionCodec),
 	}
 }
 
@@ -385,152 +385,154 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
-func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
-	d := newExporterDefaults(c)
+func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, error) {
+	defaults := newExporterDefaults(expConf)
 
-	switch c.Kind {
+	switch expConf.Kind {
 	case config.WebhookExporter:
 		return &webhookexporter.Exporter{
-			EndpointURL: c.EndpointURL,
-			Secret:      c.Secret,
-			Meta:        c.Meta,
-			Headers:     c.Headers,
+			EndpointURL: expConf.EndpointURL,
+			Secret:      expConf.Secret,
+			Meta:        expConf.Meta,
+			Headers:     expConf.Headers,
 		}, nil
 	case config.FileExporter:
 		return &fileexporter.Exporter{
-			Format:                  d.format,
-			OutputDir:               c.OutputDir,
-			Filename:                d.filename,
-			CsvTemplate:             d.csvTemplate,
-			ParquetCompressionCodec: d.parquetCompressionCodec,
+			Format:                  defaults.format,
+			OutputDir:               expConf.OutputDir,
+			Filename:                defaults.filename,
+			CsvTemplate:             defaults.csvTemplate,
+			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 		}, nil
 	case config.LogExporter:
-		return &logsexporter.Exporter{LogFormat: valueOrDefault(c.LogFormat, config.DefaultExporter().LogFormat)}, nil
+		return &logsexporter.Exporter{
+			LogFormat: valueOrDefault(expConf.LogFormat, config.DefaultExporter().LogFormat),
+		}, nil
 	case config.S3Exporter, config.KinesisExporter, config.SQSExporter, config.RedshiftExporter:
-		return createAWSExporter(c, d)
+		return createAWSExporter(expConf, defaults)
 	case config.GoogleStorageExporter:
 		return &gcstorageexporter.Exporter{
-			Bucket:                  c.Bucket,
-			Format:                  d.format,
-			Path:                    c.Path,
-			Filename:                d.filename,
-			CsvTemplate:             d.csvTemplate,
-			ParquetCompressionCodec: d.parquetCompressionCodec,
+			Bucket:                  expConf.Bucket,
+			Format:                  defaults.format,
+			Path:                    expConf.Path,
+			Filename:                defaults.filename,
+			CsvTemplate:             defaults.csvTemplate,
+			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 		}, nil
 	case config.KafkaExporter:
-		settings, err := setKafkaConfig(c.Kafka)
+		settings, err := setKafkaConfig(expConf.Kafka)
 		if err != nil {
 			return nil, err
 		}
 
 		return &kafkaexporter.Exporter{
-			Format:   d.format,
+			Format:   defaults.format,
 			Settings: settings,
 		}, nil
 	case config.PubSubExporter:
 		return &pubsubexporterv2.Exporter{
-			ProjectID: c.ProjectID,
-			Topic:     c.Topic,
+			ProjectID: expConf.ProjectID,
+			Topic:     expConf.Topic,
 		}, nil
 	case config.BigQueryExporter:
 		return &bigqueryexporter.Exporter{
-			ProjectID:         c.ProjectID,
-			DatasetID:         c.DatasetID,
-			TableName:         c.TableName,
-			GoogleCredentials: []byte(c.GoogleCredentials),
-			AutoMigrate:       c.AutoMigrate,
+			ProjectID:         expConf.ProjectID,
+			DatasetID:         expConf.DatasetID,
+			TableName:         expConf.TableName,
+			GoogleCredentials: []byte(expConf.GoogleCredentials),
+			AutoMigrate:       expConf.AutoMigrate,
 		}, nil
 	case config.AzureExporter:
 		return &azureexporter.Exporter{
-			Container:               c.Container,
-			Format:                  d.format,
-			Path:                    c.Path,
-			Filename:                d.filename,
-			CsvTemplate:             d.csvTemplate,
-			ParquetCompressionCodec: d.parquetCompressionCodec,
-			AccountKey:              c.AccountKey,
-			AccountName:             c.AccountName,
+			Container:               expConf.Container,
+			Format:                  defaults.format,
+			Path:                    expConf.Path,
+			Filename:                defaults.filename,
+			CsvTemplate:             defaults.csvTemplate,
+			ParquetCompressionCodec: defaults.parquetCompressionCodec,
+			AccountKey:              expConf.AccountKey,
+			AccountName:             expConf.AccountName,
 		}, nil
 	case config.OpenTelemetryExporter:
 		return &opentelemetryexporter.Exporter{
-			TracerName: c.TracerName,
+			TracerName: expConf.TracerName,
 		}, nil
 	default:
-		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, expConf.Kind)
 	}
 }
 
 // createAWSExporter builds the exporters that load the default AWS configuration.
-func createAWSExporter(c *config.ExporterConf, d exporterDefaults) (exporter.CommonExporter, error) {
+func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (exporter.CommonExporter, error) {
 	var awsOpts []func(*awsConf.LoadOptions) error
-	if c.Kind == config.RedshiftExporter && c.AwsRegion != "" {
-		awsOpts = append(awsOpts, awsConf.WithRegion(c.AwsRegion))
+	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {
+		awsOpts = append(awsOpts, awsConf.WithRegion(expConf.AwsRegion))
 	}
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	switch c.Kind {
+	switch expConf.Kind {
 	case config.S3Exporter:
 		return &s3exporterv2.Exporter{
-			Bucket:                  c.Bucket,
-			Format:                  d.format,
-			S3Path:                  c.Path,
-			Filename:                d.filename,
-			CsvTemplate:             d.csvTemplate,
-			ParquetCompressionCodec: d.parquetCompressionCodec,
+			Bucket:                  expConf.Bucket,
+			Format:                  defaults.format,
+			S3Path:                  expConf.Path,
+			Filename:                defaults.filename,
+			CsvTemplate:             defaults.csvTemplate,
+			ParquetCompressionCodec: defaults.parquetCompressionCodec,
 			AwsConfig:               &awsConfig,
 		}, nil
 	case config.KinesisExporter:
 		return &kinesisexporter.Exporter{
-			Format:    d.format,
+			Format:    defaults.format,
 			AwsConfig: &awsConfig,
 			Settings: kinesisexporter.NewSettings(
-				kinesisexporter.WithStreamArn(c.StreamArn),
-				kinesisexporter.WithStreamName(c.StreamName),
+				kinesisexporter.WithStreamArn(expConf.StreamArn),
+				kinesisexporter.WithStreamName(expConf.StreamName),
 			),
 		}, nil
 	case config.SQSExporter:
 		return &sqsexporter.Exporter{
-			QueueURL:  c.QueueURL,
+			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,
 		}, nil
 	default: // config.RedshiftExporter, the only other kind routed here
 		return &redshiftexporter.Exporter{
-			ClusterIdentifier: c.ClusterIdentifier,
-			WorkgroupName:     c.WorkgroupName,
-			Database:          c.Database,
-			DBUser:            c.DBUser,
-			SecretArn:         c.SecretArn,
-			TableName:         c.TableName,
+			ClusterIdentifier: expConf.ClusterIdentifier,
+			WorkgroupName:     expConf.WorkgroupName,
+			Database:          expConf.Database,
+			DBUser:            expConf.DBUser,
+			SecretArn:         expConf.SecretArn,
+			TableName:         expConf.TableName,
 			AwsConfig:         &awsConfig,
-			AutoMigrate:       c.AutoMigrate,
+			AutoMigrate:       expConf.AutoMigrate,
 		}, nil
 	}
 }
 
 // setKafkaConfig set the kafka configuration based on the default configuration
 // it will initialize the default configuration and merge it with the changes from the user.
-func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
-	c := kafkaexporter.Settings{
-		Topic:     k.Topic,
-		Addresses: k.Addresses,
+func setKafkaConfig(kafkaSettings kafkaexporter.Settings) (kafkaexporter.Settings, error) {
+	merged := kafkaexporter.Settings{
+		Topic:     kafkaSettings.Topic,
+		Addresses: kafkaSettings.Addresses,
 		Config:    nil,
 	}
 
-	if k.Config == nil {
-		return c, nil
+	if kafkaSettings.Config == nil {
+		return merged, nil
 	}
 	saramaConfig := sarama.NewConfig()
 	// WithOverride: a value set by the operator wins over the sarama default; a zero value cannot be told from
 	// an unset one, so it keeps the default.
-	err := mergo.Merge(saramaConfig, k.Config, mergo.WithOverride)
+	err := mergo.Merge(saramaConfig, kafkaSettings.Config, mergo.WithOverride)
 	if err != nil {
 		return kafkaexporter.Settings{}, err
 	}
 	// mergo copies a struct with unexported fields as a whole, so an unset Version would erase the default one.
-	if k.Config.Version == (sarama.KafkaVersion{}) {
+	if kafkaSettings.Config.Version == (sarama.KafkaVersion{}) {
 		saramaConfig.Version = sarama.NewConfig().Version
 	}
 	// the kafka exporter is using a sync producer, it needs both to be true to start.
@@ -547,18 +549,18 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 			return &kafka.XDGSCRAMClient{HashGeneratorFcn: kafka.SHA512}
 		}
 	}
-	c.Config = saramaConfig
+	merged.Config = saramaConfig
 
-	return c, nil
+	return merged, nil
 }
 
-func initNotifier(c []config.NotifierConf, logger *slog.Logger) ([]notifier.Notifier, error) {
-	if c == nil {
+func initNotifier(notifiersConf []config.NotifierConf, logger *slog.Logger) ([]notifier.Notifier, error) {
+	if notifiersConf == nil {
 		return nil, nil
 	}
 	var notifiers []notifier.Notifier
 
-	for _, cNotif := range c {
+	for _, cNotif := range notifiersConf {
 		switch cNotif.Kind {
 		case config.SlackNotifier:
 			if cNotif.WebhookURL == "" &&

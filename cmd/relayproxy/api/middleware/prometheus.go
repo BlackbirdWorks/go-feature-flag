@@ -146,23 +146,23 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 }
 
 func approximateRequestSize(r *http.Request) int {
-	s := 0
+	size := 0
 	if r.URL != nil {
-		s = len(r.URL.Path)
+		size = len(r.URL.Path)
 	}
-	s += len(r.Method) + len(r.Proto)
+	size += len(r.Method) + len(r.Proto)
 	for name, values := range r.Header {
-		s += len(name)
+		size += len(name)
 		for _, value := range values {
-			s += len(value)
+			size += len(value)
 		}
 	}
-	s += len(r.Host)
+	size += len(r.Host)
 	if r.ContentLength != -1 {
-		s += int(r.ContentLength)
+		size += int(r.ContentLength)
 	}
 
-	return s
+	return size
 }
 
 // recorder remembers the status and the number of body bytes that were sent.

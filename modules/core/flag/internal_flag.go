@@ -387,13 +387,13 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 			return "", fmt.Errorf("impossible to find bucketingKey in context: %w", err)
 		}
 
-		switch v := value.(type) {
+		switch str := value.(type) {
 		case string:
-			if v == "" {
+			if str == "" {
 				return f.requiresBucketingCheck(requiresBucketing, "bucketing")
 			}
 
-			return v, nil
+			return str, nil
 		default:
 			return "", errInvalidBucketingKey
 		}
@@ -671,41 +671,41 @@ func (f *InternalFlag) detachedMetadata(original *InternalFlag) map[string]any {
 	return cloneMetadata(f.GetMetadata())
 }
 
-func cloneMetadata(m map[string]any) map[string]any {
-	if m == nil {
+func cloneMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
 		return nil
 	}
 
 	//nolint:errcheck,forcetypeassert // cloneVariationValue returns the type it is given
-	return cloneVariationValue(m).(map[string]any)
+	return cloneVariationValue(metadata).(map[string]any)
 }
 
 // cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the
 // other values are immutable.
-func cloneVariationValue(v any) any {
-	switch x := v.(type) {
+func cloneVariationValue(val any) any {
+	switch typed := val.(type) {
 	case map[string]any:
-		out := make(map[string]any, len(x))
-		for k, e := range x {
+		out := make(map[string]any, len(typed))
+		for k, e := range typed {
 			out[k] = cloneVariationValue(e)
 		}
 
 		return out
 	case map[any]any:
-		out := make(map[any]any, len(x))
-		for k, e := range x {
+		out := make(map[any]any, len(typed))
+		for k, e := range typed {
 			out[k] = cloneVariationValue(e)
 		}
 
 		return out
 	case []any:
-		out := make([]any, len(x))
-		for i, e := range x {
+		out := make([]any, len(typed))
+		for i, e := range typed {
 			out[i] = cloneVariationValue(e)
 		}
 
 		return out
 	default:
-		return v
+		return val
 	}
 }

@@ -32,8 +32,8 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 			t.Parallel()
 			flags := map[string]dto.DTO{}
 			maps.Copy(flags, benchFlagsMap(t, tt.flags))
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			require.NoError(t, m.UpdateCache(flags, nil, false))
+			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
 			var stop atomic.Bool
 			var wg sync.WaitGroup
@@ -41,13 +41,13 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				wg.Go(func() {
 					for !stop.Load() {
 						// Only a reader racing with Close may see the "not initialised" error.
-						f, err := m.GetFlag("flag-1")
+						f, err := mgr.GetFlag("flag-1")
 						if err == nil {
 							assert.NotNil(t, f)
 						} else if !tt.close {
 							assert.NoError(t, err) //nolint:testifylint // off the test goroutine
 						}
-						all, err := m.AllFlags()
+						all, err := mgr.AllFlags()
 						if err == nil {
 							assert.Len(t, all, tt.wantFlags)
 						} else if !tt.close {
@@ -57,10 +57,10 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				})
 			}
 			for range 50 {
-				require.NoError(t, m.UpdateCache(flags, nil, false))
+				require.NoError(t, mgr.UpdateCache(flags, nil, false))
 			}
 			if tt.close {
-				m.Close()
+				mgr.Close()
 			}
 			stop.Store(true)
 			wg.Wait()

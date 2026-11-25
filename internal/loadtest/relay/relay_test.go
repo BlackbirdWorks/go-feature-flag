@@ -32,14 +32,14 @@ func TestStart_ListensOnLoopbackOnly(t *testing.T) {
 	r, err := relay.Start(relay.Options{FlagsYAML: loadtest.FlagsYAML(), Listen: true})
 	require.NoError(t, err)
 	defer r.Close()
-	u, err := url.Parse(r.BaseURL)
+	parsedURL, err := url.Parse(r.BaseURL)
 	require.NoError(t, err)
 
-	loop, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", u.Port()), 5*time.Second)
+	loop, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", parsedURL.Port()), 5*time.Second)
 	require.NoError(t, err, "reachable through the loopback interface")
 	_ = loop.Close()
 	for _, ip := range external {
-		c, dialTimeoutErr := net.DialTimeout("tcp", net.JoinHostPort(ip, u.Port()), 5*time.Second)
+		c, dialTimeoutErr := net.DialTimeout("tcp", net.JoinHostPort(ip, parsedURL.Port()), 5*time.Second)
 		if dialTimeoutErr == nil {
 			_ = c.Close()
 		}

@@ -155,20 +155,20 @@ func Test_websocket_flag_change(t *testing.T) {
 			dialer := &websocket.Dialer{
 				HandshakeTimeout: 10 * time.Second,
 			}
-			ws, _, err := dialer.DialContext(ctx, url, nil)
+			wsConn, _, err := dialer.DialContext(ctx, url, nil)
 			require.NoError(t, err, "Failed to connect to WebSocket")
 			defer func() {
-				ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
-				_ = ws.Close()
+				wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				_ = wsConn.Close()
 			}()
 
 			// Set read deadline to prevent hanging
-			err = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
+			err = wsConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 			require.NoError(t, err)
 
 			// The first message the client receives is the one that proves that its connection is registered
 			// in the service: broadcast until it arrives instead of sleeping.
-			received, firstMsg := readFirstMessage(ws)
+			received, firstMsg := readFirstMessage(wsConn)
 			broadcastUntilRegistered(t, websocketService, tt.flagChange, firstMsg)
 
 			assert.JSONEq(t, tt.wantMessage, string(<-received))
@@ -178,13 +178,13 @@ func Test_websocket_flag_change(t *testing.T) {
 
 // readFirstMessage reads the connection in the background. The first message is sent on the first channel and
 // then its arrival is signalled on the second one, which is what broadcastUntilRegistered waits for.
-func readFirstMessage(ws *websocket.Conn) (<-chan []byte, <-chan struct{}) {
+func readFirstMessage(wsConn *websocket.Conn) (<-chan []byte, <-chan struct{}) {
 	received := make(chan []byte, 1)
 	firstMsg := make(chan struct{}, 1)
 	go func() {
 		first := true
 		for {
-			_, msg, err := ws.ReadMessage()
+			_, msg, err := wsConn.ReadMessage()
 			if err != nil {
 				return
 			}
@@ -255,11 +255,11 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws/v1/flag/change"
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	ws, _, err := dialer.DialContext(ctx, url, nil)
+	wsConn, _, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, "Failed to connect to WebSocket")
 	defer func() {
-		_ = ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		_ = ws.Close()
+		_ = wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		_ = wsConn.Close()
 	}()
 
 	// Drain incoming messages so the server-side writes can make progress, and
@@ -270,7 +270,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		defer close(clientDone)
 		first := true
 		for {
-			_, _, readMessageErr := ws.ReadMessage()
+			_, _, readMessageErr := wsConn.ReadMessage()
 			if readMessageErr != nil {
 				return
 			}
@@ -314,7 +314,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	wg.Wait()
 
 	// Close the connection and make sure the client goroutine stops.
-	_ = ws.Close()
+	_ = wsConn.Close()
 	select {
 	case <-clientDone:
 	case <-time.After(5 * time.Second):
@@ -347,10 +347,10 @@ func Test_websocket_legacy_handler(t *testing.T) {
 
 	url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws/v1/flag/change"
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	ws, _, err := dialer.DialContext(ctx, url, nil)
+	wsConn, _, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, "Failed to connect to WebSocket")
-	defer func() { _ = ws.Close() }()
-	require.NoError(t, ws.SetReadDeadline(time.Now().Add(10*time.Second)))
+	defer func() { _ = wsConn.Close() }()
+	require.NoError(t, wsConn.SetReadDeadline(time.Now().Add(10*time.Second)))
 
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
@@ -365,7 +365,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		},
 	}
 	// the first message the client receives proves that its connection is registered in the service
-	received, firstMsg := readFirstMessage(ws)
+	received, firstMsg := readFirstMessage(wsConn)
 	broadcastUntilRegistered(t, websocketService, diff, firstMsg)
 
 	expected, err := json.Marshal(diff)
@@ -417,15 +417,15 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			defer testServer.Close()
 
 			url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws?apiKey=key-a"
-			ws, _, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
+			wsConn, _, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 			require.NoError(t, err)
-			defer func() { _ = ws.Close() }()
+			defer func() { _ = wsConn.Close() }()
 
 			msgs := make(chan string, 64)
 			go func() {
 				defer close(msgs)
 				for {
-					_, msg, readMessageErr := ws.ReadMessage()
+					_, msg, readMessageErr := wsConn.ReadMessage()
 					if readMessageErr != nil {
 						return
 					}

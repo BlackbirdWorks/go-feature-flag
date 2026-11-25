@@ -34,15 +34,15 @@ func ParseLevel(name string) (slog.Level, error) {
 }
 
 // levelName is the level string of the output.
-func levelName(l slog.Level) string {
+func levelName(level slog.Level) string {
 	switch {
-	case l < slog.LevelInfo:
+	case level < slog.LevelInfo:
 		return "debug"
-	case l < slog.LevelWarn:
+	case level < slog.LevelWarn:
 		return "info"
-	case l < slog.LevelError:
+	case level < slog.LevelError:
 		return "warn"
-	case l < LevelFatal:
+	case level < LevelFatal:
 		return "error"
 	default:
 		return "fatal"

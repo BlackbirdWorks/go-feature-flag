@@ -37,13 +37,13 @@ func TestServer_WithListener(t *testing.T) {
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
-	s := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
-	go s.StartWithContext(context.Background())
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	go srv.StartWithContext(context.Background())
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitForServer(t, baseURL)

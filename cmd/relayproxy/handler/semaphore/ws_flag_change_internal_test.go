@@ -69,10 +69,10 @@ func Test_threadSafeConn_ping(t *testing.T) {
 		}
 	}()
 
-	tc := &threadSafeConn{conn: server}
+	tsConn := &threadSafeConn{conn: server}
 
 	// Happy path: the ping reaches the client.
-	require.NoError(t, tc.ping())
+	require.NoError(t, tsConn.ping())
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
@@ -81,7 +81,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 
 	// Error path: writing to a closed connection returns an error.
 	_ = server.Close()
-	assert.Error(t, tc.ping())
+	assert.Error(t, tsConn.ping())
 }
 
 // Observable outcome: the loop sends a ping, then returns once its context is cancelled (the channel done is closed).
@@ -108,13 +108,13 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 		}
 	}()
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil)
-	f.pingInterval = 10 * time.Millisecond
+	ctrl := NewWsFlagChange(stream.NewWebsocketService(), nil)
+	ctrl.pingInterval = 10 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		f.pingPongLoop(ctx, &threadSafeConn{conn: server})
+		ctrl.pingPongLoop(ctx, &threadSafeConn{conn: server})
 		close(done)
 	}()
 
@@ -166,13 +166,13 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 
 	server, _ := newWSConnPair(t)
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil)
-	f.pingInterval = 0 // force the fallback branch
+	ctrl := NewWsFlagChange(stream.NewWebsocketService(), nil)
+	ctrl.pingInterval = 0 // force the fallback branch
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		f.pingPongLoop(ctx, &threadSafeConn{conn: server})
+		ctrl.pingPongLoop(ctx, &threadSafeConn{conn: server})
 		close(done)
 	}()
 

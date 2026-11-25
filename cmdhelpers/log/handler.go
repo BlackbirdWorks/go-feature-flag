@@ -64,14 +64,14 @@ type core struct {
 }
 
 func newCore(out io.Writer) *core {
-	c := &core{out: out, sites: map[uintptr]string{}}
-	c.pool.New = func() any {
+	loggerCore := &core{out: out, sites: map[uintptr]string{}}
+	loggerCore.pool.New = func() any {
 		b := make([]byte, 0, initialBuffer)
 
 		return &b
 	}
 
-	return c
+	return loggerCore
 }
 
 // handler is a [slog.Handler] writing the records in the format of the former zap based logger: the JSON
@@ -101,13 +101,13 @@ func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 // prefixAttr gives the key of an attribute added under a group its dotted name.
-func prefixAttr(prefix string, a slog.Attr) slog.Attr {
+func prefixAttr(prefix string, attr slog.Attr) slog.Attr {
 	if prefix == "" {
-		return a
+		return attr
 	}
-	a.Key = prefix + a.Key
+	attr.Key = prefix + attr.Key
 
-	return a
+	return attr
 }
 
 func (h *handler) WithGroup(name string) slog.Handler {
@@ -119,8 +119,8 @@ func (h *handler) WithGroup(name string) slog.Handler {
 }
 
 func (h *handler) Handle(_ context.Context, r slog.Record) error {
-	bp, _ := h.core.pool.Get().(*[]byte)
-	buf := (*bp)[:0]
+	bufPtr, _ := h.core.pool.Get().(*[]byte)
+	buf := (*bufPtr)[:0]
 	isJSON := Format(h.core.format.Load()) == FormatJSON
 
 	if isJSON {
@@ -159,8 +159,8 @@ func (h *handler) Handle(_ context.Context, r slog.Record) error {
 	h.core.mu.Unlock()
 
 	if cap(buf) <= maxPooledBuffer {
-		*bp = buf
-		h.core.pool.Put(bp)
+		*bufPtr = buf
+		h.core.pool.Put(bufPtr)
 	}
 
 	return err //nolint:wrapcheck // the error of the writer is returned as is
@@ -192,14 +192,14 @@ func (c *core) appendCaller(buf []byte, isJSON bool, pc uintptr) []byte {
 // stand for inlined calls, only [runtime.CallersFrames] resolves it exactly, and it allocates: the result is
 // kept per program counter (there is one per call site), so the logging path does not allocate after the first
 // record of a call site.
-func (c *core) callSite(pc uintptr) string {
+func (c *core) callSite(callerPC uintptr) string {
 	c.sitesMu.RLock()
-	site, ok := c.sites[pc]
+	site, ok := c.sites[callerPC]
 	c.sitesMu.RUnlock()
 	if ok {
 		return site
 	}
-	pcs := [1]uintptr{pc}
+	pcs := [1]uintptr{callerPC}
 	frame, _ := runtime.CallersFrames(pcs[:]).Next()
 	if frame.File != "" {
 		file := frame.File
@@ -217,7 +217,7 @@ func (c *core) callSite(pc uintptr) string {
 		site = file + ":" + strconv.Itoa(frame.Line)
 	}
 	c.sitesMu.Lock()
-	c.sites[pc] = site
+	c.sites[callerPC] = site
 	c.sitesMu.Unlock()
 
 	return site
@@ -246,18 +246,18 @@ func appendKey(buf []byte, isJSON bool, key string) []byte {
 	return append(buf, '=')
 }
 
-func appendAttr(buf []byte, isJSON bool, prefix string, a slog.Attr) []byte {
-	a.Value = a.Value.Resolve()
-	if a.Equal(slog.Attr{}) {
+func appendAttr(buf []byte, isJSON bool, prefix string, attr slog.Attr) []byte {
+	attr.Value = attr.Value.Resolve()
+	if attr.Equal(slog.Attr{}) {
 		return buf
 	}
-	if a.Value.Kind() == slog.KindGroup {
-		group := a.Value.Group()
+	if attr.Value.Kind() == slog.KindGroup {
+		group := attr.Value.Group()
 		if len(group) == 0 {
 			return buf
 		}
-		if a.Key != "" {
-			prefix += a.Key + "."
+		if attr.Key != "" {
+			prefix += attr.Key + "."
 		}
 		for _, ga := range group {
 			buf = appendAttr(buf, isJSON, prefix, ga)
@@ -266,65 +266,65 @@ func appendAttr(buf []byte, isJSON bool, prefix string, a slog.Attr) []byte {
 		return buf
 	}
 	if prefix == "" {
-		buf = appendKey(buf, isJSON, a.Key)
+		buf = appendKey(buf, isJSON, attr.Key)
 	} else {
-		buf = appendKey(buf, isJSON, prefix+a.Key)
+		buf = appendKey(buf, isJSON, prefix+attr.Key)
 	}
 
-	return appendValue(buf, isJSON, a.Value)
+	return appendValue(buf, isJSON, attr.Value)
 }
 
-func appendValue(buf []byte, isJSON bool, v slog.Value) []byte {
-	switch v.Kind() {
+func appendValue(buf []byte, isJSON bool, val slog.Value) []byte {
+	switch val.Kind() {
 	case slog.KindString:
-		return appendString(buf, isJSON, v.String())
+		return appendString(buf, isJSON, val.String())
 	case slog.KindInt64:
-		return strconv.AppendInt(buf, v.Int64(), base10)
+		return strconv.AppendInt(buf, val.Int64(), base10)
 	case slog.KindUint64:
-		return strconv.AppendUint(buf, v.Uint64(), base10)
+		return strconv.AppendUint(buf, val.Uint64(), base10)
 	case slog.KindFloat64:
-		return appendFloat(buf, isJSON, v.Float64())
+		return appendFloat(buf, isJSON, val.Float64())
 	case slog.KindBool:
-		return strconv.AppendBool(buf, v.Bool())
+		return strconv.AppendBool(buf, val.Bool())
 	case slog.KindDuration:
-		return strconv.AppendFloat(buf, float64(v.Duration())/nanosPerSecond, 'f', -1, floatBits)
+		return strconv.AppendFloat(buf, float64(val.Duration())/nanosPerSecond, 'f', -1, floatBits)
 	case slog.KindTime:
-		return appendSeconds(buf, v.Time())
+		return appendSeconds(buf, val.Time())
 	case slog.KindAny, slog.KindGroup, slog.KindLogValuer:
-		return appendAny(buf, isJSON, v.Any())
+		return appendAny(buf, isJSON, val.Any())
 	default:
-		return appendString(buf, isJSON, v.String())
+		return appendString(buf, isJSON, val.String())
 	}
 }
 
-func appendFloat(buf []byte, isJSON bool, f float64) []byte {
+func appendFloat(buf []byte, isJSON bool, num float64) []byte {
 	switch {
-	case math.IsNaN(f):
+	case math.IsNaN(num):
 		return appendString(buf, isJSON, "NaN")
-	case math.IsInf(f, 1):
+	case math.IsInf(num, 1):
 		return appendString(buf, isJSON, "+Inf")
-	case math.IsInf(f, -1):
+	case math.IsInf(num, -1):
 		return appendString(buf, isJSON, "-Inf")
 	default:
-		return strconv.AppendFloat(buf, f, 'f', -1, floatBits)
+		return strconv.AppendFloat(buf, num, 'f', -1, floatBits)
 	}
 }
 
 // appendAny encodes the values that are not of a basic kind. An error is its message, and a slice of strings
 // a list (comma separated in logfmt). Everything else goes through encoding/json (the encoded value is quoted in
 // logfmt), which allocates: keep these values out of the hot paths.
-func appendAny(buf []byte, isJSON bool, v any) []byte {
-	switch x := v.(type) {
+func appendAny(buf []byte, isJSON bool, val any) []byte {
+	switch typed := val.(type) {
 	case nil:
 		return append(buf, "null"...)
 	case error:
-		return appendString(buf, isJSON, x.Error())
+		return appendString(buf, isJSON, typed.Error())
 	case []byte:
-		return appendString(buf, isJSON, string(x))
+		return appendString(buf, isJSON, string(typed))
 	case []string:
-		return appendStrings(buf, isJSON, x)
+		return appendStrings(buf, isJSON, typed)
 	}
-	encoded, err := json.Marshal(v)
+	encoded, err := json.Marshal(val)
 	if err != nil {
 		return appendString(buf, isJSON, "unsupported value type")
 	}
@@ -359,15 +359,15 @@ func appendStrings(buf []byte, isJSON bool, list []string) []byte {
 	return append(buf, ']')
 }
 
-func appendString(buf []byte, isJSON bool, s string) []byte {
+func appendString(buf []byte, isJSON bool, str string) []byte {
 	if isJSON {
 		buf = append(buf, '"')
-		buf = appendEscaped(buf, s)
+		buf = appendEscaped(buf, str)
 
 		return append(buf, '"')
 	}
 	quote := false
-	for _, r := range s {
+	for _, r := range str {
 		if r <= ' ' || r == '=' || r == '"' || r == utf8.RuneError {
 			quote = true
 
@@ -377,7 +377,7 @@ func appendString(buf []byte, isJSON bool, s string) []byte {
 	if quote {
 		buf = append(buf, '"')
 	}
-	buf = appendEscaped(buf, s)
+	buf = appendEscaped(buf, str)
 	if quote {
 		buf = append(buf, '"')
 	}
@@ -385,15 +385,15 @@ func appendString(buf []byte, isJSON bool, s string) []byte {
 	return buf
 }
 
-// appendEscaped adds s with the escapes of a JSON string, which are also the ones of a quoted logfmt value.
-func appendEscaped(buf []byte, s string) []byte {
-	for i := 0; i < len(s); {
-		c := s[i]
-		if c < utf8.RuneSelf {
+// appendEscaped adds str with the escapes of a JSON string, which are also the ones of a quoted logfmt value.
+func appendEscaped(buf []byte, str string) []byte {
+	for i := 0; i < len(str); {
+		chr := str[i]
+		if chr < utf8.RuneSelf {
 			i++
-			switch c {
+			switch chr {
 			case '"', '\\':
-				buf = append(buf, '\\', c)
+				buf = append(buf, '\\', chr)
 			case '\n':
 				buf = append(buf, '\\', 'n')
 			case '\r':
@@ -401,23 +401,23 @@ func appendEscaped(buf []byte, s string) []byte {
 			case '\t':
 				buf = append(buf, '\\', 't')
 			default:
-				if c < asciiControl {
-					buf = append(buf, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
+				if chr < asciiControl {
+					buf = append(buf, '\\', 'u', '0', '0', hexDigits[chr>>4], hexDigits[chr&0xf])
 				} else {
-					buf = append(buf, c)
+					buf = append(buf, chr)
 				}
 			}
 
 			continue
 		}
-		r, size := utf8.DecodeRuneInString(s[i:])
+		r, size := utf8.DecodeRuneInString(str[i:])
 		if r == utf8.RuneError && size == 1 {
 			buf = append(buf, `�`...)
 			i++
 
 			continue
 		}
-		buf = append(buf, s[i:i+size]...)
+		buf = append(buf, str[i:i+size]...)
 		i += size
 	}
 

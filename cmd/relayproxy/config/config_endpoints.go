@@ -32,35 +32,35 @@ type ByteSize int64
 // UnmarshalText implements [encoding.TextUnmarshaler], it is used by the koanf decode hook to
 // convert the strings (configuration file and environment variables) to a number of bytes.
 func (b *ByteSize) UnmarshalText(text []byte) error {
-	s := strings.TrimSpace(string(text))
-	if s == "" {
+	raw := strings.TrimSpace(string(text))
+	if raw == "" {
 		// an empty value (for example an empty environment variable) means unset.
 		*b = 0
 
 		return nil
 	}
-	if strings.HasPrefix(s, "-") {
-		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, s)
+	if strings.HasPrefix(raw, "-") {
+		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, raw)
 	}
-	parsedUint, uintErr := strconv.ParseUint(s, 10, 63)
+	parsedUint, uintErr := strconv.ParseUint(raw, 10, 63)
 	if uintErr == nil {
 		*b = ByteSize(parsedUint)
 
 		return nil
 	}
-	_, floatErr := strconv.ParseFloat(s, 64)
+	_, floatErr := strconv.ParseFloat(raw, 64)
 	if floatErr == nil {
 		// a number without unit that is not an integer (1.5, 1e3), do not truncate it silently.
-		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, s)
+		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, raw)
 	}
-	n, err := humanize.ParseBytes(s)
+	parsed, err := humanize.ParseBytes(raw)
 	if err != nil {
-		return fmt.Errorf("invalid size %q: %w", s, err)
+		return fmt.Errorf("invalid size %q: %w", raw, err)
 	}
-	if n > math.MaxInt64 {
-		return fmt.Errorf("%w %q: too large", errInvalidSize, s)
+	if parsed > math.MaxInt64 {
+		return fmt.Errorf("%w %q: too large", errInvalidSize, raw)
 	}
-	*b = ByteSize(n)
+	*b = ByteSize(parsed)
 
 	return nil
 }

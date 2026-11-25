@@ -107,15 +107,15 @@ func Start(opts Options) (_ *Relay, err error) {
 		return nil, err
 	}
 	r.wsSvc = stream.NewWebsocketService()
-	fm, err := service.NewFlagsetManager(conf, logger.Slog,
+	flagsetMgr, err := service.NewFlagsetManager(conf, logger.Slog,
 		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, r.wsSvc)
 	if err != nil {
 		return nil, err
 	}
 	r.Services = service.Services{
-		MonitoringService: service.NewMonitoring(fm),
+		MonitoringService: service.NewMonitoring(flagsetMgr),
 		WebsocketService:  r.wsSvc,
-		FlagsetManager:    fm,
+		FlagsetManager:    flagsetMgr,
 		Metrics:           metrics,
 	}
 	if opts.Listen {

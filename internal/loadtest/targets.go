@@ -37,7 +37,7 @@ type LibraryOptions struct {
 }
 
 // NewLibraryTarget starts a library client on the generated flags.
-func NewLibraryTarget(ctx context.Context, o LibraryOptions) (*LibraryTarget, error) {
+func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget, error) {
 	dir, err := os.MkdirTemp("", "ffsoak")
 	if err != nil {
 		return nil, err
@@ -47,19 +47,19 @@ func NewLibraryTarget(ctx context.Context, o LibraryOptions) (*LibraryTarget, er
 	if writeFileErr != nil {
 		return nil, writeFileErr
 	}
-	if o.FlushInterval == 0 {
-		o.FlushInterval = time.Second
+	if opts.FlushInterval == 0 {
+		opts.FlushInterval = time.Second
 	}
-	if o.MaxEventInMemory == 0 {
-		o.MaxEventInMemory = 100000
+	if opts.MaxEventInMemory == 0 {
+		opts.MaxEventInMemory = 100000
 	}
-	exp := NewExporter(o.ExporterMode)
-	c, err := ffclient.NewWithContext(ctx, ffclient.Config{
+	exp := NewExporter(opts.ExporterMode)
+	client, err := ffclient.NewWithContext(ctx, ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 		DataExporter: ffclient.DataExporter{
-			FlushInterval:    o.FlushInterval,
-			MaxEventInMemory: o.MaxEventInMemory,
+			FlushInterval:    opts.FlushInterval,
+			MaxEventInMemory: opts.MaxEventInMemory,
 			Exporter:         exp,
 		},
 	})
@@ -67,7 +67,7 @@ func NewLibraryTarget(ctx context.Context, o LibraryOptions) (*LibraryTarget, er
 		return nil, err
 	}
 
-	return &LibraryTarget{client: c, exporter: exp, flagKey: o.FlagKey, dir: dir}, nil
+	return &LibraryTarget{client: client, exporter: exp, flagKey: opts.FlagKey, dir: dir}, nil
 }
 
 // Eval implements Target.

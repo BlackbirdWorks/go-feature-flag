@@ -424,8 +424,8 @@ func Test_Evaluate(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
-			e := http.NewServeMux()
-			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux := http.NewServeMux()
+			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 			rec := httptest.NewRecorder()
 
 			flagKey := tt.args.flagKey
@@ -440,7 +440,7 @@ func Test_Evaluate(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
 			req.Header.Set("Content-Type", "application/json")
 
-			e.ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
@@ -506,8 +506,8 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err)
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, config.OfrepEventStream{})
-			e := http.NewServeMux()
-			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux := http.NewServeMux()
+			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
@@ -515,7 +515,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 				req := httptest.NewRequest(
 					http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, strings.NewReader(string(bodyReqContent)))
 				req.Header.Set("Content-Type", "application/json")
-				e.ServeHTTP(httptest.NewRecorder(), req)
+				mux.ServeHTTP(httptest.NewRecorder(), req)
 			}
 
 			assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(tt.want), metricName))
@@ -553,8 +553,8 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
-			e := http.NewServeMux()
-			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+			mux := http.NewServeMux()
+			mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
 			require.NoError(t, err)
 			req := httptest.NewRequest(
@@ -564,7 +564,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			)
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
-			e.ServeHTTP(rec, req)
+			mux.ServeHTTP(rec, req)
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			var resp model.OFREPEvaluateSuccessResponse

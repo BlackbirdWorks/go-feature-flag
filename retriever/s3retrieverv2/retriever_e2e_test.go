@@ -357,17 +357,17 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 				Bucket: bucket, AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
-			ra, rb := group.Retriever(keyA), group.Retriever(keyB)
-			require.NoError(t, ra.Init(context.Background(), nil))
-			require.NoError(t, rb.Init(context.Background(), nil))
+			retA, retB := group.Retriever(keyA), group.Retriever(keyB)
+			require.NoError(t, retA.Init(context.Background(), nil))
+			require.NoError(t, retB.Init(context.Background(), nil))
 			t.Cleanup(func() {
-				_ = ra.Shutdown(context.Background())
-				_ = rb.Shutdown(context.Background())
+				_ = retA.Shutdown(context.Background())
+				_ = retB.Shutdown(context.Background())
 			})
 
-			gotA, err := ra.Retrieve(context.Background())
+			gotA, err := retA.Retrieve(context.Background())
 			require.NoError(t, err)
-			gotB, err := rb.Retrieve(context.Background())
+			gotB, err := retB.Retrieve(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantA, string(gotA))
 			assert.Equal(t, tt.wantB, string(gotB))
@@ -376,29 +376,29 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			var refreshedA, refreshedB atomic.Int32
 			refresh := func(r interface {
 				Retrieve(context.Context) ([]byte, error)
-			}, n *atomic.Int32) func() bool {
+			}, refreshes *atomic.Int32) func() bool {
 				return func() bool {
 					_, retrieveErr := r.Retrieve(context.Background())
 					if retrieveErr != nil {
 						return false
 					}
-					n.Add(1)
+					refreshes.Add(1)
 
 					return true
 				}
 			}
 			group.SetPoller(s3retrieverv2.PollerConfig{Interval: time.Second})
-			group.SetRefresh(ra, refresh(ra, &refreshedA))
-			group.SetRefresh(rb, refresh(rb, &refreshedB))
+			group.SetRefresh(retA, refresh(retA, &refreshedA))
+			group.SetRefresh(retB, refresh(retB, &refreshedB))
 
 			srv.PutObject(t, bucket, keyB, flagJSON("flag-b", "b2"))
 			require.Eventually(t, func() bool { return refreshedB.Load() >= 1 }, 15*time.Second, 100*time.Millisecond)
 			assert.Equal(t, tt.wantRefreshedA, refreshedA.Load(), "unchanged item must not be refreshed")
 
-			gotB, err = rb.Retrieve(context.Background())
+			gotB, err = retB.Retrieve(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantBUpdated, string(gotB))
-			gotA, err = ra.Retrieve(context.Background())
+			gotA, err = retA.Retrieve(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantA, string(gotA))
 		})

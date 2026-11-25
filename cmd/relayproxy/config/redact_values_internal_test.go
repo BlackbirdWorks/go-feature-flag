@@ -15,7 +15,7 @@ type redactProbe struct {
 func TestRedactValue(t *testing.T) {
 	t.Parallel()
 
-	s := "plain"
+	plain := "plain"
 	var nilPtr *string
 	probe := redactProbe{hidden: "x"}
 	tests := []struct {
@@ -27,7 +27,7 @@ func TestRedactValue(t *testing.T) {
 		{name: "invalid value", value: reflect.Value{}, want: nil},
 		{name: "too deep", value: reflect.ValueOf("deep"), depth: maxRedactDepth + 1, want: nil},
 		{name: "nil pointer", value: reflect.ValueOf(nilPtr), want: nil},
-		{name: "pointer to a plain value", value: reflect.ValueOf(&s), want: "plain"},
+		{name: "pointer to a plain value", value: reflect.ValueOf(&plain), want: "plain"},
 		{name: "third party struct is opaque", value: reflect.ValueOf(time.Now()), want: opaqueValue},
 		{name: "function is opaque", value: reflect.ValueOf(func() {}), want: opaqueValue},
 		{name: "channel is opaque", value: reflect.ValueOf(make(chan int)), want: opaqueValue},

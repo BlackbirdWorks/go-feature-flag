@@ -65,7 +65,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 				}
 			}
 			defer release()
-			c, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 				LeveledLogger:   slog.New(sink),
@@ -87,7 +87,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 							return
 						default:
 						}
-						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						counters[i].Add(1)
 					}
 				})
@@ -96,10 +96,10 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 				close(stop)
 				release()
 				wg.Wait()
-				c.Close()
+				client.Close()
 			}()
 
-			require.Eventually(t, func() bool { return c.DroppedEvents() > 0 }, time.Minute, time.Millisecond,
+			require.Eventually(t, func() bool { return client.DroppedEvents() > 0 }, time.Minute, time.Millisecond,
 				"the queue never overflowed")
 			before := make([]int64, len(counters))
 			for i := range counters {

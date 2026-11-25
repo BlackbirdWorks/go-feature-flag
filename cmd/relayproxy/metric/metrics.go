@@ -76,13 +76,13 @@ type Metrics struct {
 //nolint:funlen
 func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	// default opts
-	mo := &MetricsOpts{
+	metricsOpts := &MetricsOpts{
 		EnableBulkMetricFlagNames: false,
 		Version:                   "",
 	}
 
 	if len(opts) > 0 {
-		mo = &opts[0]
+		metricsOpts = &opts[0]
 	}
 	customRegistry := prom.NewRegistry()
 
@@ -207,7 +207,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 		validateFlagsCounterVec,
 		flagConfigurationCounter,
 		getManifestCounter,
-		versioncollector.NewCollector(SubSystem, versionOptions(mo.Version)...),
+		versioncollector.NewCollector(SubSystem, versionOptions(metricsOpts.Version)...),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		collectors.NewGoCollector(),
 	}
@@ -221,7 +221,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	}
 
 	return Metrics{
-		opts:                     *mo,
+		opts:                     *metricsOpts,
 		flagEvaluationCounter:    *flagEvaluationCounter,
 		allFlagCounter:           allFlagCounter,
 		allFlagCounterWithFlag:   *allFlagCounterWithFlag,

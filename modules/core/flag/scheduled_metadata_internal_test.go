@@ -64,9 +64,9 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := tt.flag(clocktest.Instant())
+			flg := tt.flag(clocktest.Instant())
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			_, first := f.Value("flag", ctx, Context{Service: NewService()})
+			_, first := flg.Value("flag", ctx, Context{Service: NewService()})
 			rel, ok := first.Metadata["release"].(map[string]any)
 			require.True(t, ok)
 			rel["owner"] = "changed"
@@ -79,7 +79,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			if first.RuleName != nil {
 				*first.RuleName = "changed"
 			}
-			_, second := f.Value("flag", ctx, Context{Service: NewService()})
+			_, second := flg.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
 			gotRuleName := ""
 			if second.RuleName != nil {

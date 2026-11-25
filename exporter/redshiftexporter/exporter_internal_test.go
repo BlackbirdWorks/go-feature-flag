@@ -48,7 +48,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		DBUser:            "goff_writer",
@@ -71,7 +71,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		},
 	}
 
-	err := e.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), nil, events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -104,7 +104,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{
+	exp := &Exporter{
 		WorkgroupName: "my-workgroup",
 		Database:      "analytics",
 		SecretArn:     "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
@@ -122,7 +122,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		},
 	}
 
-	err := e.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), nil, events)
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -164,7 +164,7 @@ func TestExporter_QuotesTableName(t *testing.T) {
 
 	client := &mockRedshiftDataClient{}
 	// "order" is a reserved word, it must be quoted to be used as a table name
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		TableName:         "goff.order",
@@ -172,7 +172,7 @@ func TestExporter_QuotesTableName(t *testing.T) {
 		client:            client,
 	}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
@@ -205,13 +205,13 @@ func TestExporter_ValuesAreSentAsParameters(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 	malicious := "x'); DROP TABLE feature_flag_evaluations; --"
 	event := newFeatureEvent(0)
 	event.UserKey = malicious
 	event.Key = malicious
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -309,7 +309,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 	events := make([]exporter.ExportableEvent, 0, 60)
 	for i := range 60 {
 		event := newFeatureEvent(i)
@@ -317,7 +317,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 		events = append(events, event)
 	}
 
-	err := e.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), nil, events)
 
 	require.NoError(t, err)
 	require.Greater(t, len(client.executed), 1)
@@ -342,7 +342,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 	event := newFeatureEvent(0)
 	event.UserKey = strings.Repeat("a", 511) + "é" // 513 bytes, "é" is 2 bytes
 	event.Key = strings.Repeat("k", 300)           // 300 bytes
@@ -350,7 +350,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	event.Version = "v1\xff"                       // invalid UTF-8
 	event.Default = true
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 1)
@@ -423,7 +423,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
+			exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 			var logs bytes.Buffer
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(&logs, nil))}
 			oversized := newFeatureEvent(1)
@@ -431,7 +431,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			oversized.UserKey = "secret-user"
 			tt.oversize(&oversized)
 
-			err := e.Export(context.TODO(), logger,
+			err := exp.Export(context.TODO(), logger,
 				[]exporter.ExportableEvent{newFeatureEvent(0), oversized, newFeatureEvent(2)})
 
 			require.NoError(t, err)
@@ -453,11 +453,11 @@ func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", AutoMigrate: true, client: client}
+	exp := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", AutoMigrate: true, client: client}
 	event := newFeatureEvent(0)
 	event.Value = strings.Repeat("a", maxSuperBytes)
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
 
 	require.NoError(t, err)
 	assert.Empty(t, client.executed)
@@ -594,15 +594,15 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			e := &Exporter{
+			exp := &Exporter{
 				ClusterIdentifier: "my-cluster",
 				Database:          "analytics",
 				AutoMigrate:       tt.autoMigrate,
 				client:            client,
 			}
 
-			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
-			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, exp.Export(context.TODO(), nil, tt.events))
 
 			var creates []string
 			for _, input := range client.executed {
@@ -629,7 +629,7 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	client := &mockRedshiftDataClient{
 		executeErrs: []error{errCreateFailed},
 	}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		AutoMigrate:       true,
@@ -637,8 +637,8 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	}
 	events := []exporter.ExportableEvent{newFeatureEvent(0)}
 
-	require.ErrorContains(t, e.Export(context.TODO(), nil, events), "create failed")
-	require.NoError(t, e.Export(context.TODO(), nil, events))
+	require.ErrorContains(t, exp.Export(context.TODO(), nil, events), "create failed")
+	require.NoError(t, exp.Export(context.TODO(), nil, events))
 
 	require.Len(t, client.executed, 3)
 	assert.True(t, strings.HasPrefix(client.executed[1].Sqls[0], "CREATE TABLE IF NOT EXISTS"))
@@ -784,7 +784,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			e := &Exporter{
+			exp := &Exporter{
 				ClusterIdentifier: "my-cluster",
 				Database:          "analytics",
 				client:            tt.client,
@@ -793,7 +793,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 				cancelTimeout:     20 * time.Millisecond,
 			}
 
-			err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 			if len(tt.wantErr) == 0 {
 				require.NoError(t, err)
@@ -827,7 +827,7 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 
 	// every transaction takes 100ms, the export takes longer than the timeout of a single transaction
 	client := &mockRedshiftDataClient{finishAfter: 100 * time.Millisecond}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		AutoMigrate:       true,
@@ -837,7 +837,7 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 		cancelTimeout:     20 * time.Millisecond,
 	}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.NoError(t, err)
 	require.Len(t, client.executed, 2)
@@ -853,7 +853,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 		statuses:    []types.StatusString{types.StatusStringStarted},
 		afterCancel: []types.StatusString{types.StatusStringAborted},
 	}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		AutoMigrate:       true,
@@ -862,7 +862,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 		statementTimeout:  30 * time.Millisecond,
 	}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// the migration has been cancelled, no insert has been sent
@@ -875,7 +875,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{statuses: []types.StatusString{types.StatusStringStarted}}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		client:            client,
@@ -885,7 +885,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := e.Export(ctx, nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(ctx, nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Len(t, client.cancelled, 1)
@@ -1015,7 +1015,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 		statuses:    []types.StatusString{types.StatusStringFailed},
 		statusError: "permission denied",
 	}
-	e := &Exporter{
+	exp := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
 		DBUser:            "goff_writer",
@@ -1023,7 +1023,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 		client:            client,
 	}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
+	err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "goff_writer")
@@ -1053,9 +1053,9 @@ func TestExporter_InitClient(t *testing.T) {
 			t.Setenv("AWS_CONFIG_FILE", emptyFile)
 			t.Setenv("AWS_SHARED_CREDENTIALS_FILE", emptyFile)
 			t.Setenv("AWS_PROFILE", tt.profile)
-			e := &Exporter{AwsConfig: tt.awsConfig}
+			exp := &Exporter{AwsConfig: tt.awsConfig}
 
-			err := e.initClient(context.TODO())
+			err := exp.initClient(context.TODO())
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -1067,7 +1067,7 @@ func TestExporter_InitClient(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.IsType(t, &redshiftdata.Client{}, e.client)
+			assert.IsType(t, &redshiftdata.Client{}, exp.client)
 		})
 	}
 }

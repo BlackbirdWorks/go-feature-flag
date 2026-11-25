@@ -135,15 +135,15 @@ func convertUpdatedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 	embeds := make([]embed, 0, len(diffCache.Updated))
 	for key, value := range diffCache.Updated {
 		title := fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After))
-		e := embed{Title: title, Color: colorUpdated}
+		item := embed{Title: title, Color: colorUpdated}
 		changes, err := notifier.DescribeChanges(value.Before, value.After)
 		if err != nil {
-			e.Description = fmt.Sprintf("%s: %s", notifier.ChangesUnavailable, err.Error())
+			item.Description = fmt.Sprintf("%s: %s", notifier.ChangesUnavailable, err.Error())
 		} else {
-			e.changes = changes
-			e.Description = notifier.ChangeList(changes, "• ", maxDiscordDescription)
+			item.changes = changes
+			item.Description = notifier.ChangeList(changes, "• ", maxDiscordDescription)
 		}
-		embeds = append(embeds, e)
+		embeds = append(embeds, item)
 	}
 
 	return embeds

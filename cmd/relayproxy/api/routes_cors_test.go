@@ -61,14 +61,14 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	s := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metricsV2,
 	}, log.Slog, opts...)
-	go func() { s.StartWithContext(context.Background()) }()
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	go func() { srv.StartWithContext(context.Background()) }()
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	if withMonitoring {

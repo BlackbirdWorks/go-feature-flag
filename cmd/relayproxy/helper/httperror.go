@@ -93,13 +93,13 @@ func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 		}
 	}
 
-	if he, ok := errors.AsType[*HTTPError](err); ok {
-		body := ErrorBody{Message: he.Message}
+	if httpErr, ok := errors.AsType[*HTTPError](err); ok {
+		body := ErrorBody{Message: httpErr.Message}
 		if body.Message == "" {
 			body.Message = http.StatusText(code)
 		}
-		if exposeError && he.err != nil {
-			body.Error = he.err.Error()
+		if exposeError && httpErr.err != nil {
+			body.Error = httpErr.err.Error()
 		}
 
 		return code, body

@@ -115,14 +115,14 @@ loglevel: error`,
 			// Create temporary directory and config file
 			configFile := testutils.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			err := f.Parse([]string{"--config=" + configFile.Name()})
+			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			flagSet.String("config", "", "Location of your config file")
+			err := flagSet.Parse([]string{"--config=" + configFile.Name()})
 			require.NoError(t, err)
 
 			// Create ConfigLoader with watchChanges enabled
 			logger := slog.New(slog.DiscardHandler)
-			loader := config.NewConfigLoader(f, logger, "1.0.0", true)
+			loader := config.NewConfigLoader(flagSet, logger, "1.0.0", true)
 			defer loader.StopWatchChanges()
 
 			// Setup callbacks
@@ -204,14 +204,14 @@ pollingInterval: 1000
 loglevel: info`)
 
 	// Create flag set and parse config file path
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	err := f.Parse([]string{"--config=" + configFile.Name()})
+	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	flagSet.String("config", "", "Location of your config file")
+	err := flagSet.Parse([]string{"--config=" + configFile.Name()})
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges disabled
 	logger := slog.New(slog.DiscardHandler)
-	loader := config.NewConfigLoader(f, logger, "1.0.0", false)
+	loader := config.NewConfigLoader(flagSet, logger, "1.0.0", false)
 
 	// Setup callback
 	var mu sync.Mutex
@@ -247,15 +247,15 @@ pollingInterval: 1000
 loglevel: info`)
 
 	// Create flag set and parse config file path
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	err := f.Parse([]string{"--config=" + configFile.Name()})
+	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	flagSet.String("config", "", "Location of your config file")
+	err := flagSet.Parse([]string{"--config=" + configFile.Name()})
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges enabled and observer logger to capture logs
 	core, logs := slogutil.NewObserver(slog.LevelError)
 	logger := core
-	loader := config.NewConfigLoader(f, logger, "1.0.0", true)
+	loader := config.NewConfigLoader(flagSet, logger, "1.0.0", true)
 
 	// Setup callback
 	var mu sync.Mutex

@@ -38,7 +38,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
-	e := &Exporter{
+	exp := &Exporter{
 		ProjectID:     "fake-project",
 		DatasetID:     "fake-dataset",
 		TableName:     "feature-table",
@@ -60,7 +60,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 		},
 	}
 
-	err := e.Export(ctx, nil, events)
+	err := exp.Export(ctx, nil, events)
 
 	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
@@ -91,7 +91,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
-	e := &Exporter{
+	exp := &Exporter{
 		ProjectID:     "fake-project",
 		DatasetID:     "fake-dataset",
 		TableName:     "tracking-table",
@@ -109,7 +109,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 		},
 	}
 
-	err := e.Export(ctx, nil, events)
+	err := exp.Export(ctx, nil, events)
 
 	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
@@ -136,7 +136,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
-	e := &Exporter{
+	exp := &Exporter{
 		ProjectID:     "fake-project",
 		DatasetID:     "fake-dataset",
 		TableName:     "events-table",
@@ -157,7 +157,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 		},
 	}
 
-	err := e.Export(ctx, nil, events)
+	err := exp.Export(ctx, nil, events)
 
 	require.ErrorContains(t, err, "mixed event types")
 	assert.Empty(t, client.inserters)
@@ -218,7 +218,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 			ctx := context.TODO()
 			client := newMockBigQueryClient()
-			e := &Exporter{
+			exp := &Exporter{
 				ProjectID:     "fake-project",
 				DatasetID:     "fake-dataset",
 				TableName:     tt.tableName,
@@ -226,7 +226,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 				newClientFunc: mockNewClientFunc(client),
 			}
 
-			err := e.Export(ctx, nil, tt.events)
+			err := exp.Export(ctx, nil, tt.events)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnsureTableCalls, client.ensureTableCalls)
@@ -239,7 +239,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
-	e := &Exporter{
+	exp := &Exporter{
 		ProjectID:     "fake-project",
 		DatasetID:     "fake-dataset",
 		newClientFunc: mockNewClientFunc(client),
@@ -248,7 +248,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 		exporter.FeatureEvent{Kind: "feature", Value: true},
 	}
 
-	err := e.Export(ctx, nil, events)
+	err := exp.Export(ctx, nil, events)
 
 	require.NoError(t, err)
 	assert.Len(t, client.inserters["fake-dataset."+defaultTableName].puts, 1)
@@ -281,7 +281,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			t.Parallel()
 
 			initCalled := false
-			e := &Exporter{
+			exp := &Exporter{
 				ProjectID: "fake-project",
 				DatasetID: "fake-dataset",
 				newClientFunc: func(
@@ -295,11 +295,11 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 				},
 			}
 
-			err := e.Export(context.TODO(), nil, tt.events)
+			err := exp.Export(context.TODO(), nil, tt.events)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantClientInit, initCalled)
-			assert.Nil(t, e.client)
+			assert.Nil(t, exp.client)
 		})
 	}
 }
@@ -430,7 +430,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 			if tableName == "" {
 				tableName = "feature-table"
 			}
-			e := &Exporter{
+			exp := &Exporter{
 				ProjectID:   "fake-project",
 				DatasetID:   "fake-dataset",
 				TableName:   tableName,
@@ -449,7 +449,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 				},
 			}
 
-			err := e.Export(context.TODO(), nil, tt.events)
+			err := exp.Export(context.TODO(), nil, tt.events)
 
 			require.ErrorContains(t, err, tt.wantErrContains)
 			assert.Equal(t, tt.wantNewClientCalled, newClientCalled)
@@ -461,7 +461,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 	t.Parallel()
 
 	client := newMockBigQueryClient()
-	e := &Exporter{
+	exp := &Exporter{
 		ProjectID:     "fake-project",
 		DatasetID:     "fake-dataset",
 		TableName:     "feature-table",
@@ -478,7 +478,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 		})
 	}
 
-	err := e.Export(context.TODO(), nil, events)
+	err := exp.Export(context.TODO(), nil, events)
 
 	require.NoError(t, err)
 	puts := client.inserters["fake-dataset.feature-table"].puts
@@ -496,7 +496,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 
 	client := newMockBigQueryClient()
 	var callCount atomic.Int32
-	e := &Exporter{
+	exporter := &Exporter{
 		ProjectID: "fake-project",
 		DatasetID: "fake-dataset",
 		newClientFunc: func(
@@ -515,7 +515,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range goroutines {
 		wg.Go(func() {
-			errs <- e.initClient(context.TODO())
+			errs <- exporter.initClient(context.TODO())
 		})
 	}
 	wg.Wait()
@@ -525,7 +525,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Equal(t, int32(1), callCount.Load())
-	assert.Equal(t, client, e.client)
+	assert.Same(t, client, exporter.client)
 }
 
 func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
@@ -554,7 +554,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 			var gotProjectID string
 			var gotClientOptions int
 			client := newMockBigQueryClient()
-			e := &Exporter{
+			exp := &Exporter{
 				ProjectID:         "fake-project",
 				DatasetID:         "fake-dataset",
 				TableName:         "feature-table",
@@ -571,7 +571,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 				},
 			}
 
-			err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{
+			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{
 				exporter.FeatureEvent{Kind: "feature", Value: true},
 			})
 

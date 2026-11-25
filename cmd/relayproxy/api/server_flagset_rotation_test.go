@@ -65,7 +65,7 @@ func (m routingLostManager) FlagSetName(apiKey string) (string, error) {
 func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
@@ -85,7 +85,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(realManager.Close)
 
-	s := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(realManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
@@ -93,9 +93,9 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 			FlagsetManager: realManager, lostKeys: map[string]bool{"moved-key": true},
 		},
 		Metrics: metric.Metrics{},
-	}, log.Slog, api.WithListener(ln))
-	go s.StartWithContext(context.Background())
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	}, log.Slog, api.WithListener(listener))
+	go srv.StartWithContext(context.Background())
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
@@ -123,28 +123,28 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		{name: "routed key", key: "routed-key", want: http.StatusOK},
 		{name: "key that lost its routing", key: "moved-key", want: http.StatusUnauthorized},
 	}
-	for _, ep := range endpoints {
-		for _, k := range keys {
-			t.Run(ep.name+" with "+k.name, func(t *testing.T) {
+	for _, endpoint := range endpoints {
+		for _, keyCase := range keys {
+			t.Run(endpoint.name+" with "+keyCase.name, func(t *testing.T) {
 				t.Parallel()
-				if ep.keyInQuery && k.want == http.StatusOK {
+				if endpoint.keyInQuery && keyCase.want == http.StatusOK {
 					t.Skip("a stream stays open when the key is accepted")
 				}
 
-				target := baseURL + ep.path
-				if ep.keyInQuery {
-					target += "?apiKey=" + url.QueryEscape(k.key)
+				target := baseURL + endpoint.path
+				if endpoint.keyInQuery {
+					target += "?apiKey=" + url.QueryEscape(keyCase.key)
 				}
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(),
-					ep.method,
+					endpoint.method,
 					target,
-					strings.NewReader(ep.body),
+					strings.NewReader(endpoint.body),
 				)
 				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
-				if !ep.keyInQuery {
-					req.Header.Set("X-Api-Key", k.key)
+				if !endpoint.keyInQuery {
+					req.Header.Set("X-Api-Key", keyCase.key)
 				}
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
 				require.NoError(t, requestWithContextErr)
@@ -152,7 +152,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				body, requestWithContextErr := io.ReadAll(resp.Body)
 				require.NoError(t, requestWithContextErr)
 
-				assert.Equal(t, k.want, resp.StatusCode, string(body))
+				assert.Equal(t, keyCase.want, resp.StatusCode, string(body))
 			})
 		}
 	}
@@ -188,7 +188,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		return flagsets([]string{"a-key", "new-key"}, []string{"b-key", "rotating-key"})
 	}
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
 	log := newTestLogger(t)
@@ -196,13 +196,13 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 
-	s := newTestServer(t, proxyConf, service.Services{
+	srv := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
-	}, log.Slog, api.WithListener(ln))
-	go s.StartWithContext(context.Background())
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	}, log.Slog, api.WithListener(listener))
+	go srv.StartWithContext(context.Background())
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 

@@ -46,14 +46,14 @@ func (o OfrepEventStream) IsValid() error {
 		return nil
 	}
 	// the URL may embed credentials (user info): it must never be part of an error that is logged.
-	u, err := url.Parse(o.BaseURL)
+	parsedURL, err := url.Parse(o.BaseURL)
 	if err != nil {
 		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
 		return errOfrepEventStreamBaseURLMustBe
 	}
-	if u.RawQuery != "" || u.Fragment != "" {
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
 		return errOfrepEventStreamBaseURLMustNot
 	}
 

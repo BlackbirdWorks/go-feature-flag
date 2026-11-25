@@ -220,15 +220,15 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	t.Run("flagset added at runtime", func(t *testing.T) {
 		t.Parallel()
 
-		manager, sse, ws := newStreamManager(t, &config.Config{
+		manager, sse, wsSvc := newStreamManager(t, &config.Config{
 			FlagSets: []config.FlagSet{flagset("flagset-1")},
 		})
-		assertBroadcasts(t, sse, ws, []string{"flagset-1"})
+		assertBroadcasts(t, sse, wsSvc, []string{"flagset-1"})
 
 		manager.OnConfigChange(&config.Config{
 			FlagSets: []config.FlagSet{flagset("flagset-1"), flagset("flagset-2")},
 		})
-		assertBroadcasts(t, sse, ws, []string{"flagset-1", "flagset-2"})
+		assertBroadcasts(t, sse, wsSvc, []string{"flagset-1", "flagset-2"})
 	})
 }
 

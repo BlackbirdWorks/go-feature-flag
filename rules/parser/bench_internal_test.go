@@ -56,13 +56,13 @@ func newBenchEvaluator(b *testing.B, rule string) *Evaluator {
 // It returns the evaluator, which has now had its first Process call.
 func checkBenchProcess(b *testing.B, rule string, input map[string]any, want bool) *Evaluator {
 	b.Helper()
-	ev := newBenchEvaluator(b, rule)
-	got, err := ev.Process(input)
+	eval := newBenchEvaluator(b, rule)
+	got, err := eval.Process(input)
 	require.NoError(b, err)
 	require.Equal(b, want, got)
-	require.NoError(b, ev.LastDebugErr())
+	require.NoError(b, eval.LastDebugErr())
 
-	return ev
+	return eval
 }
 
 func benchNewAndProcess(b *testing.B, rule string) {
@@ -128,17 +128,17 @@ func BenchmarkProcess(b *testing.B) {
 		{name: "DebugErr/TypeMismatch", rule: `z gt 123`, wantDebug: true},
 		{name: "DebugErr/Missing", rule: `missing eq "x"`, wantDebug: true},
 	}
-	for _, tc := range rules {
-		b.Run(tc.name, func(b *testing.B) {
-			ev := newBenchEvaluator(b, tc.rule)
-			got, err := ev.Process(benchInput)
+	for _, tt := range rules {
+		b.Run(tt.name, func(b *testing.B) {
+			eval := newBenchEvaluator(b, tt.rule)
+			got, err := eval.Process(benchInput)
 			require.NoError(b, err)
-			require.Equal(b, tc.want, got)
-			require.Equal(b, tc.wantDebug, ev.LastDebugErr() != nil, "debug error")
+			require.Equal(b, tt.want, got)
+			require.Equal(b, tt.wantDebug, eval.LastDebugErr() != nil, "debug error")
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				ev.Process(benchInput)
+				eval.Process(benchInput)
 			}
 		})
 	}

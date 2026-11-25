@@ -136,20 +136,20 @@ func TestVariationFromBuckets_TopBucket(t *testing.T) {
 // legacyEvaluate is the evaluation before the fix: the percentages are summed in the given order (it used to be the
 // map iteration order) to get the modulus, the buckets are walked in reverse sorted order, and a hash beyond the
 // last bucket is an error (returned as "").
-func legacyEvaluate(p map[string]float64, sumOrder []string, key, flagName string) string {
+func legacyEvaluate(percentages map[string]float64, sumOrder []string, key, flagName string) string {
 	sum := 0.0
 	for _, n := range sumOrder {
-		sum += p[n]
+		sum += percentages[n]
 	}
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
-	names := make([]string, 0, len(p))
-	for n := range p {
+	names := make([]string, 0, len(percentages))
+	for n := range percentages {
 		names = append(names, n)
 	}
 	slices.Sort(names)
 	start := 0.0
 	for _, name := range slices.Backward(names) {
-		end := start + p[name]*PercentageMultiplier
+		end := start + percentages[name]*PercentageMultiplier
 		if uint32(start) <= hash && uint32(end) > hash {
 			return name
 		}

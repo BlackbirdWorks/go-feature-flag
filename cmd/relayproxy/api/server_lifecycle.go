@@ -162,7 +162,7 @@ func (*Server) listenOn(ctx context.Context, address string, given net.Listener)
 // serve serves the handler on the listener until ctx is done, then it gracefully shuts the server down: the
 // connections get gracefulShutdownTimeout to complete. With h2c, HTTP/2 over cleartext (prior knowledge) is served
 // next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
-func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c bool, shutdownMsg string) error {
+func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, shutdownMsg string) error {
 	srv := &http.Server{
 		Handler:  h,
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
@@ -194,7 +194,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, shutdownMsg, cmdlog.Err(err))
 		}
 	})
-	err := srv.Serve(ln)
+	err := srv.Serve(listener)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

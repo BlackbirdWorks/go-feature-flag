@@ -39,16 +39,16 @@ func TestManyFlagsYAML(t *testing.T) {
 			require.Len(t, flags, tt.wantFlags)
 			var static, targeted, percentage int
 			for i := range tt.n {
-				f, ok := flags[fmt.Sprintf("flag-%d", i)]
+				flagDef, ok := flags[fmt.Sprintf("flag-%d", i)]
 				require.True(t, ok, "flag-%d", i)
-				require.NotNil(t, f.TrackEvents)
-				assert.False(t, *f.TrackEvents, "bulk benchmarks must not emit events")
-				assert.Len(t, f.Variations, 2)
+				require.NotNil(t, flagDef.TrackEvents)
+				assert.False(t, *flagDef.TrackEvents, "bulk benchmarks must not emit events")
+				assert.Len(t, flagDef.Variations, 2)
 				switch {
-				case len(f.Targeting) > 0:
+				case len(flagDef.Targeting) > 0:
 					targeted++
-					assert.Equal(t, fmt.Sprintf(`key eq "user-%d"`, i), f.Targeting[0].Query)
-				case len(f.DefaultRule.Percentage) > 0:
+					assert.Equal(t, fmt.Sprintf(`key eq "user-%d"`, i), flagDef.Targeting[0].Query)
+				case len(flagDef.DefaultRule.Percentage) > 0:
 					percentage++
 				default:
 					static++

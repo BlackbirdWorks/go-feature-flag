@@ -48,14 +48,14 @@ func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := &Exporter{
+			webhookExp := &Exporter{
 				EndpointURL: tt.fields.EndpointURL,
 				Secret:      tt.fields.Secret,
 				Meta:        tt.fields.Meta,
 				httpClient:  &tt.fields.httpClient,
 				Headers:     tt.fields.Headers,
 			}
-			err := f.Export(context.Background(), tt.args.logger, tt.args.featureEvents)
+			err := webhookExp.Export(context.Background(), tt.args.logger, tt.args.featureEvents)
 			if tt.wantErr {
 				assert.Error(t, err)
 

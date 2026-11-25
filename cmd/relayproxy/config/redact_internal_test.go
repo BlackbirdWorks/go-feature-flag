@@ -68,64 +68,64 @@ func TestEverySensitiveLookingFieldIsClassified(t *testing.T) {
 	}
 }
 
-// fillSecrets sets a recognisable marker in every leaf of v.
-func fillLeaves(v reflect.Value, n *int) {
-	switch v.Kind() {
+// fillLeaves sets a recognisable marker in every leaf of val.
+func fillLeaves(target reflect.Value, counter *int) {
+	switch target.Kind() {
 	case reflect.String:
-		*n++
-		v.SetString(fmt.Sprintf("%s-%d", secretMarker, *n))
+		*counter++
+		target.SetString(fmt.Sprintf("%s-%d", secretMarker, *counter))
 	case reflect.Pointer:
-		v.Set(reflect.New(v.Type().Elem()))
-		fillLeaves(v.Elem(), n)
+		target.Set(reflect.New(target.Type().Elem()))
+		fillLeaves(target.Elem(), counter)
 	case reflect.Slice:
-		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
-		fillLeaves(v.Index(0), n)
+		target.Set(reflect.MakeSlice(target.Type(), 1, 1))
+		fillLeaves(target.Index(0), counter)
 	case reflect.Map:
-		v.Set(reflect.MakeMap(v.Type()))
-		key := reflect.New(v.Type().Key()).Elem()
-		fillLeaves(key, n)
-		val := reflect.New(v.Type().Elem()).Elem()
-		fillLeaves(val, n)
-		v.SetMapIndex(key, val)
+		target.Set(reflect.MakeMap(target.Type()))
+		key := reflect.New(target.Type().Key()).Elem()
+		fillLeaves(key, counter)
+		val := reflect.New(target.Type().Elem()).Elem()
+		fillLeaves(val, counter)
+		target.SetMapIndex(key, val)
 	case reflect.Struct:
-		for i := range v.NumField() {
-			if v.Type().Field(i).IsExported() {
-				fillLeaves(v.Field(i), n)
+		for i := range target.NumField() {
+			if target.Type().Field(i).IsExported() {
+				fillLeaves(target.Field(i), counter)
 			}
 		}
 	default:
 	}
 }
 
-// fillSecretFields puts a marker in every secret field of the struct tree rooted at v.
-func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
-	for v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			v.Set(reflect.New(v.Type().Elem()))
+// fillSecretFields puts a marker in every secret field of the struct tree rooted at val.
+func fillSecretFields(val reflect.Value, counter *int, filled map[string]bool) {
+	for val.Kind() == reflect.Pointer {
+		if val.IsNil() {
+			val.Set(reflect.New(val.Type().Elem()))
 		}
-		v = v.Elem()
+		val = val.Elem()
 	}
-	if v.Kind() == reflect.Slice {
-		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
-		fillSecretFields(v.Index(0), n, filled)
+	if val.Kind() == reflect.Slice {
+		val.Set(reflect.MakeSlice(val.Type(), 1, 1))
+		fillSecretFields(val.Index(0), counter, filled)
 
 		return
 	}
-	if v.Kind() != reflect.Struct || !isOwnType(v.Type()) {
+	if val.Kind() != reflect.Struct || !isOwnType(val.Type()) {
 		return
 	}
-	for i := range v.NumField() {
-		f := v.Type().Field(i)
-		if !f.IsExported() {
+	for i := range val.NumField() {
+		field := val.Type().Field(i)
+		if !field.IsExported() {
 			continue
 		}
-		if IsSecretField(v.Type().String(), f.Name) {
-			fillLeaves(v.Field(i), n)
-			filled[v.Type().String()+"."+f.Name] = true
+		if IsSecretField(val.Type().String(), field.Name) {
+			fillLeaves(val.Field(i), counter)
+			filled[val.Type().String()+"."+field.Name] = true
 
 			continue
 		}
-		fillSecretFields(v.Field(i), n, filled)
+		fillSecretFields(val.Field(i), counter, filled)
 	}
 }
 

@@ -32,7 +32,7 @@ import (
 // executed with data, and the port of the server is available as {{ .Port }}. It returns the base URL.
 func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]any) string {
 	t.Helper()
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	if data == nil {
 		data = map[string]any{}
 	}
@@ -55,23 +55,23 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 
 	metrics, err := metric.NewMetrics()
 	require.NoError(t, err)
-	ws := stream.NewWebsocketService()
+	wsSvc := stream.NewWebsocketService()
 	sse := stream.NewSSEService()
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog,
-		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, sse, ws)
+		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, sse, wsSvc)
 	require.NoError(t, err)
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(manager),
-		WebsocketService:  ws,
+		WebsocketService:  wsSvc,
 		SSEService:        sse,
 		FlagsetManager:    manager,
 		Metrics:           metrics,
 	}
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {
-		ws.Close()
+		wsSvc.Close()
 		s.Stop(context.Background())
 		manager.Close()
 	})

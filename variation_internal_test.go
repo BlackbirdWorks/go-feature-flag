@@ -110,7 +110,7 @@ func newVariationTestClient(
 	cacheMock cache.Manager,
 	offline bool,
 ) *GoFeatureFlag {
-	c := retriever.ManagerConfig{
+	mgrCfg := retriever.ManagerConfig{
 		FileFormat:              "YAML",
 		DisableNotifierOnInit:   false,
 		StartWithRetrieverError: false,
@@ -121,7 +121,7 @@ func newVariationTestClient(
 
 	return &GoFeatureFlag{
 		evaluationService: flag.NewService(),
-		retrieverManager:  retriever.NewManager(c, []retriever.Retriever{}, cacheMock, ffLogger),
+		retrieverManager:  retriever.NewManager(mgrCfg, []retriever.Retriever{}, cacheMock, ffLogger),
 		config: Config{
 			PollingInterval: 0,
 			LeveledLogger:   logger,
@@ -2430,19 +2430,19 @@ func TestJSONVariationDetails(t *testing.T) {
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
-			var ff *GoFeatureFlag
+			var client *GoFeatureFlag
 			if !tt.args.disableInit {
-				c := retriever.ManagerConfig{
+				mgrCfg := retriever.ManagerConfig{
 					FileFormat:              "YAML",
 					DisableNotifierOnInit:   false,
 					StartWithRetrieverError: false,
 					EnablePollingJitter:     true,
 					PollingInterval:         500,
 				}
-				ff = &GoFeatureFlag{
+				client = &GoFeatureFlag{
 					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
-						c,
+						mgrCfg,
 						[]retriever.Retriever{},
 						tt.args.cacheMock,
 						&fflog.FFLogger{LeveledLogger: logger},
@@ -2468,7 +2468,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				}
 			}
 
-			got, err := ff.JSONVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := client.JSONVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -2931,19 +2931,19 @@ func TestStringVariationDetails(t *testing.T) {
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
-			var ff *GoFeatureFlag
+			var client *GoFeatureFlag
 			if !tt.args.disableInit {
-				c := retriever.ManagerConfig{
+				mgrCfg := retriever.ManagerConfig{
 					FileFormat:              "YAML",
 					DisableNotifierOnInit:   false,
 					StartWithRetrieverError: false,
 					EnablePollingJitter:     true,
 					PollingInterval:         500,
 				}
-				ff = &GoFeatureFlag{
+				client = &GoFeatureFlag{
 					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
-						c,
+						mgrCfg,
 						[]retriever.Retriever{},
 						tt.args.cacheMock,
 						&fflog.FFLogger{LeveledLogger: logger},
@@ -2967,7 +2967,7 @@ func TestStringVariationDetails(t *testing.T) {
 					),
 				}
 			}
-			got, err := ff.StringVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := client.StringVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 

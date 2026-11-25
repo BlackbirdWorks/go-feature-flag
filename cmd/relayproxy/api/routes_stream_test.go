@@ -27,10 +27,10 @@ import (
 func TestDeprecatedAliasHeaders(t *testing.T) {
 	t.Parallel()
 
-	z := slog.New(slog.DiscardHandler)
+	logger := slog.New(slog.DiscardHandler)
 
-	ln, port := testutils.ListenLocal(t)
-	c := &config.Config{
+	listener, port := testutils.ListenLocal(t)
+	cfg := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 		},
@@ -40,24 +40,24 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 		},
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err)
 
 	sseService := stream.NewSSEService()
 	defer sseService.Close()
-	apiServer := newTestServer(t, c, service.Services{
+	apiServer := newTestServer(t, cfg, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, z, api.WithListener(ln))
+	}, logger, api.WithListener(listener))
 
 	go apiServer.StartWithContext(context.Background())
 	defer apiServer.Stop(context.Background())
-	waitForServer(t, fmt.Sprintf("http://localhost:%d", c.ServerPort(z)))
+	waitForServer(t, fmt.Sprintf("http://localhost:%d", cfg.ServerPort(logger)))
 
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", c.ServerPort(z)))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -134,8 +134,8 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			PollingInterval: 200,
 		}
 	}
-	ln, port := testutils.ListenLocal(t)
-	c := &config.Config{
+	listener, port := testutils.ListenLocal(t)
+	cfg := &config.Config{
 		FlagSets: []config.FlagSet{
 			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
 			flagset("tenant-b", "tenant-B-api-key", tenantBFile),
@@ -146,25 +146,25 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			Port: port,
 		},
 	}
-	c.ForceReloadAPIKeys()
-	z := slog.New(slog.DiscardHandler)
+	cfg.ForceReloadAPIKeys()
+	logger := slog.New(slog.DiscardHandler)
 
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(func() { wsService.Close() })
-	flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, wsService)
+	flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, wsService)
 	require.NoError(t, err)
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	apiServer := newTestServer(t, c, service.Services{
+	apiServer := newTestServer(t, cfg, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, z, api.WithListener(ln))
+	}, logger, api.WithListener(listener))
 	go apiServer.StartWithContext(context.Background())
 	t.Cleanup(func() { apiServer.Stop(context.Background()) })
-	waitForServer(t, fmt.Sprintf("http://localhost:%d", c.ServerPort(z)))
-	wsURL := fmt.Sprintf("ws://localhost:%d", c.ServerPort(z))
+	waitForServer(t, fmt.Sprintf("http://localhost:%d", cfg.ServerPort(logger)))
+	wsURL := fmt.Sprintf("ws://localhost:%d", cfg.ServerPort(logger))
 
 	endpoints := []struct {
 		name string

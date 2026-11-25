@@ -194,7 +194,7 @@ func Test_evaluate(t *testing.T) {
 func Test_evaluate_typeMisMatch(t *testing.T) {
 	t.Parallel()
 
-	f := &flag.InternalFlag{
+	targetFlag := &flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -204,7 +204,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		},
 	}
 	got, err := evaluation.Evaluate[int](
-		f,
+		targetFlag,
 		"my-flag",
 		ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"),
 		flag.Context{Service: flag.NewService()},

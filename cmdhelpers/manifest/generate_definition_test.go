@@ -84,14 +84,14 @@ func boolFlagWithExperimentation(
 	metadata map[string]any,
 	experimentationStart, experimentationEnd time.Time,
 ) flag.InternalFlag {
-	f := boolFlag(defaultVariation, metadata)
+	internalFlag := boolFlag(defaultVariation, metadata)
 	s, e := experimentationStart, experimentationEnd
-	f.Experimentation = &flag.ExperimentationRollout{
+	internalFlag.Experimentation = &flag.ExperimentationRollout{
 		Start: &s,
 		End:   &e,
 	}
 
-	return f
+	return internalFlag
 }
 
 func readGolden(t *testing.T, name string) string {

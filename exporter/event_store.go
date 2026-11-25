@@ -216,7 +216,7 @@ func (e *eventStoreImpl[T]) Add(data T) {
 func (e *eventStoreImpl[T]) AddAll(data []T) {
 	var dropped int64
 	e.mutex.Lock()
-	for _, d := range data {
+	for _, item := range data {
 		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
 			// the events consumed by everybody but not cleaned yet do not count: release them first.
 			e.cleanQueueLocked()
@@ -232,7 +232,7 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			}
 		}
 		e.lastOffset++
-		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
+		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: item})
 	}
 	dropped += e.enforceConsumerLimitsLocked()
 	e.mutex.Unlock()

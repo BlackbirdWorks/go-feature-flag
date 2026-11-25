@@ -13,7 +13,7 @@ import (
 // evaluation must never be visible to another one.
 func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 	t.Parallel()
-	f := &InternalFlag{
+	flg := &InternalFlag{
 		Variations: &map[string]*any{
 			"A": new(any("a")),
 			"B": new(any("b")),
@@ -22,7 +22,7 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 		DefaultRule: &Rule{VariationResult: new("B")},
 	}
 	svc := NewService()
-	require.NoError(t, f.IsValid(svc))
+	require.NoError(t, flg.IsValid(svc))
 
 	tests := []struct {
 		name string
@@ -41,12 +41,12 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 			t.Parallel()
 			runParallel(300, func(int) {
 				// interleave with a matching context to recycle a map holding the attribute
-				_, _ = f.Value(
+				_, _ = flg.Value(
 					"flag",
 					ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(),
 					Context{Service: svc},
 				)
-				v, _ := f.Value("flag", tt.ctx, Context{Service: svc})
+				v, _ := flg.Value("flag", tt.ctx, Context{Service: svc})
 				assert.Equal(t, tt.want, v)
 			})
 		})

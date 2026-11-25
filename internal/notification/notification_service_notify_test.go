@@ -21,7 +21,7 @@ var (
 
 func TestNotificationServiceNotify(t *testing.T) {
 	t.Parallel()
-	yo := func() map[string]flag.Flag {
+	yoFlags := func() map[string]flag.Flag {
 		return map[string]flag.Flag{"yo": &flag.InternalFlag{Version: new("1.0")}}
 	}
 	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
@@ -33,22 +33,22 @@ func TestNotificationServiceNotify(t *testing.T) {
 		wantCalls    int32
 		wantLogError bool
 	}{
-		{name: "a difference calls the notifier", oldCache: yo(), newCache: yoNew, wantCalls: 1},
-		{name: "no difference does not call the notifier", oldCache: yo(), newCache: yo(), wantCalls: 0},
-		{name: "a notifier error is logged", oldCache: yo(), newCache: yoNew, notifierErr: errBoom,
+		{name: "a difference calls the notifier", oldCache: yoFlags(), newCache: yoNew, wantCalls: 1},
+		{name: "no difference does not call the notifier", oldCache: yoFlags(), newCache: yoFlags(), wantCalls: 0},
+		{name: "a notifier error is logged", oldCache: yoFlags(), newCache: yoNew, notifierErr: errBoom,
 			wantCalls: 1, wantLogError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			handler := slogassert.New(t, slog.LevelDebug, nil)
-			n := &notifierMock{err: tt.notifierErr}
-			c := notification.NewService([]notifier.Notifier{n})
+			mockNotifier := &notifierMock{err: tt.notifierErr}
+			c := notification.NewService([]notifier.Notifier{mockNotifier})
 
 			c.Notify(tt.oldCache, tt.newCache, &fflog.FFLogger{LeveledLogger: slog.New(handler)})
 			c.Close() // waits for the notifier goroutines
 
-			assert.Equal(t, tt.wantCalls, n.calls.Load())
+			assert.Equal(t, tt.wantCalls, mockNotifier.calls.Load())
 			if tt.wantLogError {
 				handler.AssertMessage("error while calling the notifier")
 			}

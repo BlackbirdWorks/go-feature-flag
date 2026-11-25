@@ -87,14 +87,14 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &config.NotifierConf{
+			cfg := &config.NotifierConf{
 				Kind:        config.NotifierKind(tt.fields.Kind),
 				WebhookURL:  tt.fields.WebhookURL,
 				EndpointURL: tt.fields.EndpointURL,
 				Secret:      tt.fields.Secret,
 				Meta:        tt.fields.Meta,
 			}
-			err := c.IsValid()
+			err := cfg.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
 			if tt.wantErr {
 				assert.Equal(t, tt.errValue, err.Error())

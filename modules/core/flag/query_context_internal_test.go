@@ -187,7 +187,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) {
 	t.Parallel()
 
-	f := InternalFlag{
+	internalFlag := InternalFlag{
 		Variations: &map[string]*any{
 			"nikunjy":     new(any("nikunjy")),
 			"jsonlogic":   new(any("jsonlogic")),
@@ -217,7 +217,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
 
-			value, details := f.Value(
+			value, details := internalFlag.Value(
 				"mixed-formats",
 				ctx,
 				Context{Service: NewService(), DefaultSdkValue: "sdk-default"},

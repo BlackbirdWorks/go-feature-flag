@@ -88,7 +88,7 @@ func Test_Swagger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := newDocsServer(t, tt.monitoringPort)
+			handler := newDocsServer(t, tt.monitoringPort)
 			if tt.concurrent > 0 {
 				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
 				// downgrades are 3.0
@@ -111,7 +111,10 @@ func Test_Swagger(t *testing.T) {
 					for range tt.concurrent {
 						wg.Go(func() {
 							rec := httptest.NewRecorder()
-							h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+							handler.ServeHTTP(
+								rec,
+								httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil),
+							)
 							assert.Equal(t, http.StatusOK, rec.Code)
 							mu.Lock()
 							bodies[path] = append(bodies[path], rec.Body.String())
@@ -146,7 +149,10 @@ func Test_Swagger(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/openapi.json", nil))
+			handler.ServeHTTP(
+				rec,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/openapi.json", nil),
+			)
 			require.Equal(t, http.StatusOK, rec.Code)
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))

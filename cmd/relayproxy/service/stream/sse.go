@@ -49,16 +49,16 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 	server := sse.New()
 	server.AutoReplay = false
 	server.AutoStream = true
-	s := &SSEServiceImpl{
+	svc := &SSEServiceImpl{
 		server:        server,
 		activeStreams: map[string]int{},
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
-		go s.sendHeartbeats(interval)
+		go svc.sendHeartbeats(interval)
 	}
 
-	return s
+	return svc
 }
 
 // BroadcastFlagChanges only notifies that the flags changed, the diff is not sent:

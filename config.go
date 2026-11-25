@@ -131,13 +131,13 @@ func (c *Config) Initialize() {
 // flags and the lock of the legacy logger (SetOutput included).
 type legacyWriter struct{ logger *log.Logger }
 
-func (w legacyWriter) Write(p []byte) (int, error) {
-	err := w.logger.Output(0, strings.TrimSuffix(string(p), "\n"))
+func (w legacyWriter) Write(msg []byte) (int, error) {
+	err := w.logger.Output(0, strings.TrimSuffix(string(msg), "\n"))
 	if err != nil {
 		return 0, err
 	}
 
-	return len(p), nil
+	return len(msg), nil
 }
 
 // adjustPollingInterval is a function that will check the polling interval and set it to the minimum value if it is

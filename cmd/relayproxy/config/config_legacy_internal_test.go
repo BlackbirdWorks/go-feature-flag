@@ -151,20 +151,20 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			warner, warnings := recordingWarner()
-			c := &Loader{
+			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 				warner:      warner,
 			}
 			if tt.configPrefix != "" {
-				require.NoError(t, c.k.Set("envVariablePrefix", tt.configPrefix))
+				require.NoError(t, loader.k.Set("envVariablePrefix", tt.configPrefix))
 			}
-			c.loadEnvVariables()
-			c.loadEnvVariables() // a reload must not warn again
+			loader.loadEnvVariables()
+			loader.loadEnvVariables() // a reload must not warn again
 
-			assert.Equal(t, tt.wantPort, c.k.String("server.port"))
-			assert.Equal(t, tt.wantLogLevel, c.k.String("loglevel"))
+			assert.Equal(t, tt.wantPort, loader.k.String("server.port"))
+			assert.Equal(t, tt.wantLogLevel, loader.k.String("loglevel"))
 			assert.Equal(t, tt.wantWarnings, warnings())
 		})
 	}
@@ -172,7 +172,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 
 func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 	t.Parallel()
-	c := &Loader{
+	loader := &Loader{
 		log: slog.New(slog.DiscardHandler),
 		k:   koanf.New("."),
 		environFunc: func() []string {
@@ -183,14 +183,14 @@ func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 			}
 		},
 	}
-	c.loadEnvVariables()
+	loader.loadEnvVariables()
 
-	conf, err := c.ToConfig()
+	conf, err := loader.ToConfig()
 	require.NoError(t, err)
 	require.NotNil(t, conf.Retrievers)
 	require.Len(t, *conf.Retrievers, 1)
 	assert.Equal(t, "/tmp/flags.yaml", (*conf.Retrievers)[0].Path)
-	assert.Equal(t, []string{"a", "b"}, c.k.Strings("authorizedkeys.evaluation"))
+	assert.Equal(t, []string{"a", "b"}, loader.k.Strings("authorizedkeys.evaluation"))
 }
 
 func TestEnvironProviderReadBytesIsNotSupported(t *testing.T) {
@@ -215,13 +215,13 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &Loader{
+			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 			}
-			c.loadEnvVariables()
-			conf, err := c.ToConfig()
+			loader.loadEnvVariables()
+			conf, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantLegacyMetrics, conf.ExposeLegacyMetrics)
 			assert.Equal(t, tt.wantNoSemaphoreKey, conf.DisableSemaphoreMetadata)
@@ -244,13 +244,13 @@ func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &Loader{
+			loader := &Loader{
 				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 			}
-			c.loadEnvVariables()
-			conf, err := c.ToConfig()
+			loader.loadEnvVariables()
+			conf, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, conf.Server.EnableH2C)
 		})
@@ -296,13 +296,13 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			core, logs := slogutil.NewObserver(slog.LevelDebug)
-			c := &Loader{
+			loader := &Loader{
 				log:         core,
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 			}
-			c.loadEnvVariables()
-			conf, err := c.ToConfig()
+			loader.loadEnvVariables()
+			conf, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantHost, conf.Host)
 			if tt.wantPort != "" {

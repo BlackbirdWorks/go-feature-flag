@@ -82,13 +82,13 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 			t.Parallel()
 			m, err := metric.NewMetrics()
 			require.NoError(t, err)
-			c := &countingCollector{desc: prom.NewDesc("semaphore_counting", "a collection counter", nil, nil)}
-			require.NoError(t, m.Registry.Register(c))
+			collector := &countingCollector{desc: prom.NewDesc("semaphore_counting", "a collection counter", nil, nil)}
+			require.NoError(t, m.Registry.Register(collector))
 
 			families, err := m.Gatherer(tt.exposeLegacy).Gather()
 			require.NoError(t, err)
 
-			assert.Equal(t, int64(1), c.calls.Load(), "a scrape collects once")
+			assert.Equal(t, int64(1), collector.calls.Load(), "a scrape collects once")
 			values := map[string]float64{}
 			names := make([]string, 0, len(families))
 			for _, f := range families {

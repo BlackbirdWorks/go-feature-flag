@@ -142,29 +142,29 @@ func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 	return ret
 }
 
-// operationFor returns the method of op that implements the comparison of the token, nil if there is none.
-func operationFor(op Operation, tokenType int) func(Operand, Operand) (bool, error) {
+// operationFor returns the method of operation that implements the comparison of the token, nil if there is none.
+func operationFor(operation Operation, tokenType int) func(Operand, Operand) (bool, error) {
 	switch tokenType {
 	case JsonQueryParserEQ:
-		return op.EQ
+		return operation.EQ
 	case JsonQueryParserNE:
-		return op.NE
+		return operation.NE
 	case JsonQueryParserGT:
-		return op.GT
+		return operation.GT
 	case JsonQueryParserLT:
-		return op.LT
+		return operation.LT
 	case JsonQueryParserLE:
-		return op.LE
+		return operation.LE
 	case JsonQueryParserGE:
-		return op.GE
+		return operation.GE
 	case JsonQueryParserCO:
-		return op.CO
+		return operation.CO
 	case JsonQueryParserSW:
-		return op.SW
+		return operation.SW
 	case JsonQueryParserEW:
-		return op.EW
+		return operation.EW
 	case JsonQueryParserIN:
-		return op.IN
+		return operation.IN
 	default:
 		return nil
 	}

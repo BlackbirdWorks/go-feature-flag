@@ -141,24 +141,24 @@ func NewFlagsetManager(
 }
 
 func newFlagsetManagerWithDefaultConfig(
-	c *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
+	cfg *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (*FlagsetManagerImpl, error) {
 	defaultFlagSet := config.FlagSet{
 		Name:                            utils.DefaultFlagSetName,
-		Retriever:                       c.Retriever,
-		Retrievers:                      c.Retrievers,
-		Notifiers:                       c.Notifiers,
-		Exporter:                        c.Exporter,
-		Exporters:                       c.Exporters,
-		FileFormat:                      c.FileFormat,
-		PollingInterval:                 c.PollingInterval,
-		ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
-		StartWithRetrieverError:         c.StartWithRetrieverError,
-		EnablePollingJitter:             c.EnablePollingJitter,
-		DisableNotifierOnInit:           c.DisableNotifierOnInit,
-		EvaluationContextEnrichment:     c.EvaluationContextEnrichment,
-		PersistentFlagConfigurationFile: c.PersistentFlagConfigurationFile,
+		Retriever:                       cfg.Retriever,
+		Retrievers:                      cfg.Retrievers,
+		Notifiers:                       cfg.Notifiers,
+		Exporter:                        cfg.Exporter,
+		Exporters:                       cfg.Exporters,
+		FileFormat:                      cfg.FileFormat,
+		PollingInterval:                 cfg.PollingInterval,
+		ExporterCleanQueueInterval:      cfg.ExporterCleanQueueInterval,
+		StartWithRetrieverError:         cfg.StartWithRetrieverError,
+		EnablePollingJitter:             cfg.EnablePollingJitter,
+		DisableNotifierOnInit:           cfg.DisableNotifierOnInit,
+		EvaluationContextEnrichment:     cfg.EvaluationContextEnrichment,
+		PersistentFlagConfigurationFile: cfg.PersistentFlagConfigurationFile,
 	}
 	allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, utils.DefaultFlagSetName)
 	client, err := NewGoFeatureFlagClient(&defaultFlagSet, logger, allNotifiers)
@@ -171,7 +171,7 @@ func newFlagsetManagerWithDefaultConfig(
 		notifiers:      notifiers,
 		sseService:     sseService,
 		wsService:      wsService,
-		config:         c,
+		config:         cfg,
 		mode:           flagsetManagerModeDefault,
 		logger:         logger,
 	}, nil

@@ -82,7 +82,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -121,7 +121,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -147,7 +147,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -188,15 +188,15 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t,
+	srv := newTestServer(t,
 		proxyConf,
 		services,
 		log.Slog,
-		api.WithListener(ln),
+		api.WithListener(listener),
 		api.WithMonitoringListener(monitoringLn),
 	)
-	go func() { s.StartWithContext(context.Background()) }()
-	defer s.Stop(context.Background())
+	go func() { srv.StartWithContext(context.Background()) }()
+	defer srv.Stop(context.Background())
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	monitoringURL := fmt.Sprintf("http://localhost:%d", monitoringPort)
@@ -237,7 +237,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 func Test_CheckOFREPAPIExists(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -280,7 +280,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -324,7 +324,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -353,7 +353,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -370,7 +370,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 func Test_VersionHeader_Disabled(t *testing.T) {
 	t.Parallel()
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -400,7 +400,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -513,7 +513,7 @@ func runAuthMiddlewareTests(
 	t.Helper()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
@@ -548,7 +548,7 @@ func runAuthMiddlewareTests(
 				Metrics:           metricsV2,
 			}
 
-			s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+			s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 
@@ -1144,7 +1144,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -1180,7 +1180,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(ctx) }()
 	defer s.Stop(ctx)
 
@@ -1214,17 +1214,17 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	var histogramFamilies []*promdto.MetricFamily
 	reader := bufio.NewReader(resp.Body)
 	for {
-		var mf promdto.MetricFamily
-		unmarshalFromErr := protodelim.UnmarshalFrom(reader, &mf)
+		var family promdto.MetricFamily
+		unmarshalFromErr := protodelim.UnmarshalFrom(reader, &family)
 		if errors.Is(unmarshalFromErr, io.EOF) {
 			break
 		}
 		require.NoError(t, unmarshalFromErr)
 
 		// Only check histogram metric families from our subsystem
-		if mf.GetType() == promdto.MetricType_HISTOGRAM {
-			if strings.HasPrefix(mf.GetName(), "semaphore_") {
-				histogramFamilies = append(histogramFamilies, &mf)
+		if family.GetType() == promdto.MetricType_HISTOGRAM {
+			if strings.HasPrefix(family.GetName(), "semaphore_") {
+				histogramFamilies = append(histogramFamilies, &family)
 			}
 		}
 	}
@@ -1233,19 +1233,21 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	require.NotEmpty(t, histogramFamilies)
 
 	// Check each histogram has both classic buckets and native histogram fields
-	for _, mf := range histogramFamilies {
-		for _, metric := range mf.GetMetric() {
-			h := metric.GetHistogram()
-			if h == nil {
+	for _, family := range histogramFamilies {
+		for _, metric := range family.GetMetric() {
+			hist := metric.GetHistogram()
+			if hist == nil {
 				continue
 			}
 
 			// Assert classic histogram buckets are still present
-			assert.NotEmpty(t, h.GetBucket())
+			assert.NotEmpty(t, hist.GetBucket())
 
 			// Assert native histogram data is present
 			// Check for native histogram fields: PositiveSpan, NegativeSpan, or Schema
-			hasNativeData := len(h.GetPositiveSpan()) > 0 || len(h.GetNegativeSpan()) > 0 || h.Schema != nil
+			hasNativeData := len(hist.GetPositiveSpan()) > 0 ||
+				len(hist.GetNegativeSpan()) > 0 ||
+				hist.Schema != nil
 			assert.True(t, hasNativeData)
 		}
 	}
@@ -1255,7 +1257,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	t.Parallel()
 
 	// The server serves on a listener that stays bound from the start: the server closing it is what frees the port.
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -1270,11 +1272,11 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		},
 	}
 
-	l := newTestLogger(t)
+	testLogger := newTestLogger(t)
 
 	wsService := stream.NewWebsocketService()
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.Slog, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, testLogger.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -1283,7 +1285,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		FlagsetManager:    flagsetManager,
 	}
 
-	s := newTestServer(t, proxyConf, services, l.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1325,10 +1327,10 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server is given a listener that stays bound: closing it and binding the port again later would let
 	// another test take the port in between, and the server closes it when it is stopped before it started.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ln.Close() })
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	t.Cleanup(func() { _ = listener.Close() })
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
 	port := tcpAddr.Port
 
@@ -1345,15 +1347,15 @@ func Test_StopBeforeStart(t *testing.T) {
 		},
 	}
 
-	l := newTestLogger(t)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.Slog, nil, nil, nil)
+	testLogger := newTestLogger(t)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, testLogger.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
 	}
-	s := newTestServer(t, proxyConf, services, l.Slog, api.WithListener(ln))
+	srv := newTestServer(t, proxyConf, services, testLogger.Slog, api.WithListener(listener))
 
 	// StartWithContext has not run, so Stop cannot see the servers drain and must give up
 	// when its context is done instead of blocking forever.
@@ -1361,7 +1363,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	defer cancelStop()
 	stopReturned := make(chan struct{})
 	go func() {
-		s.Stop(stopCtx)
+		srv.Stop(stopCtx)
 		close(stopReturned)
 	}()
 	select {
@@ -1373,7 +1375,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	// A server stopped before it started must return immediately without serving.
 	done := make(chan struct{})
 	go func() {
-		s.StartWithContext(context.Background())
+		srv.StartWithContext(context.Background())
 		close(done)
 	}()
 	select {
@@ -1383,7 +1385,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	}
 
 	// The server never served and it closed the listener it owns: closing it again fails.
-	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
+	require.ErrorIs(t, listener.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
 }
 
 // shortSocketDir returns a directory whose path is short enough for a unix socket (about 104 bytes at most).

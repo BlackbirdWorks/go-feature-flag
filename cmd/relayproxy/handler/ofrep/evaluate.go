@@ -44,16 +44,16 @@ func NewOFREPEvaluate(
 	eventStream config.OfrepEventStream,
 	opts ...Option,
 ) EvaluateCtrl {
-	h := EvaluateCtrl{
+	ctrl := EvaluateCtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		eventStream:    eventStream,
 	}
 	for _, opt := range opts {
-		opt(&h)
+		opt(&ctrl)
 	}
 
-	return h
+	return ctrl
 }
 
 // Evaluate is the entry point to evaluate a flag using the OpenFeature Remote Evaluation Protocol.
@@ -235,18 +235,18 @@ const ofrepSSEPath = "/stream/v1/sse/flag/change"
 // This URL is sensitive, it must never be logged.
 func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStream {
 	baseURL := h.eventStream.BaseURL
-	u, err := url.Parse(baseURL)
+	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil
 	}
-	u = u.JoinPath(ofrepSSEPath)
+	parsedURL = parsedURL.JoinPath(ofrepSSEPath)
 	if apiKey := helper.APIKey(r); apiKey != "" {
-		u.RawQuery = url.Values{"apiKey": []string{apiKey}}.Encode()
+		parsedURL.RawQuery = url.Values{"apiKey": []string{apiKey}}.Encode()
 	}
 
 	return []model.OFREPEventStream{{
 		Type:               "sse",
-		URL:                u.String(),
+		URL:                parsedURL.String(),
 		InactivityDelaySec: h.eventStream.InactivityDelaySec,
 	}}
 }

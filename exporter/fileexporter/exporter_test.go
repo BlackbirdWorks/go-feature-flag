@@ -72,14 +72,14 @@ func runFileExportTests(t *testing.T, tests []fileExportCase) {
 				defer tt.teardown(t, tt.fields)
 			}
 
-			f := &fileexporter.Exporter{
+			fileExp := &fileexporter.Exporter{
 				Format:                  tt.fields.Format,
 				OutputDir:               outputDir,
 				Filename:                tt.fields.Filename,
 				CsvTemplate:             tt.fields.CsvTemplate,
 				ParquetCompressionCodec: tt.fields.ParquetCompressionCodec,
 			}
-			err := f.Export(context.Background(), tt.args.logger, tt.args.events)
+			err := fileExp.Export(context.Background(), tt.args.logger, tt.args.events)
 			if tt.wantErr {
 				assert.Error(t, err, "export method should error")
 
