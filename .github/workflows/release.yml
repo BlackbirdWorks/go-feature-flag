@@ -231,3 +231,18 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-checksums: release/checksums.txt
+
+  # Build and publish the documentation site in parallel with the release artifacts for
+  # stable releases (pre-releases keep the site pointing at the latest stable release).
+  deploy-docs:
+    name: deploy docs
+    needs: [plan, create-tag]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.dry-run == 'false' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped') && !contains(needs.plan.outputs.tag, '-') }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: $/.github/workflows/docs.yml
+    with:
+      ref: refs/tags/${{ needs.plan.outputs.tag }}
+      version: ${{ needs.plan.outputs.tag }}

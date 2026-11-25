@@ -418,3 +418,49 @@ tasks:
       - |
         which govulncheck > /dev/null 2>&1 || {{.GOCMD}} install golang.org/x/vuln/cmd/govulncheck@latest
         GOWORK="{{.GOWORK_VAL}}" govulncheck ./cmd/relayproxy/...
+
+  docs-install:
+    desc: Install documentation site dependencies
+    cmds:
+      - npm --prefix docs ci
+
+  docs-ensure-deps:
+    internal: true
+    cmds:
+      - '[ -x docs/node_modules/.bin/vitepress ] || npm --prefix docs ci'
+
+  docs-dev:
+    desc: Start the local documentation dev server
+    deps: [docs-ensure-deps]
+    cmds:
+      - npm --prefix docs run dev
+
+  docs-build:
+    desc: Build the static documentation site
+    deps: [docs-ensure-deps]
+    cmds:
+      - npm --prefix docs run build
+
+  docs-preview:
+    desc: Preview the built documentation site locally
+    deps: [docs-ensure-deps]
+    cmds:
+      - npm --prefix docs run preview
+
+  docs-deploy:
+    desc: Build docs locally and trigger GitHub Pages deployment (REF=main VERSION=)
+    vars:
+      REF: '{{.REF | default (env "REF") | default "main"}}'
+      VERSION: '{{.VERSION | default (env "VERSION")}}'
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: 'gh CLI is required to trigger the GitHub Pages deployment workflow'
+    cmds:
+      - task: docs-build
+      - |
+        if [ -n "{{.VERSION}}" ]; then
+          gh workflow run docs.yml --ref "{{.REF}}" -f version="{{.VERSION}}"
+        else
+          gh workflow run docs.yml --ref "{{.REF}}"
+        fi
+        echo "Triggered docs.yml on ref {{.REF}}. Monitor with: gh run list --workflow=docs.yml --limit=3"

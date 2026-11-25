@@ -50,3 +50,7 @@ go.work.sum
 .gstack/
 coverage/
 __pycache__/
+
+# Documentation site build/cache files
+docs/.vitepress/cache/
+docs/.vitepress/dist/

@@ -22,7 +22,7 @@ ones. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 - The rules engine is vendored in-repo (`rules/`, a directory of the root Go module).
 - No WASM / TinyGo build.
-- No bundled provider SDKs and no website: use the standard OpenFeature SDKs with OFREP, and the Markdown docs in [`docs/`](docs/README.md).
+- No bundled provider SDKs: use the standard OpenFeature SDKs with OFREP, and read the docs at [blackbirdworks.github.io/semaphore](https://blackbirdworks.github.io/semaphore/) or in [`docs/`](docs/README.md).
 
 ## Quick start
 
@@ -80,7 +80,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
-[docs/README.md](docs/README.md) indexes the relay proxy, flag format, rollouts, retrievers, exporters, notifiers and the Go module.
+Read the hosted documentation at [blackbirdworks.github.io/semaphore](https://blackbirdworks.github.io/semaphore/), or browse the plain Markdown index in [docs/README.md](docs/README.md) (covering the relay proxy, flag format, rollouts, retrievers, exporters, notifiers and the Go module).
+
+To preview or build the documentation site locally:
+
+```shell
+task docs-dev    # local dev server (hot reload)
+task docs-build  # static build in docs/.vitepress/dist/
+task docs-deploy # build locally and trigger GitHub Pages deployment
+```
 
 ## License and attribution
 

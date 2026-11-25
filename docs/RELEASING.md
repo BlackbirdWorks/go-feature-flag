@@ -21,6 +21,7 @@ Nothing has been released yet. Everything below is "available after the first re
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |
 | Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>` and, for stable releases only, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
 | CLI image | `ghcr.io/blackbirdworks/semaphore-cli:v<version>` (+ `v<major>.<minor>`, `v<major>`, `latest` for stable releases only) | GitHub Container Registry |
+| Documentation site | Built from `docs/` with VitePress (stable releases only, deployed in parallel with `release`) | GitHub Pages (`https://blackbirdworks.github.io/semaphore/`) |
 
 All images run as uid 65532 and have `/usr/local/bin/semaphore` as `ENTRYPOINT` (the CLI image has
 `/semaphore-cli`): arguments are passed directly (`docker run IMAGE --config /path`), and `--entrypoint` overrides it. They carry the `org.opencontainers.image.*` labels (source =
@@ -171,5 +172,6 @@ commits of the original project). Do not push or fetch the original project's ta
 The workflow references `secrets.GITHUB_TOKEN` only. Jobs: `plan` and `dry-run` have `contents: read`;
 `create tag` has `contents: write` (push the tag; the token is passed to that one `git push` and not stored in the checkout);
 `release` has `contents: write` (create the release), `packages: write` (push images),
-`id-token: write` and `attestations: write` (provenance attestations). `ci.yml` has no secret
+`id-token: write` and `attestations: write` (provenance attestations).
+`deploy-docs` runs in parallel with `release` and calls `.github/workflows/docs.yml` with `contents: read`, `pages: write`, and `id-token: write` to publish the documentation site to GitHub Pages for stable releases. `ci.yml` has no secret
 other than the optional `CODECOV_TOKEN`.
