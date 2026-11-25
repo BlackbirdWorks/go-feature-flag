@@ -7,12 +7,17 @@ import (
 	"testing"
 )
 
+const (
+	fixtureInt = "int"
+	str2       = "str"
+)
+
 func inBenchSizes() []int { return []int{8, 16, 32, 64, 1000, 10000, 300000} }
 
 func inBenchList(kind string, n int) string {
 	parts := make([]string, n)
 	for i := range parts {
-		if kind == "str" {
+		if kind == str2 {
 			parts[i] = `"user-` + strconv.Itoa(i) + `"`
 		} else {
 			parts[i] = strconv.Itoa(i)
@@ -26,12 +31,12 @@ func inBenchList(kind string, n int) string {
 // NOT IN, with the looked-up value present (hit) and absent (miss). The hit
 // is the last element, the worst case for a linear scan.
 func BenchmarkIn(b *testing.B) {
-	for _, kind := range []string{"str", "int"} {
+	for _, kind := range []string{str2, fixtureInt} {
 		for _, size := range inBenchSizes() {
 			list := inBenchList(kind, size)
 
 			var hit, miss any
-			if kind == "str" {
+			if kind == str2 {
 				hit, miss = "user-"+strconv.Itoa(size-1), "nobody"
 			} else {
 				hit, miss = size-1, -1
@@ -75,12 +80,12 @@ func BenchmarkIn(b *testing.B) {
 // BenchmarkInCompile measures NewEvaluator plus the first Process call, which
 // is when the rule is compiled (and the hash set built, if any).
 func BenchmarkInCompile(b *testing.B) {
-	for _, kind := range []string{"str", "int"} {
+	for _, kind := range []string{str2, fixtureInt} {
 		for _, size := range inBenchSizes() {
-			rule := "x in " + inBenchList(kind, size)
+			rule := xIn + inBenchList(kind, size)
 
 			input := map[string]any{"x": -1}
-			if kind == "str" {
+			if kind == str2 {
 				input["x"] = "nobody"
 			}
 

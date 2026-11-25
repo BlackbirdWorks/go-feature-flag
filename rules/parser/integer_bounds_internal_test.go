@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	compiled2 = "compiled"
+	visitor2  = "visitor"
+	xEq       = `x eq `
+)
+
 func decimalPlusOne(n int) string {
 	return new(big.Int).Add(big.NewInt(int64(n)), big.NewInt(1)).String()
 }
@@ -32,10 +38,10 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 		want    bool
 		wantErr bool
 	}{
-		{name: "max int", rule: `x eq ` + maxInt, value: math.MaxInt, want: true},
-		{name: "min int", rule: `x eq ` + minInt, value: math.MinInt, want: true},
-		{name: "max int + 1", rule: `x eq ` + decimalPlusOne(math.MaxInt), value: math.MinInt, wantErr: true},
-		{name: "min int - 1", rule: `x eq ` + decimalMinusOne(math.MinInt), value: math.MaxInt, wantErr: true},
+		{name: "max int", rule: xEq + maxInt, value: math.MaxInt, want: true},
+		{name: "min int", rule: xEq + minInt, value: math.MinInt, want: true},
+		{name: "max int + 1", rule: xEq + decimalPlusOne(math.MaxInt), value: math.MinInt, wantErr: true},
+		{name: "min int - 1", rule: xEq + decimalMinusOne(math.MinInt), value: math.MaxInt, wantErr: true},
 		{name: "uint64 max does not wrap to -1", rule: `x eq 18446744073709551615`, value: -1, wantErr: true},
 		{name: "2^32 does not wrap to 0", rule: `x eq 4294967296`, value: 0, want: false},
 		{name: "list with max int", rule: `x in [1, ` + maxInt + `]`, value: math.MaxInt, want: true},
@@ -65,18 +71,18 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 			visited, visitedErr, _ := visitorProcess(tree, items)
 
 			if tt.wantErr {
-				require.Error(t, compiledErr, "compiled")
-				require.Error(t, visitedErr, "visitor")
+				require.Error(t, compiledErr, compiled2)
+				require.Error(t, visitedErr, visitor2)
 				assert.False(t, compiled)
 				assert.False(t, visited)
 
 				return
 			}
 
-			assert.NoError(t, compiledErr, "compiled")
-			assert.NoError(t, visitedErr, "visitor")
-			assert.Equal(t, tt.want, compiled, "compiled")
-			assert.Equal(t, tt.want, visited, "visitor")
+			assert.NoError(t, compiledErr, compiled2)
+			assert.NoError(t, visitedErr, visitor2)
+			assert.Equal(t, tt.want, compiled, compiled2)
+			assert.Equal(t, tt.want, visited, visitor2)
 		})
 	}
 }

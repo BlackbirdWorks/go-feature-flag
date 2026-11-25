@@ -49,10 +49,10 @@ func TestInSetSize(t *testing.T) {
 		wantIntSet     bool
 		wantMaxPerElem float64
 	}{
-		{name: "str1k", rule: "s in " + seqStrs(1000), n: 1000, wantStrSet: true, wantMaxPerElem: 30},
-		{name: "int1k", rule: "n in " + seqInts(1000), n: 1000, wantIntSet: true, wantMaxPerElem: 12},
-		{name: "str300k", rule: "s in " + seqStrs(300000), n: 300000, wantStrSet: true, wantMaxPerElem: 30},
-		{name: "int300k", rule: "n in " + seqInts(300000), n: 300000, wantIntSet: true, wantMaxPerElem: 12},
+		{name: "str1k", rule: sIn + seqStrs(1000), n: 1000, wantStrSet: true, wantMaxPerElem: 30},
+		{name: "int1k", rule: nIn + seqInts(1000), n: 1000, wantIntSet: true, wantMaxPerElem: 12},
+		{name: "str300k", rule: sIn + seqStrs(300000), n: 300000, wantStrSet: true, wantMaxPerElem: 30},
+		{name: "int300k", rule: nIn + seqInts(300000), n: 300000, wantIntSet: true, wantMaxPerElem: 12},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,10 +94,10 @@ func BenchmarkInSetHeap(b *testing.B) {
 		name string
 		rule string
 	}{
-		{name: "str1k", rule: "s in " + seqStrs(1000)},
-		{name: "int1k", rule: "n in " + seqInts(1000)},
-		{name: "str300k", rule: "s in " + seqStrs(300000)},
-		{name: "int300k", rule: "n in " + seqInts(300000)},
+		{name: "str1k", rule: sIn + seqStrs(1000)},
+		{name: "int1k", rule: nIn + seqInts(1000)},
+		{name: "str300k", rule: sIn + seqStrs(300000)},
+		{name: "int300k", rule: nIn + seqInts(300000)},
 	}
 	for _, bench := range benches {
 		b.Run(bench.name, func(b *testing.B) {

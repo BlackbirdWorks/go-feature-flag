@@ -16,6 +16,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	age                         = "age"
+	callD                       = "call %d"
+	fixture000                  = "0.0.0"
+	fixture05                   = "-0.5"
+	fixture102030               = "10.20.30"
+	fixture123                  = "1.2.3"
+	fixture123Alpha             = "1.2.3-alpha"
+	fixture123Build             = "1.2.3+build.5"
+	fixture15E999               = "1.5e999"
+	fixture25                   = "2.5"
+	fixture99999999999999999999 = "99999999999999999999"
+	floats                      = "floats"
+	hello                       = `"hello"`
+	ints2                       = "ints"
+	nested2                     = "nested"
+	null2                       = "null"
+	plan                        = "plan"
+	strings2                    = "strings"
+	u0041                       = `"\u0041"`
+	uPlanEqPro                  = `u.plan eq "pro" and u.age gt 18`
+	xIn12                       = `x in [1, 2]`
+	yIn12                       = `y in [1, 2, 3]`
+	zzz                         = "zzz"
+)
+
 var errUnexpectedVisitorResultType = errors.New("unexpected visitor result type")
 
 type (
@@ -124,14 +150,14 @@ func differentialInputs() []diffKV {
 		nil,
 		{
 			"i": 5, "i64": int64(7), "i32": int32(3), "f": 2.5, "s": "Hello", "b": true, "n": nil,
-			"v": "1.2.3", "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": "x.y",
-			"u":   diffKV{"plan": "pro", "age": 31, "n": nil, "deep": diffKV{"x": 1, "s": "abc", "o": diffKV{}}},
-			"str": "5", "stringer": fmt.Stringer(nil), "e": "",
+			"v": fixture123, "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": xY,
+			"u":  diffKV{plan: pro, age: 31, "n": nil, "deep": diffKV{"x": 1, "s": abc, "o": diffKV{}}},
+			str2: "5", "stringer": fmt.Stringer(nil), "e": "",
 			"nilmap": diffKV(nil), "nm": map[string]string{"a": "b"},
 			"st": testStringer{"HELLO"}, "f32": float32(1.5), "esc": "a\"b", "uni": "A",
 			"r": deepMap(12), "q": deepMap(20),
 		},
-		{"i": "text", "f": "text", "s": 12, "b": "true", "v": 5, "u": "notamap", "u2": 3.5},
+		{"i": "text", "f": "text", "s": 12, "b": fixtureTrue, "v": 5, "u": "notamap", "u2": 3.5},
 	}
 }
 
@@ -170,7 +196,7 @@ func differentialAttrNames() []string {
 		"l",
 		"m",
 		"missing",
-		"str",
+		str2,
 		"e",
 		"u.plan",
 		"u.age",
@@ -203,31 +229,31 @@ func differentialRuleValues() []string {
 		`-2E+1`,
 		`2E+1`,
 		`"a\"b"`,
-		`"\u0041"`,
+		u0041,
 		`"\\"`,
-		`2.5`,
-		`-0.5`,
+		fixture25,
+		fixture05,
 		`1.0e2`,
-		`"hello"`,
+		hello,
 		`"HELLO"`,
 		`""`,
 		`"1.2.4"`,
-		`1.2.3`,
+		fixture123,
 		`0.0.1`,
-		`true`,
+		fixtureTrue,
 		`false`,
-		`null`,
+		null2,
 		`[1, 2, 3]`,
 		`[5]`,
 		`[1.5, 2.5]`,
 		`[2.5]`,
 		`["a", "hello"]`,
 		`["x"]`,
-		`99999999999999999999`,
+		fixture99999999999999999999,
 		`[1, 99999999999999999999]`,
 		`[99999999999999999999, 2]`,
 		`1e999`,
-		`1.5e999`,
+		fixture15E999,
 		`[1.5, 1.5e999]`,
 		`[1.5e999]`,
 	}
@@ -268,7 +294,7 @@ func buildCombinationDifferentialGroup(inputs []diffKV) diffGroup {
 		`NOT (i eq 5 or f gt 1)`,
 		`(i eq 5)`,
 		`((i eq 5) and (s eq "hello" or b eq true))`,
-		`u.plan eq "pro" and u.age gt 18`,
+		uPlanEqPro,
 		`u.missing.y eq 1 or x pr`,
 		`u.missing.y eq 1 or i eq 5`,
 		`u.missing.y eq 1 or u.plan eq "pro"`,
@@ -292,7 +318,7 @@ func buildCombinationDifferentialGroup(inputs []diffKV) diffGroup {
 		`n ne null or s co "ell"`,
 		`i eq 1 or i eq 2 or i eq 3 or i eq 5`,
 		`(i eq 1 or i eq 2) and (s eq "nope" or f > 1)`,
-		`y IN [1, 2, 3, 4, 5]`,
+		yIN12,
 		`z in ["abcd", "efghijkl", "asdada"]`,
 		`(aa == 123123131.1232313131312312 or bb == 1231.1312313123123131231)`,
 		`(jh gt "1.2.3" or kl le "1.4.56")`,
@@ -417,8 +443,8 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 // versions but rejected by semver.Make.
 func versionRuleValues() []string {
 	return []string{
-		`1.2.3`, `0.0.0`, `10.20.30`, `1.2.3-alpha`, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
-		`1.2.3+build.5`, `1.2.3+-`, `1.2.3--x`,
+		fixture123, fixture000, fixture102030, fixture123Alpha, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
+		fixture123Build, `1.2.3+-`, `1.2.3--x`,
 		`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
 		`1.2.3-99999999999999999999`, `"1.2.3"`,
 	}
@@ -427,12 +453,12 @@ func versionRuleValues() []string {
 // versionLeftValues are object values compared against rule versions.
 func versionLeftValues() []any {
 	return []any{
-		"1.2.3", "1.2.4", "1.2.2", "0.0.0", "10.20.30", "2.0.0", "1.10.0",
-		"1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
-		"1.2.3+build.5", "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
+		fixture123, "1.2.4", "1.2.2", fixture000, fixture102030, fixture200, "1.10.0",
+		fixture123Alpha, "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
+		fixture123Build, "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
 		"v1.2.3", "1.2", "1.2.3.4", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "", " 1.2.3", "1.2.3 ",
 		"99999999999999999999.0.0", "1.2.99999999999999999999", "1..3", "1.2.", ".2.3", "1.2.3-", "x.y.z", "1.2.٣",
-		5, 1.5, true, nil, []string{"1.2.3"}, testStringer{"1.2.3"},
+		5, 1.5, true, nil, []string{fixture123}, testStringer{fixture123},
 	}
 }
 
@@ -457,9 +483,9 @@ func fuzzAttrs() []string {
 
 func fuzzVals() []string {
 	return []string{
-		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, `2.5`, `-0.5`, `1.0e2`, `1.5e999`,
-		`"hello"`, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, `"\u0041"`, `"1.2.3"`, `1.2.3`, `1.2.3-alpha+b`,
-		`true`, `false`, `null`, `99999999999999999999`, `-99999999999999999999`,
+		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, fixture25, fixture05, `1.0e2`, fixture15E999,
+		hello, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, u0041, `"1.2.3"`, fixture123, `1.2.3-alpha+b`,
+		fixtureTrue, `false`, null2, fixture99999999999999999999, `-99999999999999999999`,
 	}
 }
 
@@ -481,11 +507,11 @@ func genList(r *rand.Rand) string {
 
 	switch r.Intn(3) {
 	case 0:
-		pool = []string{"1", "2", "5", "0", "99999999999999999999"}
+		pool = []string{"1", "2", "5", "0", fixture99999999999999999999}
 	case 1:
-		pool = []string{"1.5", "2.5", "-0.5", "1.5e999", "1.0"}
+		pool = []string{"1.5", fixture25, fixture05, fixture15E999, "1.0"}
 	default:
-		pool = []string{`"a"`, `"hello"`, `""`, `"x"`, `"\u0041"`}
+		pool = []string{`"a"`, hello, `""`, `"x"`, u0041}
 	}
 
 	el := make([]string, 1+r.Intn(4))
@@ -518,7 +544,7 @@ func genRule(r *rand.Rand, depth int) string {
 	case 2:
 		return genRule(r, depth-1) + " and " + genRule(r, depth-1)
 	default:
-		return genRule(r, depth-1) + " or " + genRule(r, depth-1)
+		return genRule(r, depth-1) + or + genRule(r, depth-1)
 	}
 }
 
@@ -537,7 +563,7 @@ func genVal(r *rand.Rand, depth int) any {
 	case 5:
 		return "hello"
 	case 6:
-		return "1.2.3"
+		return fixture123
 	case 7:
 		return true
 	case 8:
@@ -614,9 +640,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "ints",
-			rule: `x in [1, 2]`,
-			bad:  map[string]any{"x": "str"},
+			name: ints2,
+			rule: xIn12,
+			bad:  map[string]any{"x": str2},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
 
@@ -628,9 +654,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			probe: map[string]any{"x": 42},
 		},
 		{
-			name: "floats",
+			name: floats,
 			rule: `x in [1.5, 2.5]`,
-			bad:  map[string]any{"x": "str"},
+			bad:  map[string]any{"x": str2},
 			mutate: func(t *testing.T, r any) {
 				t.Helper()
 
@@ -642,7 +668,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			probe: map[string]any{"x": 42.0},
 		},
 		{
-			name: "strings",
+			name: strings2,
 			rule: `x in ["a", "b"]`,
 			bad:  map[string]any{"x": 5},
 			mutate: func(t *testing.T, r any) {
@@ -651,9 +677,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 				s, ok := r.([]string)
 				require.True(t, ok)
 
-				s[0] = "zzz"
+				s[0] = zzz
 			},
-			probe: map[string]any{"x": "zzz"},
+			probe: map[string]any{"x": zzz},
 		},
 	}
 	for _, tt := range tests {
@@ -667,7 +693,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 
 			var ne *NestedError
 			require.ErrorAs(t, eval.LastDebugErr(), &ne)
-			tt.mutate(t, ne.Vals["rule_operand"])
+			tt.mutate(t, ne.Vals[ruleOperand])
 			got, _ := eval.Process(tt.probe)
 			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
@@ -714,14 +740,14 @@ func testProcessConcurrent(t *testing.T) {
 		rule  string
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{name: "int in", rule: yIn12, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			name:  nested2,
+			rule:  uPlanEqPro,
+			items: map[string]any{"u": map[string]any{plan: pro, age: 31}},
 			want:  true,
 		},
-		{name: "debug err", rule: `y in [1, 2, 3]`, items: map[string]any{"y": "s"}},
+		{name: "debug err", rule: yIn12, items: map[string]any{"y": "s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -762,7 +788,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 		wantListTypeObj bool
 	}{
 		{
-			name:  "ints",
+			name:  ints2,
 			rule:  `x eq [1, 2]`,
 			items: map[string]any{"x": 1},
 			mut: func(t *testing.T, v any) {
@@ -776,7 +802,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			want: []int{1, 2},
 		},
 		{
-			name:  "floats",
+			name:  floats,
 			rule:  `x eq [1.5, 2.5]`,
 			items: map[string]any{"x": 1.0},
 			mut: func(t *testing.T, v any) {
@@ -790,7 +816,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			want: []float64{1.5, 2.5},
 		},
 		{
-			name:  "strings",
+			name:  strings2,
 			rule:  `x eq ["a", "b"]`,
 			items: map[string]any{"x": "a"},
 			mut: func(t *testing.T, v any) {
@@ -799,7 +825,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				s, ok := v.([]string)
 				require.True(t, ok)
 
-				s[0] = "zzz"
+				s[0] = zzz
 			},
 			want:            []string{"a", "b"},
 			wantListTypeObj: true,
@@ -829,7 +855,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
 
-			tt.mut(t, nestedErr.Vals["rule_operand"])
+			tt.mut(t, nestedErr.Vals[ruleOperand])
 			assert.Equal(t, tt.want, eval.root.cmp.listOp, "compiled constant mutated")
 			_, err = eval.Process(tt.items)
 			require.NoError(t, err)
@@ -853,11 +879,11 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 		rule  string
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{name: "int in", rule: yIn12, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			name:  nested2,
+			rule:  uPlanEqPro,
+			items: map[string]any{"u": map[string]any{plan: pro, age: 31}},
 			want:  true,
 		},
 	}
@@ -913,9 +939,9 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 			eval := &Evaluator{tree: tt.tree}
 			for call := range 2 {
 				gotRet, gotErr := eval.Process(tt.items)
-				assert.Equal(t, wantRet, gotRet, "call %d", call)
-				assert.Equal(t, errString(wantErr), errString(gotErr), "call %d", call)
-				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), "call %d", call)
+				assert.Equal(t, wantRet, gotRet, callD, call)
+				assert.Equal(t, errString(wantErr), errString(gotErr), callD, call)
+				assert.Equal(t, errString(wantDebug), errString(eval.LastDebugErr()), callD, call)
 			}
 
 			assert.Nil(t, eval.root, "failed compile must leave no root")
@@ -927,7 +953,7 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 func testProcessDropsTreeAfterCompile(t *testing.T) {
 	t.Helper()
 
-	eval, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(xEq1)
 	require.NoError(t, err)
 	require.NotNil(t, eval.tree, "NewEvaluator must only parse")
 	require.Nil(t, eval.root, "NewEvaluator must only parse")
@@ -964,7 +990,7 @@ func testProcessVersionFastPath(t *testing.T) {
 			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 
-			items := map[string]any{"v": "1.2.3"}
+			items := map[string]any{"v": fixture123}
 			want, wantErr := eval.Process(items)
 			assert.Equal(t, tt.wantFast, eval.root.cmp.version != nil, "fast path")
 			// the fast path must be what evaluates the rule: with apply
@@ -1006,7 +1032,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			eval, err := NewEvaluator(`x in [1, 2]`)
+			eval, err := NewEvaluator(xIn12)
 			require.NoError(t, err)
 
 			for round := range 3 {
@@ -1024,7 +1050,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 func TestPanicClearsDebugErrStoredByOverlappingCall(t *testing.T) {
 	t.Parallel()
 
-	eval, err := NewEvaluator(`x in [1, 2]`)
+	eval, err := NewEvaluator(xIn12)
 	require.NoError(t, err)
 
 	eval.testHookPanic = func() {
@@ -1043,10 +1069,10 @@ func TestParsePlainVersion(t *testing.T) {
 	t.Parallel()
 
 	literals := []string{
-		"1.2.3", "0.0.0", "10.20.30", "18446744073709551615.0.1", "18446744073709551616.0.1",
-		"1.2.3+b", "1.2.3+build.5", "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
+		fixture123, fixture000, fixture102030, "18446744073709551615.0.1", "18446744073709551616.0.1",
+		"1.2.3+b", fixture123Build, "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
 		"1.2.3+a+b", "1.2.3+a_b", "1.2.3+é", "1+a.2.3", "1.2+a.3",
-		"1.2.3-alpha", "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
+		fixture123Alpha, "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
 		"01.2.3", "1.02.3", "1.2.03", "0.0.00", "v1.2.3", " 1.2.3", "1.2.3 ", "1.2.٣", "-1.2.3", "+1.2.3",
 	}
 
@@ -1085,7 +1111,7 @@ func TestParsePlainVersion(t *testing.T) {
 		assert.Nil(t, got.Build, "%q", input)
 	}
 
-	for _, input := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
+	for _, input := range []string{fixture123, fixture000, "1.2.3+b.5"} {
 		_, ok := parsePlainVersion(input)
 		assert.True(t, ok, "%q: not parsed by the fast path", input)
 	}
@@ -1135,17 +1161,17 @@ func testProcessConcurrentStaleList(t *testing.T) {
 		rule  string
 	}{
 		{
-			name:  "ints",
+			name:  ints2,
 			rule:  `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`,
 			items: map[string]any{"a": 1, "b": 2, "c": 6},
 		},
 		{
-			name:  "floats",
+			name:  floats,
 			rule:  `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`,
 			items: map[string]any{"a": 1, "b": 2.5, "c": 4.5},
 		},
 		{
-			name:  "strings",
+			name:  strings2,
 			rule:  `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`,
 			items: map[string]any{"a": 1, "b": "y", "c": "w"},
 		},

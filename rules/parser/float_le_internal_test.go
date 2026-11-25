@@ -24,33 +24,33 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 		{
 			name:     "float ge on a string reports the error",
 			rule:     `x ge 1.5`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": abc},
 			wantErr:  false,
 			wantDebg: true,
 		},
 		{
 			name:     "int le on a string reports the error",
 			rule:     `x le 2`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": abc},
 			wantDebg: true,
 		},
 		{
 			name:     "float le on a string reports the error",
 			rule:     `x le 1.5`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": abc},
 			wantDebg: true,
 		},
 		{
 			name:     "not float le on a string is true, with a debug error",
 			rule:     `not (x le 1.5)`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": abc},
 			want:     true,
 			wantDebg: true,
 		},
 		{
 			name:     "not float ge on a string is true, with a debug error",
 			rule:     `not (x ge 1.5)`,
-			items:    map[string]any{"x": "abc"},
+			items:    map[string]any{"x": abc},
 			want:     true,
 			wantDebg: true,
 		},
@@ -71,7 +71,7 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantDebg, eval.LastDebugErr() != nil, "debug error")
+			assert.Equal(t, tt.wantDebg, eval.LastDebugErr() != nil, debugError)
 		})
 	}
 }

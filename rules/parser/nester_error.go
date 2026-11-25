@@ -6,6 +6,11 @@ import (
 	"maps"
 )
 
+const (
+	err3 = "err"
+	msg2 = "msg"
+)
+
 type ErrVals map[string]any
 
 func (e ErrVals) Dupe() ErrVals {
@@ -38,8 +43,8 @@ func (e *NestedError) Original() error {
 // e is never written to and concurrent Error calls are safe.
 func (e *NestedError) Error() string {
 	vals := e.Vals.Dupe()
-	vals["err"] = e.Err.Error()
-	vals["msg"] = e.Msg
+	vals[err3] = e.Err.Error()
+	vals[msg2] = e.Msg
 
 	data, err := json.Marshal(vals)
 	if err != nil {

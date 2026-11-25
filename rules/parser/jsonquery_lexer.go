@@ -9,6 +9,21 @@ import (
 	"unicode"
 )
 
+const (
+	aTTRNAME        = "ATTRNAME"
+	bOOLEAN         = "BOOLEAN"
+	cOMMA           = "COMMA"
+	dOUBLE          = "DOUBLE"
+	eXP             = "EXP"
+	iNT             = "INT"
+	lOGICALOPERATOR = "LOGICAL_OPERATOR"
+	nEWLINE         = "NEWLINE"
+	nOT             = "NOT"
+	nULL            = "NULL"
+	sTRING          = "STRING"
+	vERSION         = "VERSION"
+)
+
 // Suppress unused import error
 var _ = fmt.Printf
 var _ = sync.Once{}
@@ -47,16 +62,16 @@ func jsonquerylexerLexerInit() {
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "'\\n'",
 	}
 	staticData.SymbolicNames = []string{
-		"", "", "", "", "", "", "", "", "NOT", "LOGICAL_OPERATOR", "BOOLEAN",
-		"NULL", "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
-		"ATTRNAME", "VERSION", "STRING", "DOUBLE", "INT", "EXP", "NEWLINE",
-		"COMMA", "SP",
+		"", "", "", "", "", "", "", "", nOT, lOGICALOPERATOR, bOOLEAN,
+		nULL, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW", "EW",
+		aTTRNAME, vERSION, sTRING, dOUBLE, iNT, eXP, nEWLINE,
+		cOMMA, "SP",
 	}
 	staticData.RuleNames = []string{
-		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", "NOT", "LOGICAL_OPERATOR",
-		"BOOLEAN", "NULL", "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
-		"EW", "ATTRNAME", "ATTR_NAME_CHAR", "ALPHA", "VERSION", "STRING", "ESC",
-		"UNICODE", "HEX", "DOUBLE", "INT", "EXP", "NEWLINE", "COMMA", "SP",
+		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", nOT, lOGICALOPERATOR,
+		bOOLEAN, nULL, "IN", "EQ", "NE", "GT", "LT", "GE", "LE", "CO", "SW",
+		"EW", aTTRNAME, "ATTR_NAME_CHAR", "ALPHA", vERSION, sTRING, "ESC",
+		"UNICODE", "HEX", dOUBLE, iNT, eXP, nEWLINE, cOMMA, "SP",
 		"VALID_SEMVER", "VERSION_CORE", "MAJOR", "MINOR", "PATCH", "PRERELEASE",
 		"DOT_SEPARATED_PRERELEASE_IDENTIFIERS", "BUILD", "DOT_SEPARATED_BUILD_IDENTIFIERS",
 		"PRERELEASE_IDENTIFIER", "BUILD_IDENTIFIER", "ALPHANUMERIC_IDENTIFIER",

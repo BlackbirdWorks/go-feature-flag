@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	xY = "x.y"
+)
+
 var (
 	errSomeRandomError = errors.New("some random error")
 )
@@ -29,7 +33,7 @@ func TestNestedError(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "nested",
+			name:     nested2,
 			err:      newNestedError(newNestedError(base, "a"), "b"),
 			original: base,
 			want:     `{"err":"{\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
@@ -42,17 +46,17 @@ func TestNestedError(t *testing.T) {
 		},
 		{
 			name:     "vals",
-			err:      newNestedError(base, "m").Set(ErrVals{"attr_path": "x.y", "rule_operand": []int{1, 2}}),
+			err:      newNestedError(base, "m").Set(ErrVals{attrPath2: xY, ruleOperand: []int{1, 2}}),
 			original: base,
 			want:     `{"attr_path":"x.y","err":"some random error","msg":"m","rule_operand":[1,2]}`,
-			wantVals: ErrVals{"attr_path": "x.y", "rule_operand": []int{1, 2}},
+			wantVals: ErrVals{attrPath2: xY, ruleOperand: []int{1, 2}},
 		},
 		{
 			name:     "vals named err and msg are overridden",
-			err:      newNestedError(base, "m").Set(ErrVals{"err": "e", "msg": "x"}),
+			err:      newNestedError(base, "m").Set(ErrVals{err3: "e", msg2: "x"}),
 			original: base,
 			want:     `{"err":"some random error","msg":"m"}`,
-			wantVals: ErrVals{"err": "e", "msg": "x"},
+			wantVals: ErrVals{err3: "e", msg2: "x"},
 		},
 	}
 	for _, tt := range tests {
@@ -82,7 +86,7 @@ func TestNestedError(t *testing.T) {
 func TestEvaluatorPanic(t *testing.T) {
 	t.Parallel()
 
-	eval, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(xEq1)
 	require.NoError(t, err)
 
 	eval.testHookPanic = func() {

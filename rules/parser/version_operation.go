@@ -6,6 +6,10 @@ import (
 	"github.com/blang/semver/v4"
 )
 
+const (
+	parsingTheVersionQ = "parsing the version %q: %w"
+)
+
 type VersionOperation struct {
 	NullOperation
 }
@@ -81,12 +85,12 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 
 	leftVer, err = semver.Make(leftVal)
 	if err != nil {
-		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", leftVal, err)
+		return leftVer, rightVer, fmt.Errorf(parsingTheVersionQ, leftVal, err)
 	}
 
 	rightVer, err = semver.Make(rightVal)
 	if err != nil {
-		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", rightVal, err)
+		return leftVer, rightVer, fmt.Errorf(parsingTheVersionQ, rightVal, err)
 	}
 
 	return leftVer, rightVer, nil

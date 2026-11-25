@@ -12,6 +12,10 @@ import (
 )
 
 const (
+	fixtureTrue = "true"
+)
+
+const (
 	// versionDots is the number of dots of a semantic version: the last number has no dot after it.
 	versionDots = 2
 )
@@ -548,7 +552,7 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 
 		leftVer, err = semver.Make(leftVal)
 		if err != nil {
-			return false, fmt.Errorf("parsing the version %q: %w", leftVal, err)
+			return false, fmt.Errorf(parsingTheVersionQ, leftVal, err)
 		}
 	}
 
@@ -651,7 +655,7 @@ func compileValue(target *compareNode, v IValueContext, src *sourceText) Operati
 	switch ctx := v.(type) {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
-		target.rightOp = ctx.GetText() == "true"
+		target.rightOp = ctx.GetText() == fixtureTrue
 
 		return &BoolOperation{}
 	case *NullContext:
