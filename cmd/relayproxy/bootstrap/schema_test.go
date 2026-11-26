@@ -288,12 +288,24 @@ func TestSchemaAndLoaderAgree(t *testing.T) {
 		want bool
 	}{
 		{name: "empty exporter format", doc: "exporters: {a: {kind: file, outputDir: /tmp, format: \"\"}}", want: true},
-		{name: "empty listener role", doc: "server: {listeners: [{name: api, address: \":1\", role: \"\"}]}", want: true},
+		{
+			name: "empty listener role",
+			doc:  "server: {listeners: [{name: api, address: \":1\", role: \"\"}]}",
+			want: true,
+		},
 		{name: "empty log level and format", doc: "observability: {logging: {level: \"\", format: \"\"}}", want: true},
 		{name: "empty sampler", doc: "observability: {tracing: {sampler: \"\"}}", want: true},
 		{name: "empty credentials type", doc: "connections: {a: {type: s3, credentials: {type: \"\"}}}", want: true},
-		{name: "empty checksum settings", doc: "connections: {a: {type: s3, requestChecksumCalculation: \"\", responseChecksumValidation: \"\"}}", want: true},
-		{name: "unknown exporter format", doc: "exporters: {a: {kind: file, outputDir: /tmp, format: xml}}", want: false},
+		{
+			name: "empty checksum settings",
+			doc:  "connections: {a: {type: s3, requestChecksumCalculation: \"\", responseChecksumValidation: \"\"}}",
+			want: true,
+		},
+		{
+			name: "unknown exporter format",
+			doc:  "exporters: {a: {kind: file, outputDir: /tmp, format: xml}}",
+			want: false,
+		},
 		{name: "empty exporter kind", doc: "exporters: {a: {kind: \"\"}}", want: false},
 		{name: "empty connection type", doc: "connections: {a: {type: \"\"}}", want: false},
 	}

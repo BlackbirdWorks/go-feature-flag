@@ -135,7 +135,7 @@ func (c Connection) MarshalJSON() ([]byte, error) {
 
 // JSONSchema is a oneOf over the members, on the "type" discriminator.
 func (Connection) JSONSchema() *jsonschema.Schema {
-	names := []string{"S3Connection", "KinesisConnection", "SQSConnection", "RedshiftConnection"}
+	names := []string{defS3Connection, "KinesisConnection", "SQSConnection", "RedshiftConnection"}
 	one := make([]*jsonschema.Schema, 0, len(names))
 
 	for _, n := range names {

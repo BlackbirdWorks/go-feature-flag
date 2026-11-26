@@ -90,22 +90,19 @@ func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) boo
 	}
 
 	for i, child := range node.Content {
-		childSecret := secretPosition
-		plainBelow := plain
+		childSecret, plainBelow, isKey := secretPosition, plain, false
 
 		if node.Kind == yaml.MappingNode {
-			if i%2 == 0 {
-				// a key: the canary may not be one
-				if hasCanary(child) {
-					return false
-				}
+			childSecret, plainBelow, isKey = mappingChild(node, i, secretPosition, plain)
+		}
 
-				continue
+		if isKey {
+			// a key: the canary may not be one
+			if hasCanary(child) {
+				return false
 			}
 
-			parentKey := node.Content[i-1].Value
-			childSecret = !plain && (isSecretKey(parentKey) || (secretPosition && child.Kind == yaml.MappingNode))
-			plainBelow = plain || parentKey == "meta"
+			continue
 		}
 
 		if !secretPositions(child, childSecret, plainBelow, depth+1) {
@@ -114,6 +111,20 @@ func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) boo
 	}
 
 	return true
+}
+
+// mappingChild tells how the i-th node of a mapping is treated: whether it is a key, and for a value whether it
+// is in a secret position and whether everything below it is plain. It returns (secret, plainBelow, isKey).
+func mappingChild(node *yaml.Node, i int, secretPosition, plain bool) (bool, bool, bool) {
+	if i%2 == 0 {
+		return false, plain, true
+	}
+
+	parentKey := node.Content[i-1].Value
+	child := node.Content[i]
+
+	return !plain && (isSecretKey(parentKey) || (secretPosition && child.Kind == yaml.MappingNode)),
+		plain || parentKey == "meta", false
 }
 
 // FuzzParseCanary checks that a sentinel written as a secret value never appears in an error or in the print.

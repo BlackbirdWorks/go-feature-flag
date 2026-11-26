@@ -127,9 +127,9 @@ func setDurationDefaults(root *jsonschema.Schema) {
 // unset and applies the default. The discriminators (type, kind) stay strict, they have no default.
 func allowEmptyEnums(root *jsonschema.Schema) {
 	for _, key := range [][2]string{
-		{"Listener", "role"}, {"Logging", "level"}, {"Logging", "format"}, {"Tracing", "sampler"},
-		{"Credentials", "type"}, {"S3Connection", "requestChecksumCalculation"},
-		{"S3Connection", "responseChecksumValidation"}, {"Exporter", "format"},
+		{"Listener", "role"}, {"Logging", "level"}, {"Logging", keyFormat}, {"Tracing", "sampler"},
+		{"Credentials", "type"}, {defS3Connection, "requestChecksumCalculation"},
+		{defS3Connection, "responseChecksumValidation"}, {"Exporter", keyFormat},
 	} {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
 			prop.Enum = append(prop.Enum, "")
