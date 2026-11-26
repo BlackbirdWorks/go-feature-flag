@@ -20,7 +20,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
@@ -59,35 +58,32 @@ func (s *OtelService) MeterProvider() *sdkmetric.MeterProvider { return s.meterP
 
 // Enabled reports whether the configuration enables OpenTelemetry tracing: without an OTLP endpoint there is no
 // exporter, and nothing is traced.
-func Enabled(cfg *config.Config) bool { return !isDisabled(cfg) }
+func Enabled(cfg *Settings) bool { return !isDisabled(cfg) }
 
 // isDisabled is true when OpenTelemetry has no endpoint to send to, or is disabled.
 // The endpoint is set either by the openTelemetryOtlpEndpoint config element or otel.exporter.otlp.endpoint.
-func isDisabled(cfg *config.Config) bool {
-	return (cfg.OpenTelemetryOtlpEndpoint == "" && cfg.OtelConfig.Exporter.Otlp.Endpoint == "") ||
-		cfg.OtelConfig.SDK.Disabled
+func isDisabled(cfg *Settings) bool {
+	return (cfg.OTLPEndpoint == "" && cfg.ExporterOTLPEndpoint == "") || cfg.SDKDisabled
 }
 
 // ExportEnvironment gives the OTLP endpoint of the configuration to the OpenTelemetry SDK, which reads it
 // from OTEL_EXPORTER_OTLP_ENDPOINT. It changes the environment of the process, so it belongs to the
 // startup wiring (main): call it once, before Init.
-func ExportEnvironment(cfg *config.Config) {
+func ExportEnvironment(cfg *Settings) {
 	if isDisabled(cfg) {
 		return
 	}
 	// support the openTelemetryOtlpEndpoint config element
-	if cfg.OpenTelemetryOtlpEndpoint != "" &&
-		cfg.OtelConfig.Exporter.Otlp.Endpoint == "" {
-		cfg.OtelConfig.Exporter.Otlp.Endpoint = cfg.OpenTelemetryOtlpEndpoint
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.OpenTelemetryOtlpEndpoint)
-	} else if cfg.OtelConfig.Exporter.Otlp.Endpoint != "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.OtelConfig.Exporter.Otlp.Endpoint)
+	if cfg.OTLPEndpoint != "" && cfg.ExporterOTLPEndpoint == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.OTLPEndpoint)
+	} else if cfg.ExporterOTLPEndpoint != "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.ExporterOTLPEndpoint)
 	}
 }
 
 // Init creates the OpenTelemetry tracer provider of the service. It does not change any process-wide
 // state: Install does, and is called by the startup wiring only.
-func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
+func (s *OtelService) Init(ctx context.Context, cfg *Settings) error {
 	if isDisabled(cfg) {
 		return nil
 	}
@@ -98,7 +94,7 @@ func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
 	}
 
 	serviceName := "semaphore"
-	if v := cfg.OtelConfig.Service.Name; v != "" {
+	if v := cfg.ServiceName; v != "" {
 		serviceName = v
 	}
 
@@ -111,7 +107,7 @@ func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
 		ctx,
 		serviceName,
 		cfg.Version,
-		cfg.OtelConfig.Resource.Attributes,
+		cfg.ResourceAttributes,
 	)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
@@ -137,17 +133,17 @@ func (s *OtelService) Init(ctx context.Context, cfg *config.Config) error {
 // the protocol, the endpoint and the headers follow the OTEL_EXPORTER_OTLP_* variables, and OTEL_METRICS_EXPORTER
 // selects the exporter (none disables the export). The export interval is the one of the SDK.
 // It changes no process-wide state: the meter provider is given where it is used (MeterProvider).
-func (s *OtelService) InitMetrics(ctx context.Context, cfg *config.Config) error {
+func (s *OtelService) InitMetrics(ctx context.Context, cfg *Settings) error {
 	if isDisabled(cfg) {
 		return nil
 	}
 
 	serviceName := "semaphore"
-	if v := cfg.OtelConfig.Service.Name; v != "" {
+	if v := cfg.ServiceName; v != "" {
 		serviceName = v
 	}
 
-	res, err := initResource(ctx, serviceName, cfg.Version, cfg.OtelConfig.Resource.Attributes)
+	res, err := initResource(ctx, serviceName, cfg.Version, cfg.ResourceAttributes)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
 	}
@@ -259,8 +255,8 @@ type traceSampler struct {
 // JAEGER_SAMPLER_MAX_OPERATIONS).
 // If it's set to any other value, we return an empty traceSampler and sdktrace.NewTracerProvider
 // will set up the sampler from the environment.
-func initSampler(serviceName string, conf *config.Config) (traceSampler, error) {
-	sampler := conf.OtelConfig.Traces.Sampler
+func initSampler(serviceName string, conf *Settings) (traceSampler, error) {
+	sampler := conf.Sampler
 	if sampler == "" {
 		return traceSampler{sampler: sdktrace.AlwaysSample()}, nil
 	}
@@ -298,15 +294,15 @@ type jaegerSamplerOptions struct {
 	maxOperations   int
 }
 
-func jaegerRemoteSamplerOpts(conf *config.Config) (jaegerSamplerOptions, error) {
+func jaegerRemoteSamplerOpts(conf *Settings) (jaegerSamplerOptions, error) {
 	samplerURL := defaultSamplerURL
-	if host := conf.JaegerConfig.Sampler.Manager.Host.Port; host != "" {
+	if host := conf.JaegerSamplerManagerHostPort; host != "" {
 		samplerURL = host
 	}
 
 	samplerRefreshInterval := defaultSamplingRefreshInterval
 
-	if v := conf.JaegerConfig.Sampler.Refresh.Interval; v != "" {
+	if v := conf.JaegerSamplerRefreshInterval; v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return jaegerSamplerOptions{}, fmt.Errorf("parsing JAEGER_SAMPLER_REFRESH_INTERVAL: %w", err)
@@ -316,7 +312,7 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (jaegerSamplerOptions, error) 
 	}
 
 	maxOperations := defaultSamplingMaxOperations
-	if v := conf.JaegerConfig.Sampler.Max.Operations; v != 0 {
+	if v := conf.JaegerSamplerMaxOperations; v != 0 {
 		maxOperations = v
 	}
 

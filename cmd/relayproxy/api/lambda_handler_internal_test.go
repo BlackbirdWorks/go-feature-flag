@@ -103,7 +103,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
 
-			apiServer := New(cfg, &service.Services{
+			apiServer := New(lambdaSettings(cfg), service.NewAPIKeys(cfg), &service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
@@ -215,7 +215,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 				AwsLambdaAdapter:      "APIGatewayV2", //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				AwsAPIGatewayBasePath: tt.basePath,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			}
-			apiServer := New(c, &commonServices, logger)
+			apiServer := New(lambdaSettings(c), service.NewAPIKeys(c), &commonServices, logger)
 
 			request := events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{

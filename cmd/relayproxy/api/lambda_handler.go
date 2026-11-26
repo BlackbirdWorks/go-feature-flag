@@ -8,8 +8,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
-
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // newAwsLambdaHandlerManager is creating a new awsLambdaHandler struct with the httpadapter
@@ -42,9 +40,9 @@ type awsLambdaHandler struct {
 // SelectAdapter returns the appropriate adapter based on the mode.
 func (h *awsLambdaHandler) SelectAdapter(mode string) any {
 	switch strings.ToUpper(mode) {
-	case strings.ToUpper(config.LambdaAdapterAPIGatewayV1):
+	case strings.ToUpper(LambdaAdapterAPIGatewayV1):
 		return h.HandlerAPIGatewayV1
-	case strings.ToUpper(config.LambdaAdapterALB):
+	case strings.ToUpper(LambdaAdapterALB):
 		return h.HandlerALB
 	default:
 		return h.HandlerAPIGatewayV2

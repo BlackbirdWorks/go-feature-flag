@@ -13,6 +13,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -169,8 +170,10 @@ func serve(proxyConf *config.Config, logger *slog.Logger, exit func()) int {
 	}
 	// Init API server
 	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
-	opentelemetry.ExportEnvironment(proxyConf)
-	apiServer := api.New(proxyConf, &services, logger, api.WithGlobalTelemetry(), api.WithExit(exit))
+	settings := apiwire.Settings(proxyConf, logger)
+	opentelemetry.ExportEnvironment(&settings.Telemetry)
+	apiServer := api.New(&settings, service.NewAPIKeys(proxyConf), &services, logger,
+		api.WithGlobalTelemetry(), api.WithExit(exit))
 
 	defer shutdown(logger, &apiServer, wsService, sseService, flagsetManager)
 

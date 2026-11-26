@@ -3,7 +3,6 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
@@ -12,12 +11,12 @@ import (
 // streaming connections (websocket / SSE).
 // In flag set mode (flagsetManager is not nil) a key is accepted if it routes to a flag set, and the name of the
 // flag set resolved here is the one the handler uses. exposeError adds the error to the body of a refusal.
-func StreamAuthorizer(cfg *config.Config, flagsetManager service.FlagsetManager, exposeError bool) Func {
+func StreamAuthorizer(keys service.APIKeys, flagsetManager service.FlagsetManager, exposeError bool) Func {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.URL.Query().Get("apiKey")
-			if cfg.IsAuthenticationEnabled() {
-				req, ok := streamKeyAccepted(r, cfg, flagsetManager, apiKey)
+			if keys.AuthenticationEnabled() {
+				req, ok := streamKeyAccepted(r, keys, flagsetManager, apiKey)
 				if !ok {
 					helper.WriteError(w, r, helper.ErrUnauthorized, exposeError)
 
@@ -33,10 +32,10 @@ func StreamAuthorizer(cfg *config.Config, flagsetManager service.FlagsetManager,
 }
 
 func streamKeyAccepted(
-	r *http.Request, cfg *config.Config, flagsetManager service.FlagsetManager, apiKey string,
+	r *http.Request, keys service.APIKeys, flagsetManager service.FlagsetManager, apiKey string,
 ) (*http.Request, bool) {
 	if flagsetManager == nil || flagsetManager.IsDefaultFlagSet() {
-		return r, cfg.APIKeyExists(apiKey)
+		return r, keys.KeyExists(apiKey)
 	}
 
 	// An admin key is accepted and then refused by the handler, as documented.
@@ -44,5 +43,5 @@ func streamKeyAccepted(
 		return r.WithContext(ctx), true
 	}
 
-	return r, cfg.APIKeysAdminExists(apiKey)
+	return r, keys.AdminKeyExists(apiKey)
 }

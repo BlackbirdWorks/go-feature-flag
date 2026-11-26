@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -81,7 +81,7 @@ func Test_AccessLog(t *testing.T) {
 			conf := testConfig(t)
 			// /health is not logged at the default level: the debug level logs everything.
 			conf.LogLevel = "debug"
-			srv := api.New(conf, &service.Services{MonitoringService: tt.monitoring}, logger)
+			srv := apiwire.New(conf, &service.Services{MonitoringService: tt.monitoring}, logger)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, healthPath, nil)
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]

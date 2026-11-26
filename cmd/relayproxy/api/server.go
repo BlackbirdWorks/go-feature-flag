@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
@@ -30,7 +29,8 @@ const (
 )
 
 // New is used to create a new instance of the API server.
-func New(cfg *config.Config,
+func New(settings *Settings,
+	keys service.APIKeys,
 	services *service.Services,
 	logger *slog.Logger,
 	opts ...Option,
@@ -38,7 +38,8 @@ func New(cfg *config.Config,
 	stopRequested := make(chan struct{})
 
 	srv := Server{
-		config:        cfg,
+		settings:      *settings,
+		keys:          keys,
 		services:      *services,
 		logger:        logger,
 		exit:          func() {},
@@ -53,7 +54,7 @@ func New(cfg *config.Config,
 	}
 	// the metrics (Go runtime and HTTP server) are set up before the routes: the middleware gets the meter provider
 	// of the service when it is built.
-	err := srv.otelService.InitMetrics(context.Background(), cfg)
+	err := srv.otelService.InitMetrics(context.Background(), &srv.settings.Telemetry)
 	if err != nil {
 		logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
@@ -127,6 +128,7 @@ func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPr
 
 // Server is the struct that represents the API server.
 type Server struct {
+	services               service.Services
 	otelService            opentelemetry.OtelService
 	tracerProvider         trace.TracerProvider
 	meterProvider          metric.MeterProvider
@@ -136,12 +138,12 @@ type Server struct {
 	apiHandler             http.Handler
 	monitoringHandler      http.Handler
 	logger                 *slog.Logger
-	stopRequested          chan struct{}
 	stop                   func()
 	stopped                chan struct{}
 	exit                   func()
-	config                 *config.Config
-	services               service.Services
+	stopRequested          chan struct{}
+	keys                   service.APIKeys
+	settings               Settings
 	readTimeout            time.Duration
 	installGlobalTelemetry bool
 }

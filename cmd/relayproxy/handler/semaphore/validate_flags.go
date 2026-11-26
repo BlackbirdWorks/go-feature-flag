@@ -11,18 +11,54 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
+const (
+	// DefaultMaxJSONBodySize is the default maximum size of a JSON body (1 MiB).
+	DefaultMaxJSONBodySize int64 = 1 << 20
+	// DefaultMaxYAMLBodySize is the default maximum size of a YAML body (64 KiB).
+	DefaultMaxYAMLBodySize int64 = 64 << 10
+	// DefaultMaxTOMLBodySize is the default maximum size of a TOML body (64 KiB).
+	DefaultMaxTOMLBodySize int64 = 64 << 10
+)
+
+// ValidateFlagsLimits are the maximum sizes in bytes of the body of the validate flags endpoint, by format.
+// A zero limit means that the default is used, the limits are not negative.
+type ValidateFlagsLimits struct {
+	// MaxJSONBodySize is the maximum size of a JSON body.
+	MaxJSONBodySize int64
+	// MaxYAMLBodySize is the maximum size of a YAML body.
+	MaxYAMLBodySize int64
+	// MaxTOMLBodySize is the maximum size of a TOML body.
+	MaxTOMLBodySize int64
+}
+
+// WithDefaults returns a copy where the unset (zero) limits are replaced by their default.
+func (l ValidateFlagsLimits) WithDefaults() ValidateFlagsLimits {
+	if l.MaxJSONBodySize == 0 {
+		l.MaxJSONBodySize = DefaultMaxJSONBodySize
+	}
+
+	if l.MaxYAMLBodySize == 0 {
+		l.MaxYAMLBodySize = DefaultMaxYAMLBodySize
+	}
+
+	if l.MaxTOMLBodySize == 0 {
+		l.MaxTOMLBodySize = DefaultMaxTOMLBodySize
+	}
+
+	return l
+}
+
 // ValidateFlags is the controller for the /admin/v1/flags/validate endpoint.
 type ValidateFlags struct {
 	metrics *metric.Metrics
 	version string
-	limits  config.ValidateFlagsEndpoint
+	limits  ValidateFlagsLimits
 }
 
 // FlagValidationError is the validation error of a single flag.
@@ -41,7 +77,7 @@ type FlagValidationResponse struct {
 // NewValidateFlags initializes the controller for the /admin/v1/flags/validate endpoint.
 // The unset (zero) limits are replaced by their default.
 func NewValidateFlags(
-	version string, metrics *metric.Metrics, limits config.ValidateFlagsEndpoint,
+	version string, metrics *metric.Metrics, limits ValidateFlagsLimits,
 ) *ValidateFlags {
 	return &ValidateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
 }
@@ -156,11 +192,11 @@ func (h *ValidateFlags) formatFromContentType(contentType string) (string, int64
 
 	switch mediaType {
 	case "application/json":
-		return "json", int64(h.limits.MaxJSONBodySize), true
+		return "json", h.limits.MaxJSONBodySize, true
 	case "application/yaml", "application/x-yaml", "text/yaml":
-		return "yaml", int64(h.limits.MaxYAMLBodySize), true
+		return "yaml", h.limits.MaxYAMLBodySize, true
 	case "application/toml":
-		return "toml", int64(h.limits.MaxTOMLBodySize), true
+		return "toml", h.limits.MaxTOMLBodySize, true
 	default:
 		return "", 0, false
 	}
