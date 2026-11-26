@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -196,23 +195,19 @@ func TestVersionHeader(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		conf    *config.Config
-		wantNew string
+		name     string
+		wantNew  string
+		disabled bool
 	}{
-		{
-			name:    "enabled",
-			conf:    &config.Config{Version: fixtures.VersionOneZeroZero},
-			wantNew: fixtures.VersionOneZeroZero,
-		},
-		{name: "disabled", conf: &config.Config{Version: fixtures.VersionOneZeroZero, DisableVersionHeader: true}},
+		{name: "enabled", wantNew: fixtures.VersionOneZeroZero},
+		{name: "disabled", disabled: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			rec := serve(
-				middleware.VersionHeader(tt.conf)(newOK()),
+				middleware.VersionHeader(fixtures.VersionOneZeroZero, tt.disabled)(newOK()),
 				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil),
 			)
 			assert.Equal(t, tt.wantNew, rec.Header().Get(middleware.VersionHeaderName))

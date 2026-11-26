@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -551,7 +552,7 @@ func newAPIServerWithLogger(
 		runtime.Goexit()
 	}
 
-	s := api.New(cfg, &services, logger, api.WithExit(exit), api.WithListener(listener))
+	s := apiwire.New(cfg, &services, logger, api.WithExit(exit), api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, cfg

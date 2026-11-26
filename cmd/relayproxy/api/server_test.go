@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -81,7 +82,7 @@ func newTestServer(
 		runtime.Goexit()
 	}
 
-	return api.New(conf, services, logger, append([]api.Option{api.WithExit(exit)}, opts...)...)
+	return apiwire.New(conf, services, logger, append([]api.Option{api.WithExit(exit)}, opts...)...)
 }
 
 // waitForServer blocks until the server accepts connections on baseURL. Binding a listener is

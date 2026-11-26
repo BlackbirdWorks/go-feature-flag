@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -26,7 +25,7 @@ import (
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        *metric.Metrics
-	eventStream    config.OfrepEventStream
+	eventStream    EventStream
 	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
 	legacyMetadataOnly bool
 }
@@ -44,7 +43,7 @@ func WithLegacyMetadataOnly(legacyOnly bool) Option {
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
 	metrics *metric.Metrics,
-	eventStream config.OfrepEventStream,
+	eventStream EventStream,
 	opts ...Option,
 ) EvaluateCtrl {
 	ctrl := EvaluateCtrl{
@@ -252,7 +251,7 @@ const ofrepSSEPath = "/stream/v1/sse/flag/change"
 // and contains the API key of the caller, so the provider can connect without extra credentials.
 // This URL is sensitive, it must never be logged.
 func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStream {
-	baseURL := h.eventStream.BaseURL
+	baseURL := h.eventStream.baseURL
 
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -267,7 +266,7 @@ func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStre
 	return []model.OFREPEventStream{{
 		Type:               "sse",
 		URL:                parsedURL.String(),
-		InactivityDelaySec: h.eventStream.InactivityDelaySec,
+		InactivityDelaySec: h.eventStream.inactivityDelaySec,
 	}}
 }
 

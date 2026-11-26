@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -140,7 +139,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		// altMessage is the message returned when modules/core validates the flag without panicking.
 		altMessage string
 		wantErrors []controller.FlagValidationError
-		limits     config.ValidateFlagsEndpoint
+		limits     controller.ValidateFlagsLimits
 		wantStatus int
 		chunked    bool
 		wantValid  bool
@@ -283,42 +282,42 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name: "custom json limit, at the limit", contentType: protocol.MIMEApplicationJSON,
-			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
+			limits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2048), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name: "custom json limit, over the limit", contentType: protocol.MIMEApplicationJSON,
-			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
+			limits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2049), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
 			name: "custom json limit does not change yaml", contentType: applicationYaml,
-			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
+			limits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2048},
 			body:   padTo(validYAML, "\n", yamlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
 			name: "custom yaml limit, at the limit", contentType: applicationYaml,
-			limits: config.ValidateFlagsEndpoint{MaxYAMLBodySize: 128 << 10},
+			limits: controller.ValidateFlagsLimits{MaxYAMLBodySize: 128 << 10},
 			body:   padTo(validYAML, "\n", 128<<10), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name: "custom yaml limit, over the limit", contentType: applicationYaml, chunked: true,
-			limits: config.ValidateFlagsEndpoint{MaxYAMLBodySize: 128 << 10},
+			limits: controller.ValidateFlagsLimits{MaxYAMLBodySize: 128 << 10},
 			body:   padTo(validYAML, "\n", 128<<10+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
 			name: "custom toml limit, at the limit", contentType: applicationToml,
-			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
+			limits: controller.ValidateFlagsLimits{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", 1024), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name: "custom toml limit, over the limit", contentType: applicationToml,
-			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
+			limits: controller.ValidateFlagsLimits{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", 1025), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
 			name: "custom toml limit smaller than the default", contentType: applicationToml,
-			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
+			limits: controller.ValidateFlagsLimits{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", tomlBodyLimit), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 	}
