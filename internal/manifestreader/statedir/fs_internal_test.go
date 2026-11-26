@@ -60,14 +60,11 @@ func TestOSFS_OpenFlushesTheParentOfEachDirectoryItCreates(t *testing.T) {
 
 			assert.Equal(t, tt.wantSynced, synced)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			require.ErrorIs(t, err, tt.wantErr)
 
-				return
+			if root != nil {
+				require.NoError(t, root.Close())
 			}
-
-			require.NoError(t, err)
-			require.NoError(t, root.Close())
 
 			info, statErr := os.Stat(tt.dir)
 			require.NoError(t, statErr)
@@ -197,14 +194,11 @@ func TestNew_RetriesAFailedParentFlushWithItsOwnOpener(t *testing.T) {
 
 			assert.Equal(t, tt.wantSynced, synced)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			require.ErrorIs(t, err, tt.wantErr)
 
-				return
+			if store != nil {
+				require.NoError(t, store.Close())
 			}
-
-			require.NoError(t, err)
-			require.NoError(t, store.Close())
 		})
 	}
 }

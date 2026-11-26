@@ -3,6 +3,7 @@ package statedir_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ const (
 	etagB         = `"eB"`
 	manifestTwo   = "manifest-2"
 	manifestB     = "manifest-B"
+	keepName      = "keep"
+	levelError    = "level=ERROR"
 	opCreateObj   = "create objects/"
 	opRenameMan   = "rename manifest.json"
 )
@@ -196,3 +199,28 @@ func assertRestored(tb testing.TB, want wantRestored, got *manifestreader.Restor
 func statedirConfig() statedir.Config { return statedir.Config{} }
 
 func fixedNow() time.Time { return clocktest.Instant() }
+
+// summaryOf is what a restore returned, as the expectation type: the zero value when nothing was restored. The
+// object contents are sorted.
+func summaryOf(restored *manifestreader.Restored) wantRestored {
+	if restored == nil {
+		return wantRestored{}
+	}
+
+	var contents []string
+
+	for _, content := range restored.Objects {
+		contents = append(contents, string(content))
+	}
+
+	slices.Sort(contents)
+
+	return wantRestored{etag: restored.ETag, manifest: string(restored.Manifest), objects: contents}
+}
+
+// sorted returns the expectation with its object contents in order, as summaryOf gives them.
+func (w wantRestored) sorted() wantRestored {
+	w.objects = slices.Sorted(slices.Values(w.objects))
+
+	return w
+}

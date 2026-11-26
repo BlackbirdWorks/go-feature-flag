@@ -17,49 +17,65 @@ func TestStore_RestoreDiscardsWhatIsNotWhatItWasSaved(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		damage      func(*memDisk)
-		name        string
-		wantRestore string
-		wantObjects []string
-		cfg         statedir.Config
+		damage       func(*memDisk)
+		name         string
+		wantRestore  string
+		wantRestored wantRestored
+		wantErr      error
+		cfg          statedir.Config
 	}{
 		{
 			name: "an object that is not a regular file", wantRestore: manifestreader.RestorePartial,
-			damage:      func(d *memDisk) { d.irregular[objectFile(contentBeta)] = true },
-			wantObjects: []string{contentAlpha},
+			damage:       func(d *memDisk) { d.irregular[objectFile(contentBeta)] = true },
+			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
 		},
 		{
 			name: "an object larger than its recorded size", wantRestore: manifestreader.RestorePartial,
-			damage:      func(d *memDisk) { d.write(objectFile(contentBeta), []byte(strings.Repeat("b", 1<<20))) },
-			wantObjects: []string{contentAlpha},
+			damage:       func(d *memDisk) { d.write(objectFile(contentBeta), []byte(strings.Repeat("b", 1<<20))) },
+			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
 		},
 		{
 			name: "an object smaller than its recorded size", wantRestore: manifestreader.RestorePartial,
-			damage:      func(d *memDisk) { d.write(objectFile(contentBeta), []byte("b")) },
-			wantObjects: []string{contentAlpha},
+			damage:       func(d *memDisk) { d.write(objectFile(contentBeta), []byte("b")) },
+			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
 		},
 		{
-			name: "a manifest copy that is not a regular file", wantRestore: manifestreader.RestoreEmpty,
-			damage: func(d *memDisk) { d.irregular[manifestName] = true },
+			name:        "a manifest copy that is not a regular file",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			damage:      func(d *memDisk) { d.irregular[manifestName] = true },
 		},
 		{
-			name: "a manifest copy above its limit", wantRestore: manifestreader.RestoreEmpty,
-			cfg:    statedir.Config{MaxManifestBytes: 1 << 10, MaxObjects: 4},
-			damage: func(d *memDisk) { d.write(manifestName, []byte(strings.Repeat("x", 1<<20))) },
+			name:        "a manifest copy above its limit",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			cfg:         statedir.Config{MaxManifestBytes: 1 << 10, MaxObjects: 4},
+			damage:      func(d *memDisk) { d.write(manifestName, []byte(strings.Repeat("x", 1<<20))) },
 		},
 		{
-			name: "more objects than the bound", wantRestore: manifestreader.RestoreEmpty,
-			cfg: statedir.Config{MaxObjects: 1}, damage: func(*memDisk) {},
+			name:        "more objects than the bound",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			cfg:         statedir.Config{MaxObjects: 1},
+			damage:      func(*memDisk) {},
 		},
 		{
-			name: "an object above the object bound", wantRestore: manifestreader.RestoreEmpty,
-			cfg: statedir.Config{MaxObjectBytes: 3}, damage: func(*memDisk) {},
+			name:        "an object above the object bound",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			cfg:         statedir.Config{MaxObjectBytes: 3},
+			damage:      func(*memDisk) {},
 		},
 		{
-			name: "within every bound", wantRestore: manifestreader.RestoreRestored,
+			name:        "within every bound",
+			wantRestore: manifestreader.RestoreRestored,
 			cfg:         statedir.Config{MaxManifestBytes: 1 << 10, MaxObjectBytes: 64, MaxObjects: 2},
 			damage:      func(*memDisk) {},
-			wantObjects: []string{contentAlpha, contentBeta},
+			wantRestored: wantRestored{
+				etag:     etagOne,
+				manifest: manifestOne,
+				objects:  []string{contentAlpha, contentBeta},
+			},
 		},
 	}
 
@@ -87,14 +103,9 @@ func TestStore_RestoreDiscardsWhatIsNotWhatItWasSaved(t *testing.T) {
 			restored, err := store.Hooks().Restore()
 			assert.Equal(t, tt.wantRestore, store.Hooks().StateStatus().Restore)
 
-			if tt.wantRestore == manifestreader.RestoreEmpty {
-				require.ErrorIs(t, err, manifestreader.ErrNothingRestored)
+			require.ErrorIs(t, err, tt.wantErr)
 
-				return
-			}
-
-			require.NoError(t, err)
-			assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne, objects: tt.wantObjects}, restored)
+			assert.Equal(t, tt.wantRestored.sorted(), summaryOf(restored))
 		})
 	}
 }

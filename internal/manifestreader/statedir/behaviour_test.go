@@ -123,6 +123,8 @@ func TestStore_ByteBudget(t *testing.T) {
 		name        string
 		wantObjects []string
 		wantPartial bool
+		// wantPartialSaves is the number of partial saves counted
+		wantPartialSaves uint64
 	}{
 		{
 			name: "current objects that fit are all saved", persist: persistOf(etagOne, "m", contentAAAA, "bbbb"),
@@ -131,12 +133,12 @@ func TestStore_ByteBudget(t *testing.T) {
 		{
 			name:        "over the budget the current objects are kept smallest first: two names come back, not one",
 			persist:     persistOf(etagOne, "m", contentAAAA, "bb", "cccccc"),
-			wantObjects: []string{contentAAAA, "bb"}, wantPartial: true,
+			wantObjects: []string{contentAAAA, "bb"}, wantPartial: true, wantPartialSaves: 1,
 		},
 		{
 			name:        "over the budget the stale content is dropped first",
 			persist:     withStale(persistOf(etagOne, "m", contentAAAA, "bbbb", "cccc"), "dd"),
-			wantObjects: []string{contentAAAA, "bbbb"}, wantPartial: true,
+			wantObjects: []string{contentAAAA, "bbbb"}, wantPartial: true, wantPartialSaves: 1,
 		},
 		{
 			name:        "stale content takes what is left, and no more, and that is not a partial save",
@@ -159,12 +161,7 @@ func TestStore_ByteBudget(t *testing.T) {
 			assert.Equal(t, uint64(1), status.Saves)
 			assert.Zero(t, status.SaveErrors)
 
-			wantPartials := uint64(0)
-			if tt.wantPartial {
-				wantPartials = 1
-			}
-
-			assert.Equal(t, wantPartials, status.PartialSaves)
+			assert.Equal(t, tt.wantPartialSaves, status.PartialSaves)
 			run.close()
 
 			restored, _, err := restoreOf(t, fsys)
@@ -174,8 +171,8 @@ func TestStore_ByteBudget(t *testing.T) {
 	}
 }
 
-// sumOrderedFirst is the one of the contents whose checksum sorts first: the stale object that is kept when only one
-// fits.
+// sumOrderedFirst is the one of the contents whose checksum sorts first: the stale object that is kept when only
+// one fits.
 func sumOrderedFirst(contents ...string) string {
 	return slices.MinFunc(contents, func(a, b string) int { return cmp.Compare(sumOf(a), sumOf(b)) })
 }
@@ -277,93 +274,110 @@ func TestStore_SavingANilSnapshotDoesNothing(t *testing.T) {
 	assert.Equal(t, manifestreader.StateStatus{Enabled: true}, run.store.Hooks().StateStatus())
 }
 
-func TestStore_TwoWritersOnOneDirectory(t *testing.T) {
+// TestStore_TheLockRefusesASecondOwner: the lock refuses the second owner, and the directory is free again once the
+// first one closed it.
+func TestStore_TheLockRefusesASecondOwner(t *testing.T) {
 	t.Parallel()
 
-	t.Run("the lock refuses the second owner", func(t *testing.T) {
-		t.Parallel()
+	fsys := &memFS{disk: newMemDisk(), faults: &faults{}}
+	first, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
+	require.NoError(t, err)
 
-		fsys := &memFS{disk: newMemDisk(), faults: &faults{}}
-		first, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
-		require.NoError(t, err)
+	_, err = statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
+	require.ErrorIs(t, err, statedir.ErrLocked)
 
-		_, err = statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
-		require.ErrorIs(t, err, statedir.ErrLocked)
+	require.NoError(t, first.Close())
 
-		require.NoError(t, first.Close())
+	second, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
+	require.NoError(t, err)
+	require.NoError(t, second.Close())
+}
 
-		second, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
-		require.NoError(t, err)
-		require.NoError(t, second.Close())
-	})
+// TestStore_WithoutALockTheLastWriterWins: without a lock the last writer wins and nothing is corrupted.
+func TestStore_WithoutALockTheLastWriterWins(t *testing.T) {
+	t.Parallel()
 
-	t.Run("without a lock the last writer wins and nothing is corrupted", func(t *testing.T) {
-		t.Parallel()
+	const rounds = 30
 
-		const rounds = 30
+	disk := newMemDisk()
+	fsys := &memFS{disk: disk, faults: &faults{}, noLock: true}
+	left := openStore(t, fsys, statedirConfig())
+	right := openStore(t, fsys, statedirConfig())
 
-		disk := newMemDisk()
-		fsys := &memFS{disk: disk, faults: &faults{}, noLock: true}
-		left := openStore(t, fsys, statedirConfig())
-		right := openStore(t, fsys, statedirConfig())
+	states := map[string]wantRestored{}
 
-		states := map[string]wantRestored{}
+	var wg sync.WaitGroup
 
-		var wg sync.WaitGroup
-
-		for i := range rounds {
-			// the two writers save different states at the same time
-			leftState := persistOf(
-				fmt.Sprintf(`"l%d"`, i),
-				fmt.Sprintf("manifest-l%d", i),
-				fmt.Sprintf("l-%d", i),
-				contentShared,
-			)
-			rightState := persistOf(
-				fmt.Sprintf(`"r%d"`, i),
-				fmt.Sprintf("manifest-r%d", i),
-				fmt.Sprintf("r-%d", i),
-				contentShared,
-			)
-			states[fmt.Sprintf(`"l%d"`, i)] = wantRestored{
-				etag: fmt.Sprintf(`"l%d"`, i), manifest: fmt.Sprintf("manifest-l%d", i),
-				objects: []string{fmt.Sprintf("l-%d", i), contentShared},
-			}
-			states[fmt.Sprintf(`"r%d"`, i)] = wantRestored{
-				etag: fmt.Sprintf(`"r%d"`, i), manifest: fmt.Sprintf("manifest-r%d", i),
-				objects: []string{fmt.Sprintf("r-%d", i), contentShared},
-			}
-
-			wg.Go(func() { left.saveAndFlushAsserting(leftState) })
-			wg.Go(func() { right.saveAndFlushAsserting(rightState) })
-			wg.Wait()
-
-			restored, status, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}, noLock: true})
-			require.NoError(t, err)
-
-			// the manifest and its ETag belong together, whoever wrote them; every object returned verified,
-			// belongs to that state, and an object that the other writer collected is simply absent
-			want, known := states[restored.ETag]
-			require.True(t, known, "an ETag that nobody saved: %s", restored.ETag)
-			assert.Equal(t, want.manifest, string(restored.Manifest))
-
-			for _, content := range restored.Objects {
-				assert.Contains(t, want.objects, string(content))
-			}
-
-			assert.Equal(t, len(want.objects)-len(restored.Objects), status.DiscardedObjects)
+	for i := range rounds {
+		// the two writers save different states at the same time
+		leftState := persistOf(
+			fmt.Sprintf(`"l%d"`, i),
+			fmt.Sprintf("manifest-l%d", i),
+			fmt.Sprintf("l-%d", i),
+			contentShared,
+		)
+		rightState := persistOf(
+			fmt.Sprintf(`"r%d"`, i),
+			fmt.Sprintf("manifest-r%d", i),
+			fmt.Sprintf("r-%d", i),
+			contentShared,
+		)
+		states[fmt.Sprintf(`"l%d"`, i)] = wantRestored{
+			etag: fmt.Sprintf(`"l%d"`, i), manifest: fmt.Sprintf("manifest-l%d", i),
+			objects: []string{fmt.Sprintf("l-%d", i), contentShared},
 		}
-	})
+		states[fmt.Sprintf(`"r%d"`, i)] = wantRestored{
+			etag: fmt.Sprintf(`"r%d"`, i), manifest: fmt.Sprintf("manifest-r%d", i),
+			objects: []string{fmt.Sprintf("r-%d", i), contentShared},
+		}
+
+		wg.Go(func() { left.saveAndFlushAsserting(leftState) })
+		wg.Go(func() { right.saveAndFlushAsserting(rightState) })
+		wg.Wait()
+
+		restored, status, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}, noLock: true})
+		require.NoError(t, err)
+
+		// the manifest and its ETag belong together, whoever wrote them; every object returned verified,
+		// belongs to that state, and an object that the other writer collected is simply absent
+		want, known := states[restored.ETag]
+		require.True(t, known, "an ETag that nobody saved: %s", restored.ETag)
+		assert.Equal(t, want.manifest, string(restored.Manifest))
+
+		for _, content := range restored.Objects {
+			assert.Contains(t, want.objects, string(content))
+		}
+
+		assert.Equal(t, len(want.objects)-len(restored.Objects), status.DiscardedObjects)
+	}
 }
 
 func TestNew_Refuses(t *testing.T) {
 	t.Parallel()
 
-	_, err := statedir.New(statedir.Config{})
-	require.ErrorIs(t, err, statedir.ErrNoDir)
+	tests := []struct {
+		wantErr error
+		name    string
+		cfg     statedir.Config
+	}{
+		{name: "no directory configured", cfg: statedir.Config{}, wantErr: statedir.ErrNoDir},
+		{
+			name:    "the file system cannot open the directory",
+			cfg:     statedir.Config{FS: failingFS{err: errNotAvailable}, Dir: stateDirName},
+			wantErr: errNotAvailable,
+		},
+	}
 
-	_, err = statedir.New(statedir.Config{FS: failingFS{err: errNotAvailable}, Dir: stateDirName})
-	require.ErrorIs(t, err, errNotAvailable)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, err := statedir.New(tt.cfg)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Nil(t, store)
+		})
+	}
 }
 
 var errNotAvailable = errors.New("the directory is not available")

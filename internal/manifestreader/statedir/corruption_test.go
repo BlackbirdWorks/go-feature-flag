@@ -45,6 +45,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 	manifestFile := manifestName
 
 	tests := []struct {
+		wantErr       error
 		mutate        func(*memDisk)
 		name          string
 		wantRestore   string
@@ -107,33 +108,43 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			},
 		},
 		{
-			name: "manifest copy with a flipped byte", wantRestore: manifestreader.RestoreEmpty,
+			name:        "manifest copy with a flipped byte",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, flipByte(data))
 			},
 		},
 		{
-			name: "manifest copy truncated", wantRestore: manifestreader.RestoreEmpty,
+			name:        "manifest copy truncated",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, data[:len(data)/2])
 			},
 		},
 		{
-			name: "manifest copy that is not json", wantRestore: manifestreader.RestoreEmpty,
-			mutate: func(d *memDisk) { d.write(manifestFile, []byte("not json")) },
+			name:        "manifest copy that is not json",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			mutate:      func(d *memDisk) { d.write(manifestFile, []byte("not json")) },
 		},
 		{
-			name: "manifest copy with another etag but the old digest", wantRestore: manifestreader.RestoreEmpty,
+			name:        "manifest copy with another etag but the old digest",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, []byte(strings.Replace(string(data), `\"e1\"`, `\"e2\"`, 1)))
 			},
 		},
 		{
-			name: "manifest copy missing", wantRestore: manifestreader.RestoreEmpty,
-			mutate: func(d *memDisk) { d.remove(manifestFile) },
+			name:        "manifest copy missing",
+			wantRestore: manifestreader.RestoreEmpty,
+			wantErr:     manifestreader.ErrNothingRestored,
+			mutate:      func(d *memDisk) { d.remove(manifestFile) },
 		},
 	}
 
@@ -155,15 +166,8 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			assert.Equal(t, tt.wantRestore, status.Restore)
 			assert.Equal(t, tt.wantDiscarded, status.DiscardedObjects)
 
-			if tt.wantRestore == manifestreader.RestoreEmpty {
-				require.ErrorIs(t, err, manifestreader.ErrNothingRestored)
-				assert.Nil(t, restored)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assertRestored(t, tt.wantObjects, restored)
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantObjects.sorted(), summaryOf(restored))
 		})
 	}
 }
@@ -174,20 +178,21 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 	const alpha = `{contentAlpha:1}`
 
 	tests := []struct {
-		failRead    map[string]error
-		name        string
-		wantRestore string
-		wantObjects []string
-		wantErr     bool
+		wantErr      error
+		failRead     map[string]error
+		name         string
+		wantRestore  string
+		wantRestored wantRestored
 	}{
 		{
 			name: "the manifest copy cannot be read", failRead: map[string]error{manifestName: fs.ErrPermission},
-			wantRestore: manifestreader.RestoreFailed, wantErr: true,
+			wantRestore: manifestreader.RestoreFailed, wantErr: fs.ErrPermission,
 		},
 		{
-			name:        "one object cannot be read: it is fetched again",
-			failRead:    map[string]error{objectFile(alpha): syscall.EIO},
-			wantRestore: manifestreader.RestorePartial,
+			name:         "one object cannot be read: it is fetched again",
+			failRead:     map[string]error{objectFile(alpha): syscall.EIO},
+			wantRestore:  manifestreader.RestorePartial,
+			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne},
 		},
 	}
 
@@ -207,16 +212,8 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 
 			assert.Equal(t, tt.wantRestore, status.Restore)
 
-			if tt.wantErr {
-				require.Error(t, err)
-				require.NotErrorIs(t, err, manifestreader.ErrNothingRestored)
-				assert.Nil(t, restored)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne}, restored)
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantRestored, summaryOf(restored))
 		})
 	}
 }

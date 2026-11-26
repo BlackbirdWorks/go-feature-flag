@@ -135,13 +135,40 @@ func TestStore_ARestartRewritesAnObjectFileThatWentMissing(t *testing.T) {
 func TestStore_ASaveThatAddsNoChecksumStillRebuildsWhatVanished(t *testing.T) {
 	t.Parallel()
 
+	changed := persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta)
+	unchanged := persistOf(etagOne, manifestOne, contentAlpha, contentBeta)
+
 	tests := []struct {
-		vanish func(*memDisk)
-		name   string
+		vanish       func(*memDisk)
+		second       manifestreader.Persist
+		name         string
+		wantRestored wantRestored
 	}{
-		{name: "the objects directory", vanish: func(d *memDisk) { d.removeObjectsDir() }},
-		{name: "one object file", vanish: func(d *memDisk) { d.remove(objectFile(contentAlpha)) }},
-		{name: "the manifest copy", vanish: func(d *memDisk) { d.remove(manifestName) }},
+		{
+			name: "the objects directory", vanish: func(d *memDisk) { d.removeObjectsDir() }, second: changed,
+			wantRestored: wantRestored{
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+			},
+		},
+		{
+			name: "one object file", vanish: func(d *memDisk) { d.remove(objectFile(contentAlpha)) }, second: changed,
+			wantRestored: wantRestored{
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+			},
+		},
+		{
+			name: "the manifest copy", vanish: func(d *memDisk) { d.remove(manifestName) }, second: changed,
+			wantRestored: wantRestored{
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+			},
+		},
+		{
+			name: "an unchanged state with a vanished object file", second: unchanged,
+			vanish: func(d *memDisk) { d.remove(objectFile(contentBeta)) },
+			wantRestored: wantRestored{
+				etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha, contentBeta},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -151,41 +178,21 @@ func TestStore_ASaveThatAddsNoChecksumStillRebuildsWhatVanished(t *testing.T) {
 			disk := newMemDisk()
 			fsys := &memFS{disk: disk, faults: &faults{}}
 			run := openStore(t, fsys, statedirConfig())
-			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha, contentBeta))
+			run.saveAndFlush(unchanged)
 
 			tt.vanish(disk)
 
-			// the next generation keeps every checksum (and so writes no new object by the book): alpha is
-			// unchanged, the manifest copy is the new one
-			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+			// the next write keeps every checksum, and so writes no new object by the book
+			run.saveAndFlush(tt.second)
 			assert.Empty(t, run.store.Hooks().StateStatus().LastSaveError)
 			run.close()
 
 			restored, status, err := restoreOf(t, fsys)
 			require.NoError(t, err)
 			assert.Zero(t, status.DiscardedObjects)
-			assertRestored(t, wantRestored{
-				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
-			}, restored)
+			assert.Equal(t, tt.wantRestored, summaryOf(restored))
 		})
 	}
-
-	t.Run("an unchanged state with a vanished object file is written again", func(t *testing.T) {
-		t.Parallel()
-
-		disk := newMemDisk()
-		fsys := &memFS{disk: disk, faults: &faults{}}
-		run := openStore(t, fsys, statedirConfig())
-		persist := persistOf(etagOne, manifestOne, contentAlpha, contentBeta)
-		run.saveAndFlush(persist)
-
-		disk.remove(objectFile(contentBeta))
-		run.saveAndFlush(persist)
-		run.close()
-
-		_, there := disk.read(objectFile(contentBeta))
-		assert.True(t, there)
-	})
 }
 
 func TestStore_ALostDirectoryIsOpenedAgainByALaterSave(t *testing.T) {

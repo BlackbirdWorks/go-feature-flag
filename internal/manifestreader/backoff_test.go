@@ -31,77 +31,83 @@ func TestReader_ManifestPollBackoff(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ok       error
 		failed   = errTransient
 		notFound = manifestreader.ErrNotFound
 	)
 
 	tests := []struct {
 		name        string
-		steps       []error
+		steps       []func(*fakeStore)
 		wantWaits   []time.Duration
 		cfg         manifestreader.Config
 		wantBackoff manifestreader.BackoffStatus
 		jitter      float64
-		garbage     bool
 	}{
 		{
 			name:   "errors double up to the cap, and the first success resets",
-			jitter: 0.75, steps: []error{failed, failed, failed, failed, ok, ok},
+			jitter: 0.75,
+			steps: []func(*fakeStore){
+				pollFails(failed),
+				pollFails(failed),
+				pollFails(failed),
+				pollFails(failed),
+				pollOK,
+				pollOK,
+			},
 			// ceilings 120, 240, 300, 300 times 0.75
 			wantWaits:   []time.Duration{sec(60), sec(90), sec(180), sec(225), sec(225), sec(60), sec(60)},
 			wantBackoff: manifestreader.BackoffStatus{Wait: sec(60)},
 		},
 		{
 			name:   "a failure never makes the reader poll faster than the interval",
-			jitter: 0.1, steps: []error{failed, failed},
+			jitter: 0.1, steps: []func(*fakeStore){pollFails(failed), pollFails(failed)},
 			// 12 s and 24 s are below the 60 s interval
 			wantWaits:   []time.Duration{sec(60), sec(60), sec(60)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 2, Wait: sec(60)},
 		},
 		{
 			name:   "a throttle backs off one step further than an error",
-			jitter: 0.5, steps: []error{throttle(), throttle(), throttle()},
+			jitter: 0.5, steps: []func(*fakeStore){pollFails(throttle()), pollFails(throttle()), pollFails(throttle())},
 			// ceilings 240, 300 (480 capped), 300, times 0.5
 			wantWaits:   []time.Duration{sec(60), sec(120), sec(150), sec(150)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 3, Wait: sec(150), Throttled: true},
 		},
 		{
 			name:   "the same failure as a plain error waits less than as a throttle",
-			jitter: 0.5, steps: []error{failed, failed, failed},
+			jitter: 0.5, steps: []func(*fakeStore){pollFails(failed), pollFails(failed), pollFails(failed)},
 			// ceilings 120, 240, 300, times 0.5: 60 (the interval), 120, 150
 			wantWaits:   []time.Duration{sec(60), sec(60), sec(120), sec(150)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 3, Wait: sec(150)},
 		},
 		{
 			name:   "a missing manifest is a failure of the poll",
-			jitter: 0.75, steps: []error{notFound, notFound},
+			jitter: 0.75, steps: []func(*fakeStore){pollFails(notFound), pollFails(notFound)},
 			wantWaits:   []time.Duration{sec(60), sec(90), sec(180)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 2, Wait: sec(180)},
 		},
 		{
 			name:   "a throttle after errors continues the count",
-			jitter: 0.5, steps: []error{failed, failed, throttle()},
+			jitter: 0.5, steps: []func(*fakeStore){pollFails(failed), pollFails(failed), pollFails(throttle())},
 			// n=1: 120 x 0.5 -> 60; n=2: 240 x 0.5 = 120; n=3 throttled: 960 capped 300 x 0.5 = 150
 			wantWaits:   []time.Duration{sec(60), sec(60), sec(120), sec(150)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 3, Wait: sec(150), Throttled: true},
 		},
 		{
 			name:   "a manifest that was read and rejected is not a failure of the poll",
-			jitter: 0.75, steps: []error{failed, ok}, garbage: true,
+			jitter: 0.75, steps: []func(*fakeStore){pollFails(failed), pollGarbage},
 			wantWaits:   []time.Duration{sec(60), sec(90), sec(60)},
 			wantBackoff: manifestreader.BackoffStatus{Wait: sec(60)},
 		},
 		{
 			name:   "jitter 0 draws the shortest wait: the interval",
-			jitter: 0, steps: []error{failed, failed, failed},
+			jitter: 0, steps: []func(*fakeStore){pollFails(failed), pollFails(failed), pollFails(failed)},
 			wantWaits:   []time.Duration{sec(60), sec(60), sec(60), sec(60)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 3, Wait: sec(60)},
 		},
 		{
 			name:   "a cap below the interval is raised to it",
 			cfg:    manifestreader.Config{PollInterval: sec(120), BackoffMax: sec(30)},
-			jitter: 0.75, steps: []error{failed},
+			jitter: 0.75, steps: []func(*fakeStore){pollFails(failed)},
 			// ceiling min(240, 120) x 0.75 = 90, below the 120 s interval
 			wantWaits:   []time.Duration{sec(120), sec(120)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 1, Wait: sec(120)},
@@ -109,7 +115,7 @@ func TestReader_ManifestPollBackoff(t *testing.T) {
 		{
 			name:   "a configured cap",
 			cfg:    manifestreader.Config{BackoffMax: sec(100)},
-			jitter: 0.9, steps: []error{failed, failed, failed},
+			jitter: 0.9, steps: []func(*fakeStore){pollFails(failed), pollFails(failed), pollFails(failed)},
 			// ceilings 100, 100, 100 times 0.9 = 90
 			wantWaits:   []time.Duration{sec(60), sec(90), sec(90), sec(90)},
 			wantBackoff: manifestreader.BackoffStatus{Failures: 3, Wait: sec(90)},
@@ -128,13 +134,7 @@ func TestReader_ManifestPollBackoff(t *testing.T) {
 			require.Equal(t, []time.Duration{rdr.reader.Status().Backoff.Wait}, rdr.sched.waited())
 
 			for _, step := range tt.steps {
-				if step != nil {
-					store.failNext(manifestKey, step)
-				}
-
-				if tt.garbage && step == nil {
-					store.put(manifestKey, []byte("not a manifest"))
-				}
+				step(store)
 
 				rdr.round()
 			}
@@ -144,6 +144,17 @@ func TestReader_ManifestPollBackoff(t *testing.T) {
 		})
 	}
 }
+
+// pollFails makes the next manifest poll fail with err.
+func pollFails(err error) func(*fakeStore) {
+	return func(store *fakeStore) { store.failNext(manifestKey, err) }
+}
+
+// pollOK leaves the manifest as it is: the next poll is a 304.
+func pollOK(*fakeStore) {}
+
+// pollGarbage makes the manifest something that is not a manifest: it is read, and rejected.
+func pollGarbage(store *fakeStore) { store.put(manifestKey, []byte("not a manifest")) }
 
 func withoutWaiting(status manifestreader.BackoffStatus) manifestreader.BackoffStatus {
 	status.ObjectsWaiting = 0

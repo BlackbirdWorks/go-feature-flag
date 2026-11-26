@@ -144,26 +144,8 @@ func New(cfg Config) (*Store, error) {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	root, created, err := openLocked(fsys, cfg.Dir)
-	if errors.Is(err, ErrParentSync) {
-		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
-		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
-		root, created, err = openLocked(fsys, cfg.Dir)
-	}
-
+	root, err := openOwned(fsys, cfg.Dir)
 	if err != nil {
-		return nil, err
-	}
-
-	_, err = inspect(root)
-	if err != nil {
-		if created {
-			// leave a directory that is not ours as we found it: without the lock file we made
-			_ = root.Remove(lockFile)
-		}
-
-		_ = root.Close()
-
 		return nil, err
 	}
 
@@ -220,6 +202,36 @@ func openLocked(fsys FS, dir string) (Root, bool, error) { //nolint:ireturn // t
 	}
 
 	return root, created, nil
+}
+
+// openOwned is the one way to open a state directory, for [New] and for a reopen by the writer: it opens the path,
+// takes the lock, and validates that the directory is ours. On refusal it undoes what this call created (the lock
+// file, when it did not exist) and closes the directory, so a directory that is not ours is left exactly as it was
+// found.
+func openOwned(fsys FS, dir string) (Root, error) { //nolint:ireturn // the FS seam returns an interface
+	root, created, err := openLocked(fsys, dir)
+	if errors.Is(err, ErrParentSync) {
+		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
+		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
+		root, created, err = openLocked(fsys, dir)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = inspect(root)
+	if err != nil {
+		if created {
+			_ = root.Remove(lockFile)
+		}
+
+		_ = root.Close()
+
+		return nil, err
+	}
+
+	return root, nil
 }
 
 // inspect tells whether the directory is ours. It reports whether VERSION is there (and ours); without VERSION the

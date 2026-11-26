@@ -352,7 +352,7 @@ restored object is checked like a fetched one (the listed size, the object limit
   | Full disk / read-only errors | `ENOSPC`, `EROFS` | the same, plus `ERROR_DISK_FULL`, `ERROR_HANDLE_DISK_FULL`, `ERROR_WRITE_PROTECT` |
   | Symbolic link or reparse point as the directory or a layout name | refused | refused (symbolic links, and junctions where Go reports them as irregular) |
   | Only a regular file is read, names cannot leave the directory (`os.Root`) | yes | yes |
-  | Write: temporary file, fsync, close, rename over the name | yes | yes (files are closed before the rename; `os.Rename` replaces an existing file) |
+  | Write: temporary file, fsync, close, rename over the name | yes, and the rename is atomic | files are closed before the rename and `os.Rename` replaces the destination, but Go's contract does not promise atomicity there: a crash in the middle of a save can leave a manifest copy or an object file that fails its digest or checksum, and the restore discards it (a bad manifest copy is a cold start, a bad object costs one GET) |
 
   So on Windows the protections that apply are: the checks of type and name, the digest and checksum verification,
   the atomic replace of every file, the foreign-directory rules (`VERSION`, foreign files, symbolic links), and the

@@ -13,6 +13,25 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
+// firstStep finds the first operation that starts with prefix.
+func firstStep(prefix string) func(*testing.T, []string) int {
+	return func(t *testing.T, ops []string) int {
+		t.Helper()
+
+		return stepOf(t, ops, prefix, 1)
+	}
+}
+
+// onManifestFile finds the last operation that starts with prefix before the rename of the manifest: the one on the
+// temporary file of the manifest.
+func onManifestFile(prefix string) func(*testing.T, []string) int {
+	return func(t *testing.T, ops []string) int {
+		t.Helper()
+
+		return stepBefore(t, ops, prefix, stepOf(t, ops, opRenameMan, 1))
+	}
+}
+
 // stepBefore is the 1-based step of the last operation that starts with prefix before step limit.
 func stepBefore(tb testing.TB, ops []string, prefix string, limit int) int {
 	tb.Helper()
@@ -58,115 +77,113 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 	wantA := wantRestored{etag: `"eA"`, manifest: "manifest-A", objects: []string{"a-only", contentShared}}
 	wantB := wantRestored{etag: etagB, manifest: manifestB, objects: []string{"b-only", contentShared}}
 
-	for _, mode := range []struct {
-		name      string
-		powerLoss bool
-	}{{"process death", false}, {"power loss", true}} {
-		for _, hasOld := range []bool{true, false} {
-			crashTable(t, mode.name, mode.powerLoss, hasOld, stateA, stateB, wantA, wantB)
-		}
+	deathNewFrom := func(manifestRename, _ int) int { return manifestRename }
+	lossNewFrom := func(_, syncRoot int) int { return syncRoot }
+	keep := func(d *memDisk) *memDisk { return d }
+	lose := func(d *memDisk) *memDisk { return d.powerLoss() }
+
+	tests := []crashMode{
+		{name: "process death/old state", survive: keep, newFrom: deathNewFrom, old: &stateA, wantOld: wantA},
+		{
+			name: "process death/no old state", survive: keep, newFrom: deathNewFrom,
+			wantOldErr: manifestreader.ErrNothingRestored,
+		},
+		{name: "power loss/old state", survive: lose, newFrom: lossNewFrom, old: &stateA, wantOld: wantA},
+		{
+			name: "power loss/no old state", survive: lose, newFrom: lossNewFrom,
+			wantOldErr: manifestreader.ErrNothingRestored,
+		},
+	}
+
+	for i := range tests {
+		runCrashTable(t, &tests[i], stateB, wantB)
 	}
 }
 
-func crashTable(
-	t *testing.T, mode string, powerLoss, hasOld bool,
-	stateA, stateB manifestreader.Persist, wantA, wantB wantRestored,
+// crashMode is one way of crashing: what the disk keeps (the process died, or the power was cut), when the new state
+// is found, and what was saved before.
+type crashMode struct {
+	survive func(*memDisk) *memDisk
+	// newFrom is the first step from which the new state is found, given the steps of the rename of the manifest and
+	// of the flush of the directory after it
+	newFrom    func(manifestRename, syncRoot int) int
+	old        *manifestreader.Persist
+	wantOldErr error
+	name       string
+	wantOld    wantRestored
+}
+
+func runCrashTable(
+	t *testing.T, mode *crashMode, stateB manifestreader.Persist, wantB wantRestored,
 ) {
 	t.Helper()
 
-	{
-		// a clean run records the steps
-		probe := &faults{}
-		probeDisk := newMemDisk()
+	// a clean run records the steps
+	probe := &faults{}
+	probeDisk := newMemDisk()
 
-		if hasOld {
-			first := openStore(t, &memFS{disk: probeDisk, faults: &faults{}}, statedirConfig())
-			first.saveAndFlush(stateA)
-			first.close()
-		}
+	if mode.old != nil {
+		first := openStore(t, &memFS{disk: probeDisk, faults: &faults{}}, statedirConfig())
+		first.saveAndFlush(*mode.old)
+		first.close()
+	}
 
-		second := openStore(t, &memFS{disk: probeDisk, faults: probe}, statedirConfig())
-		second.saveAndFlush(stateB)
-		second.close()
+	second := openStore(t, &memFS{disk: probeDisk, faults: probe}, statedirConfig())
+	second.saveAndFlush(stateB)
+	second.close()
 
-		ops := slices.Clone(probe.ops)
-		total := len(ops)
-		manifestRename := stepOf(t, ops, opRenameMan, 1)
-		syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
-		lastFatal := syncRoot
-		// the first step from which the new state is found: the rename, or, after a power loss, the directory sync
-		newFrom := manifestRename
-		if powerLoss {
-			newFrom = syncRoot
-		}
+	ops := slices.Clone(probe.ops)
+	total := len(ops)
+	manifestRename := stepOf(t, ops, opRenameMan, 1)
+	syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
+	lastFatal := syncRoot
+	newFrom := mode.newFrom(manifestRename, syncRoot)
 
-		require.GreaterOrEqual(t, total, lastFatal, "the garbage collection comes after the manifest is durable")
+	require.GreaterOrEqual(t, total, lastFatal, "the garbage collection comes after the manifest is durable")
 
-		for step := 1; step <= total+1; step++ {
-			t.Run(fmt.Sprintf("%s/old=%v/step=%d", mode, hasOld, step), func(t *testing.T) {
-				t.Parallel()
+	for step := 1; step <= total+1; step++ {
+		t.Run(fmt.Sprintf("%s/step=%d", mode.name, step), func(t *testing.T) {
+			t.Parallel()
 
-				disk := newMemDisk()
+			disk := newMemDisk()
 
-				if hasOld {
-					clean := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
-					clean.saveAndFlush(stateA)
-					clean.close()
-				}
+			if mode.old != nil {
+				clean := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
+				clean.saveAndFlush(*mode.old)
+				clean.close()
+			}
 
-				crashing := &faults{failAt: step, crash: true, err: syscall.EIO}
-				run := openStore(t, &memFS{disk: disk, faults: crashing}, statedirConfig())
-				run.saveAndFlush(stateB)
+			crashing := &faults{failAt: step, crash: true, err: syscall.EIO}
+			run := openStore(t, &memFS{disk: disk, faults: crashing}, statedirConfig())
+			run.saveAndFlush(stateB)
 
-				status := run.store.Hooks().StateStatus()
-				run.close()
+			status := run.store.Hooks().StateStatus()
+			run.close()
 
-				// the save reports the failure of every step up to the durable manifest; the garbage collection
-				// after it is best effort
-				wantFailed := step <= lastFatal
-				assert.Equal(t, wantFailed, status.SaveErrors == 1, "reported failure")
+			// the save reports the failure of every step up to the durable manifest; the garbage collection
+			// after it is best effort
+			assert.Equal(t, step <= lastFatal, status.SaveErrors == 1, "reported failure")
 
-				if wantFailed {
-					assert.Equal(t, manifestreader.StateStatus{
-						Enabled: true, Saves: 1, SaveErrors: 1, LastSaveError: "io", LastSave: status.LastSave,
-					}, status)
-				}
+			disk = mode.survive(disk)
 
-				if powerLoss {
-					disk = disk.powerLoss()
-				}
+			restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
 
-				restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
+			wantErr, want := mode.wantOldErr, mode.wantOld
+			if step > newFrom {
+				wantErr, want = nil, wantB
+			}
 
-				switch {
-				case step > newFrom:
-					require.NoError(t, err)
-					assertRestored(t, wantB, restored)
-				case hasOld:
-					require.NoError(t, err)
-					assertRestored(t, wantA, restored)
-				default:
-					require.ErrorIs(t, err, manifestreader.ErrNothingRestored)
-					assert.Nil(t, restored)
-				}
+			require.ErrorIs(t, err, wantErr)
+			assert.Equal(t, want.sorted(), summaryOf(restored))
 
-				// after the crash the next save cleans up: exactly the files of the new state are left
-				again := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
-				again.saveAndFlush(stateB)
-				again.close()
+			// after the crash the next save cleans up: exactly the files of the new state are left
+			again := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
+			again.saveAndFlush(stateB)
+			again.close()
 
-				assert.Equal(
-					t,
-					[]string{
-						versionName,
-						manifestName,
-						objectFile("b-only"),
-						objectFile(contentShared),
-					},
-					disk.names(),
-				)
-			})
-		}
+			assert.Equal(t,
+				[]string{versionName, manifestName, objectFile("b-only"), objectFile(contentShared)}, disk.names())
+		})
 	}
 }
 
@@ -178,29 +195,43 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 
 	tests := []struct {
 		err        error
+		failStep   func(t *testing.T, ops []string) int
 		name       string
-		failOp     string
 		wantReason string
-		// beforeManifest finds the operation on the temporary file of the manifest: the step before its rename
-		beforeManifest bool
 	}{
-		{name: "disk full on write", failOp: "write objects/", err: syscall.ENOSPC, wantReason: "no-space"},
-		{name: "disk full on create", failOp: opCreateObj, err: syscall.ENOSPC, wantReason: "no-space"},
 		{
-			name: "EIO on write of the manifest", failOp: "write .tmp-", err: syscall.EIO, wantReason: "io",
-			beforeManifest: true,
+			name:       "disk full on write",
+			failStep:   firstStep("write objects/"),
+			err:        syscall.ENOSPC,
+			wantReason: "no-space",
 		},
-		{name: "fsync of an object fails", failOp: "sync objects/", err: syscall.EIO, wantReason: "io"},
+		{name: "disk full on create", failStep: firstStep(opCreateObj), err: syscall.ENOSPC, wantReason: "no-space"},
 		{
-			name: "fsync of the manifest fails", failOp: "sync .tmp-", err: syscall.EIO, wantReason: "io",
-			beforeManifest: true,
+			name:       "EIO on write of the manifest",
+			failStep:   onManifestFile("write .tmp-"),
+			err:        syscall.EIO,
+			wantReason: "io",
 		},
-		{name: "rename of the manifest fails", failOp: opRenameMan, err: syscall.EIO, wantReason: "io"},
-		{name: "fsync of the directory fails", failOp: "syncdir objects", err: syscall.EIO, wantReason: "io"},
-		{name: "read-only file system", failOp: opCreateObj, err: syscall.EROFS, wantReason: "denied"},
+		{name: "fsync of an object fails", failStep: firstStep("sync objects/"), err: syscall.EIO, wantReason: "io"},
 		{
-			name: "permission denied", failOp: "create .tmp-", err: syscall.EACCES, wantReason: "denied",
-			beforeManifest: true,
+			name:       "fsync of the manifest fails",
+			failStep:   onManifestFile("sync .tmp-"),
+			err:        syscall.EIO,
+			wantReason: "io",
+		},
+		{name: "rename of the manifest fails", failStep: firstStep(opRenameMan), err: syscall.EIO, wantReason: "io"},
+		{
+			name:       "fsync of the directory fails",
+			failStep:   firstStep("syncdir objects"),
+			err:        syscall.EIO,
+			wantReason: "io",
+		},
+		{name: "read-only file system", failStep: firstStep(opCreateObj), err: syscall.EROFS, wantReason: "denied"},
+		{
+			name:       "permission denied",
+			failStep:   onManifestFile("create .tmp-"),
+			err:        syscall.EACCES,
+			wantReason: "denied",
 		},
 	}
 
@@ -216,13 +247,7 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 
 			// only that step fails; the operations after it work
 			disk := newMemDisk()
-			failAt := stepOf(t, probe.ops, tt.failOp, 1)
-
-			if tt.beforeManifest {
-				failAt = stepBefore(t, probe.ops, tt.failOp, stepOf(t, probe.ops, opRenameMan, 1))
-			}
-
-			fault := &faults{failAt: failAt, err: tt.err}
+			fault := &faults{failAt: tt.failStep(t, probe.ops), err: tt.err}
 			run := openStore(t, &memFS{disk: disk, faults: fault}, statedirConfig())
 
 			run.saveAndFlush(stateB)

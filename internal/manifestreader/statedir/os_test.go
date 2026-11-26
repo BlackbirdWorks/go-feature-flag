@@ -69,27 +69,54 @@ func TestOS_TornFilesAreIgnored(t *testing.T) {
 func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 	t.Parallel()
 
+	objectOf := func(dir string) string { return filepath.Join(dir, "objects", sumOf(contentBeta)) }
+	manifestOf := func(dir string) string { return filepath.Join(dir, manifestName) }
+
+	nothing := func(*testing.T, string) {}
+	content := func(t *testing.T, victim string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(victim, keepName), []byte("mine"), 0o600))
+	}
+
 	tests := []struct {
-		name          string
-		wantSaveError string
-		wantObjects   []string
-		inManifest    bool
-		withContent   bool
-		wantPartial   bool
+		victim         func(dir string) string
+		fill           func(t *testing.T, victim string)
+		wantRestoreErr error
+		name           string
+		wantSaveError  string
+		wantInVictim   []string
+		wantRestored   wantRestored
+		wantPartial    bool
 	}{
-		{name: "an empty directory at an object", wantObjects: []string{contentAlpha, contentBeta}},
 		{
-			name: "a directory with content at an object", withContent: true, wantObjects: []string{contentAlpha},
-			wantPartial: true,
+			name:   "an empty directory at an object",
+			victim: objectOf,
+			fill:   nothing,
+			wantRestored: wantRestored{
+				etag:     etagOne,
+				manifest: manifestOne,
+				objects:  []string{contentAlpha, contentBeta},
+			},
 		},
 		{
-			name:        "an empty directory at the manifest copy",
-			inManifest:  true,
-			wantObjects: []string{contentAlpha, contentBeta},
+			name: "a directory with content at an object", victim: objectOf, fill: content,
+			wantInVictim: []string{keepName}, wantPartial: true,
+			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
 		},
 		{
-			name: "a directory with content at the manifest copy", inManifest: true, withContent: true,
-			wantSaveError: statedir.ReasonUnsafe,
+			name:   "an empty directory at the manifest copy",
+			victim: manifestOf,
+			fill:   nothing,
+			wantRestored: wantRestored{
+				etag:     etagOne,
+				manifest: manifestOne,
+				objects:  []string{contentAlpha, contentBeta},
+			},
+		},
+		{
+			name: "a directory with content at the manifest copy", victim: manifestOf, fill: content,
+			wantInVictim: []string{keepName}, wantSaveError: statedir.ReasonUnsafe,
+			wantRestoreErr: manifestreader.ErrNothingRestored,
 		},
 	}
 
@@ -104,17 +131,11 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			first.saveAndFlush(persist)
 			first.close()
 
-			victim := filepath.Join(dir, "objects", sumOf(contentBeta))
-			if tt.inManifest {
-				victim = filepath.Join(dir, manifestName)
-			}
+			victim := tt.victim(dir)
 
 			require.NoError(t, os.Remove(victim))
 			require.NoError(t, os.Mkdir(victim, 0o700))
-
-			if tt.withContent {
-				require.NoError(t, os.WriteFile(filepath.Join(victim, "keep"), []byte("mine"), 0o600))
-			}
+			tt.fill(t, victim)
 
 			second := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
 
@@ -126,15 +147,7 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			assert.Equal(t, tt.wantPartial, status.LastSavePartial)
 			second.close()
 
-			if tt.withContent {
-				content, err := os.ReadFile(filepath.Join(victim, "keep"))
-				require.NoError(t, err)
-				assert.Equal(t, "mine", string(content), "a directory with content is never removed")
-
-				if tt.wantSaveError != "" {
-					return
-				}
-			}
+			assert.Equal(t, tt.wantInVictim, entriesIn(t, victim), "a directory with content is never removed")
 
 			third, err := statedir.New(statedir.Config{Dir: dir})
 			require.NoError(t, err)
@@ -142,8 +155,26 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			defer func() { require.NoError(t, third.Close()) }()
 
 			restored, err := third.Hooks().Restore()
-			require.NoError(t, err)
-			assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne, objects: tt.wantObjects}, restored)
+			require.ErrorIs(t, err, tt.wantRestoreErr)
+			assert.Equal(t, tt.wantRestored, summaryOf(restored))
 		})
 	}
+}
+
+// entriesIn is the sorted names in a directory, and nil for anything else (a regular file, a missing name).
+func entriesIn(tb testing.TB, name string) []string {
+	tb.Helper()
+
+	entries, err := os.ReadDir(name)
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
 }

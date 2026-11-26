@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
@@ -331,25 +330,30 @@ func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 		window   = manifestreader.DefaultFetchSpread
 	)
 
+	evenly := []int{40, 40, 40, 40, 40}
+
 	tests := []struct {
 		name       string
+		wantSlots  []int
 		cfg        manifestreader.Config
 		wantWindow time.Duration
-		wantWaits  bool
+		// wantDelays is the number of spreading delays each replica asks the scheduler for
+		wantDelays int
 	}{
-		{name: "default window", cfg: manifestreader.Config{}, wantWindow: window, wantWaits: true},
+		{name: "default window", cfg: manifestreader.Config{}, wantWindow: window, wantDelays: 1, wantSlots: evenly},
 		{
-			name:       "a configured window",
-			cfg:        manifestreader.Config{FetchSpread: 2 * time.Second},
-			wantWindow: 2 * time.Second,
-			wantWaits:  true,
+			name: "a configured window", cfg: manifestreader.Config{FetchSpread: 2 * time.Second},
+			wantWindow: 2 * time.Second, wantDelays: 1, wantSlots: evenly,
 		},
 		{
 			name:       "the window never passes the poll interval",
 			cfg:        manifestreader.Config{PollInterval: time.Second, FetchSpread: time.Minute},
-			wantWindow: time.Second, wantWaits: true,
+			wantWindow: time.Second, wantDelays: 1, wantSlots: evenly,
 		},
-		{name: "disabled: everybody fetches at once", cfg: manifestreader.Config{DisableFetchSpread: true}},
+		{
+			name: "disabled: everybody fetches at once", cfg: manifestreader.Config{DisableFetchSpread: true},
+			wantWindow: window, wantSlots: []int{0, 0, 0, 0, 0},
+		},
 	}
 
 	for _, tt := range tests {
@@ -383,24 +387,14 @@ func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 			for _, rep := range flt.replicas {
 				got := rep.sched.shorterThan(bound)
 
-				if !tt.wantWaits {
-					assert.Empty(t, got)
+				assert.Len(t, got, tt.wantDelays, "the delays before the fetches of the generation")
 
-					continue
-				}
-
-				require.Len(t, got, 1, "one delay before the fetches of the generation")
-
-				delays = append(delays, got[0])
+				delays = append(delays, got...)
 			}
 
 			// spreading costs no request: the manifest read and the one changed object, for every replica
 			want := append(repeated(manifestCall(held), replicas), repeated(objCall(t, next[0]), replicas)...)
 			assert.ElementsMatch(t, want, store.takeCalls())
-
-			if !tt.wantWaits {
-				return
-			}
 
 			// the delays fill the window evenly: 5 equal slots hold the same number of replicas
 			slots := make([]int, 5)
@@ -412,7 +406,7 @@ func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 				slots[int(math.Floor(float64(delay)/float64(tt.wantWindow)*float64(len(slots))))]++
 			}
 
-			assert.Equal(t, []int{40, 40, 40, 40, 40}, slots)
+			assert.Equal(t, tt.wantSlots, slots)
 		})
 	}
 }

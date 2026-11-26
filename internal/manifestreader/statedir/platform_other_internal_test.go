@@ -3,6 +3,7 @@
 package statedir
 
 import (
+	"fmt"
 	"io/fs"
 	"syscall"
 	"testing"
@@ -47,8 +48,24 @@ func TestWorldWritable(t *testing.T) {
 func TestIsNoSpaceAndReadOnly(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, isNoSpace(syscall.ENOSPC))
-	assert.False(t, isNoSpace(syscall.EIO))
-	assert.True(t, isReadOnly(syscall.EROFS))
-	assert.False(t, isReadOnly(syscall.EIO))
+	tests := []struct {
+		err          error
+		name         string
+		wantNoSpace  bool
+		wantReadOnly bool
+	}{
+		{name: "a full disk", err: syscall.ENOSPC, wantNoSpace: true},
+		{name: "a read-only file system", err: syscall.EROFS, wantReadOnly: true},
+		{name: "an I/O error", err: syscall.EIO},
+		{name: "a wrapped full disk", err: fmt.Errorf("write: %w", syscall.ENOSPC), wantNoSpace: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.wantNoSpace, isNoSpace(tt.err))
+			assert.Equal(t, tt.wantReadOnly, isReadOnly(tt.err))
+		})
+	}
 }

@@ -25,21 +25,30 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 
 	const terabyte = 1 << 40
 
+	objectVictim := func(dir string) string { return filepath.Join(dir, "objects", sumOf(contentBeta)) }
+	manifestVictim := func(dir string) string { return filepath.Join(dir, manifestName) }
+	onlyAlpha := wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}}
+
 	tests := []struct {
-		replace     func(t *testing.T, name string)
-		name        string
-		wantRestore string
-		onManifest  bool
+		replace      func(t *testing.T, name string)
+		victim       func(dir string) string
+		wantErr      error
+		name         string
+		wantRestore  string
+		wantRestored wantRestored
 	}{
 		{
-			name: "a FIFO", wantRestore: manifestreader.RestorePartial,
+			name: "a FIFO", victim: objectVictim, wantRestore: manifestreader.RestorePartial, wantRestored: onlyAlpha,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, syscall.Mkfifo(name, 0o600))
 			},
 		},
 		{
-			name: "a symbolic link to a file that is fine", wantRestore: manifestreader.RestorePartial,
+			name:         "a symbolic link to a file that is fine",
+			victim:       objectVictim,
+			wantRestore:  manifestreader.RestorePartial,
+			wantRestored: onlyAlpha,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 
@@ -49,14 +58,20 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 			},
 		},
 		{
-			name: "a directory", wantRestore: manifestreader.RestorePartial,
+			name:         "a directory",
+			victim:       objectVictim,
+			wantRestore:  manifestreader.RestorePartial,
+			wantRestored: onlyAlpha,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, os.Mkdir(name, 0o700))
 			},
 		},
 		{
-			name: "a sparse file of a terabyte", wantRestore: manifestreader.RestorePartial,
+			name:         "a sparse file of a terabyte",
+			victim:       objectVictim,
+			wantRestore:  manifestreader.RestorePartial,
+			wantRestored: onlyAlpha,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, os.WriteFile(name, nil, 0o600))
@@ -64,14 +79,19 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 			},
 		},
 		{
-			name: "a FIFO as the manifest copy", onManifest: true, wantRestore: manifestreader.RestoreEmpty,
+			name:        "a FIFO as the manifest copy",
+			victim:      manifestVictim,
+			wantErr:     manifestreader.ErrNothingRestored,
+			wantRestore: manifestreader.RestoreEmpty,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, syscall.Mkfifo(name, 0o600))
 			},
 		},
 		{
-			name: "a sparse file of a terabyte as the manifest copy", onManifest: true,
+			name:        "a sparse file of a terabyte as the manifest copy",
+			victim:      manifestVictim,
+			wantErr:     manifestreader.ErrNothingRestored,
 			wantRestore: manifestreader.RestoreEmpty,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
@@ -90,10 +110,7 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha, contentBeta))
 			run.close()
 
-			victim := filepath.Join(dir, "objects", sumOf(contentBeta))
-			if tt.onManifest {
-				victim = filepath.Join(dir, manifestName)
-			}
+			victim := tt.victim(dir)
 
 			require.NoError(t, os.Remove(victim))
 			tt.replace(t, victim)
@@ -119,18 +136,8 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 				require.NoError(t, store.Close())
 				assert.Equal(t, tt.wantRestore, store.Hooks().StateStatus().Restore)
 
-				if tt.onManifest {
-					require.ErrorIs(t, got.err, manifestreader.ErrNothingRestored)
-
-					return
-				}
-
-				require.NoError(t, got.err)
-				assertRestored(
-					t,
-					wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
-					got.restored,
-				)
+				require.ErrorIs(t, got.err, tt.wantErr)
+				assert.Equal(t, tt.wantRestored, summaryOf(got.restored))
 			case <-time.After(wait):
 				require.FailNow(t, "the restore blocked on an irregular file")
 			}
@@ -207,10 +214,9 @@ func TestOS_AcceptsOrRefusesAnExistingDirectoryByItsMode(t *testing.T) {
 			require.NoError(t, os.Chmod(dir, tt.mode))
 
 			store, err := statedir.New(statedir.Config{Dir: dir})
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
+			require.ErrorIs(t, err, tt.wantErr)
+
+			if store != nil {
 				require.NoError(t, store.Close())
 			}
 
@@ -327,8 +333,8 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 		name         string
 		wantOutside  string
 		wantOnDisk   []string
+		wantInVictim []string
 		wantPartial  bool
-		wantKeepFile bool
 	}{
 		{
 			name: "an empty directory", wantOnDisk: []string{contentAlpha, contentBeta}, wantOutside: outsideContent,
@@ -339,11 +345,11 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 		},
 		{
 			name: "a directory with content", wantOnDisk: []string{contentAlpha}, wantPartial: true,
-			wantOutside: outsideContent, wantKeepFile: true,
+			wantOutside: outsideContent, wantInVictim: []string{keepName},
 			replace: func(t *testing.T, name, _ string) {
 				t.Helper()
 				require.NoError(t, os.Mkdir(name, 0o700))
-				require.NoError(t, os.WriteFile(filepath.Join(name, "keep"), []byte("mine"), 0o600))
+				require.NoError(t, os.WriteFile(filepath.Join(name, keepName), []byte("mine"), 0o600))
 			},
 		},
 		{
@@ -386,11 +392,7 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantOutside, string(untouched), "what a link points to is never written")
 
-			if tt.wantKeepFile {
-				kept, keepErr := os.ReadFile(filepath.Join(victim, "keep"))
-				require.NoError(t, keepErr)
-				assert.Equal(t, "mine", string(kept), "a directory with content is never removed")
-			}
+			assert.Equal(t, tt.wantInVictim, entriesIn(t, victim), "a directory with content is never removed")
 		})
 	}
 }
@@ -408,67 +410,94 @@ const outsideContent = "outside"
 
 // TestOS_AnyWriteThatDoesNotCompleteOpensTheDirectoryAgainByPath: a write that was rejected (the directory is not ours
 // any more) leaves the store ready to open the path again. If the rejected directory is moved aside and another one
-// is made at the path, the next save writes to the replacement and the rejected directory is byte-identical.
+// is made at the path, the next save writes to the replacement; if it stays, every later write stays rejected. The
+// rejected directory is byte-identical in both cases.
 func TestOS_AnyWriteThatDoesNotCompleteOpensTheDirectoryAgainByPath(t *testing.T) {
 	t.Parallel()
 
-	newStore := func(t *testing.T) (*running, string) {
-		t.Helper()
+	tests := []struct {
+		// arrange runs after the rejection and returns the path of the rejected directory
+		arrange           func(t *testing.T, dir string) string
+		name              string
+		wantLastSaveError string
+		wantNewErr        error
+		wantRestored      wantRestored
+		saves             int
+		wantSaveErrors    uint64
+	}{
+		{
+			name: "the rejected directory is moved aside and replaced",
+			arrange: func(t *testing.T, dir string) string {
+				t.Helper()
+				require.NoError(t, os.Rename(dir, dir+".bad"))
+				require.NoError(t, os.Mkdir(dir, 0o700))
 
-		dir := filepath.Join(t.TempDir(), "state")
-		run := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
-		run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
-
-		// somebody else's layout now
-		require.NoError(t, os.WriteFile(filepath.Join(dir, versionName), []byte("semaphore-manifest-state 2\n"), 0o600))
-
-		run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
-		require.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
-
-		return run, dir
+				return dir + ".bad"
+			},
+			saves: 1, wantLastSaveError: "", wantSaveErrors: 1,
+			wantRestored: wantRestored{
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+			},
+		},
+		{
+			name:              "the rejected directory stays and stays rejected",
+			arrange:           func(*testing.T, string) string { return "" },
+			saves:             3,
+			wantLastSaveError: statedir.ReasonUnsafe,
+			wantSaveErrors:    4,
+			wantNewErr:        statedir.ErrForeignVersion,
+		},
 	}
 
-	t.Run("the rejected directory is moved aside and replaced", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		run, dir := newStore(t)
-		aside := dir + ".bad"
+			dir := filepath.Join(t.TempDir(), "state")
+			run := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
 
-		require.NoError(t, os.Rename(dir, aside))
-		require.NoError(t, os.Mkdir(dir, 0o700))
+			// somebody else's layout now
+			require.NoError(
+				t,
+				os.WriteFile(filepath.Join(dir, versionName), []byte("semaphore-manifest-state 2\n"), 0o600),
+			)
 
-		before := treeImage(t, aside)
-
-		run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
-
-		assert.Empty(t, run.store.Hooks().StateStatus().LastSaveError, "the save went to the replacement")
-		assert.Equal(t, before, treeImage(t, aside), "the rejected directory is byte-identical")
-		run.close()
-
-		store, err := statedir.New(statedir.Config{Dir: dir})
-		require.NoError(t, err)
-
-		defer func() { require.NoError(t, store.Close()) }()
-
-		restored, err := store.Hooks().Restore()
-		require.NoError(t, err)
-		assertRestored(t, wantRestored{
-			etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
-		}, restored)
-	})
-
-	t.Run("the rejected directory stays and stays rejected, untouched", func(t *testing.T) {
-		t.Parallel()
-
-		run, dir := newStore(t)
-		before := treeImage(t, dir)
-
-		for range 3 {
 			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
-			assert.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
-		}
+			require.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
 
-		assert.Equal(t, before, treeImage(t, dir))
-		assert.Equal(t, uint64(4), run.store.Hooks().StateStatus().SaveErrors)
-	})
+			rejected := tt.arrange(t, dir)
+			if rejected == "" {
+				rejected = dir
+			}
+
+			before := treeImage(t, rejected)
+
+			for range tt.saves {
+				run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+			}
+
+			status := run.store.Hooks().StateStatus()
+			assert.Equal(t, tt.wantLastSaveError, status.LastSaveError)
+			assert.Equal(t, tt.wantSaveErrors, status.SaveErrors)
+			assert.Equal(t, before, treeImage(t, rejected), "the rejected directory is byte-identical")
+			run.close()
+
+			store, err := statedir.New(statedir.Config{Dir: dir})
+			require.ErrorIs(t, err, tt.wantNewErr)
+
+			var got wantRestored
+
+			if store != nil {
+				restored, restoreErr := store.Hooks().Restore()
+				require.NoError(t, restoreErr)
+
+				got = summaryOf(restored)
+
+				require.NoError(t, store.Close())
+			}
+
+			assert.Equal(t, tt.wantRestored, got)
+		})
+	}
 }

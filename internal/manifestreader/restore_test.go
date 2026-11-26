@@ -172,11 +172,15 @@ func TestRestart_ARestoredObjectIsCheckedLikeAFetchedOne(t *testing.T) {
 	tests := []struct {
 		name           string
 		wantAlphaState manifestreader.State
+		wantAlphaBytes []byte
 		wantFailures   []manifestreader.ObjectFailure
 		cfg            manifestreader.Config
 		sizeDelta      int64
 	}{
-		{name: "the listed size is the length", wantAlphaState: manifestreader.StateOK},
+		{
+			name: "the listed size is the length", wantAlphaState: manifestreader.StateOK,
+			wantAlphaBytes: []byte(alpha.content),
+		},
 		{
 			name: "the listed size is not the length", sizeDelta: 1, wantAlphaState: manifestreader.StateMissing,
 			wantFailures: []manifestreader.ObjectFailure{{
@@ -220,10 +224,7 @@ func TestRestart_ARestoredObjectIsCheckedLikeAFetchedOne(t *testing.T) {
 			snap := rdr.snapshot()
 			require.NotNil(t, snap)
 			assert.Equal(t, tt.wantAlphaState, snap.Objects[nameAlpha].State)
-
-			if tt.wantAlphaState != manifestreader.StateOK {
-				assert.Nil(t, snap.Objects[nameAlpha].Bytes, "the restored bytes are not served")
-			}
+			assert.Equal(t, tt.wantAlphaBytes, snap.Objects[nameAlpha].Bytes, "a failed object serves no bytes")
 
 			assert.Equal(t, tt.wantFailures, rdr.reader.Status().Failures)
 		})

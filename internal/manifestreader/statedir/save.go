@@ -294,7 +294,7 @@ func (s *Store) reopen(ctx context.Context) error {
 		s.root = nil
 	}
 
-	root, _, err := openLocked(s.fsys, s.dir)
+	root, err := openOwned(s.fsys, s.dir)
 	if err != nil {
 		s.noteParentSync(ctx, nil, err)
 

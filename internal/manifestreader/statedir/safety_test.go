@@ -86,11 +86,10 @@ func TestNew_NeverTouchesADirectoryThatIsNotOurs(t *testing.T) {
 			fsys := &memFS{disk: disk, faults: &faults{}}
 			store, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				assert.Nil(t, store)
-			} else {
-				require.NoError(t, err)
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantErr == nil, store != nil)
+
+			if store != nil {
 				require.NoError(t, store.Close())
 			}
 
@@ -130,8 +129,8 @@ func TestStore_GarbageCollectionRemovesOnlyNamesItWrote(t *testing.T) {
 	run := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
 	run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
 
-	disk.write("objects/notes.txt", []byte("keep"))
-	disk.write("objects/.tmp-user", []byte("keep"))
+	disk.write("objects/notes.txt", []byte(keepName))
+	disk.write("objects/.tmp-user", []byte(keepName))
 	disk.write("objects/"+strings.Repeat("A", 64), []byte("keep: not lower case hex"))
 	disk.write("objects/.tmp-7", []byte("ours"))
 
@@ -171,18 +170,28 @@ func TestOpenOrDisable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		prepare    func(t *testing.T) statedir.Config
-		name       string
-		wantReason string
+		prepare         func(t *testing.T) statedir.Config
+		name            string
+		wantReason      string
+		wantLogContains []string
+		wantStatus      manifestreader.StateStatus
+		wantStore       bool
 	}{
 		{
-			name: "a usable directory", wantReason: "",
+			name: "a usable directory", wantReason: "", wantStore: true,
+			wantStatus: manifestreader.StateStatus{Enabled: true},
 			prepare: func(*testing.T) statedir.Config {
 				return statedir.Config{FS: &memFS{disk: newMemDisk(), faults: &faults{}}, Dir: stateDirName}
 			},
 		},
 		{
-			name: "files of somebody else", wantReason: statedir.DisabledUnsafe,
+			name:       "files of somebody else",
+			wantReason: statedir.DisabledUnsafe,
+			wantStatus: manifestreader.StateStatus{
+				Restore:        manifestreader.RestoreDisabled,
+				DisabledReason: statedir.DisabledUnsafe,
+			},
+			wantLogContains: []string{levelError, "reason=" + statedir.DisabledUnsafe},
 			prepare: func(*testing.T) statedir.Config {
 				disk := newMemDisk()
 				disk.write("notes.txt", []byte("x"))
@@ -191,7 +200,13 @@ func TestOpenOrDisable(t *testing.T) {
 			},
 		},
 		{
-			name: "another layout version", wantReason: statedir.DisabledForeignVersion,
+			name:       "another layout version",
+			wantReason: statedir.DisabledForeignVersion,
+			wantStatus: manifestreader.StateStatus{
+				Restore:        manifestreader.RestoreDisabled,
+				DisabledReason: statedir.DisabledForeignVersion,
+			},
+			wantLogContains: []string{levelError, "reason=" + statedir.DisabledForeignVersion},
 			prepare: func(*testing.T) statedir.Config {
 				disk := newMemDisk()
 				disk.write(versionName, []byte("semaphore-manifest-state 9\n"))
@@ -200,7 +215,13 @@ func TestOpenOrDisable(t *testing.T) {
 			},
 		},
 		{
-			name: "another process holds it", wantReason: statedir.DisabledLocked,
+			name:       "another process holds it",
+			wantReason: statedir.DisabledLocked,
+			wantStatus: manifestreader.StateStatus{
+				Restore:        manifestreader.RestoreDisabled,
+				DisabledReason: statedir.DisabledLocked,
+			},
+			wantLogContains: []string{levelError, "reason=" + statedir.DisabledLocked},
 			prepare: func(t *testing.T) statedir.Config {
 				t.Helper()
 
@@ -213,13 +234,25 @@ func TestOpenOrDisable(t *testing.T) {
 			},
 		},
 		{
-			name: "the system refuses access", wantReason: statedir.DisabledUnsafe,
+			name:       "the system refuses access",
+			wantReason: statedir.DisabledUnsafe,
+			wantStatus: manifestreader.StateStatus{
+				Restore:        manifestreader.RestoreDisabled,
+				DisabledReason: statedir.DisabledUnsafe,
+			},
+			wantLogContains: []string{levelError, "reason=" + statedir.DisabledUnsafe},
 			prepare: func(*testing.T) statedir.Config {
 				return statedir.Config{FS: failingFS{err: fs.ErrPermission}, Dir: stateDirName}
 			},
 		},
 		{
-			name: "any other failure", wantReason: statedir.DisabledError,
+			name:       "any other failure",
+			wantReason: statedir.DisabledError,
+			wantStatus: manifestreader.StateStatus{
+				Restore:        manifestreader.RestoreDisabled,
+				DisabledReason: statedir.DisabledError,
+			},
+			wantLogContains: []string{levelError, "reason=" + statedir.DisabledError},
 			prepare: func(*testing.T) statedir.Config {
 				return statedir.Config{FS: failingFS{err: errNotAvailable}, Dir: stateDirName}
 			},
@@ -238,32 +271,35 @@ func TestOpenOrDisable(t *testing.T) {
 			assert.Equal(t, tt.wantReason, reason)
 			require.NotNil(t, hooks.StateStatus, "the hooks are always there: the relay never fails to start")
 
-			status := hooks.StateStatus()
+			assert.Equal(t, tt.wantStore, store != nil)
+			assert.Equal(t, tt.wantStore, hooks.Save != nil)
+			assert.Equal(t, tt.wantStore, hooks.Restore != nil)
+			assert.Equal(t, tt.wantStatus, hooks.StateStatus())
 
-			if tt.wantReason == "" {
-				require.NotNil(t, store)
-				assert.NotNil(t, hooks.Save)
-				assert.NotNil(t, hooks.Restore)
-				assert.True(t, status.Enabled)
-				assert.Equal(t, []string{""}, logs.lines(), "nothing is logged")
-				require.NoError(t, store.Close())
+			lines := nonEmpty(logs.lines())
+			assert.Len(t, lines, min(len(tt.wantLogContains), 1), "logged once, or not at all")
 
-				return
+			for _, want := range tt.wantLogContains {
+				assert.Contains(t, strings.Join(lines, "\n"), want)
 			}
 
-			assert.Nil(t, store)
-			assert.Nil(t, hooks.Save)
-			assert.Nil(t, hooks.Restore)
-			assert.Equal(t, manifestreader.StateStatus{
-				Restore: manifestreader.RestoreDisabled, DisabledReason: tt.wantReason,
-			}, status)
-
-			lines := logs.lines()
-			require.Len(t, lines, 1, "logged once")
-			assert.Contains(t, lines[0], "level=ERROR")
-			assert.Contains(t, lines[0], "reason="+tt.wantReason)
+			if store != nil {
+				require.NoError(t, store.Close())
+			}
 		})
 	}
+}
+
+func nonEmpty(lines []string) []string {
+	var out []string
+
+	for _, line := range lines {
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+
+	return out
 }
 
 // treeImage is every entry of a real directory, with the content of the files: two images are equal when nothing was
@@ -278,10 +314,17 @@ func treeImage(tb testing.TB, dir string) map[string]string {
 			return err
 		}
 
-		if entry.IsDir() {
-			out[name] = "<dir>"
+		switch {
+		case entry.Type()&fs.ModeSymlink != 0:
+			target, linkErr := os.Readlink(name)
+			out[name] = "<link " + target + ">"
 
-			return nil
+			return linkErr
+		case entry.IsDir():
+			info, infoErr := entry.Info()
+			out[name] = "<dir " + info.Mode().String() + ">"
+
+			return infoErr
 		}
 
 		data, readErr := os.ReadFile(name)
