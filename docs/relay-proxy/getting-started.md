@@ -9,7 +9,7 @@ This page starts a relay proxy locally with a file retriever.
 ## Build
 
 ```shell
-make build-relayproxy   # binary: out/bin/semaphore
+task build-relayproxy   # binary: out/bin/semaphore
 ```
 
 See [installation](install.md) for the other options (Docker, FIPS).

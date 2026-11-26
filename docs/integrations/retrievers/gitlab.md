@@ -35,8 +35,8 @@ retrievers:
 | `token`          | No | string | **none**             | GitLab personal access token used to access a private repository ([Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token)). |
 | `timeout`        | No | string | `10000`              | Timeout in millisecond used when calling GitLab.                                                                                                                                                         |
 
-## Configure the GO Module
-To configure your GO module to use the GitLab retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the GitLab retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

@@ -16,7 +16,7 @@ from the [GitHub Releases](https://github.com/BlackbirdWorks/semaphore/releases)
 ## Build the Command Line
 
 ```shell
-make build-cli   # binary: out/bin/semaphore-cli
+task build-cli   # binary: out/bin/semaphore-cli
 ```
 
 The docs below call the binary `semaphore-cli`; use `out/bin/semaphore-cli` in the examples.

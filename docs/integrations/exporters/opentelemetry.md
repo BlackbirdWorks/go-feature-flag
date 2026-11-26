@@ -24,9 +24,9 @@ feature evaluation.
   - `feature_flag.metadata.<key>` for each metadata entry
 - If the default value was used, the span status will be set to an error code to signal fallback usage.
 
-## Configure the GO Module
+## Configure the Go Module
 
-To use the exporter in your application with the GO Module, provide an instance of the exporter
+To use the exporter in your application with the Go module, provide an instance of the exporter
 in the `ffclient.Config` `DataExporter.Exporter` field. Optionally override the tracer name
 with `TracerName`.
 

@@ -756,7 +756,7 @@ Check [_"Use specific port for the monitoring"_](observability.md#use-specific-p
 
 #### `server.awsLambdaAdapter`
 
-This parameter allow you to decide which type of AWS lambda handler you want to use.
+Selects which AWS Lambda event adapter to use.
 
 - option name: `awsLambdaAdapter`
 - type: **string**

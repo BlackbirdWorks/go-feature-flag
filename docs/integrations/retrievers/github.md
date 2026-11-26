@@ -36,8 +36,8 @@ retrievers:
 | `githubAppPrivateKey`      | No | string | **none** | PEM-encoded RSA private key for the GitHub App (inline). Use this or `githubAppPrivateKeyFile`, not both.                                                                                                                          |
 | `githubAppPrivateKeyFile`  | No | string | **none** | Path to a PEM file containing the GitHub App private key. Useful for Kubernetes secret volume mounts. Takes precedence over `githubAppPrivateKey` if both are set.                                                                 |
 
-## Configure the GO Module
-To configure your GO module to use the GitHub retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the GitHub retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go
@@ -105,7 +105,7 @@ retrievers:
 > `githubAppPrivateKey` / `githubAppPrivateKeyFile`) are mutually exclusive.
 > Validation will reject a configuration that supplies both.
 
-### GO Module Configuration
+### Go Module Configuration
 
 ```go
 client, err := ffclient.New(&ffclient.Config{
@@ -140,7 +140,7 @@ retrievers:
 # ...
 ```
 
-### GO Module Configuration
+### Go Module Configuration
 
 ```go
 client, err := ffclient.New(&ffclient.Config{

@@ -63,8 +63,8 @@ exporters:
 | `flushInterval`     | No | int     | `60000`                                                       | The interval in millisecond between 2 calls to the exporter _(if the `maxEventInMemory` is reached before the flushInterval we will call the exporter before)_. |
 | `maxEventInMemory`  | No | int     | `100000`                                                      | If we hit that limit we will call the exporter.                                                                     |
 
-## Configure the GO Module
-To configure your GO module to use the AWS Redshift exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the AWS Redshift exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

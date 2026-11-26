@@ -1,32 +1,28 @@
-# Notifier
+# Notifiers
 
 ## Overview
-In Semaphore, a **notifier** is a component that informs you about changes in the feature flag configuration.
 
-It's distinct from [exporters](exporter.md), which handle the results of flag evaluations. Notifiers focus on changes to the configuration itself.
+A **notifier** sends alerts when Semaphore detects a change in your flag configuration. Unlike [exporters](exporter.md) (which record flag evaluations), notifiers only react to flag file changes.
 
-## About notifiers
+## How it works
 
-When the Semaphore client detects a change in the configuration through the retriever's polling mechanism, it triggers the configured notifiers.
-The notifier then sends a notification to the specified destination.
-
-Notifiers are useful for a variety of purposes, such as:
-- **Information**: Notifiers can send to your team chat a notification that a feature flag has changed.
-- **Reacting to flag changes**: Using the webhook notifier, you can trigger any action you want in your system to react to flag changes.
+- When a [retriever](retriever.md) polls and detects a flag change, Semaphore calls every configured notifier.
+- Common uses:
+  - Posting flag updates to team chat (Slack, Discord, Microsoft Teams).
+  - Triggering downstream automation via a webhook.
 
 > [!NOTE]
-> ****Limitation if you are running multiple Semaphore****
-> By nature, Semaphore is 100% stateless, so if you run multiple instance of Semaphore, you will receive notification for changes from each instance.
-> In each notification you will have the `hostname` of the instance, it can be useful if you have multiple instances running.
+> **Multiple instances**
+> Semaphore is stateless, so running multiple instances sends a notification from each instance. Every notification includes the instance `hostname` so you can tell them apart.
 
-## Key Differences Between Notifiers and Exporters
+## Notifiers vs. Exporters
 
-| Feature       | Notifiers                                   | Exporters                                         |
-|---------------|---------------------------------------------|---------------------------------------------------|
-| **Purpose**   | 	Notify about configuration changes         | 	Export flag evaluation results.                  |
-| **Trigger**   | 	Configuration update detected by retriever | 	Flag evaluation _(e.g., calling `BoolValue()`)_. |
-| **Data Sent** | 	Information about the configuration change | 	Flag name, variation, user context, timestamp.   |
-| **Use Cases** | 	Informing about configuration changes      | 	Analytics, monitoring flag usage, debugging.     |
+| Feature | Notifiers | Exporters |
+|---|---|---|
+| **Purpose** | Notify on config changes | Export flag evaluation events |
+| **Trigger** | Retriever detects a flag change | Flag evaluation (for example `BoolValue()`) |
+| **Data sent** | Diff of changed flags | Flag key, variation, context, timestamp |
+| **Use cases** | Team alerts, webhooks | Analytics, usage monitoring, auditing |
 
 ## Supported notifiers
 
@@ -36,4 +32,4 @@ Notifiers are useful for a variety of purposes, such as:
 - Webhook
 - Log
 
-[Check how to configure the notifiers](../integrations/notifiers/README.md)
+See [Configure notifiers](../integrations/notifiers/README.md) for setup examples.

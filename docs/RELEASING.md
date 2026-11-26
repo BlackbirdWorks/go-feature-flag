@@ -21,7 +21,7 @@ Nothing has been released yet. Everything below is "available after the first re
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |
 | Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>` and, for stable releases only, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
 | CLI image | `ghcr.io/blackbirdworks/semaphore-cli:v<version>` (+ `v<major>.<minor>`, `v<major>`, `latest` for stable releases only) | GitHub Container Registry |
-| Documentation site | Built from `docs/` with VitePress (stable releases only, deployed in parallel with `release`) | GitHub Pages (`https://blackbirdworks.github.io/semaphore/`) |
+| Documentation site | Built from `docs/` with VitePress (stable releases only, deployed in parallel with `release`) | GitHub Pages (`https://semaphore.blackbirdworks.dev/`) |
 
 All images run as uid 65532 and have `/usr/local/bin/semaphore` as `ENTRYPOINT` (the CLI image has
 `/semaphore-cli`): arguments are passed directly (`docker run IMAGE --config /path`), and `--entrypoint` overrides it. They carry the `org.opencontainers.image.*` labels (source =
@@ -40,7 +40,7 @@ chart (the Helm chart of the original project was not carried over: the owner do
    tag (made by `github-actions[bot]`, not signed: the project has no signing key) on the commit the run started
    on, and `release` publishes it. The release job runs in the same workflow run: a tag pushed with
    `GITHUB_TOKEN` does not start another run, which is why the tag is not a separate trigger here.
-   The version logic is `.github/ci-scripts/release-plan.sh`, unit tested by `make test-ci-scripts` (run in CI).
+   The version logic is `.github/ci-scripts/release-plan.sh`, unit tested by `task test-ci-scripts` (run in CI).
 4. Watch the run to its end before starting another: a second run started while one is active and another is
    pending replaces the pending run (one pending run per concurrency group). Runs are serialised, and each
    computes its version after the previous one finished.

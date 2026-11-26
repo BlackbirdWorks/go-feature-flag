@@ -20,7 +20,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 - `retriever/`, `exporter/`, `notifier/`: integrations (flag sources, evaluation-data sinks, change notifications).
 - `testhelpers/` (mocks, `gopherstack` emulator helpers), `testdata/`: test helpers and fixtures.
 - `openfeature/provider_tests/`: compatibility tests of the relay proxy against real OpenFeature providers.
-- `.github/ci-scripts/`: CI helper scripts (test sharding, coverage, fuzz); `docs/`: Markdown documentation (`docs/README.md`).
+- `.github/ci-scripts/`: CI helper scripts (test sharding, coverage, fuzz); `docs/`: Markdown documentation (`docs/README.md`) and inline VitePress site (`docs/.vitepress/`).
 - `.schema/flag-schema.json`: JSON schema of the flag file.
 - Entry points: `ffclient.New()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`; interfaces `Retriever`, `Exporter`, `Notifier`.
 
@@ -125,3 +125,11 @@ task provider-tests
 ## Releases
 
 Tags, releases and images are created only by the release workflow, run by hand with a bump type (minor or major); never tag or publish by hand, except that an owner may push a pre-release tag (`-alpha.N`, `-beta.N`, `-rc.N`) which the same workflow publishes. See [docs/RELEASING.md](docs/RELEASING.md).
+
+## Documentation
+
+- `docs/` is both plain GitHub Markdown and the VitePress site at `https://semaphore.blackbirdworks.dev/` (auto-deployed on stable releases; run `task docs-dev` to preview, `task docs-deploy` to publish).
+- **Style**: be concise and direct. Use simple, plain language, prefer bullet lists over long prose, and show quick code snippets for examples.
+- Keep `docs/**/*.md` valid plain Markdown (no VitePress frontmatter outside `docs/index.md`, relative `.md` links, no blank lines inside HTML `<table>` blocks).
+- When adding, removing, or renaming a page, update `docs/README.md` and the sidebar in `docs/.vitepress/config.mts`, then check with `task docs-build`.
+- **No machine specs**: keep benchmark/perf hardware vague (e.g. "commodity 4-core / 8-thread Linux machine"). Never include CPU models, exact RAM, hostnames, local paths, or kernel patch versions.

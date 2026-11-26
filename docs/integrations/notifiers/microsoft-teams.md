@@ -1,8 +1,7 @@
 # Microsoft Teams
 
 ## Overview
-The microsoft teams notifier allows to get notified on your favorite microsoft teams channel when an instance of GO Feature FLag is
-detecting changes in the configuration of your flags.
+The Microsoft Teams notifier sends a message to a Teams channel when Semaphore detects changes in your flag configuration.
 
 ## About Microsoft Teams Notifier
 Each notification lists the flags that were created, updated or deleted.
@@ -42,8 +41,8 @@ notifiers:
 | `kind`       | Yes | string | **none** | **Value should be `microsoftteams`**.<br/>_This field is mandatory and describes which notifier you are using._ |
 | `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Microsoft Teams.                                        |
 
-## Configure the GO Module
-To configure your GO module to use the Microsoft Teams notifier, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Microsoft Teams notifier, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

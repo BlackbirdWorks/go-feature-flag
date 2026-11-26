@@ -51,8 +51,8 @@ retrievers:
 | `database`   | Yes | string | **none** | Name of the **database** where flags are stored.                                                          |
 | `collection` | Yes | string | **none** | Name of the **collection** where flags are stored.                                                        |
 
-## Configure the GO Module
-To configure your GO module to use the MongoDB retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the MongoDB retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

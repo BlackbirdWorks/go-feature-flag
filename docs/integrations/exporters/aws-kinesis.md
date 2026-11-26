@@ -25,8 +25,8 @@ exporters:
 | `streamArn`  |  Yes   | string | **none** | The ARN of your kinesis stream.                                                                           |
 | `streamName` | No | string | **none** | The name of your kinesis stream.                                                                          |
 
-## Configure the GO Module
-To configure your GO module to use the AWS Kinesis exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the AWS Kinesis exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

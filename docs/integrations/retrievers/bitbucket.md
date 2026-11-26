@@ -30,8 +30,8 @@ retrievers:
 | `token`          | No | string | **none**             | Bitbucket token used to access a private repository ([_Create a Repository Access Token_](https://support.atlassian.com/bitbucket-cloud/docs/create-a-repository-access-token/)). |
 | `timeout`        | No | string | `10000`              | Timeout in millisecond used when calling GitLab.                                                                                                                                  |
 
-## Configure the GO Module
-To configure your GO module to use the Bitbucket retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Bitbucket retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

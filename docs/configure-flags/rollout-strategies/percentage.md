@@ -15,10 +15,10 @@ The expected format is a map where the **key is the variation name** and the **v
 You can have as many variations as you want in the percentages, and you can define the percentage of users that will see each variation.
 
 > [!NOTE]
-> If the sum of your percentages is not equal to 100 this is not a problem, we are computing the affectation as fractional numbers.
-> Each percentage must be a finite, non-negative number (no negative, `NaN` or infinite values), a flag with an invalid percentage is rejected.
+> Percentages do not have to sum to 100—Semaphore normalizes them as fractions of the total weight.
+> Each percentage must be a finite, non-negative number (negative, `NaN`, or infinite values are rejected).
 >
-> _**example**: if you have 2 variations and you set `variation1: 10` and `variation2: 50` it will be equivalent to `variation1: 10/60` and `variation2: 50/60`._
+> _Example: `variation1: 10` and `variation2: 50` splits traffic as `10/60` and `50/60`._
 
 ## How percentage rollout works?
 

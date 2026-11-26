@@ -1,61 +1,47 @@
-# Export evaluation data
+# Export Evaluation Data (Exporters)
 
 ## Overview
-Sometimes when you are using feature flags in your application, you may want to collect data on how the flags are being used.
-This is the reason why Semaphore has the exporter concept, a mechanism that store an event for each evaluation of a flag.
 
-## About exporters
-To export evaluation data, you have to configure the target where you want to export the data.
+An **exporter** records flag evaluation and tracking events and sends them to external analytics, logging, or storage systems. Events are buffered in memory and flushed either on a timer or when the buffer fills.
 
-Semaphore provides a list of built-in exporters that you can use out of the box. The goal is to let you choose the one that fits your needs the best.
+Every integration page below includes examples for both the **Relay Proxy** and the **Go Module**.
 
-During flag evaluation, the key, flag variation and other non-sensitive information used are collected and cached for a configurable period of time.
-When the cache is full or the cache duration is reached, the exporter is called with the list of events to store it where you want.
+## Available exporters
 
-You have 2 different ways to specify a exporter depending on if you are using the **GO Module** or the **Relay Proxy**.
-In all the details pages of the exporters below you will have an example for both usages (relay proxy and Go module).
-
-## Available Exporters
-Bellow is the full list of exporters that are available in Semaphore.
-
-- [AWS S3](aws-s3.md): Export evaluation data to a AWS S3 Bucket.
-- [MinIO](minio.md): Export evaluation data to MinIO, or any other S3-compatible object store.
-- [Azure Blob Storage](azure-blob-storage.md): Export evaluation data to an Azure Blob Storage.
-- [File System](file.md): Export evaluation data to a directory in your file system.
-- [Apache Kafka](kafka.md): Export evaluation data inside a Kafka topic.
-- [AWS Kinesis](aws-kinesis.md): Export evaluation data inside a Kafka Kinesis stream.
-- [Google Cloud Storage](google-cloud-storage.md): Export evaluation data to a Google Cloud Storage Bucket.
-- [Google Cloud PubSub](google-cloud-pubsub.md): Export evaluation data inside a GCP PubSub topic.
-- [Google Cloud BigQuery](google-cloud-bigquery.md): Export evaluation and tracking data to Google Cloud BigQuery.
-- [AWS SQS](aws-sqs.md): Export evaluation data inside a AWS SQS queue.
-- [AWS Redshift](aws-redshift.md): Export evaluation and tracking data to AWS Redshift.
-- [Webhook](webhook.md): Export evaluation data by calling a HTTP Webhook.
-- [Log](log.md): Export evaluation data inside the application logger.
-- [OpenTelemetry](opentelemetry.md): Export evaluation events as OpenTelemetry spans.
+- [AWS S3](aws-s3.md): export events to an AWS S3 bucket.
+- [MinIO](minio.md): export events to MinIO or any S3-compatible object store.
+- [Azure Blob Storage](azure-blob-storage.md): export events to Azure Blob Storage.
+- [File System](file.md): write events to a local directory.
+- [Apache Kafka](kafka.md): publish events to a Kafka topic.
+- [AWS Kinesis](aws-kinesis.md): publish events to an AWS Kinesis stream.
+- [Google Cloud Storage](google-cloud-storage.md): export events to a GCS bucket.
+- [Google Cloud Pub/Sub](google-cloud-pubsub.md): publish events to a GCP Pub/Sub topic.
+- [Google Cloud BigQuery](google-cloud-bigquery.md): export evaluation and tracking data to BigQuery.
+- [AWS SQS](aws-sqs.md): send events to an AWS SQS queue.
+- [AWS Redshift](aws-redshift.md): export evaluation and tracking data to AWS Redshift.
+- [Webhook](webhook.md): send events to an HTTP webhook.
+- [Log](log.md): write events to the application logger.
+- [OpenTelemetry](opentelemetry.md): export evaluation events as OpenTelemetry spans.
 
 ## Custom exporter
-If you have a specific use case that is not covered by the built-in exporters, you can create your own custom exporter.
 
-To create a custom exporter you must have a `struct` that implements the exporter.Exporter interface.
+Implement `exporter.Exporter` to send events to a custom destination:
 
 ```go
 type Exporter interface {
-  // Export will send the data to the exporter.
+  // Export sends collected events to the destination.
   Export(context.Context, *slog.Logger, []ExportableEvent) error
 
-	// IsBulk return false if we should directly send the data as soon as it is produced
-	// and true if we collect the data to send them in bulk.
-	IsBulk() bool
+  // IsBulk returns false to stream each event immediately, or true to batch events.
+  IsBulk() bool
 }
 ```
 
-- `Export(...)` is called asynchronously with a list of `ExportableEvent` that have been collected.
-   It is your responsibility to store them where you want.
-- `IsBulk()` function should return false if the exporter can handle the results in stream mode.
-   If you decide to manage it in streaming mode, everytime we call a variation the Export function will be called with only on event in the list.
+- `Export(...)` runs asynchronously with the collected `ExportableEvent` slice.
+- Return `false` from `IsBulk()` for streaming mode (one event per call) or `true` for batched flushes.
 
 > [!NOTE]
-> If you think your custom exporter could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls) to add it to the list of available exporters.
+> Want to contribute an exporter? Open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls).
 
 > [!WARNING]
-> If you are using a custom exporter, it is easy to use it for the GO Module, but if you want to use it in the relay proxy you will have to recompile it yourself.
+> Custom exporters plug straight into the Go module, but require rebuilding the relay proxy binary to use them there.

@@ -21,7 +21,7 @@ logFormat: json
 | Field name |    Mandatory     | Type   | Default    | Description                                                                                                                                                                                                                                                     |
 |------------|:----------------:|--------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | logLevel   | No | string | **`INFO`** | The log level to use for the relay proxy.<br/> Available values are `ERROR`, `WARN`, `INFO`, `DEBUG`.                                                                                                                                                           |
-| logFormat  | No | string | **`json`** | <p>The format to use for structured logs from the relay proxy.<br/>Valid values are `json` and `logfmt`.</p><p><ul><li>**json**: Will output the logs in `JSON` format (default).</li><li>**logfmt**: Will output the log as text in the console.</li></ul></p> |
+| logFormat  | No | string | **`json`** | Format for structured logs from the relay proxy: `json` (default, JSON lines) or `logfmt` (human-readable key=value text). |
 
 ### Log output
 

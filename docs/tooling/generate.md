@@ -3,8 +3,7 @@
 > [!WARNING]
 > This feature is experimental and may change in the future.
 
-The [OpenFeature cli](https://github.com/open-feature/cli) allow code generation for flag accessors for OpenFeature.  
-This allows to have a type safe way to access your flags in your code based on a flag manifest you can provide to the OpenFeature cli.
+The [OpenFeature CLI](https://github.com/open-feature/cli) generates type-safe flag accessors from a flag manifest.
 
 To generate the OpenFeature flag manifest you can use the `generate manifest` command of the `semaphore-cli`,
 it will generate a flag manifest file compatible with the **`OpenFeature cli`** that you can use.

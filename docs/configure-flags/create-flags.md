@@ -2,63 +2,40 @@
 
 ## Overview
 
-In **Semaphore** a flag is a configuration that allows you to serve a variation based on some conditions.
-
-Since day 1, we have decided that we won't be the one telling you were to store your feature flags, and this is why we have introduce the concept of [**retriever**](../concepts/retriever.md).
-To support this concept we had to define a simple way to define your feature flags.
-
-In **Semaphore** you can store your flags in a file, and we support `YAML`, `JSON` and `TOML` format.
+In Semaphore, flags are defined as key/value entries in `YAML`, `JSON`, or `TOML` files and loaded by a [**retriever**](../concepts/retriever.md).
 
 > [!NOTE]
-> ****OpenFeature Definition of a Feature Flag****
-> A mechanism that allows an Application Author to define alternative codepaths within a deployed piece of software, which is conditionally executed at runtime, based on a rule set.
+> **OpenFeature definition**
+> A feature flag lets an application select alternative code paths at runtime based on rules and context, without redeploying.
 
-## Create your first feature flag manually
+## Create your first flag
 
-1. When starting to use Semaphore, the first step will be to create the flag that will store your feature flags.
-   **This file should be a `YAML`, `JSON` or `TOML` file.**
+1. Create a `YAML`, `JSON`, or `TOML` file for your flags.
+2. Pick a unique flag key (for example, `display-banner`).
+3. Define its `variations` and a `defaultRule`:
 
-   ✏️ In this file you can start creating your feature flags.
+```yaml
+display-banner:
+  variations:
+    enabled: true
+    disabled: false
+  defaultRule:
+    variation: disabled
+```
 
-2. First, **find a name** for your feature flag (this will be the key of your flag and **it must be unique**).
-3. Define the **variations** that your flag can return.
-   ```yaml
-   display-banner:
-     variations:
-       enabled: true
-       disabled: false
-       # ...
-   ```
-4. Define a **default rule**, that will be serve when no targeting match.
-   ```yaml
-   display-banner:
-     variations:
-       enabled: true
-       disabled: false
-     defaultRule:
-       variation: disabled
-   ```
-5. **🎉 Congrats you have your first feature flag created.**
-   _This flag will return the variation `disabled` and the value `false` for all the users, but you can start targeting a specific group of users to return the variant `enabled`._
-6. Now you can [store your flag](../integrations/retrievers/README.md) file in your favorite storage and start using it in your application.
+4. Store the file in any supported [retriever](../integrations/retrievers/README.md) and point Semaphore at it.
 
-### Allowed types
+### Supported types
 
-Semaphore feature flags allow you to use custom variations to dynamically configure flag behavior.
-Traditionally, feature flags return a boolean value: `true` or `false`. This works well for basic end user management and a kill switch.
-
-In addition to **boolean** values, Semaphore allows you to return **strings**, **integers**, **floats**, **JSON arrays**, and **JSON objects**.
-This makes it possible to do configuration management via feature flags and manage plans/complex functionality.
+Flags can return **booleans**, **strings**, **integers**, **floats**, **JSON arrays**, or **JSON objects**.
 
 > [!TIP]
-> ****Never update the type of your feature flag****
-> We recommend to never change the type of your feature flag _(if you have a boolean flag, keep it as a boolean)_.
-> Why? Because apps trying to evaluate them in the different language will expect the type to stay constant.
+> **Keep variation types consistent**
+> Do not change a flag's value type after rollout—SDK callers expect a stable type.
 
 ### Multi-variant flags
 
-Since Semaphore is managing more than `boolean` we can have as many alternative variations as needed.
-This is useful for A/B testing, permissions management, and other use cases where targeting a consistent group of users is required.
+Define as many variations as needed (for example, A/B/n tests or plan tiers). Every variation in a flag must share the same type:
 
 ```yaml
 scream-level-feature:
@@ -70,17 +47,12 @@ scream-level-feature:
     variation: low
 ```
 
-As you can see in the example above, we have a flag that can return 3 different values: `whisper`, `talk`, and `scream`.
-
 > [!CAUTION]
-> It is important that all variations have the same type, if not the flag will be considered invalid.
+> All variations in a single flag must have the same type, or the flag is rejected as invalid.
 
-### Percentages affectation
+### Percentage splits
 
-A reason to use feature flags is to dynamically affect the traffic to different variations.
-We want a way to control the percentage of users that will see a specific variation.
-
-If we take our example of a multi-variant flag, we can split the traffic in 3 groups and affect percentages for each variation in order to control who is seeing what.
+Split traffic across variations using `percentage` weights:
 
 ```yaml
 scream-level-feature:
@@ -96,234 +68,56 @@ scream-level-feature:
 ```
 
 > [!NOTE]
-> ****How does it work?****
-> It builds a hash with the flag name and the targeting key provided in the evaluation context in order to split the traffic in a consistent way.
->
-> It means that for a specific `targetingKey` the user will always see the same flag variation overtime.
+> **Deterministic bucketing**
+> Semaphore hashes the flag name with the `targetingKey` (or `bucketingKey`), so the same user consistently gets the same variation.
 
-## Format details
+## Format reference
 
-<table>
-  <thead>
-    <tr>
-      <th>Field</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td width="20%">
-        <strong>flag-key</strong>
-      </td>
-      <td>
-        Name of your flag.
-        <br />
-        <i>It must be unique.</i>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>bucketingKey</code>
-        <br />
-        <i><sup><sup>optional</sup></sup></i>
-      </td>
-      <td>
-        <p>
-          Selects a key from the evaluation context that will be used in place
-          of the <code>targetingKey</code> for the purpose of evaluating which
-          variant to serve.
-          If <code>bucketingKey</code> is set and the value is missing from the context, the flag will not be evaluated.
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>variations</code>
-      </td>
-      <td>
-        <p>Variations are all the variations available for this flag.</p>
-        <p>
-          It is represented as a key/value element. The key is the name of the
-          variation and the value could be of any types available (
-          <code>string</code>, <code>float</code>, <code>int</code>,
-          <code>map</code>, <code>array</code>, <code>bool</code>).
-        </p>
-        <p>You can have as many variations as needed.</p>
-        <pre>
-          <h2>Some examples:</h2>
-          variationString: test
-          variationBool: true
-          variationInt: 1000
-          variationFloat: 1000.23
-          variationArray: <br /> - item1<br/> - item2
-          variationObj:<br /> item1: 123<br /> item2: this is a string<br /> item3: false
-        </pre>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>targeting</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          Targeting contains the list of rules you have to target a subset of
-          your users.
-          <br />
-          You can have as many target as needed.
-        </p>
-        <p>
-          This field is an <code>array</code> and contains a list of rules.
-        </p>
-        <p>
-          <i>
-            See <a href="target-with-flags.md">Target with Flag</a> to have more info on
-            how to write a rule.
-          </i>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>defaultRule</code>
-      </td>
-      <td>
-        <p>
-          DefaultRule is the rule that is applied if the user does not match in
-          any targeting.
-        </p>
-        <p>
-          <i>
-            See <a href="target-with-flags.md">Target with Flag</a> to have more info on
-            how to write a rule.
-          </i>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>trackEvents</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          <code>false</code> if you don't want to export the data in your data exporter.
-        </p>
-        <p>
-          <b>Default:</b> <code>true</code>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>disable</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          <code>true</code> if the flag is disabled.
-        </p>
-        <p>
-          <b>Default:</b> <code>false</code>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>version</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          The `version` is the version of your flag.
-          <br />
-          This string is used to display the information in the notifiers and
-          data collection, you have to update it yourself.
-        </p>
-        <p>
-          <b>Default:</b> <code>""</code>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>metadata</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          This field allows adding a wealth of information about a particular
-          feature flag, such as a configuration URL or the originating Jira
-          issue.
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>scheduledRollout</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>`scheduledRollout` allows to patch your flag over time.</p>
-        <p>
-          You can add several steps that update the flag, this is typically
-          used if you want to gradually add more user in your flag.
-        </p>
-        <p>
-          <i>
-            See <a href="rollout-strategies/scheduled.md">Scheduled rollout</a> to have
-            more info on how to use it.
-          </i>
-        </p>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <code>experimentation</code>
-        <br />
-        <sup><sup>optional</sup></sup>
-      </td>
-      <td>
-        <p>
-          Experimentation allows you to configure a start date and an end date
-          for your flag. When the experimentation is not running, the flag will
-          serve the default value.
-        </p>
-        <p>
-          <i>
-            See <a href="rollout-strategies/experimentation.md">Experimentation rollout</a>
-            to have more info on how to use it.
-          </i>
-        </p>
-      </td>
-    </tr>
-  </tbody>
-</table>
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `<flag-key>` | Yes | — | Unique flag identifier (top-level map key). |
+| `variations` | Yes | — | Map of variation names to typed values (`bool`, `string`, `int`, `float`, `array`, or `object`). |
+| `defaultRule` | Yes | — | Rule applied when no `targeting` rule matches. See [Targeting rules](target-with-flags.md). |
+| `targeting` | No | `[]` | Ordered list of targeting rules. See [Targeting rules](target-with-flags.md). |
+| `bucketingKey` | No | `targetingKey` | Evaluation context attribute hashed instead of `targetingKey`. If missing from the context, the flag falls back to default. |
+| `trackEvents` | No | `true` | Set to `false` to skip exporting evaluation events for this flag. |
+| `disable` | No | `false` | Set to `true` to disable the flag and return the caller's default value. |
+| `version` | No | `""` | Optional flag version included in notifications and exported events. |
+| `metadata` | No | `{}` | Arbitrary key/value metadata (for example, links, owner, or `updatedBy`). |
+| `scheduledRollout` | No | `[]` | Time-based patches applied to the flag. See [Scheduled rollout](rollout-strategies/scheduled.md). |
+| `experimentation` | No | — | Start/end window during which the flag is active. See [Experimentation](rollout-strategies/experimentation.md). |
 
-## Advanced configurations
+Example variation value types:
 
-You can have advanced configurations for your flag for them to have specific behavior, such as:
+```yaml
+example-types:
+  variations:
+    str: "test"
+    flag: true
+    count: 1000
+    ratio: 1000.23
+    items:
+      - item1
+      - item2
+    config:
+      item1: 123
+      item2: "this is a string"
+      item3: false
+```
 
-- [Target with Flags](target-with-flags.md)
-- [Specific rollout strategies](rollout-strategies/README.md)
-- [Have a specific bucketing key](custom-bucketing.md)
+## Advanced options
+
+- [Targeting rules](target-with-flags.md)
+- [Rollout strategies](rollout-strategies/README.md)
+- [Custom bucketing](custom-bucketing.md)
 
 ---
 
-## Example of a flag lifecycle
+## Example flag lifecycle
 
-In this example, we want to test the right screaming level we should have for the Monster.Inc company to be successful.
-Considering that Today the level used is "whisper", this how we want our flag to act.
+Suppose we want to roll out a new `scream-level-feature` starting from `"whisper"`:
 
-#### 1. Creating the flag
-
-We are creating a new flag in our file called `flag-config.yaml` and we are naming it `scream-level-feature`.
+#### 1. Create the flag
 
 ```yaml
 scream-level-feature:
@@ -335,17 +129,13 @@ scream-level-feature:
     variation: low
 ```
 
-#### 2. Code deployment
+#### 2. Deploy code
 
-After the flag is configured in Semaphore, we can deploy our code that is evaluating the flag.
+Deploy code that evaluates `scream-level-feature`. Behavior stays identical (`"whisper"`).
 
-Since we are returning the same level as before, nothing is changing, we are happy about that 😁.
+#### 3. Target internal testers
 
-#### 3. Start testing the flag
-
-Now we can start testing the flag, we can start by asking our product manager to test the new feature in production.
-
-To achieve this we are targeting the product manager with his unique ID and we are returning the variation `high`.
+Target a specific `targetingKey` with `high` while everyone else keeps `low`:
 
 ```yaml
 scream-level-feature:
@@ -360,11 +150,9 @@ scream-level-feature:
     variation: low
 ```
 
-_We can iterate on this phase until the result is satisfying._
+#### 4. Run a percentage split
 
-#### 4. Testing variations
-
-Now that we know that the flag is working well, we can start testing the 3 different variations, to see which one perform best.
+Split traffic across all variations to compare results:
 
 ```yaml
 scream-level-feature:
@@ -379,9 +167,9 @@ scream-level-feature:
       high: 33
 ```
 
-#### 5. Set the new default value
+#### 5. Promote the winner
 
-After testing the different variations, we can decide to change the default value to the one that performed the best \_(here is it `high`).
+Set `high` as the default once it wins:
 
 ```yaml
 scream-level-feature:
@@ -393,6 +181,6 @@ scream-level-feature:
     variation: high
 ```
 
-#### 5. Remove the flag
+#### 6. Clean up
 
-After some time and the feature is now part of the product, we can remove the flag.
+Once the feature is permanent, remove the flag check from code and delete the entry from the flag file.

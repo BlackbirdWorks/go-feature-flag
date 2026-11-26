@@ -32,8 +32,8 @@ retrievers:
 | `redisOptions` | Yes | object | **none** | Connection options for your Redis instance. The relay proxy supports only the options defined in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmdhelpers/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
 | `redisPrefix` | No | string | **none** | Prefix used before your flag name in the Redis DB. |
 
-## Configure the GO Module
-To configure your GO module to use the Redis retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Redis retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

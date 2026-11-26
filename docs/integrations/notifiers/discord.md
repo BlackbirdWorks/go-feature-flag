@@ -4,8 +4,7 @@
 Send notifications to a Discord channel.
 
 ## About Discord Notifier
-The discord notifier allows to get notified on your favorite discord channel when an instance of `semaphore` is
-detecting changes in the configuration of your flags.
+The Discord notifier sends a message to a Discord channel when Semaphore detects changes in your flag configuration.
 
 Each notification lists the flags that were created, updated or deleted.
 For an updated flag, every change is described as a short sentence, for example:
@@ -50,8 +49,8 @@ notifier:
 | `kind`       | Yes | string | **none** | **Value should be `discord`**.<br/>_This field is mandatory and describe which retriever you are using._ |
 | `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Discord.                                         |
 
-## Configure the GO Module
-To configure your GO module to use the Discord notifier, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Discord notifier, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

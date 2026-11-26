@@ -34,11 +34,10 @@ dark-mode:
 Semaphore shows the value as it is in the file and does not verify it, so update it with every change or the notification names the previous editor.
 
 > [!WARNING]
-> ****Limitation if you are running multiple Semaphore****
-> By nature, Semaphore is 100% stateless, so if you run multiple instance of Semaphore, you will receive notification for changes from each instance.
-> In each notification you will have the `hostname` of the instance, it can be useful if you have multiple instances running.
+> **Multiple instances**
+> Semaphore is stateless, so running multiple instances sends a notification from each instance. Every notification includes the instance `hostname` so you can tell them apart.
 
-You have 2 different ways to specify a notifier depending on if you are using the **GO Module** or the **Relay Proxy**.
+You have 2 different ways to specify a notifier depending on if you are using the **Go module** or the **Relay Proxy**.
 In all the details pages of the notifiers below you will have an example for both usages (relay proxy and Go module).
 
 ## Available Notifiers
@@ -89,4 +88,4 @@ for key, update := range diff.Updated {
 > If you think your custom notifier could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls) to add it to the list of available notifiers.
 
 > [!WARNING]
-> If you are using a custom notifier, it is easy to use it for the GO Module, but if you want to use it in the relay proxy you will have to recompile it yourself.
+> If you are using a custom notifier, it is easy to use it for the Go module, but if you want to use it in the relay proxy you will have to recompile it yourself.

@@ -23,8 +23,8 @@ exporters:
 | `kind`     | Yes | string | **none** | **Value should be `sqs`**.<br/>_This field is mandatory and describes which retriever you are using._ |
 | `queueUrl` | Yes | string | **none** | URL of your SQS queue.<br/>_You can find it in your AWS console._                                     |
 
-## Configure the GO Module
-To configure your GO module to use the AWS SQS exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the AWS SQS exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

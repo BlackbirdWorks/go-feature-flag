@@ -1,12 +1,9 @@
 # Custom Bucketing
 
 ## Overview
-When it comes to splitting the affectation of a flag, the `targetingKey` is usually given a user ID. This key ensures that a user will always be in the same group for each flag.
+By default, Semaphore hashes `targetingKey` (usually a user ID) to keep each user in the same variation bucket.
 
-But sometimes we want to be sure that a group of users will always be in the same group for each flag.
-The `bucketingKey` field in the flag configuration allows you to define a different identifier to be used instead of the `targetingKey`.
-
-This enables you to split users based on a custom identifier, such as a team ID, a company ID, or any other attribute that is common to multiple users.
+Set `bucketingKey` to hash a different context attribute instead—such as `teamId`, `companyId`, or `orgId`—so everyone sharing that attribute receives the same variation.
 
 ## How it works
 

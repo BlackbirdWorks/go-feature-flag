@@ -26,7 +26,7 @@ Flag usage tracking means: _every time someone gets a flag value, record that fa
 ## What you need to do
 
 1. **Turn on tracking for the flags you care about**: Set `trackEvents: true` in the flag configuration of your feature flag(or omit it; the default is `true`). See [configure your flags](../configure-flags/create-flags.md) for the flag format.
-2. **Configure at least one exporter for evaluation data**: Add a data exporter for feature events (the default event type). See [export evaluation data](../integrations/exporters/README.md) for available exporters and how to configure them for the relay-proxy or GO module.
+2. **Configure at least one exporter for evaluation data**: Add a data exporter for feature events (the default event type). See [export evaluation data](../integrations/exporters/README.md) for available exporters and how to configure them for the relay-proxy or Go module.
 
 No code changes are required beyond configuration for the default "feature" event type.
 

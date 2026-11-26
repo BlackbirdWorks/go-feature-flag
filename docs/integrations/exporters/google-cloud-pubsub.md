@@ -26,8 +26,8 @@ exporters:
 | `projectID` | Yes | string | **none** | Value should be ID of GCP project you are using.                                                         |
 | `topic`     | Yes | string | **none** | Topic name on which messages will be published.                                                          |
 
-## Configure the GO Module
-To configure your GO module to use the Google Cloud PubSub exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Google Cloud PubSub exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 > [!NOTE]

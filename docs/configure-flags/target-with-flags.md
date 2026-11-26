@@ -41,14 +41,14 @@ If you have more advanced needs you can also have a percentage repartition or ha
 
 ## Rule Format Details
 
-| Field                                                       | Description                                                                                                                                                                                                                                                                                                                                                                         |
-|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **query** <br/><sup><sup>⚠️ mandatory</sup></sup>                                                  | <p>**This field is mandatory in every rule used in the targeting field.** <br/> Query represents the condition to apply the rule.</p><p>Semaphore supports 2 different types of query format:<br/>&nbsp;&nbsp;- rules format<br/>&nbsp;&nbsp;- `JsonLogic` format</p><p>ℹ️ See [query formats section](#query-formats) to have the syntaxes.</p>                    |
-| **disabled** <br/><sup><sup>optional</sup></sup>           | <p>Set to <code>true</code> if you want to disable the rule.</p><p><b>Default:</b> <code>true</code>.</p>                                                                                                                                                                                                                                                                           |
-| **name** <br/><sup><sup>optional</sup></sup>               | Name of your rule. This is needed when your are updating a rule using a [scheduled rollout](rollout-strategies/scheduled.md).                                                                                                                                                                                                                                                                   |
-| **percentage** <br/><sup><sup>optional</sup></sup>         | <p>Represents the percentage we should give to each variation.</p><pre>percentage:<br/>  variationA: 10.59<br/>  variationB: 9.41<br/>  variationC: 80</pre><p>The format is the name of the variation and the percentage for this one.</p>                                                                                                                                         |
-| **progressiveRollout** <br/><sup><sup>optional</sup></sup> | <p>Allows you to ramp up the percentage of your flag over time.</p><p>You can decide at which percentage you start and end with in your release ramp. Before the start date we will serve the initial percentage and afterwards, we will serve the end percentage.</p><p><i>See <a href="rollout-strategies/progressive.md">progressive rollout</a> to have more info on how to use it.</i></p> |
-| **variation** <br/><sup><sup>optional</sup></sup>          | Name of the variation to return.                                                                                                                                                                                                                                                                                                                                                    |
+| Field | Required | Description |
+|---|---|---|
+| `query` | Yes | Rule condition in either `rules` format or `JsonLogic` format. See [Query formats](#query-formats). |
+| `disabled` | No | Set to `true` to disable the rule. Default: `false`. |
+| `name` | No | Optional rule name (required when updating a rule with a [scheduled rollout](rollout-strategies/scheduled.md)). |
+| `variation` | No* | Name of the variation to serve. |
+| `percentage` | No* | Map of variation names to percentage weights (e.g. `variationA: 10.59`, `variationB: 9.41`, `variationC: 80`). |
+| `progressiveRollout` | No* | Ramp traffic percentage over time. See [Progressive rollout](rollout-strategies/progressive.md). |
 
 > [!WARNING]
 > **Don't forget to return a variation.**
@@ -135,7 +135,7 @@ When you initialise `semaphore` you can set an **environment** for this Semaphor
     # ...
     ```
 
-### GO Module
+### Go Module
 
     ```go
     client, err := ffclient.New(&ffclient.Config{

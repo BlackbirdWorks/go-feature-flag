@@ -25,8 +25,8 @@ retrievers:
 
 The `path` value is resolved in the relay proxy process filesystem. When you run the relay proxy in a container, mount or copy the **flag file** so that path exists inside the container. You must also mount (or otherwise provide) the **relay proxy configuration file** itself (for example the YAML you pass with `-f` or via your image entrypoint): that file is separate from `retrievers[].path`, and both are usually required for the proxy to start and load flags correctly.
 
-## Configure the GO Module
-To configure your GO module to use the File System retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the File System retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

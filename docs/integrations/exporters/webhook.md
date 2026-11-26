@@ -64,8 +64,8 @@ exporters:
 | `meta`             | No | map[string]string   | **none** | Add all the information you want to see in your request.                                                                                                       |
 | `headers`          | No | map[string][]string | **none** | Add all the headers you want to add while calling the endpoint                                                                                                 |
 
-## Configure the GO Module
-To configure your GO module to use the Webhook exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Webhook exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

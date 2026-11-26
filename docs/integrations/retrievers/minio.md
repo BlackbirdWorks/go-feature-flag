@@ -88,12 +88,12 @@ services:
 > The network alias is required because Docker's DNS does not resolve wildcards: without
 > `my-featureflag-bucket.minio` the relay proxy cannot reach the bucket even with `MINIO_DOMAIN` set.
 >
-> If you use the **GO Module** instead of the relay proxy, you don't need any of this: use `S3ClientOptions` to force
+> If you use the **Go module** instead of the relay proxy, you don't need any of this: use `S3ClientOptions` to force
 > path-style addressing _(see below)_.
 
-## Configure the GO Module
+## Configure the Go Module
 
-The GO Module exposes `S3ClientOptions`, which lets you force path-style addressing. This works with any endpoint,
+The Go module exposes `S3ClientOptions`, which lets you force path-style addressing. This works with any endpoint,
 hostname or IP, and requires no MinIO-side configuration:
 
 ```go
@@ -144,7 +144,7 @@ defer client.Close()
 
 Your endpoint is a hostname, so the SDK is using virtual-host addressing and MinIO reads the first path segment as the
 bucket name. Use an IP endpoint, configure [`MINIO_DOMAIN` and a DNS alias](#using-a-hostname-endpoint), or set
-`UsePathStyle` if you are on the GO Module.
+`UsePathStyle` if you are on the Go module.
 
 #### `dial tcp ...: no route to host` on `http://my-featureflag-bucket.minio:9000`
 

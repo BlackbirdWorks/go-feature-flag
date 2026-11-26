@@ -93,8 +93,8 @@ point the AWS SDK at your server with `AWS_ENDPOINT_URL_S3`.
 > Read the [**MinIO** page](minio.md) for the full setup, including the bucket addressing gotcha you will hit if your
 > endpoint is a hostname rather than an IP address.
 
-## Configure the GO Module
-To configure your GO module to use the AWS S3 retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the AWS S3 retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 > [!NOTE]

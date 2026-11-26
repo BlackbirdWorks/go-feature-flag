@@ -43,8 +43,8 @@ notifier:
 | `kind`       | Yes | string | **none** | **Value should be `slack`**.<br/>_This field is mandatory and describe which retriever you are using._ |
 | `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Slack.                                         |
 
-## Configure the GO Module
-To configure your GO module to use the Slack notifier, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Slack notifier, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

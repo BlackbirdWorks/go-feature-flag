@@ -56,7 +56,7 @@ To do this, the retriever will use the **flagset name** in your flagset configur
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the  retriever, you need to add the following
+To configure your relay proxy to use the PostgreSQL retriever, you need to add the following
 configuration to your relay proxy configuration file:
 
 ```yaml
@@ -92,8 +92,8 @@ retrievers:
 
 The `columns` field, is a map of the default column names to the custom column names in your postgres table.
 
-## Configure the GO Module
-To configure your GO module to use the  retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the PostgreSQL retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

@@ -88,7 +88,7 @@ the box — no extra runtime configuration is required.
 
 The exact module version pinned by the project lives in the
 [`.fips-version`](https://github.com/BlackbirdWorks/semaphore/blob/main/.fips-version)
-file at the repo root; the Makefile target reads from it.
+file at the repo root; the Taskfile target reads from it.
 
 > [!NOTE]
 > **Scope**
@@ -102,7 +102,7 @@ file at the repo root; the Makefile target reads from it.
 ### Building from source
 
 ```shell
-make build-relayproxy-fips
+task build-relayproxy-fips
 ```
 
 This produces `out/bin/semaphore-fips`, built with `GOFIPS140=v1.0.0`.

@@ -36,8 +36,8 @@ A setting you leave out keeps the default of Sarama. A zero value (`0`, `""` or 
 is not set, so it keeps the default too. `Producer.Return.Successes` and `Producer.Return.Errors` are always `true`, the
 exporter needs them.
 
-## Configure the GO Module
-To configure your GO module to use the Apache Kafka exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Apache Kafka exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

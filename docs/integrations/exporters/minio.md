@@ -42,9 +42,9 @@ Only `kind` and `bucket` are mandatory. All the other fields _(`format`, `filena
 > `MINIO_DOMAIN` on your MinIO server and make `{bucket}.{host}` resolve to it — a full Docker Compose example is on the
 > [MinIO retriever page](../retrievers/minio.md#using-a-hostname-endpoint).
 
-## Configure the GO Module
+## Configure the Go Module
 
-The GO Module exposes `S3ClientOptions`, which lets you force path-style addressing. This works with any endpoint,
+The Go module exposes `S3ClientOptions`, which lets you force path-style addressing. This works with any endpoint,
 hostname or IP, and requires no MinIO-side configuration:
 
 ```go
@@ -94,7 +94,7 @@ The remaining fields are shared with the [AWS S3 exporter](aws-s3.md#configure-t
 Your endpoint is a hostname, so the SDK is using virtual-host addressing and MinIO reads the first path segment as the
 bucket name. Use an IP endpoint, configure
 [`MINIO_DOMAIN` and a DNS alias](../retrievers/minio.md#using-a-hostname-endpoint), or set
-`UsePathStyle` if you are on the GO Module.
+`UsePathStyle` if you are on the Go module.
 
 #### `resolve auth scheme: resolve endpoint: endpoint rule error, Invalid region`
 

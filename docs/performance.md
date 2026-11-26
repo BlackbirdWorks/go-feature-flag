@@ -9,8 +9,8 @@ run in the same process on the same CPUs.
 
 | | |
 |---|---|
-| CPU | Intel Core i7-7700K, 4 cores / 8 hardware threads (8 logical CPUs, `GOMAXPROCS=8`), 30 GB RAM |
-| OS, Go | Linux 7.0, Go 1.27.4 |
+| Hardware | Commodity 4-core / 8-thread x86_64 Linux machine (`GOMAXPROCS=8`) |
+| OS, Go | Linux, Go 1.27 |
 | Load average before the run | 0.92 (one minute); about 4 to 6 during the runs |
 | Server | the relay proxy in process (`internal/loadtest/relay`), file retriever, 48 flags, `exporter: discard` (webhook sink that answers 200) |
 | Client | `net/http` client in the same process, N worker goroutines in a closed loop (each sends the next request when the previous answered), 10 attributes in the evaluation context, 1000 distinct users |

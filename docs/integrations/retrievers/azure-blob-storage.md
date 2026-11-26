@@ -26,8 +26,8 @@ retrievers:
 | `object`      |  Yes   | string | **none** | Location of your configuration file.                                                                               |
 | `accountKey`  | No | string | **none** | This is the secret key of your Azure Blob Storage account.                                                         |
 
-## Configure the GO Module
-To configure your GO module to use the Azure Blob Storage retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Azure Blob Storage retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

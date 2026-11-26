@@ -28,8 +28,8 @@ retrievers:
 | `caCertPath`     | No | String | **none** | Path to the CA certificate file used to verify the server certificate.                                 |
 | `timeout`        | No | String | `10000`  | Timeout in millisecond when calling the HTTP endpoint.                                                 |
 
-## Configure the GO Module
-To configure your GO module to use the HTTP(S) retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the HTTP(S) retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

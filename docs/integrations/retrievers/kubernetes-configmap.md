@@ -36,8 +36,8 @@ retrievers:
 | `configmap` | Yes | string | **none** | Name of the **configmap** we should read  _(ex: `feature-flag`)_.                                           |
 | `key`       | Yes | string | **none** | Name of the `key` in the **configmap** which contains the flag.                                             |
 
-## Configure the GO Module
-To configure your GO module to use the Kubernetes ConfigMap retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Kubernetes ConfigMap retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go

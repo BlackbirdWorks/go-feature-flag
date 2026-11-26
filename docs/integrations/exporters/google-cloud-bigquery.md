@@ -58,8 +58,8 @@ exporters:
 | `autoMigrate`       | No | boolean | `false`                      | When `true`, the exporter creates the dataset and the table being written if they do not exist.            |
 | `eventType`         | No | string  | `feature`                    | Event type to export. Use `feature` for evaluation events or `tracking` for tracking events.              |
 
-## Configure the GO Module
-To configure your GO module to use the Google Cloud BigQuery exporter, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Google Cloud BigQuery exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go
@@ -109,7 +109,7 @@ When `GoogleCredentials` is empty, the exporter relies on
 [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
 
 For the relay proxy, set `googleCredentials` to explicit credentials JSON when ADC is not available.
-For the GO module, pass explicit credentials JSON in `GoogleCredentials`.
+For the Go module, pass explicit credentials JSON in `GoogleCredentials`.
 
 ## AutoMigrate
 

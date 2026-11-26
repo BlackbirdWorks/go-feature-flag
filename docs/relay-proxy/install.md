@@ -7,7 +7,7 @@ Requires Go (see `go.mod` for the version).
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git
 cd semaphore
-make build-relayproxy   # binary: out/bin/semaphore
+task build-relayproxy   # binary: out/bin/semaphore
 ```
 
 ## Release archives (available after the first release)
@@ -31,7 +31,7 @@ docker run -p 1031:1031 -v $(pwd):/semaphore:ro ghcr.io/blackbirdworks/semaphore
 Until then, build a local image from source:
 
 ```shell
-make build-relayproxy-docker   # image: semaphore:local
+task build-relayproxy-docker   # image: semaphore:local
 ```
 
 The binary is `/usr/local/bin/semaphore` and the image sets it as `ENTRYPOINT`, so the relay proxy starts with no
@@ -48,7 +48,7 @@ If you need FIPS 140 validated cryptography, use the `semaphore-fips` archive or
 of a release, or build the FIPS variant from source:
 
 ```shell
-make build-relayproxy-fips
+task build-relayproxy-fips
 ```
 
 See [FIPS 140-3 mode](advanced-usage.md#fips-140-3-mode) for details on running and verifying it.

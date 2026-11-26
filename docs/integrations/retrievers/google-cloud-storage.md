@@ -31,8 +31,8 @@ retrievers:
 >
 > Check [this documentation for more info](https://cloud.google.com/docs/authentication).
 
-## Configure the GO Module
-To configure your GO module to use the Google Cloud Storage retriever, you need to add the following
+## Configure the Go Module
+To configure your Go module to use the Google Cloud Storage retriever, you need to add the following
 configuration to your `ffclient.Config{}` object:
 
 ```go
