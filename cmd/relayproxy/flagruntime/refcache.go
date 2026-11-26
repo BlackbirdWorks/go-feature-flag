@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 // refEntry is a cached value and the number of objects that hold it.
 type refEntry[T any] struct {

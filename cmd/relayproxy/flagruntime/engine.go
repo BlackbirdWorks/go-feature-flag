@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"context"
@@ -23,6 +23,8 @@ type Hooks struct {
 	// BeforeSwap is called with the candidate just before the store. An error refuses the candidate: nothing is
 	// stored and the round is rejected with [CodeVetoed].
 	BeforeSwap func(candidate *Runtime) error
+	// OnEmit is called after a change was handed to the channel of [Engine.Changes].
+	OnEmit func(Change)
 	// AfterRound is called at the end of every round, after the store and the change notifications.
 	AfterRound func(Reload)
 }
@@ -33,6 +35,11 @@ type Option func(*Engine)
 // WithChangeBuffer sets the size of the change channel; values below 1 mean 1.
 func WithChangeBuffer(size int) Option {
 	return func(e *Engine) { e.changeBuf = max(1, size) }
+}
+
+// WithWithdrawnCap sets how many withdrawn flag-set names the status keeps (default [DefaultWithdrawnCap]).
+func WithWithdrawnCap(size int) Option {
+	return func(e *Engine) { e.withdrawnCap = size }
 }
 
 // WithHooks sets the hooks.
@@ -54,6 +61,18 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // Engine is the reconcile engine. One goroutine ([Engine.Run]) is the only writer of the [Holder]; the other
 // methods only hand it work through channels.
 //
+// Ownership: a *Content or a *bootstrap.Config passed to Submit or Reload belongs to the engine from that moment.
+// The engine does not copy it, and the caller must not change it afterwards (nor the maps and byte slices it
+// reaches). The same holds for everything a Runtime reaches.
+//
+// Withdrawn flag sets: a flag set that the publisher removes leaves FlagSets and ByKey in that generation. Its
+// keys are unknown from then on (the relay answers as for any unknown key) and are free for another flag set at
+// once. The Status lists the most recently withdrawn names with the generation, up to a cap (default
+// [DefaultWithdrawnCap]); the engine keeps no other state for a withdrawn flag set.
+//
+// Events: the events of one flag set reach the consumer in order; events of different flag sets are not ordered
+// by generation (a pending event keeps the place of the first change it merged).
+//
 // A round: take the latest content and the latest bootstrap configuration (a burst is coalesced); validate the
 // content (generation, shape); build the candidate off to the side (parse what changed, rebuild the flag sets
 // that use it); compose the candidate Runtime with the admin keys and the status; store it with one atomic
@@ -73,18 +92,20 @@ type Engine struct {
 	content  chan *Content
 	boot     chan *bootstrap.Config
 	changes  chan Change
-	pending  map[string]*Change
+	queue    *pendingQueue
 	baseline *bootstrap.Config
 	cur      *Runtime
 	last     atomic.Pointer[Reload]
 	rejected *Reload
-	hooks    Hooks
-	secrets  bootstrap.LoadOptions
-	queue    []string
-	// digest identifies the content that runs; with the generation it tells a repeat from a conflict.
-	digest    uint64
-	changeBuf int
-	snapshot  uint64
+	// running describes the content that runs, to tell a repeat, a state change and a conflict apart at the same
+	// generation.
+	running map[string]runningObject
+	hooks   Hooks
+	secrets bootstrap.LoadOptions
+	// withdrawnCap is the cap of the withdrawn list of the status.
+	withdrawnCap int
+	changeBuf    int
+	snapshot     uint64
 }
 
 // NewEngine returns an engine that stores into holder. svc validates the flags and owns the compiled-query
@@ -99,7 +120,7 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 		holder:    holder,
 		content:   make(chan *Content, 1),
 		boot:      make(chan *bootstrap.Config, 1),
-		pending:   map[string]*Change{},
+		queue:     newPendingQueue(),
 		changeBuf: DefaultChangeBuffer,
 		cur:       holder.Load(),
 	}
@@ -109,7 +130,7 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 	}
 
 	eng.changes = make(chan Change, eng.changeBuf)
-	eng.builder = NewBuilder(svc, BuilderOptions{OnParse: eng.hooks.OnParse})
+	eng.builder = NewBuilder(svc, BuilderOptions{OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap})
 	eng.snapshot = eng.cur.Snapshot
 
 	return eng
@@ -151,7 +172,10 @@ func (e *Engine) Reload(cfg *bootstrap.Config) {
 // Changes returns the channel of change events; it is closed when Run returns.
 func (e *Engine) Changes() <-chan Change { return e.changes }
 
-// Result returns the result of the last round. It is safe to call from any goroutine.
+// Result returns the result of the last round, applied, ignored or rejected. A rejected round stores nothing, so
+// its reason is not in the status of the running Runtime: it is read here (the wiring of the relay exposes it),
+// and it is carried by the Status of the next Runtime as LastRejected. Result is safe to call from any
+// goroutine; before the first round it returns the zero Reload.
 func (e *Engine) Result() Reload {
 	if res := e.last.Load(); res != nil {
 		return *res
@@ -171,46 +195,47 @@ func (e *Engine) Run(ctx context.Context) {
 			head Change
 		)
 
-		if len(e.queue) > 0 {
-			out, head = e.changes, *e.pending[e.queue[0]]
+		front := e.queue.front()
+		if front != nil {
+			out, head = e.changes, front.change
 		}
 
 		select {
 		case <-ctx.Done():
 			return
 		case content := <-e.content:
-			e.round(ctx, content, e.takeBoot())
+			var cfg *bootstrap.Config
+
+			takeLatest(e.boot, &cfg)
+			e.round(ctx, content, cfg)
 		case cfg := <-e.boot:
-			e.round(ctx, e.takeContent(), cfg)
+			var content *Content
+
+			takeLatest(e.content, &content)
+			e.round(ctx, content, cfg)
 		case out <- head:
-			delete(e.pending, e.queue[0])
-			e.queue = e.queue[1:]
+			e.queue.remove(front)
+
+			if e.hooks.OnEmit != nil {
+				e.hooks.OnEmit(head)
+			}
 		}
 	}
 }
 
-func (e *Engine) takeBoot() *bootstrap.Config {
+// takeLatest stores the value waiting on a latest-wins channel in out; out is left alone when there is none.
+func takeLatest[T any](ch chan T, out *T) {
 	select {
-	case cfg := <-e.boot:
-		return cfg
+	case value := <-ch:
+		*out = value
 	default:
-		return nil
-	}
-}
-
-func (e *Engine) takeContent() *Content {
-	select {
-	case content := <-e.content:
-		return content
-	default:
-		return nil
 	}
 }
 
 type contentPlan struct {
-	built  *Built
-	res    Reload
-	digest uint64
+	built   *Built
+	running map[string]runningObject
+	res     Reload
 }
 
 type bootPlan struct {
@@ -237,6 +262,12 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	if cfg != nil {
 		boot = e.planBootstrap(cfg)
+
+		if boot.apply && e.baseline == nil {
+			// the first accepted configuration is the one the process started with, whatever the round does
+			e.baseline = cfg
+		}
+
 		if boot.res.Outcome != "" {
 			results = append(results, boot.res)
 		}
@@ -256,10 +287,6 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		e.finish(ctx, append(results, *veto), nil)
 
 		return
-	}
-
-	if boot.apply && e.baseline == nil {
-		e.baseline = cfg
 	}
 
 	e.finish(ctx, results, &e.cur.Status.LastReload)
@@ -290,7 +317,7 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) *Reload {
 
 	if plan.built != nil {
 		e.builder.Commit(plan.built)
-		e.digest = plan.digest
+		e.running = plan.running
 		e.enqueue(plan.built, candidate)
 	}
 
@@ -310,7 +337,7 @@ func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 	if built != nil {
 		next.FlagSets, next.ByKey, next.Generation = built.Runtime.FlagSets, built.Runtime.ByKey, built.Runtime.Generation
 		status.FlagSets, status.Objects = built.Runtime.Status.FlagSets, built.Runtime.Status.Objects
-		status.Entries = built.Runtime.Status.Entries
+		status.Entries, status.Withdrawn = built.Runtime.Status.Entries, built.Runtime.Status.Withdrawn
 	}
 
 	if boot.apply {
@@ -333,32 +360,36 @@ func (e *Engine) noteRejected(res Reload) {
 }
 
 func (e *Engine) planContent(ctx context.Context, content *Content) contentPlan {
-	digest, err := validateContent(content)
+	content = withChecksums(content)
+
+	err := validateContent(content)
 	if err != nil {
 		return e.reject(content.Generation, CodeInvalidContent, err)
 	}
 
-	switch {
-	case content.Generation < e.cur.Generation:
+	if content.Generation < e.cur.Generation {
 		return contentPlan{res: Reload{
 			Outcome:    OutcomeIgnored,
 			Code:       CodeStaleGeneration,
 			Generation: content.Generation,
 			Detail: fmt.Sprintf(
-				"%s: generation %d is older than %d",
-				ErrStaleGeneration,
-				content.Generation,
-				e.cur.Generation,
+				"%s: generation %d is older than %d", ErrStaleGeneration, content.Generation, e.cur.Generation,
 			),
 		}}
-	case content.Generation == e.cur.Generation && digest == e.digest:
-		return contentPlan{res: Reload{
-			Outcome: OutcomeIgnored, Code: CodeDuplicate, Generation: content.Generation,
-			Detail: fmt.Sprintf("%s: generation %d is already running", ErrStaleGeneration, content.Generation),
-		}}
-	case content.Generation == e.cur.Generation:
-		return e.reject(content.Generation, CodeGenerationConflict, fmt.Errorf(
-			"%w: generation %d is running with other content", ErrGenerationConflict, content.Generation))
+	}
+
+	if content.Generation == e.cur.Generation {
+		switch compareRunning(e.running, content) {
+		case sameContent:
+			return contentPlan{res: Reload{
+				Outcome: OutcomeIgnored, Code: CodeDuplicate, Generation: content.Generation,
+				Detail: fmt.Sprintf("%s: generation %d is already running", ErrStaleGeneration, content.Generation),
+			}}
+		case conflictingContent:
+			return e.reject(content.Generation, CodeGenerationConflict, fmt.Errorf(
+				"%w: generation %d is running with other content", ErrGenerationConflict, content.Generation))
+		case stateChange:
+		}
 	}
 
 	built, err := e.builder.Build(ctx, content)
@@ -366,7 +397,7 @@ func (e *Engine) planContent(ctx context.Context, content *Content) contentPlan 
 		return e.reject(content.Generation, CodeBuildFailed, err)
 	}
 
-	return contentPlan{built: built, digest: digest}
+	return contentPlan{built: built, running: describe(content)}
 }
 
 func (e *Engine) reject(generation uint64, code string, err error) contentPlan {
@@ -395,30 +426,118 @@ func (e *Engine) planBootstrap(cfg *bootstrap.Config) bootPlan {
 	return bootPlan{admin: admin, pending: pendingRestart(base, cfg), apply: true}
 }
 
-// validateContent checks the shape of a content and returns its digest (order independent).
-func validateContent(content *Content) (uint64, error) {
+// validateContent checks the shape of a content.
+func validateContent(content *Content) error {
 	if content.Generation == 0 {
-		return 0, fmt.Errorf("%w: generation must be at least 1", ErrInvalidContent)
+		return fmt.Errorf("%w: generation must be at least 1", ErrInvalidContent)
 	}
-
-	var digest uint64
 
 	for name := range content.Objects {
 		obj := content.Objects[name]
 
 		err := validateObject(name, &obj)
 		if err != nil {
-			return 0, err
+			return err
 		}
-
-		sum := mixString(hashString(name), obj.Kind)
-		sum = mixString(sum, obj.Format)
-		sum = mixString(sum, string(obj.state()))
-		sum = mixString(sum, obj.checksum())
-		digest ^= sum
 	}
 
-	return digest, nil
+	return nil
+}
+
+// withChecksums returns a content in which every object that carries bytes has a checksum: the bytes of an
+// object without one are hashed here, once per round. The content of the caller is not changed.
+func withChecksums(content *Content) *Content {
+	missing := false
+
+	for name := range content.Objects {
+		obj := content.Objects[name]
+		if obj.Checksum == "" && obj.state() == ObjectOK {
+			missing = true
+
+			break
+		}
+	}
+
+	if !missing {
+		return content
+	}
+
+	out := &Content{Generation: content.Generation, Objects: make(map[string]Object, len(content.Objects))}
+
+	for name, obj := range content.Objects {
+		if obj.state() == ObjectOK {
+			obj.Checksum = obj.checksum()
+		}
+
+		out.Objects[name] = obj
+	}
+
+	return out
+}
+
+// runningObject is what the engine remembers of an object of the content that runs.
+type runningObject struct {
+	kind     string
+	checksum string // only for an object that carries content (state ok)
+	reason   string
+	state    ObjectState
+}
+
+func describe(content *Content) map[string]runningObject {
+	out := make(map[string]runningObject, len(content.Objects))
+
+	for name := range content.Objects {
+		obj := content.Objects[name]
+		held := runningObject{kind: obj.Kind, state: obj.state(), reason: obj.Reason}
+
+		if held.state == ObjectOK {
+			held.checksum = obj.Checksum
+		}
+
+		out[name] = held
+	}
+
+	return out
+}
+
+// contentVerdict is how a content at the running generation relates to the running one.
+type contentVerdict uint8
+
+const (
+	// sameContent: the same objects in the same states.
+	sameContent contentVerdict = iota
+	// stateChange: the same objects, and only the state of some of them differs (for example pending or stale to ok).
+	stateChange
+	// conflictingContent: another set of names, or another checksum for a name where both sides carry content.
+	conflictingContent
+)
+
+func compareRunning(running map[string]runningObject, content *Content) contentVerdict {
+	if len(running) != len(content.Objects) {
+		return conflictingContent
+	}
+
+	verdict := sameContent
+
+	for name := range content.Objects {
+		obj := content.Objects[name]
+
+		held, ok := running[name]
+		if !ok || held.kind != obj.Kind {
+			return conflictingContent
+		}
+
+		if held.state == ObjectOK && obj.state() == ObjectOK && held.checksum != obj.Checksum {
+			return conflictingContent
+		}
+
+		if held.state != obj.state() || held.reason != obj.Reason ||
+			(held.state == ObjectOK && held.checksum != obj.Checksum) {
+			verdict = stateChange
+		}
+	}
+
+	return verdict
 }
 
 func validateObject(name string, obj *Object) error {
@@ -445,8 +564,9 @@ func validateObject(name string, obj *Object) error {
 	return nil
 }
 
-// enqueue computes one change per rebuilt flag set and merges it into the pending table. A rebuilt flag set whose
-// flags are all unchanged (only its state changed) produces no event.
+// enqueue computes one change per rebuilt flag set and merges it into the pending queue. A rebuilt flag set whose
+// flags are all unchanged (only its state changed) produces no event. A flag set that is created and withdrawn
+// while its event waits nets to no event. Every step is O(1) besides the diff of the flag set.
 func (e *Engine) enqueue(built *Built, next *Runtime) {
 	for idx := range built.Rebuilt {
 		item := &built.Rebuilt[idx]
@@ -460,22 +580,17 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 			continue
 		}
 
-		prev, queued := e.pending[item.Name]
-		if !queued {
-			e.pending[item.Name] = &change
-			e.queue = append(e.queue, item.Name)
+		queued := e.queue.byName[item.Name]
+		if queued == nil {
+			e.queue.push(&pendingChange{change: change, fromNothing: item.Old == nil})
 
 			continue
 		}
 
-		compose(prev, &change)
+		compose(&queued.change, &change)
 
-		if !prev.Diff.HasDiff() && !prev.Removed {
-			delete(e.pending, item.Name)
-
-			if at := slices.Index(e.queue, item.Name); at >= 0 {
-				e.queue = slices.Delete(e.queue, at, at+1)
-			}
+		if (queued.fromNothing && queued.change.Removed) || (!queued.change.Diff.HasDiff() && !queued.change.Removed) {
+			e.queue.remove(queued)
 		}
 	}
 }

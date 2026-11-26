@@ -1,4 +1,4 @@
-package runtime_test
+package flagruntime_test
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
@@ -25,33 +25,33 @@ func flagsYAML(value int, names ...string) []byte {
 	return []byte(out.String())
 }
 
-// badYAML writes a flag without variations, which the engine rejects.
-func badYAML(name string) []byte {
-	return []byte(name + ":\n  defaultRule:\n    variation: v\n")
+// badYAML writes a flag named y without variations, which the engine rejects.
+func badYAML() []byte {
+	return []byte("y:\n  defaultRule:\n    variation: v\n")
 }
 
 func join(parts ...[]byte) []byte {
 	return slices.Concat(parts...)
 }
 
-func obj(kind string, data []byte) runtime.Object {
-	return runtime.Object{
+func obj(kind string, data []byte) flagruntime.Object {
+	return flagruntime.Object{
 		Kind: kind, Format: controlplane.FormatYAML, Checksum: controlplane.ChecksumOf(data).Value, Bytes: data,
 	}
 }
 
 // flagsObj is a flags object whose flags all carry value.
-func flagsObj(value int, names ...string) runtime.Object {
-	return obj(runtime.KindFlags, flagsYAML(value, names...))
+func flagsObj(value int, names ...string) flagruntime.Object {
+	return obj(flagruntime.KindFlags, flagsYAML(value, names...))
 }
 
-func setsObj(tb testing.TB, sets ...controlplane.FlagSet) runtime.Object {
+func setsObj(tb testing.TB, sets ...controlplane.FlagSet) flagruntime.Object {
 	tb.Helper()
 
 	data, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: sets})
 	require.NoError(tb, err)
 
-	return obj(runtime.KindFlagSets, data)
+	return obj(flagruntime.KindFlagSets, data)
 }
 
 func fset(name string, sources []string, keys ...string) controlplane.FlagSet {
@@ -72,12 +72,13 @@ const (
 	docs1      = "docs-1"
 	docs2      = "docs-2"
 	sharedName = "shared"
+	extraName  = "extra"
 )
 
-type objs map[string]runtime.Object
+type objs map[string]flagruntime.Object
 
-func content(gen uint64, in objs) *runtime.Content {
-	return &runtime.Content{Generation: gen, Objects: in}
+func content(gen uint64, in objs) *flagruntime.Content {
+	return &flagruntime.Content{Generation: gen, Objects: in}
 }
 
 // with returns a copy of in with the given objects added or replaced.
@@ -108,7 +109,7 @@ func newService(tb testing.TB) *flagdef.Service {
 }
 
 // value returns the value of the variation "v" of a flag, or nil.
-func value(set *runtime.FlagSet, name string) any {
+func value(set *flagruntime.FlagSet, name string) any {
 	fl, ok := set.Flag(name)
 	if !ok {
 		return nil
@@ -117,7 +118,7 @@ func value(set *runtime.FlagSet, name string) any {
 	return fl.GetVariationValue("v")
 }
 
-func flagNames(set *runtime.FlagSet) []string {
+func flagNames(set *flagruntime.FlagSet) []string {
 	if set == nil {
 		return nil
 	}

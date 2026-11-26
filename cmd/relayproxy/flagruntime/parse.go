@@ -1,6 +1,7 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -14,6 +15,7 @@ import (
 type parsedFlags struct {
 	err      error
 	valid    map[string]*flagdef.InternalFlag
+	hashes   map[string]uint64
 	rejected []rejection
 }
 
@@ -42,7 +44,10 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 
 	slices.Sort(names)
 
-	out := &parsedFlags{valid: make(map[string]*flagdef.InternalFlag, len(raw))}
+	out := &parsedFlags{
+		valid:  make(map[string]*flagdef.InternalFlag, len(raw)),
+		hashes: make(map[string]uint64, len(raw)),
+	}
 
 	for _, name := range names {
 		def := raw[name]
@@ -56,6 +61,7 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 		}
 
 		out.valid[name] = &converted
+		out.hashes[name] = contentHash(&converted)
 	}
 
 	return out
@@ -71,49 +77,60 @@ func parseDoc(obj *Object) *parsedDoc {
 	return &parsedDoc{doc: doc}
 }
 
+// contentHash hashes the canonical form of a parsed flag: the JSON encoding of the flag, in which map keys are
+// sorted. It does not depend on the bytes the flag was read from (format, comments, key order).
+func contentHash(fl *flagdef.InternalFlag) uint64 {
+	data, err := json.Marshal(fl)
+	if err != nil {
+		return hashString(err.Error())
+	}
+
+	return hashBytes(data)
+}
+
+// tables is the effective flag table of a source object.
+type tables struct {
+	flags    map[string]*flagdef.InternalFlag
+	hashes   map[string]uint64
+	rejected []FlagRejection
+}
+
 // buildTable merges a parse result with the previous table of the same object (last-known-good per flag):
 // a flag that failed validation keeps its previous definition, and a flag whose definition did not change
 // keeps its previous pointer, so unchanged flags exist once across versions.
-func buildTable(
-	parsed *parsedFlags,
-	prev *objState,
-) (map[string]*flagdef.InternalFlag, []FlagRejection, bool) {
+func buildTable(parsed *parsedFlags, prev *objState) tables {
 	rejected := make([]FlagRejection, 0, len(parsed.rejected))
 
 	hasPrev := prev != nil && prev.loaded
 	if !hasPrev && len(parsed.rejected) == 0 {
-		return parsed.valid, rejected, false
+		return tables{flags: parsed.valid, hashes: parsed.hashes, rejected: rejected}
 	}
 
 	flags := make(map[string]*flagdef.InternalFlag, len(parsed.valid)+len(parsed.rejected))
+	hashes := make(map[string]uint64, len(parsed.valid)+len(parsed.rejected))
 
 	for key, fresh := range parsed.valid {
+		flags[key], hashes[key] = fresh, parsed.hashes[key]
+
 		if hasPrev {
 			if old, ok := prev.flags[key]; ok && reflect.DeepEqual(old, fresh) {
-				flags[key] = old
-
-				continue
+				flags[key], hashes[key] = old, prev.hashes[key]
 			}
 		}
-
-		flags[key] = fresh
 	}
-
-	kept := false
 
 	for _, rej := range parsed.rejected {
 		report := FlagRejection{Flag: rej.flag, Reason: rej.reason}
 
 		if hasPrev {
 			if old, ok := prev.flags[rej.flag]; ok {
-				flags[rej.flag] = old
+				flags[rej.flag], hashes[rej.flag] = old, prev.hashes[rej.flag]
 				report.Kept = true
-				kept = true
 			}
 		}
 
 		rejected = append(rejected, report)
 	}
 
-	return flags, rejected, kept
+	return tables{flags: flags, hashes: hashes, rejected: rejected}
 }

@@ -1,11 +1,10 @@
-package runtime_test
+package flagruntime_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	goruntime "runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 // generationContent builds a content in which every flag of every flag set, and every API key, carries the
 // generation: a reader that sees two generations in one runtime sees two numbers.
-func generationContent(t *testing.T, gen uint64, sets int) *runtime.Content {
+func generationContent(t *testing.T, gen uint64, sets int) *flagruntime.Content {
 	t.Helper()
 
 	objects := objs{"common": flagsObj(int(gen), "c", "d")}
@@ -50,21 +49,25 @@ func TestRuntimeSwapIsAtomicForReaders(t *testing.T) {
 		sets    = 6
 	)
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	var (
 		stop     atomic.Bool
 		wg       sync.WaitGroup
-		latest   [readers]atomic.Uint64
+		observed [readers]chan uint64
 		seenGens [readers]map[uint64]struct{}
 	)
 
 	for reader := range readers {
 		seenGens[reader] = map[uint64]struct{}{}
+		observed[reader] = make(chan uint64, gens+2)
 
 		wg.Go(func() {
-			var lastSnapshot uint64
+			var (
+				lastSnapshot uint64
+				lastSeen     = ^uint64(0)
+			)
 
 			for !stop.Load() {
 				current := r.holder.Load()
@@ -76,7 +79,11 @@ func TestRuntimeSwapIsAtomicForReaders(t *testing.T) {
 				checkOneGeneration(t, current, sets)
 
 				seenGens[reader][current.Generation] = struct{}{}
-				latest[reader].Store(current.Generation)
+
+				if current.Generation != lastSeen {
+					lastSeen = current.Generation
+					observed[reader] <- current.Generation
+				}
 			}
 		})
 	}
@@ -84,13 +91,11 @@ func TestRuntimeSwapIsAtomicForReaders(t *testing.T) {
 	for gen := uint64(1); gen <= gens; gen++ {
 		res := r.feed(generationContent(t, gen, sets))
 
-		require.Equal(t, runtime.OutcomeApplied, res.Outcome)
+		require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
 		// the next generation is fed when every reader has seen this one, so every reader sees every generation
 		for reader := range readers {
-			for latest[reader].Load() < gen {
-				goruntime.Gosched()
-			}
+			awaitGeneration(t, observed[reader], gen)
 		}
 	}
 
@@ -104,8 +109,27 @@ func TestRuntimeSwapIsAtomicForReaders(t *testing.T) {
 	}
 }
 
+// awaitGeneration waits until a reader reports that it saw generation gen.
+func awaitGeneration(t *testing.T, observed <-chan uint64, gen uint64) {
+	t.Helper()
+
+	expired, stop := bound()
+	defer stop()
+
+	for {
+		select {
+		case seen := <-observed:
+			if seen >= gen {
+				return
+			}
+		case <-expired:
+			require.FailNow(t, "a reader did not see the generation", "generation %d", gen)
+		}
+	}
+}
+
 // checkOneGeneration asserts that everything reachable from rt belongs to the generation of rt.
-func checkOneGeneration(t *testing.T, current *runtime.Runtime, sets int) {
+func checkOneGeneration(t *testing.T, current *flagruntime.Runtime, sets int) {
 	t.Helper()
 
 	if current.Generation == 0 {
@@ -136,6 +160,23 @@ func checkOneGeneration(t *testing.T, current *runtime.Runtime, sets int) {
 
 	assert.Equal(t, current.Generation, current.Status.Generation)
 	assert.Equal(t, current.Snapshot, current.Status.Snapshot)
+
+	// the status tree is the one of the same generation: the objects hold the checksums of this generation
+	own := controlplane.ChecksumOf(flagsYAML(int(current.Generation), "a", "b")).Value
+	common := controlplane.ChecksumOf(flagsYAML(int(current.Generation), "c", "d")).Value
+
+	assert.Len(t, current.Status.Objects, sets+2)
+	assert.Len(t, current.Status.FlagSets, sets)
+	assert.Equal(t, common, current.Status.Objects["common"].Checksum)
+
+	for name, status := range current.Status.FlagSets {
+		assert.Equal(t, flagruntime.StateServing, status.State, name)
+		assert.Equal(t, 4, status.Flags, name)
+	}
+
+	for index := range sets {
+		assert.Equal(t, own, current.Status.Objects[fmt.Sprintf("own-%d", index)].Checksum)
+	}
 }
 
 func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
@@ -148,11 +189,11 @@ func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
 
 	var (
 		gated      atomic.Bool
-		candidates = make(chan *runtime.Runtime)
+		candidates = make(chan *flagruntime.Runtime)
 		release    = make(chan struct{})
 	)
 
-	r := newRig(t, runtime.Hooks{BeforeSwap: func(candidate *runtime.Runtime) error {
+	r := newRig(t, flagruntime.Hooks{BeforeSwap: func(candidate *flagruntime.Runtime) error {
 		if gated.Load() {
 			candidates <- candidate
 
@@ -186,7 +227,7 @@ func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
 
 	assert.Same(t, old, r.holder.Load(), "readers still see the old runtime while the candidate is built")
 
-	distinct := map[*runtime.FlagSet]struct{}{}
+	distinct := map[*flagruntime.FlagSet]struct{}{}
 
 	for _, fs := range old.FlagSets {
 		distinct[fs] = struct{}{}
@@ -219,9 +260,9 @@ func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
 
 	release <- struct{}{}
 
-	res := <-r.rounds
+	res := r.nextRound()
 
-	assert.Equal(t, runtime.OutcomeApplied, res.Outcome)
+	assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 	assert.Same(t, candidate, r.holder.Load())
 	assert.Len(t, r.parsed, 4, "the swap parses nothing more")
 }
@@ -260,14 +301,14 @@ func TestNoSecretInAnyOutput(t *testing.T) {
 	logs := &syncBuffer{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	r := newRigLogger(t, logger, runtime.Hooks{}, runtime.WithSecretOptions(bootstrap.LoadOptions{
+	r := newRigLogger(t, logger, flagruntime.Hooks{}, flagruntime.WithSecretOptions(bootstrap.LoadOptions{
 		LookupEnv: func(name string) (string, bool) { return envValue, name == "KNOWN" },
 	}))
 	r.start()
 
 	var details []string
 
-	collect := func(res runtime.Reload) { details = append(details, res.Detail) }
+	collect := func(res flagruntime.Reload) { details = append(details, res.Detail) }
 
 	collect(r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+adminKey+", {fromEnv: KNOWN}]\n")))
 	collect(r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [{fromEnv: NOPE}]\n")))
@@ -333,7 +374,7 @@ func TestNoSecretInAnyOutput(t *testing.T) {
 //
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestReadPathDoesNotAllocate(t *testing.T) {
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	r.feed(content(1, simpleObjs(t, 1)))
@@ -362,16 +403,31 @@ func TestReadPathDoesNotAllocate(t *testing.T) {
 	_, ok := r.holder.Load().FlagSetByKey("unknown-key")
 	assert.False(t, ok)
 
-	var nilSet *runtime.FlagSet
+	var nilSet *flagruntime.FlagSet
 
 	_, ok = nilSet.Flag("x")
 	assert.False(t, ok, "a nil flag set has no flags")
 }
 
+// TestZeroHolderDoesNotAllocateAfterTheFirstLoad is not parallel on purpose: AllocsPerRun counts the allocations of
+// the parallel tests too.
+//
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
+func TestZeroHolderDoesNotAllocateAfterTheFirstLoad(t *testing.T) {
+	var zero flagruntime.Holder
+
+	first := zero.Load()
+
+	allocs := testing.AllocsPerRun(1000, func() { _ = zero.Load() })
+
+	assert.InDelta(t, 0, allocs, 0, "Load of a zero Holder does not allocate a Runtime per call")
+	assert.Same(t, first, zero.Load(), "the same empty Runtime every time")
+}
+
 func TestZeroHolderLoadsAnEmptyRuntime(t *testing.T) {
 	t.Parallel()
 
-	var h runtime.Holder
+	var h flagruntime.Holder
 
 	current := h.Load()
 

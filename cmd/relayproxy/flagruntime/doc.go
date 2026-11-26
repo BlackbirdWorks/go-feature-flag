@@ -1,4 +1,4 @@
-// Package runtime holds the immutable runtime of the relay proxy and the reconcile engine that replaces it.
+// Package flagruntime holds the immutable runtime of the relay proxy and the reconcile engine that replaces it.
 //
 // A [Runtime] is built once from one verified snapshot of the published content ([Content]) and is never
 // changed afterwards: nothing may mutate a Runtime, a [FlagSet], a [Status] or the flags they hold. A reader
@@ -15,4 +15,4 @@
 //
 // The values of variations are shared between flag sets (and between generations). A caller that gets a value
 // out of a flag must treat it as read-only; the evaluator clones what it hands out.
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime

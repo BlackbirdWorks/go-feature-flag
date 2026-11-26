@@ -1,14 +1,13 @@
-package runtime_test
+package flagruntime_test
 
 import (
-	goruntime "runtime"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
@@ -24,12 +23,12 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 // drain reads exactly n events.
-func drain(t *testing.T, r *rig, n int) []runtime.Change {
+func drain(t *testing.T, r *rig, n int) []flagruntime.Change {
 	t.Helper()
 
-	out := make([]runtime.Change, 0, n)
+	out := make([]flagruntime.Change, 0, n)
 	for range n {
-		out = append(out, <-r.eng.Changes())
+		out = append(out, r.nextChange())
 	}
 
 	return out
@@ -39,7 +38,7 @@ func changeSetObjs(t *testing.T) objs {
 	t.Helper()
 
 	return objs{
-		"f1": obj(runtime.KindFlags, join(flagsYAML(1, "x", "y", "w"))),
+		"f1": obj(flagruntime.KindFlags, join(flagsYAML(1, "x", "y", "w"))),
 		"f2": flagsObj(1, "z"),
 		setsName: setsObj(t,
 			fset("a", src("f1"), keyA),
@@ -52,7 +51,7 @@ func changeSetObjs(t *testing.T) objs {
 func TestEngineEmitsOneChangePerRebuiltFlagSet(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	base := changeSetObjs(t)
@@ -67,7 +66,7 @@ func TestEngineEmitsOneChangePerRebuiltFlagSet(t *testing.T) {
 	assert.Equal(t, uint64(1), first[0].Snapshot)
 
 	r.feed(content(2, base.with(objs{
-		"f1": obj(runtime.KindFlags, join(flagsYAML(2, "x"), flagsYAML(1, "w"), flagsYAML(1, "n"))),
+		"f1": obj(flagruntime.KindFlags, join(flagsYAML(2, "x"), flagsYAML(1, "w"), flagsYAML(1, "n"))),
 	})))
 
 	second := drain(t, r, 2)
@@ -100,7 +99,7 @@ func TestEngineEmitsOneChangePerRebuiltFlagSet(t *testing.T) {
 func TestEngineChangeForAWithdrawnFlagSet(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	base := changeSetObjs(t)
@@ -121,7 +120,7 @@ func TestEngineChangeForAWithdrawnFlagSet(t *testing.T) {
 func TestEngineStateOnlyChangesProduceNoEvent(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	base := changeSetObjs(t)
@@ -129,13 +128,13 @@ func TestEngineStateOnlyChangesProduceNoEvent(t *testing.T) {
 	drain(t, r, 3)
 
 	// f1 goes stale: flag sets a and b are rebuilt (they are degraded now) but no flag changes
-	res := r.feed(content(2, base.with(objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectStale}})))
+	res := r.feed(content(2, base.with(objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale}})))
 
-	assert.Equal(t, runtime.OutcomeApplied, res.Outcome)
-	assert.Equal(t, runtime.StateDegraded, r.holder.Load().FlagSets["a"].State)
+	assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
+	assert.Equal(t, flagruntime.StateDegraded, r.holder.Load().FlagSets["a"].State)
 
 	r.feed(content(3, base.with(objs{
-		"f1": {Kind: runtime.KindFlags, State: runtime.ObjectStale}, "f2": flagsObj(5, "z"),
+		"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale}, "f2": flagsObj(5, "z"),
 	})))
 
 	got := drain(t, r, 2)
@@ -161,16 +160,14 @@ func TestEngineSlowConsumerCoalescesPerFlagSet(t *testing.T) {
 
 	base := objs{"f1": flagsObj(1, "x"), setsName: setsObj(t, flagSets...)}
 
-	r := newRig(t, runtime.Hooks{}, runtime.WithChangeBuffer(1))
+	r := newRig(t, flagruntime.Hooks{}, flagruntime.WithChangeBuffer(1))
 	r.start()
 
 	// nobody reads the events: the rounds must still complete
 	r.feed(content(1, base))
 
 	// one event sits in the channel, the other four wait in the pending table
-	for len(r.eng.Changes()) < 1 {
-		goruntime.Gosched()
-	}
+	r.nextEmitted()
 
 	r.feed(content(2, base.with(objs{"f1": flagsObj(2, "x")})))
 	r.feed(content(3, base.with(objs{"f1": flagsObj(3, "x")})))
@@ -202,7 +199,7 @@ func TestEngineSlowConsumerCoalescesPerFlagSet(t *testing.T) {
 	}
 
 	// s2: pending as "added x (value 1)" at generation 1, then updated twice: the merge is an addition of the newest
-	byName := map[string]runtime.Change{}
+	byName := map[string]flagruntime.Change{}
 	for _, ch := range got[1:] {
 		byName[ch.FlagSet] = ch
 	}
@@ -212,7 +209,7 @@ func TestEngineSlowConsumerCoalescesPerFlagSet(t *testing.T) {
 	assert.Empty(t, byName["s2"].Diff.Updated)
 
 	// s1: its first event is in the channel already; the later two generations merge to one update 1 to 3
-	var again runtime.Change
+	var again flagruntime.Change
 
 	for _, change := range got[1:] {
 		if change.FlagSet == "s1" {
@@ -248,13 +245,25 @@ func TestEngineChangesCompose(t *testing.T) {
 		{
 			name:        "updated then updated is one update from the first state to the last",
 			second:      objs{"f1": flagsObj(2, "x", "k")},
-			third:       objs{"f1": obj(runtime.KindFlags, join(flagsYAML(3, "x"), flagsYAML(2, "k")))},
+			third:       objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(3, "x"), flagsYAML(2, "k")))},
 			wantUpdated: []string{"k", "x"},
 		},
 		{
 			name:        "deleted then added back is an update to the new pointer",
 			second:      objs{"f1": flagsObj(1, "k")},
 			third:       objs{"f1": flagsObj(1, "x", "k")},
+			wantUpdated: []string{"x"},
+		},
+		{
+			name:        "updated then deleted is a deletion of the first state",
+			second:      objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(2, "x"), flagsYAML(1, "k")))},
+			third:       objs{"f1": flagsObj(1, "k")},
+			wantDeleted: []string{"x"},
+		},
+		{
+			name:        "deleted then added with other content is an update",
+			second:      objs{"f1": flagsObj(1, "k")},
+			third:       objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(1, "k"), flagsYAML(5, "x")))},
 			wantUpdated: []string{"x"},
 		},
 		{
@@ -266,7 +275,7 @@ func TestEngineChangesCompose(t *testing.T) {
 		{
 			name:      "added then updated is an addition",
 			second:    objs{"f1": flagsObj(1, "x", "k", "n")},
-			third:     objs{"f1": obj(runtime.KindFlags, join(flagsYAML(1, "x", "k"), flagsYAML(2, "n")))},
+			third:     objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(1, "x", "k"), flagsYAML(2, "n")))},
 			wantAdded: []string{"n"},
 		},
 	}
@@ -278,15 +287,13 @@ func TestEngineChangesCompose(t *testing.T) {
 			sets := setsObj(t, fset("a", src("f1"), keyA), fset("b", src("f2"), keyB))
 			first := objs{"f1": flagsObj(1, "x", "k"), "f2": flagsObj(1, "q"), setsName: sets}
 
-			r := newRig(t, runtime.Hooks{}, runtime.WithChangeBuffer(1))
+			r := newRig(t, flagruntime.Hooks{}, flagruntime.WithChangeBuffer(1))
 			r.start()
 
 			// the first generation fills the channel with the event of a; b stays pending
 			r.feed(content(1, first))
 
-			for len(r.eng.Changes()) < 1 {
-				goruntime.Gosched()
-			}
+			r.nextEmitted()
 
 			// b is never touched again; a changes twice while its first event is still in the channel
 			r.feed(content(2, first.with(tt.second)))
@@ -300,7 +307,7 @@ func TestEngineChangesCompose(t *testing.T) {
 
 			events := drain(t, r, wantEvents)
 
-			var merged *runtime.Change
+			var merged *flagruntime.Change
 
 			for i := range events {
 				if events[i].FlagSet == "a" && events[i].Generation > 1 {
@@ -333,7 +340,7 @@ func nilIfEmpty(in []string) []string {
 func TestEngineShutdownLeavesNoGoroutine(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	r.feed(content(1, simpleObjs(t, 1)))
@@ -350,4 +357,123 @@ func TestEngineShutdownLeavesNoGoroutine(t *testing.T) {
 	}
 
 	assert.False(t, open, "the change channel is closed")
+}
+
+// setStep describes the flag set "tmp" in one generation of the set-level composition test.
+type setStep struct {
+	flags  []string
+	value  int
+	exists bool
+}
+
+func TestEngineSetLevelComposition(t *testing.T) {
+	t.Parallel()
+
+	here := func(value int, flags ...string) setStep { return setStep{exists: true, value: value, flags: flags} }
+	gone := setStep{}
+
+	tests := []struct {
+		name        string
+		steps       []setStep
+		wantAdded   []string
+		wantDeleted []string
+		wantUpdated []string
+		base        setStep
+		wantNone    bool
+		wantRemoved bool
+	}{
+		{
+			name: "created then withdrawn nets to no event", base: gone,
+			steps: []setStep{here(1, "p"), gone}, wantNone: true,
+		},
+		{
+			name: "created, updated, then withdrawn nets to no event", base: gone,
+			steps: []setStep{here(1, "p"), here(2, "p"), gone}, wantNone: true,
+		},
+		{
+			name: "updated then withdrawn is a removal of the first state", base: here(1, "p"),
+			steps: []setStep{here(2, "p"), gone}, wantRemoved: true, wantDeleted: []string{"p"},
+		},
+		{
+			name: "withdrawn then created again with other flags", base: here(1, "p"),
+			steps: []setStep{gone, here(1, "q")}, wantAdded: []string{"q"}, wantDeleted: []string{"p"},
+		},
+		{
+			name: "withdrawn then created again with the same content nets to no event", base: here(1, "p"),
+			steps: []setStep{gone, here(1, "p")}, wantNone: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// the flags object of tmp stays in the content while tmp is withdrawn: only the flag set goes
+			lastF1 := flagsObj(1, "unused")
+
+			generation := func(gen int, tmp setStep, end int) *flagruntime.Content {
+				sets := []controlplane.FlagSet{
+					fset("aa-fill", src("f0"), "key-fill"),
+					fset("zz-end", src("fe"), "key-end"),
+				}
+				files := objs{"f0": flagsObj(gen, "x"), "fe": flagsObj(end, "x")}
+
+				if tmp.exists {
+					sets = append(sets, fset("tmp", src("f1"), "key-tmp"))
+					lastF1 = flagsObj(tmp.value, tmp.flags...)
+				}
+
+				files["f1"] = lastF1
+
+				files[setsName] = setsObj(t, sets...)
+
+				return content(uint64(gen), files)
+			}
+
+			harness := newRig(t, flagruntime.Hooks{}, flagruntime.WithChangeBuffer(1))
+			harness.start()
+
+			harness.feed(generation(1, tt.base, 1))
+
+			created := 2
+			if tt.base.exists {
+				created = 3
+			}
+
+			// the events of the first generation are read: nothing is pending
+			drain(t, harness, created)
+
+			// the fill flag set changes in every generation, so its event fills the channel and the others wait
+			for idx, step := range tt.steps {
+				harness.feed(generation(idx+2, step, 1))
+			}
+
+			harness.feed(generation(len(tt.steps)+2, tt.steps[len(tt.steps)-1], 2))
+
+			var tmp []flagruntime.Change
+
+			for {
+				change := harness.nextChange()
+				if change.FlagSet == "zz-end" {
+					break
+				}
+
+				if change.FlagSet == "tmp" {
+					tmp = append(tmp, change)
+				}
+			}
+
+			if tt.wantNone {
+				assert.Empty(t, tmp, "no event for the flag set tmp")
+
+				return
+			}
+
+			require.Len(t, tmp, 1)
+			assert.Equal(t, tt.wantRemoved, tmp[0].Removed)
+			assert.Equal(t, tt.wantAdded, nilIfEmpty(sortedKeys(tmp[0].Diff.Added)))
+			assert.Equal(t, tt.wantDeleted, nilIfEmpty(sortedKeys(tmp[0].Diff.Deleted)))
+			assert.Equal(t, tt.wantUpdated, nilIfEmpty(sortedKeys(tmp[0].Diff.Updated)))
+		})
+	}
 }

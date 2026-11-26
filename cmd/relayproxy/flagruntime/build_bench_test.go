@@ -1,6 +1,6 @@
 //go:build bench
 
-package runtime_test
+package flagruntime_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
@@ -22,7 +22,7 @@ const (
 // fleet generates, in memory, benchSets flag sets of benchFlagsPerSet flags. Ten flag sets share one flags
 // object, every object has its own content (its own checksum), and a flag set has one API key. variant picks
 // the content of the first object, so that two variants give a one-object change.
-func fleet(tb testing.TB, variant int) *runtime.Content {
+func fleet(tb testing.TB, variant int) *flagruntime.Content {
 	tb.Helper()
 
 	names := make([]string, benchFlagsPerSet)
@@ -63,7 +63,7 @@ func BenchmarkBuildFull(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		built, err := runtime.NewBuilder(svc, runtime.BuilderOptions{}).Build(context.Background(), published)
+		built, err := flagruntime.NewBuilder(svc, flagruntime.BuilderOptions{}).Build(context.Background(), published)
 		require.NoError(b, err)
 		require.Equal(b, benchSets, built.Stats.Rebuilt)
 	}
@@ -71,8 +71,8 @@ func BenchmarkBuildFull(b *testing.B) {
 
 // BenchmarkBuildOneObjectChange changes one flags object that ten flag sets list.
 func BenchmarkBuildOneObjectChange(b *testing.B) {
-	variants := [2]*runtime.Content{fleet(b, 0), fleet(b, 1)}
-	builder := runtime.NewBuilder(newService(b), runtime.BuilderOptions{})
+	variants := [2]*flagruntime.Content{fleet(b, 0), fleet(b, 1)}
+	builder := flagruntime.NewBuilder(newService(b), flagruntime.BuilderOptions{})
 
 	built, err := builder.Build(context.Background(), variants[0])
 	require.NoError(b, err)
@@ -103,7 +103,7 @@ func BenchmarkBuildOneObjectChange(b *testing.B) {
 // BenchmarkBuildNoOp is a new generation with the same objects.
 func BenchmarkBuildNoOp(b *testing.B) {
 	published := fleet(b, 0)
-	builder := runtime.NewBuilder(newService(b), runtime.BuilderOptions{})
+	builder := flagruntime.NewBuilder(newService(b), flagruntime.BuilderOptions{})
 
 	built, err := builder.Build(context.Background(), published)
 	require.NoError(b, err)
@@ -123,5 +123,82 @@ func BenchmarkBuildNoOp(b *testing.B) {
 		if built.Stats.Rebuilt != 0 || built.Stats.Parsed != 0 {
 			require.Equal(b, 0, built.Stats.Rebuilt)
 		}
+	}
+}
+
+// engineBench runs an engine over the fleet and returns a function that submits a content and waits for its swap.
+func engineBench(b *testing.B, first *flagruntime.Content) func(*flagruntime.Content) {
+	b.Helper()
+
+	rounds := make(chan flagruntime.Reload, 1)
+	eng := flagruntime.NewEngine(nil, newService(b), flagruntime.NewHolder(), flagruntime.WithHooks(flagruntime.Hooks{
+		AfterRound: func(res flagruntime.Reload) { rounds <- res },
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		eng.Run(ctx)
+	}()
+
+	go func() {
+		for change := range eng.Changes() {
+			_ = change // the consumer only drains
+		}
+	}()
+
+	b.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	step := func(content *flagruntime.Content) {
+		eng.Submit(content)
+
+		res := <-rounds
+		if res.Outcome != flagruntime.OutcomeApplied {
+			require.Equal(b, flagruntime.OutcomeApplied, res.Outcome)
+		}
+	}
+
+	step(first)
+
+	return step
+}
+
+// BenchmarkEngineOneObjectChange measures Submit to swap for a change of one flags object.
+func BenchmarkEngineOneObjectChange(b *testing.B) {
+	variants := [2]*flagruntime.Content{fleet(b, 0), fleet(b, 1)}
+	step := engineBench(b, variants[0])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	gen := uint64(1)
+
+	for b.Loop() {
+		gen++
+
+		step(&flagruntime.Content{Generation: gen, Objects: variants[gen%2].Objects})
+	}
+}
+
+// BenchmarkEngineNoOp measures Submit to swap for a new generation with the same objects.
+func BenchmarkEngineNoOp(b *testing.B) {
+	base := fleet(b, 0)
+	step := engineBench(b, base)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	gen := uint64(1)
+
+	for b.Loop() {
+		gen++
+
+		step(&flagruntime.Content{Generation: gen, Objects: base.Objects})
 	}
 }

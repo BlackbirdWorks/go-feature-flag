@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"cmp"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
@@ -20,7 +21,20 @@ type candidate struct {
 	object string
 	notes  []Problem
 	index  int
+	mode   candidateMode
 }
+
+// candidateMode says how a definition is turned into a flag set.
+type candidateMode uint8
+
+const (
+	// modeBuild: a valid entry, built from its sources.
+	modeBuild candidateMode = iota
+	// modeFrozen: an invalid entry whose flag set keeps the flags it had.
+	modeFrozen
+	// modePlaceholder: an invalid entry with no previous flags; it only routes its keys.
+	modePlaceholder
+)
 
 // manifest returns a manifest that lists the flags objects of the stage, to resolve the sources of the entries.
 func (st *stage) manifest() *controlplane.Manifest {
@@ -138,6 +152,10 @@ func (st *stage) fullPass(ctx context.Context, sig uint64) (*state, error) {
 			next.byKey[key] = set.fs
 		}
 
+		if set.frozen || set.placeholder {
+			continue // its sources are not read: a changed source does not rebuild it
+		}
+
 		for _, source := range set.spec.sources {
 			next.rev[source] = append(next.rev[source], name)
 		}
@@ -169,14 +187,23 @@ func compareEntries(left, right EntryProblem) int {
 // setFor returns the flag set of a definition: the running one when it is still right, else a new one.
 func (st *stage) setFor(cand *candidate) *setState {
 	old := st.prev.sets[cand.spec.name]
-	if old != nil && !old.tomb && st.reusable(old, cand) {
+	if old != nil && st.reusable(old, cand) {
 		return old
 	}
 
-	set := st.buildSet(cand.spec, cand.notes)
+	var set *setState
+
+	switch cand.mode {
+	case modeFrozen:
+		set = frozenSet(old, cand.spec, cand.notes)
+	case modePlaceholder:
+		set = placeholderSet(cand.spec, cand.notes)
+	case modeBuild:
+		set = st.buildSet(cand.spec, cand.notes)
+	}
 
 	var oldSet *FlagSet
-	if old != nil && !old.tomb {
+	if old != nil {
 		oldSet = old.fs
 	}
 
@@ -236,41 +263,64 @@ func (st *stage) collect(col *collector, held *docState, idx int) {
 	col.cands = append(col.cands, &candidate{spec: newSpec(entry), object: held.name, index: idx})
 }
 
-// collectInvalid handles an invalid entry: it keeps the last valid definition of its flag set, or is reported
-// as pending when there is none.
+// collectInvalid handles an invalid entry, the same way for every cause and on first load or later:
+//   - the flag set had a definition: it keeps it (frozen, degraded);
+//   - it had none and its name and keys are valid: it gets a placeholder that routes its keys and serves no flag
+//     (pending), so a valid key reaches the "not available" answer;
+//   - otherwise the entry is reported in the status only.
 func (st *stage) collectInvalid(
 	col *collector, object string, idx int, entry *controlplane.FlagSet, hard []EntryProblem,
 ) {
 	col.entries = append(col.entries, hard...)
 
-	if old := st.prev.sets[entry.Name]; old != nil && !old.tomb {
-		if _, dup := col.claimed[entry.Name]; !dup {
-			col.claimed[entry.Name] = struct{}{}
-			col.cands = append(col.cands, &candidate{
-				spec: &setSpec{
-					name: old.spec.name, sources: old.spec.sources, declKeys: old.spec.declKeys,
-					keys: old.spec.declKeys, declHash: old.spec.declHash,
-				},
-				object: object, index: idx,
-				notes: []Problem{{
-					Code: CodeDefinitionKept, Reason: "the entry is invalid; the last valid definition is kept",
-				}},
-			})
+	if _, dup := col.claimed[entry.Name]; dup {
+		return
+	}
+
+	notes := make([]Problem, 0, len(hard)+1)
+	for _, problem := range hard {
+		notes = append(notes, Problem{Code: problem.Code, Reason: problem.Reason})
+	}
+
+	if old := st.prev.sets[entry.Name]; old != nil && !old.placeholder {
+		col.claimed[entry.Name] = struct{}{}
+
+		spec := &setSpec{
+			name: old.spec.name, sources: old.spec.sources, declKeys: old.spec.declKeys,
+			keys: old.spec.declKeys, declHash: old.spec.declHash,
 		}
 
-		return
-	}
-
-	if entry.Name == "" {
-		return
-	}
-
-	for _, problem := range hard {
-		col.pendingOnly[entry.Name] = append(
-			col.pendingOnly[entry.Name],
-			Problem{Code: problem.Code, Reason: problem.Reason},
+		notes = append([]Problem{{
+			Code: CodeDefinitionKept, Reason: "the entry is invalid; the last valid definition is kept",
+		}}, notes...)
+		col.cands = append(
+			col.cands,
+			&candidate{spec: spec, object: object, index: idx, notes: notes, mode: modeFrozen},
 		)
+
+		return
 	}
+
+	if routable(entry) {
+		col.claimed[entry.Name] = struct{}{}
+		col.cands = append(col.cands, &candidate{
+			spec: newSpec(entry), object: object, index: idx, notes: notes, mode: modePlaceholder,
+		})
+
+		return
+	}
+
+	if entry.Name != "" {
+		col.pendingOnly[entry.Name] = notes
+	}
+}
+
+// nameRule is the rule of a flag set name (the same as the validation of the documents).
+var nameRule = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+
+// routable says whether the name and every API key of an entry are valid, so its keys can be routed.
+func routable(entry *controlplane.FlagSet) bool {
+	return nameRule.MatchString(entry.Name) && !slices.Contains(entry.APIKeys, "")
 }
 
 // resolveKeys gives every API key to one flag set. A key held by several flag sets stays with the flag set that
@@ -309,7 +359,7 @@ func (st *stage) preferHeld(owner map[string]string, conflicts []string, cands [
 
 	for _, key := range conflicts {
 		held := st.prev.byKey[key]
-		if held == nil || held.State == StateWithdrawn {
+		if held == nil {
 			continue
 		}
 
@@ -351,8 +401,13 @@ func dropLostKeys(cands []*candidate, owner map[string]string, entries []EntryPr
 // same source objects (by pointer, so a changed, stale or removed object makes a new flag set).
 func (st *stage) reusable(old *setState, cand *candidate) bool {
 	if old.spec.declHash != cand.spec.declHash || len(old.spec.sources) != len(cand.spec.sources) ||
-		!slices.Equal(old.spec.keys, cand.spec.keys) || !slices.Equal(old.notes, cand.notes) {
+		!slices.Equal(old.spec.keys, cand.spec.keys) || !slices.Equal(old.notes, cand.notes) ||
+		old.frozen != (cand.mode == modeFrozen) || old.placeholder != (cand.mode == modePlaceholder) {
 		return false
+	}
+
+	if cand.mode != modeBuild {
+		return true
 	}
 
 	for idx, source := range cand.spec.sources {
@@ -364,41 +419,58 @@ func (st *stage) reusable(old *setState, cand *candidate) bool {
 	return true
 }
 
-// withdraw keeps the flag sets that the documents no longer define as withdrawn tombstones: their keys still
-// route to a flag set that answers "not available". A tombstone is kept until a flag set with its name returns,
-// and costs one small struct per withdrawn flag set.
+// withdraw removes the flag sets that the documents no longer define: they leave the flag-set and key tables in
+// this generation (their keys are unknown from now on and free for another flag set). The status keeps the most
+// recent withdrawn names, never their keys, up to the cap of the builder; the oldest are dropped.
 func (st *stage) withdraw(next *state) {
-	for name, old := range st.prev.sets {
-		if _, ok := next.sets[name]; ok {
-			continue
-		}
+	var removed []string
 
-		tomb := old
-
-		if !old.tomb {
-			tomb = tombstone(name, old)
-
-			st.built.Rebuilt = append(st.built.Rebuilt, Rebuilt{Name: name, Old: old.fs, New: tomb.fs})
-		}
-
-		next.sets[name] = tomb
-		next.flagSets[name] = tomb.fs
-		next.setStatus[name] = tomb.status
-
-		for _, key := range tomb.spec.keys {
-			if _, taken := next.byKey[key]; !taken {
-				next.byKey[key] = tomb.fs
-			}
+	for name := range st.prev.sets {
+		if _, ok := next.sets[name]; !ok {
+			removed = append(removed, name)
 		}
 	}
-}
 
-func tombstone(name string, old *setState) *setState {
-	return &setState{
-		spec: old.spec, tomb: true,
-		fs: &FlagSet{Name: name, State: StateWithdrawn, APIKeys: len(old.spec.keys)},
-		status: &FlagSetStatus{
-			Name: name, State: StateWithdrawn, Sources: old.spec.sources, APIKeys: len(old.spec.keys),
-		},
+	slices.Sort(removed)
+
+	for _, name := range removed {
+		old := st.prev.sets[name]
+		gone := &FlagSet{Name: name, State: StateWithdrawn}
+
+		st.built.Rebuilt = append(st.built.Rebuilt, Rebuilt{Name: name, Old: old.fs, New: gone})
 	}
+
+	list := st.prev.withdrawn
+
+	back := false
+
+	for _, entry := range list {
+		if _, live := next.sets[entry.Name]; live {
+			back = true
+		}
+	}
+
+	if len(removed) == 0 && !back {
+		next.withdrawn = list
+
+		return
+	}
+
+	list = make([]WithdrawnSet, 0, len(st.prev.withdrawn)+len(removed))
+
+	for _, entry := range st.prev.withdrawn {
+		if _, live := next.sets[entry.Name]; !live {
+			list = append(list, entry)
+		}
+	}
+
+	for _, name := range removed {
+		list = append(list, WithdrawnSet{Name: name, Generation: st.gen})
+	}
+
+	if over := len(list) - st.b.opts.WithdrawnCap; over > 0 {
+		list = slices.Clone(list[over:])
+	}
+
+	next.withdrawn = list
 }

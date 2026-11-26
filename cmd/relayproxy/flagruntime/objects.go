@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 // flagObject computes the state of one flags object; it returns prev itself when nothing changed.
 func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState {
@@ -61,17 +61,12 @@ func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum
 		return &held
 	}
 
-	flags, rejected, kept := buildTable(parsed, prev)
-	next := &objState{
+	table := buildTable(parsed, prev)
+
+	return &objState{
 		name: name, format: obj.Format, checksum: sum, state: ObjectOK, loaded: true,
-		flags: flags, rejected: rejected, hash: hashString(sum),
+		flags: table.flags, hashes: table.hashes, rejected: table.rejected, content: tableHash(table.hashes),
 	}
-
-	if kept {
-		next.hash = mixUint(next.hash, prev.hash)
-	}
-
-	return next
 }
 
 func (st *stage) swapRef(prev, next *objState) {
@@ -90,7 +85,7 @@ func keepFrom(name string, prev *objState) *objState {
 
 	if prev != nil && prev.loaded {
 		next.flags, next.checksum, next.format = prev.flags, prev.checksum, prev.format
-		next.rejected, next.hash, next.loaded = prev.rejected, prev.hash, true
+		next.rejected, next.hashes, next.content, next.loaded = prev.rejected, prev.hashes, prev.content, true
 	}
 
 	return next

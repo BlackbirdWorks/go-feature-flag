@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"github.com/blackbirdworks/semaphore/controlplane"
@@ -16,8 +16,9 @@ type objState struct {
 	reason    string
 	refKey    string // key of the parse cache entry this object holds
 	state     ObjectState
+	hashes    map[string]uint64 // content hash of every flag of flags
 	rejected  []FlagRejection
-	hash      uint64
+	content   uint64 // order independent hash of the effective flags
 	loaded    bool
 }
 
@@ -52,7 +53,10 @@ type setState struct {
 	status *FlagSetStatus
 	inputs []*objState
 	notes  []Problem
-	tomb   bool
+	// frozen: the entry is invalid, the set keeps the flags it had. placeholder: the entry is invalid and the
+	// set never had flags; it only routes its keys.
+	frozen      bool
+	placeholder bool
 }
 
 // state is the committed state of the builder after a build.
@@ -66,7 +70,9 @@ type state struct {
 	objStatus map[string]*ObjectStatus
 	setStatus map[string]*FlagSetStatus
 	entries   []EntryProblem
+	withdrawn []WithdrawnSet
 	sig       uint64
+	docSig    uint64
 	init      bool
 }
 

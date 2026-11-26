@@ -1,4 +1,4 @@
-package runtime_test
+package flagruntime_test
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 // buildAndCommit builds a content and commits it, as the engine does after the store.
 func buildAndCommit(
-	t *testing.T, b *runtime.Builder, c *runtime.Content,
-) *runtime.Built {
+	t *testing.T, b *flagruntime.Builder, c *flagruntime.Content,
+) *flagruntime.Built {
 	t.Helper()
 
 	built, err := b.Build(context.Background(), c)
@@ -26,7 +26,7 @@ func buildAndCommit(
 	return built
 }
 
-func rebuiltNames(built *runtime.Built) []string {
+func rebuiltNames(built *flagruntime.Built) []string {
 	out := make([]string, 0, len(built.Rebuilt))
 	for _, rb := range built.Rebuilt {
 		out = append(out, rb.Name)
@@ -137,10 +137,10 @@ func TestBuilderStructuralSharing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var parsed []runtime.ParseEvent
+			var parsed []flagruntime.ParseEvent
 
-			b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{
-				OnParse: func(e runtime.ParseEvent) { parsed = append(parsed, e) },
+			b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{
+				OnParse: func(e flagruntime.ParseEvent) { parsed = append(parsed, e) },
 			})
 			base := baseObjs(t)
 			first := buildAndCommit(t, b, content(1, base))
@@ -195,10 +195,10 @@ func TestBuilderSharesFlagsBetweenFlagSets(t *testing.T) {
 		flagSets = append(flagSets, fset("set-"+string(rune('a'+i/26))+string(rune('a'+i%26)), src(sharedName)))
 	}
 
-	var parsed []runtime.ParseEvent
+	var parsed []flagruntime.ParseEvent
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{
-		OnParse: func(e runtime.ParseEvent) { parsed = append(parsed, e) },
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{
+		OnParse: func(e flagruntime.ParseEvent) { parsed = append(parsed, e) },
 	})
 	built := buildAndCommit(t, b, content(1, objs{
 		sharedName: flagsObj(1, "x", "y", "z"), setsName: setsObj(t, flagSets...),
@@ -207,7 +207,7 @@ func TestBuilderSharesFlagsBetweenFlagSets(t *testing.T) {
 	var sharedParses int
 
 	for _, e := range parsed {
-		if e.Kind == runtime.KindFlags {
+		if e.Kind == flagruntime.KindFlags {
 			sharedParses++
 		}
 	}
@@ -250,7 +250,7 @@ func TestBuilderCostIsProportionalToTheChange(t *testing.T) {
 
 	objects[setsName] = setsObj(t, flagSets...)
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 	first := buildAndCommit(t, b, content(1, objects))
 
 	require.Equal(t, objectCount*setsPerObject, first.Stats.Rebuilt)
@@ -271,15 +271,15 @@ func TestBuilderCostIsProportionalToTheChange(t *testing.T) {
 func TestBuilderKeepsUnchangedFlagsByPointerWithinAChangedObject(t *testing.T) {
 	t.Parallel()
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 	objects := objs{
-		"f1":     obj(runtime.KindFlags, join(flagsYAML(1, "same"), flagsYAML(1, "moves"))),
+		"f1":     obj(flagruntime.KindFlags, join(flagsYAML(1, "same"), flagsYAML(1, "moves"))),
 		setsName: setsObj(t, fset("a", src("f1"), keyA)),
 	}
 	first := buildAndCommit(t, b, content(1, objects))
 
 	changed := join(flagsYAML(1, "same"), flagsYAML(2, "moves", "new"))
-	second := buildAndCommit(t, b, content(2, objects.with(objs{"f1": obj(runtime.KindFlags, changed)})))
+	second := buildAndCommit(t, b, content(2, objects.with(objs{"f1": obj(flagruntime.KindFlags, changed)})))
 
 	oldSet, newSet := first.Runtime.FlagSets["a"], second.Runtime.FlagSets["a"]
 
@@ -296,7 +296,7 @@ func TestBuilderKeepsUnchangedFlagsByPointerWithinAChangedObject(t *testing.T) {
 func TestBuilderEmptyContent(t *testing.T) {
 	t.Parallel()
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 	built := buildAndCommit(t, b, content(1, objs{}))
 
 	assert.Empty(t, built.Runtime.FlagSets)
@@ -308,10 +308,10 @@ func TestBuilderEmptyContent(t *testing.T) {
 func TestBuilderRejectsNilContentAndHonoursContext(t *testing.T) {
 	t.Parallel()
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 
 	_, err := b.Build(context.Background(), nil)
-	require.ErrorIs(t, err, runtime.ErrInvalidContent)
+	require.ErrorIs(t, err, flagruntime.ErrInvalidContent)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -325,7 +325,10 @@ func TestBuilderDoesNotChangeBeforeCommit(t *testing.T) {
 
 	var parsed int
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{OnParse: func(runtime.ParseEvent) { parsed++ }})
+	b := flagruntime.NewBuilder(
+		newService(t),
+		flagruntime.BuilderOptions{OnParse: func(flagruntime.ParseEvent) { parsed++ }},
+	)
 	objects := baseObjs(t)
 
 	_, err := b.Build(context.Background(), content(1, objects))

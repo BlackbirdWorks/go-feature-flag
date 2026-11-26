@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import "github.com/blackbirdworks/semaphore/controlplane"
 
@@ -9,10 +9,15 @@ type Status struct {
 	FlagSets map[string]*FlagSetStatus `json:"flagSets"`
 	// Objects are the source objects (flags and flag-set documents) by name.
 	Objects map[string]*ObjectStatus `json:"objects"`
-	// LastRejected is the last candidate that was rejected, kept until a later rejection replaces it.
+	// LastRejected is the last candidate that was rejected, kept until a later rejection replaces it. A rejected
+	// round stores nothing, so it shows here only after the next swap; the result of the last round, rejected or
+	// not, is read from [Engine.Result].
 	LastRejected *Reload `json:"lastRejected,omitempty"`
 	// Entries are the problems of the entries of the flag-set documents, in document order.
 	Entries []EntryProblem `json:"entries"`
+	// Withdrawn lists the flag sets removed by the publisher, oldest first, up to the cap of the builder. A
+	// withdrawn flag set is not in FlagSets and its keys are not routed.
+	Withdrawn []WithdrawnSet `json:"withdrawn"`
 	// PendingRestart names the bootstrap settings that changed but need a restart; the values are never listed.
 	PendingRestart []string `json:"pendingRestart"`
 	// LastReload is the round that produced this runtime.
@@ -21,6 +26,12 @@ type Status struct {
 	Generation uint64 `json:"generation"`
 	// Snapshot is the snapshot number.
 	Snapshot uint64 `json:"snapshot"`
+}
+
+// WithdrawnSet is a flag set that a publisher removed, with the generation that removed it. Keys are never listed.
+type WithdrawnSet struct {
+	Name       string `json:"name"`
+	Generation uint64 `json:"generation"`
 }
 
 // FlagSetStatus is the status of one flag set.

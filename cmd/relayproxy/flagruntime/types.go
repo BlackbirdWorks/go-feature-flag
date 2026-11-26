@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"sync/atomic"
@@ -16,10 +16,11 @@ const (
 	// StateDegraded: the flag set serves, but a source is stale or missing, a flag was rejected, an entry
 	// problem was reported, or a source does not resolve.
 	StateDegraded SetState = "degraded"
-	// StatePending: no source of the flag set was ever loaded; it serves zero flags.
+	// StatePending: no source of the flag set was ever loaded, or its entry is invalid and it never had a valid
+	// definition; it serves zero flags (its keys still route to it).
 	StatePending SetState = "pending"
-	// StateWithdrawn: a later manifest removed the flag set. Its keys still route to it, so that a request
-	// gets the "not available" answer; it serves zero flags.
+	// StateWithdrawn: the publisher removed the flag set. It is the state of the entries of Status.Withdrawn and
+	// of the Removed change event; a withdrawn flag set is not in FlagSets and its keys are not routed.
 	StateWithdrawn SetState = "withdrawn"
 )
 
@@ -95,8 +96,8 @@ func (f *FlagSet) Flag(name string) (*flagdef.InternalFlag, bool) {
 	return fl, ok
 }
 
-// Holder is the one place readers get the current Runtime from. The zero value is usable (it gives an empty
-// Runtime), and [NewHolder] stores the empty Runtime once.
+// Holder is the one place readers get the current Runtime from. The zero value is usable: the first Load stores
+// one empty Runtime, so Load does not allocate afterwards. [NewHolder] stores it up front.
 type Holder struct {
 	p atomic.Pointer[Runtime]
 }
@@ -109,13 +110,15 @@ func NewHolder() *Holder {
 	return h
 }
 
-// Load returns the current Runtime. It never returns nil and does not allocate on a Holder from [NewHolder].
+// Load returns the current Runtime. It never returns nil and does not allocate once the Holder holds a Runtime.
 func (h *Holder) Load() *Runtime {
 	if r := h.p.Load(); r != nil {
 		return r
 	}
 
-	return newEmptyRuntime()
+	h.p.CompareAndSwap(nil, newEmptyRuntime())
+
+	return h.p.Load()
 }
 
 // store publishes a Runtime: the only write of the Holder, made by the engine goroutine.

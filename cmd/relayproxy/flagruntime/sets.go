@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"context"
@@ -61,7 +61,6 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 type inputSummary struct {
 	last     *objState
 	problems []Problem
-	hash     uint64
 	rejected int
 	loaded   int
 	degraded bool
@@ -70,7 +69,7 @@ type inputSummary struct {
 // summarize resolves the sources of a definition against the objects of the stage.
 func (st *stage) summarize(spec *setSpec, notes []Problem) (*inputSummary, []*objState) {
 	inputs := make([]*objState, len(spec.sources))
-	sum := &inputSummary{problems: slices.Clone(notes), hash: fnvOffset, degraded: len(notes) > 0}
+	sum := &inputSummary{problems: slices.Clone(notes), degraded: len(notes) > 0}
 
 	for idx, source := range spec.sources {
 		held := st.objects[source]
@@ -82,12 +81,10 @@ func (st *stage) summarize(spec *setSpec, notes []Problem) (*inputSummary, []*ob
 				Reason: "the source is not an object of kind flags in the content",
 			})
 			sum.degraded = true
-			sum.hash = mixUint(sum.hash, 0)
 
 			continue
 		}
 
-		sum.hash = mixUint(sum.hash, held.hash)
 		sum.rejected += len(held.rejected)
 
 		if held.state != ObjectOK {
@@ -104,13 +101,15 @@ func (st *stage) summarize(spec *setSpec, notes []Problem) (*inputSummary, []*ob
 	return sum, inputs
 }
 
-// mergeFlags builds the flag table of a flag set. A flag set with one source shares the map of the source.
-func mergeFlags(sum *inputSummary, inputs []*objState) map[string]*flagdef.InternalFlag {
+// mergeFlags builds the flag table of a flag set and its content hash. A flag set with one source shares the
+// map of the source. The hash combines the effective flags (key and content of each), so it does not depend on
+// the order of the sources, on checksums, on formats or on history.
+func mergeFlags(sum *inputSummary, inputs []*objState) (map[string]*flagdef.InternalFlag, uint64) {
 	switch sum.loaded {
 	case 0:
-		return nil
+		return nil, 0
 	case 1:
-		return sum.last.flags
+		return sum.last.flags, sum.last.content
 	}
 
 	total := 0
@@ -122,20 +121,22 @@ func mergeFlags(sum *inputSummary, inputs []*objState) map[string]*flagdef.Inter
 	}
 
 	flags := make(map[string]*flagdef.InternalFlag, total)
+	hashes := make(map[string]uint64, total)
 
 	for _, held := range inputs {
 		if held != nil {
 			maps.Copy(flags, held.flags) // a later source wins on a duplicate flag key
+			maps.Copy(hashes, held.hashes)
 		}
 	}
 
-	return flags
+	return flags, tableHash(hashes)
 }
 
 // buildSet builds a flag set from its definition and the objects of the stage.
 func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 	sum, inputs := st.summarize(spec, notes)
-	flags := mergeFlags(sum, inputs)
+	flags, hash := mergeFlags(sum, inputs)
 
 	phase := StateServing
 
@@ -147,7 +148,7 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 	}
 
 	fset := &FlagSet{
-		Flags: flags, Name: spec.name, State: phase, Hash: sum.hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
+		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
 	}
 
 	return &setState{
@@ -155,6 +156,35 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 		status: &FlagSetStatus{
 			Name: spec.name, State: phase, Sources: spec.sources, Problems: sum.problems, Flags: len(flags),
 			APIKeys: len(spec.keys), Rejected: sum.rejected,
+		},
+	}
+}
+
+// frozenSet keeps the flags a flag set had when its entry became invalid: the sources are not read again, so a
+// partial list of sources is never served.
+func frozenSet(old *setState, spec *setSpec, notes []Problem) *setState {
+	fset := *old.fs
+	fset.APIKeys = len(spec.keys)
+
+	if fset.State == StateServing {
+		fset.State = StateDegraded
+	}
+
+	status := *old.status
+	status.State, status.APIKeys, status.Problems = fset.State, len(spec.keys), slices.Clone(notes)
+
+	return &setState{spec: spec, fs: &fset, status: &status, inputs: old.inputs, notes: notes, frozen: true}
+}
+
+// placeholderSet routes the keys of an invalid entry that never had a valid definition to a flag set that is
+// pending and has no flags, so a valid key reaches the "not available" answer.
+func placeholderSet(spec *setSpec, notes []Problem) *setState {
+	return &setState{
+		spec: spec, notes: notes, placeholder: true,
+		fs: &FlagSet{Name: spec.name, State: StatePending, APIKeys: len(spec.keys)},
+		status: &FlagSetStatus{
+			Name: spec.name, State: StatePending, Sources: spec.sources, Problems: slices.Clone(notes),
+			APIKeys: len(spec.keys),
 		},
 	}
 }

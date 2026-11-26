@@ -1,4 +1,4 @@
-package runtime //nolint:revive,nolintlint // the name is fixed: the package is cmd/relayproxy/runtime
+package flagruntime
 
 import (
 	"cmp"
@@ -53,7 +53,13 @@ type Built struct {
 type BuilderOptions struct {
 	// OnParse is called once for every object that is parsed (not for an object served from the cache).
 	OnParse func(ParseEvent)
+	// WithdrawnCap is the number of withdrawn flag-set names that the status keeps; the oldest are dropped.
+	// Zero means [DefaultWithdrawnCap].
+	WithdrawnCap int
 }
+
+// DefaultWithdrawnCap is the default size of the list of withdrawn flag sets in the status.
+const DefaultWithdrawnCap = 256
 
 // Builder turns a [Content] into the candidate of a [Runtime], with structural sharing against the last
 // committed build. It is not safe for concurrent use: the engine goroutine owns it.
@@ -67,6 +73,10 @@ type Builder struct {
 
 // NewBuilder returns a Builder that validates flags with svc, which the caller owns.
 func NewBuilder(svc *flagdef.Service, opts BuilderOptions) *Builder {
+	if opts.WithdrawnCap <= 0 {
+		opts.WithdrawnCap = DefaultWithdrawnCap
+	}
+
 	return &Builder{
 		svc:   svc,
 		cur:   emptyState(),
@@ -97,6 +107,7 @@ type stage struct {
 	manif   *controlplane.Manifest
 	changed []string // names of objects (any kind) whose state changed or that were removed
 	chFlags []string // names of flags objects that changed or were removed
+	gen     uint64
 	cloneO  bool
 	cloneD  bool
 	docsChg bool
@@ -138,24 +149,30 @@ func (st *stage) delDoc(name string) {
 	delete(st.docs, name)
 }
 
-// Build computes the candidate for a content. The cost is proportional to the objects that changed (parse and
-// table), the flag sets that use them (rebuild), and, only when a flag-set document or the set of object names
-// changed, the flag sets and keys (entry pass). A map clone of the flag-set and key tables is paid once per
-// generation that changes a flag set.
+// Build computes the candidate for a content.
+//
+// Cost: the content is scanned once, O(objects), comparing checksums. Parsing is proportional to the objects whose
+// checksum changed. A generation that changed only flags objects rebuilds only the flag sets that list them and
+// copies the flag-set, status and key tables once (O(total flag sets) + O(total keys) map copies, no per-flag
+// work). A generation that changed a flag-set document, or added or removed any object, also walks every entry
+// of the documents (O(entries + keys)), reusing the flag sets that did not change by pointer. A no-op
+// generation allocates a few small values only.
 func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	if content == nil {
 		return nil, fmt.Errorf("%w: nil content", ErrInvalidContent)
 	}
 
 	stg := &stage{
-		b: b, prev: b.cur, objects: b.cur.objects, docs: b.cur.docs,
+		b: b, prev: b.cur, objects: b.cur.objects, docs: b.cur.docs, gen: content.Generation,
 		built: &Built{flagSet: map[string]*parsedFlags{}, docSet: map[string]*parsedDoc{}},
 	}
 
-	sig, nFlags, nDocs := stg.scan(content)
+	sums := stg.scan(content)
 
-	sigChanged := sig != stg.prev.sig || nFlags != len(stg.prev.objects)
-	if sigChanged || nDocs != len(stg.prev.docs) {
+	// the set of names changed when a name was added or removed, whatever its kind: a document swapped for
+	// another one keeps every count, but not the signatures
+	namesChanged := sums.flagSig != stg.prev.sig || sums.nFlags != len(stg.prev.objects)
+	if namesChanged || sums.docSig != stg.prev.docSig || sums.nDocs != len(stg.prev.docs) {
 		stg.removeGone(content)
 	}
 
@@ -163,7 +180,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 		return nil, fmt.Errorf("build: %w", ctx.Err())
 	}
 
-	full := !stg.prev.init || stg.docsChg || sigChanged
+	full := !stg.prev.init || stg.docsChg || namesChanged
 
 	var (
 		next *state
@@ -171,7 +188,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	)
 
 	if full {
-		next, err = stg.fullPass(ctx, sig)
+		next, err = stg.fullPass(ctx, sums.flagSig)
 	} else {
 		next, err = stg.incrementalPass(ctx)
 	}
@@ -181,7 +198,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	}
 
 	next.init = true
-	next.sig = sig
+	next.sig, next.docSig = sums.flagSig, sums.docSig
 	stg.built.next = next
 	stg.built.Runtime = &Runtime{
 		FlagSets:   next.flagSets,
@@ -192,6 +209,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 			FlagSets:   next.setStatus,
 			Objects:    next.objStatus,
 			Entries:    next.entries,
+			Withdrawn:  next.withdrawn,
 			Generation: content.Generation,
 		},
 	}
@@ -207,38 +225,30 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 		}
 	}
 
-	stg.built.Stats.Reused = max(0, len(next.sets)-countTombs(next.sets)-rebuiltLive)
+	stg.built.Stats.Reused = max(0, len(next.sets)-rebuiltLive)
 
 	return stg.built, nil
 }
 
-func countTombs(sets map[string]*setState) int {
-	count := 0
-
-	for _, set := range sets {
-		if set.tomb {
-			count++
-		}
-	}
-
-	return count
+// scanSums are the counts and name signatures found by a scan.
+type scanSums struct {
+	flagSig uint64
+	docSig  uint64
+	nFlags  int
+	nDocs   int
 }
 
 // scan reads every object of the content once: it detects the changed ones and parses what is new.
-func (st *stage) scan(content *Content) (uint64, int, int) {
-	var (
-		sig    uint64
-		nFlags int
-		nDocs  int
-	)
+func (st *stage) scan(content *Content) scanSums {
+	var sums scanSums
 
 	for name := range content.Objects {
 		obj := content.Objects[name]
 
 		switch obj.Kind {
 		case KindFlags:
-			nFlags++
-			sig ^= hashString(name)
+			sums.nFlags++
+			sums.flagSig ^= hashString(name)
 
 			prev := st.prev.objects[name]
 
@@ -249,7 +259,8 @@ func (st *stage) scan(content *Content) (uint64, int, int) {
 				st.chFlags = append(st.chFlags, name)
 			}
 		case KindFlagSets:
-			nDocs++
+			sums.nDocs++
+			sums.docSig ^= hashString(name)
 
 			prev := st.prev.docs[name]
 
@@ -262,7 +273,7 @@ func (st *stage) scan(content *Content) (uint64, int, int) {
 		}
 	}
 
-	return sig, nFlags, nDocs
+	return sums
 }
 
 // removeGone drops the objects that the content no longer lists.

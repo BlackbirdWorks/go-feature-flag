@@ -1,4 +1,4 @@
-package runtime_test
+package flagruntime_test
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 )
 
 // errRefused is what the veto hook of the tests returns.
@@ -28,7 +28,7 @@ func simpleObjs(t *testing.T, value int) objs {
 func TestEngineAppliesContentWithOneStore(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 
 	empty := r.holder.Load()
 
@@ -42,7 +42,12 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 
 	assert.Equal(
 		t,
-		runtime.Reload{Outcome: runtime.OutcomeApplied, Code: runtime.CodeApplied, Generation: 7, Snapshot: 1},
+		flagruntime.Reload{
+			Outcome:    flagruntime.OutcomeApplied,
+			Code:       flagruntime.CodeApplied,
+			Generation: 7,
+			Snapshot:   1,
+		},
 		res,
 	)
 
@@ -69,12 +74,12 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 func TestEngineEmptyContentIsAValidRuntime(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	res := r.feed(content(1, objs{}))
 
-	assert.Equal(t, runtime.OutcomeApplied, res.Outcome)
+	assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
 	current := r.holder.Load()
 
@@ -92,8 +97,8 @@ func TestEngineGenerationRules(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		second         *runtime.Content
-		wantOutcome    runtime.Outcome
+		second         *flagruntime.Content
+		wantOutcome    flagruntime.Outcome
 		wantCode       string
 		wantGeneration uint64
 		wantSnapshot   uint64
@@ -102,32 +107,32 @@ func TestEngineGenerationRules(t *testing.T) {
 		{
 			name:           "a lower generation is ignored",
 			second:         content(4, simpleObjs(t, 9)),
-			wantOutcome:    runtime.OutcomeIgnored,
-			wantCode:       runtime.CodeStaleGeneration,
+			wantOutcome:    flagruntime.OutcomeIgnored,
+			wantCode:       flagruntime.CodeStaleGeneration,
 			wantGeneration: 5,
 			wantSnapshot:   1,
 		},
 		{
 			name:           "the same generation with the same content is ignored",
 			second:         content(5, simpleObjs(t, 1)),
-			wantOutcome:    runtime.OutcomeIgnored,
-			wantCode:       runtime.CodeDuplicate,
+			wantOutcome:    flagruntime.OutcomeIgnored,
+			wantCode:       flagruntime.CodeDuplicate,
 			wantGeneration: 5,
 			wantSnapshot:   1,
 		},
 		{
 			name:           "the same generation with other content is a conflict and is rejected",
 			second:         content(5, simpleObjs(t, 9)),
-			wantOutcome:    runtime.OutcomeRejected,
-			wantCode:       runtime.CodeGenerationConflict,
+			wantOutcome:    flagruntime.OutcomeRejected,
+			wantCode:       flagruntime.CodeGenerationConflict,
 			wantGeneration: 5,
 			wantSnapshot:   1,
 		},
 		{
 			name:           "a higher generation applies",
 			second:         content(6, simpleObjs(t, 9)),
-			wantOutcome:    runtime.OutcomeApplied,
-			wantCode:       runtime.CodeApplied,
+			wantOutcome:    flagruntime.OutcomeApplied,
+			wantCode:       flagruntime.CodeApplied,
 			wantGeneration: 6,
 			wantSnapshot:   2,
 			wantStored:     true,
@@ -135,8 +140,8 @@ func TestEngineGenerationRules(t *testing.T) {
 		{
 			name:           "a higher generation with the same content still applies (no-op content)",
 			second:         content(6, simpleObjs(t, 1)),
-			wantOutcome:    runtime.OutcomeApplied,
-			wantCode:       runtime.CodeApplied,
+			wantOutcome:    flagruntime.OutcomeApplied,
+			wantCode:       flagruntime.CodeApplied,
 			wantGeneration: 6,
 			wantSnapshot:   2,
 			wantStored:     true,
@@ -147,7 +152,7 @@ func TestEngineGenerationRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := newRig(t, runtime.Hooks{})
+			r := newRig(t, flagruntime.Hooks{})
 			r.start()
 
 			r.feed(content(5, simpleObjs(t, 1)))
@@ -177,7 +182,7 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 	badFormat.Format = "xml"
 
 	tests := []struct {
-		bad      *runtime.Content
+		bad      *flagruntime.Content
 		name     string
 		wantCode string
 		veto     bool
@@ -185,35 +190,35 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 		{
 			name:     "generation zero",
 			bad:      content(0, simpleObjs(t, 2)),
-			wantCode: runtime.CodeInvalidContent,
+			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{
 			name:     "unknown object state",
-			bad:      content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: runtime.KindFlags, State: "bogus"}})),
-			wantCode: runtime.CodeInvalidContent,
+			bad:      content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}})),
+			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{
 			name: "the invalid state is not an input",
 			bad: content(
 				3,
-				simpleObjs(t, 2).with(objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectInvalid}}),
+				simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectInvalid}}),
 			),
-			wantCode: runtime.CodeInvalidContent,
+			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{
 			name:     "unsupported format of a flags object",
 			bad:      content(3, simpleObjs(t, 2).with(objs{"f1": badFormat})),
-			wantCode: runtime.CodeInvalidContent,
+			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{
 			name:     "object with an empty name",
 			bad:      content(3, simpleObjs(t, 2).with(objs{"": flagsObj(1, "x")})),
-			wantCode: runtime.CodeInvalidContent,
+			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{
 			name:     "the candidate is vetoed before the store",
 			bad:      content(3, simpleObjs(t, 2)),
-			wantCode: runtime.CodeVetoed,
+			wantCode: flagruntime.CodeVetoed,
 			veto:     true,
 		},
 	}
@@ -224,7 +229,7 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 
 			var veto atomic.Bool
 
-			r := newRig(t, runtime.Hooks{BeforeSwap: func(*runtime.Runtime) error {
+			r := newRig(t, flagruntime.Hooks{BeforeSwap: func(*flagruntime.Runtime) error {
 				if veto.Load() {
 					return errRefused
 				}
@@ -241,7 +246,7 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 
 			res := r.feed(tt.bad)
 
-			assert.Equal(t, runtime.OutcomeRejected, res.Outcome)
+			assert.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
 			assert.Equal(t, tt.wantCode, res.Code)
 			assert.NotEmpty(t, res.Detail)
 			assert.Same(t, before, r.holder.Load(), "a rejected candidate stores nothing")
@@ -252,13 +257,13 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 
 			res = r.feed(content(4, simpleObjs(t, 3)))
 
-			require.Equal(t, runtime.OutcomeApplied, res.Outcome)
+			require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
 			next := r.holder.Load()
 
 			require.NotNil(t, next.Status.LastRejected, "the next status records the last rejection")
 			assert.Equal(t, tt.wantCode, next.Status.LastRejected.Code)
-			assert.Equal(t, runtime.OutcomeRejected, next.Status.LastRejected.Outcome)
+			assert.Equal(t, flagruntime.OutcomeRejected, next.Status.LastRejected.Outcome)
 			assert.Greater(t, next.Snapshot, before.Snapshot)
 		})
 	}
@@ -272,7 +277,7 @@ func TestEngineBuildFailureStoresNothing(t *testing.T) {
 		r             *rig
 	)
 
-	r = newRig(t, runtime.Hooks{OnParse: func(runtime.ParseEvent) {
+	r = newRig(t, flagruntime.Hooks{OnParse: func(flagruntime.ParseEvent) {
 		if cancelOnParse.Load() {
 			// the context of the build is the context of Run: a build that cannot finish stores nothing
 			r.cancel()
@@ -288,8 +293,8 @@ func TestEngineBuildFailureStoresNothing(t *testing.T) {
 
 	res := r.feed(content(2, simpleObjs(t, 2)))
 
-	assert.Equal(t, runtime.OutcomeRejected, res.Outcome)
-	assert.Equal(t, runtime.CodeBuildFailed, res.Code)
+	assert.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
+	assert.Equal(t, flagruntime.CodeBuildFailed, res.Code)
 	assert.Contains(t, res.Detail, "canceled")
 	assert.Same(t, before, r.holder.Load(), "a failed build stores nothing")
 }
@@ -297,7 +302,7 @@ func TestEngineBuildFailureStoresNothing(t *testing.T) {
 func TestEngineLatestWinsCoalescing(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 
 	for gen := 1; gen <= 5; gen++ {
 		r.eng.Submit(content(uint64(gen), simpleObjs(t, gen)))
@@ -305,7 +310,7 @@ func TestEngineLatestWinsCoalescing(t *testing.T) {
 
 	r.start()
 
-	res := <-r.rounds
+	res := r.nextRound()
 
 	assert.Equal(t, uint64(5), res.Generation, "only the last content is built")
 	assert.Equal(t, uint64(1), res.Snapshot, "one round, one swap")
@@ -326,7 +331,7 @@ func TestEngineLatestWinsCoalescing(t *testing.T) {
 func TestEngineCoalescesBootstrapReloads(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 
 	for _, key := range []string{"one", "two", "three"} {
 		r.eng.Reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+key+"]\n"))
@@ -334,9 +339,9 @@ func TestEngineCoalescesBootstrapReloads(t *testing.T) {
 
 	r.start()
 
-	res := <-r.rounds
+	res := r.nextRound()
 
-	assert.Equal(t, runtime.OutcomeApplied, res.Outcome)
+	assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 	assert.Equal(t, uint64(1), res.Snapshot)
 	assert.Equal(t, map[string]struct{}{"three": {}}, r.holder.Load().AdminKeys)
 }
@@ -344,13 +349,13 @@ func TestEngineCoalescesBootstrapReloads(t *testing.T) {
 func TestEngineContentAndBootstrapInOneRound(t *testing.T) {
 	t.Parallel()
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 
 	r.eng.Submit(content(1, simpleObjs(t, 1)))
 	r.eng.Reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [adm]\n"))
 	r.start()
 
-	res := <-r.rounds
+	res := r.nextRound()
 
 	current := r.holder.Load()
 
@@ -396,7 +401,7 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			name:        "a changed listener is reported and the admin change still applies",
 			edits:       [][2]string{{"[admin-1]", "[admin-2]"}, {":8080", ":9090"}},
 			wantAdmin:   []string{"admin-2"},
-			wantPending: []string{runtime.SettingServerListeners},
+			wantPending: []string{flagruntime.SettingServerListeners},
 		},
 		{
 			name: "a changed unix socket, state dir and control plane connection are reported",
@@ -405,14 +410,16 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			},
 			wantAdmin: []string{adminOne},
 			wantPending: []string{
-				runtime.SettingControlPlaneConn, runtime.SettingControlPlaneState, runtime.SettingServerUnixSocket,
+				flagruntime.SettingControlPlaneConn,
+				flagruntime.SettingControlPlaneState,
+				flagruntime.SettingServerUnixSocket,
 			},
 		},
 		{
 			name:        "a changed connection and manifest are reported",
 			edits:       [][2]string{{"bucket: b", "bucket: other"}, {"m.yaml", "n.yaml"}},
 			wantAdmin:   []string{adminOne},
-			wantPending: []string{runtime.SettingConnections, runtime.SettingControlPlaneMan},
+			wantPending: []string{flagruntime.SettingConnections, flagruntime.SettingControlPlaneMan},
 		},
 		{
 			name: "a removed control plane is reported",
@@ -420,21 +427,21 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 				{"controlPlane:\n  connection: main\n  stateDir: /var/a\n  manifest: {key: m.yaml}\n", ""},
 			},
 			wantAdmin:   []string{adminOne},
-			wantPending: []string{runtime.SettingControlPlane},
+			wantPending: []string{flagruntime.SettingControlPlane},
 		},
 		{
 			name:      "exporters, notifiers and observability are reported",
 			extra:     "exporters: {e: {type: file}}\nnotifiers: {n: {type: slack}}\nobservability: {logging: {level: debug}}\n",
 			wantAdmin: []string{adminOne},
 			wantPending: []string{
-				runtime.SettingExporters, runtime.SettingNotifiers, runtime.SettingObservability,
+				flagruntime.SettingExporters, flagruntime.SettingNotifiers, flagruntime.SettingObservability,
 			},
 		},
 		{
 			name:        "a changed version is reported",
 			edits:       [][2]string{{"version: 2", "version: 3"}},
 			wantAdmin:   []string{adminOne},
-			wantPending: []string{runtime.SettingVersion},
+			wantPending: []string{flagruntime.SettingVersion},
 		},
 	}
 
@@ -452,7 +459,7 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 
 			next += tt.extra
 
-			rig := newRig(t, runtime.Hooks{}, runtime.WithInitialBootstrap(bootstrapFromYAML(t, bootstrapBase)))
+			rig := newRig(t, flagruntime.Hooks{}, flagruntime.WithInitialBootstrap(bootstrapFromYAML(t, bootstrapBase)))
 			rig.start()
 
 			rig.feed(content(1, simpleObjs(t, 1)))
@@ -462,7 +469,7 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 
 			after := rig.holder.Load()
 
-			assert.Equal(t, runtime.OutcomeApplied, res.Outcome)
+			assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 			assert.Equal(t, before.Generation, after.Generation, "a bootstrap change keeps the content generation")
 			assert.Equal(t, before.Snapshot+1, after.Snapshot)
 			assert.Len(t, after.AdminKeys, len(tt.wantAdmin))
@@ -483,17 +490,17 @@ func TestEngineBootstrapNoChangeStoresNothing(t *testing.T) {
 
 	const cfg = "version: 2\nauth:\n  adminKeys: [admin-1]\n"
 
-	r := newRig(t, runtime.Hooks{})
+	r := newRig(t, flagruntime.Hooks{})
 	r.start()
 
 	first := r.reload(bootstrapFromYAML(t, cfg))
 
-	assert.Equal(t, runtime.OutcomeApplied, first.Outcome, "the first configuration sets the admin keys")
+	assert.Equal(t, flagruntime.OutcomeApplied, first.Outcome, "the first configuration sets the admin keys")
 
 	before := r.holder.Load()
 	res := r.reload(bootstrapFromYAML(t, cfg))
 
-	assert.Equal(t, runtime.OutcomeIgnored, res.Outcome)
+	assert.Equal(t, flagruntime.OutcomeIgnored, res.Outcome)
 	assert.Equal(t, "unchanged", res.Code)
 	assert.Same(t, before, r.holder.Load())
 }
@@ -503,7 +510,7 @@ func TestEngineBootstrapAdminKeyThatDoesNotResolveIsRejected(t *testing.T) {
 
 	const canary = "CANARY-ENV-NAME-VALUE"
 
-	r := newRig(t, runtime.Hooks{}, runtime.WithSecretOptions(bootstrap.LoadOptions{
+	r := newRig(t, flagruntime.Hooks{}, flagruntime.WithSecretOptions(bootstrap.LoadOptions{
 		LookupEnv: func(name string) (string, bool) { return canary, name == "KNOWN" },
 	}))
 	r.start()
@@ -516,8 +523,8 @@ func TestEngineBootstrapAdminKeyThatDoesNotResolveIsRejected(t *testing.T) {
 
 	res := r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [{fromEnv: UNKNOWN}]\n"))
 
-	assert.Equal(t, runtime.OutcomeRejected, res.Outcome)
-	assert.Equal(t, runtime.CodeInvalidBootstrap, res.Code)
+	assert.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
+	assert.Equal(t, flagruntime.CodeInvalidBootstrap, res.Code)
 	assert.Same(t, before, r.holder.Load(), "an unresolved admin key changes nothing")
 	assert.NotContains(t, res.Detail, canary)
 	assert.Contains(t, res.Detail, "adminKeys[0]")

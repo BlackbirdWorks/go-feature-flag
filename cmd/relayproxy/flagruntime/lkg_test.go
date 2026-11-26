@@ -1,4 +1,4 @@
-package runtime_test
+package flagruntime_test
 
 import (
 	"context"
@@ -8,33 +8,34 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/runtime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 // lkgCase is one scenario of the last-known-good table of issue 6: the contents are built in order and the
-// want fields describe the last runtime. A nil want map or slice is checked as "nothing expected".
+// want fields describe the last flagruntime. A nil want map or slice is checked as "nothing expected".
 type lkgCase struct {
-	wantStates   map[string]runtime.SetState
-	wantFlags    map[string][]string
-	wantValues   map[string]any
-	wantObjects  map[string]runtime.ObjectState
-	wantKeys     map[string]string
-	wantRejected map[string]int
-	name         string
-	steps        []objs
-	wantAbsent   []string
-	wantSame     []string
-	wantNotSame  []string
-	wantEntries  []controlplane.Code
+	wantStates    map[string]flagruntime.SetState
+	wantFlags     map[string][]string
+	wantValues    map[string]any
+	wantObjects   map[string]flagruntime.ObjectState
+	wantKeys      map[string]string
+	wantRejected  map[string]int
+	name          string
+	steps         []objs
+	wantAbsent    []string
+	wantSame      []string
+	wantNotSame   []string
+	wantEntries   []controlplane.Code
+	wantWithdrawn []flagruntime.WithdrawnSet
 }
 
 // lkgFixtures are the objects the cases build on.
 type lkgFixtures struct {
 	oneSet  objs
 	twoSets objs
-	first   runtime.Object
-	second  runtime.Object
+	first   flagruntime.Object
+	second  flagruntime.Object
 }
 
 func newLKGFixtures(t *testing.T) *lkgFixtures {
@@ -66,12 +67,12 @@ func lkgFlagCases(t *testing.T) []lkgCase {
 			name: "invalid flag keeps its previous definition, the others update",
 			steps: []objs{
 				fix.oneSet,
-				fix.oneSet.with(objs{"f1": obj(runtime.KindFlags, join(flagsYAML(2, "x"), badYAML("y")))}),
+				fix.oneSet.with(objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(2, "x"), badYAML()))}),
 			},
-			wantStates:   map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:   map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:    map[string][]string{"a": {"x", "y"}},
 			wantValues:   map[string]any{pathAX: 2, pathAY: 1},
-			wantObjects:  map[string]runtime.ObjectState{"f1": runtime.ObjectOK},
+			wantObjects:  map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectOK},
 			wantRejected: map[string]int{"a": 1},
 			wantKeys:     map[string]string{keyA: "a"},
 			wantSame:     nil,
@@ -80,12 +81,12 @@ func lkgFlagCases(t *testing.T) []lkgCase {
 		{
 			name: "invalid flag with no previous definition is absent and counted",
 			steps: []objs{
-				fix.oneSet.with(objs{"f1": obj(runtime.KindFlags, join(flagsYAML(1, "x"), badYAML("y")))}),
+				fix.oneSet.with(objs{"f1": obj(flagruntime.KindFlags, join(flagsYAML(1, "x"), badYAML()))}),
 			},
-			wantStates:   map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:   map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:    map[string][]string{"a": {"x"}},
 			wantValues:   map[string]any{pathAX: 1},
-			wantObjects:  map[string]runtime.ObjectState{"f1": runtime.ObjectOK},
+			wantObjects:  map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectOK},
 			wantRejected: map[string]int{"a": 1},
 			wantKeys:     map[string]string{keyA: "a"},
 		},
@@ -94,13 +95,13 @@ func lkgFlagCases(t *testing.T) []lkgCase {
 			steps: []objs{
 				fix.oneSet,
 				fix.oneSet.with(
-					objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectStale, Reason: "etag unchanged"}},
+					objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale, Reason: "etag unchanged"}},
 				),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantValues:  map[string]any{pathAX: 1, pathAY: 1},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectStale},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectStale},
 			wantKeys:    map[string]string{keyA: "a"},
 			wantSame:    []string{pathAX, pathAY},
 		},
@@ -109,13 +110,13 @@ func lkgFlagCases(t *testing.T) []lkgCase {
 			steps: []objs{
 				fix.oneSet,
 				fix.oneSet.with(
-					objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectMissing, Reason: "not found"}},
+					objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectMissing, Reason: "not found"}},
 				),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantValues:  map[string]any{pathAX: 1},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectMissing},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectMissing},
 			wantKeys:    map[string]string{keyA: "a"},
 			wantSame:    []string{pathAX},
 		},
@@ -123,51 +124,55 @@ func lkgFlagCases(t *testing.T) []lkgCase {
 			name: "stale then ok again with the same content serves again and keeps the pointers",
 			steps: []objs{
 				fix.oneSet,
-				fix.oneSet.with(objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectStale}}),
+				fix.oneSet.with(objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale}}),
 				fix.oneSet,
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantValues:  map[string]any{pathAX: 1},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectOK},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectOK},
 			wantKeys:    map[string]string{keyA: "a"},
 			wantSame:    []string{pathAX, pathAY},
 		},
 		{
-			name:        "missing object on cold start: the flag set is pending with zero flags",
-			steps:       []objs{fix.oneSet.with(objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectMissing}})},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StatePending},
+			name: "missing object on cold start: the flag set is pending with zero flags",
+			steps: []objs{
+				fix.oneSet.with(objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectMissing}}),
+			},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending},
 			wantFlags:   map[string][]string{"a": {}},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectMissing},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectMissing},
 			wantKeys:    map[string]string{keyA: "a"},
 		},
 		{
-			name:        "pending object on cold start: the flag set is pending",
-			steps:       []objs{fix.oneSet.with(objs{"f1": {Kind: runtime.KindFlags, State: runtime.ObjectPending}})},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StatePending},
+			name: "pending object on cold start: the flag set is pending",
+			steps: []objs{
+				fix.oneSet.with(objs{"f1": {Kind: flagruntime.KindFlags, State: flagruntime.ObjectPending}}),
+			},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending},
 			wantFlags:   map[string][]string{"a": {}},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectPending},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectPending},
 			wantKeys:    map[string]string{keyA: "a"},
 		},
 		{
 			name: "undecodable flags object keeps the last good table",
 			steps: []objs{
 				fix.oneSet,
-				fix.oneSet.with(objs{"f1": obj(runtime.KindFlags, []byte("x: [unterminated"))}),
+				fix.oneSet.with(objs{"f1": obj(flagruntime.KindFlags, []byte("x: [unterminated"))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantValues:  map[string]any{pathAX: 1},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectInvalid},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectInvalid},
 			wantSame:    []string{pathAX},
 			wantKeys:    map[string]string{keyA: "a"},
 		},
 		{
 			name:        "undecodable flags object on cold start leaves the flag set pending",
-			steps:       []objs{fix.oneSet.with(objs{"f1": obj(runtime.KindFlags, []byte("x: [unterminated"))})},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StatePending},
+			steps:       []objs{fix.oneSet.with(objs{"f1": obj(flagruntime.KindFlags, []byte("x: [unterminated"))})},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending},
 			wantFlags:   map[string][]string{"a": {}},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectInvalid},
+			wantObjects: map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectInvalid},
 			wantKeys:    map[string]string{keyA: "a"},
 		},
 	}
@@ -180,13 +185,103 @@ func lkgDocumentCases(t *testing.T) []lkgCase {
 
 	return []lkgCase{
 		{
-			name:        "withdrawn flag set: its key still routes to it and it serves nothing",
-			steps:       []objs{fix.twoSets, fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB))})},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateWithdrawn, "b": runtime.StateServing},
-			wantFlags:   map[string][]string{"a": {}, "b": {"x", "y"}},
+			name: "withdrawn flag set: it leaves the tables and its key is unknown",
+			steps: []objs{
+				fix.twoSets,
+				fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB))}),
+			},
+			wantStates: map[string]flagruntime.SetState{"b": flagruntime.StateServing},
+			wantFlags:  map[string][]string{"b": {"x", "y"}},
+			wantAbsent: []string{"a"},
+			wantKeys:   map[string]string{keyB: "b"},
+			wantObjects: map[string]flagruntime.ObjectState{
+				"f1":     flagruntime.ObjectOK,
+				setsName: flagruntime.ObjectOK,
+			},
+			wantSame:      []string{pathBX},
+			wantWithdrawn: []flagruntime.WithdrawnSet{{Name: "a", Generation: 2}},
+		},
+		{
+			name: "the key of a withdrawn flag set is free for a new flag set of another name in the same generation",
+			steps: []objs{
+				fix.twoSets,
+				fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB), fset("c", src("f1"), keyA))}),
+			},
+			wantStates: map[string]flagruntime.SetState{
+				"b": flagruntime.StateServing,
+				"c": flagruntime.StateServing,
+			},
+			wantAbsent:    []string{"a"},
+			wantKeys:      map[string]string{keyA: "c", keyB: "b"},
+			wantWithdrawn: []flagruntime.WithdrawnSet{{Name: "a", Generation: 2}},
+		},
+		{
+			name: "the key of a withdrawn flag set is free for a new flag set in a later generation",
+			steps: []objs{
+				fix.twoSets,
+				fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB))}),
+				fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB), fset("c", src("f1"), keyA))}),
+			},
+			wantStates: map[string]flagruntime.SetState{
+				"b": flagruntime.StateServing,
+				"c": flagruntime.StateServing,
+			},
+			wantAbsent:    []string{"a"},
+			wantKeys:      map[string]string{keyA: "c", keyB: "b"},
+			wantWithdrawn: []flagruntime.WithdrawnSet{{Name: "a", Generation: 2}},
+		},
+		{
+			name: "a flag-set document swapped for another one removes the flag sets of the first",
+			steps: []objs{
+				{"f1": fix.first, docs1: setsObj(t, fset("aa", src("f1"), "key-aa"))},
+				{"f1": fix.first, docs2: setsObj(t, fset("bb", src("f1"), "key-bb"))},
+			},
+			wantStates:    map[string]flagruntime.SetState{"bb": flagruntime.StateServing},
+			wantAbsent:    []string{"aa"},
+			wantKeys:      map[string]string{"key-bb": "bb"},
+			wantObjects:   map[string]flagruntime.ObjectState{"f1": flagruntime.ObjectOK, docs2: flagruntime.ObjectOK},
+			wantWithdrawn: []flagruntime.WithdrawnSet{{Name: "aa", Generation: 2}},
+		},
+		{
+			name: "invalid key on first load: status only, nothing routes for that entry",
+			steps: []objs{
+				fix.twoSets.with(
+					objs{setsName: setsObj(t, fset("a", src("f1"), "", keyA), fset("b", src("f1"), keyB))},
+				),
+			},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending, "b": flagruntime.StateServing},
+			wantAbsent:  []string{"a"},
+			wantKeys:    map[string]string{keyB: "b"},
+			wantEntries: []controlplane.Code{controlplane.CodeInvalidValue},
+		},
+		{
+			name: "invalid key after a good load keeps the definition and its keys",
+			steps: []objs{
+				fix.twoSets,
+				fix.twoSets.with(
+					objs{setsName: setsObj(t, fset("a", src("f1"), "", keyA), fset("b", src("f1"), keyB))},
+				),
+			},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded, "b": flagruntime.StateServing},
+			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
-			wantObjects: map[string]runtime.ObjectState{"f1": runtime.ObjectOK, setsName: runtime.ObjectOK},
-			wantNotSame: []string{pathAX},
+			wantEntries: []controlplane.Code{controlplane.CodeInvalidValue},
+			wantSame:    []string{pathAX},
+		},
+		{
+			name: "invalid name on first load: status only",
+			steps: []objs{
+				fix.twoSets.with(
+					objs{setsName: setsObj(t, fset("Bad_Name", src("f1"), "key-bad"), fset("b", src("f1"), keyB))},
+				),
+			},
+			wantStates: map[string]flagruntime.SetState{
+				"Bad_Name": flagruntime.StatePending,
+				"b":        flagruntime.StateServing,
+			},
+			wantAbsent:  []string{"Bad_Name"},
+			wantKeys:    map[string]string{keyB: "b"},
+			wantEntries: []controlplane.Code{controlplane.CodeInvalidName},
 		},
 		{
 			name: "a withdrawn flag set that returns serves again",
@@ -195,7 +290,7 @@ func lkgDocumentCases(t *testing.T) []lkgCase {
 				fix.twoSets.with(objs{setsName: setsObj(t, fset("b", src("f1"), keyB))}),
 				fix.twoSets,
 			},
-			wantStates: map[string]runtime.SetState{"a": runtime.StateServing, "b": runtime.StateServing},
+			wantStates: map[string]flagruntime.SetState{"a": flagruntime.StateServing, "b": flagruntime.StateServing},
 			wantFlags:  map[string][]string{"a": {"x", "y"}},
 			wantKeys:   map[string]string{keyA: "a", keyB: "b"},
 			wantSame:   []string{pathBX},
@@ -210,37 +305,39 @@ func lkgDocumentCases(t *testing.T) []lkgCase {
 				},
 				{"f1": fix.first, docs1: setsObj(t, fset("a", src("f1"), keyA))},
 			},
-			wantStates: map[string]runtime.SetState{"a": runtime.StateServing, "b": runtime.StateWithdrawn},
-			wantFlags:  map[string][]string{"a": {"x", "y"}, "b": {}},
-			wantKeys:   map[string]string{keyA: "a", keyB: "b"},
-			wantSame:   []string{pathAX},
+			wantStates:    map[string]flagruntime.SetState{"a": flagruntime.StateServing},
+			wantFlags:     map[string][]string{"a": {"x", "y"}},
+			wantAbsent:    []string{"b"},
+			wantKeys:      map[string]string{keyA: "a"},
+			wantSame:      []string{pathAX},
+			wantWithdrawn: []flagruntime.WithdrawnSet{{Name: "b", Generation: 2}},
 		},
 		{
 			name: "undecodable flag-set document keeps the previous flag sets",
 			steps: []objs{
 				fix.twoSets,
-				fix.twoSets.with(objs{setsName: obj(runtime.KindFlagSets, []byte("flagSets: [unterminated"))}),
+				fix.twoSets.with(objs{setsName: obj(flagruntime.KindFlagSets, []byte("flagSets: [unterminated"))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateServing, "b": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateServing, "b": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}, "b": {"x", "y"}},
 			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
-			wantObjects: map[string]runtime.ObjectState{setsName: runtime.ObjectInvalid},
+			wantObjects: map[string]flagruntime.ObjectState{setsName: flagruntime.ObjectInvalid},
 			wantSame:    []string{pathAX},
 		},
 		{
 			name: "stale flag-set document keeps the previous flag sets",
 			steps: []objs{
 				fix.twoSets,
-				fix.twoSets.with(objs{setsName: {Kind: runtime.KindFlagSets, State: runtime.ObjectStale}}),
+				fix.twoSets.with(objs{setsName: {Kind: flagruntime.KindFlagSets, State: flagruntime.ObjectStale}}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateServing, "b": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateServing, "b": flagruntime.StateServing},
 			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
-			wantObjects: map[string]runtime.ObjectState{setsName: runtime.ObjectStale},
+			wantObjects: map[string]flagruntime.ObjectState{setsName: flagruntime.ObjectStale},
 		},
 		{
 			name:       "an empty flag-set document is a valid empty runtime",
 			steps:      []objs{{setsName: setsObj(t)}},
-			wantStates: map[string]runtime.SetState{},
+			wantStates: map[string]flagruntime.SetState{},
 			wantAbsent: []string{"a"},
 		},
 	}
@@ -258,7 +355,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 				fix.twoSets,
 				fix.twoSets.with(objs{setsName: setsObj(t, fset("a", nil, keyA), fset("b", src("f1"), keyB))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded, "b": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded, "b": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}, "b": {"x", "y"}},
 			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeMissingValue},
@@ -268,10 +365,9 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 			steps: []objs{
 				fix.twoSets.with(objs{setsName: setsObj(t, fset("a", nil, keyA), fset("b", src("f1"), keyB))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StatePending, "b": runtime.StateServing},
-			wantFlags:   map[string][]string{"b": {"x", "y"}},
-			wantAbsent:  []string{"a"},
-			wantKeys:    map[string]string{keyB: "b"},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending, "b": flagruntime.StateServing},
+			wantFlags:   map[string][]string{"a": {}, "b": {"x", "y"}},
+			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeMissingValue},
 		},
 		{
@@ -279,10 +375,9 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 			steps: []objs{
 				fix.twoSets.with(objs{setsName: setsObj(t, fset("a", src("nope"), keyA), fset("b", src("f1"), keyB))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StatePending, "b": runtime.StateServing},
-			wantFlags:   map[string][]string{"b": {"x", "y"}},
-			wantAbsent:  []string{"a"},
-			wantKeys:    map[string]string{keyB: "b"},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StatePending, "b": flagruntime.StateServing},
+			wantFlags:   map[string][]string{"a": {}, "b": {"x", "y"}},
+			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeUnresolvedSource},
 		},
 		{
@@ -291,7 +386,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 				fix.twoSets,
 				fix.twoSets.with(objs{setsName: setsObj(t, fset("a", src("nope"), keyA), fset("b", src("f1"), keyB))}),
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded, "b": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded, "b": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantKeys:    map[string]string{keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeUnresolvedSource},
@@ -303,17 +398,18 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 				objs{"f1": fix.first, "f2": fix.second, setsName: setsObj(t, fset("a", src("f1", "f2"), keyA))},
 				objs{"f1": fix.first, setsName: setsObj(t, fset("a", src("f1", "f2"), keyA))},
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
-			wantValues:  map[string]any{pathAX: 1},
+			wantValues:  map[string]any{pathAX: 2, pathAY: 1},
 			wantKeys:    map[string]string{keyA: "a"},
 			wantEntries: []controlplane.Code{controlplane.CodeUnresolvedSource},
+			wantSame:    []string{pathAX, pathAY},
 		},
 		{
 			name: "duplicate key in one document: the first flag set holds it, the other is reported",
 			steps: []objs{fix.twoSets.with(objs{setsName: setsObj(t,
 				fset("a", src("f1"), sharedName, keyA), fset("b", src("f1"), sharedName, keyB))})},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateServing, "b": runtime.StateDegraded},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateServing, "b": flagruntime.StateDegraded},
 			wantFlags:   map[string][]string{"a": {"x", "y"}, "b": {"x", "y"}},
 			wantKeys:    map[string]string{sharedName: "a", keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeDuplicateKey},
@@ -327,7 +423,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 					docs2: setsObj(t, fset("b", src("f1"), sharedName, keyB)),
 				},
 			},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateDegraded, "b": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateDegraded, "b": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}, "b": {"x", "y"}},
 			wantKeys:    map[string]string{sharedName: "b", keyA: "a", keyB: "b"},
 			wantEntries: []controlplane.Code{controlplane.CodeDuplicateKey},
@@ -339,7 +435,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 				"f1": fix.first, docs1: setsObj(t, fset("a", src("f1"), keyA)),
 				docs2: setsObj(t, fset("a", src("f1"), "key-other")),
 			}},
-			wantStates:  map[string]runtime.SetState{"a": runtime.StateServing},
+			wantStates:  map[string]flagruntime.SetState{"a": flagruntime.StateServing},
 			wantFlags:   map[string][]string{"a": {"x", "y"}},
 			wantKeys:    map[string]string{keyA: "a"},
 			wantEntries: []controlplane.Code{controlplane.CodeDuplicateName},
@@ -349,7 +445,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 			steps: []objs{objs{
 				"f1": fix.first, "f2": fix.second, setsName: setsObj(t, fset("a", src("f1", "f2"), keyA)),
 			}},
-			wantStates: map[string]runtime.SetState{"a": runtime.StateServing},
+			wantStates: map[string]flagruntime.SetState{"a": flagruntime.StateServing},
 			wantFlags:  map[string][]string{"a": {"x", "y"}},
 			wantValues: map[string]any{pathAX: 2, pathAY: 1},
 			wantKeys:   map[string]string{keyA: "a"},
@@ -359,7 +455,7 @@ func lkgEntryCases(t *testing.T) []lkgCase {
 			steps: []objs{objs{
 				"f1": fix.first, "f2": fix.second, setsName: setsObj(t, fset("a", src("f2", "f1"), keyA)),
 			}},
-			wantStates: map[string]runtime.SetState{"a": runtime.StateServing},
+			wantStates: map[string]flagruntime.SetState{"a": flagruntime.StateServing},
 			wantFlags:  map[string][]string{"a": {"x", "y"}},
 			wantValues: map[string]any{pathAX: 1, pathAY: 1},
 			wantKeys:   map[string]string{keyA: "a"},
@@ -374,9 +470,9 @@ func TestBuilderLastKnownGood(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+			b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 
-			var prev, last *runtime.Runtime
+			var prev, last *flagruntime.Runtime
 
 			for i, step := range tt.steps {
 				prev = last
@@ -388,7 +484,7 @@ func TestBuilderLastKnownGood(t *testing.T) {
 	}
 }
 
-func assertLKG(t *testing.T, tt *lkgCase, prev, last *runtime.Runtime) {
+func assertLKG(t *testing.T, tt *lkgCase, prev, last *flagruntime.Runtime) {
 	t.Helper()
 
 	for name, want := range tt.wantStates {
@@ -456,11 +552,24 @@ func assertLKG(t *testing.T, tt *lkgCase, prev, last *runtime.Runtime) {
 		assert.Equal(t, tt.wantEntries, codes, "entry problems")
 	}
 
+	assertWithdrawn(t, tt.wantWithdrawn, last)
 	assertPointers(t, tt.wantSame, prev, last, true)
 	assertPointers(t, tt.wantNotSame, prev, last, false)
 }
 
-func assertPointers(t *testing.T, paths []string, prev, last *runtime.Runtime, same bool) {
+func assertWithdrawn(t *testing.T, want []flagruntime.WithdrawnSet, last *flagruntime.Runtime) {
+	t.Helper()
+
+	if len(want) == 0 {
+		assert.Empty(t, last.Status.Withdrawn, "withdrawn flag sets")
+
+		return
+	}
+
+	assert.Equal(t, want, last.Status.Withdrawn, "withdrawn flag sets")
+}
+
+func assertPointers(t *testing.T, paths []string, prev, last *flagruntime.Runtime, same bool) {
 	t.Helper()
 
 	for _, path := range paths {
@@ -495,14 +604,14 @@ func assertPointers(t *testing.T, paths []string, prev, last *runtime.Runtime, s
 func TestBuilderStatusOfAnInvalidFlag(t *testing.T) {
 	t.Parallel()
 
-	builder := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 	objects := objs{
 		"f1":     flagsObj(1, "x", "y"),
 		setsName: setsObj(t, fset("a", src("f1"), keyA)),
 	}
 	buildAndCommit(t, builder, content(1, objects))
 
-	changed := obj(runtime.KindFlags, join(flagsYAML(2, "x"), badYAML("y")))
+	changed := obj(flagruntime.KindFlags, join(flagsYAML(2, "x"), badYAML()))
 	built := buildAndCommit(t, builder, content(2, objects.with(objs{"f1": changed})))
 
 	status := built.Runtime.Status.Objects["f1"]
@@ -512,14 +621,14 @@ func TestBuilderStatusOfAnInvalidFlag(t *testing.T) {
 	assert.True(t, status.Rejected[0].Kept, "the flag keeps its previous definition")
 	assert.NotEmpty(t, status.Rejected[0].Reason)
 	assert.Equal(t, 2, status.Flags)
-	assert.Equal(t, runtime.ObjectOK, status.State)
+	assert.Equal(t, flagruntime.ObjectOK, status.State)
 	assert.Equal(t, controlplane.ChecksumOf(changed.Bytes).Value, status.Checksum, "the checksum is the new content")
 }
 
 func TestBuilderHashIdentifiesContent(t *testing.T) {
 	t.Parallel()
 
-	b := runtime.NewBuilder(newService(t), runtime.BuilderOptions{})
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
 	objects := objs{
 		"f1": flagsObj(1, "x"),
 		"f2": flagsObj(2, "x"),
