@@ -199,12 +199,17 @@ func (f *faults) reset() {
 
 // memFS is a statedir.FS on a memDisk. noLock makes Lock a no-op, as on a system without flock.
 type memFS struct {
-	disk       *memDisk
-	faults     *faults
-	parentSync string
-	failOpens  atomic.Int32
-	opens      atomic.Int32
-	noLock     bool
+	removeLockErr error
+	disk          *memDisk
+	faults        *faults
+	beforeList    func()
+	parentSync    string
+	lockOps       []string
+	lockMu        sync.Mutex
+	failOpens     atomic.Int32
+	opens         atomic.Int32
+	existFirst    atomic.Int32
+	noLock        bool
 }
 
 func (m *memFS) Open(string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
@@ -223,25 +228,29 @@ type memRoot struct {
 	closed bool
 }
 
-func (r *memRoot) Lock() error {
+func (r *memRoot) Lock() (func() error, error) {
+	r.fsys.noteLockOp(opLock)
+
 	dsk := r.disk()
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
 	if r.fsys.noLock {
-		return nil
+		return r.unlock, nil
 	}
 
 	if dsk.locked {
-		return statedir.ErrLocked
+		return nil, statedir.ErrLocked
 	}
 
 	dsk.locked, r.locked = true, true
 
-	return nil
+	return r.unlock, nil
 }
 
 func (r *memRoot) Close() error {
+	r.fsys.noteLockOp(opClose)
+
 	r.closed = true
 
 	if r.locked {
@@ -326,12 +335,16 @@ func (r *memRoot) Create(name string) (statedir.File, error) { //nolint:ireturn 
 		return nil, err
 	}
 
+	if r.fsys.existFirst.Add(-1) >= 0 {
+		return nil, &fs.PathError{Op: opCreate, Path: name, Err: fs.ErrExist}
+	}
+
 	dsk := r.disk()
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
 	if _, ok := dsk.live[name]; ok {
-		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrExist}
+		return nil, &fs.PathError{Op: opCreate, Path: name, Err: fs.ErrExist}
 	}
 
 	if !dsk.dirs[path.Dir(name)] {
@@ -429,7 +442,9 @@ func (r *memRoot) Remove(name string) error {
 	}
 
 	if name == lockName {
-		return nil // the lock of the memory file system is not a file
+		r.fsys.noteLockOp(opRemoveLock)
+
+		return r.fsys.removeLockErr // the lock of the memory file system is not a file
 	}
 
 	_, err := r.fsys.faults.step("remove", name)
@@ -458,6 +473,10 @@ func (r *memRoot) ReadDir(name string) ([]string, error) {
 	err := r.fsys.faults.readErr(name + "/")
 	if err != nil {
 		return nil, err
+	}
+
+	if hook := r.fsys.takeBeforeList(); hook != nil && name == "." {
+		hook()
 	}
 
 	dsk := r.disk()
@@ -535,7 +554,53 @@ func (r *memRoot) SyncDir(name string) error {
 	return nil
 }
 
+// Exclusive tells that the lock is really held: not when the file system has none.
+func (r *memRoot) Exclusive() bool { return !r.fsys.noLock && r.locked }
+
+func (m *memFS) takeBeforeList() func() {
+	m.lockMu.Lock()
+	defer m.lockMu.Unlock()
+
+	hook := m.beforeList
+	m.beforeList = nil
+
+	return hook
+}
+
+func (m *memFS) noteLockOp(op string) {
+	m.lockMu.Lock()
+	defer m.lockMu.Unlock()
+
+	m.lockOps = append(m.lockOps, op)
+}
+
+func (m *memFS) takeLockOps() []string {
+	m.lockMu.Lock()
+	defer m.lockMu.Unlock()
+
+	out := m.lockOps
+	m.lockOps = nil
+
+	return out
+}
+
 // ParentSync implements the optional report of the flush of the parents.
 func (r *memRoot) ParentSync() string { return r.fsys.parentSync }
+
+// unlock releases the lock, as the real one does by closing the lock file.
+func (r *memRoot) unlock() error {
+	r.fsys.noteLockOp(opUnlock)
+
+	if r.locked {
+		dsk := r.disk()
+		dsk.mu.Lock()
+		dsk.locked = false
+		dsk.mu.Unlock()
+
+		r.locked = false
+	}
+
+	return nil
+}
 
 func (r *memRoot) disk() *memDisk { return r.fsys.disk }

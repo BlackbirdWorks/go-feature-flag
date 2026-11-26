@@ -299,15 +299,22 @@ func TestStore_AFailedWriteMakesTheStoreWriteEverythingAgain(t *testing.T) {
 		name              string
 		wantLastSaveError string
 		wantRestored      wantRestored
+		wantSaveErrors    uint64
 		wantDiscarded     int
 	}{
 		{
 			name:         "an object truncated",
 			damage:       damageOf(func(data []byte) []byte { return data[:len(data)/2] }),
-			wantRestored: newState,
+			wantRestored: newState, wantSaveErrors: 1,
 		},
-		{name: "an object emptied", damage: damageOf(func([]byte) []byte { return nil }), wantRestored: newState},
-		{name: "an object with a flipped byte", damage: damageOf(flipByte), wantRestored: newState},
+		{
+			name: "an object emptied", damage: damageOf(func([]byte) []byte { return nil }),
+			wantRestored: newState, wantSaveErrors: 1,
+		},
+		{
+			name: "an object with a flipped byte", damage: damageOf(flipByte),
+			wantRestored: newState, wantSaveErrors: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -334,10 +341,11 @@ func TestStore_AFailedWriteMakesTheStoreWriteEverythingAgain(t *testing.T) {
 			fault.failAt, fault.err = stepOf(t, probe.ops, opRenameMan, 1), syscall.EIO
 
 			run.saveAndFlush(second)
-			require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+			assert.Equal(t, tt.wantSaveErrors, run.store.Hooks().StateStatus().SaveErrors, "the failing write")
 
 			run.saveAndFlush(second)
 			assert.Equal(t, tt.wantLastSaveError, run.store.Hooks().StateStatus().LastSaveError)
+			assert.Equal(t, tt.wantSaveErrors, run.store.Hooks().StateStatus().SaveErrors, "no error after the retry")
 			run.close()
 
 			restored, status, err := restoreOf(t, fsys)

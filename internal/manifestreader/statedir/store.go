@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
@@ -102,7 +103,6 @@ type Store struct {
 	maxObjs int
 	seq     uint64
 	done    uint64
-	tmpSeq  uint64
 	mu      sync.Mutex
 	ioMu    sync.Mutex
 	writing bool
@@ -144,7 +144,7 @@ func New(cfg Config) (*Store, error) {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	root, err := openOwned(fsys, cfg.Dir)
+	root, err := openOwned(context.Background(), fsys, cfg.Dir, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -174,12 +174,20 @@ func orDefault(value, fallback int64) int64 {
 	return value
 }
 
-// openLocked opens and locks the directory, and refuses a layout name that is a symbolic link. It reports whether
-// the lock file did not exist before.
-func openLocked(fsys FS, dir string) (Root, bool, error) { //nolint:ireturn // the FS seam returns an interface
+// openedDir is a directory that was opened and locked.
+type openedDir struct {
+	root Root
+	// release releases the lock and closes its file
+	release func() error
+	// created tells that the lock file did not exist before this open
+	created bool
+}
+
+// openLocked opens and locks the directory, and refuses a layout name that is a symbolic link.
+func openLocked(fsys FS, dir string) (openedDir, error) {
 	root, err := fsys.Open(dir)
 	if err != nil {
-		return nil, false, wrapPermission(fmt.Errorf("statedir: %w", err))
+		return openedDir{}, wrapPermission(fmt.Errorf("statedir: %w", err))
 	}
 
 	_, lockErr := root.Lstat(lockFile)
@@ -190,78 +198,100 @@ func openLocked(fsys FS, dir string) (Root, bool, error) { //nolint:ireturn // t
 		if statErr == nil && info.Mode()&fs.ModeSymlink != 0 {
 			_ = root.Close()
 
-			return nil, false, fmt.Errorf("%w: %s is a symbolic link", ErrUnsafe, name)
+			return openedDir{}, fmt.Errorf("%w: %s is a symbolic link", ErrUnsafe, name)
 		}
 	}
 
-	err = root.Lock()
+	release, err := root.Lock()
 	if err != nil {
 		_ = root.Close()
 
-		return nil, false, fmt.Errorf("statedir: lock: %w", err)
+		return openedDir{}, fmt.Errorf("statedir: lock: %w", err)
 	}
 
-	return root, created, nil
+	return openedDir{root: root, release: release, created: created}, nil
 }
 
 // openOwned is the one way to open a state directory, for [New] and for a reopen by the writer: it opens the path,
-// takes the lock, and validates that the directory is ours. On refusal it undoes what this call created (the lock
-// file, when it did not exist) and closes the directory, so a directory that is not ours is left exactly as it was
-// found.
-func openOwned(fsys FS, dir string) (Root, error) { //nolint:ireturn // the FS seam returns an interface
-	root, created, err := openLocked(fsys, dir)
+// takes the lock, and validates that the directory is ours. On refusal it undoes what this call created, in this
+// order: the lock is released (its file is closed, which some systems require before the file can be removed), the
+// lock file is removed when it did not exist before, and the directory is closed. A directory that is not ours is
+// left exactly as it was found. A failure to remove the lock file is logged at warn level and never replaces the
+// reason of the refusal.
+func openOwned( //nolint:ireturn // the FS seam returns an interface
+	ctx context.Context, fsys FS, dir string, log *slog.Logger,
+) (Root, error) {
+	opened, err := openLocked(fsys, dir)
 	if errors.Is(err, ErrParentSync) {
 		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
 		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
-		root, created, err = openLocked(fsys, dir)
+		opened, err = openLocked(fsys, dir)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = inspect(root)
+	_, err = inspect(opened.root)
 	if err != nil {
-		if created {
-			_ = root.Remove(lockFile)
+		_ = opened.release()
+
+		if opened.created {
+			removeErr := opened.root.Remove(lockFile)
+			if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+				log.LogAttrs(
+					ctx,
+					slog.LevelWarn,
+					"state directory: the lock file of a refused directory could not be removed",
+					slog.String("reason", "lock-file"),
+				)
+			}
 		}
 
-		_ = root.Close()
+		_ = opened.root.Close()
 
 		return nil, err
 	}
 
-	return root, nil
+	return opened.root, nil
 }
 
 // inspect tells whether the directory is ours. It reports whether VERSION is there (and ours); without VERSION the
 // directory must hold nothing but our LOCK and temporary files, else it is not ours.
 func inspect(root Root) (bool, error) {
-	version, err := root.ReadFile(versionFile, versionLimit)
+	// a second reader of the directory may be writing it (a system without a lock): a VERSION that appears between
+	// the read and the listing is read again, once, because the listing then shows its layout
+	for attempt := 0; ; attempt++ {
+		version, err := root.ReadFile(versionFile, versionLimit)
 
-	switch {
-	case err == nil && string(version) == versionContent:
-		return true, nil
-	case err == nil:
-		return false, ErrForeignVersion
-	case errors.Is(err, ErrNotRegular), errors.Is(err, ErrFileTooLarge):
-		return false, fmt.Errorf("%w: VERSION is not a version file", ErrUnsafe)
-	case !errors.Is(err, fs.ErrNotExist):
-		return false, wrapPermission(fmt.Errorf("statedir: read layout version: %w", err))
-	}
-
-	names, err := root.ReadDir(".")
-	if err != nil {
-		return false, wrapPermission(fmt.Errorf("statedir: list directory: %w", err))
-	}
-
-	for _, name := range names {
-		if name != lockFile && !isOurTmp(name) {
-			return false, fmt.Errorf("%w: it holds files that are not ours and no VERSION", ErrUnsafe)
+		switch {
+		case err == nil && string(version) == versionContent:
+			return true, nil
+		case err == nil:
+			return false, ErrForeignVersion
+		case errors.Is(err, ErrNotRegular), errors.Is(err, ErrFileTooLarge):
+			return false, fmt.Errorf("%w: VERSION is not a version file", ErrUnsafe)
+		case !errors.Is(err, fs.ErrNotExist):
+			return false, wrapPermission(fmt.Errorf("statedir: read layout version: %w", err))
 		}
-	}
 
-	return false, nil
+		names, listErr := root.ReadDir(".")
+		if listErr != nil {
+			return false, wrapPermission(fmt.Errorf("statedir: list directory: %w", listErr))
+		}
+
+		if attempt == 0 && slices.Contains(names, versionFile) {
+			continue
+		}
+
+		for _, name := range names {
+			if name != lockFile && !isOurTmp(name) {
+				return false, fmt.Errorf("%w: it holds files that are not ours and no VERSION", ErrUnsafe)
+			}
+		}
+
+		return false, nil
+	}
 }
 
 // OpenOrDisable is [New] with the policy the relay uses: when the directory is refused ([ErrUnsafe], [ErrLocked],

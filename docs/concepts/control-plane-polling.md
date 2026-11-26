@@ -267,6 +267,12 @@ restored object is checked like a fetched one (the listed size, the object limit
   rename), fsync of the directory, and only then the garbage collection. A manifest on disk never names an object
   that was not durable. A crash or a power loss at any step leaves the old state or the new one, never a mix: the
   tests cut the power after every file operation against a model that drops whatever was not fsynced.
+- Temporary files. Every temporary file has a random name (`.tmp-` and 16 hex digits) and is created exclusively,
+  with up to 8 tries for a free name: two writers on one directory never share a temporary name, and a file is never
+  removed to make room for another. The leftovers of a crashed writer are removed by that pattern, after a save,
+  only where the lock gives this store the directory; without a lock another writer may be in the middle of a write,
+  so its temporary files are not ours and stay (they are never read, and a crash leaves at most a few). Names that do
+  not match the pattern stay always.
 - Nothing unverified is served. On load the manifest copy must match its digest and every object its sha256 and
   its recorded size. A file that fails is ignored on its own: a bad object costs one GET, a bad manifest copy a
   cold start.
@@ -332,7 +338,10 @@ restored object is checked like a fetched one (the listed size, the object limit
 - The owner of the directory does not matter: a Kubernetes `fsGroup` volume is owned by root and group-writable, and
   is accepted. A directory that is not world-writable and that the process can read, write and lock is accepted;
   its mode is never changed. A directory that does not exist is created with mode `0700`.
-- Garbage collection removes only names this package writes (a checksum in lower case hex, `.tmp-<number>`), under a
+- A refused directory is left as it was found: the lock is released first, then a lock file that this open created is
+  removed (one that was there stays), then the directory is closed. A lock file that cannot be removed is logged at
+  warn level and never replaces the reason of the refusal.
+- Garbage collection removes only names this package writes (a checksum in lower case hex, `.tmp-` and hex), under a
   `VERSION` it wrote or recognised.
 - Two processes on one directory by mistake: the second fails with `ErrLocked`. Where the system has no `flock`
   (not unix) there is no lock: two writers can delete each other's objects (each one's garbage collection removes
@@ -348,15 +357,16 @@ restored object is checked like a fetched one (the listed size, the object limit
   | Directory flush (parents of a created directory, layout steps) | `fsync` of the directory | none: a directory handle cannot be flushed; no guarantee that a directory entry survives a power loss, a restart reads what is there, verifies it and fetches what is missing |
   | World-writable directory refused | mode bit `0002` | skipped: Go reports the bits from attributes (`0777`), not from the access list, so the rule cannot be expressed |
   | Owner of the directory | not checked (a root-owned group-writable volume is fine) | not checked |
-  | Exclusive lock (`ErrLocked`) | `flock` | none: two writers can delete each other's objects, the restore is then partial, never corrupt |
+  | Exclusive lock (`ErrLocked`) | `flock` | none (`golang.org/x/sys` is not a direct dependency, so there is no `LockFileEx`): two writers can delete each other's objects, the restore is then partial, never corrupt. Temporary files have random names created exclusively, so two writers never share one, and the leftovers of a crashed writer are not removed (see below) |
   | Full disk / read-only errors | `ENOSPC`, `EROFS` | the same, plus `ERROR_DISK_FULL`, `ERROR_HANDLE_DISK_FULL`, `ERROR_WRITE_PROTECT` |
   | Symbolic link or reparse point as the directory or a layout name | refused | refused (symbolic links, and junctions where Go reports them as irregular) |
   | Only a regular file is read, names cannot leave the directory (`os.Root`) | yes | yes |
   | Write: temporary file, fsync, close, rename over the name | yes, and the rename is atomic | files are closed before the rename and `os.Rename` replaces the destination, but Go's contract does not promise atomicity there: a crash in the middle of a save can leave a manifest copy or an object file that fails its digest or checksum, and the restore discards it (a bad manifest copy is a cold start, a bad object costs one GET) |
 
-  So on Windows the protections that apply are: the checks of type and name, the digest and checksum verification,
-  the atomic replace of every file, the foreign-directory rules (`VERSION`, foreign files, symbolic links), and the
-  bounded reads. Not applied: directory durability, the lock, and the world-writable rule.
+  So on Windows the protections that apply are: the checks of type and name, temporary-file replacement with digest and
+  checksum verification, the foreign-directory rules (`VERSION`, foreign files, symbolic links), and the
+  bounded reads. Not applied: directory durability, the lock, the removal of a crashed writer's temporary files, and the
+  world-writable rule.
 
 **Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
 `ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to

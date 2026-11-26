@@ -304,11 +304,12 @@ func TestStore_WithoutALockTheLastWriterWins(t *testing.T) {
 	left := openStore(t, fsys, statedirConfig())
 	right := openStore(t, fsys, statedirConfig())
 
-	states := map[string]wantRestored{}
-
 	var wg sync.WaitGroup
 
 	for i := range rounds {
+		// only the states of THIS round are acceptable: a manifest left over from an earlier round fails
+		states := map[string]wantRestored{}
+
 		// the two writers save different states at the same time
 		leftState := persistOf(
 			fmt.Sprintf(`"l%d"`, i),
@@ -335,13 +336,29 @@ func TestStore_WithoutALockTheLastWriterWins(t *testing.T) {
 		wg.Go(func() { right.saveAndFlushAsserting(rightState) })
 		wg.Wait()
 
+		// neither writer failed to save: the temporary names of the two never collide
+		assert.Zero(
+			t,
+			left.store.Hooks().StateStatus().SaveErrors,
+			"round %d, left: %s",
+			i,
+			left.store.Hooks().StateStatus().LastSaveError,
+		)
+		assert.Zero(
+			t,
+			right.store.Hooks().StateStatus().SaveErrors,
+			"round %d, right: %s",
+			i,
+			right.store.Hooks().StateStatus().LastSaveError,
+		)
+
 		restored, status, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}, noLock: true})
 		require.NoError(t, err)
 
 		// the manifest and its ETag belong together, whoever wrote them; every object returned verified,
 		// belongs to that state, and an object that the other writer collected is simply absent
 		want, known := states[restored.ETag]
-		require.True(t, known, "an ETag that nobody saved: %s", restored.ETag)
+		require.True(t, known, "an ETag that is not of this round: %s", restored.ETag)
 		assert.Equal(t, want.manifest, string(restored.Manifest))
 
 		for _, content := range restored.Objects {

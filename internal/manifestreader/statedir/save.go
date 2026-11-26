@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -291,7 +293,7 @@ func (s *Store) reopen(ctx context.Context) error {
 		s.root = nil
 	}
 
-	root, err := openOwned(s.fsys, s.dir)
+	root, err := openOwned(ctx, s.fsys, s.dir, s.log)
 	if err != nil {
 		s.noteParentSync(ctx, nil, err)
 
@@ -471,17 +473,9 @@ func (s *Store) persist(job *job, keep []object, refs []objectRef, stale []stale
 // writeAtomic writes content to a temporary file next to name, flushes it, and renames it over name. A failure
 // removes the temporary file when it can.
 func (s *Store) writeAtomic(name string, content []byte) error {
-	s.tmpSeq++
-	tmp := path.Join(path.Dir(name), fmt.Sprintf("%s%d", tmpPrefix, s.tmpSeq))
-
-	removeErr := s.root.Remove(tmp)
-	if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-		return fmt.Errorf("statedir: %w", removeErr)
-	}
-
-	file, err := s.root.Create(tmp)
+	file, tmp, err := s.createTemp(path.Dir(name))
 	if err != nil {
-		return fmt.Errorf("statedir: %w", err)
+		return err
 	}
 
 	_, err = file.Write(content)
@@ -505,6 +499,40 @@ func (s *Store) writeAtomic(name string, content []byte) error {
 	}
 
 	return nil
+}
+
+// tmpAttempts bounds the tries for a free temporary name.
+const tmpAttempts = 8
+
+// createTemp creates a temporary file in dir under a random name, exclusively: two writers on one directory (the
+// lock is what normally prevents that, and some systems have none) never share a temporary name, and a name that is
+// taken is replaced by another, up to tmpAttempts times.
+func (s *Store) createTemp(dir string) (File, string, error) { //nolint:ireturn // the FS seam returns an interface
+	var lastErr error
+
+	for range tmpAttempts {
+		var random [8]byte
+
+		_, err := rand.Read(random[:])
+		if err != nil {
+			return nil, "", fmt.Errorf("statedir: random name: %w", err)
+		}
+
+		tmp := path.Join(dir, tmpPrefix+hex.EncodeToString(random[:]))
+
+		file, err := s.root.Create(tmp)
+		if err == nil {
+			return file, tmp, nil
+		}
+
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, "", fmt.Errorf("statedir: %w", err)
+		}
+
+		lastErr = err
+	}
+
+	return nil, "", fmt.Errorf("statedir: no free temporary name: %w", lastErr)
 }
 
 // ensureLayout makes the directory ready: VERSION is ours and objects/ exists. A directory that is not ours is
@@ -556,16 +584,35 @@ func (s *Store) collect(keep []object) {
 		wanted[obj.sum] = struct{}{}
 	}
 
-	names, err := s.root.ReadDir(objectsDir)
-	if err != nil {
-		return
+	removed := s.collectObjects(wanted)
+
+	// leftovers of a crashed writer are removed by pattern, and only where the lock gives this store the directory:
+	// without a lock another writer may be in the middle of a write, so its temporary files are not ours to remove
+	if isExclusive(s.root) {
+		removed = s.collectRootTemps() || removed
 	}
 
+	if removed {
+		_ = s.root.SyncDir(objectsDir)
+	}
+}
+
+// collectObjects removes the files of objects/ that the manifest does not name: checksums, and (under the lock)
+// temporary files. It reports whether it removed one.
+func (s *Store) collectObjects(wanted map[string]struct{}) bool {
+	names, err := s.root.ReadDir(objectsDir)
+	if err != nil {
+		return false
+	}
+
+	exclusive := isExclusive(s.root)
 	removed := false
 
 	for _, name := range names {
 		_, isWanted := wanted[name]
-		if isWanted || (!isSum(name) && !isOurTmp(name)) {
+		removable := isSum(name) || (isOurTmp(name) && exclusive)
+
+		if isWanted || !removable {
 			continue
 		}
 
@@ -576,16 +623,23 @@ func (s *Store) collect(keep []object) {
 		}
 	}
 
-	rootNames, err := s.root.ReadDir(".")
-	if err == nil {
-		for _, name := range rootNames {
-			if isOurTmp(name) && s.root.Remove(name) == nil {
-				removed = true
-			}
+	return removed
+}
+
+// collectRootTemps removes the temporary files that a crashed writer left in the directory itself.
+func (s *Store) collectRootTemps() bool {
+	names, err := s.root.ReadDir(".")
+	if err != nil {
+		return false
+	}
+
+	removed := false
+
+	for _, name := range names {
+		if isOurTmp(name) && s.root.Remove(name) == nil {
+			removed = true
 		}
 	}
 
-	if removed {
-		_ = s.root.SyncDir(objectsDir)
-	}
+	return removed
 }

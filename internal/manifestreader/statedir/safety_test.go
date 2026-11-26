@@ -41,19 +41,19 @@ func TestNew_NeverTouchesADirectoryThatIsNotOurs(t *testing.T) {
 		{
 			name: "files of somebody else and no VERSION",
 			files: map[string]string{
-				manifestName: "{}", ".tmp-user": "mine", "notes.txt": "keep me", "objects/" + sumOf("x"): "x",
+				manifestName: "{}", ".tmp-user": "mine", notesName: "keep me", "objects/" + sumOf("x"): "x",
 			},
 			wantErr: statedir.ErrUnsafe,
 		},
 		{
 			name:    "one foreign file is enough",
-			files:   map[string]string{"notes.txt": "keep me"},
+			files:   map[string]string{notesName: "keep me"},
 			wantErr: statedir.ErrUnsafe,
 		},
 		{
 			name: "a newer layout version, with files",
 			files: map[string]string{
-				versionName:  "semaphore-manifest-state 2\n",
+				versionName:  foreignLayout,
 				manifestName: "future format",
 				"extra":      "x",
 			},
@@ -109,7 +109,7 @@ func TestStore_ADirectoryThatBecomesForeignIsNotTouched(t *testing.T) {
 	// somebody wipes our layout and puts their files there
 	disk.remove(versionName)
 	disk.removeObjectsDir()
-	disk.write("notes.txt", []byte("keep me"))
+	disk.write(notesName, []byte("keep me"))
 
 	before := image(disk)
 
@@ -129,8 +129,8 @@ func TestStore_GarbageCollectionRemovesOnlyNamesItWrote(t *testing.T) {
 	run := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
 	run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
 
-	disk.write("objects/notes.txt", []byte(keepName))
-	disk.write("objects/.tmp-user", []byte(keepName))
+	disk.write(notesObject, []byte(keepName))
+	disk.write(tmpUserObject, []byte(keepName))
 	disk.write("objects/"+strings.Repeat("A", 64), []byte("keep: not lower case hex"))
 	disk.write("objects/.tmp-7", []byte("ours"))
 
@@ -140,8 +140,8 @@ func TestStore_GarbageCollectionRemovesOnlyNamesItWrote(t *testing.T) {
 		manifestName,
 		"objects/" + strings.Repeat("A", 64),
 		objectFile(contentBeta),
-		"objects/.tmp-user",
-		"objects/notes.txt",
+		tmpUserObject,
+		notesObject,
 		versionName,
 	}, disk.names())
 }
@@ -194,7 +194,7 @@ func TestOpenOrDisable(t *testing.T) {
 			wantLogContains: []string{levelError, "reason=" + statedir.DisabledUnsafe},
 			prepare: func(*testing.T) statedir.Config {
 				disk := newMemDisk()
-				disk.write("notes.txt", []byte("x"))
+				disk.write(notesName, []byte("x"))
 
 				return statedir.Config{FS: &memFS{disk: disk, faults: &faults{}}, Dir: stateDirName}
 			},
@@ -359,7 +359,7 @@ func TestStore_OwnershipIsCheckedBeforeAnythingIsTouched(t *testing.T) {
 				t.Helper()
 				require.NoError(
 					t,
-					os.WriteFile(filepath.Join(dir, versionName), []byte("semaphore-manifest-state 2\n"), 0o600),
+					os.WriteFile(filepath.Join(dir, versionName), []byte(foreignLayout), 0o600),
 				)
 			},
 		},
@@ -423,7 +423,7 @@ func TestStore_OwnershipIsCheckedAfterAReopenToo(t *testing.T) {
 	require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
 
 	// meanwhile the directory became somebody else's
-	disk.write(versionName, []byte("semaphore-manifest-state 2\n"))
+	disk.write(versionName, []byte(foreignLayout))
 
 	before := image(disk)
 	opens := fsys.opens.Load()
@@ -433,4 +433,193 @@ func TestStore_OwnershipIsCheckedAfterAReopenToo(t *testing.T) {
 	assert.Equal(t, opens+1, fsys.opens.Load(), "the directory was opened again")
 	assert.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
 	assert.Equal(t, before, image(disk), "nothing was added, changed or removed")
+}
+
+// TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile: when a directory is refused, the lock is released first (its
+// file is closed, which some systems need before the file can be removed), then the lock file is removed if this call
+// created it, then the directory is closed. A lock file that was there before stays. A lock file that cannot be
+// removed is logged and never replaces the reason of the refusal.
+func TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		files         map[string]string
+		removeLockErr error
+		wantErr       error
+		name          string
+		wantLog       []string
+		wantOps       []string
+	}{
+		{
+			name: "foreign files, no lock file before", files: map[string]string{notesName: "x"},
+			wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
+		},
+		{
+			name:    "a foreign version, no lock file before",
+			files:   map[string]string{versionName: foreignLayout},
+			wantErr: statedir.ErrForeignVersion,
+			wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
+		},
+		{
+			name: "a lock file that was there before stays", files: map[string]string{notesName: "x", "LOCK": ""},
+			wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opUnlock, opClose},
+		},
+		{
+			name: "a lock file that cannot be removed", files: map[string]string{notesName: "x"},
+			removeLockErr: syscall.EBUSY, wantErr: statedir.ErrUnsafe,
+			wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
+			wantLog: []string{"level=WARN", "reason=lock-file"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			disk := newMemDisk()
+			for name, content := range tt.files {
+				disk.write(name, []byte(content))
+			}
+
+			logs := &logBuffer{}
+			fsys := &memFS{disk: disk, faults: &faults{}, removeLockErr: tt.removeLockErr}
+			store, err := statedir.New(statedir.Config{
+				FS: fsys, Dir: stateDirName, Logger: slog.New(slog.NewTextHandler(logs, nil)),
+			})
+
+			require.ErrorIs(t, err, tt.wantErr, "the reason of the refusal is never masked")
+			assert.Nil(t, store)
+			assert.Equal(t, tt.wantOps, fsys.takeLockOps(), "the order of the lock operations")
+
+			lines := nonEmpty(logs.lines())
+			assert.Len(t, lines, min(len(tt.wantLog), 1))
+
+			for _, want := range tt.wantLog {
+				assert.Contains(t, strings.Join(lines, "\n"), want)
+			}
+		})
+	}
+}
+
+// TestStore_ATakenTemporaryNameIsReplaced: a temporary file is created exclusively under a random name; a name that
+// is taken is replaced by another, a bounded number of times.
+func TestStore_ATakenTemporaryNameIsReplaced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		wantLastSaveError string
+		wantSaveErrors    uint64
+		taken             int32
+	}{
+		{name: "no name is taken", taken: 0},
+		{name: "three names are taken", taken: 3},
+		{name: "every attempt but the last", taken: 7},
+		{name: "every attempt is taken", taken: 8, wantLastSaveError: statedir.ReasonIO, wantSaveErrors: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := &memFS{disk: newMemDisk(), faults: &faults{}}
+			run := openStore(t, fsys, statedirConfig())
+
+			fsys.existFirst.Store(tt.taken)
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
+
+			status := run.store.Hooks().StateStatus()
+			assert.Equal(t, tt.wantLastSaveError, status.LastSaveError)
+			assert.Equal(t, tt.wantSaveErrors, status.SaveErrors)
+		})
+	}
+}
+
+// TestStore_LeftoverTemporaryFilesAreRemovedOnlyWhereTheLockIsHeld: a crashed writer leaves temporary files, named
+// ".tmp-" and hex. Where the lock gives this store the directory they are stale and are removed by pattern; without
+// a lock another writer may be in the middle of a write, so they are not ours and stay. Foreign names stay always.
+func TestStore_LeftoverTemporaryFilesAreRemovedOnlyWhereTheLockIsHeld(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantNames []string
+		noLock    bool
+	}{
+		{
+			name: "with a lock",
+			wantNames: []string{
+				versionName,
+				manifestName,
+				objectFile(contentAlpha),
+				tmpUserObject,
+				notesObject,
+			},
+		},
+		{
+			name: "without a lock", noLock: true,
+			wantNames: []string{
+				versionName, manifestName, objectFile(contentAlpha), tmpUserObject, notesObject,
+				"objects/.tmp-0badc0ffee", ".tmp-0badc0ffee",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			disk := newMemDisk()
+			fsys := &memFS{disk: disk, faults: &faults{}, noLock: tt.noLock}
+			run := openStore(t, fsys, statedirConfig())
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
+
+			disk.write("objects/.tmp-0badc0ffee", []byte("half"))
+			disk.write(".tmp-0badc0ffee", []byte("half"))
+			disk.write(tmpUserObject, []byte("mine"))
+			disk.write(notesObject, []byte("mine"))
+
+			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha))
+
+			assert.ElementsMatch(t, tt.wantNames, disk.names())
+		})
+	}
+}
+
+// TestNew_AVersionThatAppearsWhileTheDirectoryIsInspectedIsRead: on a system without a lock a second writer can create
+// the layout between the read of VERSION and the listing of the directory. The listing then shows its files, and
+// the directory is not mistaken for a foreign one: VERSION is read again.
+func TestNew_AVersionThatAppearsWhileTheDirectoryIsInspectedIsRead(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr error
+		appears string
+		name    string
+	}{
+		{name: "the version of this layout", appears: "semaphore-manifest-state 1\n"},
+		{name: "a foreign version", appears: foreignLayout, wantErr: statedir.ErrForeignVersion},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			disk := newMemDisk()
+			fsys := &memFS{disk: disk, faults: &faults{}, noLock: true}
+			fsys.beforeList = func() {
+				disk.write(versionName, []byte(tt.appears))
+				disk.write("objects/"+sumOf(contentAlpha), []byte(contentAlpha))
+			}
+
+			store, err := statedir.New(statedir.Config{FS: fsys, Dir: stateDirName})
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantErr == nil, store != nil)
+
+			if store != nil {
+				require.NoError(t, store.Close())
+			}
+		})
+	}
 }

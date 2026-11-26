@@ -75,15 +75,15 @@ func isSum(name string) bool {
 	return true
 }
 
-// isOurTmp reports whether name is a temporary file of this package: ".tmp-" and a number.
+// isOurTmp reports whether name is a temporary file of this package: ".tmp-" and lower case hex (the name is random).
 func isOurTmp(name string) bool {
-	number, ok := strings.CutPrefix(name, tmpPrefix)
-	if !ok || number == "" {
+	suffix, ok := strings.CutPrefix(name, tmpPrefix)
+	if !ok || suffix == "" {
 		return false
 	}
 
-	for _, char := range number {
-		if char < '0' || char > '9' {
+	for _, char := range suffix {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
 			return false
 		}
 	}

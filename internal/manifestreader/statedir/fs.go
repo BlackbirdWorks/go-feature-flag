@@ -45,9 +45,10 @@ type FS interface {
 
 // Root is an open state directory. Names are slash separated and relative to the directory; none may leave it.
 type Root interface {
-	// Lock takes the exclusive lock of the directory without waiting; it returns [ErrLocked] when it is held.
-	// The lock is released by Close (and by the end of the process).
-	Lock() error
+	// Lock takes the exclusive lock of the directory without waiting; it returns [ErrLocked] when it is held. The
+	// lock is released by calling release, which also closes the lock file so that the file can be removed (a file
+	// that is open cannot be removed on every system), by Close, and by the end of the process.
+	Lock() (release func() error, err error)
 	// ReadFile returns the content of a regular file of at most limit bytes. A missing file is [fs.ErrNotExist],
 	// a name that is not a regular file [ErrNotRegular], a larger file [ErrFileTooLarge]; none of them is opened
 	// past its type and size check, and the read itself is limited.
@@ -68,6 +69,17 @@ type Root interface {
 	SyncDir(name string) error
 	// Close releases the lock and the directory.
 	Close() error
+}
+
+// exclusiveRoot is implemented by a root that can tell whether the lock is really held.
+type exclusiveRoot interface{ Exclusive() bool }
+
+// isExclusive tells whether this store has the directory to itself: its lock is held. A root that cannot say is not
+// trusted with it.
+func isExclusive(root Root) bool {
+	reporter, ok := root.(exclusiveRoot)
+
+	return ok && reporter.Exclusive()
 }
 
 // File is a file being written.
@@ -93,22 +105,32 @@ type OSFS struct {
 
 // pendingFlushes are the parent directories that a failed flush left to flush, by the state directory they lead to.
 type pendingFlushes struct {
-	byDir map[string][]string
+	byDir map[string]pendingFlush
 	mu    sync.Mutex
 }
 
-func (p *pendingFlushes) get(dir string) []string {
+// pendingFlush is what a failed open left: the parents still to flush, and whether an earlier parent was skipped
+// for lack of permission (that fact must survive until the open that succeeds).
+type pendingFlush struct {
+	parents []string
+	skipped bool
+}
+
+func (p *pendingFlushes) get(dir string) pendingFlush {
 	if p == nil {
-		return nil
+		return pendingFlush{}
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return slices.Clone(p.byDir[dir])
+	state := p.byDir[dir]
+	state.parents = slices.Clone(state.parents)
+
+	return state
 }
 
-func (p *pendingFlushes) set(dir string, parents []string) {
+func (p *pendingFlushes) set(dir string, state pendingFlush) {
 	if p == nil {
 		return
 	}
@@ -116,18 +138,19 @@ func (p *pendingFlushes) set(dir string, parents []string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if len(parents) == 0 {
+	if len(state.parents) == 0 {
 		delete(p.byDir, dir)
 
 		return
 	}
 
-	p.byDir[dir] = slices.Clone(parents)
+	state.parents = slices.Clone(state.parents)
+	p.byDir[dir] = state
 }
 
 // NewOSFS returns the real file system.
 func NewOSFS() OSFS {
-	return OSFS{syncDir: syncPath, pending: &pendingFlushes{byDir: map[string][]string{}}}
+	return OSFS{syncDir: syncPath, pending: &pendingFlushes{byDir: map[string]pendingFlush{}}}
 }
 
 // Open implements [FS]. A directory that Open creates is made durable: the parent of each directory it created is
@@ -140,16 +163,16 @@ func NewOSFS() OSFS {
 func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the FS seam, which returns an interface
 	clean := filepath.Clean(dir)
 
-	var parents []string
+	var pending pendingFlush
 
 	info, err := os.Lstat(clean)
 	if errors.Is(err, fs.ErrNotExist) {
-		parents, err = o.create(clean)
+		pending.parents, err = o.create(clean)
 		if err == nil {
 			info, err = os.Lstat(clean)
 		}
 	} else {
-		parents = o.pending.get(clean)
+		pending = o.pending.get(clean)
 	}
 
 	if err != nil {
@@ -165,7 +188,7 @@ func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements th
 		return nil, fmt.Errorf("%w: it is writable by everybody", ErrUnsafe)
 	}
 
-	skipped, err := o.flush(clean, parents)
+	skipped, err := o.flush(clean, pending)
 	if err != nil {
 		return nil, err
 	}
@@ -224,15 +247,15 @@ func (OSFS) create(clean string) ([]string, error) {
 // flush flushes the parents, in order. A permission error skips that parent (and is reported); any other error
 // stops, remembers what is left (this parent included), and fails with [ErrParentSync]. When all is done nothing
 // stays pending.
-func (o OSFS) flush(dir string, parents []string) (bool, error) {
+func (o OSFS) flush(dir string, pending pendingFlush) (bool, error) {
 	syncDir := o.syncDir
 	if syncDir == nil {
 		syncDir = syncPath
 	}
 
-	skipped := false
+	skipped := pending.skipped
 
-	for i, parent := range parents {
+	for i, parent := range pending.parents {
 		err := syncDir(parent)
 
 		switch {
@@ -240,13 +263,13 @@ func (o OSFS) flush(dir string, parents []string) (bool, error) {
 		case errors.Is(err, fs.ErrPermission):
 			skipped = true
 		default:
-			o.pending.set(dir, parents[i:])
+			o.pending.set(dir, pendingFlush{parents: pending.parents[i:], skipped: skipped})
 
 			return skipped, fmt.Errorf("%w: sync %s: %w", ErrParentSync, parent, err)
 		}
 	}
 
-	o.pending.set(dir, nil)
+	o.pending.set(dir, pendingFlush{})
 
 	return skipped, nil
 }
@@ -277,26 +300,26 @@ type osRoot struct {
 // permission.
 func (r *osRoot) ParentSync() string { return r.parentSync }
 
-func (r *osRoot) Lock() error {
+func (r *osRoot) Lock() (func() error, error) {
 	if r.lock != nil {
-		return nil
+		return r.unlock, nil
 	}
 
 	file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, fileMode)
 	if err != nil {
-		return wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
+		return nil, wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
 	}
 
 	err = lockFileExclusive(file)
 	if err != nil {
 		_ = file.Close()
 
-		return err
+		return nil, err
 	}
 
 	r.lock = file
 
-	return nil
+	return r.unlock, nil
 }
 
 func (r *osRoot) ReadFile(name string, limit int64) ([]byte, error) {
@@ -408,6 +431,9 @@ func (r *osRoot) SyncDir(name string) error {
 	return nil
 }
 
+// Exclusive tells that the lock is really held: not on a system without a lock, and not after it was released.
+func (r *osRoot) Exclusive() bool { return hasFileLock && r.lock != nil }
+
 func (r *osRoot) Close() error {
 	var lockErr error
 	if r.lock != nil {
@@ -421,6 +447,21 @@ func (r *osRoot) Close() error {
 
 	if lockErr != nil {
 		return fmt.Errorf("statedir: close lock: %w", lockErr)
+	}
+
+	return nil
+}
+
+func (r *osRoot) unlock() error {
+	if r.lock == nil {
+		return nil
+	}
+
+	err := r.lock.Close()
+	r.lock = nil
+
+	if err != nil {
+		return fmt.Errorf("statedir: close lock: %w", err)
 	}
 
 	return nil

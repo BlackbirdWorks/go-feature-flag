@@ -3,8 +3,10 @@ package statedir
 import (
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -244,6 +246,67 @@ func TestOSRoot_TheLayoutStepFollowsTheDirectoryFlushOfThePlatform(t *testing.T)
 
 			res := store.write(t.Context(), store.pending)
 			assert.Equal(t, tt.wantReason, res.reason)
+		})
+	}
+}
+
+// TestNew_AParentFlushThatWasSkippedStaysSkippedAcrossARetry: the fact that an outer parent could not be flushed for
+// lack of permission is kept with the pending flushes, so a store that opens after a retry still reports it (and
+// logs the warning once); a retry with no skip reports none.
+func TestNew_AParentFlushThatWasSkippedStaysSkippedAcrossARetry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		wantSync    string
+		outer       []error
+		inner       []error
+		wantWarning int
+	}{
+		{
+			name: "skipped, then an I/O error, then it works", outer: []error{fs.ErrPermission},
+			inner: []error{errBusy, nil}, wantSync: "skipped", wantWarning: 1,
+		},
+		{
+			name: "not skipped, an I/O error, then it works", outer: []error{nil},
+			inner: []error{errBusy, nil}, wantSync: "",
+		},
+		{
+			name: "skipped and nothing else", outer: []error{fs.ErrPermission}, inner: []error{nil},
+			wantSync: "skipped", wantWarning: 1,
+		},
+		{name: "nothing wrong", outer: []error{nil}, inner: []error{nil}, wantSync: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := t.TempDir()
+			dir := filepath.Join(base, "a", "state")
+			answers := map[string][]error{base: tt.outer, filepath.Join(base, "a"): tt.inner}
+
+			opener := NewOSFS()
+			opener.syncDir = func(path string) error {
+				list := answers[path]
+				if len(list) == 0 {
+					return nil
+				}
+
+				answers[path] = list[1:]
+
+				return list[0]
+			}
+
+			var logs strings.Builder
+
+			store, err := New(Config{FS: opener, Dir: dir, Logger: slog.New(slog.NewTextHandler(&logs, nil))})
+			require.NoError(t, err, "New retries the flush once with its opener")
+
+			defer func() { require.NoError(t, store.Close()) }()
+
+			assert.Equal(t, tt.wantSync, store.Hooks().StateStatus().ParentSync)
+			assert.Equal(t, tt.wantWarning, strings.Count(logs.String(), "level=WARN"))
 		})
 	}
 }
