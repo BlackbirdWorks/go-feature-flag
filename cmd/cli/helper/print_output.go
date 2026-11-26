@@ -1,7 +1,9 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
@@ -72,7 +74,19 @@ func (o *Output) PrintLines(cmd *cobra.Command) {
 // PrintFatalAndExit prints err as an error and exits the process with the code of the error ([ExitCodeOf]), 1 for
 // an error that asks for none.
 func PrintFatalAndExit(err error) {
-	PrintFatal(&pterm.Error, os.Exit, err)
+	PrintFatal(FatalPrinter(err, os.Stdout, os.Stderr), os.Exit, err)
+}
+
+// FatalPrinter returns the printer of the final error line. An error that carries an exit code ([ExitError]) comes
+// from a command that writes its result, even its failure, as structured output on stdout (--output json): its
+// error line goes to stderr, so that stdout stays one document. The error of every other command goes to stdout,
+// as it always did.
+func FatalPrinter(err error, stdout, stderr io.Writer) *pterm.PrefixPrinter {
+	if errors.As(err, new(*ExitError)) {
+		return pterm.Error.WithWriter(stderr)
+	}
+
+	return pterm.Error.WithWriter(stdout)
 }
 
 // PrintFatal prints err with printer, then calls exit with the code of the error ([ExitCodeOf]). The printer and

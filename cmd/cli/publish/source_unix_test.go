@@ -22,7 +22,7 @@ func loadWithin(t *testing.T, dir string) error {
 	done := make(chan error, 1)
 
 	go func() {
-		_, err := publish.LoadSource(os.DirFS(dir), srcDir, 0)
+		_, err := publish.LoadSource(os.DirFS(dir), srcDir, publish.SourceLimits{})
 		done <- err
 	}()
 

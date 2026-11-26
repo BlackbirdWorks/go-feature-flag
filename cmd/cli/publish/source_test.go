@@ -22,7 +22,7 @@ func TestLoadSource(t *testing.T) {
 		name        string
 		wantErrText string
 		wantObjects []s3publish.Object
-		maxBytes    int64
+		limits      publish.SourceLimits
 	}{
 		{
 			name: "valid tree, in path order, dotfiles ignored",
@@ -129,18 +129,68 @@ func TestLoadSource(t *testing.T) {
 		{
 			name:        "a file over the limit is refused from its size",
 			tree:        fstest.MapFS{flagsA: {Data: []byte("0123456789")}},
-			maxBytes:    9,
+			limits:      publish.SourceLimits{MaxObjectBytes: 9},
 			wantErr:     publish.ErrFileTooLarge,
 			wantErrText: `"src/flags/a.yaml": 10 bytes, the limit is 9`,
 		},
 		{
-			name:     "a file at the limit is read",
-			tree:     fstest.MapFS{flagsA: {Data: []byte("012345678")}},
-			maxBytes: 9,
+			name:   "a file at the limit is read",
+			tree:   fstest.MapFS{flagsA: {Data: []byte("012345678")}},
+			limits: publish.SourceLimits{MaxObjectBytes: 9},
 			wantObjects: []s3publish.Object{{
 				Name: "a", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML,
 				Source: "src/flags/a.yaml", Body: []byte("012345678"),
 			}},
+		},
+		{
+			name: "more files than the limit stops the loading",
+			tree: fstest.MapFS{
+				flagsA:         {Data: []byte("a")},
+				flagsB:         {Data: []byte("b")},
+				"flags/c.yaml": {Data: []byte("c")},
+			},
+			limits:      publish.SourceLimits{MaxObjects: 2},
+			wantErr:     publish.ErrSourceTooLarge,
+			wantErrText: "more than 2 files",
+		},
+		{
+			name:        "distinct documents over the total stop the loading",
+			tree:        fstest.MapFS{flagsA: {Data: []byte("aaaa")}, flagsB: {Data: []byte("bbbb")}},
+			limits:      publish.SourceLimits{MaxTotalBytes: 7},
+			wantErr:     publish.ErrSourceTooLarge,
+			wantErrText: `more than 7 bytes (at "src/flags/b.yaml")`,
+		},
+		{
+			name: "equal documents count once in the total and share one copy",
+			tree: fstest.MapFS{
+				flagsA:         {Data: []byte("aaaa")},
+				flagsB:         {Data: []byte("aaaa")},
+				"flags/c.yaml": {Data: []byte("aaaa")},
+			},
+			limits: publish.SourceLimits{MaxTotalBytes: 4},
+			wantObjects: []s3publish.Object{
+				{
+					Name:   "a",
+					Kind:   controlplane.KindFlags,
+					Format: controlplane.FormatYAML,
+					Source: "src/flags/a.yaml",
+					Body:   []byte("aaaa"),
+				},
+				{
+					Name:   "b",
+					Kind:   controlplane.KindFlags,
+					Format: controlplane.FormatYAML,
+					Source: "src/flags/b.yaml",
+					Body:   []byte("aaaa"),
+				},
+				{
+					Name:   "c",
+					Kind:   controlplane.KindFlags,
+					Format: controlplane.FormatYAML,
+					Source: "src/flags/c.yaml",
+					Body:   []byte("aaaa"),
+				},
+			},
 		},
 		{
 			name:        "empty tree",
@@ -154,7 +204,7 @@ func TestLoadSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := publish.LoadSource(tt.tree, srcDir, tt.maxBytes)
+			got, err := publish.LoadSource(tt.tree, srcDir, tt.limits)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Contains(t, err.Error(), tt.wantErrText)

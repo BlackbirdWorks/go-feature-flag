@@ -26,15 +26,15 @@ func errorCode(err error) string {
 	return ""
 }
 
-// isNotFound reports a missing key: the S3 code NoSuchKey or NotFound. Any other 404, such as NoSuchBucket, is not
-// a missing key and must stay an error.
+// isNotFound reports a missing key or version: the S3 code NoSuchKey, NotFound or NoSuchVersion. Any other 404,
+// such as NoSuchBucket, is not a missing key and must stay an error.
 func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	switch errorCode(err) {
-	case "NoSuchKey", "NotFound":
+	case "NoSuchKey", "NotFound", "NoSuchVersion":
 		return true
 	}
 

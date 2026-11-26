@@ -3,6 +3,8 @@ package s3publish_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -250,7 +252,7 @@ func TestMissingBucketIsAnErrorNotAMissingManifestNorAConflict(t *testing.T) {
 			},
 		},
 		{
-			name: "dry run",
+			name: nameDryRun,
 			run: func(pub *s3publish.Publisher, objects []s3publish.Object) error {
 				_, err := pub.Publish(context.Background(), s3publish.Request{Objects: objects, DryRun: true})
 
@@ -335,6 +337,14 @@ func (r *retrying) PutObject(
 	out, err := r.API.PutObject(ctx, input, opts...)
 	if err != nil || aws.ToString(input.Key) != manifestKey || !r.retried.CompareAndSwap(0, 1) {
 		return out, err
+	}
+
+	// The SDK rewinds a seekable body before it sends a request again.
+	if seeker, ok := input.Body.(io.Seeker); ok {
+		_, seekErr := seeker.Seek(0, io.SeekStart)
+		if seekErr != nil {
+			return nil, fmt.Errorf("rewind: %w", seekErr)
+		}
 	}
 
 	return r.API.PutObject(ctx, input, opts...)
@@ -756,19 +766,38 @@ func objectsNamed(t *testing.T, count int) []s3publish.Object {
 	return out
 }
 
-// hooked runs head before every HeadObject.
+// hooked runs head before every HeadObject, beforePut before every PutObject and afterPut after one that succeeded.
 type hooked struct {
 	s3publish.API
 
-	head func(ctx context.Context, key string) error
+	head      func(ctx context.Context, key string) error
+	beforePut func(ctx context.Context, key string)
+	afterPut  func(key string)
+}
+
+func (h *hooked) PutObject(
+	ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3.Options),
+) (*s3.PutObjectOutput, error) {
+	if h.beforePut != nil {
+		h.beforePut(ctx, aws.ToString(input.Key))
+	}
+
+	out, err := h.API.PutObject(ctx, input, opts...)
+	if err == nil && h.afterPut != nil {
+		h.afterPut(aws.ToString(input.Key))
+	}
+
+	return out, err
 }
 
 func (h *hooked) HeadObject(
 	ctx context.Context, input *s3.HeadObjectInput, opts ...func(*s3.Options),
 ) (*s3.HeadObjectOutput, error) {
-	err := h.head(ctx, aws.ToString(input.Key))
-	if err != nil {
-		return nil, err
+	if h.head != nil {
+		err := h.head(ctx, aws.ToString(input.Key))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return h.API.HeadObject(ctx, input, opts...)
@@ -843,20 +872,23 @@ func TestObjectResultsAreInManifestOrderAndTheManifestIsLast(t *testing.T) {
 		lastDone := make(chan struct{})
 		fake := s3fake.New(manifestKey)
 
-		// The first object completes after the last one: completion order is the reverse of manifest order.
-		api := &hooked{API: fake, head: func(ctx context.Context, key string) error {
-			switch key {
-			case firstKey:
-				select {
-				case <-lastDone:
-				case <-ctx.Done():
+		// The first object is written only after the last one was: the completion order is not the manifest order.
+		api := &hooked{
+			API: fake,
+			beforePut: func(ctx context.Context, key string) {
+				if key == firstKey {
+					select {
+					case <-lastDone:
+					case <-ctx.Done():
+					}
 				}
-			case lastKey:
-				defer close(lastDone)
-			}
-
-			return nil
-		}}
+			},
+			afterPut: func(key string) {
+				if key == lastKey {
+					close(lastDone)
+				}
+			},
+		}
 
 		res, err := newPublisher(t, api, func(c *s3publish.Config) { c.Concurrency = 4 }).
 			Publish(t.Context(), s3publish.Request{Objects: objects})

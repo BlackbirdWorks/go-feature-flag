@@ -1,8 +1,11 @@
 package s3publish_test
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
@@ -82,6 +85,7 @@ func objectKey(t *testing.T, body []byte) string {
 }
 
 const (
+	nameDryRun     = "dry run"
 	nameNope       = "nope"
 	nameRival      = "rival"
 	nameOne        = "one"
@@ -94,3 +98,10 @@ const (
 	testConnection = "control"
 	manifestKey    = "manifests/stable.yaml"
 )
+
+// newSHA returns the base64 sha256 of body, as the store reports it.
+func newSHA(body []byte) *string {
+	raw := sha256.Sum256(body)
+
+	return aws.String(base64.StdEncoding.EncodeToString(raw[:]))
+}

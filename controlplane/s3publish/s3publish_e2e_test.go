@@ -510,7 +510,7 @@ func TestE2EMissingBucketIsAnOperationError(t *testing.T) {
 
 			return runErr
 		}},
-		{name: "dry run", run: func() error {
+		{name: nameDryRun, run: func() error {
 			_, runErr := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a"), DryRun: true})
 
 			return runErr
@@ -536,16 +536,26 @@ func TestE2EMissingBucketIsAnOperationError(t *testing.T) {
 // lossyManifestWrite forwards the first write of the manifest to the emulator, which commits it, and answers 503
 // to the caller, so that the SDK sends the write again and the second one fails its condition.
 type lossyManifestWrite struct {
-	next    http.RoundTripper
-	key     string
-	dropped atomic.Int32
+	next     http.RoundTripper
+	key      string
+	statuses []int
+	dropped  atomic.Int32
+	mu       sync.Mutex
 }
 
 func (l *lossyManifestWrite) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := l.next.RoundTrip(req)
-	if err != nil || req.Method != http.MethodPut || !strings.HasSuffix(req.URL.Path, "/"+l.key) ||
-		!l.dropped.CompareAndSwap(0, 1) {
+	if err != nil || req.Method != http.MethodPut || !strings.HasSuffix(req.URL.Path, "/"+l.key) {
 		return resp, err
+	}
+
+	l.mu.Lock()
+	l.statuses = append(l.statuses, resp.StatusCode)
+	l.mu.Unlock()
+
+	// Drop the answer of the first write only when the emulator committed it.
+	if resp.StatusCode/100 != 2 || !l.dropped.CompareAndSwap(0, 1) {
+		return resp, nil
 	}
 
 	_ = resp.Body.Close()
@@ -557,6 +567,13 @@ func (l *lossyManifestWrite) RoundTrip(req *http.Request) (*http.Response, error
 		Body: io.NopCloser(strings.NewReader(
 			`<?xml version="1.0"?><Error><Code>ServiceUnavailable</Code><Message>try again</Message></Error>`)),
 	}, nil
+}
+
+func (l *lossyManifestWrite) upstreamStatuses() []int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return append([]int{}, l.statuses...)
 }
 
 func TestE2EManifestWriteRetriedByTheSDKIsSuccess(t *testing.T) {
@@ -582,6 +599,8 @@ func TestE2EManifestWriteRetriedByTheSDKIsSuccess(t *testing.T) {
 	res, err := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
 	require.NoError(t, err, "the first write committed; the retry hit its own manifest")
 	assert.Equal(t, int32(1), lossy.dropped.Load())
+	assert.Equal(t, []int{http.StatusOK, http.StatusPreconditionFailed}, lossy.upstreamStatuses(),
+		"the first write committed, and the replay failed its create-only condition")
 	assert.True(t, res.Written)
 	assert.Equal(t, uint64(1), res.Generation)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 const badQueryFlags = `checkout-new:
@@ -58,7 +59,7 @@ func TestPublishJSONErrorListsTheFlagsInDetails(t *testing.T) {
 
 	rig := newHarness(t, treeOf(map[string]string{"flags/engine.yaml": badQueryFlags}))
 
-	stdout, _, err := rig.run(t, withTarget(srcDir, "-o", "json")...)
+	stdout, _, err := rig.run(t, withTarget(srcDir, "-o", jsonFlag)...)
 	require.Error(t, err)
 
 	var got struct {
@@ -88,20 +89,20 @@ func TestJSONErrorGoldenPerExitCode(t *testing.T) {
 	}{
 		{
 			name:       "usage",
-			args:       []string{srcDir, "-o", "json"},
+			args:       []string{srcDir, "-o", jsonFlag},
 			wantCode:   helper.ExitFailure,
 			wantGolden: "error_exit_1.json",
 		},
 		{
 			name:       "invalid",
-			args:       withTarget(srcDir, "-o", "json"),
+			args:       withTarget(srcDir, "-o", jsonFlag),
 			wantCode:   helper.ExitInvalid,
 			wantGolden: "error_exit_2.json",
 			tree:       func() fs.FS { return treeOf(map[string]string{badFile: "bad:\n  disable: true\n"}) },
 		},
 		{
 			name:       "conflict",
-			args:       withTarget(srcDir, "-o", "json"),
+			args:       withTarget(srcDir, "-o", jsonFlag),
 			wantCode:   helper.ExitConflict,
 			wantGolden: "error_exit_3.json",
 			setup: func(rig *harness) {
@@ -116,7 +117,7 @@ func TestJSONErrorGoldenPerExitCode(t *testing.T) {
 		},
 		{
 			name:       "transport",
-			args:       withTarget(srcDir, "-o", "json"),
+			args:       withTarget(srcDir, "-o", jsonFlag),
 			wantCode:   helper.ExitTransport,
 			wantGolden: "error_exit_4.json",
 			setup: func(rig *harness) {
@@ -131,7 +132,7 @@ func TestJSONErrorGoldenPerExitCode(t *testing.T) {
 		},
 		{
 			name:       "bad state",
-			args:       withTarget(srcDir, "-o", "json"),
+			args:       withTarget(srcDir, "-o", jsonFlag),
 			wantCode:   helper.ExitVerify,
 			wantGolden: "error_exit_5.json",
 			setup:      func(rig *harness) { rig.fake.Seed(manifestKey, []byte("not a manifest")) },
@@ -178,7 +179,7 @@ func TestVerifyFailureJSONIsTheReportAlone(t *testing.T) {
 	rig.publishOnce(t)
 	rig.fake.Remove(checkoutKey)
 
-	stdout, _, err := rig.run(t, withTarget("verify", "-o", "json")...)
+	stdout, _, err := rig.run(t, withTarget("verify", "-o", jsonFlag)...)
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
 
@@ -282,4 +283,131 @@ func TestNoChangeHealsAMissingObjectAndSaysSo(t *testing.T) {
 	_, found := rig.fake.Body(checkoutKey)
 	assert.True(t, found)
 	rig.fake.AssertConsistent(t)
+}
+
+func TestUsageFailuresAreJSONInJSONMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantInMsg string
+		args      []string
+	}{
+		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 0"},
+		{name: "two directories", args: []string{"a", "b", "-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 2"},
+		{name: "arguments for verify", args: []string{"verify", "extra", "-o", jsonFlag}, wantInMsg: "unknown command"},
+		{
+			name:      "a flag value that does not parse",
+			args:      []string{"-o", jsonFlag, srcDir, "--generation", "abc"},
+			wantInMsg: "invalid argument",
+		},
+		{name: "an unknown flag", args: []string{"-o", jsonFlag, srcDir, "--nope"}, wantInMsg: "unknown flag"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rig := newHarness(t, sourceTree())
+
+			stdout, _, err := rig.run(t, tt.args...)
+			require.Error(t, err)
+			assert.Equal(t, helper.ExitFailure, helper.ExitCodeOf(err))
+
+			var got struct {
+				Error struct {
+					Code    string   `json:"code"`
+					Message string   `json:"message"`
+					Details []string `json:"details"`
+				} `json:"error"`
+			}
+
+			dec := json.NewDecoder(strings.NewReader(stdout))
+			require.NoError(t, dec.Decode(&got), stdout)
+			assert.False(t, dec.More(), "one JSON value on stdout")
+			assert.Equal(t, "usage", got.Error.Code)
+			assert.Contains(t, got.Error.Message, tt.wantInMsg)
+			assert.Empty(t, rig.fake.Calls())
+		})
+	}
+}
+
+func TestUsageFailureInTextModeIsNotJSON(t *testing.T) {
+	t.Parallel()
+
+	rig := newHarness(t, sourceTree())
+
+	stdout, _, err := rig.run(t)
+	require.Error(t, err)
+	assert.Empty(t, stdout)
+}
+
+// seedEngineBadFlags stores a flag file that passes the structural checks and that the engine rejects (a query
+// that does not compile) under its checksum, with a manifest that lists it correctly.
+func seedEngineBadFlags(t *testing.T, rig *harness, format string) {
+	t.Helper()
+
+	body := badQueryFlags
+	if format == "toml" {
+		body = "[checkout-new]\n[checkout-new.variations]\non = true\noff = false\n" +
+			"[checkout-new.defaultRule]\nvariation = \"off\"\n" +
+			"[[checkout-new.targeting]]\nquery = \"beta eq (\"\nvariation = \"on\"\n"
+	}
+
+	sum := controlplane.ChecksumOf([]byte(body))
+	key, err := controlplane.ObjectKey(sum, format)
+	require.NoError(t, err)
+
+	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
+		Channel: "stable", Generation: 1,
+		Objects: []controlplane.ManifestObject{{
+			Name: "engine", Kind: controlplane.KindFlags, Connection: "control", Key: key, Format: format,
+			Checksum: sum, Size: int64(len(body)),
+		}},
+	})
+	require.NoError(t, err)
+
+	rig.fake.Seed(key, []byte(body))
+	rig.fake.Seed(manifestKey, manifest)
+}
+
+func TestVerifyRunsTheEngineCheck(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range []string{controlplane.FormatYAML, "toml"} {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			rig := newHarness(t, sourceTree())
+			seedEngineBadFlags(t, rig, format)
+
+			stdout, _, err := rig.run(t, withTarget("verify")...)
+			require.Error(t, err)
+			assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
+			assert.Contains(t, stdout, "problem: engine invalid-content")
+			assert.Contains(t, stdout, "flag checkout-new: ", "the engine names the flag, a TOML file is read too")
+		})
+	}
+}
+
+func TestVerifyNamesWhatItDidNotCheck(t *testing.T) {
+	t.Parallel()
+
+	rig := newHarness(t, sourceTree())
+
+	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
+		Channel: "stable", Generation: 1,
+		Objects: []controlplane.ManifestObject{{
+			Name: "elsewhere", Kind: controlplane.KindFlags, Connection: "other", Key: "k", Format: "yaml",
+			Checksum: controlplane.ChecksumOf([]byte("x")), Size: 1,
+		}},
+	})
+	require.NoError(t, err)
+	rig.fake.Seed(manifestKey, manifest)
+
+	stdout, _, err := rig.run(t, withTarget("verify")...)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "checked 0 objects, skipped 1 (other connections)")
+	assert.Contains(t, stdout, "note: 1 object(s) of other connections were not checked: elsewhere")
+	assert.Contains(t, stdout, "ok: every checked object matches")
+	assert.NotContains(t, stdout, "every listed object")
 }

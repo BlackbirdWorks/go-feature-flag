@@ -32,12 +32,16 @@ res, err := pub.Publish(ctx, s3publish.Request{
 switch {
 case errors.Is(err, s3publish.ErrConflict):
     // another publisher won; nothing visible changed. Read again and decide.
+    return err
 case errors.Is(err, s3publish.ErrInvalid):
     // nothing was written; the error wraps the controlplane error.
+    return err
 case err != nil:
     // a store call failed (*s3publish.OperationError); repeating is safe.
+    return err
 }
 
+// res is nil whenever err is not nil: use it only here.
 fmt.Println(res.Generation, res.Uploaded, res.Present, res.Written)
 ```
 
@@ -51,7 +55,7 @@ fmt.Println(res.Generation, res.Uploaded, res.Present, res.Written)
 | `Request.DryRun` | The same reads and no write. |
 | `Request.Generation` | Zero: the generation in the bucket plus one. An explicit value must be higher. |
 | `Request.ReplaceInvalidManifest` | Replace a manifest in the bucket that is unreadable, invalid or over the limits. Needs an explicit `Generation`; still `If-Match`. |
-| `Config.Check` | `func(*Object) error`, run for every object before any call: the hook for validation beyond `controlplane`, such as the engine (see below). |
+| `Config.Check` | `func(*Object) error`, run for every object before any call, and by `Verify` for every object it read: the hook for validation beyond `controlplane`, such as the engine (see below). |
 | `Config.MaxObjectBytes`, `MaxTotalBytes`, `MaxManifestBytes`, `MaxObjects` | The limits of the reader; zero means its defaults (16 MiB, 1 GiB, 16 MiB, 20000). |
 | `Config.Concurrency` | Object calls at a time; zero means 8. |
 | `Object.Source` | Where a document came from (a path), used only in error messages. |
@@ -62,6 +66,9 @@ Errors (test with `errors.Is` and `errors.As`): `ErrInvalid` (wraps the `control
 `*OperationError`, never "no manifest" and never a conflict.
 
 ## Keys and the reader
+
+A manifest key that is also the key of one of the objects (its key is decided by its content) is refused (`ErrManifestKey`): the
+manifest would overwrite the object it lists.
 
 The keys written in the manifest are absolute keys of the bucket: `Config.Prefix` is put before them by the publisher and the
 reader must not add a prefix. `Config.Connection` must be the control-plane connection name of the relay.
@@ -88,7 +95,12 @@ cfg.Check = func(obj *s3publish.Object) error {
 }
 ```
 
-`flagcheck` imports the engine (heavy): only importers of `flagcheck` pull it. A refusal is `ErrInvalid` and writes nothing.
+`flagcheck` imports the engine (heavy): only importers of `flagcheck` pull it. A refusal is `ErrInvalid` and writes nothing. `Verify`
+runs the same hook, so a stored flag file that the relay would reject is `invalid-content` even when its size and checksum match.
+A flag file that a manifest lists with `format: toml` is not read by the format package: `Verify` accepts it as far as the
+structure goes and leaves it to the hook (`flagcheck` reads TOML).
+
+A generation of `math.MaxUint64` in the bucket has no successor: a changed publication is refused with `ErrGeneration`.
 
 ## Protocol
 
@@ -123,7 +135,8 @@ The manifest is YAML, or JSON when the manifest key ends in `.json`.
 
 ## Verify
 
-`Verify` reads the manifest and each object of `Config.Connection` and reports `Problem{Object, Key, Code, Detail}`:
+`Verify` reads the manifest and each object of `Config.Connection` (the pinned `versionId` of an entry, when it has one; an absent
+version is `missing`) and reports `Problem{Object, Key, Code, Detail}`:
 `missing`, `unreadable`, `size-mismatch`, `checksum-mismatch`, `invalid-content`, `manifest-invalid`, or the `controlplane`
 code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. `Detail` never holds
 document content, so no API key. `ErrNoManifest` and `*OperationError` are returned as errors.

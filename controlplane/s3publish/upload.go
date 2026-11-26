@@ -87,8 +87,19 @@ start:
 			break start
 		}
 
+		if ctx.Err() != nil {
+			// Both cases of the select can be ready after a cancellation: do not start another call.
+			<-slots
+
+			break start
+		}
+
 		wg.Go(func() {
 			defer func() { <-slots }()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			err := call(ctx, i)
 			if err != nil {
@@ -101,6 +112,12 @@ start:
 
 	wg.Wait()
 
+	return firstError(parent, errs)
+}
+
+// firstError picks the error to return: the one of the lowest index that is not only the consequence of the
+// cancellation, else any error, else the cancellation of the parent context.
+func firstError(parent context.Context, errs []error) error {
 	for _, err := range errs {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
@@ -189,7 +206,7 @@ func (p *Publisher) exists(ctx context.Context, item *planned) (bool, error) {
 	}
 
 	sum := aws.ToString(out.ChecksumSHA256)
-	if sum != "" && !strings.Contains(sum, "-") {
+	if sum != "" && !strings.Contains(sum, "-") && out.ChecksumType != types.ChecksumTypeComposite {
 		if sum != item.sha64 {
 			return false, fmt.Errorf("%w: %s has another sha256", ErrObjectMismatch, item.entry.Key)
 		}
@@ -202,7 +219,7 @@ func (p *Publisher) exists(ctx context.Context, item *planned) (bool, error) {
 
 // hashMatches reads the object and compares its sha256 with the expected one.
 func (p *Publisher) hashMatches(ctx context.Context, item *planned) (bool, error) {
-	body, _, err := p.read(ctx, item.entry.Key, item.entry.Size)
+	body, _, err := p.read(ctx, item.entry.Key, "", item.entry.Size)
 
 	switch {
 	case isNotFound(err):

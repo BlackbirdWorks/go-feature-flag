@@ -19,14 +19,16 @@ flagsets/<name>.yaml|yml|json   a flag-set document (kind flagSets)
 - Names that start with a dot are ignored. Any other file or directory is an error that names it, so a typo is not skipped.
 - Only regular files are read. A symbolic link, a named pipe, a device or a socket is an error that names it: nothing is
   followed and nothing that could block is opened.
-- A file larger than 16 MiB is refused from its size, before it is read; so is an empty document (an object must have at
-  least one byte).
+- A file larger than 16 MiB is refused from its size, before it is read. More files than the limit, or more than 1 GiB in
+  distinct documents, stop the loading as soon as the limit is crossed (equal documents count once). An empty document is
+  refused by the publisher (an object must have at least one byte).
 - A directory that holds no document is an error.
 - A directory named `verify` is taken as the subcommand: write `./verify`.
 
 ## Where to publish
 
-Either the control-plane connection of a [bootstrap file](../relay-proxy/bootstrap-config.md), or explicit flags. They do not mix.
+Either the control-plane connection of a [bootstrap file](../relay-proxy/bootstrap-config.md) (the version 2 format, which the relay
+does not read yet), or explicit flags. They do not mix.
 
 | Flag | Meaning |
 |---|---|
@@ -51,7 +53,9 @@ semaphore-cli publish ./flags-repo --config /etc/semaphore/bootstrap.yaml
 | `--replace-invalid-manifest` | Replace a manifest in the bucket that cannot be read, is invalid or is over the limits. Needs `--generation`. See [Recovery](#recovery-from-an-invalid-manifest). |
 | `--output`, `-o` | `text` (default) or `json`. |
 
-With `--output json` a failure writes one JSON object on stdout and exits with the usual code:
+With `--output json` a failure writes one JSON object on stdout and exits with the usual code; the final `error executing command`
+line of the process goes to stderr, so stdout is one JSON document. A missing or extra argument and a flag that does not parse
+are reported the same way (a flag error only when `-o json` comes before it, since flags are read in order):
 
 ```json
 {"error": {"code": "invalid", "message": "...", "details": ["bad.variations: is required"]}}
@@ -128,6 +132,8 @@ names the file and the flag. (The engine accepts percentages that do not sum to 
 
 - The `key` of every object in the manifest is the absolute key in the bucket, `--prefix` included. The prefix is applied by
   the publisher only; the relay reads the key as it is and must not add a prefix.
+- A `--manifest-key` that equals the key of one of the objects (the key follows from the content) is refused before any
+  call: the manifest would overwrite that object.
 - The `connection` in the manifest must be the control-plane connection name of the relay's bootstrap file. `--config`
   mode takes it from the file and is recommended; in explicit mode `--connection` must equal that name.
 - The identity needs `s3:GetObject` and `s3:PutObject` on the bucket. Add `s3:ListBucket` on the bucket: S3 answers a request
@@ -158,7 +164,15 @@ semaphore-cli publish verify --config /etc/semaphore/bootstrap.yaml
 Reads the manifest and every listed object of the connection (reads only) and checks the limits, the size, the sha256, the
 content of each document and that every flag-set source resolves, the flag-set documents taken together. Problems are listed per object with a stable code: `missing`, `unreadable`,
 `size-mismatch`, `checksum-mismatch`, `invalid-content` (or the code of a validation problem such as `unresolved-source`),
-`manifest-invalid`. Objects of other connections are listed as skipped. Same `--output` and target flags as `publish`.
+`manifest-invalid`. Objects of other connections are listed as skipped, and the text output says so. Same `--output` and target
+flags as `publish`.
+
+- A manifest entry with a `versionId` is read at that version; an absent version is `missing`.
+- Flag files also go through the engine check (below), so a stored file that the relay would not load is `invalid-content`
+  even when its size and checksum match. A flag file listed with `format: toml` is accepted as far as the structure goes
+  and checked by the engine.
+- A clean report is about the objects of the connection that were read. It does not say anything about the objects that
+  are skipped.
 
 ## Exit codes
 

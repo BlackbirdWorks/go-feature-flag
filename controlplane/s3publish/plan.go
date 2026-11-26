@@ -35,6 +35,13 @@ func (p *Publisher) plan(req *Request) (*plan, error) {
 		manifest.Objects[i] = *items[i].entry
 	}
 
+	for i := range items {
+		if items[i].entry.Key == p.cfg.ManifestKey {
+			return nil, invalid(label(items[i].entry.Name, items[i].source),
+				fmt.Errorf("%w: its key %s is the key of the manifest", ErrManifestKey, items[i].entry.Key))
+		}
+	}
+
 	err := p.checkLimits(manifest.Objects, func(i int) string { return label(items[i].entry.Name, items[i].source) })
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
@@ -161,6 +168,11 @@ func validateContent(
 ) (controlplane.DecodeInfo, *controlplane.FlagSetDocument, error) {
 	switch entry.Kind {
 	case controlplane.KindFlags:
+		if entry.Format == controlplane.FormatTOML {
+			// The format package does not read TOML; the relay does. Only the Check hook can look inside.
+			return controlplane.DecodeInfo{}, nil, nil
+		}
+
 		flags, info, err := controlplane.UnmarshalFlags(body, entry.Format)
 		if err != nil {
 			return info, nil, fmt.Errorf("decode flags: %w", err)

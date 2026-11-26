@@ -30,6 +30,9 @@ var (
 	// ErrLimit is wrapped by the errors for what the relay reader would reject: an empty object, an object, a total
 	// or a manifest over its limit. A publication refused for it also matches ErrInvalid.
 	ErrLimit = errors.New("s3publish: over a limit of the reader")
+	// ErrManifestKey is returned when the key of an object, which its content decides, is the key of the manifest:
+	// the manifest would overwrite the object it lists. Choose another manifest key or prefix.
+	ErrManifestKey = errors.New("s3publish: an object has the key of the manifest")
 	// ErrNoManifest is returned by Verify when the bucket holds no manifest.
 	ErrNoManifest = errors.New("s3publish: no manifest in the bucket")
 )

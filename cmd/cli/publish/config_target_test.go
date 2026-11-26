@@ -60,20 +60,16 @@ func (rig *harness) withFiles(files, env map[string]string) {
 func TestPublishFromBootstrapFile(t *testing.T) {
 	t.Parallel()
 
-	rig := newHarness(t, sourceTree())
+	rig := newHarness(t, treeOf(map[string]string{flagsA: checkoutFlags}))
 	rig.withFiles(
-		map[string]string{"/etc/bootstrap.yaml": bootstrapFile, "/run/secret-key": canarySecret + "\n"},
+		map[string]string{bootstrapPath: bootstrapFile, secretKeyPath: canarySecret + "\n"},
 		map[string]string{envKeyID: canaryKeyID},
 	)
 
-	// maxObjects is 1 in the file: two documents are refused, so the file's limit is honoured.
-	stdout, stderr, err := rig.run(t, srcDir, optConfig, "/etc/bootstrap.yaml")
-	require.Error(t, err)
-	assert.Equal(t, helper.ExitInvalid, helper.ExitCodeOf(err))
-	assert.Contains(t, err.Error(), "the limit is 1")
-	assert.Empty(t, rig.fake.Keys())
+	stdout, stderr, err := rig.run(t, srcDir, optConfig, bootstrapPath, "--dry-run")
+	require.NoError(t, err)
 
-	for _, text := range []string{stdout, stderr, err.Error()} {
+	for _, text := range []string{stdout, stderr} {
 		assert.NotContains(t, text, canarySecret)
 		assert.NotContains(t, text, canaryKeyID)
 		assert.NotContains(t, text, canaryAPIKey)
@@ -97,16 +93,37 @@ func TestPublishFromBootstrapFile(t *testing.T) {
 	assert.Equal(t, "20s", spec.RequestTimeout.String())
 }
 
+func TestTheObjectLimitOfTheBootstrapFileStopsTheLoading(t *testing.T) {
+	t.Parallel()
+
+	rig := newHarness(t, sourceTree()) // two documents; the file says maxObjects: 1
+	rig.withFiles(
+		map[string]string{bootstrapPath: bootstrapFile, secretKeyPath: canarySecret},
+		map[string]string{envKeyID: canaryKeyID},
+	)
+
+	stdout, stderr, err := rig.run(t, srcDir, optConfig, bootstrapPath)
+	require.Error(t, err)
+	assert.Equal(t, helper.ExitInvalid, helper.ExitCodeOf(err))
+	assert.Contains(t, err.Error(), "more than 1 files")
+	assert.Empty(t, rig.fake.Calls())
+
+	for _, text := range []string{stdout, stderr, err.Error()} {
+		assert.NotContains(t, text, canarySecret)
+		assert.NotContains(t, text, canaryKeyID)
+	}
+}
+
 func TestPublishFromBootstrapFileWritesToTheConfiguredManifestKey(t *testing.T) {
 	t.Parallel()
 
 	rig := newHarness(t, treeOf(map[string]string{flagsA: checkoutFlags}))
 	rig.withFiles(
-		map[string]string{"/etc/bootstrap.yaml": bootstrapFile, "/run/secret-key": canarySecret},
+		map[string]string{bootstrapPath: bootstrapFile, secretKeyPath: canarySecret},
 		map[string]string{envKeyID: canaryKeyID},
 	)
 
-	stdout, _, err := rig.run(t, srcDir, optConfig, "/etc/bootstrap.yaml", "--prefix", "acme")
+	stdout, _, err := rig.run(t, srcDir, optConfig, bootstrapPath, "--prefix", "acme")
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "published generation 1 (was 0) to manifests/prod/stable.json, channel stable")

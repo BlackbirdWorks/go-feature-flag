@@ -215,7 +215,7 @@ func TestE2EPublishDirectoryRepublishAndVerify(t *testing.T) {
 	// verify passes ...
 	out, err = runCLI(t, env.deps, "verify", optConfig, env.config)
 	require.NoError(t, err, out)
-	assert.Contains(t, out, "ok: every listed object matches")
+	assert.Contains(t, out, "ok: every checked object matches")
 
 	// ... then fails once an object is corrupted out of band, naming it.
 	victim := env.readManifest(t).Objects[0]

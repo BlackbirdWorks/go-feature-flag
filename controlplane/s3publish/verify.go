@@ -80,7 +80,7 @@ type owned struct {
 }
 
 func (p *Publisher) check(ctx context.Context) (*Report, error) {
-	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, "", p.cfg.MaxManifestBytes)
 
 	switch {
 	case isNotFound(err):
@@ -205,13 +205,13 @@ func (p *Publisher) verifyObject(
 		return []Problem{{Object: obj.Name, Key: obj.Key, Code: code, Detail: detail}}, nil
 	}
 
-	body, _, err := p.read(ctx, obj.Key, max(obj.Size, 0))
+	body, _, err := p.read(ctx, obj.Key, obj.VersionID, max(obj.Size, 0))
 
 	var opErr *OperationError
 
 	switch {
-	case isNotFound(err):
-		return problem(ProblemMissing, "no object under the listed key")
+	case isNotFound(err), errors.Is(err, errMissingVersion):
+		return problem(ProblemMissing, "no object under the listed key or version")
 	case errors.As(err, &opErr) && errors.Is(opErr.Err, errTooLarge):
 		return problem(ProblemSizeMismatch, fmt.Sprintf("larger than the listed %d bytes", obj.Size))
 	case err != nil:
@@ -230,6 +230,13 @@ func (p *Publisher) verifyObject(
 	_, doc, err := validateContent(obj, body)
 	if err != nil {
 		return contentProblems(obj, err), nil
+	}
+
+	if p.cfg.Check != nil {
+		err = p.cfg.Check(&Object{Name: obj.Name, Kind: obj.Kind, Format: obj.Format, Source: obj.Key, Body: body})
+		if err != nil {
+			return problem(ProblemInvalidContent, err.Error())
+		}
 	}
 
 	return nil, doc

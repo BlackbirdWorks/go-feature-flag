@@ -28,9 +28,20 @@ var (
 	// ErrNotRegular is returned for a symbolic link, a named pipe, a device or a socket: the loader reads regular
 	// files only, never follows a link and never opens a file that could block.
 	ErrNotRegular = errors.New("not a regular file")
+	// ErrSourceTooLarge is returned when the tree holds more files, or more bytes in distinct documents, than the
+	// publisher accepts. It is detected while the tree is read, before the rest is loaded into memory.
+	ErrSourceTooLarge = errors.New("source tree is over the limits")
 	// ErrFileTooLarge is returned for a file over the size limit of an object. It is refused before it is read.
 	ErrFileTooLarge = errors.New("file is over the size limit")
 )
+
+// SourceLimits bound what LoadSource retains. A zero value means the default of the reader: 20000 files
+// (controlplane.DefaultMaxObjects), 16 MiB per file and 1 GiB for the distinct documents.
+type SourceLimits struct {
+	MaxObjects     int
+	MaxObjectBytes int64
+	MaxTotalBytes  int64
+}
 
 // LoadSource reads the documents of a source tree. The layout:
 //
@@ -43,14 +54,20 @@ var (
 // accepted: a symbolic link, a named pipe, a device or a socket is an error that names it (nothing is followed or
 // opened). A file larger than maxObjectBytes (zero means controlplane.DefaultMaxObjectBytes) is refused from its
 // size, before it is read.
-func LoadSource(fsys fs.FS, display string, maxObjectBytes int64) ([]s3publish.Object, error) {
-	if maxObjectBytes == 0 {
-		maxObjectBytes = controlplane.DefaultMaxObjectBytes
+func LoadSource(fsys fs.FS, display string, limits SourceLimits) ([]s3publish.Object, error) {
+	if limits.MaxObjectBytes == 0 {
+		limits.MaxObjectBytes = controlplane.DefaultMaxObjectBytes
 	}
 
-	var objects []s3publish.Object
+	if limits.MaxTotalBytes == 0 {
+		limits.MaxTotalBytes = controlplane.DefaultMaxTotalBytes
+	}
 
-	seen := map[string]string{}
+	if limits.MaxObjects == 0 {
+		limits.MaxObjects = controlplane.DefaultMaxObjects
+	}
+
+	col := &collector{limits: limits, distinct: map[string][]byte{}, seen: map[string]string{}}
 
 	err := fs.WalkDir(fsys, ".", func(rel string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -83,29 +100,60 @@ func LoadSource(fsys fs.FS, display string, maxObjectBytes int64) ([]s3publish.O
 			return fmt.Errorf("%w %q: %s", ErrNotRegular, shown(display, rel), entry.Type().String())
 		}
 
-		obj, err := readDocument(fsys, entry, rel, display, maxObjectBytes)
+		obj, err := readDocument(fsys, entry, rel, display, limits.MaxObjectBytes)
 		if err != nil {
 			return err
 		}
 
-		if first, dup := seen[obj.Name]; dup {
-			return fmt.Errorf("%w %q: %s and %s", ErrDuplicateObject, obj.Name, first, obj.Source)
-		}
-
-		seen[obj.Name] = obj.Source
-		objects = append(objects, obj)
-
-		return nil
+		return col.add(&obj)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read source %s: %w", display, err)
 	}
 
-	if len(objects) == 0 {
+	if len(col.objects) == 0 {
 		return nil, fmt.Errorf("%w in %s", ErrNoDocuments, display)
 	}
 
-	return objects, nil
+	return col.objects, nil
+}
+
+// collector accumulates the documents of a tree and enforces the limits while it does.
+type collector struct {
+	distinct map[string][]byte
+	seen     map[string]string
+	objects  []s3publish.Object
+	limits   SourceLimits
+	total    int64
+}
+
+// add retains a document. Equal documents share one copy in memory and count once in the total, as for the reader.
+func (c *collector) add(obj *s3publish.Object) error {
+	if first, dup := c.seen[obj.Name]; dup {
+		return fmt.Errorf("%w %q: %s and %s", ErrDuplicateObject, obj.Name, first, obj.Source)
+	}
+
+	if len(c.objects) >= c.limits.MaxObjects {
+		return fmt.Errorf("%w: more than %d files", ErrSourceTooLarge, c.limits.MaxObjects)
+	}
+
+	sum := controlplane.ChecksumOf(obj.Body).Value
+	if shared, dup := c.distinct[sum]; dup {
+		obj.Body = shared
+	} else {
+		c.total += int64(len(obj.Body))
+		c.distinct[sum] = obj.Body
+
+		if c.total > c.limits.MaxTotalBytes {
+			return fmt.Errorf("%w: distinct documents total more than %d bytes (at %q)",
+				ErrSourceTooLarge, c.limits.MaxTotalBytes, obj.Source)
+		}
+	}
+
+	c.seen[obj.Name] = obj.Source
+	c.objects = append(c.objects, *obj)
+
+	return nil
 }
 
 func skip(entry fs.DirEntry) error {

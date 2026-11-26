@@ -17,17 +17,21 @@ import (
 )
 
 const (
-	badFile      = "flags/bad.yaml"
-	regionUSEast = "us-east-1"
-	srcDir       = "src"
-	flagsA       = "flags/a.yaml"
-	optConfig    = "--config"
-	optBucket    = "--bucket"
-	optRegion    = "--region"
-	envKeyID     = "PUBLISH_KEY_ID"
-	cfgOK        = "/ok.yaml"
-	cfgV1        = "/v1.yaml"
-	cfgUnknown   = "/unknown.yaml"
+	secretKeyPath = "/run/secret-key"
+	flagsB        = "flags/b.yaml"
+	jsonFlag      = "json"
+	bootstrapPath = "/etc/bootstrap.yaml"
+	badFile       = "flags/bad.yaml"
+	regionUSEast  = "us-east-1"
+	srcDir        = "src"
+	flagsA        = "flags/a.yaml"
+	optConfig     = "--config"
+	optBucket     = "--bucket"
+	optRegion     = "--region"
+	envKeyID      = "PUBLISH_KEY_ID"
+	cfgOK         = "/ok.yaml"
+	cfgV1         = "/v1.yaml"
+	cfgUnknown    = "/unknown.yaml"
 
 	// canaryAPIKey is an API key of a flag-set document: it must never appear in any output.
 	canaryAPIKey = "canary-api-key-7f3a9c"

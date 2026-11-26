@@ -1,7 +1,11 @@
 # Config
 
-`semaphore-cli config` checks the version 2 [bootstrap file](../relay-proxy/bootstrap-config.md) of the relay with the same strict
-loader the relay uses.
+`semaphore-cli config` checks the version 2 [bootstrap file](../relay-proxy/bootstrap-config.md) with the strict loader that the
+relay will use.
+
+> [!NOTE]
+> The relay does not read the version 2 format yet: it still starts from its current configuration. A valid file and the
+> effective print describe what the relay will run once it switches to version 2, not what it runs today.
 
 ## Validate
 

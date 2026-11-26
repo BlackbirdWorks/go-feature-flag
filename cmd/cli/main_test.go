@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,6 +109,14 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+const (
+	cmdConfig  = "config"
+	cmdPublish = "publish"
+	fmtJSON    = "json"
+	flagFormat = "--format"
+	formatYAML = "yaml"
+)
+
 func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 	t.Parallel()
 
@@ -122,18 +131,18 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 		wantOut string
 		args    []string
 	}{
-		{name: "config validate", args: []string{"config", "validate", file}, wantOut: file + ": valid\n"},
+		{name: "config validate", args: []string{cmdConfig, "validate", file}, wantOut: file + ": valid\n"},
 		{
 			name:    "config print",
-			args:    []string{"config", "print", "--effective", file, "-o", "json"},
+			args:    []string{cmdConfig, "print", "--effective", file, "-o", fmtJSON},
 			wantOut: `"bucket": "b"`,
 		},
 		{
 			name:    "publish verify exists",
-			args:    []string{"publish", "verify", "--help"},
+			args:    []string{cmdPublish, "verify", "--help"},
 			wantOut: "Reads the manifest and every listed object",
 		},
-		{name: "publish exists", args: []string{"publish", "--help"}, wantOut: "--dry-run"},
+		{name: "publish exists", args: []string{cmdPublish, "--help"}, wantOut: "--dry-run"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,4 +158,93 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 			assert.Contains(t, pterm.RemoveColorFromString(out.String()), tt.wantOut)
 		})
 	}
+}
+
+func TestExecuteKeepsStdoutAsOneJSONDocumentWhenAJSONCommandFails(t *testing.T) {
+	t.Parallel()
+
+	v1File := filepath.Join(t.TempDir(), "v1.yaml")
+	require.NoError(t, os.WriteFile(v1File, []byte("port: 1031\n"), 0o600))
+
+	tests := []struct {
+		name     string
+		wantCode string
+		args     []string
+		wantExit int
+	}{
+		{
+			name:     "invalid bootstrap file",
+			args:     []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
+			wantCode: "invalid",
+			wantExit: 2,
+		},
+		{
+			name:     "validate of an invalid file",
+			args:     []string{cmdConfig, "validate", v1File, "-o", fmtJSON},
+			wantCode: "",
+			wantExit: 2,
+		},
+		{
+			name:     "publish without a directory",
+			args:     []string{cmdPublish, "-o", fmtJSON},
+			wantCode: "usage",
+			wantExit: 1,
+		},
+		{
+			name:     "publish without a target",
+			args:     []string{cmdPublish, t.TempDir(), "-o", fmtJSON},
+			wantCode: "usage",
+			wantExit: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := execute(tt.args, &stdout, &stderr)
+			assert.Equal(t, tt.wantExit, code)
+
+			dec := json.NewDecoder(&stdout)
+
+			var doc map[string]any
+
+			require.NoError(t, dec.Decode(&doc), "stdout: %q", stdout.String())
+			assert.False(t, dec.More(), "stdout holds one JSON value and nothing after it")
+
+			if tt.wantCode != "" {
+				errObj, ok := doc["error"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, tt.wantCode, errObj["code"])
+			}
+
+			assert.Contains(t, pterm.RemoveColorFromString(stderr.String()), "error executing command")
+		})
+	}
+}
+
+func TestExecuteKeepsTheErrorLineOfOtherCommandsOnStdout(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+
+	code := execute(
+		[]string{"lint", filepath.Join(t.TempDir(), "missing.yaml"), flagFormat, formatYAML},
+		&stdout,
+		&stderr,
+	)
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, pterm.RemoveColorFromString(stdout.String()), "error executing command")
+	assert.NotContains(t, stderr.String(), "error executing command")
+}
+
+func TestExecuteSucceeds(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+
+	assert.Equal(t, 0, execute([]string{"--version"}, &stdout, &stderr))
+	assert.Contains(t, stdout.String(), "semaphore-cli")
 }

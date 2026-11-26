@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 )
@@ -240,8 +241,16 @@ func printReport(w io.Writer, format string, rep *s3publish.Report) error {
 		line("problem: %s %s %s: %s", p.Object, p.Code, p.Key, p.Detail)
 	}
 
+	if len(rep.Skipped) > 0 {
+		line(
+			"note: %d object(s) of other connections were not checked: %s",
+			len(rep.Skipped),
+			strings.Join(rep.Skipped, ", "),
+		)
+	}
+
 	if rep.OK() {
-		line("ok: every listed object matches its size and checksum")
+		line("ok: every checked object matches its size and checksum")
 	}
 
 	return out.err

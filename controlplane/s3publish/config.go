@@ -11,7 +11,9 @@ const DefaultConcurrency = 8
 type Config struct {
 	// Check is an optional hook that validates a document beyond the controlplane Validate functions, for example
 	// with the engine of the relay (the controlplane/flagcheck package). It runs for every object before any S3
-	// call; an error refuses the publication (ErrInvalid) and should name the flag, never a secret. The package
+	// call; an error refuses the publication (ErrInvalid) and should name the flag, never a secret. Verify runs
+	// it on every object that it read and whose size and checksum match; an error is a ProblemInvalidContent
+	// (Object.Source is then the key of the object). The package
 	// does not import the engine itself, so an importer only pays for what it uses.
 	Check func(obj *Object) error
 	// Bucket is the bucket of the connection.

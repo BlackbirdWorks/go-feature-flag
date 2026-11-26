@@ -266,6 +266,8 @@ func nextGeneration(cur *current, objects []controlplane.ManifestObject, request
 	switch {
 	case requested == 0 && same:
 		return prev, true, nil
+	case requested == 0 && prev == math.MaxUint64:
+		return 0, false, fmt.Errorf("%w: the bucket holds the largest generation", ErrGeneration)
 	case requested == 0:
 		return prev + 1, false, nil
 	case requested == prev && same:
@@ -360,7 +362,7 @@ func (p *Publisher) marshalManifest(manifest *controlplane.Manifest) ([]byte, st
 // readManifest reads the manifest in the bucket: nil when there is none. A manifest that cannot be used is
 // ErrPreviousManifest, or with replace a current without manifest that carries only the ETag.
 func (p *Publisher) readManifest(ctx context.Context, replace bool) (*current, error) {
-	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, "", p.cfg.MaxManifestBytes)
 	if isNotFound(err) {
 		return nil, nil //nolint:nilnil // no manifest is a state, not an error
 	}
@@ -397,14 +399,27 @@ func (p *Publisher) readManifest(ctx context.Context, replace bool) (*current, e
 	return &current{manifest: manifest, etag: etag}, nil
 }
 
-var errTooLarge = errors.New("object is larger than the limit")
+var (
+	errTooLarge       = errors.New("object is larger than the limit")
+	errMissingVersion = errors.New("the pinned object version does not exist")
+)
 
 // read gets an object and returns its bytes (at most limit) and ETag. A missing key is an error that
 // isNotFound recognises; any other failure is an *OperationError. An object over the limit is an
 // *OperationError that wraps errTooLarge, with the ETag still returned.
-func (p *Publisher) read(ctx context.Context, key string, limit int64) ([]byte, string, error) {
-	out, err := p.api.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(p.cfg.Bucket), Key: aws.String(key)})
+func (p *Publisher) read(ctx context.Context, key, versionID string, limit int64) ([]byte, string, error) {
+	input := &s3.GetObjectInput{Bucket: aws.String(p.cfg.Bucket), Key: aws.String(key)}
+	if versionID != "" {
+		input.VersionId = aws.String(versionID)
+	}
+
+	out, err := p.api.GetObject(ctx, input)
 	if err != nil {
+		if versionID != "" && errorCode(err) == "InvalidArgument" {
+			// AWS answers 400 InvalidArgument for a version id that does not exist.
+			return nil, "", fmt.Errorf("get %s version %s: %w: %w", key, versionID, errMissingVersion, err)
+		}
+
 		if isNotFound(err) {
 			return nil, "", fmt.Errorf("get %s: %w", key, err)
 		}
@@ -463,7 +478,7 @@ func (p *Publisher) writeManifest(ctx context.Context, manifest *controlplane.Ma
 func (p *Publisher) resolveConflict(ctx context.Context, written *controlplane.Manifest) (string, error) {
 	conflict := fmt.Errorf("%w: %s", ErrConflict, p.cfg.ManifestKey)
 
-	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, "", p.cfg.MaxManifestBytes)
 
 	switch {
 	case isNotFound(err), errors.Is(err, errTooLarge):

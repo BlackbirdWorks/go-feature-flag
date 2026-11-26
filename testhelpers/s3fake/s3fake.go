@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
 	"sync"
 	"testing"
@@ -45,18 +46,35 @@ type Fake struct {
 	// call. It may use Seed and Remove to play another publisher.
 	Before func(call string) error
 	// violations lists the moments when the manifest listed an object that did not exist.
+	versions   map[string]*fakeObject
 	violations []string
 	calls      []string
 	mu         sync.Mutex
-	// OmitChecksums makes HeadObject report no ChecksumSHA256, as a store does for an object uploaded without
-	// one. Set it before the fake is used.
+	// OmitChecksums makes HeadObject report no ChecksumSHA256 even when ChecksumMode is enabled, as a store does
+	// for an object uploaded without one. Set it before the fake is used. Without it HeadObject reports the
+	// checksum only when the request sets ChecksumMode to ENABLED, as S3 does.
 	OmitChecksums bool
 }
 
-// New returns an empty bucket. The manifest at manifestKey is checked after every write: each object it lists must
-// exist (see Fake.AssertConsistent).
+// New returns an empty bucket. When PutObject successfully writes manifestKey, each object that the manifest lists
+// must exist with its listed size and checksum, or a violation is recorded (see Fake.AssertConsistent). Seed,
+// Remove and writes to other keys are not checked: they are the deliberate bypass for fixtures and fault injection.
 func New(manifestKey string) *Fake {
-	return &Fake{objects: map[string]*fakeObject{}, manifestKey: manifestKey}
+	return &Fake{objects: map[string]*fakeObject{}, versions: map[string]*fakeObject{}, manifestKey: manifestKey}
+}
+
+// SeedVersion stores a version of an object under its version id. GetObject with that VersionId returns it;
+// GetObject without a VersionId returns the object stored with Seed. An unknown version answers 404 NoSuchVersion.
+func (f *Fake) SeedVersion(key, versionID string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	sum := md5.Sum(body) //nolint:gosec // see import
+	raw := sha256.Sum256(body)
+	f.versions[key+"\x00"+versionID] = &fakeObject{
+		etag: `"` + hex.EncodeToString(sum[:]) + `"`, body: bytes.Clone(body),
+		sha256: base64.StdEncoding.EncodeToString(raw[:]),
+	}
 }
 
 // Seed stores an object as another writer would, without recording a call, and returns its ETag.
@@ -139,13 +157,30 @@ func (f *Fake) GetObject(
 ) (*s3.GetObjectOutput, error) {
 	key := aws.ToString(input.Key)
 
-	err := f.record("GET " + key)
+	call := "GET " + key
+	if input.VersionId != nil {
+		call += " version=" + aws.ToString(input.VersionId)
+	}
+
+	err := f.record(call)
 	if err != nil {
 		return nil, err
 	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if input.VersionId != nil {
+		version, found := f.versions[key+"\x00"+aws.ToString(input.VersionId)]
+		if !found {
+			return nil, &StatusError{Code: "NoSuchVersion", Status: http.StatusNotFound}
+		}
+
+		return &s3.GetObjectOutput{
+			Body: io.NopCloser(bytes.NewReader(version.body)), ETag: aws.String(version.etag),
+			ContentLength: aws.Int64(int64(len(version.body))),
+		}, nil
+	}
 
 	obj, ok := f.objects[key]
 	if !ok {
@@ -183,7 +218,7 @@ func (f *Fake) HeadObject(
 	}
 
 	out := &s3.HeadObjectOutput{ETag: aws.String(obj.etag), ContentLength: aws.Int64(int64(len(obj.body)))}
-	if !f.OmitChecksums {
+	if !f.OmitChecksums && input.ChecksumMode == types.ChecksumModeEnabled {
 		out.ChecksumSHA256 = aws.String(obj.sha256)
 	}
 
@@ -244,7 +279,8 @@ func (f *Fake) Violations() []string {
 	return slices.Clone(f.violations)
 }
 
-// AssertConsistent fails the test if a manifest ever listed an object that was not in the bucket.
+// AssertConsistent fails the test if a manifest written by PutObject ever listed an object that was not in the
+// bucket or had another size or checksum. A manifest stored with Seed is not checked.
 func (f *Fake) AssertConsistent(t *testing.T) {
 	t.Helper()
 

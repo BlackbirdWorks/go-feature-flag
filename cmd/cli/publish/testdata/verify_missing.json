@@ -17,7 +17,7 @@
       "object": "checkout",
       "code": "missing",
       "key": "objects/sha256/85/8500b7b202c6d6ba249f43494e2f7ef51a0bad128c2e20a4e0a4ce0265f5c9f7.yaml",
-      "detail": "no object under the listed key"
+      "detail": "no object under the listed key or version"
     }
   ]
 }

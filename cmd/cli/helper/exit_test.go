@@ -117,3 +117,35 @@ func TestWriteJSONError(t *testing.T) {
 		require.ErrorIs(t, helper.WriteJSONError(brokenWriter{}, "invalid", errBoom, nil), errBoom)
 	})
 }
+
+func TestFatalPrinterWritesTheLineOfAnExitErrorToStderr(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err        error
+		name       string
+		wantStdout bool
+	}{
+		{name: "a command with exit codes", err: helper.WithExitCode(errBoom, helper.ExitInvalid)},
+		{name: "any other command", err: errBoom, wantStdout: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			helper.PrintFatal(helper.FatalPrinter(tt.err, &stdout, &stderr), func(int) {}, tt.err)
+
+			if tt.wantStdout {
+				assert.Contains(t, stdout.String(), "boom")
+				assert.Empty(t, stderr.String())
+
+				return
+			}
+
+			assert.Empty(t, stdout.String())
+			assert.Contains(t, stderr.String(), "boom")
+		})
+	}
+}

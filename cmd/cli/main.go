@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/fips140"
+	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -22,10 +24,26 @@ var (
 )
 
 func main() {
-	err := initRootCmd().Execute()
-	if err != nil {
-		helper.PrintFatalAndExit(err)
+	os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// execute runs the command line and returns the exit code of the process. The final error line goes to stderr for
+// a command that reports through an exit code (it writes its JSON result on stdout) and to stdout for the others.
+func execute(args []string, stdout, stderr io.Writer) int {
+	cmd := initRootCmd()
+	cmd.SetArgs(args)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+
+	err := cmd.Execute()
+	if err == nil {
+		return 0
 	}
+
+	code := helper.ExitCodeOf(err)
+	helper.PrintFatal(helper.FatalPrinter(err, stdout, stderr), func(int) {}, err)
+
+	return code
 }
 
 func initRootCmd() *cobra.Command {

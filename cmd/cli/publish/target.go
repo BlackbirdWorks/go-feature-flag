@@ -62,6 +62,13 @@ type target struct {
 	cfg  s3publish.Config
 }
 
+// sourceLimits returns the limits that the loader applies while it reads the tree: the ones of the publisher.
+func (t *target) sourceLimits() SourceLimits {
+	return SourceLimits{
+		MaxObjects: t.cfg.MaxObjects, MaxObjectBytes: t.cfg.MaxObjectBytes, MaxTotalBytes: t.cfg.MaxTotalBytes,
+	}
+}
+
 // resolveTarget builds the target from the bootstrap file (--config) or from the explicit flags.
 func resolveTarget(flags *targetFlags, deps *Deps) (*target, error) {
 	if flags.config != "" {

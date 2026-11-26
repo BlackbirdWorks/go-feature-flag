@@ -41,7 +41,7 @@ conditional write, so a reader never sees a half-written state.
 Where to publish comes from the control-plane connection of a bootstrap file (--config), or from --bucket and
 --region. Exit codes: 0 success, 1 failure or bad usage, 2 invalid documents or configuration, 3 conflict (another
 publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5 the bucket holds a bad state.`,
-		Args:          cobra.ExactArgs(1),
+		Args:          jsonArgs(opts, cobra.ExactArgs(1)),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -50,6 +50,10 @@ publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5
 	}
 
 	addTargetFlags(cmd, opts)
+	// A flag that does not parse is reported as JSON too, when -o json came before it (flags are read in order).
+	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return reportError(cmd, opts, fmt.Errorf("%w: %w", ErrUsage, err))
+	})
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "plan the publication: the same reads, no write")
 	cmd.Flags().
 		Uint64Var(&opts.generation, "generation", 0, "generation to write (default: the one in the bucket plus one)")
@@ -115,7 +119,7 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 		return withCode(err)
 	}
 
-	objects, err := LoadSource(deps.OpenDir(dir), dir, tgt.cfg.MaxObjectBytes)
+	objects, err := LoadSource(deps.OpenDir(dir), dir, tgt.sourceLimits())
 	if err != nil {
 		return withCode(err)
 	}
@@ -138,6 +142,19 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 	}
 
 	return printResult(cmd.OutOrStdout(), opts.output, res)
+}
+
+// jsonArgs wraps an argument validator so that its failure is a usage error, written as JSON when --output json
+// was given (cobra validates the arguments before RunE runs).
+func jsonArgs(opts *options, validate cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		err := validate(cmd, args)
+		if err == nil {
+			return nil
+		}
+
+		return reportError(cmd, opts, fmt.Errorf("%w: %w", ErrUsage, err))
+	}
 }
 
 // checkFlags validates a flag file with the engine of the relay (the flagcheck package).
@@ -230,7 +247,7 @@ func newVerifyCmd(opts *options, deps *Deps) *cobra.Command {
 		Short: "Check the manifest and every object it lists in the bucket",
 		Long: `Reads the manifest and every listed object of the connection, and checks size, checksum, the content of
 each document, and that every flag-set source resolves. It never writes. Exit code 5 when a problem is found.`,
-		Args:          cobra.NoArgs,
+		Args:          jsonArgs(opts, cobra.NoArgs),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -249,6 +266,8 @@ func runVerify(cmd *cobra.Command, opts *options, deps *Deps) error {
 	if err != nil {
 		return withCode(err)
 	}
+
+	tgt.cfg.Check = checkFlags
 
 	pub, err := newPublisher(cmd, tgt, deps)
 	if err != nil {
@@ -309,7 +328,7 @@ func codeOf(err error) int {
 func isInvalidInput(err error) bool {
 	for _, target := range []error{
 		s3publish.ErrInvalid, s3publish.ErrConfig, s3publish.ErrGeneration, s3publish.ErrChannelMismatch,
-		ErrUnknownFile, ErrDuplicateObject, ErrNoDocuments, ErrNotRegular, ErrFileTooLarge,
+		ErrUnknownFile, ErrDuplicateObject, ErrNoDocuments, ErrNotRegular, ErrFileTooLarge, ErrSourceTooLarge,
 		ErrNoControlPlane, ErrNotS3, bootstrap.ErrSecretUnresolved,
 	} {
 		if errors.Is(err, target) {

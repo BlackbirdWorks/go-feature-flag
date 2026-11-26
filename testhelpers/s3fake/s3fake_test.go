@@ -131,7 +131,10 @@ func TestGetAndHead(t *testing.T) {
 	assert.Equal(t, []byte("hello"), body)
 	assert.Equal(t, etag, aws.ToString(out.ETag))
 
-	head, err := fake.HeadObject(t.Context(), &s3.HeadObjectInput{Key: aws.String("k")})
+	head, err := fake.HeadObject(
+		t.Context(),
+		&s3.HeadObjectInput{Key: aws.String("k"), ChecksumMode: types.ChecksumModeEnabled},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), aws.ToInt64(head.ContentLength))
 	assert.NotEmpty(t, aws.ToString(head.ChecksumSHA256))
@@ -243,17 +246,53 @@ func TestIfNoneMatchOtherThanStarIsNotImplemented(t *testing.T) {
 	assert.Empty(t, fake.Keys(), "nothing is stored")
 }
 
-func TestOmitChecksumsHidesTheSHA256OfHead(t *testing.T) {
+func TestHeadReportsTheChecksumOnlyWhenAskedAndNotOmitted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mode         types.ChecksumMode
+		omit         bool
+		wantChecksum bool
+	}{
+		{name: "enabled", mode: types.ChecksumModeEnabled, wantChecksum: true},
+		{name: "unset: S3 needs the mode to report it"},
+		{name: "omitted by the store even when enabled", mode: types.ChecksumModeEnabled, omit: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			fake.OmitChecksums = tt.omit
+			fake.Seed("k", []byte("x"))
+
+			head, err := fake.HeadObject(t.Context(), &s3.HeadObjectInput{Key: aws.String("k"), ChecksumMode: tt.mode})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantChecksum, head.ChecksumSHA256 != nil)
+			assert.Equal(t, int64(1), aws.ToInt64(head.ContentLength))
+		})
+	}
+}
+
+func TestVersionedGet(t *testing.T) {
 	t.Parallel()
 
 	fake := s3fake.New(manifestKey)
-	fake.OmitChecksums = true
-	fake.Seed("k", []byte("x"))
+	fake.Seed("k", []byte("latest"))
+	fake.SeedVersion("k", "v1", []byte("old"))
 
-	head, err := fake.HeadObject(t.Context(), &s3.HeadObjectInput{Key: aws.String("k")})
+	out, err := fake.GetObject(t.Context(), &s3.GetObjectInput{Key: aws.String("k"), VersionId: aws.String("v1")})
 	require.NoError(t, err)
-	assert.Nil(t, head.ChecksumSHA256)
-	assert.Equal(t, int64(1), aws.ToInt64(head.ContentLength))
+
+	body, err := io.ReadAll(out.Body)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("old"), body)
+
+	_, err = fake.GetObject(t.Context(), &s3.GetObjectInput{Key: aws.String("k"), VersionId: aws.String("v9")})
+	require.Error(t, err)
+	assert.Equal(t, "NoSuchVersion", code(t, err))
+	assert.Contains(t, fake.Calls(), "GET k version=v1")
 }
 
 func TestStatusErrorIsAnAPIErrorWithAnHTTPStatus(t *testing.T) {
