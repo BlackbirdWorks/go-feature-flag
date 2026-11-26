@@ -5,9 +5,6 @@ hero:
   name: Semaphore
   text: Self-hosted feature flags, built for speed.
   tagline: A lightweight feature flag relay proxy and embeddable Go engine with native OpenFeature OFREP support.
-  image:
-    src: /logo.svg
-    alt: Semaphore logo
   actions:
     - theme: brand
       text: Get Started
