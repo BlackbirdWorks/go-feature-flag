@@ -3,12 +3,14 @@ package flagdef_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
 
 const (
@@ -84,6 +86,39 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 				}
 			},
 			wantReason:  flagdef.ReasonError,
+			nestedOwned: true,
+		},
+		{
+			name:    "experiment over",
+			userKey: ownedUserKey,
+			flag: func() *flagdef.InternalFlag {
+				return &flagdef.InternalFlag{
+					Variations:      variations(),
+					DefaultRule:     &flagdef.Rule{VariationResult: new("on")},
+					Experimentation: &flagdef.ExperimentationRollout{End: new(clocktest.Instant().Add(-time.Hour))},
+					Metadata:        new(ownedMetadata()),
+				}
+			},
+			wantReason:  flagdef.ReasonDisabled,
+			nestedOwned: true,
+		},
+		{
+			name:    "memoized scheduled flag",
+			userKey: ownedUserKey,
+			flag: func() *flagdef.InternalFlag {
+				return &flagdef.InternalFlag{
+					Variations:  variations(),
+					DefaultRule: &flagdef.Rule{VariationResult: new("off")},
+					Scheduled: &[]flagdef.ScheduledStep{
+						{
+							Date:        new(clocktest.Instant().Add(-time.Hour)),
+							DefaultRule: &flagdef.Rule{VariationResult: new("on")},
+						},
+					},
+					Metadata: new(ownedMetadata()),
+				}
+			},
+			wantReason:  flagdef.ReasonStatic,
 			nestedOwned: true,
 		},
 		{
@@ -168,6 +203,43 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 			wg.Wait()
 
 			assert.Equal(t, ownedMetadata(), flg.GetMetadata())
+		})
+	}
+}
+
+// a flag without metadata and an evaluation without a named rule have no metadata: the result is nil (the caller
+// creates a map before adding keys).
+func TestInternalFlag_Value_NoMetadataIsNil(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		flag *flagdef.InternalFlag
+		name string
+	}{
+		{
+			name: "enabled",
+			flag: &flagdef.InternalFlag{
+				Variations:  &map[string]*any{"on": new(any("on"))},
+				DefaultRule: &flagdef.Rule{VariationResult: new("on")},
+			},
+		},
+		{
+			name: "disabled",
+			flag: &flagdef.InternalFlag{
+				Variations:  &map[string]*any{"on": new(any("on"))},
+				DefaultRule: &flagdef.Rule{VariationResult: new("on")},
+				Disable:     new(true),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, details := tt.flag.Value("flag", ffcontext.NewEvaluationContext(ownedUserKey),
+				flagdef.Context{Service: flagdef.NewService()})
+			assert.Nil(t, details.Metadata)
 		})
 	}
 }
