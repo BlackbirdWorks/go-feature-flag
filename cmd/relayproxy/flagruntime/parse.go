@@ -9,6 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -33,14 +34,19 @@ type parsedDoc struct {
 
 // parseFlags decodes a flags object with the engine parser and validates every flag with the shared service.
 func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
-	// JSON is read as YAML, which keeps the exact integers: the JSON decoder of the legacy loader turns every
-	// number into a float64 and rounds the integers above 2^53
-	format := obj.Format
-	if strings.EqualFold(format, "json") {
-		format = "yaml"
+	sum := obj.checksum()
+
+	var (
+		raw map[string]dto.DTO
+		err error
+	)
+
+	if strings.EqualFold(obj.Format, "json") {
+		raw, err = decodeJSONFlags(obj.Bytes)
+	} else {
+		raw, err = cache.ConvertToFlagStruct(obj.Bytes, obj.Format)
 	}
 
-	raw, err := cache.ConvertToFlagStruct(obj.Bytes, format)
 	if err != nil {
 		return &parsedFlags{err: fmt.Errorf("%w: %w", ErrDecode, err)}
 	}
@@ -69,7 +75,7 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 		}
 
 		out.valid[name] = &converted
-		out.hashes[name] = contentHash(&converted)
+		out.hashes[name] = contentHash(&converted, sum, name)
 	}
 
 	return out
@@ -86,11 +92,13 @@ func parseDoc(obj *Object) *parsedDoc {
 }
 
 // contentHash hashes the canonical form of a parsed flag: the JSON encoding of the flag, in which map keys are
-// sorted. It does not depend on the bytes the flag was read from (format, comments, key order).
-func contentHash(fl *flagdef.InternalFlag) uint64 {
+// sorted. It does not depend on the bytes the flag was read from (format, comments, key order). A flag that has
+// no JSON encoding (for example a NaN in its metadata) gets a hash of the checksum of its object and of its key:
+// it may report a change that is not one, and never misses a change.
+func contentHash(fl *flagdef.InternalFlag, checksum, key string) uint64 {
 	data, err := json.Marshal(fl)
 	if err != nil {
-		return hashString(err.Error())
+		return mixString(mixString(fnvOffset, checksum), key)
 	}
 
 	return hashBytes(data)

@@ -169,10 +169,10 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 
 	sums := stg.scan(content)
 
-	// the set of names changed when a name was added or removed, whatever its kind: a document swapped for
-	// another one keeps every count, but not the signatures
-	namesChanged := sums.flagSig != stg.prev.sig || sums.nFlags != len(stg.prev.objects)
-	if namesChanged || sums.docSig != stg.prev.docSig || sums.nDocs != len(stg.prev.docs) {
+	// The set of names changed when a name was added or removed, whatever its kind. Names are compared exactly:
+	// when no name of the content is new and the counts equal those of the running state, the sets are equal.
+	namesChanged := sums.addedFlags || sums.nFlags != len(stg.prev.objects)
+	if namesChanged || sums.addedDocs || sums.nDocs != len(stg.prev.docs) {
 		stg.removeGone(content)
 	}
 
@@ -182,13 +182,19 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 
 	full := !stg.prev.init || stg.docsChg || namesChanged
 
+	// the version of the set of flags object names: documents are validated against one version
+	namesVersion := stg.prev.namesVer
+	if namesChanged {
+		namesVersion++
+	}
+
 	var (
 		next *state
 		err  error
 	)
 
 	if full {
-		next, err = stg.fullPass(ctx, sums.flagSig)
+		next, err = stg.fullPass(ctx, namesVersion)
 	} else {
 		next, err = stg.incrementalPass(ctx)
 	}
@@ -197,45 +203,17 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 		return nil, err
 	}
 
-	next.init = true
-	next.sig, next.docSig = sums.flagSig, sums.docSig
-	stg.built.next = next
-	stg.built.Runtime = &Runtime{
-		FlagSets:   next.flagSets,
-		ByKey:      next.byKey,
-		AdminKeys:  map[string]struct{}{},
-		Generation: content.Generation,
-		Status: &Status{
-			FlagSets:   next.setStatus,
-			Objects:    next.objStatus,
-			Entries:    next.entries,
-			Withdrawn:  next.withdrawn,
-			Generation: content.Generation,
-		},
-	}
-
-	slices.SortFunc(stg.built.Rebuilt, func(left, right Rebuilt) int { return cmp.Compare(left.Name, right.Name) })
-	stg.built.Stats.Rebuilt = len(stg.built.Rebuilt)
-
-	rebuiltLive := 0
-
-	for i := range stg.built.Rebuilt {
-		if stg.built.Rebuilt[i].New.State != StateWithdrawn {
-			rebuiltLive++
-		}
-	}
-
-	stg.built.Stats.Reused = max(0, len(next.sets)-rebuiltLive)
+	stg.finish(content, next, namesVersion)
 
 	return stg.built, nil
 }
 
-// scanSums are the counts and name signatures found by a scan.
+// scanSums are the counts found by a scan, and whether it met a name that the running state does not have.
 type scanSums struct {
-	flagSig uint64
-	docSig  uint64
-	nFlags  int
-	nDocs   int
+	nFlags     int
+	nDocs      int
+	addedFlags bool
+	addedDocs  bool
 }
 
 // scan reads every object of the content once: it detects the changed ones and parses what is new.
@@ -248,9 +226,9 @@ func (st *stage) scan(content *Content) scanSums {
 		switch obj.Kind {
 		case KindFlags:
 			sums.nFlags++
-			sums.flagSig ^= hashString(name)
 
-			prev := st.prev.objects[name]
+			prev, known := st.prev.objects[name]
+			sums.addedFlags = sums.addedFlags || !known
 
 			next := st.flagObject(name, &obj, prev)
 			if next != prev {
@@ -260,9 +238,9 @@ func (st *stage) scan(content *Content) scanSums {
 			}
 		case KindFlagSets:
 			sums.nDocs++
-			sums.docSig ^= hashString(name)
 
-			prev := st.prev.docs[name]
+			prev, known := st.prev.docs[name]
+			sums.addedDocs = sums.addedDocs || !known
 
 			next := st.docObject(name, &obj, prev)
 			if next != prev {
@@ -373,4 +351,37 @@ func (st *stage) objectStatus() map[string]*ObjectStatus {
 	}
 
 	return out
+}
+
+// finish completes the candidate: the state to commit, the runtime tables, the status and the counts.
+func (st *stage) finish(content *Content, next *state, namesVersion uint64) {
+	next.init = true
+	next.namesVer = namesVersion
+	st.built.next = next
+	st.built.Runtime = &Runtime{
+		FlagSets:   next.flagSets,
+		ByKey:      next.byKey,
+		AdminKeys:  map[string]struct{}{},
+		Generation: content.Generation,
+		Status: &Status{
+			FlagSets:   next.setStatus,
+			Objects:    next.objStatus,
+			Entries:    next.entries,
+			Withdrawn:  next.withdrawn,
+			Generation: content.Generation,
+		},
+	}
+
+	slices.SortFunc(st.built.Rebuilt, func(left, right Rebuilt) int { return cmp.Compare(left.Name, right.Name) })
+	st.built.Stats.Rebuilt = len(st.built.Rebuilt)
+
+	rebuiltLive := 0
+
+	for i := range st.built.Rebuilt {
+		if st.built.Rebuilt[i].New.State != StateWithdrawn {
+			rebuiltLive++
+		}
+	}
+
+	st.built.Stats.Reused = max(0, len(next.sets)-rebuiltLive)
 }

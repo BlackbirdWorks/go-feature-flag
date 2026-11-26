@@ -12,7 +12,7 @@ type objState struct {
 	name      string
 	format    string
 	checksum  string // checksum of the content held in flags
-	attempted string // checksum of the last bytes that could not be decoded
+	attempted string // cache key (format and checksum) of the last bytes that could not be decoded
 	reason    string
 	refKey    string // key of the parse cache entry this object holds
 	state     ObjectState
@@ -71,8 +71,7 @@ type state struct {
 	setStatus map[string]*FlagSetStatus
 	entries   []EntryProblem
 	withdrawn []WithdrawnSet
-	sig       uint64
-	docSig    uint64
+	namesVer  uint64 // version of the set of flags object names
 	init      bool
 }
 

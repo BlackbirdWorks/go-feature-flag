@@ -2,6 +2,7 @@ package flagruntime_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -341,4 +342,133 @@ func TestBuilderDoesNotChangeBeforeCommit(t *testing.T) {
 
 	assert.Equal(t, 8, parsed, "an uncommitted build is redone from scratch: 4 objects parsed twice")
 	assert.Equal(t, 4, built.Stats.Rebuilt)
+}
+
+// The names aab and abk, and aac and abj, have name hashes that XOR to the same value: a build that told name sets
+// apart by such a signature would take two replaced names for no change and keep the removed objects.
+func TestBuilderSeesReplacedObjectNamesWhateverTheirHashes(t *testing.T) {
+	t.Parallel()
+
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+	doc := setsObj(t, fset("sa", src("aab"), keyA), fset("sb", src("abk"), keyB))
+
+	first := buildAndCommit(t, builder, content(1, objs{
+		"aab": flagsObj(1, "x"), "abk": flagsObj(2, "y"), setsName: doc,
+	}))
+
+	require.Equal(t, flagruntime.StateServing, first.Runtime.FlagSets["sa"].State)
+
+	second := buildAndCommit(t, builder, content(2, objs{
+		"aac": flagsObj(3, "x"), "abj": flagsObj(4, "y"), setsName: doc,
+	}))
+
+	assert.ElementsMatch(t, []string{"aac", "abj", setsName}, mapKeys(second.Runtime.Status.Objects))
+	assert.Equal(
+		t,
+		flagruntime.StateDegraded,
+		second.Runtime.FlagSets["sa"].State,
+		"its source is gone: the flags are kept",
+	)
+	assert.Equal(t, flagruntime.StateDegraded, second.Runtime.FlagSets["sb"].State)
+
+	codes := make([]controlplane.Code, 0, len(second.Runtime.Status.Entries))
+	for _, entry := range second.Runtime.Status.Entries {
+		codes = append(codes, entry.Code)
+	}
+
+	assert.Equal(t, []controlplane.Code{controlplane.CodeUnresolvedSource, controlplane.CodeUnresolvedSource}, codes)
+}
+
+func mapKeys[V any](in map[string]V) []string {
+	out := make([]string, 0, len(in))
+	for key := range in {
+		out = append(out, key)
+	}
+
+	return out
+}
+
+// The same bytes that fail to decode under several formats, over many generations, hold one parse result at a time
+// and none once the object is gone.
+func TestFailedParsesAreReleasedWhateverTheFormat(t *testing.T) {
+	t.Parallel()
+
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+	bad := []byte("x: [unterminated")
+	checksum := controlplane.ChecksumOf(bad).Value
+	formats := []string{controlplane.FormatJSON, controlplane.FormatYAML, controlplane.FormatTOML}
+
+	for gen := 1; gen <= 30; gen++ {
+		object := flagruntime.Object{
+			Kind:     flagruntime.KindFlags,
+			Format:   formats[gen%len(formats)],
+			Bytes:    bad,
+			Checksum: checksum,
+		}
+		built := buildAndCommit(t, builder, content(uint64(gen), objs{"f1": object}))
+
+		assert.Equal(t, flagruntime.ObjectInvalid, built.Runtime.Status.Objects["f1"].State)
+		assert.Equal(t, 1, builder.CachedParses(), "generation %d", gen)
+	}
+
+	buildAndCommit(t, builder, content(31, objs{}))
+
+	assert.Equal(t, 0, builder.CachedParses())
+}
+
+func TestFlagSetListingAKeyTwiceHasOneRoute(t *testing.T) {
+	t.Parallel()
+
+	const canary = "CANARY-REPEATED-KEY"
+
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+	built := buildAndCommit(t, builder, content(1, objs{
+		"f1":     flagsObj(1, "x"),
+		setsName: setsObj(t, fset("a", src("f1"), canary, "other", canary)),
+	}))
+
+	assert.Len(t, built.Runtime.ByKey, 2)
+	assert.Equal(t, 2, built.Runtime.FlagSets["a"].APIKeys)
+	assert.Equal(t, 2, built.Runtime.Status.FlagSets["a"].APIKeys)
+	assert.Equal(t, flagruntime.StateDegraded, built.Runtime.FlagSets["a"].State)
+
+	require.Len(t, built.Runtime.Status.Entries, 1)
+
+	entry := built.Runtime.Status.Entries[0]
+
+	assert.Equal(t, controlplane.CodeDuplicateKey, entry.Code)
+	assert.Equal(t, 0, entry.Index)
+	assert.Equal(t, "a", entry.Name)
+	assert.NotContains(t, entry.Reason, canary)
+}
+
+// A flag set that is the running holder of many keys keeps all of them against a new flag set that is first in
+// the documents and declares the same keys.
+func TestContestedKeysStayWithTheRunningOwner(t *testing.T) {
+	t.Parallel()
+
+	const keys = 3000
+
+	declared := make([]string, keys)
+	for idx := range declared {
+		declared[idx] = fmt.Sprintf("key-%05d", idx)
+	}
+
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+	files := objs{"f1": flagsObj(1, "x")}
+
+	buildAndCommit(t, builder, content(1, files.with(objs{docs2: setsObj(t, fset("holder", src("f1"), declared...))})))
+
+	built := buildAndCommit(t, builder, content(2, files.with(objs{
+		docs1: setsObj(t, fset("newcomer", src("f1"), declared...)),
+		docs2: setsObj(t, fset("holder", src("f1"), declared...)),
+	})))
+
+	assert.Len(t, built.Runtime.ByKey, keys)
+	assert.Equal(t, keys, built.Runtime.FlagSets["holder"].APIKeys)
+	assert.Equal(t, 0, built.Runtime.FlagSets["newcomer"].APIKeys)
+
+	owner, _ := built.Runtime.FlagSetByKey(declared[keys-1])
+
+	assert.Equal(t, "holder", owner.Name)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 func TestFrozenFlagSetDoesNotFollowItsSourcesUntilTheEntryIsValidAgain(t *testing.T) {
@@ -179,7 +180,7 @@ func TestEngineHashesObjectsThatHaveNoChecksumWithoutChangingTheContent(t *testi
 	harness.start()
 
 	files := objs{
-		"f1":     {Kind: flagruntime.KindFlags, Format: "yaml", Bytes: flagsYAML(1, "x")},
+		"f1":     {Kind: flagruntime.KindFlags, Format: controlplane.FormatYAML, Bytes: flagsYAML(1, "x")},
 		setsName: {Kind: flagruntime.KindFlagSets, Bytes: setsObj(t, fset("a", src("f1"), keyA)).Bytes},
 	}
 

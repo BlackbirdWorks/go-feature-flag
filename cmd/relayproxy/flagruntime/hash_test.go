@@ -1,12 +1,14 @@
 package flagruntime_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 const jsonFlagX = `{"x": {"variations": {"v": 1}, "defaultRule": {"variation": "v"}}}`
@@ -47,7 +49,7 @@ func TestFlagSetHashFollowsTheEvaluableContent(t *testing.T) {
 		{
 			name: "the same flag from a json object has the same hash",
 			objects: base.with(objs{"f1": {
-				Kind: flagruntime.KindFlags, Format: "json", Bytes: []byte(jsonFlagX),
+				Kind: flagruntime.KindFlags, Format: controlplane.FormatJSON, Bytes: []byte(jsonFlagX),
 				Checksum: "json-checksum",
 			}}),
 			wantSame: true,
@@ -143,4 +145,35 @@ func TestCommentOnlyEditEmitsNoEvent(t *testing.T) {
 
 	assert.Equal(t, uint64(3), change.Generation)
 	assert.Empty(t, harness.eng.Changes())
+}
+
+// A flag that has no JSON encoding (a NaN in its metadata) is hashed from its object and key, so two versions
+// that differ only in such a value do not hash alike.
+func TestFlagSetHashSeesChangesOfFlagsWithoutAJSONEncoding(t *testing.T) {
+	t.Parallel()
+
+	nanFlag := func(n int) flagruntime.Object {
+		return obj(flagruntime.KindFlags, fmt.Appendf(nil,
+			"x:\n  variations:\n    v: 1\n  defaultRule:\n    variation: v\n  metadata:\n    m: .nan\n    n: %d\n", n))
+	}
+
+	sets := setsObj(t, fset("a", src("f1"), keyA))
+	first := hashOfA(t, objs{"f1": nanFlag(1), setsName: sets})
+
+	assert.NotEqual(t, first, hashOfA(t, objs{"f1": nanFlag(2), setsName: sets}))
+	assert.Equal(t, first, hashOfA(t, objs{"f1": nanFlag(1), setsName: sets}), "the same bytes hash alike")
+
+	harness := newRig(t, flagruntime.Hooks{})
+	harness.start()
+
+	harness.feed(content(1, objs{"f1": nanFlag(1), setsName: sets}))
+	harness.nextChange()
+
+	set := harness.holder.Load().FlagSets["a"]
+
+	require.Contains(t, set.Flags, "x", "the flag is valid and served")
+
+	harness.feed(content(2, objs{"f1": nanFlag(2), setsName: sets}))
+
+	assert.Contains(t, harness.nextChange().Diff.Updated, "x")
 }

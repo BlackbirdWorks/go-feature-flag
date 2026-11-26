@@ -4,8 +4,8 @@ package flagruntime
 type pendingChange struct {
 	prev, next *pendingChange
 	change     Change
-	// fromNothing says that the flag set did not exist where the pending change started: if it is withdrawn
-	// before the consumer reads, the net change is nothing.
+	// fromNothing says that the consumer did not know the flag set before this pending change started: if the
+	// flag set is withdrawn before the consumer reads, the net change is nothing.
 	fromNothing bool
 }
 

@@ -52,10 +52,10 @@ func (st *stage) manifest() *controlplane.Manifest {
 
 // validateDoc checks the entries of a document against the object names; the result is kept in a copy of the
 // state of the document, valid for the names signature.
-func (st *stage) validateDocs(names []string, sig uint64) {
+func (st *stage) validateDocs(names []string, namesVer uint64) {
 	for _, name := range names {
 		held := st.docs[name]
-		if held.parsed == nil || held.parsed.doc == nil || (held.validated && held.sig == sig) {
+		if held.parsed == nil || held.parsed.doc == nil || (held.validated && held.sig == namesVer) {
 			continue
 		}
 
@@ -79,7 +79,7 @@ func (st *stage) validateDocs(names []string, sig uint64) {
 		}
 
 		checked := *held
-		checked.probs, checked.sig, checked.validated = probs, sig, true
+		checked.probs, checked.sig, checked.validated = probs, namesVer, true
 
 		st.putDoc(name, &checked)
 	}
@@ -100,7 +100,55 @@ func hardProblems(list []EntryProblem) []EntryProblem {
 	return out
 }
 
-func newSpec(entry *controlplane.FlagSet) *setSpec {
+// collector gathers the definitions in force and the problems found on the way.
+type collector struct {
+	claimed     map[string]struct{}
+	pendingOnly map[string][]Problem
+	cands       []*candidate
+	entries     []EntryProblem
+}
+
+// minKeysToCheck is the number of keys from which a list can have a repeat.
+const minKeysToCheck = 2
+
+// uniqueKeys returns the keys without their repeats (the input itself when there is none), and the number of
+// repeats.
+func uniqueKeys(keys []string) ([]string, int) {
+	if len(keys) < minKeysToCheck {
+		return keys, 0
+	}
+
+	var (
+		unique []string
+		seen   = make(map[string]struct{}, len(keys))
+	)
+
+	for idx, key := range keys {
+		if _, repeated := seen[key]; repeated {
+			if unique == nil {
+				unique = slices.Clone(keys[:idx])
+			}
+
+			continue
+		}
+
+		seen[key] = struct{}{}
+
+		if unique != nil {
+			unique = append(unique, key)
+		}
+	}
+
+	if unique == nil {
+		return keys, 0
+	}
+
+	return unique, len(keys) - len(unique)
+}
+
+// newSpec makes the definition of an entry. The keys of a flag set are unique: a key listed twice is one route,
+// and the second listing is reported by the caller (repeats).
+func newSpec(entry *controlplane.FlagSet) (*setSpec, int) {
 	sum := hashString(entry.Name)
 	for _, source := range entry.Sources {
 		sum = mixString(sum, source)
@@ -112,18 +160,35 @@ func newSpec(entry *controlplane.FlagSet) *setSpec {
 		sum = mixString(sum, key)
 	}
 
+	keys, repeats := uniqueKeys(entry.APIKeys)
+
 	return &setSpec{
-		name: entry.Name, sources: entry.Sources, declKeys: entry.APIKeys, keys: entry.APIKeys, declHash: sum,
+		name: entry.Name, sources: entry.Sources, declKeys: keys, keys: keys, declHash: sum,
+	}, repeats
+}
+
+// repeatedKeys reports the keys that an entry lists more than once, by position and never by value.
+func (col *collector) repeatedKeys(spec *setSpec, repeats int, object string, idx int) []Problem {
+	if repeats == 0 {
+		return nil
 	}
+
+	const reason = "an API key is listed more than once in this flag set"
+
+	col.entries = append(col.entries, EntryProblem{
+		Object: object, Name: spec.name, Index: idx, Code: controlplane.CodeDuplicateKey, Reason: reason,
+	})
+
+	return []Problem{{Code: controlplane.CodeDuplicateKey, Reason: reason}}
 }
 
 // fullPass reads every entry of the documents. It runs when a flag-set document changed or the set of object
 // names changed; its cost is O(entries + keys) with no parse and no flag work for a flag set that is reused.
-func (st *stage) fullPass(ctx context.Context, sig uint64) (*state, error) {
+func (st *stage) fullPass(ctx context.Context, namesVer uint64) (*state, error) {
 	prev := st.prev
 
 	docNames := slices.Sorted(maps.Keys(st.docs))
-	st.validateDocs(docNames, sig)
+	st.validateDocs(docNames, namesVer)
 
 	next := &state{objects: st.objects, docs: st.docs, objStatus: st.objectStatus()}
 
@@ -212,14 +277,6 @@ func (st *stage) setFor(cand *candidate) *setState {
 	return set
 }
 
-// collector gathers the definitions in force and the problems found on the way.
-type collector struct {
-	claimed     map[string]struct{}
-	pendingOnly map[string][]Problem
-	cands       []*candidate
-	entries     []EntryProblem
-}
-
 // candidates collects the definitions in force: the entries in document order, a flag set name being held by the
 // first entry. An invalid entry keeps the last valid definition of its flag set when there is one.
 func (st *stage) candidates(docNames []string) *collector {
@@ -260,7 +317,11 @@ func (st *stage) collect(col *collector, held *docState, idx int) {
 	}
 
 	col.claimed[entry.Name] = struct{}{}
-	col.cands = append(col.cands, &candidate{spec: newSpec(entry), object: held.name, index: idx})
+
+	spec, repeats := newSpec(entry)
+	col.cands = append(col.cands, &candidate{
+		spec: spec, object: held.name, index: idx, notes: col.repeatedKeys(spec, repeats, held.name, idx),
+	})
 }
 
 // collectInvalid handles an invalid entry, the same way for every cause and on first load or later:
@@ -303,9 +364,13 @@ func (st *stage) collectInvalid(
 
 	if routable(entry) {
 		col.claimed[entry.Name] = struct{}{}
-		col.cands = append(col.cands, &candidate{
-			spec: newSpec(entry), object: object, index: idx, notes: notes, mode: modePlaceholder,
-		})
+
+		spec, repeats := newSpec(entry)
+		notes = append(notes, col.repeatedKeys(spec, repeats, object, idx)...)
+		col.cands = append(
+			col.cands,
+			&candidate{spec: spec, object: object, index: idx, notes: notes, mode: modePlaceholder},
+		)
 
 		return
 	}
@@ -357,13 +422,31 @@ func (st *stage) preferHeld(owner map[string]string, conflicts []string, cands [
 		byName[cand.spec.name] = cand
 	}
 
+	// the declared keys of a candidate, as a set, built when a contested key needs it: linear in the keys
+	declared := map[*candidate]map[string]struct{}{}
+
 	for _, key := range conflicts {
 		held := st.prev.byKey[key]
 		if held == nil {
 			continue
 		}
 
-		if cand := byName[held.Name]; cand != nil && slices.Contains(cand.spec.declKeys, key) {
+		cand := byName[held.Name]
+		if cand == nil {
+			continue
+		}
+
+		keys, ok := declared[cand]
+		if !ok {
+			keys = make(map[string]struct{}, len(cand.spec.declKeys))
+			for _, declaredKey := range cand.spec.declKeys {
+				keys[declaredKey] = struct{}{}
+			}
+
+			declared[cand] = keys
+		}
+
+		if _, holds := keys[key]; holds {
 			owner[key] = held.Name
 		}
 	}

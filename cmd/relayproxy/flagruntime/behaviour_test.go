@@ -179,7 +179,10 @@ func checkOneGeneration(t *testing.T, current *flagruntime.Runtime, sets int) {
 	}
 }
 
-func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
+// While the candidate waits for its swap the builder holds the running and the candidate version of every flag set
+// that changed, and one version of the others. Older versions stay reachable only while a reader or an event that
+// nobody consumed still holds them.
+func TestSwapBuildsOnlyTheChangedFlagSetsAndSharesTheRest(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -237,7 +240,12 @@ func TestSwapKeepsAtMostTwoVersionsOfAChangedFlagSet(t *testing.T) {
 		distinct[fs] = struct{}{}
 	}
 
-	assert.Len(t, distinct, changed+unchanged+changed, "two versions of the changed flag sets, one of the unchanged")
+	assert.Len(
+		t,
+		distinct,
+		changed+unchanged+changed,
+		"the running and the candidate version of the changed flag sets, one version of the unchanged",
+	)
 
 	for name, oldSet := range old.FlagSets {
 		newSet := candidate.FlagSets[name]

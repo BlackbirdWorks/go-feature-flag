@@ -122,6 +122,7 @@ func BenchmarkBuildNoOp(b *testing.B) {
 
 		if built.Stats.Rebuilt != 0 || built.Stats.Parsed != 0 {
 			require.Equal(b, 0, built.Stats.Rebuilt)
+			require.Equal(b, 0, built.Stats.Parsed)
 		}
 	}
 }
@@ -200,5 +201,40 @@ func BenchmarkEngineNoOp(b *testing.B) {
 		gen++
 
 		step(&flagruntime.Content{Generation: gen, Objects: base.Objects})
+	}
+}
+
+// BenchmarkContestedKeys resolves 10000 keys that a new flag set shares with the flag set that runs: the cost is
+// linear in the keys.
+func BenchmarkContestedKeys(b *testing.B) {
+	const keys = 10000
+
+	declared := make([]string, keys)
+	for idx := range declared {
+		declared[idx] = fmt.Sprintf("key-%05d", idx)
+	}
+
+	builder := flagruntime.NewBuilder(newService(b), flagruntime.BuilderOptions{})
+	files := objs{"f1": flagsObj(1, "x")}
+
+	built, err := builder.Build(context.Background(), content(1, files.with(objs{
+		docs2: setsObj(b, fset("holder", src("f1"), declared...)),
+	})))
+	require.NoError(b, err)
+	builder.Commit(built)
+
+	contested := content(2, files.with(objs{
+		docs1: setsObj(b, fset("newcomer", src("f1"), declared...)),
+		docs2: setsObj(b, fset("holder", src("f1"), declared...)),
+	}))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for b.Loop() {
+		_, err = builder.Build(context.Background(), contested)
+		if err != nil {
+			require.NoError(b, err)
+		}
 	}
 }

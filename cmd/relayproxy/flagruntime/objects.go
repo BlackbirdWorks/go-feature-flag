@@ -14,7 +14,7 @@ func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState 
 
 	key := obj.Format + "\x00" + sum
 	parsed, fresh := st.parsedFlags(name, obj, sum, key)
-	next := flagNext(name, obj, prev, parsed, sum, fresh)
+	next := flagNext(name, obj, prev, parsed, parseKey{sum: sum, key: key, fresh: fresh})
 
 	if next == prev {
 		return prev
@@ -42,19 +42,26 @@ func (st *stage) parsedFlags(name string, obj *Object, sum, key string) (*parsed
 }
 
 // flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so.
-func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum string, fresh bool) *objState {
+// parseKey identifies one parse: the checksum of the bytes, the cache key (format plus checksum), and whether the
+// parse was made for this object just now.
+type parseKey struct {
+	sum, key string
+	fresh    bool
+}
+
+func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, attempt parseKey) *objState {
 	if parsed.err != nil {
-		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
+		if prev != nil && prev.state == ObjectInvalid && prev.attempted == attempt.key {
 			return prev
 		}
 
 		next := keepFrom(name, prev)
-		next.state, next.reason, next.attempted = ObjectInvalid, parsed.err.Error(), sum
+		next.state, next.reason, next.attempted = ObjectInvalid, parsed.err.Error(), attempt.key
 
 		return next
 	}
 
-	if prev != nil && prev.loaded && prev.checksum == sum && prev.format == obj.Format {
+	if prev != nil && prev.loaded && prev.checksum == attempt.sum && prev.format == obj.Format {
 		// the same content as the one held (back from stale, missing or invalid): the table is still right
 		held := *prev
 		held.state, held.reason, held.attempted = ObjectOK, "", ""
@@ -62,10 +69,10 @@ func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum
 		return &held
 	}
 
-	table := buildTable(parsed, prev, fresh)
+	table := buildTable(parsed, prev, attempt.fresh)
 
 	return &objState{
-		name: name, format: obj.Format, checksum: sum, state: ObjectOK, loaded: true,
+		name: name, format: obj.Format, checksum: attempt.sum, state: ObjectOK, loaded: true,
 		flags: table.flags, hashes: table.hashes, rejected: table.rejected, content: tableHash(table.hashes),
 	}
 }

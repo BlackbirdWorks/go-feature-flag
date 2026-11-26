@@ -50,6 +50,15 @@ The rule is the same on first load and later:
 - it had none, and its name and keys are valid: it gets a placeholder that routes its keys and serves no flag (`pending`), so a valid key reaches the "not available" answer;
 - its name or a key is invalid: it is reported in the status only.
 
+### Flags object forms
+
+A flags object declares its format (`yaml`, `json` or `toml`) and its bytes must read in that format:
+
+- the empty forms that mean "no flag" are `{}` for JSON, and an empty or comment-only document for YAML and TOML; `null` is also read as "no flag" in JSON and YAML;
+- a blank JSON file, `[]`, and a document that is not in the declared format are decode errors: the object keeps its last good table (`invalid`).
+
+JSON integers above 2^53 are kept exactly (a float would round them); every other JSON number is read as a float, as before. A `\u` escape of half a surrogate pair is a decode error, not a replacement character.
+
 ### Flag-set states
 
 - `serving`: every source is current and every flag is valid.
@@ -87,9 +96,9 @@ Costs that remain proportional to the fleet, and nothing else:
 
 - every round scans the objects of the content (O(objects), checksum comparison, no parsing of unchanged bytes);
 - a round that changes a flag set copies the flag-set table, the status table and the key table once (O(flag sets) and O(keys) map copies, no per-flag work);
-- a round that changes a flag-set document, or adds or removes any object, also walks every entry of the documents (O(entries + keys)) and reuses the unchanged flag sets by pointer. The document validation of the `controlplane` package looks the source names up once per document, so that walk also costs O(documents x objects).
+- a round that changes a flag-set document, or adds or removes any object, also walks every entry of the documents (O(entries + keys)) and reuses the unchanged flag sets by pointer. Documents that did not change are not validated again unless a flags object name was added or removed; each document that is validated costs O(objects) for the lookup of its sources, so that walk costs O(validated documents x objects) on top.
 
-During a swap at most two versions of a changed flag set are reachable. Unchanged flag sets exist once.
+The builder holds the running and the candidate version of a changed flag set, and one version of an unchanged one. Older versions stay reachable only while a reader (a request that loaded its runtime) or an event nobody consumed still holds them, so the memory in use depends on how long readers keep a runtime, not on a fixed number of versions.
 
 Values of variations are shared between flag sets: treat a returned value as read-only.
 
@@ -99,7 +108,7 @@ Values of variations are shared between flag sets: treat a returned value as rea
 
 ## Change events
 
-After a swap the engine sends one event per rebuilt flag set whose flags changed (added, deleted and updated flags, found by pointer comparison; a removed flag set is a `Removed` event). The consumer reads a bounded channel. If it is slow, events wait per flag set and merge with later changes of the same flag set, so no flag-set name is lost and the engine never blocks. A flag set that is created and removed while its event waits produces no event.
+After a swap the engine sends one event per rebuilt flag set whose flags changed (added, deleted and updated flags, found by pointer comparison). A withdrawn flag set that the consumer knows (an event for it was delivered or waits) always gets a `Removed` event, even when its flags were all deleted before; a flag set the consumer never heard of (it never had a flag) gets none, so churn of empty flag sets queues nothing. The consumer reads a bounded channel. If it is slow, events wait per flag set and merge with later changes of the same flag set, so no flag-set name is lost and the engine never blocks. A flag set that is created and removed while its event waits produces no event.
 
 The events of one flag set arrive in order. Events of different flag sets are not ordered by generation: a waiting event keeps the place of the first change it merged.
 

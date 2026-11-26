@@ -12,6 +12,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
+const (
+	setsKey  = "sets"
+	keyStay  = "key-stay"
+	stayName = "stay"
+)
+
 const internalFlags = "x:\n  variations:\n    v: 1\n  defaultRule:\n    variation: v\n"
 
 func internalDoc(t *testing.T, sets ...controlplane.FlagSet) Object {
@@ -46,7 +52,7 @@ func TestBuilderStateStaysBoundedUnderCreateAndWithdrawCycles(t *testing.T) {
 
 		built, err := builder.Build(context.Background(), &Content{
 			Generation: generation,
-			Objects:    map[string]Object{"f1": flags, "sets": internalDoc(t, sets...)},
+			Objects:    map[string]Object{"f1": flags, setsKey: internalDoc(t, sets...)},
 		})
 		require.NoError(t, err)
 
@@ -55,11 +61,11 @@ func TestBuilderStateStaysBoundedUnderCreateAndWithdrawCycles(t *testing.T) {
 		return built
 	}
 
-	build(controlplane.FlagSet{Name: "stay", Sources: []string{"f1"}, APIKeys: []string{"key-stay"}})
+	build(controlplane.FlagSet{Name: stayName, Sources: []string{"f1"}, APIKeys: []string{keyStay}})
 
 	for cycle := range cycles {
 		name := fmt.Sprintf("tmp-%d", cycle)
-		stay := controlplane.FlagSet{Name: "stay", Sources: []string{"f1"}, APIKeys: []string{"key-stay"}}
+		stay := controlplane.FlagSet{Name: stayName, Sources: []string{"f1"}, APIKeys: []string{keyStay}}
 
 		build(stay, controlplane.FlagSet{Name: name, Sources: []string{"f1"}, APIKeys: []string{"key-" + name}})
 		build(stay)
@@ -100,7 +106,7 @@ func TestParseCacheHoldsTheRunningPointersOfUnchangedFlags(t *testing.T) {
 
 	build := func(gen uint64, y int) *Built {
 		built, err := builder.Build(context.Background(), &Content{
-			Generation: gen, Objects: map[string]Object{"f1": flagsOf(y), "sets": doc},
+			Generation: gen, Objects: map[string]Object{"f1": flagsOf(y), setsKey: doc},
 		})
 		require.NoError(t, err)
 

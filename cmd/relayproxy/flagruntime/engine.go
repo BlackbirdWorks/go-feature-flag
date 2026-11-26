@@ -86,17 +86,21 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // flag sets, and no name is lost. Pending events that the consumer never reads are dropped when Run returns,
 // and the channel is closed.
 type Engine struct {
-	logger   *slog.Logger
-	holder   *Holder
-	builder  *Builder
-	content  chan *Content
-	boot     chan *bootstrap.Config
-	changes  chan Change
-	queue    *pendingQueue
-	baseline *bootstrap.Config
-	cur      *Runtime
-	last     atomic.Pointer[Reload]
-	rejected *Reload
+	logger  *slog.Logger
+	holder  *Holder
+	builder *Builder
+	content chan *Content
+	boot    chan *bootstrap.Config
+	changes chan Change
+	queue   *pendingQueue
+	// announced holds the flag sets that the consumer knows: an event for them was delivered or waits in the queue.
+	// An entry is dropped when the Removed event of its flag set is delivered or cancelled, so the map is bounded
+	// by the flag sets that are live or whose removal waits.
+	announced map[string]struct{}
+	baseline  *bootstrap.Config
+	cur       *Runtime
+	last      atomic.Pointer[Reload]
+	rejected  *Reload
 	// running describes the content that runs, to tell a repeat, a state change and a conflict apart at the same
 	// generation.
 	running map[string]runningObject
@@ -121,6 +125,7 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 		content:   make(chan *Content, 1),
 		boot:      make(chan *bootstrap.Config, 1),
 		queue:     newPendingQueue(),
+		announced: map[string]struct{}{},
 		changeBuf: DefaultChangeBuffer,
 		cur:       holder.Load(),
 	}
@@ -214,12 +219,21 @@ func (e *Engine) Run(ctx context.Context) {
 			takeLatest(e.content, &content)
 			e.round(ctx, content, cfg)
 		case out <- head:
-			e.queue.remove(front)
-
-			if e.hooks.OnEmit != nil {
-				e.hooks.OnEmit(head)
-			}
+			e.delivered(front)
 		}
+	}
+}
+
+// delivered takes a change that was handed to the consumer out of the queue.
+func (e *Engine) delivered(item *pendingChange) {
+	e.queue.remove(item)
+
+	if item.change.Removed {
+		delete(e.announced, item.change.FlagSet)
+	}
+
+	if e.hooks.OnEmit != nil {
+		e.hooks.OnEmit(item.change)
 	}
 }
 
@@ -570,9 +584,15 @@ func validateObject(name string, obj *Object) error {
 	return nil
 }
 
-// enqueue computes one change per rebuilt flag set and merges it into the pending queue. A rebuilt flag set whose
-// flags are all unchanged (only its state changed) produces no event. A flag set that is created and withdrawn
-// while its event waits nets to no event. Every step is O(1) besides the diff of the flag set.
+// enqueue computes one change per rebuilt flag set and merges it into the pending queue.
+//
+//   - A rebuilt flag set whose flags are all unchanged (only its state changed) produces no event.
+//   - A flag set that the consumer knows (an event for it was delivered or waits) always gets a Removed event when
+//     it is withdrawn, even if its flags were all deleted before. A flag set that the consumer never heard of gets
+//     none, so churn of empty flag sets queues nothing.
+//   - A flag set that is created and withdrawn while its event waits nets to no event.
+//
+// Every step is O(1) besides the diff of the flag set.
 func (e *Engine) enqueue(built *Built, next *Runtime) {
 	for idx := range built.Rebuilt {
 		item := &built.Rebuilt[idx]
@@ -582,26 +602,30 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 			Generation: next.Generation, Snapshot: next.Snapshot,
 		}
 
-		if !change.Diff.HasDiff() && !change.Removed {
-			continue
-		}
-
+		_, known := e.announced[item.Name]
 		queued := e.queue.byName[item.Name]
-		if queued == nil && change.Removed && !change.Diff.HasDiff() {
-			// a flag set without flags was never announced (its creation had no event), so its removal has
-			// nothing to tell either: this keeps the queue from growing with the names of empty flag sets
+
+		switch {
+		case change.Removed && !known:
+			continue
+		case !change.Removed && !change.Diff.HasDiff() && queued == nil:
 			continue
 		}
 
 		if queued == nil {
-			e.queue.push(&pendingChange{change: change, fromNothing: item.Old == nil})
+			e.queue.push(&pendingChange{change: change, fromNothing: !known})
+			e.announced[item.Name] = struct{}{}
 
 			continue
 		}
 
 		compose(&queued.change, &change)
 
-		if (queued.fromNothing && queued.change.Removed) || (!queued.change.Diff.HasDiff() && !queued.change.Removed) {
+		if queued.fromNothing && queued.change.Removed {
+			// created and withdrawn before the consumer read anything: it never heard of the flag set
+			e.queue.remove(queued)
+			delete(e.announced, item.Name)
+		} else if !queued.change.Removed && !queued.change.Diff.HasDiff() {
 			e.queue.remove(queued)
 		}
 	}

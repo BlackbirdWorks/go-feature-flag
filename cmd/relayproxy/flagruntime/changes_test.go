@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -387,6 +388,10 @@ func TestEngineSetLevelComposition(t *testing.T) {
 			steps: []setStep{here(1, "p"), gone}, wantNone: true,
 		},
 		{
+			name: "created empty, gaining flags, then withdrawn nets to no event", base: gone,
+			steps: []setStep{here(1), here(1, "p"), gone}, wantNone: true,
+		},
+		{
 			name: "created, updated, then withdrawn nets to no event", base: gone,
 			steps: []setStep{here(1, "p"), here(2, "p"), gone}, wantNone: true,
 		},
@@ -474,6 +479,165 @@ func TestEngineSetLevelComposition(t *testing.T) {
 			assert.Equal(t, tt.wantAdded, nilIfEmpty(sortedKeys(tmp[0].Diff.Added)))
 			assert.Equal(t, tt.wantDeleted, nilIfEmpty(sortedKeys(tmp[0].Diff.Deleted)))
 			assert.Equal(t, tt.wantUpdated, nilIfEmpty(sortedKeys(tmp[0].Diff.Updated)))
+		})
+	}
+}
+
+// Flag sets without flags never produce an event, in either direction: the removal of such a flag set does not
+// wait in the queue of a consumer that is not reading.
+func TestEmptyFlagSetChurnDoesNotGrowTheEventQueue(t *testing.T) {
+	t.Parallel()
+
+	const churn = 200
+
+	harness := newRig(t, flagruntime.Hooks{}, flagruntime.WithChangeBuffer(1))
+	harness.start()
+
+	empty := obj(flagruntime.KindFlags, []byte("{}\n"))
+
+	generation := func(gen int, temp string, end int) *flagruntime.Content {
+		sets := []controlplane.FlagSet{fset("aa-fill", src("f0"), "key-fill"), fset(endSet, src("fe"), "key-end")}
+		if temp != "" {
+			sets = append(sets, fset(temp, src("empty"), "key-"+temp))
+		}
+
+		return content(uint64(gen), objs{
+			"f0": flagsObj(gen, "x"), "fe": flagsObj(end, "x"), "empty": empty, setsName: setsObj(t, sets...),
+		})
+	}
+
+	harness.feed(generation(1, "", 1))
+	drain(t, harness, 2)
+
+	// the fill flag set changes in every generation and nothing is read: the channel is full
+	for idx := range churn {
+		harness.feed(generation(idx+2, fmt.Sprintf("tmp-%d", idx), 1))
+	}
+
+	harness.feed(generation(churn+2, "", 2))
+
+	var seen []string
+
+	for {
+		change := harness.nextChange()
+		seen = append(seen, change.FlagSet)
+
+		if change.FlagSet == endSet {
+			break
+		}
+	}
+
+	// the fill flag set may be seen once or twice (one event can already sit in the channel); never a temporary one
+	for _, name := range seen {
+		assert.Contains(t, []string{"aa-fill", endSet}, name, "no event for the empty flag sets that came and went")
+	}
+
+	assert.LessOrEqual(t, len(seen), 3)
+}
+
+// A flag set that the consumer knows always gets a Removed event, whatever its flags were before; one that the
+// consumer never heard of gets none.
+func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
+	t.Parallel()
+
+	type event struct {
+		added   []string
+		deleted []string
+		removed bool
+	}
+
+	here := func(value int, flags ...string) setStep { return setStep{exists: true, value: value, flags: flags} }
+	gone := setStep{}
+
+	tests := []struct {
+		name       string
+		steps      []setStep
+		wantEvents []event
+	}{
+		{
+			name:  "created with flags, emptied, then withdrawn: the set is announced and its removal is told",
+			steps: []setStep{here(1, "p"), here(1), gone},
+			wantEvents: []event{
+				{added: []string{"p"}},
+				{deleted: []string{"p"}},
+				{removed: true},
+			},
+		},
+		{
+			name:       "never had a flag: nothing before and nothing at the removal",
+			steps:      []setStep{here(1), gone},
+			wantEvents: nil,
+		},
+		{
+			name:  "created empty, gains flags, then withdrawn",
+			steps: []setStep{here(1), here(1, "p"), gone},
+			wantEvents: []event{
+				{added: []string{"p"}},
+				{deleted: []string{"p"}, removed: true},
+			},
+		},
+		{
+			name:  "withdrawn and created again: told twice, each time in full",
+			steps: []setStep{here(1, "p"), gone, here(1, "q")},
+			wantEvents: []event{
+				{added: []string{"p"}},
+				{deleted: []string{"p"}, removed: true},
+				{added: []string{"q"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lastF1 := flagsObj(1, "unused")
+
+			generation := func(gen int, tmp setStep, end int) *flagruntime.Content {
+				sets := []controlplane.FlagSet{fset(endSet, src("fe"), "key-end")}
+				files := objs{"fe": flagsObj(end, "x")}
+
+				if tmp.exists {
+					sets = append(sets, fset("tmp", src("f1"), "key-tmp"))
+					lastF1 = flagsObj(tmp.value, tmp.flags...)
+				}
+
+				files["f1"] = lastF1
+				files[setsName] = setsObj(t, sets...)
+
+				return content(uint64(gen), files)
+			}
+
+			harness := newRig(t, flagruntime.Hooks{})
+			harness.start()
+
+			harness.feed(generation(1, gone, 1))
+			harness.nextChange() // the end flag set is new
+
+			for idx, step := range tt.steps {
+				harness.feed(generation(idx+2, step, 1))
+			}
+
+			harness.feed(generation(len(tt.steps)+2, tt.steps[len(tt.steps)-1], 2))
+
+			var got []event
+
+			for {
+				change := harness.nextChange()
+				if change.FlagSet == endSet {
+					break
+				}
+
+				got = append(got, event{
+					added: nilIfEmpty(
+						sortedKeys(change.Diff.Added),
+					),
+					deleted: nilIfEmpty(sortedKeys(change.Diff.Deleted)),
+					removed: change.Removed,
+				})
+			}
+
+			assert.Equal(t, tt.wantEvents, got)
 		})
 	}
 }

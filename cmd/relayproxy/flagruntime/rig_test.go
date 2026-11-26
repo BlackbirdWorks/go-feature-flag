@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -129,7 +130,15 @@ func (r *rig) stop() {
 		}
 
 		r.cancel()
-		<-r.done
+
+		expired, stop := bound()
+		defer stop()
+
+		select {
+		case <-r.done:
+		case <-expired:
+			assert.Fail(r.t, "the engine did not stop after its context was cancelled")
+		}
 	})
 }
 
