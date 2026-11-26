@@ -185,10 +185,19 @@ content of each document and that every flag-set source resolves, the flag-set d
 `manifest-invalid`. Objects of other connections are listed as skipped, and the text output says so. Same `--output` and target
 flags as `publish`.
 
-- Like the relay, `verify` fails an entry that cannot be requested alone: a size below 1 or over the limit, or a key that is
-  not an absolute bucket key, is an `invalid-entry` problem of that entry, and the other entries are still read and checked.
-  Only a manifest that cannot be parsed or fails the checks of the whole manifest (the header, the number of entries, the total
-  size) is `manifest-invalid`.
+- Like the relay, `verify` fails some entries alone and rejects the manifest for the others (a test pins this table):
+
+  | Problem of an entry | Classification |
+  |---|---|
+  | size 0 | `invalid-entry` of that entry; the others are checked |
+  | size over the object limit (16 MiB by default) | `invalid-entry` of that entry; the others are checked |
+  | key with a leading slash | `invalid-entry` of that entry; the others are checked |
+  | negative size | `manifest-invalid`: nothing is read |
+  | empty key | `manifest-invalid`: nothing is read |
+  | bad checksum, bad name, unknown kind or format, any other rule of `ValidateManifest` | `manifest-invalid`: nothing is read |
+  | not parseable, wrong header, too many entries, distinct objects over the total limit | `manifest-invalid`: nothing is read |
+
+  In the first three rows the other entries are still read and checked; in the others nothing is read.
 - A manifest entry with a `versionId` is read at that version; an absent version is `missing`.
 - Flag files also go through the engine check (below), so a stored file that the relay would not load is `invalid-content`
   even when its size and checksum match. A flag file listed with `format: toml` is accepted as far as the structure goes

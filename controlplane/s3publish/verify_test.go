@@ -231,7 +231,7 @@ func TestVerifyManifestStates(t *testing.T) {
 				{
 					Name:       "elsewhere",
 					Kind:       controlplane.KindFlags,
-					Connection: "other",
+					Connection: otherName,
 					Key:        "k",
 					Format:     controlplane.FormatYAML,
 					Checksum:   controlplane.ChecksumOf([]byte("x")),

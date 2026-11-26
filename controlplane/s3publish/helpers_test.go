@@ -85,6 +85,8 @@ func objectKey(t *testing.T, body []byte) string {
 }
 
 const (
+	badName        = "Bad_Name"
+	otherName      = "other"
 	nameDryRun     = "dry run"
 	nameNope       = "nope"
 	nameRival      = "rival"

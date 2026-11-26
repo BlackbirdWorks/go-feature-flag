@@ -210,10 +210,12 @@ func documentIndex(path string) (int, bool) {
 	return idx, err == nil
 }
 
-// entryProblem says why the reader would not request an entry at all, or "".
+// entryProblem says why the reader fails an entry alone, or "": a size of 0, a size over MaxObjectBytes, a key with
+// a leading slash. Everything that controlplane.ValidateManifest rejects (a negative size, an empty key, a bad
+// checksum, a bad name, ...) never gets here: it makes the whole manifest invalid, as for the reader.
 func (p *Publisher) entryProblem(obj *controlplane.ManifestObject) string {
 	switch {
-	case obj.Key == "" || strings.HasPrefix(obj.Key, "/"):
+	case strings.HasPrefix(obj.Key, "/"):
 		return "the key is not an absolute bucket key"
 	case obj.Size < 1:
 		return fmt.Sprintf("size %d, an object must not be empty", obj.Size)

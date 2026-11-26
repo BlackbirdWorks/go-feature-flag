@@ -137,8 +137,20 @@ The manifest is YAML, or JSON when the manifest key ends in `.json`.
 
 ## Verify
 
-An entry that the relay fails alone (size below 1 or over `MaxObjectBytes`, a key that is not an absolute bucket key) is a
-`ProblemInvalidEntry` of that entry and is not read; the other entries are still checked. A publication refuses to write such
+Like the relay, `Verify` fails some entries alone and rejects the manifest for the others (a test pins this table):
+
+| Problem of an entry | Classification |
+|---|---|
+| size 0 | `invalid-entry` of that entry; the others are checked |
+| size over the object limit (16 MiB by default) | `invalid-entry` of that entry; the others are checked |
+| key with a leading slash | `invalid-entry` of that entry; the others are checked |
+| negative size | `manifest-invalid`: nothing is read |
+| empty key | `manifest-invalid`: nothing is read |
+| bad checksum, bad name, unknown kind or format, any other rule of `ValidateManifest` | `manifest-invalid`: nothing is read |
+| not parseable, wrong header, too many entries, distinct objects over the total limit | `manifest-invalid`: nothing is read |
+
+In the first three rows the entry is a `ProblemInvalidEntry`, it is not read, and the other entries are still checked; in the
+others the report holds one `ProblemManifestInvalid` and nothing is read. A publication refuses to write such
 an entry, but a manifest in the bucket that lists one is a valid manifest to publish over (no `ReplaceInvalidManifest`).
 
 `Verify` reads the manifest and each object of `Config.Connection` (the pinned `versionId` of an entry, when it has one; an absent

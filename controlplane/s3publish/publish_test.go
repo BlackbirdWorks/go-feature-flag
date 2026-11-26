@@ -526,14 +526,14 @@ func TestPublishValidationFailureWritesNothing(t *testing.T) {
 		{
 			name: "invalid name",
 			objects: []s3publish.Object{
-				{Name: "Bad_Name", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: good[0].Body},
+				{Name: badName, Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: good[0].Body},
 			},
-			wantInErr: "Bad_Name",
+			wantInErr: badName,
 		},
 		{
 			name: "unknown kind",
 			objects: []s3publish.Object{
-				{Name: "a", Kind: "other", Format: controlplane.FormatYAML, Body: good[0].Body},
+				{Name: "a", Kind: otherName, Format: controlplane.FormatYAML, Body: good[0].Body},
 			},
 		},
 		{

@@ -295,3 +295,108 @@ func TestAnExistingManifestWithABadEntryIsPublishableOverWithoutTheFlag(t *testi
 	assert.Equal(t, uint64(5), res.Generation)
 	assert.Contains(t, fake.Calls(), "PUT "+manifestKey+" if-match="+etag)
 }
+
+// TestVerifyClassificationTable pins the table of docs/tooling/publish.md and docs/go-module/s3publish.md: which
+// problems of an entry fail that entry alone (the other entries are checked) and which make the whole manifest
+// invalid (nothing is read). A change of the code or of ValidateManifest that moves a row fails here.
+func TestVerifyClassificationTable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		mutate     func(entries []controlplane.ManifestObject)
+		config     func(*s3publish.Config)
+		name       string
+		raw        []byte
+		wholeError bool
+	}{
+		{name: "size 0", mutate: func(e []controlplane.ManifestObject) { e[0].Size = 0 }},
+		{
+			name:   "size over the object limit",
+			mutate: func(e []controlplane.ManifestObject) { e[0].Size = controlplane.DefaultMaxObjectBytes + 1 },
+		},
+		{name: "key with a leading slash", mutate: func(e []controlplane.ManifestObject) { e[0].Key = "/" + e[0].Key }},
+		{name: "negative size", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Size = -1 }},
+		{name: "empty key", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Key = "" }},
+		{
+			name: "bad checksum", wholeError: true,
+			mutate: func(e []controlplane.ManifestObject) { e[0].Checksum.Value = "not-hex" },
+		},
+		{name: "bad name", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Name = badName }},
+		{
+			name:       "unknown kind",
+			wholeError: true,
+			mutate:     func(e []controlplane.ManifestObject) { e[0].Kind = otherName },
+		},
+		{
+			name:       "unknown format",
+			wholeError: true,
+			mutate:     func(e []controlplane.ManifestObject) { e[0].Format = "xml" },
+		},
+		{name: "not parseable", wholeError: true, raw: []byte("objects: [")},
+		{name: "too many entries", wholeError: true, config: func(c *s3publish.Config) { c.MaxObjects = 2 }},
+		{
+			name:       "distinct objects over the total limit",
+			wholeError: true,
+			config:     func(c *s3publish.Config) { c.MaxTotalBytes = 1 },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			entries := make([]controlplane.ManifestObject, 0, 3)
+
+			for _, doc := range []struct {
+				name string
+				body []byte
+			}{{"a-bad", flagsBody(t, "bad")}, {"b-good", flagsBody(t, "g1")}, {"c-good", flagsBody(t, "g2")}} {
+				key := objectKey(t, doc.body)
+				fake.Seed(key, doc.body)
+
+				entries = append(entries, controlplane.ManifestObject{
+					Name:       doc.name,
+					Kind:       controlplane.KindFlags,
+					Connection: testConnection,
+					Key:        key,
+					Format:     controlplane.FormatYAML,
+					Checksum:   controlplane.ChecksumOf(doc.body),
+					Size:       int64(len(doc.body)),
+				})
+			}
+
+			if tt.mutate != nil {
+				tt.mutate(entries)
+			}
+
+			body := tt.raw
+			if body == nil {
+				var err error
+
+				body, err = controlplane.MarshalManifest(
+					&controlplane.Manifest{Channel: testChannel, Generation: 2, Objects: entries},
+				)
+				require.NoError(t, err)
+			}
+
+			fake.Seed(manifestKey, body)
+			fake.ResetCalls()
+
+			rep, err := newPublisher(t, fake, tt.config).Verify(t.Context())
+			require.NoError(t, err)
+			require.Len(t, rep.Problems, 1, "%v", rep.Problems)
+
+			if tt.wholeError {
+				assert.Equal(t, s3publish.ProblemManifestInvalid, rep.Problems[0].Code)
+				assert.Zero(t, rep.Checked)
+				assert.Equal(t, []string{"GET " + manifestKey}, fake.Calls(), "nothing is read")
+
+				return
+			}
+
+			assert.Equal(t, s3publish.ProblemInvalidEntry, rep.Problems[0].Code)
+			assert.Equal(t, "a-bad", rep.Problems[0].Object)
+			assert.Equal(t, 2, rep.Checked, "the other entries are read and checked")
+		})
+	}
+}
