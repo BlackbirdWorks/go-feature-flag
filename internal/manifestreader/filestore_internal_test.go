@@ -15,10 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	errDisk    = errors.New("disk on fire")
-	errEscaped = errors.New(escapeMessage)
-)
+var errDisk = errors.New("disk on fire")
 
 // scriptedReader serves data in pieces of at most piece bytes and counts what it served. after runs once the
 // first piece was served; failAt makes the read that would pass that offset fail with errDisk.
@@ -180,23 +177,23 @@ func TestClassifyFileError(t *testing.T) {
 		{name: "permission", err: &fsError{syscall.EACCES}, wantReason: ReasonDenied},
 		{name: "operation not permitted", err: &fsError{syscall.EPERM}, wantReason: ReasonDenied},
 		{name: "symlink loop", err: &fsError{syscall.ELOOP}, wantReason: ReasonDenied},
-		{name: "a socket or a device without driver", err: &fsError{syscall.ENXIO}, wantReason: ReasonDenied},
 		{
-			name:       "the text of os.Root for an escape",
-			err:        fmt.Errorf("openat x: %w", errEscaped),
-			wantReason: ReasonDenied,
-			wantIs:     ErrOutsideRoot,
+			name: "a socket or a device without driver", err: &fsError{syscall.ENXIO}, wantReason: ReasonDenied,
+			wantIs: ErrNotRegular,
 		},
+		{name: "no such device", err: &fsError{syscall.ENODEV}, wantReason: ReasonDenied, wantIs: ErrNotRegular},
+		{name: "name too long", err: &fsError{syscall.ENAMETOOLONG}, wantReason: ReasonDenied, wantIs: ErrKeyRefused},
 		{name: "not a regular file", err: ErrNotRegular, wantReason: ReasonDenied},
-		{
-			name:       "root unavailable, whatever its cause",
-			err:        fmt.Errorf("%w: %w", ErrRootUnavailable, syscall.ENOENT),
-			wantReason: ReasonDenied,
-			wantIs:     ErrRootUnavailable,
-		},
 		{name: "I/O error", err: &fsError{syscall.EIO}, wantReason: ReasonError, wantRetryable: true},
 		{name: "too many open files", err: &fsError{syscall.EMFILE}, wantReason: ReasonError, wantRetryable: true},
+		{
+			name:          "too many open files, system",
+			err:           &fsError{syscall.ENFILE},
+			wantReason:    ReasonError,
+			wantRetryable: true,
+		},
 		{name: "stale handle", err: &fsError{syscall.ESTALE}, wantReason: ReasonError, wantRetryable: true},
+		{name: "out of memory", err: &fsError{syscall.ENOMEM}, wantReason: ReasonError, wantRetryable: true},
 		{name: "anything else", err: errDisk, wantReason: ReasonError, wantRetryable: true},
 	}
 
@@ -221,6 +218,47 @@ func TestClassifyFileError(t *testing.T) {
 			if tt.wantIs != nil {
 				assert.ErrorIs(t, got, tt.wantIs)
 			}
+		})
+	}
+}
+
+// TestClassifyFileError_Root: the root directory has its own table. A root that is missing, or that answers
+// with an I/O error, may be there at the next poll (a volume mounted late): a retryable error, never "not found"
+// (the object is not what is missing) and never denied. Only a permission error is final.
+func TestClassifyFileError_Root(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantReason    string
+		errno         syscall.Errno
+		wantRetryable bool
+	}{
+		{errno: syscall.ENOENT, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.ENOTDIR, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.EMFILE, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.ENFILE, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.EIO, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.ESTALE, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.ENOMEM, wantReason: ReasonError, wantRetryable: true},
+		{errno: syscall.EACCES, wantReason: ReasonDenied},
+		{errno: syscall.EPERM, wantReason: ReasonDenied},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.errno.Error(), func(t *testing.T) {
+			t.Parallel()
+
+			cause := fmt.Errorf("%w: %w", ErrRootUnavailable, &fsError{tt.errno})
+			got := classifyFileError(cause)
+
+			fetchErr, ok := errors.AsType[*FetchError](got)
+			require.True(t, ok, "%T: %v", got, got)
+			assert.Equal(t, tt.wantReason, fetchErr.Reason)
+			assert.Equal(t, tt.wantRetryable, fetchErr.Retryable)
+			assert.False(t, fetchErr.Throttled)
+			require.NotErrorIs(t, got, ErrNotFound)
+			require.ErrorIs(t, got, ErrRootUnavailable, "the root stays a cause")
+			require.ErrorIs(t, got, tt.errno)
 		})
 	}
 }

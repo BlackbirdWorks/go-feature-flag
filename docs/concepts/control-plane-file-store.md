@@ -46,6 +46,11 @@ Every path is resolved with `os.Root`, so it cannot leave the root:
 
 A link inside that stays inside is followed because a ConfigMap mount is a tree of such links.
 
+Hard links are not symbolic links and cannot be told apart: a hard link inside the root to a file outside it is
+an ordinary file of the root and is read. The store cannot prevent that. Whoever can create files in the root is
+trusted: mount the directory read-only into the relay, and give write access to the control plane only.
+A path that crosses a mount point inside the root is followed, too.
+
 ## What is served
 
 Only regular files. A directory, device, socket or FIFO is refused without being read (`denied`, cause
@@ -56,16 +61,23 @@ during the read is still refused.
 
 | Situation | Result |
 |---|---|
-| File does not exist (also a missing directory on the path, a dangling link) | Missing: the same result as an S3 `404` |
+| File does not exist (also a missing directory on the path, a dangling link, a file used as a directory) | Missing: the same result as an S3 `404` |
 | Permission denied | `denied`, not retryable |
-| Path leaves the root, key refused, not a regular file, root directory gone | `denied`, not retryable |
+| Path leaves the root, key refused (also a name that is too long), not a regular file (also `ENXIO`, `ENODEV`), symbolic link loop | `denied`, not retryable |
 | Larger than the limit | Too large |
-| Any other I/O error (`EIO`, too many open files, a stale NFS handle) | `error`, retryable |
+| `Limit` of zero or below | Only an empty file is returned; any other is too large |
+| `Limit` below the size and a current ETag | Too large (the size is looked at first; the S3 store answers "not modified" first; both are allowed, neither returns a body) |
+| Any other I/O error (`EIO`, too many open files, a stale NFS handle, out of memory) | `error`, retryable |
+| The root directory cannot be opened: missing, not a directory, out of descriptors, I/O error | `error`, retryable, the cause includes `ErrRootUnavailable` |
+| The root directory cannot be opened: permission denied | `denied`, not retryable |
 | `VersionID` set | Missing: a file has no versions. Manifests that list a `versionId` for a file connection are not served |
 | Context ended | `error`, retryable, the cause is the context error |
 
+A root that does not exist yet is retryable on purpose: a volume that is mounted late must recover with the normal
+backoff, without a restart of the relay.
+
 The root directory is opened on every call, so a root that is replaced (a remounted volume) is followed, and one that
-disappears is `denied` (the S3 equivalent is a missing bucket).
+disappears is a retryable error until it is back.
 
 ## Change detection and its exact guarantees
 
@@ -83,29 +95,44 @@ Guarantees:
   the reader holds. The size, the modification time and the inode of the file are not used for that decision.
 - **A change is seen at the next poll.** A rewrite in place that keeps the size, the modification time and the inode
   still changes the digest. This is tested.
-- **The ETag always describes the bytes returned with it.** A file replaced between the two passes gives the new bytes
-  with the new ETag (checked under concurrent writes).
+- **The ETag always describes the bytes returned with it.** A file replaced, rewritten or cut in place between the two
+  passes gives the bytes the read pass saw with the ETag of exactly those bytes (tested with a writer that rewrites
+  the file in place while readers read it, and with a change injected between the two passes). A torn read has a
+  hash of its own; the reader's checksum check, or the failure to decode the manifest, then rejects it.
 - **The ETag is the same on every machine and after a restart**, so the one saved in the state directory is valid for the next
   process.
 
-Why not a stat-based validator (size + modification time + inode): it is cheap but it is wrong in cases that happen.
-Kernels set the modification time from a coarse clock (a few milliseconds), so two writes close together can share it;
-`rsync -t`, `cp -p` and `tar` restore old times; a rewrite in place keeps the inode. Same size and same time with other
-bytes is not detected by a stat. The reader's checksum check would catch a wrong object, but a wrong "not modified" on
-the manifest would hide a new generation, so the store hashes. A stat is used only for what cannot be wrong: the type
-and the size limit before any read.
+Why not a stat-based validator (size + modification time + inode), however it is dressed up:
 
-Cost of the hash (commodity 4-core / 8-thread Linux machine, files in the page cache, one core):
+- A timestamp has a granularity. The kernel stamps a write with a coarse clock (a jiffy, a few milliseconds), and
+  other file systems are coarser (FAT: two seconds; some network file systems: one second). Two writes of the same
+  size inside one tick carry the same modification time.
+- The "racy timestamp" problem: a file written in the same tick as the moment the validator was taken is clean by
+  its stat and may still change in that tick without any stat changing. A stat validator has to hash such files
+  anyway (the window is as wide as the granularity), so it needs a trustworthy clock and the hash path as well.
+- Network file systems (NFS and others) cache attributes for seconds and can serve stale sizes and times, and the
+  client's clock is not the server's.
+- Tools that preserve times (`rsync -t`, `cp -p`, `tar`) and in-place rewrites keep the modification time and the
+  inode while the content changes. A validator that includes the change time (`ctime`) is not fooled by that, but
+  it is still subject to the granularity, the racy window and attribute caching above, and it changes on a
+  `chmod` or a hard link without any change of content (a false "changed" costs only a read, which is safe).
+
+A wrong "not modified" on the manifest would hide a new generation, so the store hashes. A stat is used only for what
+cannot be wrong: the type and the size limit before any read. The tests rewrite a file in place with the same size,
+the same modification time and the same inode, and the store sees it.
+
+Cost of the hash (commodity 4-core / 8-thread Linux machine, files in the page cache, one core; the ranges are
+repeated runs, the upper values on a busy machine):
 
 | File size | Unchanged poll | Changed poll | Floor: `stat` only |
 |---|---|---|---|
 | 1 KiB | 14 us | 15 us | 0.6 us |
-| 100 KiB | 0.2 ms | 0.4 ms | 0.6 us |
+| 100 KiB | 0.2 ms | 0.45 ms | 0.6 us |
 | 4 MiB | 8 ms | 19 ms | 1 us |
-| 16 MiB (the manifest limit) | 44 ms | 85 ms | 1 us |
+| 16 MiB (the manifest limit) | 44 to 60 ms | 85 to 110 ms | 1 us |
 
 An unchanged poll allocates a fixed 32 KiB whatever the size; a changed one allocates the file once. At the default
-60 s interval a 100 KiB manifest costs about 0.0004 % of one core, a 16 MiB one about 0.07 %. Objects are not read
+60 s interval a 100 KiB manifest costs about 0.0004 % of one core, a 16 MiB one about 0.1 %. Objects are not read
 on a quiet poll at all. Run the benchmark with `go test -tags bench -run '^$' -bench FileStore_Poll
 ./internal/manifestreader`.
 
@@ -152,48 +179,75 @@ The equivalent of the S3 budget, per replica and per poll interval:
 The counts do not depend on the number of objects, flag sets or API keys. The cost of a read is the cost of hashing the file
 (see above), not of a network round trip, and a local read is not billed.
 
-## Limits and Windows
+## Limits and platforms
 
-- A read cannot be cancelled inside a single system call: the context is looked at between reads of 32 KiB. A network
-  file system that hangs inside a read hangs that poll until the call returns.
-- Linux, macOS and the BSDs are the supported platforms. The code builds for Windows, and `os.Root` rules apply there:
-  names such as `NUL` and `COM1` are refused, symbolic links need a privilege to create, and a file that is open for
-  writing may be locked against reading. Permission denial by mode bits does not exist on Windows.
-- A file that is read as root (or on a file system without permission bits) cannot be made `denied` by its mode.
-- `os.Root` does not stop a path from crossing a mount point or reaching a device inside the root; the store refuses
-  the device itself (not a regular file) but follows a mount point.
+- A read cannot be cancelled inside a single system call: the context is looked at between reads of 32 KiB, so a
+  cancel or a deadline stops a read of a large file after the chunk in progress (unit-tested with a context that
+  ends during the hashing pass and during the read pass). A network file system that hangs inside a read hangs that
+  poll until the call returns.
+- Linux, macOS and the BSDs are the supported platforms. The code builds for Windows, where `os.Root` rules apply:
+  names such as `NUL` and `COM1` are refused (as a generic error, never read), symbolic links need a privilege to
+  create, and a file that is open for writing may be locked against reading. Permission denial by mode bits does not
+  exist on Windows. Plan 9 and `js` are not supported: `os.Root` does not track directories there, so containment
+  is not guaranteed.
+- A process that runs as root (or on a file system without permission bits) reads a file whatever its mode. The
+  `denied` of the tests does not rely on modes: it is a link that leaves the root.
+- `os.Root` does not stop a path from crossing a mount point or reaching a device inside the root; the store
+  refuses the device itself (not a regular file) but follows a mount point, and reads hard links (see above).
+- An object `a` and an object `a/b` cannot exist together: a path is a file or a directory. S3 keys are not.
+  Publish files under names that do not clash (the content-addressed keys of the publisher never do).
 
 ## Writing another store
 
-Every `ObjectStore` has to pass the conformance suite in `internal/manifestreader/storetest`. Give `storetest.Run` a
-factory that returns a fresh store with a backend handle:
+Every `ObjectStore` has to pass the conformance suite in `internal/manifestreader/storetest`. Give `storetest.Run` the
+capabilities the store does not offer (the waivers, with the reason) and a factory that returns a fresh store with a
+backend handle:
 
 ```go
 func TestConformance_MyStore(t *testing.T) {
 	t.Parallel()
 
-	report := storetest.Run(t, "mystore", func(t *testing.T) storetest.Fixture {
-		store, backend := newStoreAndBackend(t) // backend: Put, Overwrite, Delete, Fail, Hang
-		return storetest.Fixture{
-			Store: store, Backend: backend,
-			Unsupported: map[storetest.Capability]string{
-				storetest.CapHang: "why this backend cannot hold a read",
-			},
-		}
+	waivers := storetest.Waivers{
+		storetest.CapHang: "why this backend cannot hold a read",
+	}
+
+	report := storetest.Run(t, "mystore", waivers, func(t *testing.T) storetest.Fixture {
+		store, backend := newStoreAndBackend(t) // backend: Put, Overwrite, Delete, Fail, Hang, HangBody, PutVersion
+		return storetest.Fixture{Store: store, Backend: backend, Unsupported: waivers}
 	})
 
-	assert.Equal(t, wantUnsupported, report.Unsupported) // an unsupported case is a decision, assert it
+	assert.Equal(t, wantUnsupportedCases, report.Unsupported)
 }
 ```
 
-- A case that needs a fault the backend cannot arrange is reported as unsupported, with the reason, and logged. It is
-  never skipped silently, and the test of the store asserts the exact list.
-- The cases cover: unconditional and conditional reads, a changed object, an unknown ETag, missing, missing version,
-  denied, transient and throttled errors (`Retryable`, `Throttled`, `Reason`), the limit at and one over, an empty and a large
-  object, key characters and unclean keys, ETag stability and ETag change for generated contents (including same-size
-  in-place rewrites), the bytes and ETag of one answer under concurrent writes, an ended context, cancel and deadline during
-  a read, no request left after a cancel, and concurrent reads.
+- A case that needs a capability the backend cannot arrange is reported as unsupported, with the reason, and logged.
+  `Run` fails when the fixture declares other waivers than the test passed, so a store cannot drop a guarantee
+  without its test saying so. There is no silent skip.
+- Capabilities: `deny`, `transient`, `throttle`, `hang` (a read that does not answer), `hang-body` (an answer whose
+  body stalls), `versions`, `key-validation` (unclean keys are refused), `content-addressed-etag`, `nested-keys`.
+- The core cases (no waiver possible) cover: unconditional and conditional reads, a changed object, an unknown ETag,
+  missing and missing version, the limit at and one over, zero and negative limits, a conditional read over the limit
+  (never a body), the empty object, a large object, key characters (`?`, `#`, `%`, `%2F`, a space and a plus, a
+  leading dot), odd keys, ETag stability and ETag change for generated contents (including same-size in-place
+  rewrites), the bytes and ETag of one answer under concurrent writes, returned bytes that a later write does not
+  change, an ended context, no goroutine left behind, and concurrent reads.
+- Every case is also checked for leaked goroutines: the goroutines of a case carry a pprof label, and when the case
+  is over the goroutine profile is read (with a bounded number of yields, no sleeps) and any goroutine of the case
+  that is still there fails it. The idle connection-pool loops of the HTTP transport are not counted. The run as a
+  whole is checked the same way.
+- `storetest.Check(name, fixture)` runs one case with a recording test and returns its failures: the tests of this
+  package use it on stores with one defect each (a stale ETag, a constant ETag, an ignored limit, a body with
+  "not modified", an ignored context, a truncated body, a leaked goroutine, an aliased slice, and others) to show
+  that the suite fails for each.
 - The suite runs today against the in-memory fake, the file store and the S3 store (the last one with the `docker`
   build tag, on the emulator).
-- The ETag must be a function of the content, and a conditional read of unchanged content must return
-  `ErrNotModified` with an empty `Object`.
+
+What the reader needs of an ETag, and nothing more:
+
+- It describes exactly the bytes returned with it.
+- It differs when the bytes differ.
+- A conditional read that holds the current ETag of an unchanged object is answered with `ErrNotModified` and an
+  empty `Object`.
+
+Equal bytes need not give an equal ETag: a row version, a commit SHA or a generation number is a valid ETag, and
+such a store waives `content-addressed-etag`. The file store, the S3 store and the fake have it.

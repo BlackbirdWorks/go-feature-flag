@@ -15,20 +15,24 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/storetest"
 )
 
-var errNoSuchFault = errors.New("a real directory cannot arrange this fault")
-
-// The reasons the file backend gives for the cases it cannot run.
+// The reasons the file store gives for what it does not offer.
 const (
 	reasonNoIOError  = "an I/O error cannot be arranged on a real directory"
 	reasonNoThrottle = "a file system does not throttle"
-	reasonNoHang     = "a local read cannot be held without a special file, which the store refuses"
-	reasonNoDeny     = "this process reads files whatever their mode (root, or no permission bits)"
+	reasonNoHang     = "a local read cannot be held: a FIFO is refused, and the context is supplied by the suite " +
+		"(the cancel and deadline paths of the reads are unit-tested in filestore_internal_test.go)"
+	reasonNoVersions = "a file has no versions"
+	reasonNoNested   = "a path cannot be a file and a directory"
 )
 
-// fileBackend arranges files in a real directory.
+var errNoSuchFault = errors.New("a real directory cannot arrange this")
+
+// fileBackend arranges files in a real directory. A denied key is a symbolic link that leaves the root, which is
+// refused whoever the process runs as.
 type fileBackend struct {
-	root string
-	seq  atomic.Int64
+	root    string
+	outside string
+	seq     atomic.Int64
 }
 
 var _ storetest.Backend = (*fileBackend)(nil)
@@ -74,78 +78,95 @@ func (b *fileBackend) Delete(key string) error {
 	return os.Remove(b.path(key))
 }
 
+// Fail denies a key by putting a link that leaves the root where the file is, and keeps the file next to it.
 func (b *fileBackend) Fail(key string, fault storetest.Fault) error {
+	target := b.path(key)
+	held := target + ".held"
+
 	switch fault {
 	case storetest.FaultNone:
-		return os.Chmod(b.path(key), 0o600)
+		_, err := os.Lstat(held)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil // nothing was denied
+		}
+
+		err = os.Remove(target)
+		if err != nil {
+			return err
+		}
+
+		return os.Rename(held, target)
 	case storetest.FaultDenied:
-		return os.Chmod(b.path(key), 0)
+		err := os.Rename(target, held)
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(filepath.Dir(target), b.outside)
+		if err != nil {
+			return err
+		}
+
+		return os.Symlink(rel, target)
 	case storetest.FaultTransient, storetest.FaultThrottled:
 	}
 
 	return errNoSuchFault
 }
 
-func (*fileBackend) Hang(string) (*storetest.Hang, error) { return nil, errNoSuchFault }
+func (*fileBackend) Hang(string) (*storetest.Hang, error)     { return nil, storetest.ErrUnsupported }
+func (*fileBackend) HangBody(string) (*storetest.Hang, error) { return nil, storetest.ErrUnsupported }
+
+func (*fileBackend) PutVersion(string, []byte) (string, error) { return "", storetest.ErrUnsupported }
 
 func (b *fileBackend) path(key string) string { return filepath.Join(b.root, filepath.FromSlash(key)) }
 
-// canReadDespitePermissions reports whether this process reads a file whose mode is 0: root, or a file system
-// without permission bits.
-func canReadDespitePermissions(dir string) bool {
-	probe := filepath.Join(dir, "probe")
-	if os.WriteFile(probe, []byte("x"), 0o600) != nil || os.Chmod(probe, 0) != nil {
-		return true
-	}
-
-	file, err := os.Open(probe)
-	if err != nil {
-		return false
-	}
-
-	_ = file.Close()
-
-	return true
+// fileWaivers is what the file store does not offer.
+func fileWaivers() storetest.Waivers {
+	return storetest.NewWaivers().
+		With(storetest.CapTransient, reasonNoIOError).
+		With(storetest.CapThrottle, reasonNoThrottle).
+		With(storetest.CapHang, reasonNoHang).
+		With(storetest.CapHangBody, reasonNoHang).
+		With(storetest.CapVersions, reasonNoVersions).
+		With(storetest.CapNestedKeys, reasonNoNested)
 }
 
 func fileFixture(t *testing.T) storetest.Fixture {
 	t.Helper()
 
-	dir := t.TempDir()
-	store, err := manifestreader.NewFileStore(dir)
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	require.NoError(t, os.Mkdir(root, 0o750))
+
+	outside := filepath.Join(base, "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("outside the root"), 0o600))
+
+	store, err := manifestreader.NewFileStore(root)
 	require.NoError(t, err)
 
-	unsupported := make(map[storetest.Capability]string)
-	unsupported[storetest.CapTransient] = reasonNoIOError
-	unsupported[storetest.CapThrottle] = reasonNoThrottle
-	unsupported[storetest.CapHang] = reasonNoHang
-
-	if canReadDespitePermissions(t.TempDir()) {
-		unsupported[storetest.CapDeny] = reasonNoDeny
+	return storetest.Fixture{
+		Store: store, Backend: &fileBackend{root: root, outside: outside}, Unsupported: fileWaivers(),
 	}
-
-	return storetest.Fixture{Store: store, Backend: &fileBackend{root: dir}, Unsupported: unsupported}
 }
 
 func TestConformance_FileStore(t *testing.T) {
 	t.Parallel()
 
-	report := storetest.Run(t, "file", fileFixture)
+	report := storetest.Run(t, "file", fileWaivers(), fileFixture)
 
-	wantUnsupported := map[string]string{
+	assert.Equal(t, map[string]string{
 		"transient-is-retryable":               "transient: " + reasonNoIOError,
 		"throttled-is-retryable-and-throttled": "throttle: " + reasonNoThrottle,
 		"cancel-while-reading":                 "hang: " + reasonNoHang,
 		"deadline-while-reading":               "hang: " + reasonNoHang,
 		"cancel-leaves-nothing-behind":         "hang: " + reasonNoHang,
-	}
-
-	if canReadDespitePermissions(t.TempDir()) {
-		wantUnsupported["denied-is-not-retryable"] = "deny: " + reasonNoDeny
-	}
-
-	assert.Equal(t, wantUnsupported, report.Unsupported)
+		"cancel-while-reading-the-body":        "hang-body: " + reasonNoHang,
+		"version-id-reads-an-older-version":    "versions: " + reasonNoVersions,
+		"object-and-child-keys-coexist":        "nested-keys: " + reasonNoNested,
+	}, report.Unsupported)
 	assert.ElementsMatch(t, ranCases(report.Unsupported), report.Ran)
+	assert.Contains(t, report.Ran, "denied-is-not-retryable", "denied runs whoever the process is")
 	assert.Contains(t, report.Ran, "unclean-keys-are-refused")
 	assert.Contains(t, report.Ran, "missing-version-is-not-found")
 }

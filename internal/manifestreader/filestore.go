@@ -59,13 +59,55 @@ const (
 // store holds no state and is safe for concurrent use; the root is opened on each call, so a root that is
 // replaced (a swapped mount) is followed.
 type FileStore struct {
-	root string
+	// hooks is the seam of the tests of this package (nil in production): a fault or a concurrent writer injected
+	// at an exact point of a read.
+	hooks *fileHooks
+	root  string
+}
+
+// The passes of a conditional read, as the hooks name them.
+const (
+	passHash = 1
+	passRead = 2
+)
+
+// fileHooks are the points where a test can step into a Get.
+type fileHooks struct {
+	// wrap wraps the file as one pass reads it (passHash or passRead).
+	wrap func(pass int, src io.Reader) io.Reader
+	// between runs after the hashing pass said "changed" and before the read pass starts.
+	between func()
+	// stat replaces the stat of the open file.
+	stat func(file *os.File) (os.FileInfo, error)
+}
+
+func (h *fileHooks) reader(pass int, src io.Reader) io.Reader {
+	if h == nil || h.wrap == nil {
+		return src
+	}
+
+	return h.wrap(pass, src)
+}
+
+func (h *fileHooks) betweenPasses() {
+	if h != nil && h.between != nil {
+		h.between()
+	}
+}
+
+func (h *fileHooks) stater(file *os.File) (os.FileInfo, error) {
+	if h != nil && h.stat != nil {
+		return h.stat(file)
+	}
+
+	return file.Stat() //nolint:wrapcheck // open wraps it
 }
 
 var _ ObjectStore = (*FileStore)(nil)
 
 // NewFileStore returns the store of the directory root. It checks that root is a directory now; a root that
-// disappears later makes Get fail with a [*FetchError] (reason denied, cause [ErrRootUnavailable]).
+// disappears later (an unmounted volume) makes Get fail with a retryable [*FetchError] whose causes include
+// [ErrRootUnavailable], so the reader backs off and recovers when the root is back.
 func NewFileStore(root string) (*FileStore, error) {
 	if root == "" {
 		return nil, fmt.Errorf("%w: the root directory is empty", ErrInvalidConfig)
@@ -117,7 +159,7 @@ func (s *FileStore) Get(ctx context.Context, req GetRequest) (Object, error) {
 	}
 
 	if req.ETag != "" {
-		sum, hashErr := hashFile(ctx, file, limit)
+		sum, hashErr := hashFile(ctx, s.hooks.reader(passHash, file), limit)
 		if hashErr != nil {
 			return Object{}, fileFailure(ctx, hashErr)
 		}
@@ -126,13 +168,15 @@ func (s *FileStore) Get(ctx context.Context, req GetRequest) (Object, error) {
 			return Object{}, ErrNotModified
 		}
 
+		s.hooks.betweenPasses()
+
 		_, err = file.Seek(0, io.SeekStart)
 		if err != nil {
 			return Object{}, fileFailure(ctx, err)
 		}
 	}
 
-	data, err := readBounded(ctx, file, size, limit)
+	data, err := readBounded(ctx, s.hooks.reader(passRead, file), size, limit)
 	if err != nil {
 		return Object{}, fileFailure(ctx, err)
 	}
@@ -156,7 +200,7 @@ func (s *FileStore) open(key string) (*os.File, int64, error) {
 
 	// the type is read from the open file, not from an earlier lookup: a path swapped between the two cannot
 	// make the store read a file it did not look at
-	info, err := file.Stat()
+	info, err := s.hooks.stater(file)
 	if err != nil {
 		_ = file.Close()
 
@@ -281,19 +325,41 @@ func fileFailure(ctx context.Context, err error) error {
 
 // classifyFileError maps an error of the operating system. A missing file (or a missing directory on its path)
 // is [ErrNotFound]; what a retry cannot fix without a change of the setup (permissions, a path that leaves the
-// root, a symbolic link loop, a file that is not regular, a missing root) is denied; everything else (I/O
-// errors, exhausted descriptors, a stale handle) is a retryable error.
+// root, a name that is too long, a symbolic link loop, a file that is not regular) is denied; everything else
+// (I/O errors, exhausted descriptors, a stale handle) is a retryable error. An error of the root directory goes
+// through [classifyRoot]: it is never "not found", because the object is not what is missing.
 func classifyFileError(err error) error {
+	if errors.Is(err, ErrRootUnavailable) {
+		return classifyRoot(err)
+	}
+
 	switch {
-	case errors.Is(err, ErrRootUnavailable), errors.Is(err, ErrNotRegular):
-		// first: the cause of an unavailable root is a "does not exist" too, and it is not a missing object
+	case errors.Is(err, ErrNotRegular):
 		return &FetchError{Err: err, Reason: ReasonDenied}
 	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ENOTDIR):
 		return ErrNotFound
-	case errors.Is(err, fs.ErrPermission), errors.Is(err, syscall.ELOOP), isIrregularOpen(err):
+	case errors.Is(err, syscall.ENAMETOOLONG):
+		return &FetchError{Err: fmt.Errorf("%w: %w", ErrKeyRefused, err), Reason: ReasonDenied}
+	case errors.Is(err, syscall.ENODEV), isIrregularOpen(err):
+		return &FetchError{Err: fmt.Errorf("%w: %w", ErrNotRegular, err), Reason: ReasonDenied}
+	case errors.Is(err, fs.ErrPermission), errors.Is(err, syscall.ELOOP):
 		return &FetchError{Err: err, Reason: ReasonDenied}
 	case strings.Contains(err.Error(), escapeMessage):
+		// fail closed: if a Go release words the message differently the escape is still refused (os.Root
+		// refuses it), only as a retryable error instead of a denied one. TestFileStore_ContainmentAndSymlinks
+		// pins the text against the real os.Root.
 		return &FetchError{Err: fmt.Errorf("%w: %w", ErrOutsideRoot, err), Reason: ReasonDenied}
+	}
+
+	return &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+}
+
+// classifyRoot maps the error of opening the root directory. Only a permission error is final: a root that does
+// not exist yet (a volume mounted late), is out of descriptors, or answers with an I/O error may be there at the
+// next poll, so the reader backs off and retries as for any transient failure.
+func classifyRoot(err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return &FetchError{Err: err, Reason: ReasonDenied}
 	}
 
 	return &FetchError{Err: err, Reason: ReasonError, Retryable: true}

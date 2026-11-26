@@ -2,24 +2,31 @@ package storetest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
-// Capability is something a backend may not be able to arrange. A case that needs a capability the backend
-// declares unsupported is reported as unsupported.
+// Capability is something a backend may not be able to arrange, or a store may not offer. A case that needs a
+// capability that the fixture declares unsupported is reported as unsupported, and [Run] only accepts the
+// declaration when the caller waived the same capability with the same reason.
 type Capability string
 
-// The capabilities.
+// The capabilities. A store that has all of them waives none.
 const (
-	// CapDeny is [FaultDenied]: a store whose reads are refused (403, a permission error).
+	// CapDeny is [FaultDenied]: a store whose reads are refused (403, a permission error, a link out of the root).
 	CapDeny Capability = "deny"
 	// CapTransient is [FaultTransient]: a read that fails with an error that may pass by itself.
 	CapTransient Capability = "transient"
@@ -27,11 +34,20 @@ const (
 	CapThrottle Capability = "throttle"
 	// CapHang is [Backend.Hang]: a read that does not answer until its context ends.
 	CapHang Capability = "hang"
-	// CapVersions is object versions: a read of a version that does not exist is a "not found".
+	// CapHangBody is [Backend.HangBody]: a read whose answer started and whose body then stalls.
+	CapHangBody Capability = "hang-body"
+	// CapVersions is [Backend.PutVersion]: the object keeps versions and a read can name one.
 	CapVersions Capability = "versions"
 	// CapKeyValidation is that the store refuses a key that is not a clean relative path, as a file store does.
 	// The keys of an object store are opaque and it has nothing to refuse.
 	CapKeyValidation Capability = "key-validation"
+	// CapContentAddressedETag is that the ETag is a function of the bytes: the same bytes always give the same
+	// ETag. A store whose ETag is a row version, a commit SHA or a generation number does not have it, and is
+	// still correct: the reader needs only that the ETag describes the bytes returned, differs when they differ,
+	// and is answered with "not modified" while the object is unchanged.
+	CapContentAddressedETag Capability = "content-addressed-etag"
+	// CapNestedKeys is that an object "a" and an object "a/b" can exist together, as in an object store.
+	CapNestedKeys Capability = "nested-keys"
 )
 
 // Fault is a failure a backend arranges for the reads of a key.
@@ -48,8 +64,15 @@ const (
 	FaultThrottled
 )
 
-// Hang is a key whose reads do not answer until their context ends (or until [Hang.Release]). A backend makes one
-// with [NewHang] and calls [Hang.Block] from the read of the key.
+// ErrUnsupported is what a backend returns for an operation it cannot arrange. A case that needs it is waived
+// through its capability, so a suite run never reaches it.
+var ErrUnsupported = errors.New("storetest: the backend cannot arrange this")
+
+// maxHangEntries is the number of reads of one hang that [Hang.Entered] can count.
+const maxHangEntries = 256
+
+// Hang is a key whose reads do not answer until their context ends (or until [Hang.Release]). A backend makes
+// one with [NewHang] and calls [Hang.Block] from the read of the key.
 type Hang struct {
 	entered  chan struct{}
 	released chan struct{}
@@ -72,7 +95,7 @@ func (h *Hang) Active() int { return int(h.active.Load()) }
 func (h *Hang) Release() { h.once.Do(func() { close(h.released) }) }
 
 // Block holds the calling read: it returns the error of ctx when the context ends first, and nil when the hang
-// is released. A backend calls it before it answers the read.
+// is released. A backend calls it before it answers the read (or, for [Backend.HangBody], while the body is read).
 func (h *Hang) Block(ctx context.Context) error {
 	h.active.Add(1)
 	defer h.active.Add(-1)
@@ -103,8 +126,14 @@ type Backend interface {
 	Delete(key string) error
 	// Fail makes the reads of key fail with fault until it is called again for the key (FaultNone clears it).
 	Fail(key string, fault Fault) error
-	// Hang makes the reads of key block until their context ends or the hang is released.
+	// Hang makes the reads of key block until their context ends or the hang is released ([CapHang]).
 	Hang(key string) (*Hang, error)
+	// HangBody makes the reads of key answer, and then stall while the body is read, until their context ends or
+	// the hang is released ([CapHangBody]). The object has to be larger than the part that is let through.
+	HangBody(key string) (*Hang, error)
+	// PutVersion writes a new version of the object and returns its version id ([CapVersions]). An id returned
+	// earlier keeps naming the content it was written with.
+	PutVersion(key string, content []byte) (string, error)
 }
 
 // Fixture is one store under test with its backend.
@@ -114,7 +143,22 @@ type Fixture struct {
 	// Backend arranges its state. Content put through it must be what Store reads.
 	Backend Backend
 	// Unsupported lists the capabilities the backend cannot arrange, with the reason.
-	Unsupported map[Capability]string
+	Unsupported Waivers
+}
+
+// Waivers are the capabilities a store does not offer, with the reason, as the test of the store states them.
+// [Run] fails when the fixture declares anything else, so a store cannot drop a guarantee without the test
+// saying so.
+type Waivers map[Capability]string
+
+// NewWaivers returns no waivers: a store that offers everything. Add to them with [Waivers.With].
+func NewWaivers() Waivers { return make(Waivers) }
+
+// With waives the capability, for the reason, and returns the waivers.
+func (w Waivers) With(capability Capability, reason string) Waivers {
+	w[capability] = reason
+
+	return w
 }
 
 // Factory returns a fresh, empty fixture: no object of another case is visible. It is called once per case.
@@ -130,11 +174,16 @@ type Report struct {
 	Ran []string
 }
 
-// maxHangEntries is the number of reads of one hang that [Hang.Entered] can count.
-const maxHangEntries = 256
+// TB is what the cases need of a test: the subset of [testing.TB] that testify uses, and the context. A
+// [testing.T] pointer is one; [Check] gives the cases a recording one, so that a test can prove that a case fails.
+type TB interface {
+	require.TestingT
+	Helper()
+	Context() context.Context
+}
 
 type contractCase struct {
-	run   func(t *testing.T, fx Fixture)
+	run   func(t TB, fixture Fixture)
 	name  string
 	needs []Capability
 }
@@ -153,12 +202,25 @@ func CaseNames() []string {
 	return names
 }
 
+// newID returns an id that no other live run has: the address of a fresh allocation. It labels the goroutines of
+// one run (or of one [Check]).
+func newID(prefix string) string {
+	return fmt.Sprintf("%s#%p", prefix, new(byte))
+}
+
 // Run runs every case against the stores the factory makes, as parallel subtests of t named after backend, and
 // returns what ran and what was unsupported. The report is also logged.
-func Run(t *testing.T, backend string, factory Factory) Report {
+//
+// waivers are what the store does not offer. Every case checks that the fixture declares exactly them: a store
+// that starts waiving a capability fails until its test says so too.
+//
+// Every case also checks that it left no goroutine behind (see the package documentation), and so does the run as
+// a whole.
+func Run(t *testing.T, backend string, waivers Waivers, factory Factory) Report {
 	t.Helper()
 
 	report := Report{Backend: backend, Unsupported: map[string]string{}}
+	runID := newID(backend)
 
 	var mutex sync.Mutex
 
@@ -168,6 +230,8 @@ func Run(t *testing.T, backend string, factory Factory) Report {
 				t.Parallel()
 
 				fixture := factory(t)
+				checkWaivers(t, waivers, &fixture)
+
 				reason := unsupportedReason(&fixture, current.needs)
 
 				mutex.Lock()
@@ -182,7 +246,7 @@ func Run(t *testing.T, backend string, factory Factory) Report {
 					t.Skipf("UNSUPPORTED by backend %s: %s", backend, reason)
 				}
 
-				current.run(t, fixture)
+				runCase(t, runID, &current, fixture)
 			})
 		}
 	})
@@ -194,7 +258,58 @@ func Run(t *testing.T, backend string, factory Factory) Report {
 		t.Logf("storetest %s: UNSUPPORTED %s (%s)", backend, name, report.Unsupported[name])
 	}
 
+	assert.Empty(t, settledLeaks(runID, ""), "goroutines of the run are left after all its cases")
+
 	return report
+}
+
+// checkWaivers fails unless the fixture declares exactly the waivers the test of the store passed to [Run].
+func checkWaivers(t TB, waivers Waivers, fixture *Fixture) {
+	t.Helper()
+
+	assert.Equal(t, nilIfEmpty(waivers), nilIfEmpty(fixture.Unsupported),
+		"the fixture declares other waivers than the test of the store")
+}
+
+func nilIfEmpty(m Waivers) Waivers {
+	if len(m) == 0 {
+		return nil
+	}
+
+	return m
+}
+
+// Check runs the named case against fixture and returns what it reported as failed, and whether it ran (it does
+// not when the case needs a capability the fixture declares unsupported). It exists so that a test can show that
+// the suite catches a broken store: the case runs on a goroutine of its own, with a recording [TB].
+func Check(name string, fixture Fixture) ([]string, bool) {
+	for i := range allCases() {
+		current := allCases()[i]
+		if current.name != name {
+			continue
+		}
+
+		if unsupportedReason(&fixture, current.needs) != "" {
+			return nil, false
+		}
+
+		rec := newRecorder()
+		done := make(chan struct{})
+		runID := newID("check")
+
+		go func() {
+			defer close(done)
+
+			runCase(rec, runID, &current, fixture)
+		}()
+
+		<-done
+		rec.stop()
+
+		return rec.failures(), true
+	}
+
+	return []string{"no such case: " + name}, true
 }
 
 // unsupportedReason is why the fixture cannot run a case that needs these capabilities; empty when it can.
@@ -209,4 +324,61 @@ func unsupportedReason(fixture *Fixture, needs []Capability) string {
 	}
 
 	return strings.Join(missing, "; ")
+}
+
+// Labels of the goroutines of a case.
+const (
+	labelRun  = "storetest-run"
+	labelCase = "storetest-case"
+)
+
+// runCase runs the case with its goroutines labelled, then checks that none of them is left.
+func runCase(t TB, runID string, current *contractCase, fixture Fixture) {
+	t.Helper()
+
+	caseID := current.name
+
+	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, caseID), func(context.Context) {
+		current.run(t, fixture)
+	})
+
+	leaks := settledLeaks(runID, caseID)
+	assert.Empty(t, leaks, "the case left goroutines behind")
+}
+
+// recorder is a [TB] that records instead of failing.
+type recorder struct {
+	ctx    context.Context //nolint:containedctx // it is the context of the test, as testing.T.Context is
+	cancel context.CancelFunc
+	fails  []string
+	mu     sync.Mutex
+}
+
+func newRecorder() *recorder {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &recorder{ctx: ctx, cancel: cancel}
+}
+
+func (r *recorder) Errorf(format string, args ...any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.fails = append(r.fails, fmt.Sprintf(format, args...))
+}
+
+// FailNow ends the goroutine of the case, as testing.T.FailNow does.
+func (*recorder) FailNow() { runtime.Goexit() }
+
+func (*recorder) Helper() {}
+
+func (r *recorder) Context() context.Context { return r.ctx }
+
+func (r *recorder) stop() { r.cancel() }
+
+func (r *recorder) failures() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.fails)
 }

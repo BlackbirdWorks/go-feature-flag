@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -20,6 +21,7 @@ const (
 	fileManifest = "manifest.yaml"
 
 	contentInside = "inside"
+	helloBody     = "hello"
 )
 
 // newFileStoreAt returns the store of dir.
@@ -103,6 +105,11 @@ func TestNewFileStore(t *testing.T) {
 	}
 }
 
+// TestFileStore_ContainmentAndSymlinks is also the pin of the text of the error that [os.Root] returns for a path
+// that leaves the root: the store recognises an escape by that text, because the standard library exports no
+// value for it. If a Go release words it differently the rows that expect ErrOutsideRoot fail here. In production
+// a miss fails closed: [os.Root] still refuses the path, and the store reports a retryable error instead of a
+// denied one.
 func TestFileStore_ContainmentAndSymlinks(t *testing.T) {
 	t.Parallel()
 
@@ -283,7 +290,10 @@ func TestFileStore_DirectoryIsRefused(t *testing.T) {
 	wantDenied(t, err, manifestreader.ErrNotRegular)
 }
 
-func TestFileStore_RootThatDisappearsIsDenied(t *testing.T) {
+// TestFileStore_RootThatIsNotThereIsRetryableAndRecovers: a volume that is mounted late is not a configuration
+// error. The root is missing: a retryable error (the reader backs off and tries again), not "not found" and not
+// denied. When the root is back, the next Get works.
+func TestFileStore_RootThatIsNotThereIsRetryableAndRecovers(t *testing.T) {
 	t.Parallel()
 
 	dir := filepath.Join(t.TempDir(), "root")
@@ -292,8 +302,22 @@ func TestFileStore_RootThatDisappearsIsDenied(t *testing.T) {
 	store := newFileStoreAt(t, dir)
 	require.NoError(t, os.Remove(dir))
 
-	_, err := store.Get(t.Context(), manifestreader.GetRequest{Key: fileA, Limit: 10})
-	wantDenied(t, err, manifestreader.ErrRootUnavailable)
+	obj, err := store.Get(t.Context(), manifestreader.GetRequest{Key: fileA, Limit: 10})
+	assert.Equal(t, manifestreader.Object{}, obj)
+
+	var fetchErr *manifestreader.FetchError
+
+	require.ErrorAs(t, err, &fetchErr)
+	assert.Equal(t, manifestreader.ReasonError, fetchErr.Reason)
+	assert.True(t, fetchErr.Retryable)
+	assert.False(t, fetchErr.Throttled)
+	require.ErrorIs(t, err, manifestreader.ErrRootUnavailable)
+	require.NotErrorIs(t, err, manifestreader.ErrNotFound)
+
+	// the mount appears
+	writeTree(t, dir, map[string]string{fileA: "now it is there"})
+
+	assert.Equal(t, []byte("now it is there"), mustGetFile(t, store, fileA, "").Bytes)
 }
 
 func TestFileStore_RootThatIsReplacedIsFollowed(t *testing.T) {
@@ -326,9 +350,9 @@ func TestFileStore_ETagIsTheQuotedSha256(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeTree(t, dir, map[string]string{fileA: "hello"})
+	writeTree(t, dir, map[string]string{fileA: helloBody})
 
-	sum := sha256.Sum256([]byte("hello"))
+	sum := sha256.Sum256([]byte(helloBody))
 
 	obj := mustGetFile(t, newFileStoreAt(t, dir), fileA, "")
 	assert.Equal(t, `"`+hex.EncodeToString(sum[:])+`"`, obj.ETag)
@@ -407,4 +431,16 @@ func TestFileStore_ConfigMapSwap(t *testing.T) {
 
 	// the data directory itself is a plain key
 	assert.Equal(t, []byte("generation two"), mustGetFile(t, store, "..data/manifest.yaml", "").Bytes)
+}
+
+func TestFileStore_NameTooLongIsARefusedKey(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "dir"), 0o750))
+
+	_, err := newFileStoreAt(t, dir).Get(t.Context(), manifestreader.GetRequest{
+		Key: "dir/" + strings.Repeat("n", 5000), Limit: 10,
+	})
+	wantDenied(t, err, manifestreader.ErrKeyRefused)
 }

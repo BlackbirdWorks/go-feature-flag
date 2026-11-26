@@ -58,6 +58,8 @@ func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 		input.VersionId = aws.String(req.VersionID)
 	}
 
+	limit := max(req.Limit, 0) // a negative limit is a zero one: see GetRequest.Limit
+
 	out, err := client.GetObject(ctx, input)
 	if err != nil {
 		return Object{}, classifyS3(err, req.VersionID != "")
@@ -65,7 +67,7 @@ func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 
 	defer func() { _ = out.Body.Close() }()
 
-	buf, err := readBody(out.Body, out.ContentLength, req.Limit)
+	buf, err := readBody(out.Body, out.ContentLength, limit)
 	if err != nil {
 		return Object{}, err
 	}

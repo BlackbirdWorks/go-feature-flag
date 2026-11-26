@@ -30,6 +30,14 @@ var (
 )
 
 func (f *faultyFake) Get(ctx context.Context, req manifestreader.GetRequest) (manifestreader.Object, error) {
+	if req.VersionID != "" {
+		// the fake keeps one version of an object: any named version is a missing one
+		return manifestreader.Object{}, manifestreader.ErrNotFound
+	}
+
+	// the contract: a negative limit is a limit of zero (the raw fake compares the length with it)
+	req.Limit = max(req.Limit, 0)
+
 	f.mu.Lock()
 	fault, hang := f.faults[req.Key], f.hangs[req.Key]
 	f.mu.Unlock()
@@ -84,6 +92,10 @@ func (f *faultyFake) Fail(key string, fault storetest.Fault) error {
 	return nil
 }
 
+func (*faultyFake) HangBody(string) (*storetest.Hang, error) { return nil, storetest.ErrUnsupported }
+
+func (*faultyFake) PutVersion(string, []byte) (string, error) { return "", storetest.ErrUnsupported }
+
 func (f *faultyFake) Hang(key string) (*storetest.Hang, error) {
 	hang := storetest.NewHang()
 
@@ -94,6 +106,14 @@ func (f *faultyFake) Hang(key string) (*storetest.Hang, error) {
 	return hang, nil
 }
 
+// fakeWaivers is what the in-memory fake does not offer. Its test and its fixture both state it.
+func fakeWaivers() storetest.Waivers {
+	return storetest.NewWaivers().
+		With(storetest.CapVersions, "the fake keeps one version of an object").
+		With(storetest.CapKeyValidation, "the fake keys are opaque strings").
+		With(storetest.CapHangBody, "the fake answers in one step: there is no body to stall in")
+}
+
 func fakeFixture(*testing.T) storetest.Fixture {
 	fake := &faultyFake{
 		fakeStore: newFakeStore(),
@@ -101,30 +121,23 @@ func fakeFixture(*testing.T) storetest.Fixture {
 		hangs:     map[string]*storetest.Hang{},
 	}
 
-	unsupported := make(map[storetest.Capability]string)
-	unsupported[storetest.CapVersions] = "the fake keeps no version history and ignores the version id"
-	unsupported[storetest.CapKeyValidation] = "the fake keys are opaque strings"
-
-	return storetest.Fixture{
-		Store: fake, Backend: fake,
-		Unsupported: unsupported,
-	}
+	return storetest.Fixture{Store: fake, Backend: fake, Unsupported: fakeWaivers()}
 }
 
 func TestConformance_Fake(t *testing.T) {
 	t.Parallel()
 
-	report := storetest.Run(t, "fake", fakeFixture)
+	report := storetest.Run(t, "fake", fakeWaivers(), fakeFixture)
 
 	assert.Equal(t, map[string]string{
-		"missing-version-is-not-found": "versions: the fake keeps no version history and ignores the version id",
-		"unclean-keys-are-refused":     "key-validation: the fake keys are opaque strings",
+		"version-id-reads-an-older-version": "versions: the fake keeps one version of an object",
+		"unclean-keys-are-refused":          "key-validation: the fake keys are opaque strings",
+		"cancel-while-reading-the-body":     "hang-body: the fake answers in one step: there is no body to stall in",
 	}, report.Unsupported)
 	assert.ElementsMatch(t, ranCases(report.Unsupported), report.Ran)
 	require.NotEmpty(t, report.Ran)
 }
 
-// ranCases is every case of the suite except the unsupported ones.
 func ranCases(unsupported map[string]string) []string {
 	var out []string
 
