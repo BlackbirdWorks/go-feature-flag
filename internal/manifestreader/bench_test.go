@@ -35,7 +35,7 @@ func BenchmarkRound_NoChange(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		rdr.round()
+		rdr.round() // the requests are not under test here: the cost is; the count is checked below
 	}
 
 	b.StopTimer()
@@ -71,7 +71,8 @@ func BenchmarkRound_OneObjectChanged(b *testing.B) {
 }
 
 // BenchmarkRound_NotModifiedWithAFailingObject is a 304 round while one of 20000 objects keeps failing: the
-// round costs the conditional GET and the one failing object, and nothing that grows with the manifest.
+// round costs the conditional GET and the one failing object, and nothing that grows with the manifest as long
+// as the object keeps failing in the same way (a recovery or a new failure rebuilds the snapshot).
 func BenchmarkRound_NotModifiedWithAFailingObject(b *testing.B) {
 	store := newFakeStore()
 	objs := scaleObjects(controlplane.DefaultMaxObjects)
@@ -86,7 +87,7 @@ func BenchmarkRound_NotModifiedWithAFailingObject(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		rdr.round()
+		rdr.round() // the requests are not under test here: the cost is; the failure is checked below
 	}
 
 	b.StopTimer()

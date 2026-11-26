@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -15,18 +16,20 @@ import (
 )
 
 const (
-	nameAlpha     = "alpha"
-	nameBeta      = "beta"
-	nameGamma     = "gamma"
-	nameTwin      = "twin"
-	rawGet        = "x-id=GetObject"
+	nameAlpha = "alpha"
+	nameBeta  = "beta"
+	nameGamma = "gamma"
+	nameTwin  = "twin"
+	// anyChannel makes the rig leave the expected channel empty.
+	anyChannel    = "*"
+	otherChannel  = "canary"
 	connElsewhere = "elsewhere"
-	queryVersion  = "versionId=v-1"
 
 	contentAlphaChanged = `{"alpha":"changed"}`
 	contentAlphaSecond  = `{"alpha":"second"}`
 
-	manifestKey = "manifests/stable.yaml"
+	keyPrefix   = "tenant/a/" // the publisher applies the prefix; the reader fetches keys verbatim
+	manifestKey = keyPrefix + "manifests/stable.yaml"
 	testChannel = "stable"
 	connControl = "control"
 )
@@ -50,6 +53,8 @@ func entryOf(tb testing.TB, item obj) controlplane.ManifestObject {
 	sum := controlplane.ChecksumOf([]byte(item.content))
 	key, err := controlplane.ObjectKey(sum, "json")
 	require.NoError(tb, err)
+
+	key = keyPrefix + key
 
 	return controlplane.ManifestObject{
 		Name:       item.name,
@@ -124,6 +129,21 @@ func objCall(tb testing.TB, item obj) call {
 	return call{Key: keyOf(tb, item)}
 }
 
+// coldCalls is what a reader that holds nothing requests for a manifest whose objects to fetch are objs: the
+// manifest unconditionally, then each object once, in key order.
+func coldCalls(tb testing.TB, objs ...obj) []call {
+	tb.Helper()
+
+	calls := make([]call, 0, 1+len(objs))
+	calls = append(calls, manifestCall(""))
+
+	for _, item := range objs {
+		calls = append(calls, objCall(tb, item))
+	}
+
+	return sortCalls(calls)
+}
+
 // threeObjects returns the three objects most scenarios start from.
 func threeObjects() []obj {
 	return []obj{
@@ -155,3 +175,16 @@ var (
 	errDenied       = errors.New("nope")
 	errUnclassified = errors.New("unclassified")
 )
+
+// getQuery is the query of a GetObject request: x-id=GetObject, and the extra parameters given as name, value
+// pairs. A test compares parsed values, so the order of the parameters does not matter and a missing, extra or
+// duplicate one fails.
+func getQuery(extra ...string) url.Values {
+	query := url.Values{"x-id": {"GetObject"}}
+
+	for i := 0; i+1 < len(extra); i += 2 {
+		query.Add(extra[i], extra[i+1])
+	}
+
+	return query
+}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -166,7 +167,7 @@ func newStateRigWithRetry(
 	}))
 
 	state := openState(t, dir, nil)
-	store := manifestreader.NewS3Store(fac, connControl, bucket, "")
+	store := manifestreader.NewS3Store(fac, connControl, bucket)
 	rdr := launchRig(t, store, e2eConfig(), manifestreader.WithHooks(state.store.Hooks()), fixedJitter(jitter))
 
 	return &stateRig{
@@ -175,30 +176,33 @@ func newStateRigWithRetry(
 	}
 }
 
-// agreeNow asserts that the three counts name the same requests since the last call: wantRequests in all, with
-// the given results. The wire count (a RoundTripper under the SDK) is the independent one: the Prometheus counter is
-// fed by the observer of the connection factory, so those two agree by construction, and the check on the counter
-// proves the plumbing (the names and the results), not a second count.
-func (s *stateRig) agreeNow(t *testing.T, wantRequests int, wantResults map[string]float64) []observation {
+// agreeNow asserts that the three counts name the same requests since the last call: the wire carried exactly
+// wantWire (as a set: concurrent downloads have no order), the observer saw exactly wantObs, and the Prometheus
+// counter grew by the results of wantObs. The wire count (a RoundTripper under the SDK) is the independent one: the
+// counter is fed by the observer of the connection factory, so those two agree by construction, and the check on the
+// counter proves the plumbing (the names and the results), not a second count. Nothing but GET is allowed.
+func (s *stateRig) agreeNow(t *testing.T, wantWire []wireRequest, wantObs []observation) []observation {
 	t.Helper()
 
 	wire, obs, totals := s.counters.take(t)
 
-	assert.Len(t, wire, wantRequests, "wire")
-	assert.Len(t, obs, wantRequests, "observer")
+	assert.ElementsMatch(t, wantWire, wire, "wire")
+	assert.ElementsMatch(t, wantObs, obs, "observer")
+
+	wantDelta := map[string]float64{}
+	for _, want := range wantObs {
+		wantDelta[want.Result]++
+	}
 
 	delta := map[string]float64{}
-	sum := 0.0
 
 	for result, value := range totals {
 		if diff := value - s.prom[result]; diff != 0 {
 			delta[result] = diff
-			sum += diff
 		}
 	}
 
-	assert.InDelta(t, float64(wantRequests), sum, 0, "prometheus counter")
-	assert.Equal(t, wantResults, delta, "prometheus counter by result")
+	assert.Equal(t, wantDelta, delta, "prometheus counter by result")
 
 	for _, req := range wire {
 		assert.Equal(t, http.MethodGet, req.Method, "no HEAD, no LIST")
@@ -207,6 +211,34 @@ func (s *stateRig) agreeNow(t *testing.T, wantRequests int, wantResults map[stri
 	s.prom = totals
 
 	return obs
+}
+
+func (s *stateRig) manifestPath() string { return "/" + s.bucket + "/" + manifestKey }
+
+func (s *stateRig) objectPath(t *testing.T, item obj) string {
+	t.Helper()
+
+	return "/" + s.bucket + "/" + keyOf(t, item)
+}
+
+// gets is the wire requests of the given paths, all GET.
+func gets(paths ...string) []wireRequest {
+	out := make([]wireRequest, len(paths))
+	for i, path := range paths {
+		out[i] = wireRequest{Method: http.MethodGet, Path: path}
+	}
+
+	return out
+}
+
+// observed is n observations of a get of the control connection with the result.
+func gotten(result string, n int) []observation {
+	out := make([]observation, n)
+	for i := range out {
+		out[i] = observation{connControl, connection.OperationGet, result}
+	}
+
+	return out
 }
 
 func publishObjects(t *testing.T, srv *gopherstack.Server, bucket string, gen uint64, objs ...obj) {
@@ -231,7 +263,11 @@ func TestE2E_RequestBudgetOnTheWire(t *testing.T) {
 	rdr.settle()
 
 	// startup: the manifest and the three objects; the wire, the observer and the counter agree
-	rdr.agreeNow(t, 1+len(objs), map[string]float64{connection.ResultOK: float64(1 + len(objs))})
+	rdr.agreeNow(
+		t,
+		gets(rdr.manifestPath(), rdr.objectPath(t, objs[0]), rdr.objectPath(t, objs[1]), rdr.objectPath(t, objs[2])),
+		gotten(connection.ResultOK, 1+len(objs)),
+	)
 
 	// steady state: exactly one conditional GET per round, nothing else
 	const rounds = 10
@@ -240,14 +276,14 @@ func TestE2E_RequestBudgetOnTheWire(t *testing.T) {
 		rdr.round()
 	}
 
-	rdr.agreeNow(t, rounds, map[string]float64{connection.ResultNotModified: rounds})
+	rdr.agreeNow(t, slices.Repeat(gets(rdr.manifestPath()), rounds), gotten(connection.ResultNotModified, rounds))
 
 	// one changed object: the manifest and that object
 	changed := obj{name: nameAlpha, content: contentAlphaChanged}
 	publishObjects(t, srv, bucket, 2, changed, objs[1], objs[2])
 	rdr.round()
 
-	rdr.agreeNow(t, 2, map[string]float64{connection.ResultOK: 2})
+	rdr.agreeNow(t, gets(rdr.manifestPath(), rdr.objectPath(t, changed)), gotten(connection.ResultOK, 2))
 
 	rdr.state.flush()
 }
@@ -279,7 +315,7 @@ func TestE2E_RestartWithTheStateDirectoryCostsOneRequest(t *testing.T) {
 		assert.Equal(t, okState(t, o), snap.Objects[o.name])
 	}
 
-	second.agreeNow(t, 1, map[string]float64{connection.ResultNotModified: 1})
+	second.agreeNow(t, gets(second.manifestPath()), gotten(connection.ResultNotModified, 1))
 	assert.Equal(t, manifestreader.PollNotModified, second.reader.Status().Poll.Result)
 }
 
@@ -375,7 +411,7 @@ func TestE2E_RestartWithTheStoreStoppedServesTheSnapshot(t *testing.T) {
 	}
 
 	// the one request of the round failed; the observer, the wire and the counter agree on it
-	second.agreeNow(t, 1, map[string]float64{connection.ResultError: 1})
+	second.agreeNow(t, gets(second.manifestPath()), gotten(connection.ResultError, 1))
 
 	status := second.reader.Status()
 	assert.Equal(t, manifestreader.PollError, status.Poll.Result)
@@ -394,7 +430,11 @@ func TestE2E_OutageThenRecoveryResetsTheBackoff(t *testing.T) {
 	// jitter 0.75: after n failures the wait is the interval or 0.75 x min(5 min, 60 s x 2^n)
 	rdr := newStateRig(t, srv, srv.Endpoint, bucket, filepath.Join(t.TempDir(), "state"), 0.75)
 	rdr.settle()
-	rdr.agreeNow(t, 1+len(objs), map[string]float64{connection.ResultOK: float64(1 + len(objs))})
+	rdr.agreeNow(
+		t,
+		gets(rdr.manifestPath(), rdr.objectPath(t, objs[0]), rdr.objectPath(t, objs[1]), rdr.objectPath(t, objs[2])),
+		gotten(connection.ResultOK, 1+len(objs)),
+	)
 
 	rdr.wire.down.Store(true)
 
@@ -406,7 +446,7 @@ func TestE2E_OutageThenRecoveryResetsTheBackoff(t *testing.T) {
 	assert.Equal(t, manifestreader.BackoffStatus{Failures: 4, Wait: sec(225)}, rdr.reader.Status().Backoff)
 
 	// each failed round is exactly one request: nothing is added to a failing manifest GET
-	rdr.agreeNow(t, 4, map[string]float64{connection.ResultError: 4})
+	rdr.agreeNow(t, slices.Repeat(gets(rdr.manifestPath()), 4), gotten(connection.ResultError, 4))
 
 	// the network is back: the first poll is a 304 and the backoff is over
 	rdr.wire.down.Store(false)
@@ -414,7 +454,7 @@ func TestE2E_OutageThenRecoveryResetsTheBackoff(t *testing.T) {
 
 	assert.Equal(t, manifestreader.BackoffStatus{Wait: sec(60)}, rdr.reader.Status().Backoff)
 	assert.Equal(t, manifestreader.PollNotModified, rdr.reader.Status().Poll.Result)
-	rdr.agreeNow(t, 1, map[string]float64{connection.ResultNotModified: 1})
+	rdr.agreeNow(t, gets(rdr.manifestPath()), gotten(connection.ResultNotModified, 1))
 
 	rdr.round()
 	assert.Equal(t, sec(60), rdr.sched.waited()[len(rdr.sched.waited())-1])
@@ -435,7 +475,11 @@ func TestE2E_SDKRetryIsOnePollAndTwoRequests(t *testing.T) {
 	rdr := newStateRigWithRetry(t, srv, srv.Endpoint, bucket, filepath.Join(t.TempDir(), "state"), 0,
 		connection.Retry{MaxAttempts: 3, MaxBackoff: time.Millisecond})
 	rdr.settle()
-	rdr.agreeNow(t, 1+len(objs), map[string]float64{connection.ResultOK: float64(1 + len(objs))})
+	rdr.agreeNow(
+		t,
+		gets(rdr.manifestPath(), rdr.objectPath(t, objs[0]), rdr.objectPath(t, objs[1]), rdr.objectPath(t, objs[2])),
+		gotten(connection.ResultOK, 1+len(objs)),
+	)
 
 	pollsBefore := rdr.reader.Status().Polls
 
@@ -447,7 +491,10 @@ func TestE2E_SDKRetryIsOnePollAndTwoRequests(t *testing.T) {
 	assert.Equal(t, manifestreader.PollNotModified, status.Poll.Result, "which succeeded")
 	assert.Zero(t, status.Backoff.Failures, "a request that the SDK retried is not a failed poll")
 
-	obs := rdr.agreeNow(t, 2, map[string]float64{connection.ResultServerError: 1, connection.ResultNotModified: 1})
+	obs := rdr.agreeNow(t, slices.Repeat(gets(rdr.manifestPath()), 2), []observation{
+		{connControl, connection.OperationGet, connection.ResultServerError},
+		{connControl, connection.OperationGet, connection.ResultNotModified},
+	})
 	assert.Equal(t, []observation{
 		{connControl, connection.OperationGet, connection.ResultServerError},
 		{connControl, connection.OperationGet, connection.ResultNotModified},

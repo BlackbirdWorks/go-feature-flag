@@ -51,7 +51,8 @@ var ErrInvalidConfig = errors.New("manifestreader: invalid config")
 
 // Config configures a [Reader]. A zero field takes its default, except where noted. [New] copies it.
 type Config struct {
-	// ManifestKey is the key of the manifest in the store. Required.
+	// ManifestKey is the absolute bucket key of the manifest, as the publisher wrote it (a key prefix is applied
+	// by the publisher only; the reader never adds one). Required; it must not start with "/".
 	ManifestKey string
 	// Connection is the name of the connection the store of the reader serves. Required: an object whose entry
 	// names another connection is failed with [ReasonUnknownConnection] unless [WithObjectStores] has a store
@@ -77,9 +78,11 @@ type Config struct {
 	// MaxObjectBytes bounds one object: an entry that lists a larger size is not requested.
 	MaxObjectBytes int64
 	// MaxTotalBytes bounds the sum of the listed sizes of the distinct checksums of a manifest. A manifest
-	// above it is rejected whole before any object request. The worst-case memory of the reader is about this
-	// cap for the current content, plus the same again for stale content that is still carried, plus
-	// FetchConcurrency times MaxObjectBytes in flight.
+	// above it is rejected whole before any object request; a checksum listed with several sizes counts with the
+	// largest. The worst-case memory of the reader is about this cap for the current content, plus the last good
+	// content that stale names still carry, plus FetchConcurrency times MaxObjectBytes in flight. Each carried
+	// object was within the limits when it was loaded, but the carried bytes of several older generations are not
+	// bounded by this cap: they are bounded by MaxObjects times MaxObjectBytes.
 	MaxTotalBytes int64
 	// FetchConcurrency is the number of concurrent object downloads, at most [MaxFetchConcurrency].
 	FetchConcurrency int
@@ -87,8 +90,8 @@ type Config struct {
 	// failing object, and is the fixed retry cadence of an object that failed for good. Default
 	// [DefaultBackoffMax]; it is never below the poll interval.
 	BackoffMax time.Duration
-	// FetchSpread bounds the random delay a replica waits before it fetches the objects of a new generation
-	// (a generation that replaces a held one: a cold start with no content does not wait). Default
+	// FetchSpread bounds the random delay a replica waits before it fetches the objects of a new generation (a
+	// generation that replaces a held one: a cold start with no content does not wait). Default
 	// [DefaultFetchSpread]; never above the poll interval.
 	FetchSpread time.Duration
 	// DisableJitter turns the jitter off (and with it the random start phase). The full jitter of the backoff and
@@ -122,10 +125,15 @@ func (c *Config) withDefaults() error {
 	return nil
 }
 
+// validKey reports whether key can be an absolute bucket key: not empty and not starting with a slash.
+func validKey(key string) bool {
+	return key != "" && key[0] != '/'
+}
+
 func (c *Config) validateLimits() error {
 	if c.PollInterval < 0 || c.RequestTimeout < 0 || c.MaxObjects < 0 || c.MaxManifestBytes < 0 ||
-		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 ||
-		c.BackoffMax < 0 || c.FetchSpread < 0 {
+		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 || c.BackoffMax < 0 ||
+		c.FetchSpread < 0 {
 		return fmt.Errorf("%w: a limit is negative", ErrInvalidConfig)
 	}
 
@@ -135,6 +143,10 @@ func (c *Config) validateLimits() error {
 func (c *Config) validate() error {
 	if c.ManifestKey == "" {
 		return fmt.Errorf("%w: ManifestKey is required", ErrInvalidConfig)
+	}
+
+	if !validKey(c.ManifestKey) {
+		return fmt.Errorf("%w: ManifestKey is not an absolute bucket key", ErrInvalidConfig)
 	}
 
 	if c.Connection == "" {
@@ -170,8 +182,8 @@ type Restored struct {
 	// its checksum and fetched again.
 	Objects [][]byte
 	// Stale lists the names that were served from earlier content when the state was saved: the reader gives
-	// each of them that content again (from Objects) as its last good one, so after the restart the name is
-	// stale with the same bytes, not missing.
+	// each of them that content (found in Objects by its checksum) as its last good one, so after the restart the
+	// name is stale with the same bytes, not missing.
 	Stale []StaleObject
 }
 
@@ -202,10 +214,10 @@ type Hooks struct {
 	Restore func() (*Restored, error)
 	// Save is called after every published snapshot. It must return quickly: a state directory queues the write.
 	Save func(Persist)
-	// StateStatus is called at the end of every round and returns the state of the persistence behind Save and
-	// Restore, for [Status.State]. It must not block.
+	// StateStatus is called every time the status is made (a restore and each live round) and returns the state
+	// of the persistence behind Save and Restore, for [Status.State]. It must not block.
 	StateStatus func() StateStatus
-	// OnRound is called at the end of every round with the new status.
+	// OnRound is called at the end of every live poll round with the new status (not by the restore).
 	OnRound func(*Status)
 }
 
@@ -247,8 +259,8 @@ func WithHooks(h Hooks) Option {
 }
 
 // WithObjectStores gives the store of each connection name that objects of the manifest may name. With it an
-// object of an unknown connection is failed with [ReasonUnknownConnection]; without it every object is read
-// from the store of the manifest.
+// object of an unknown connection is failed with [ReasonUnknownConnection]. The store of the manifest always
+// serves the connection named by [Config.Connection], and only that one.
 func WithObjectStores(stores map[string]ObjectStore) Option {
 	return func(r *Reader) { r.stores = maps.Clone(stores) }
 }

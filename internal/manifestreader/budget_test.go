@@ -85,7 +85,7 @@ func TestBudget_SteadyStateIsOneConditionalGetPerRound(t *testing.T) {
 			flt := startFleet(t, store, controlSpecs(tt.connections))
 
 			// startup: C manifests and the distinct objects once per connection (nothing is shared between readers)
-			assert.Len(t, store.takeCalls(), tt.connections*(1+tt.objects))
+			assert.Equal(t, coldFleetCalls(t, tt.connections, objs), store.takeCalls())
 
 			flt.runTo(uint64(1 + tt.rounds))
 
@@ -106,6 +106,34 @@ func TestBudget_SteadyStateIsOneConditionalGetPerRound(t *testing.T) {
 			}
 		})
 	}
+}
+
+// repeated is n copies of c.
+func repeated(c call, n int) []call {
+	out := make([]call, n)
+	for i := range out {
+		out[i] = c
+	}
+
+	return out
+}
+
+// coldFleetCalls is what connections readers that hold nothing request: each reads its manifest unconditionally and
+// fetches each object once.
+func coldFleetCalls(tb testing.TB, connections int, objs []obj) []call {
+	tb.Helper()
+
+	out := make([]call, 0, (1+len(objs))*connections)
+
+	for i := range connections {
+		out = append(out, manifestCall2(manifestKeyOf(i), ""))
+
+		for _, item := range objs {
+			out = append(out, objCall(tb, item))
+		}
+	}
+
+	return sortCalls(out)
 }
 
 func manifestCall2(key, etag string) call { return call{Key: key, ETag: etag} }
@@ -212,29 +240,9 @@ func TestBudget_StartupCostsAtMostConnectionsPlusDistinctObjects(t *testing.T) {
 
 			flt := startFleet(t, store, controlSpecs(tt.connections))
 
-			calls := store.takeCalls()
-			assert.Len(t, calls, tt.wantRequests)
-
-			for _, c := range calls {
-				if c.Key != manifestKeyOf(0) && c.Key != manifestKeyOf(1) {
-					assert.Empty(t, c.ETag, "object requests are unconditional and never repeated")
-				}
-			}
-
-			byKey := map[string]int{}
-			for _, c := range calls {
-				byKey[c.Key]++
-			}
-
-			for key, count := range byKey {
-				if key == manifestKeyOf(0) || key == manifestKeyOf(1) {
-					assert.Equal(t, 1, count, "%s is read once", key)
-
-					continue
-				}
-
-				assert.Equal(t, tt.connections, count, "%s is fetched once per connection", key)
-			}
+			// the manifest of each connection, and each distinct content once per connection (a twin is not fetched)
+			assert.Equal(t, coldFleetCalls(t, tt.connections, objs[:tt.distinct]), store.takeCalls())
+			assert.Len(t, coldFleetCalls(t, tt.connections, objs[:tt.distinct]), tt.wantRequests)
 
 			for _, rep := range flt.replicas {
 				assert.Equal(t, tt.distinct+tt.duplicateOf, rep.reader.Status().Counts.OK)
@@ -274,7 +282,13 @@ func TestBudget_TwoHundredReplicasOnePublish(t *testing.T) {
 	flt := startFleet(t, store, specs)
 
 	// startup: every replica reads the manifest and the objects once, with no spreading delay (it has no content)
-	assert.Len(t, store.takeCalls(), replicas*(1+objects))
+	cold := make([]call, 0, replicas*(1+len(objs)))
+
+	for range replicas {
+		cold = append(cold, coldCalls(t, objs...)...)
+	}
+
+	assert.Equal(t, sortCalls(cold), store.takeCalls())
 
 	for _, rep := range flt.replicas {
 		assert.Empty(t, rep.sched.shorterThan(manifestreader.DefaultPollInterval), "a cold start does not wait")
@@ -294,23 +308,19 @@ func TestBudget_TwoHundredReplicasOnePublish(t *testing.T) {
 
 	calls := store.takeCalls()
 
-	// the budget: 200 x rounds conditional manifest GETs and 200 x changed object GETs, nothing else
-	wantManifest := replicas * (steady + after)
-	assert.Len(t, calls, wantManifest+replicas*changed)
-
-	byCall := map[call]int{}
-	for _, c := range calls {
-		byCall[c]++
-	}
-
-	// the polls before the publish and the one that reads the new manifest send the held ETag; the next one the new
+	// the budget, as the exact list of requests: every poll before the publish and the one that reads the new
+	// manifest send the held ETag, the next poll sends the new one, and each changed object is fetched once per
+	// replica. Nothing else.
 	newETag := manifestETag(store)
 
-	assert.Equal(t, replicas*(steady+1), byCall[manifestCall(held)])
-	assert.Equal(t, replicas*(after-1), byCall[manifestCall(newETag)])
-	assert.Equal(t, replicas, byCall[objCall(t, next[1])])
-	assert.Equal(t, replicas, byCall[objCall(t, next[8])])
-	assert.Len(t, byCall, 4, "no other request")
+	want := make([]call, 0, replicas*(steady+after+changed))
+	want = append(want, repeated(manifestCall(held), replicas*(steady+1))...)
+	want = append(want, repeated(manifestCall(newETag), replicas*(after-1))...)
+	want = append(want, repeated(objCall(t, next[1]), replicas)...)
+	want = append(want, repeated(objCall(t, next[8]), replicas)...)
+
+	assert.ElementsMatch(t, want, calls, "the same requests, in whatever order the replicas sent them")
+	assert.Len(t, want, replicas*(steady+after)+replicas*changed, "200 x rounds + 200 x changed objects")
 }
 
 func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
@@ -360,6 +370,7 @@ func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 			next := append([]obj(nil), objs...)
 			next[0].content = `{"changed":true}`
 
+			held := manifestETag(store)
 			publishAt(t, store, manifestKey, 2, next...)
 			store.takeCalls()
 
@@ -383,12 +394,9 @@ func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 				delays = append(delays, got[0])
 			}
 
-			assert.Len(
-				t,
-				store.takeCalls(),
-				replicas*2,
-				"spreading costs no request: the manifest and the one changed object",
-			)
+			// spreading costs no request: the manifest read and the one changed object, for every replica
+			want := append(repeated(manifestCall(held), replicas), repeated(objCall(t, next[0]), replicas)...)
+			assert.ElementsMatch(t, want, store.takeCalls())
 
 			if !tt.wantWaits {
 				return

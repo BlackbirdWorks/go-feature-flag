@@ -1,59 +1,12 @@
 package manifestreader_test
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
-
-func TestReader_DefaultSchedulerStopsWithTheContext(t *testing.T) {
-	t.Parallel()
-
-	store := newFakeStore()
-	publish(t, store, 1, threeObjects()...)
-
-	roundDone := make(chan struct{}, 1)
-
-	// no scheduler option: the real timer with the default interval, which never fires before the cancel
-	reader, err := manifestreader.New(
-		store,
-		&manifestreader.Config{ManifestKey: manifestKey, Connection: connControl},
-		manifestreader.WithJitter(func() float64 { return 0 }),
-		manifestreader.WithHooks(
-			manifestreader.Hooks{OnRound: func(*manifestreader.Status) { roundDone <- struct{}{} }},
-		),
-	)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	done := make(chan error, 1)
-
-	go func() { done <- reader.Run(ctx) }()
-
-	select {
-	case <-roundDone:
-	case <-time.After(wait):
-		require.FailNow(t, "the first round did not end")
-	}
-
-	cancel()
-
-	select {
-	case runErr := <-done:
-		require.NoError(t, runErr)
-	case <-time.After(wait):
-		require.FailNow(t, "Run did not stop")
-	}
-
-	assert.Equal(t, uint64(1), reader.Status().Polls)
-}
 
 func TestSnapshot_NamesAreSorted(t *testing.T) {
 	t.Parallel()

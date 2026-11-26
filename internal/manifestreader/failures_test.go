@@ -48,6 +48,9 @@ func TestReader_ObjectFailureAndRecovery(t *testing.T) {
 		heal          func(t *testing.T, store *fakeStore)
 		wantReason    string
 		wantRetryable bool
+		// wantQuietRounds is the number of rounds between the failure and its retry in which only the manifest is
+		// asked: a failure for good is retried every BackoffMax (5 minutes, 5 rounds of 60 s).
+		wantQuietRounds int
 	}{
 		{
 			name:       "404: the object listed by the manifest is not there",
@@ -88,7 +91,7 @@ func TestReader_ObjectFailureAndRecovery(t *testing.T) {
 					&manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonDenied})
 			},
 			heal:       func(*testing.T, *fakeStore) {},
-			wantReason: manifestreader.ReasonDenied,
+			wantReason: manifestreader.ReasonDenied, wantQuietRounds: 4,
 		},
 		{
 			name: "an error that is not a FetchError counts as a transient one",
@@ -134,34 +137,25 @@ func TestReader_ObjectFailureAndRecovery(t *testing.T) {
 
 			etag2 := manifestETag(store)
 
-			if tt.wantRetryable {
-				// still failing: the manifest is a 304 and only the failed object is fetched again
-				assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
-			} else {
-				// a failure for good is tried at the slow fixed cadence (5 min, 5 rounds of 60 s), not every round
-				for i := range 4 {
-					assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
-				}
-
-				assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
+			// a failure for good waits for its slow cadence: the manifest is a 304 and nothing else is asked
+			for i := range tt.wantQuietRounds {
+				assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
 			}
 
+			// still failing: the manifest is a 304 and only the failed object is fetched again
+			assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
 			assert.Nil(t, rdr.snapshot(), "no state change, no snapshot")
 			current = rdr.reader.Status()
 			assertFailing(t, &current, wantFailure)
 
 			tt.heal(t, store)
 
-			recovery := []call{manifestCall(etag2), {Key: alpha2Key}}
-
-			if !tt.wantRetryable {
-				for i := range 4 {
-					assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
-				}
+			for i := range tt.wantQuietRounds {
+				assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
 			}
 
 			// the retry succeeds: a new snapshot of the same generation
-			assert.Equal(t, recovery, rdr.round(), "recovery round")
+			assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "recovery round")
 			assert.Equal(t, snapOf(2, map[string]manifestreader.ObjectState{
 				nameAlpha: okState(t, alpha2), nameBeta: okState(t, beta), nameGamma: okState(t, gamma),
 			}), rdr.snapshot())
@@ -239,7 +233,7 @@ func TestReader_StaleContentSurvivesLaterGenerations(t *testing.T) {
 	store.put(keyOf(t, beta), []byte(beta.content))
 	store.put(keyOf(t, gamma), []byte(gamma.content))
 	putManifest(t, store, manifestOf(t, 2, alpha2, beta, gamma))
-	rdr.round()
+	rdr.round() // setup: the requests of a failing object are asserted in TestReader_ObjectFailureAndRecovery
 	require.NotNil(t, rdr.snapshot())
 
 	// generation 3 changes beta only: alpha is still stale with the bytes of generation 1
@@ -259,8 +253,10 @@ func TestReader_StaleContentSurvivesLaterGenerations(t *testing.T) {
 	}), rdr.snapshot())
 
 	// the manifest drops alpha: removal is not a failure
+	held := manifestETag(store)
 	publish(t, store, 4, beta2, gamma)
-	rdr.round()
+
+	assert.Equal(t, []call{manifestCall(held)}, rdr.round(), "the removed name is not requested again")
 	assert.Equal(t, snapOf(4, map[string]manifestreader.ObjectState{
 		nameBeta: okState(t, beta2), nameGamma: okState(t, gamma),
 	}), rdr.snapshot())
@@ -291,6 +287,7 @@ func TestReader_UnknownConnection(t *testing.T) {
 
 	alpha, beta := threeObjects()[0], threeObjects()[1]
 	main, other := newFakeStore(), newFakeStore()
+	main.shareOrder(other)
 
 	manifest := manifestOf(t, 1, alpha, beta)
 	manifest.Objects[1].Connection = connElsewhere

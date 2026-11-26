@@ -13,3 +13,9 @@ type HookPanic struct {
 	Name  string
 	Count uint64
 }
+
+// CacheStatus counts the verified objects the reader holds, each content once however many names use it.
+type CacheStatus struct {
+	Objects int
+	Bytes   int64
+}

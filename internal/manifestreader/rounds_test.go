@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -38,10 +39,8 @@ func TestReader_RestoredGarbageWithTheLiveETagStartsWithAnUnconditionalGet(t *te
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
-	calls := store.takeCalls()
-	require.NotEmpty(t, calls)
-	assert.Equal(t, manifestCall(""), calls[0], "no If-None-Match: a 304 would have kept the reader empty for ever")
-	assert.Len(t, calls, 4)
+	assert.Equal(t, coldCalls(t, threeObjects()...), store.takeCalls(),
+		"no If-None-Match on the manifest: a 304 would have kept the reader empty for ever")
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)
@@ -57,7 +56,7 @@ func TestReader_RestoredManifestThatIsRejectedClearsTheETag(t *testing.T) {
 
 	// a saved manifest of a channel the reader does not serve
 	other := manifestOf(t, 1, threeObjects()...)
-	other.Channel = "canary"
+	other.Channel = otherChannel
 	raw := mustMarshal(t, other)
 
 	hooks := manifestreader.Hooks{Restore: func() (*manifestreader.Restored, error) {
@@ -66,7 +65,7 @@ func TestReader_RestoredManifestThatIsRejectedClearsTheETag(t *testing.T) {
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
-	assert.Equal(t, manifestCall(""), store.takeCalls()[0])
+	assert.Equal(t, coldCalls(t, threeObjects()...), store.takeCalls())
 	assert.NotNil(t, rdr.snapshot())
 }
 
@@ -221,16 +220,19 @@ func TestReader_ManifestRequestTimeout(t *testing.T) {
 
 	// the next round runs
 	store.setHang(manifestKey, false)
-	rdr.round()
+	assert.Equal(t, sortCalls([]call{
+		manifestCall(""), objCall(t, threeObjects()[0]), objCall(t, threeObjects()[1]), objCall(t, threeObjects()[2]),
+	}), rdr.round(), "nothing was read yet: the manifest unconditionally, then the three objects")
 
 	assert.NotNil(t, rdr.snapshot())
 	assert.Empty(t, rdr.reader.Status().Poll.Reason)
 
-	for _, d := range seam.seen() {
-		assert.Equal(t, 7*time.Second, d, "every request carries the configured timeout")
-	}
-
-	assert.Len(t, seam.seen(), 5, "the manifest twice and the three objects")
+	assert.Equal(
+		t,
+		[]time.Duration{7 * time.Second, 7 * time.Second, 7 * time.Second, 7 * time.Second, 7 * time.Second},
+		seam.seen(),
+		"the manifest twice and the three objects, each with the configured timeout",
+	)
 }
 
 func TestReader_ObjectRequestTimeout(t *testing.T) {
@@ -274,31 +276,30 @@ func TestReader_TotalBytesLimit(t *testing.T) {
 	twin := obj{name: nameTwin, content: alpha.content}
 
 	tests := []struct {
-		name         string
-		objs         []obj
-		max          int64
-		wantCalls    int
-		wantAccepted bool
+		name          string
+		objs          []obj
+		wantRequested []obj
+		max           int64
+		wantAccepted  bool
 	}{
 		{
-			name:         "the sum of three objects is 32: at the limit",
-			max:          32,
-			objs:         threeObjects(),
-			wantAccepted: true,
-			wantCalls:    4,
+			name:          "the sum of three objects is 32: at the limit",
+			max:           32,
+			objs:          threeObjects(),
+			wantAccepted:  true,
+			wantRequested: threeObjects(),
 		},
 		{
-			name:      "one byte over the limit is rejected whole, with no object request",
-			max:       31,
-			objs:      threeObjects(),
-			wantCalls: 1,
+			name: "one byte over the limit is rejected whole, with no object request",
+			max:  31,
+			objs: threeObjects(),
 		},
 		{
-			name:         "a checksum listed twice counts once",
-			max:          11,
-			objs:         []obj{alpha, twin},
-			wantAccepted: true,
-			wantCalls:    2,
+			name:          "a checksum listed twice counts once",
+			max:           11,
+			objs:          []obj{alpha, twin},
+			wantAccepted:  true,
+			wantRequested: []obj{alpha},
 		},
 	}
 
@@ -311,7 +312,7 @@ func TestReader_TotalBytesLimit(t *testing.T) {
 
 			rdr := startRig(t, store, &manifestreader.Config{MaxTotalBytes: tt.max})
 
-			assert.Len(t, store.takeCalls(), tt.wantCalls)
+			assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
 			assert.Equal(t, tt.wantAccepted, rdr.snapshot() != nil)
 
 			status := rdr.reader.Status()
@@ -355,11 +356,6 @@ func TestReader_EqualGenerationIdentity(t *testing.T) {
 		{
 			name:        "another key with the same checksum is accepted and changes nothing",
 			mutate:      func(m *controlplane.Manifest) { m.Objects[1].Key = "objects/moved/beta.json" },
-			wantOutcome: manifestreader.OutcomeAccepted,
-		},
-		{
-			name:        "another connection with the same checksum is accepted and changes nothing",
-			mutate:      func(m *controlplane.Manifest) { m.Objects[1].Connection = connElsewhere },
 			wantOutcome: manifestreader.OutcomeAccepted,
 		},
 	}
@@ -524,15 +520,6 @@ func TestReader_SameChecksumUnderSeveralEntries(t *testing.T) {
 			wantOK: true,
 		},
 		{
-			name:    "an unknown connection on the first entry costs no request: the second is used",
-			mutate:  func(m *controlplane.Manifest) { m.Objects[0].Connection = connElsewhere },
-			prepare: func(_ *testing.T, store *fakeStore) { store.put(altKey, []byte(alpha.content)) },
-			wantCalls: []call{
-				manifestCall(""), {Key: altKey},
-			},
-			wantOK: true,
-		},
-		{
 			name:       "all entries fail: both names get the same failure, one request per entry",
 			mutate:     func(*controlplane.Manifest) {},
 			prepare:    func(*testing.T, *fakeStore) {},
@@ -628,6 +615,7 @@ func TestReader_HookPanicsAreRecoveredAndReported(t *testing.T) {
 	// extra rounds panic again in OnRound: polling still goes on
 	alpha2 := obj{name: nameAlpha, content: contentAlphaChanged}
 	publish(t, store, 2, alpha2, threeObjects()[1], threeObjects()[2])
+	// the requests of these rounds are not under test here: hooks and polling are
 	rdr.round()
 	require.NotNil(t, rdr.snapshot())
 	rdr.round()
@@ -662,4 +650,748 @@ func TestReader_SaveGetsTheSnapshotItPublished(t *testing.T) {
 
 	assert.True(t, bytes.Equal(raw, persisted.Manifest))
 	assert.Same(t, rdr.snapshot(), persisted.Snapshot)
+}
+
+func TestReader_KeysAreAbsoluteBucketKeys(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+
+	tests := []struct {
+		name string
+		key  string
+		// wantKey is the key requested for alpha, or empty when no request is made for it.
+		wantKey string
+		wantOK  bool
+	}{
+		{
+			name: "a key with a prefix path is requested verbatim",
+			key:  keyPrefix + "deep/alpha.json", wantKey: keyPrefix + "deep/alpha.json", wantOK: true,
+		},
+		{name: "a key with a leading slash costs no request", key: "/alpha.json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			store.put(tt.key, []byte(alpha.content))
+			store.put(keyOf(t, beta), []byte(beta.content))
+			store.put(keyOf(t, gamma), []byte(gamma.content))
+
+			manifest := manifestOf(t, 1, alpha, beta, gamma)
+			manifest.Objects[0].Key = tt.key
+			putManifest(t, store, manifest)
+
+			rdr := startRig(t, store, &manifestreader.Config{})
+
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+
+			wantCalls := []call{manifestCall(""), objCall(t, beta), objCall(t, gamma)}
+			if tt.wantOK {
+				wantCalls = append(wantCalls, call{Key: tt.wantKey})
+
+				assert.Equal(t, manifestreader.StateOK, snap.Objects[nameAlpha].State)
+			} else {
+				assert.Equal(t, manifestreader.StateMissing, snap.Objects[nameAlpha].State)
+				assert.Equal(t, manifestreader.ReasonInvalidKey, snap.Objects[nameAlpha].Reason)
+			}
+
+			assert.Equal(t, sortCalls(wantCalls), store.takeCalls())
+
+			// later rounds: a bad key stays free of requests
+			for range 2 {
+				assert.Equal(t, []call{manifestCall(manifestETag(store))}, rdr.round())
+			}
+		})
+	}
+}
+
+func TestReader_EmptyKeyRejectsTheManifestWithoutObjectRequests(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	manifest := publish(t, store, 1, threeObjects()...)
+	manifest.Objects[0].Key = ""
+	putManifest(t, store, manifest)
+
+	rdr := startRig(t, store, &manifestreader.Config{})
+
+	assert.Equal(t, []call{manifestCall("")}, store.takeCalls())
+	assert.Nil(t, rdr.snapshot())
+	assert.Equal(t, string(controlplane.CodeMissingValue), rdr.reader.Status().Manifest.Reason)
+}
+
+func TestReader_TotalBytesDoesNotDependOnTheOrderOfEntries(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta := threeObjects()[0], threeObjects()[1] // 11 and 10 bytes
+	twin := obj{name: nameTwin, content: alpha.content}
+
+	tests := []struct {
+		name       string
+		wantReason string
+		wantCalls  []call
+		sizes      [2]int64
+	}{
+		{
+			name: "the small size first", sizes: [2]int64{5, 11},
+			wantCalls: []call{manifestCall("")}, wantReason: manifestreader.ReasonTotalTooLarge,
+		},
+		{
+			name: "the large size first", sizes: [2]int64{11, 5},
+			wantCalls: []call{manifestCall("")}, wantReason: manifestreader.ReasonTotalTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			manifest := manifestOf(t, 1, alpha, twin, beta)
+			manifest.Objects[0].Size, manifest.Objects[1].Size = tt.sizes[0], tt.sizes[1]
+
+			store.put(keyOf(t, alpha), []byte(alpha.content))
+			store.put(keyOf(t, beta), []byte(beta.content))
+			putManifest(t, store, manifest)
+
+			rdr := startRig(t, store, &manifestreader.Config{MaxTotalBytes: 20})
+
+			assert.Equal(t, tt.wantCalls, store.takeCalls())
+			assert.Nil(t, rdr.snapshot())
+			assert.Equal(t, tt.wantReason, rdr.reader.Status().Manifest.Reason)
+		})
+	}
+}
+
+func TestReader_TotalBytesCannotOverflow(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta := threeObjects()[0], threeObjects()[1]
+
+	tests := []struct {
+		name          string
+		wantReason    string
+		wantRequested []obj
+		cfg           manifestreader.Config
+		sizes         [2]int64
+		wantAccepted  bool
+	}{
+		{
+			name:          "a size above the object limit counts for nothing: the huge entry is not requested, the small one is",
+			sizes:         [2]int64{math.MaxInt64, 10},
+			wantAccepted:  true,
+			wantReason:    manifestreader.ReasonTooLarge,
+			wantRequested: []obj{beta},
+		},
+		{
+			name:  "with a huge object limit the two sizes would wrap the sum: the manifest is rejected",
+			cfg:   manifestreader.Config{MaxObjectBytes: math.MaxInt64, MaxTotalBytes: math.MaxInt64},
+			sizes: [2]int64{math.MaxInt64, 1}, wantReason: manifestreader.ReasonTotalTooLarge,
+		},
+		{
+			name:  "exactly the remaining budget is accepted",
+			cfg:   manifestreader.Config{MaxObjectBytes: math.MaxInt64, MaxTotalBytes: math.MaxInt64},
+			sizes: [2]int64{math.MaxInt64 - 10, 10}, wantAccepted: true,
+			wantReason: manifestreader.ReasonSizeMismatch, wantRequested: []obj{alpha, beta},
+		},
+		{
+			name:  "many large objects add up over the total",
+			cfg:   manifestreader.Config{MaxTotalBytes: 100, MaxObjectBytes: 60},
+			sizes: [2]int64{60, 60}, wantReason: manifestreader.ReasonTotalTooLarge,
+		},
+		{
+			name:  "a negative size is an invalid manifest",
+			sizes: [2]int64{-5, 10}, wantReason: string(controlplane.CodeInvalidValue),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			manifest := manifestOf(t, 1, alpha, beta)
+			manifest.Objects[0].Size, manifest.Objects[1].Size = tt.sizes[0], tt.sizes[1]
+
+			store.put(keyOf(t, alpha), []byte(alpha.content))
+			store.put(keyOf(t, beta), []byte(beta.content))
+			putManifest(t, store, manifest)
+
+			rdr := startRig(t, store, &tt.cfg)
+
+			snap := rdr.snapshot()
+
+			if !tt.wantAccepted {
+				assert.Nil(t, snap)
+				assert.Equal(t, tt.wantReason, rdr.reader.Status().Manifest.Reason)
+				assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
+
+				return
+			}
+
+			require.NotNil(t, snap)
+			assert.Equal(t, tt.wantReason, snap.Objects[nameAlpha].Reason)
+			assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
+		})
+	}
+}
+
+func TestReader_CachedContentIsCheckedAgainstTheSizeOfEachEntry(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	twin := obj{name: nameTwin, content: alpha.content}
+
+	t.Run("a warm cache: the same checksum listed with another size in a later generation", func(t *testing.T) {
+		t.Parallel()
+
+		runSteps(t, []step{{
+			name: "gen 2 lists alpha with 10 bytes",
+			act: func(t *testing.T, store *fakeStore) {
+				t.Helper()
+
+				manifest := manifestOf(t, 2, alpha, beta, gamma)
+				manifest.Objects[0].Size = 10
+				putManifest(t, store, manifest)
+			},
+			wantCalls: condGet,
+			wantSnap: snapOf(2, map[string]manifestreader.ObjectState{
+				nameAlpha: func() manifestreader.ObjectState {
+					state := okState(t, alpha)
+					state.State, state.Reason = manifestreader.StateStale, manifestreader.ReasonSizeMismatch
+
+					return state
+				}(),
+				nameBeta: okState(t, beta), nameGamma: okState(t, gamma),
+			}),
+			check: func(t *testing.T, status manifestreader.Status) {
+				t.Helper()
+
+				assert.Equal(t, []manifestreader.ObjectFailure{{
+					Name: nameAlpha, State: manifestreader.StateStale, Reason: manifestreader.ReasonSizeMismatch,
+					Checksum: controlplane.ChecksumOf([]byte(alpha.content)).Value, Retryable: false,
+				}}, status.Failures, "no retry can fix it: only a new manifest")
+			},
+		}})
+	})
+
+	t.Run("a cold start: two entries with one checksum and two sizes", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeStore()
+		manifest := manifestOf(t, 1, alpha, twin)
+		manifest.Objects[1].Size = 5
+
+		store.put(keyOf(t, alpha), []byte(alpha.content))
+		putManifest(t, store, manifest)
+
+		rdr := startRig(t, store, &manifestreader.Config{})
+
+		snap := rdr.snapshot()
+		require.NotNil(t, snap)
+		assert.Equal(
+			t,
+			manifestreader.StateOK,
+			snap.Objects[nameAlpha].State,
+			"the entry with the right size is served",
+		)
+		assert.Equal(t, manifestreader.StateMissing, snap.Objects[nameTwin].State)
+		assert.Equal(t, manifestreader.ReasonSizeMismatch, snap.Objects[nameTwin].Reason)
+	})
+}
+
+func TestReader_ChannelIsPartOfTheIdentityAtAnEqualGeneration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		channel     string
+		wantOutcome string
+		wantChannel string
+		wantCalls   int
+	}{
+		{
+			name: "another channel with the same objects is a conflict", channel: otherChannel,
+			wantOutcome: manifestreader.OutcomeConflict, wantCalls: 1, wantChannel: testChannel,
+		},
+		{
+			name: "the same channel is not", channel: testChannel,
+			wantOutcome: manifestreader.OutcomeAccepted, wantCalls: 1, wantChannel: testChannel,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			publish(t, store, 1, threeObjects()...)
+
+			rdr := startRig(t, store, &manifestreader.Config{Channel: anyChannel})
+			require.NotNil(t, rdr.snapshot())
+
+			held := manifestETag(store)
+			other := manifestOf(t, 1, threeObjects()...)
+			other.Channel = tt.channel
+			createdAt := clocktestInstant()
+			other.CreatedAt = &createdAt // other bytes, so that the ETag changes even for the same channel
+			putManifest(t, store, other)
+
+			assert.Equal(t, []call{manifestCall(held)}, rdr.round())
+			assert.Nil(t, rdr.snapshot(), "no new snapshot either way")
+			assert.Equal(t, tt.wantOutcome, rdr.reader.Status().Manifest.Outcome)
+			assert.Equal(t, tt.wantChannel, rdr.reader.Status().Manifest.Channel)
+		})
+	}
+}
+
+func TestReader_ConnectionChangeAtAnEqualGeneration(t *testing.T) {
+	t.Parallel()
+
+	beta := threeObjects()[1]
+
+	tests := []struct {
+		name       string
+		wantState  manifestreader.State
+		wantReason string
+		known      bool
+	}{
+		{name: "a connection the reader knows: nothing changes", known: true},
+		{
+			name:      "a connection the reader does not know: that entry fails with its own reason",
+			wantState: manifestreader.StateStale, wantReason: manifestreader.ReasonUnknownConnection,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			publish(t, store, 1, threeObjects()...)
+
+			opts := []manifestreader.Option{}
+
+			if tt.known {
+				secondary := newFakeStore()
+				store.shareOrder(secondary)
+
+				opts = append(opts, manifestreader.WithObjectStores(map[string]manifestreader.ObjectStore{
+					connElsewhere: secondary,
+				}))
+			}
+
+			rdr := startRig(t, store, &manifestreader.Config{}, opts...)
+			require.NotNil(t, rdr.snapshot())
+
+			held := manifestETag(store)
+			manifest := manifestOf(t, 1, threeObjects()...)
+			manifest.Objects[1].Connection = connElsewhere
+			putManifest(t, store, manifest)
+
+			assert.Equal(t, []call{manifestCall(held)}, rdr.round())
+
+			snap := rdr.snapshot()
+			if tt.wantState == "" {
+				assert.Nil(t, snap)
+				assert.Equal(t, manifestreader.OutcomeAccepted, rdr.reader.Status().Manifest.Outcome)
+
+				return
+			}
+
+			require.NotNil(t, snap)
+			assert.Equal(t, tt.wantState, snap.Objects[nameBeta].State)
+			assert.Equal(t, tt.wantReason, snap.Objects[nameBeta].Reason)
+			assert.Equal(t, beta.content, string(snap.Objects[nameBeta].Bytes), "the last good content is carried")
+		})
+	}
+}
+
+func TestReader_AnEntryThatFailsItsOwnChecksNeverBorrowsASibling(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	twin := obj{name: nameTwin, content: alpha.content}
+	altKey := keyPrefix + "alt/twin.json"
+
+	// the twin lists the content of alpha under a key that starts with a slash
+	build := func(t *testing.T, bad func(entry *controlplane.ManifestObject)) (*fakeStore, *controlplane.Manifest) {
+		t.Helper()
+
+		manifest := manifestOf(t, 1, alpha, twin)
+		manifest.Objects[1].Key = altKey
+		bad(&manifest.Objects[1])
+
+		store := newFakeStore()
+		store.put(keyOf(t, alpha), []byte(alpha.content))
+		store.put(altKey, []byte(alpha.content))
+		putManifest(t, store, manifest)
+
+		return store, manifest
+	}
+
+	tests := []struct {
+		name       string
+		bad        func(entry *controlplane.ManifestObject)
+		wantReason string
+	}{
+		{
+			name:       "a key with a leading slash",
+			bad:        func(e *controlplane.ManifestObject) { e.Key = "/twin.json" },
+			wantReason: manifestreader.ReasonInvalidKey,
+		},
+		{
+			name:       "an unknown connection",
+			bad:        func(e *controlplane.ManifestObject) { e.Connection = connElsewhere },
+			wantReason: manifestreader.ReasonUnknownConnection,
+		},
+		{
+			name:       "a size above the object limit",
+			bad:        func(e *controlplane.ManifestObject) { e.Size = 1 << 40 },
+			wantReason: manifestreader.ReasonTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+", cold cache", func(t *testing.T) {
+			t.Parallel()
+
+			store, _ := build(t, tt.bad)
+			rdr := startRig(t, store, &manifestreader.Config{MaxObjectBytes: 1 << 20, MaxTotalBytes: 1 << 30})
+
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+			assert.Equal(t, manifestreader.StateOK, snap.Objects[nameAlpha].State, "the valid sibling is served")
+			assert.Equal(t, manifestreader.StateMissing, snap.Objects[nameTwin].State)
+			assert.Equal(t, tt.wantReason, snap.Objects[nameTwin].Reason)
+			assert.Equal(
+				t,
+				[]call{manifestCall(""), objCall(t, alpha)},
+				store.takeCalls(),
+				"the bad entry costs no request",
+			)
+		})
+
+		t.Run(tt.name+", warm cache", func(t *testing.T) {
+			t.Parallel()
+
+			// generation 1 holds the content; generation 2 lists a twin with the bad entry
+			store := newFakeStore()
+			publish(t, store, 1, alpha, beta, gamma)
+
+			rdr := startRig(t, store, &manifestreader.Config{MaxObjectBytes: 1 << 20, MaxTotalBytes: 1 << 30})
+			require.NotNil(t, rdr.snapshot())
+
+			held := manifestETag(store)
+			manifest := manifestOf(t, 2, alpha, beta, gamma, twin)
+			tt.bad(&manifest.Objects[3])
+			putManifest(t, store, manifest)
+
+			assert.Equal(t, []call{manifestCall(held)}, rdr.round(), "the content is cached: no object request")
+
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+			assert.Equal(t, manifestreader.StateOK, snap.Objects[nameAlpha].State)
+			assert.Equal(
+				t,
+				manifestreader.StateMissing,
+				snap.Objects[nameTwin].State,
+				"no earlier content for the twin",
+			)
+			assert.Equal(t, tt.wantReason, snap.Objects[nameTwin].Reason)
+		})
+	}
+}
+
+func TestReader_GroupFailureIsRetryableIfAnyRouteIs(t *testing.T) {
+	t.Parallel()
+
+	alpha := threeObjects()[0]
+	twin := obj{name: nameTwin, content: alpha.content}
+	altKey := keyPrefix + "alt/twin.json"
+
+	denied := &manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonDenied}
+	transient := &manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonError, Retryable: true}
+
+	tests := []struct {
+		name string
+		// first and second are the failures of the first and of the second route.
+		first, second error
+		wantReason    string
+		wantRetryable bool
+	}{
+		{
+			name:          "denied then transient",
+			first:         denied,
+			second:        transient,
+			wantReason:    manifestreader.ReasonDenied,
+			wantRetryable: true,
+		},
+		{
+			name:          "transient then denied",
+			first:         transient,
+			second:        denied,
+			wantReason:    manifestreader.ReasonDenied,
+			wantRetryable: true,
+		},
+		{
+			name:       "denied on both routes is not retryable",
+			first:      denied,
+			second:     denied,
+			wantReason: manifestreader.ReasonDenied,
+		},
+		{
+			name:          "missing then transient: missing is the more actionable",
+			first:         manifestreader.ErrNotFound,
+			second:        transient,
+			wantReason:    manifestreader.ReasonMissing,
+			wantRetryable: true,
+		},
+		{
+			name:          "transient then missing",
+			first:         transient,
+			second:        manifestreader.ErrNotFound,
+			wantReason:    manifestreader.ReasonMissing,
+			wantRetryable: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			manifest := manifestOf(t, 1, alpha, twin)
+			manifest.Objects[1].Key = altKey
+
+			store := newFakeStore()
+			putManifest(t, store, manifest)
+			store.failNext(keyOf(t, alpha), tt.first)
+			store.failNext(altKey, tt.second)
+
+			rdr := startRig(t, store, &manifestreader.Config{})
+
+			require.NotNil(t, rdr.snapshot())
+			assert.Equal(t, []manifestreader.ObjectFailure{
+				{
+					Name:      nameAlpha,
+					State:     manifestreader.StateMissing,
+					Reason:    tt.wantReason,
+					Checksum:  controlplane.ChecksumOf([]byte(alpha.content)).Value,
+					Retryable: tt.wantRetryable,
+				},
+				{
+					Name:      nameTwin,
+					State:     manifestreader.StateMissing,
+					Reason:    tt.wantReason,
+					Checksum:  controlplane.ChecksumOf([]byte(alpha.content)).Value,
+					Retryable: tt.wantRetryable,
+				},
+			}, rdr.reader.Status().Failures)
+		})
+	}
+}
+
+func TestReader_RejectedRestoreDropsTheSavedObjects(t *testing.T) {
+	t.Parallel()
+
+	saved := func(manifest []byte) manifestreader.Hooks {
+		return manifestreader.Hooks{Restore: func() (*manifestreader.Restored, error) {
+			return &manifestreader.Restored{
+				ETag:     `"x"`,
+				Manifest: manifest,
+				Objects:  objectsContent(threeObjects()),
+			}, nil
+		}}
+	}
+
+	good := mustMarshal(t, manifestOf(t, 1, threeObjects()...))
+
+	tests := []struct {
+		name        string
+		wantOutcome string
+		manifest    []byte
+		wantCache   manifestreader.CacheStatus
+	}{
+		{
+			name: "an accepted restore keeps the saved objects", manifest: good,
+			wantCache: manifestreader.CacheStatus{Objects: 3, Bytes: 32}, wantOutcome: manifestreader.OutcomeAccepted,
+		},
+		{
+			name: "a rejected restore drops them at once", manifest: []byte("garbage: ["),
+			wantCache: manifestreader.CacheStatus{}, wantOutcome: manifestreader.OutcomeInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// the live manifest cannot be read
+			own := newFakeStore()
+			publish(t, own, 1, threeObjects()...)
+			own.failNext(manifestKey, errBoom)
+
+			rdr := startRig(t, own, &manifestreader.Config{}, manifestreader.WithHooks(saved(tt.manifest)))
+
+			status := rdr.reader.Status()
+			assert.Equal(t, manifestreader.PollError, status.Poll.Result, "the live poll failed")
+			assert.Equal(t, tt.wantOutcome, status.Manifest.Outcome)
+			assert.Equal(t, tt.wantCache, status.Cache)
+		})
+	}
+}
+
+func TestReader_CacheKeepsOnlyWhatIsServedOrWaited(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	alpha2 := obj{name: nameAlpha, content: contentAlphaSecond}
+	big := obj{name: "big", content: alpha.content} // the content of alpha, under a name whose size is too large
+
+	tests := []struct {
+		next           func(t *testing.T, store *fakeStore) *controlplane.Manifest
+		wantCalls      func(t *testing.T) []call
+		name           string
+		wantName       string
+		wantState      manifestreader.State
+		wantReason     string
+		wantBytesAfter string
+		wantCacheAfter manifestreader.CacheStatus
+	}{
+		{
+			name: "an entry that failed its own checks pins nothing: the bytes of the removed name are dropped",
+			next: func(t *testing.T, _ *fakeStore) *controlplane.Manifest {
+				t.Helper()
+
+				manifest := manifestOf(t, 2, big, beta, gamma)
+				manifest.Objects[0].Size = 30
+
+				return manifest
+			},
+			wantName: "big", wantState: manifestreader.StateMissing, wantReason: manifestreader.ReasonTooLarge,
+			wantCacheAfter: manifestreader.CacheStatus{Objects: 2, Bytes: 21},
+			// the oversized entry is not requested, and beta and gamma are held: the manifest GET only
+			wantCalls: func(*testing.T) []call { return nil },
+		},
+		{
+			name: "a stale name keeps its last verified bytes while its new content fails",
+			next: func(t *testing.T, _ *fakeStore) *controlplane.Manifest {
+				t.Helper()
+
+				return manifestOf(t, 2, alpha2, beta, gamma) // alpha2 is not written
+			},
+			wantName: nameAlpha, wantState: manifestreader.StateStale, wantReason: manifestreader.ReasonMissing,
+			wantBytesAfter: alpha.content,
+			wantCacheAfter: manifestreader.CacheStatus{Objects: 3, Bytes: 32},
+			// the new content of alpha is requested (and is not there)
+			wantCalls: func(t *testing.T) []call {
+				t.Helper()
+
+				return []call{objCall(t, alpha2)}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			publish(t, store, 1, alpha, beta, gamma)
+
+			rdr := startRig(t, store, &manifestreader.Config{MaxObjectBytes: 20})
+			require.NotNil(t, rdr.snapshot())
+			assert.Equal(
+				t,
+				manifestreader.CacheStatus{Objects: 3, Bytes: 32},
+				rdr.reader.Status().Cache,
+				"generation 1",
+			)
+
+			held := manifestETag(store)
+			putManifest(t, store, tt.next(t, store))
+
+			assert.Equal(t, sortCalls(append([]call{manifestCall(held)}, tt.wantCalls(t)...)), rdr.round())
+
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+			assert.Equal(t, tt.wantState, snap.Objects[tt.wantName].State)
+			assert.Equal(t, tt.wantReason, snap.Objects[tt.wantName].Reason)
+			assert.Equal(t, tt.wantBytesAfter, string(snap.Objects[tt.wantName].Bytes))
+			assert.Equal(t, tt.wantCacheAfter, rdr.reader.Status().Cache)
+		})
+	}
+}
+
+func TestReader_ANewRouteForAFailingEntryAtAnEqualGeneration(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	fixedKey := keyPrefix + "fixed/alpha.json"
+
+	tests := []struct {
+		fix       func(entry *controlplane.ManifestObject)
+		name      string
+		wantState manifestreader.State
+		wantCalls []call
+	}{
+		{
+			name:      "a new key is tried and the recovery is published at the same generation",
+			fix:       func(e *controlplane.ManifestObject) { e.Key = fixedKey },
+			wantCalls: []call{{Key: fixedKey}},
+			wantState: manifestreader.StateOK,
+		},
+		{
+			name:      "the same route again changes nothing: it fails the same way",
+			fix:       func(*controlplane.ManifestObject) {},
+			wantState: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			store.put(keyOf(t, beta), []byte(beta.content))
+			store.put(keyOf(t, gamma), []byte(gamma.content))
+			store.put(fixedKey, []byte(alpha.content))
+			putManifest(t, store, manifestOf(t, 1, alpha, beta, gamma)) // alpha is not at its key
+
+			rdr := startRig(t, store, &manifestreader.Config{})
+			require.NotNil(t, rdr.snapshot())
+			assert.Equal(t, manifestreader.StateMissing, rdr.reader.Status().Failures[0].State)
+
+			held := manifestETag(store)
+			manifest := manifestOf(t, 1, alpha, beta, gamma)
+			createdAt := clocktestInstant()
+			manifest.CreatedAt = &createdAt // other bytes, so that the manifest is read
+			tt.fix(&manifest.Objects[0])
+			putManifest(t, store, manifest)
+
+			want := append([]call{manifestCall(held)}, tt.wantCalls...)
+			if tt.wantState == "" {
+				want = append(want, objCall(t, alpha)) // the failing entry is retried on the old route
+			}
+
+			assert.Equal(t, sortCalls(want), rdr.round())
+			assert.Equal(t, manifestreader.OutcomeAccepted, rdr.reader.Status().Manifest.Outcome)
+
+			snap := rdr.snapshot()
+			if tt.wantState == "" {
+				assert.Nil(t, snap)
+
+				return
+			}
+
+			require.NotNil(t, snap)
+			assert.Equal(t, uint64(1), snap.Generation)
+			assert.Equal(t, tt.wantState, snap.Objects[nameAlpha].State)
+			assert.Empty(t, rdr.reader.Status().Failures)
+		})
+	}
 }

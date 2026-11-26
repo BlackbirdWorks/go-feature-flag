@@ -91,8 +91,10 @@ type Status struct {
 	State       StateStatus
 	// Backoff is the backoff state: the consecutive failures of the manifest poll and the wait planned after
 	// this round.
-	Backoff     BackoffStatus
-	Counts      Counts
+	Backoff BackoffStatus
+	Counts  Counts
+	// Cache is what the reader holds in memory: verified objects, by checksum.
+	Cache       CacheStatus
 	Polls       uint64
 	NotModified uint64
 }

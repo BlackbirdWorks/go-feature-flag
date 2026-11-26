@@ -236,7 +236,7 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{broken"), 0o600))
 			},
-			wantCalls: coldCalls(objs),
+			wantCalls: coldWant(objs),
 		},
 		{
 			name: "manifest copy truncated: a cold start",
@@ -244,7 +244,7 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.Truncate(filepath.Join(dir, "manifest.json"), 20))
 			},
-			wantCalls: coldCalls(objs),
+			wantCalls: coldWant(objs),
 		},
 		{
 			name: "manifest copy missing: a cold start",
@@ -252,7 +252,7 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.Remove(filepath.Join(dir, "manifest.json")))
 			},
-			wantCalls: coldCalls(objs),
+			wantCalls: coldWant(objs),
 		},
 		{
 			name: "an empty directory: a cold start",
@@ -261,7 +261,7 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 				require.NoError(t, os.RemoveAll(dir))
 				require.NoError(t, os.Mkdir(dir, 0o700))
 			},
-			wantCalls: coldCalls(objs),
+			wantCalls: coldWant(objs),
 		},
 	}
 
@@ -324,18 +324,12 @@ func objectCalls(items ...obj) func(*testing.T, string) []call {
 	}
 }
 
-func coldCalls(objs []obj) func(*testing.T, string) []call {
+// coldWant is the cost of a cold start of objs, for the table of the damaged state directories.
+func coldWant(objs []obj) func(*testing.T, string) []call {
 	return func(t *testing.T, _ string) []call {
 		t.Helper()
 
-		out := make([]call, 0, 1+len(objs))
-		out = append(out, manifestCall(""))
-
-		for _, o := range objs {
-			out = append(out, objCall(t, o))
-		}
-
-		return out
+		return coldCalls(t, objs...)
 	}
 }
 

@@ -127,7 +127,7 @@ func (f *InternalFlag) Value(
 			Reason:       ReasonError,
 			ErrorCode:    ErrorCodeTargetingKeyMissing,
 			ErrorMessage: keyError.Error(),
-			Metadata:     f.GetMetadata(),
+			Metadata:     CloneMetadata(f.GetMetadata()),
 		}
 	}
 
@@ -136,7 +136,7 @@ func (f *InternalFlag) Value(
 			Variant:   VariationSDKDefault,
 			Reason:    ReasonDisabled,
 			Cacheable: f.isCacheable(),
-			Metadata:  f.GetMetadata(),
+			Metadata:  CloneMetadata(f.GetMetadata()),
 		}
 	}
 
@@ -148,7 +148,7 @@ func (f *InternalFlag) Value(
 				Reason:       ReasonError,
 				ErrorCode:    ErrorFlagConfiguration,
 				ErrorMessage: err.Error(),
-				Metadata:     flag.detachedMetadata(f),
+				Metadata:     flag.detachedMetadata(),
 			}
 	}
 
@@ -160,7 +160,7 @@ func (f *InternalFlag) Value(
 		metadata = constructMetadata(flag.GetMetadata(), ruleName)
 	} else {
 		// the metadata and the rule name of a memoized flag are shared too (see detachedMetadata).
-		metadata = constructMetadata(flag.detachedMetadata(f), ruleName)
+		metadata = constructMetadata(flag.detachedMetadata(), ruleName)
 		if ruleName != nil {
 			name := *ruleName
 			ruleName = &name
@@ -688,24 +688,32 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
 }
 
-// detachedMetadata returns the metadata of the flag, copied when the flag is a memoized flag built
-// from f (shared, read-only) because the caller owns what it receives.
-func (f *InternalFlag) detachedMetadata(original *InternalFlag) map[string]any {
-	if f == original {
-		return f.GetMetadata()
-	}
-
-	return cloneMetadata(f.GetMetadata())
+// detachedMetadata returns a copy of the metadata of the flag: the flag is the cached one (or a memoized flag
+// built from it), both are shared by concurrent evaluations, and the caller owns what it receives.
+func (f *InternalFlag) detachedMetadata() map[string]any {
+	return CloneMetadata(f.GetMetadata())
 }
 
-func cloneMetadata(metadata map[string]any) map[string]any {
+// CloneValue returns a deep copy of the objects and arrays of a variation value, the other values (immutable)
+// are returned as they are. The value a flag returns is the one stored in the cache, shared by every evaluation.
+func CloneValue(val any) any {
+	return cloneVariationValue(val)
+}
+
+// CloneMetadata returns a deep copy of the metadata of a flag, nil for nil. The metadata a flag holds is the
+// one of the cache, shared by every evaluation: a caller that wants to hand it out or to change it works on a copy.
+func CloneMetadata(metadata map[string]any) map[string]any {
 	if metadata == nil {
 		return nil
 	}
 
-	cloned, ok := cloneVariationValue(metadata).(map[string]any)
-	if !ok {
-		return metadata
+	// one allocation for the usual metadata (strings, numbers, booleans): only the containers are copied again.
+	cloned := maps.Clone(metadata)
+	for key, val := range cloned {
+		switch val.(type) {
+		case map[string]any, map[any]any, []any:
+			cloned[key] = cloneVariationValue(val)
+		}
 	}
 
 	return cloned

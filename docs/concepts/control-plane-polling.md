@@ -4,6 +4,14 @@
 > when the relay switches to config v2 (epic #19, issue #8). The v1 configuration keeps polling its retrievers as
 > before.
 
+## Keys are absolute bucket keys
+
+The manifest key (`controlPlane.manifest.key`) and the `key` of every object entry are absolute bucket keys, exactly as
+the publisher wrote them. A key prefix is applied by the publisher only: the reader never adds one, and fetches
+exactly the key it is given. A key that is empty or starts with `/` is not requested: an object entry fails with
+`invalid-key` (the manifest key is refused when the reader is built, and an entry with an empty key makes the whole
+manifest invalid).
+
 ## What it does
 
 The relay learns what to serve from one small document, the **manifest**, that an external control plane publishes
@@ -23,17 +31,18 @@ Per replica and per control-plane connection:
 
 | Situation | Requests |
 |---|---|
-| Nothing changed (the normal case) | exactly 1 conditional GET of the manifest per poll interval, answered with `304 Not Modified` |
+| Nothing changed and no object failing (the normal case) | exactly 1 conditional GET of the manifest per poll interval, answered with `304 Not Modified`, and nothing else |
 | A new manifest that changes `K` objects | the manifest GET (200) plus `K` object GETs, once |
 | Two entries with the same checksum | fetched once |
-| An object that failed | 1 GET of that object per retry, on a growing, capped schedule (see [Backoff](#backoff)), nothing else |
+| Objects that failed | the manifest GET plus 1 GET for each failing object that is due, on a growing, capped schedule (see [Backoff](#backoff)); for an object that failed for good, one every 5 minutes (plus 1 more for each other entry that lists the same checksum, only when the first fails) |
 | Any situation | 0 LIST, 0 HEAD |
 
 "One request" means one logical conditional GET. When a GET fails (5xx, throttling, a dropped connection) the S3
 client retries it: those retries are extra attempts, and each attempt is counted once by the request metric. The
-steady-state budget (every round answered `304`, no failing object) is exactly one request per round.
+steady-state budget (every round answered `304`, no failing object) is exactly one request per round. With failing
+objects a round costs the manifest GET plus the object retries, and nothing else.
 
-The numbers do not depend on how many objects, flag sets or API keys the manifest lists. With 60 s polling a replica
+The request numbers do not depend on how many objects, flag sets or API keys the manifest lists. With 60 s polling a replica
 makes 1 440 requests a day; 200 replicas make 288 000. The manifest may list up to `maxObjects` entries (default
 20000): a bigger manifest is rejected whole, one at the limit is accepted.
 
@@ -45,8 +54,10 @@ jitter is disabled or when restored state served a snapshot at once.
 ## A poll round
 
 1. Send the conditional GET of the manifest with the ETag of the last manifest read.
-2. `304`: nothing else happens (no download, no parsing, no snapshot). The only exception is an object that failed
-   earlier: it is fetched again (see below). Nothing that grows with the size of the manifest runs in such a round.
+2. `304`: when no object is failing, nothing else happens (no download, no parsing, no snapshot). Otherwise each
+   failing object is fetched again (see below). Nothing that grows with the size of the manifest runs in such a round
+   as long as no object changes state. A round in which an object recovers or fails in another way rebuilds the
+   snapshot and the status, which costs time and memory proportional to the size of the manifest.
 3. `200`: decode and validate the manifest with the `controlplane` package. An invalid manifest is rejected whole.
 4. Apply the generation rules.
 5. Fetch the objects whose checksum is not held, at most 4 at a time (configurable, at most 16), verify each
@@ -60,8 +71,8 @@ A failed object never blocks the others.
 |---|---|
 | Higher generation than the held one | accepted |
 | Lower generation | ignored and reported (`lower-generation`) |
-| Equal generation, same objects, checksums, kinds and formats | accepted, nothing to do (a rewrite of the same content; a changed `key`, `connection` or `createdAt` alone changes nothing) |
-| Equal generation, another object set, checksum, `kind` or `format` | rejected and reported (`generation-conflict`): a publisher bug |
+| Equal generation, same channel, objects, checksums, kinds and formats | accepted. A rewrite that changes only `createdAt`, or the `key` or `connection` of an entry that already serves its checksum (the connection being a known one), changes nothing and publishes no snapshot. For an entry that is failing, a new `key` or `connection` is a new route: it is tried in that round, and a recovery snapshot of the same generation follows if it works. The entry checks still apply to the new entry: an unknown `connection`, an invalid `key` or another `size` than the content fails that entry (`unknown-connection`, `invalid-key`, `size-mismatch`), which is then `stale` (or `missing`) and published as a state change |
+| Equal generation, another channel, object set, checksum, `kind` or `format` | rejected and reported (`generation-conflict`): a publisher bug |
 
 A rollback is a new, higher generation that references older objects.
 
@@ -76,7 +87,7 @@ Each object of a snapshot has a state:
 | `missing` | Fetching or verifying failed and no content of this name was ever loaded: no bytes |
 
 Every failed object has a reason: `missing` (404), `checksum-mismatch`, `size-mismatch`, `invalid-size`, `too-large`,
-`denied`, `timeout`, `error`, `unknown-connection`, `pending` (restored from the state directory, not fetched yet).
+`denied`, `timeout`, `error`, `unknown-connection`, `invalid-key`, `not-restored` (restored from the state directory, fetched after the first live poll).
 
 The listed `size` is binding:
 
@@ -84,21 +95,30 @@ The listed `size` is binding:
   any request;
 - the request is limited to the listed size, and a body shorter or longer than it fails with `size-mismatch`, before
   the checksum is looked at;
+- an entry whose key starts with `/` fails with `invalid-key`, without any request;
 - an entry that names a connection the reader has no store for fails with `unknown-connection`, without any request;
   it is never read from the store of the manifest. An entry with a `versionId` is read at that version.
 
-A failure that needs no request is final until the manifest changes: it costs nothing in later rounds.
+A cached object is also checked against the size of each entry that uses it: an entry that lists another size than
+the content has fails with `size-mismatch`, and the others that share the checksum are not affected.
+
+The checks of one entry (`invalid-key`, `invalid-size`, `too-large`, `unknown-connection`) apply to that entry only,
+even when another entry lists the same checksum, or the content is already held: an entry that fails them is failed
+with its own reason and never takes the result of a sibling. Such a failure needs no request and is final until the
+manifest changes. When every route to a checksum fails, the failure is retryable if any route failed retryably, and
+its reason is the most actionable one: `denied`, then `checksum-mismatch`, `size-mismatch`, `missing`, then the rest.
 
 A failed object is tried again on its own schedule (see [Backoff](#backoff)), and only that object: the verified ones
 are not fetched again. When it succeeds, a new snapshot of the **same generation** is published with the new state. A consumer must accept a state
 change inside a generation.
 
 Verified bytes are cached by checksum, so two names with one checksum share one download and one copy. A cached
-copy is dropped when no entry of the current manifest and no stale name refers to it.
+copy is dropped when no name serves it (an `ok` name, or a `stale` one that carries it) and no retry for it is
+pending. An entry that failed one of its own checks pins nothing.
 
 When several entries list one checksum, the content is fetched through the first one. Only if that fails is the next
 entry tried (one more request per extra entry, only on failure). All names that share the checksum get the same
-result.
+fetched content; each entry still passes its own checks (below).
 
 ## What happens on each failure
 
@@ -124,7 +144,7 @@ The reader never stops the process.
 | Objects in a manifest | 20000 | The manifest is rejected whole above it |
 | Manifest size | 16 MiB | The download is refused without buffering above it |
 | Object size | 16 MiB, and the `size` the manifest lists | An entry above it is not requested; a body of another length fails |
-| Sum of the sizes of the distinct objects | 1 GiB | The manifest is rejected whole above it |
+| Sum of the sizes of the distinct objects | 1 GiB | The manifest is rejected whole above it. An entry above the object limit counts for nothing (it is not requested); each size is compared with the budget left, so the sum cannot overflow |
 | Request timeout | 60 s | Every request (manifest and each object) |
 | Concurrent object downloads | 4 | At most 16 |
 | Poll interval | 60 s, +/-10 % jitter | At least 1 s |
@@ -136,8 +156,11 @@ machine. The decoder builds a tree of the whole document before the entry count 
 the byte cap can allocate far more before it is rejected. The manifest byte cap is what bounds that cost. This cost
 is paid only when the manifest changes, never on a `304`.
 
-Worst-case memory: about the total-size cap for the current content, plus the same again for stale content that is
-still carried, plus the concurrent downloads times the object limit in flight. Object bodies are read into one
+Worst-case memory: about the total-size cap for the current content, plus the last good content that stale names still
+carry, plus the concurrent downloads times the object limit in flight. A carried object was within the limits when it
+was loaded, but the carried bytes of several older generations are not bounded by the total-size cap: they are bounded
+by the number of objects times the object limit. A checksum listed with several sizes counts with the largest size
+against the total-size cap. Object bodies are read into one
 buffer sized from the listed size.
 
 ## Delivery and status
@@ -145,11 +168,15 @@ buffer sized from the listed size.
 - Snapshots go through a Go channel of size 1 with latest-wins delivery: a snapshot that was not consumed is replaced
   by a newer one, and the poller never waits for the consumer.
 - The status is an immutable value readable at any time: last poll result and reason, held generation, last sync, the
-  state counts and the failed objects (name, state, reason, no bytes), the counts of polls and `304` answers, and
+  state counts and the failed objects (name, state, reason, no bytes), the counts of polls and `304` answers, the verified objects held in memory (count and bytes), and
   the hooks that panicked.
 - Hooks (restore, save, round) run on the poller and must not block. Their arguments are read-only and shared with
   the reader: copy what you keep. The save hook always gets the manifest that was accepted, with its own ETag.
-- After a restart from saved state, the saved ETag is used only if the saved manifest is accepted. Otherwise the
+- After a restart from saved state, the saved objects are served at once, nothing is fetched before the first poll of
+the live manifest, and an object that was not saved is `missing` with reason `not-restored` until it is fetched.
+Restoring is not a poll round: the round hook runs for live polls only. A saved manifest that is not accepted is
+dropped with its objects.
+The saved ETag is used only if the saved manifest is accepted. Otherwise the
   first poll is an unconditional GET.
 - Logs and the status carry object names and reason codes only: never object bytes, keys or error text of the store.
 
@@ -213,15 +240,15 @@ the reader through the `Hooks` (`Restore`, `Save`, `StateStatus`): the reader do
 |---|---|
 | Restart, nothing changed | 1 conditional GET (`If-None-Match` with the ETag of the accepted manifest), answered `304`; 0 object GETs; the snapshot is served before that request |
 | Restart, store unreachable | The failed poll only; the saved content is served at once |
-| An object file is missing or corrupt | One GET for that object, in the first round, after the restored snapshot was published (the object is `missing` with reason `pending` until then) |
+| An object file is missing or corrupt | One GET for that object, in the first round, after the restored snapshot was published (the object is `missing` with reason `not-restored` until then) |
 | The manifest copy is missing or corrupt, empty directory | A cold start: the manifest and the objects |
 | The directory is refused (see below) | A cold start; nothing is read from or written to the directory |
 
 The restored snapshot is published before any request: verified objects are `ok`, objects that are not there are
-`missing` (reason `pending`), and a name that was served stale when the state was saved is `stale` again with the
+`missing` (reason `not-restored`), and a name that was served stale when the state was saved is `stale` again with the
 bytes it was served with. When the store is back the first round fetches what is missing, and the name is `ok`. A
-restored object passes the same checks as a fetched one (the listed size, the object limit); one that does not is
-fetched again.
+restored object is checked like a fetched one (the listed size, the object limit): one that fails is failed locally
+(`size-mismatch`, `too-large`) and is never served; nothing is requested for it.
 
 **Layout** (version 1; the directory is created with mode `0700`, files are `0600`)
 

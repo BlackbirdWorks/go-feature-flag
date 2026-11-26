@@ -53,7 +53,7 @@ func TestRestart_AStaleNameIsStaleAgainWithItsOldBytes(t *testing.T) {
 	restored := second.snapshot()
 	require.NotNil(t, restored)
 	assert.Equal(t, uint64(2), restored.Generation)
-	assert.Equal(t, staleAlpha(t, manifestreader.ReasonPending), restored.Objects[nameAlpha],
+	assert.Equal(t, staleAlpha(t, manifestreader.ReasonNotRestored), restored.Objects[nameAlpha],
 		"stale with the generation 1 bytes and checksum, not missing")
 	assert.Equal(t, okState(t, objs[1]), restored.Objects[nameBeta])
 	assert.Equal(t, okState(t, objs[2]), restored.Objects[nameGamma])
@@ -61,7 +61,7 @@ func TestRestart_AStaleNameIsStaleAgainWithItsOldBytes(t *testing.T) {
 	status := second.reader.Status()
 	assert.Equal(t, manifestreader.Counts{OK: 2, Stale: 1}, status.Counts)
 	assert.Equal(t, []manifestreader.ObjectFailure{{
-		Name: nameAlpha, State: manifestreader.StateStale, Reason: manifestreader.ReasonPending,
+		Name: nameAlpha, State: manifestreader.StateStale, Reason: manifestreader.ReasonNotRestored,
 		Checksum: controlplane.ChecksumOf([]byte(alpha2.content)).Value, Retryable: true,
 	}}, status.Failures)
 	assert.Equal(
@@ -107,7 +107,7 @@ func TestRestart_PublishesTheRestoredSnapshotBeforeAnyRequestCompletes(t *testin
 			wantAlpha: manifestreader.ObjectState{
 				Kind: controlplane.KindFlags, Format: controlplane.FormatJSON,
 				Checksum: controlplane.ChecksumOf([]byte(objs[0].content)), State: manifestreader.StateMissing,
-				Reason: manifestreader.ReasonPending,
+				Reason: manifestreader.ReasonNotRestored,
 			},
 			wantFailed: 1,
 		},
@@ -161,30 +161,36 @@ func TestRestart_PublishesTheRestoredSnapshotBeforeAnyRequestCompletes(t *testin
 	}
 }
 
-// TestRestart_ARestoredObjectPassesTheChecksOfAFetchedOne: bytes whose checksum is right but whose length is not the
-// listed size, or that are above the object limit, are discarded and fetched like any object.
-func TestRestart_ARestoredObjectPassesTheChecksOfAFetchedOne(t *testing.T) {
+// TestRestart_ARestoredObjectIsCheckedLikeAFetchedOne: bytes whose checksum is right but whose length is not the
+// listed size, or that are above the object limit, are failed locally and never served; nothing is requested for
+// them (the manifest poll is the only request).
+func TestRestart_ARestoredObjectIsCheckedLikeAFetchedOne(t *testing.T) {
 	t.Parallel()
 
 	alpha := threeObjects()[0]
 
 	tests := []struct {
-		name       string
-		wantReason string
-		cfg        manifestreader.Config
-		sizeDelta  int64
-		wantCalls  int
+		name           string
+		wantAlphaState manifestreader.State
+		wantFailures   []manifestreader.ObjectFailure
+		cfg            manifestreader.Config
+		sizeDelta      int64
 	}{
-		{name: "the listed size is the length", wantReason: ""},
+		{name: "the listed size is the length", wantAlphaState: manifestreader.StateOK},
 		{
-			name:       "the listed size is not the length",
-			sizeDelta:  1,
-			wantReason: manifestreader.ReasonSizeMismatch,
-			wantCalls:  1,
+			name: "the listed size is not the length", sizeDelta: 1, wantAlphaState: manifestreader.StateMissing,
+			wantFailures: []manifestreader.ObjectFailure{{
+				Name: nameAlpha, State: manifestreader.StateMissing, Reason: manifestreader.ReasonSizeMismatch,
+				Checksum: controlplane.ChecksumOf([]byte(alpha.content)).Value,
+			}},
 		},
 		{
 			name: "the object is above the object limit", cfg: manifestreader.Config{MaxObjectBytes: 4},
-			wantReason: manifestreader.ReasonTooLarge,
+			wantAlphaState: manifestreader.StateMissing,
+			wantFailures: []manifestreader.ObjectFailure{{
+				Name: nameAlpha, State: manifestreader.StateMissing, Reason: manifestreader.ReasonTooLarge,
+				Checksum: controlplane.ChecksumOf([]byte(alpha.content)).Value,
+			}},
 		},
 	}
 
@@ -202,29 +208,24 @@ func TestRestart_ARestoredObjectPassesTheChecksOfAFetchedOne(t *testing.T) {
 
 			hooks := manifestreader.Hooks{Restore: func() (*manifestreader.Restored, error) {
 				return &manifestreader.Restored{
-					ETag:     etagOf(raw),
-					Manifest: raw,
-					Objects:  [][]byte{[]byte(alpha.content)},
+					ETag: etagOf(raw), Manifest: raw, Objects: [][]byte{[]byte(alpha.content)},
 				}, nil
 			}}
 
 			cfg := tt.cfg
 			rdr := startRig(t, store, &cfg, manifestreader.WithHooks(hooks))
 
-			calls := store.takeCalls()
-			assert.Len(t, calls, 1+tt.wantCalls)
+			assert.Equal(t, []call{manifestCall(etagOf(raw))}, store.takeCalls())
 
-			status := rdr.reader.Status()
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+			assert.Equal(t, tt.wantAlphaState, snap.Objects[nameAlpha].State)
 
-			if tt.wantReason == "" {
-				assert.Empty(t, status.Failures)
-
-				return
+			if tt.wantAlphaState != manifestreader.StateOK {
+				assert.Nil(t, snap.Objects[nameAlpha].Bytes, "the restored bytes are not served")
 			}
 
-			require.Len(t, status.Failures, 1)
-			assert.Equal(t, tt.wantReason, status.Failures[0].Reason)
-			assert.Equal(t, manifestreader.StateMissing, status.Failures[0].State, "the restored bytes are not served")
+			assert.Equal(t, tt.wantFailures, rdr.reader.Status().Failures)
 		})
 	}
 }
@@ -281,7 +282,7 @@ func TestRestart_ARefusedStateDirectoryIsAColdStartAndIsLeftAlone(t *testing.T) 
 			rdr := launchRig(t, store, &manifestreader.Config{DisableJitter: true}, manifestreader.WithHooks(hooks))
 			rdr.settle()
 
-			assert.Equal(t, sortCalls(coldCalls(objs)(t, "")), store.takeCalls())
+			assert.Equal(t, coldCalls(t, objs...), store.takeCalls())
 			assert.Equal(t, manifestreader.StateStatus{
 				Restore: manifestreader.RestoreDisabled, DisabledReason: tt.wantReason,
 			}, rdr.reader.Status().State)
