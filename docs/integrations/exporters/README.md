@@ -37,8 +37,8 @@ type Exporter interface {
 }
 ```
 
-- `Export(...)` runs in the `AddEvent` caller's goroutine for non-bulk exporters (so a slow exporter delays that caller), and in a background goroutine for `QueueEvents` or bulk flushes.
-- `IsBulk()` controls when flushing starts (`false` flushes immediately on `AddEvent`; `true` waits for `FlushInterval` or `MaxEventInMemory`).
+- `Export(...)` runs on the `AddEvent` caller's goroutine whenever `AddEvent` triggers a flush (immediately for non-bulk exporters, or when a bulk exporter hits its flush threshold—so a slow exporter can delay that caller), and in a background goroutine for `QueueEvents` or timer-triggered flushes.
+- `IsBulk()` controls when flushing starts (`false` flushes immediately on every event; `true` waits for `FlushInterval` or `MaxEventInMemory`).
 
 > [!NOTE]
 > Want to contribute an exporter? Open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls).
