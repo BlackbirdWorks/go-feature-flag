@@ -174,7 +174,7 @@ func errorDetails(err error) []string {
 
 	if ferr, ok := errors.AsType[*flagcheck.Error](err); ok {
 		for i := range ferr.Problems {
-			details = append(details, fmt.Sprintf("flag %s: %v", ferr.Problems[i].Flag, ferr.Problems[i].Err))
+			details = append(details, ferr.Problems[i].Message())
 		}
 	}
 

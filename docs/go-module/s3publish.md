@@ -167,7 +167,7 @@ version is `missing`) and reports `Problem{Object, Key, Code, Detail}`:
 code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. The `Detail` this package writes never holds
 document content, so no API key. The text of an error returned by a `Config.Check` hook is the hook's own: it is reported as
 given, except that it is made single-line (control characters and newlines become spaces) and, when longer, cut so that the result including a closing "…" is at most `MaxHookDetail` (200)
-characters. The engine check of `controlplane/flagcheck` removes what quotes the file (a scalar, the text of a query) from its messages.
+characters. The messages of `controlplane/flagcheck` are made of facts that do not depend on the content of the file: the flag key (a name, made single-line and cut to 80 characters), the line and column or byte the decoder reports, the kind of value found and the type expected, and the category of the engine's validation (a fixed phrase such as `invalid query` or `all variations should have the same type`). They never repeat the text of the decoder or of the engine, which can quote a value or a query. The original errors stay reachable (`errors.Unwrap` for a decode failure, `FlagProblem.Err` for the engine's reason, `FlagProblem.Message()` for the safe text): they may quote the file, so do not log them where an API key matters.
 
 `Problems` is in manifest order (the entries are sorted by name), cross-document problems included, each at the position of
 its entry. A problem that belongs to no entry (a channel that is not the expected one, or a failure across documents that

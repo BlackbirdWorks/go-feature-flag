@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // ErrUsage marks a failure of the command line itself: a missing or extra argument, a flag that does not parse, flags
@@ -39,57 +40,113 @@ type JSONErrorOptions struct {
 	// Details lists the individual problems behind an error; it may be nil.
 	Details func(err error) []string
 	// RawArgs returns the arguments of the command line as given (without the program name). A flag that does not
-	// parse stops Cobra before any flag value is known, so JSON mode is then read from these with [WantsJSON], in
+	// parse stops Cobra before any flag value is known, so JSON mode is then read from these with [RawOutput], in
 	// whatever order the flags came. Nil means os.Args[1:].
 	RawArgs func() []string
 }
 
-// WantsJSON reports whether raw command-line arguments ask for --output json: the last of -o VALUE, -oVALUE,
-// -o=VALUE, --output VALUE and --output=VALUE decides, and the scan stops at "--". It is a pure scan: it does not
-// know the other flags, so a value that merely equals "json" for another flag does not count.
-func WantsJSON(args []string) bool {
-	value, _ := RawOutput(args)
-
-	return value == "json"
-}
-
-// RawOutput returns the value of the last output flag in raw command-line arguments, and whether there was one.
-// The rules are those of [WantsJSON].
-func RawOutput(args []string) (string, bool) {
+// RawOutput walks raw command-line arguments as pflag does, with the flag definitions of the command, and returns the
+// value of the last occurrence of the output flag (--output, or its shorthand), and whether there was one. Only a real
+// occurrence counts: a known flag that takes a value consumes it (so the "-otext" of "--config -otext" is a value, not
+// an output selection, and so is "--output" as the value of another flag), a boolean flag consumes none, shorthands
+// combine as pflag combines them, an unknown flag consumes nothing, and "--" ends the flags. A flag after an unknown
+// one still counts. The flag set must have a flag named "output"; without one nothing is named.
+func RawOutput(flags *pflag.FlagSet, args []string) (string, bool) {
 	var (
 		last  string
 		found bool
 	)
 
+	if flags == nil || flags.Lookup(outputFlag) == nil {
+		return "", false
+	}
+
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-
-		var value string
 
 		switch {
 		case arg == "--":
 			return last, found
-		case arg == "-o" || arg == "--output":
-			if i+1 >= len(args) {
-				continue
+		case strings.HasPrefix(arg, "--"):
+			used, value, isOutput := longFlag(flags, strings.TrimPrefix(arg, "--"), args[i+1:])
+			i += used
+
+			if isOutput {
+				last, found = value, true
 			}
+		case strings.HasPrefix(arg, "-") && len(arg) > 1:
+			consumed, value, isOutput := shorthandRun(flags, arg[1:], args[i+1:])
+			i += consumed
 
-			i++
-			value = args[i]
-		case strings.HasPrefix(arg, "--output="):
-			value = strings.TrimPrefix(arg, "--output=")
-		case strings.HasPrefix(arg, "-o="):
-			value = strings.TrimPrefix(arg, "-o=")
-		case strings.HasPrefix(arg, "-o") && !strings.HasPrefix(arg, "--"):
-			value = strings.TrimPrefix(arg, "-o")
-		default:
-			continue
+			if isOutput {
+				last, found = value, true
+			}
 		}
-
-		last, found = value, true
 	}
 
 	return last, found
+}
+
+// longFlag reads one long flag ("name" or "name=value", without the dashes) the way pflag does. It returns how many of
+// the following arguments it used as a value, the value of the output flag, and whether it was the output flag.
+func longFlag(flags *pflag.FlagSet, arg string, following []string) (int, string, bool) {
+	name, value, hasValue := strings.Cut(arg, "=")
+
+	flag := flags.Lookup(name)
+	if flag == nil {
+		return 0, "", false // unknown: pflag stops with an error, nothing is consumed
+	}
+
+	used := 0
+
+	if !hasValue && flag.NoOptDefVal == "" {
+		if len(following) == 0 {
+			return 0, "", false // a flag without its value: pflag fails, nothing is selected
+		}
+
+		value = following[0]
+		used = 1
+	}
+
+	return used, value, name == outputFlag
+}
+
+// outputFlag is the name of the output flag of the commands.
+const outputFlag = "output"
+
+// shorthandRun reads a run of shorthand flags ("vo", "ojson", "o=json") the way pflag does. It returns how many of the
+// following arguments it used as a value, the value of the output flag when the run ended with it, and whether it did.
+func shorthandRun(flags *pflag.FlagSet, run string, following []string) (int, string, bool) {
+	output := flags.Lookup(outputFlag)
+
+	for run != "" {
+		flag := flags.ShorthandLookup(run[:1])
+		if flag == nil {
+			return 0, "", false // unknown: pflag stops with an error, nothing is consumed
+		}
+
+		if flag.NoOptDefVal != "" {
+			run = run[1:] // a boolean flag takes no value
+
+			continue
+		}
+
+		rest := strings.TrimPrefix(run[1:], "=")
+		used := 0
+
+		if len(run) == 1 {
+			if len(following) == 0 {
+				return 0, "", false // a flag without its value: pflag fails, nothing is selected
+			}
+
+			rest = following[0]
+			used = 1
+		}
+
+		return used, rest, flag == output
+	}
+
+	return 0, "", false
 }
 
 // JSONErrors makes every failure of cmd and of all its subcommands, present and future, follow one mechanism:
@@ -107,7 +164,7 @@ func JSONErrors(cmd *cobra.Command, opts JSONErrorOptions) {
 		raw.Enabled = func() bool {
 			// A flag the command line names decides, last one wins, even when it says text. The parsed value is only
 			// used when the arguments name no output flag.
-			if value, named := RawOutput(rawArgs(opts)); named {
+			if value, named := RawOutput(failed.Flags(), rawArgs(opts)); named {
 				return value == "json"
 			}
 

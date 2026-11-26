@@ -134,6 +134,11 @@ decoder (`ConvertToFlagStruct`), `DTO.Convert` and `IsValid` that the relay appl
 rule that names no variation or percentage, a variation that is not declared, and percentages that sum to zero. The error
 names the file and the flag. (The engine accepts percentages that do not sum to 100; so does the publisher.)
 
+The error says where and what kind of failure it is, never what the file holds: the file, the flag key, the line, column or
+byte the decoder gives, the kind of value found and the type expected, and the category of the engine's reason (for
+example `invalid query`). It does not repeat a value, an API key or the text of a query, in text or in JSON output, even
+when the decoder or the engine would quote them.
+
 ## Keys, connection name and permissions
 
 - The `key` of every object in the manifest is the absolute key in the bucket, `--prefix` included. The prefix is applied by

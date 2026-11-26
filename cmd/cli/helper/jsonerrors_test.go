@@ -7,6 +7,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,11 +15,15 @@ import (
 )
 
 const (
-	jsonValue = "json"
-	textValue = "text"
-	subName   = "sub"
-	pubName   = "publish"
-	jsonFlag  = "--json"
+	shortText      = "-otext"
+	flagEndpoint   = "--endpoint"
+	flagOutput     = "--output"
+	flagOutputJSON = "--output=json"
+	jsonValue      = "json"
+	textValue      = "text"
+	subName        = "sub"
+	pubName        = "publish"
+	jsonFlag       = "--json"
 )
 
 var errRun = errors.New("run failed")
@@ -169,42 +174,17 @@ func TestMarkReportedKeepsTheErrorAndItsCode(t *testing.T) {
 	}
 }
 
-func TestWantsJSON(t *testing.T) {
-	t.Parallel()
+// outputFlags is a flag set like the one of publish: a string flag -c, a boolean -n, a string with no shorthand, and
+// the output flag -o.
+func outputFlags() *pflag.FlagSet {
+	flags := pflag.NewFlagSet("publish", pflag.ContinueOnError)
+	flags.StringP("config", "c", "", "")
+	flags.String("endpoint", "", "")
+	flags.BoolP("dry-run", "n", false, "")
+	flags.BoolP("verbose", "v", false, "")
+	flags.StringP("output", "o", textValue, "")
 
-	tests := []struct {
-		name string
-		args []string
-		want bool
-	}{
-		{name: "no arguments"},
-		{name: "short flag", args: []string{pubName, "-o", jsonValue}, want: true},
-		{name: "short flag attached", args: []string{pubName, "-ojson"}, want: true},
-		{name: "short flag with equals", args: []string{pubName, "-o=json"}, want: true},
-		{name: "long flag", args: []string{pubName, "--output", jsonValue}, want: true},
-		{name: "long flag with equals", args: []string{pubName, "--output=json"}, want: true},
-		{name: "before an unknown flag", args: []string{"-o", jsonValue, "--no-such-flag"}, want: true},
-		{name: "after an unknown flag", args: []string{"--no-such-flag", "-o", jsonValue}, want: true},
-		{name: textValue, args: []string{"-o", textValue}},
-		{name: "the last one wins: text after json", args: []string{"-o", jsonValue, "-o", textValue}},
-		{name: "the last one wins: json after text", args: []string{"--output=text", "-o", jsonValue}, want: true},
-		{name: "a value that equals json for another flag", args: []string{"--endpoint", jsonValue, pubName}},
-		{name: "a positional argument that equals json", args: []string{pubName, jsonValue}},
-		{name: "stops at the double dash", args: []string{pubName, "--", "-o", jsonValue}},
-		{
-			name: "a flag whose value is the word json after the double dash only",
-			args: []string{"-o", textValue, "--", "--output=json"},
-		},
-		{name: "a dangling flag", args: []string{pubName, "-o"}},
-		{name: "another flag that starts with -o", args: []string{"-opt", jsonValue}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, helper.WantsJSON(tt.args))
-		})
-	}
+	return flags
 }
 
 func TestRawOutput(t *testing.T) {
@@ -216,28 +196,93 @@ func TestRawOutput(t *testing.T) {
 		args      []string
 		wantFound bool
 	}{
-		{name: "no output flag", args: []string{pubName, "--bucket", "b"}},
-		{name: "json", args: []string{"-o", jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "no arguments"},
+		{name: "no output flag", args: []string{pubName, flagEndpoint, "http://x", "-c", "file"}},
+		{name: "short flag", args: []string{pubName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag attached", args: []string{"-ojson"}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag with equals", args: []string{"-o=json"}, wantValue: jsonValue, wantFound: true},
+		{name: "long flag", args: []string{flagOutput, jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "long flag with equals", args: []string{flagOutputJSON}, wantValue: jsonValue, wantFound: true},
 		{name: "text is a selection too", args: []string{"--output=text"}, wantValue: textValue, wantFound: true},
 		{
-			name:      "the last one wins",
-			args:      []string{"-o", jsonValue, "-o", textValue},
-			wantValue: textValue,
+			name: "the last one wins", args: []string{"-o", jsonValue, "-o", textValue}, wantValue: textValue,
 			wantFound: true,
 		},
-		{name: "not read after the double dash", args: []string{"--", "-o", jsonValue}},
-		{name: "another value is a selection", args: []string{"-o", "yaml"}, wantValue: "yaml", wantFound: true},
+		{
+			name: "before an unknown flag", args: []string{"-o", jsonValue, "--no-such-flag"}, wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "after an unknown flag", args: []string{"--no-such-flag", "-o", textValue}, wantValue: textValue,
+			wantFound: true,
+		},
+		{
+			name: "attached after an unknown flag", args: []string{"--not-a-flag", shortText}, wantValue: textValue,
+			wantFound: true,
+		},
+		{
+			name:      "-otext is the value of --config",
+			args:      []string{flagOutput, jsonValue, "--config", shortText, "--not-a-flag"},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "-otext is the attached value of --config", args: []string{flagOutput, jsonValue, "--config=-otext"},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name: "-otext is the value of -c", args: []string{flagOutput, jsonValue, "-c", shortText},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{name: "--output is the value of another flag", args: []string{flagEndpoint, flagOutput, "-x"}},
+		{name: "--output=json is the value of another flag", args: []string{flagEndpoint, flagOutputJSON}},
+		{
+			name: "a boolean flag takes no value", args: []string{"-n", "-o", jsonValue, "--dry-run", "-v"},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name: "combined shorthands ending in o with an attached value", args: []string{"-nvojson"},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name: "combined shorthands ending in o with the value after", args: []string{"-nvo", jsonValue},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{name: "combined shorthands ending in c take the next argument", args: []string{"-nvc", "-ojson"}},
+		{name: "a positional json", args: []string{pubName, jsonValue}},
+		{name: "a positional that looks like a flag value", args: []string{"verify", "-n", jsonValue}},
+		{name: "stops at the double dash", args: []string{pubName, "--", "-o", jsonValue}},
+		{
+			name: "the selection before the double dash stays", args: []string{"-o", textValue, "--", flagOutputJSON},
+			wantValue: textValue, wantFound: true,
+		},
+		{name: "a dangling output flag", args: []string{pubName, "-o"}},
+		{name: "a dangling long output flag", args: []string{pubName, flagOutput}},
+		{name: "an unknown shorthand run stops there", args: []string{"-xojson"}},
+		{name: "another flag that starts with -o", args: []string{"-opt"}, wantValue: "pt", wantFound: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			value, found := helper.RawOutput(tt.args)
+			value, found := helper.RawOutput(outputFlags(), tt.args)
 
 			assert.Equal(t, tt.wantValue, value)
 			assert.Equal(t, tt.wantFound, found)
 		})
 	}
+}
+
+func TestRawOutputWithoutAnOutputFlagNamesNothing(t *testing.T) {
+	t.Parallel()
+
+	value, found := helper.RawOutput(pflag.NewFlagSet("none", pflag.ContinueOnError), []string{"-o", jsonValue})
+	assert.Empty(t, value)
+	assert.False(t, found)
+
+	value, found = helper.RawOutput(nil, []string{"-o", jsonValue})
+	assert.Empty(t, value)
+	assert.False(t, found)
 }
 
 func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {

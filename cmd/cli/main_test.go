@@ -37,7 +37,7 @@ func TestCmdExist(t *testing.T) {
 		{
 			name: "evaluate command should exist",
 			args: []string{
-				"evaluate", "--config", "evaluate/testdata/flag.goff.yaml",
+				"evaluate", flagConfig, "evaluate/testdata/flag.goff.yaml",
 				"--ctx", `{"targetingKey": "user-123"}`, "--format", "yaml",
 			},
 			wantOut: `Flag --config has been deprecated, Use path instead
@@ -130,6 +130,7 @@ const (
 	cmdPublish     = "publish"
 	fmtJSON        = "json"
 	fmtText        = "text"
+	flagConfig     = "--config"
 	optOutput      = "--output"
 	flagFormat     = "--format"
 	formatYAML     = "yaml"
@@ -271,6 +272,16 @@ func TestWholeProcessStreams(t *testing.T) {
 	require.NoError(t, os.WriteFile(v1File, []byte("port: 1031\n"), 0o600))
 
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
+
+	// A flag file whose values and query are secrets: the engine rejects it, and no output repeats them.
+	const secretQuery, secretValue = "Qy7Wv`Mk3'Zx", "Vr4NmK8dQ"
+
+	secretDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(secretDir, "flags"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(secretDir, "flags", "f.yaml"), []byte(
+		"f:\n  variations: {on: true, off: false}\n  defaultRule: {variation: off}\n  metadata: {owner: "+secretValue+"}\n"+
+			"  targeting:\n    - query: \""+secretQuery+" eq (\"\n      variation: on\n",
+	), 0o600))
 	srv := verifyServer(t)
 	target := []string{"--bucket", "bucket", "--region", "us-east-1", "--endpoint", srv.URL}
 
@@ -280,7 +291,8 @@ func TestWholeProcessStreams(t *testing.T) {
 		name       string
 		wantStdout string
 		wantStderr string
-		jsonStdout string // the "error.code" of the one JSON error value, or "report" for a report
+		jsonStdout string   // the "error.code" of the one JSON error value, or "report" for a report
+		wantNone   []string // secrets: no fragment of 6 characters of any appears on stdout or stderr
 		args       []string
 		wantExit   int
 	}{
@@ -357,6 +369,35 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantExit:   1,
 		},
 		{
+			name:       "publish: a rejected flag file is not repeated, text",
+			args:       append([]string{cmdPublish, secretDir}, target...),
+			wantStderr: "invalid query",
+			wantExit:   2,
+			wantNone:   []string{secretQuery, secretValue},
+		},
+		{
+			name:       "publish: a rejected flag file is not repeated, JSON",
+			args:       append([]string{cmdPublish, secretDir, optOutput, fmtJSON}, target...),
+			wantStderr: "invalid query",
+			jsonStdout: "invalid",
+			wantExit:   2,
+			wantNone:   []string{secretQuery, secretValue},
+		},
+		{
+			// pflag reads -otext as the VALUE of --config, so the selection stays json.
+			name:       "publish: -otext is the value of --config, the output stays json",
+			args:       []string{cmdPublish, optOutput, fmtJSON, flagConfig, "-otext", unknownFlag},
+			wantStderr: unknownFlagMsg,
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "publish: -ojson is the value of --config, the output stays text",
+			args:       []string{cmdPublish, optOutput, fmtText, flagConfig, "-ojson", unknownFlag},
+			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
 			name: "config failure, JSON", args: []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
 			wantStderr: "version 2 required", jsonStdout: "invalid", wantExit: 2,
 		},
@@ -408,6 +449,13 @@ func TestWholeProcessStreams(t *testing.T) {
 				assert.Contains(t, stderr, fatalLine, "every failure ends with the final error line on stderr")
 			} else {
 				assert.NotContains(t, stderr, fatalLine)
+			}
+
+			for _, secret := range tt.wantNone {
+				for i := 0; i+6 <= len(secret); i++ {
+					assert.NotContains(t, stdout, secret[i:i+6], "stdout repeats a fragment of %q", secret)
+					assert.NotContains(t, stderr, secret[i:i+6], "stderr repeats a fragment of %q", secret)
+				}
 			}
 
 			switch {

@@ -1,17 +1,27 @@
 package flagcheck_test
 
 import (
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/controlplane/flagcheck"
 )
 
 const (
 	formatYAML = "yaml"
+	formatJSON = "json"
 	flagA      = "flag-a"
+)
+
+var (
+	errQuoted  = errors.New("invalid query: parsing the query: quoted Sx9Qv3")
+	errUnknown = errors.New("brand new rule about Zq8Wm4Xk")
 )
 
 const base = `
@@ -126,36 +136,114 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-// The message of an error carries where and why the file is wrong, not a value of the file: neither a scalar the
-// decoder could not read nor the text of a targeting query.
+// assertNoFragment fails when text contains the secret or any fragment of it of fragmentLen characters or more.
+func assertNoFragment(t *testing.T, text, secret string) {
+	t.Helper()
+
+	const fragmentLen = 6
+
+	runes := []rune(secret)
+	for i := 0; i+fragmentLen <= len(runes); i++ {
+		fragment := string(runes[i : i+fragmentLen])
+		if strings.TrimSpace(fragment) == "" {
+			continue
+		}
+
+		assert.NotContains(t, text, fragment, "the message repeats a fragment of %q", secret)
+	}
+}
+
+// The message of an error carries where and what kind of failure it is, never a value of the file: not a scalar the
+// decoder could not read, not a variation value, not a metadata value, not the text of a targeting query, whatever
+// quotes, backticks or newlines they hold. Flag keys are names and are kept.
 func TestErrorMessagesDoNotQuoteTheFile(t *testing.T) {
 	t.Parallel()
-
-	const canary = "canary-api-key-0009"
 
 	tests := []struct {
 		name      string
 		body      string
 		format    string
 		wantInMsg string
+		secrets   []string
 	}{
 		{
-			name:      "scalar where a mapping is expected",
-			body:      "f: " + canary + "\n",
-			format:    formatYAML,
-			wantInMsg: "cannot unmarshal",
+			name: "yaml scalar where a mapping is expected, with an embedded backtick", format: formatYAML,
+			body:      "f: \"a`SecretValue7Zq\"\n",
+			secrets:   []string{"a`SecretValue7Zq", "SecretValue7Zq"},
+			wantInMsg: "cannot unmarshal a !!str into dto.DTO",
 		},
 		{
-			name:      "unterminated yaml",
-			body:      canary + ": [unterminated\nflag: {a",
-			format:    formatYAML,
-			wantInMsg: "line 1",
+			name: "yaml scalar with quotes and a newline", format: formatYAML,
+			body:      "f: |\n  Q1w\"E2r'T3y`U4i\n  second Line9Pk\n",
+			secrets:   []string{"Q1w\"E2r'T3y`U4i", "second Line9Pk"},
+			wantInMsg: "cannot unmarshal a !!str into dto.DTO",
 		},
 		{
-			name:      "query that does not compile",
-			body:      base + "  targeting:\n    - query: '" + canary + " eq ('\n      variation: on\n",
-			format:    formatYAML,
+			name: "yaml scalar that holds the word into", format: formatYAML,
+			body:      "f: \"x into dto.Evil Pv8Rk2\"\n",
+			secrets:   []string{"Pv8Rk2", "dto.Evil"},
+			wantInMsg: "into dto.DTO",
+		},
+		{
+			name: "yaml syntax error with a value", format: formatYAML,
+			body:      "Sy5Tq8Lm9: [unterminated\nkeyX: {a",
+			secrets:   []string{"unterminated"},
+			wantInMsg: "invalid YAML at line",
+		},
+		{
+			name: "yaml variation values of different types", format: formatYAML,
+			body:      "f:\n  variations: {on: true, off: Vr4NmK8dQ}\n  defaultRule: {variation: off}\n",
+			secrets:   []string{"Vr4NmK8dQ"},
+			wantInMsg: "all variations should have the same type",
+		},
+		{
+			name: "yaml query that does not compile", format: formatYAML,
+			body:      base + "  targeting:\n    - query: 'Qy7WvMk3 eq ('\n      variation: on\n",
+			secrets:   []string{"Qy7WvMk3"},
 			wantInMsg: "invalid query",
+		},
+		{
+			name: "yaml query with quotes that does not compile", format: formatYAML,
+			body:      base + "  targeting:\n    - query: \"Ab3'Cd\\\"Ef9Gh`Ij5 eq (\"\n      variation: on\n",
+			secrets:   []string{"Ab3'Cd\"Ef9Gh`Ij5", "Ef9Gh", "Ij5 eq"},
+			wantInMsg: "invalid query",
+		},
+		{
+			name:      "yaml metadata value next to a flag that is invalid",
+			format:    formatYAML,
+			body:      "f:\n  variations: {on: true}\n  defaultRule: {variation: Nv6PzL1xT}\n  metadata: {owner: Mt5RxLp9Q}\n",
+			secrets:   []string{"Nv6PzL1xT", "Mt5RxLp9Q"},
+			wantInMsg: "invalid variation",
+		},
+		{
+			name: "json string where an object is expected", format: formatJSON,
+			body:      `{"f": "Js2Wq9ZxK"}`,
+			secrets:   []string{"Js2Wq9ZxK"},
+			wantInMsg: "a string where",
+		},
+		{
+			name: "json syntax error", format: formatJSON,
+			body:      `{"f": Jq7Pm3WzR}`,
+			secrets:   []string{"Jq7Pm3WzR"},
+			wantInMsg: "invalid JSON at byte",
+		},
+		{
+			name: "json flag with an invalid default variation", format: formatJSON,
+			body:      `{"f": {"variations": {"a": "Jv4Nm8KdS"}, "defaultRule": {"variation": "Zz9Yy8Xw7"}}}`,
+			secrets:   []string{"Jv4Nm8KdS", "Zz9Yy8Xw7"},
+			wantInMsg: "invalid variation",
+		},
+		{
+			name: "toml string where a table is expected", format: "toml",
+			body:      "f = \"Tm6Hv2QxP\"\n",
+			secrets:   []string{"Tm6Hv2QxP"},
+			wantInMsg: "TOML",
+		},
+		{
+			name: "toml syntax error", format: "toml",
+			body:      "Tk8Rn5Bcd = = Tx3Lq9\n",
+			secrets:   []string{"Tx3Lq9", "Tk8Rn5Bcd"},
+			wantInMsg: "invalid TOML at line",
 		},
 	}
 	for _, tt := range tests {
@@ -165,9 +253,96 @@ func TestErrorMessagesDoNotQuoteTheFile(t *testing.T) {
 			err := flagcheck.Check([]byte(tt.body), tt.format)
 
 			require.ErrorIs(t, err, flagcheck.ErrInvalid)
-			assert.NotContains(t, err.Error(), canary)
-			assert.NotContains(t, err.Error(), "canary-")
 			assert.Contains(t, err.Error(), tt.wantInMsg)
+
+			for _, secret := range tt.secrets {
+				assertNoFragment(t, err.Error(), secret)
+			}
 		})
 	}
+}
+
+// A flag key is a name and is kept, made single-line and cut; the engine's own error stays in Problems.
+func TestFlagKeysAreKeptAndBounded(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		key       string
+		wantInMsg string
+		wantLen   int
+	}{
+		{name: "plain key", key: "my-flag", wantInMsg: "flag my-flag: ", wantLen: -1},
+		{name: "key with a newline", key: "a\nb", wantInMsg: "flag a b: ", wantLen: -1},
+		{name: "long key", key: strings.Repeat("k", 300), wantInMsg: strings.Repeat("k", 79) + "…", wantLen: 80},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := &flagcheck.Error{
+				Problems: []flagcheck.FlagProblem{
+					{Flag: tt.key, Err: errQuoted},
+				},
+			}
+
+			assert.Contains(t, err.Error(), tt.wantInMsg)
+			assert.Contains(t, err.Error(), "invalid query: parsing the query")
+			assertNoFragment(t, err.Error(), "quoted Sx9Qv3")
+			assert.Contains(t, err.Problems[0].Err.Error(), "Sx9Qv3", "Problems[i].Err is the engine's error as it is")
+		})
+	}
+}
+
+func TestUnknownEngineMessageIsOnlyNamedAsRejected(t *testing.T) {
+	t.Parallel()
+
+	err := &flagcheck.Error{
+		Problems: []flagcheck.FlagProblem{{Flag: "f", Err: errUnknown}},
+	}
+
+	assert.Equal(t, "flag f: rejected by the engine", err.Error())
+}
+
+// The original errors stay reachable for the one who needs them (and knows they may quote the file).
+func TestOriginalErrorsStayReachable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml", func(t *testing.T) {
+		t.Parallel()
+
+		err := flagcheck.Check([]byte("f: Wq3Zr8Lm\n"), formatYAML)
+
+		var typed *yaml.TypeError
+
+		require.ErrorAs(t, err, &typed)
+		assert.Contains(t, typed.Errors[0], "Wq3Zr8L", "the decoder's own text has the start of the value")
+	})
+
+	t.Run("json", func(t *testing.T) {
+		t.Parallel()
+
+		var syntax *json.SyntaxError
+
+		require.ErrorAs(t, flagcheck.Check([]byte(`{"f": Jq7`), formatJSON), &syntax)
+	})
+
+	t.Run("engine", func(t *testing.T) {
+		t.Parallel()
+
+		err := flagcheck.Check(
+			[]byte(base+"  targeting:\n    - query: 'Qy7WvMk3 eq ('\n      variation: on\n"),
+			formatYAML,
+		)
+
+		var checkErr *flagcheck.Error
+
+		require.ErrorAs(t, err, &checkErr)
+		assert.Contains(
+			t,
+			checkErr.Problems[0].Err.Error(),
+			"Qy7WvMk3",
+			"FlagProblem.Err is the engine's error as it is",
+		)
+	})
 }
