@@ -22,7 +22,8 @@ func TestReader_DefaultSchedulerStopsWithTheContext(t *testing.T) {
 	// no scheduler option: the real timer with the default interval, which never fires before the cancel
 	reader, err := manifestreader.New(
 		store,
-		manifestreader.Config{ManifestKey: manifestKey},
+		&manifestreader.Config{ManifestKey: manifestKey, Connection: connControl},
+		manifestreader.WithJitter(func() float64 { return 0 }),
 		manifestreader.WithHooks(
 			manifestreader.Hooks{OnRound: func(*manifestreader.Status) { roundDone <- struct{}{} }},
 		),

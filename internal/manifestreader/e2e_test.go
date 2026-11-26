@@ -103,7 +103,7 @@ func (e *e2eRig) objectPath(t *testing.T, item obj) string {
 func (e *e2eRig) manifestPath() string { return "/" + e.bucket + "/" + manifestKey }
 
 func e2eConfig() *manifestreader.Config {
-	return &manifestreader.Config{JitterFraction: -1, FetchConcurrency: 1}
+	return &manifestreader.Config{DisableJitter: true, FetchConcurrency: 1}
 }
 
 func TestE2E_PollingCostsOneConditionalGet(t *testing.T) {
@@ -122,6 +122,7 @@ func TestE2E_PollingCostsOneConditionalGet(t *testing.T) {
 	// N polls cost exactly N requests, and both counters agree
 	require.Len(t, wire, polls)
 	require.Len(t, obs, polls)
+	assert.Len(t, obs, len(wire), "the observer and the wire saw the same number of requests")
 
 	for i := range polls {
 		assert.Equal(t, wireRequest{Method: http.MethodGet, Path: rdr.manifestPath()}, wire[i])

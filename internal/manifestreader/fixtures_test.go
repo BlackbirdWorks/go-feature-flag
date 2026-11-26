@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	nameAlpha = "alpha"
-	nameBeta  = "beta"
-	nameGamma = "gamma"
-	nameTwin  = "twin"
-	rawGet    = "x-id=GetObject"
+	nameAlpha     = "alpha"
+	nameBeta      = "beta"
+	nameGamma     = "gamma"
+	nameTwin      = "twin"
+	rawGet        = "x-id=GetObject"
+	connElsewhere = "elsewhere"
+	queryVersion  = "versionId=v-1"
 
 	contentAlphaChanged = `{"alpha":"changed"}`
 	contentAlphaSecond  = `{"alpha":"second"}`

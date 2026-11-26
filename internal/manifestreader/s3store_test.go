@@ -1,6 +1,7 @@
 package manifestreader_test
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"net/http"
@@ -38,7 +39,9 @@ type httpStep struct {
 	err    error
 	header http.Header
 	body   string
-	status int
+	// contentLength overrides the Content-Length header (which is the body length otherwise).
+	contentLength string
+	status        int
 }
 
 // scriptedTransport answers in order and records the method, path and conditional header of every request.
@@ -81,7 +84,7 @@ func (s *scriptedTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		header = http.Header{}
 	}
 
-	header.Set("Content-Length", strconv.Itoa(len(cur.body)))
+	header.Set("Content-Length", cmp.Or(cur.contentLength, strconv.Itoa(len(cur.body))))
 
 	return &http.Response{
 		StatusCode: cur.status, Status: strconv.Itoa(cur.status) + " " + http.StatusText(cur.status), Header: header,
@@ -257,7 +260,10 @@ func TestS3Store_Get(t *testing.T) {
 
 			store := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, s3Prefix)
 
-			got, err := store.Get(t.Context(), "manifest.yaml", tt.etag, tt.limit)
+			got, err := store.Get(
+				t.Context(),
+				manifestreader.GetRequest{Key: "manifest.yaml", ETag: tt.etag, Limit: tt.limit},
+			)
 
 			switch {
 			case tt.wantErrIs != nil:
@@ -312,7 +318,8 @@ func TestS3Store_IfNoneMatchOnlyWithAnETag(t *testing.T) {
 			fac := connection.New(connection.WithRoundTripper(transport))
 			require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").Get(t.Context(), "k", tt.etag, 10)
+			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+				Get(t.Context(), manifestreader.GetRequest{Key: "k", ETag: tt.etag, Limit: 10})
 			require.NoError(t, err)
 
 			reqs := transport.requests()
@@ -332,7 +339,8 @@ func TestS3Store_TransportErrorIsRetryable(t *testing.T) {
 	fac := connection.New(connection.WithRoundTripper(transport))
 	require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").Get(t.Context(), "k", "", 10)
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
 
 	var fetchErr *manifestreader.FetchError
 
@@ -345,7 +353,8 @@ func TestS3Store_UnknownConnectionIsNotRetryable(t *testing.T) {
 	t.Parallel()
 
 	fac := connection.New()
-	_, err := manifestreader.NewS3Store(fac, "nope", s3Bucket, "").Get(t.Context(), "k", "", 10)
+	_, err := manifestreader.NewS3Store(fac, "nope", s3Bucket, "").
+		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
 
 	var fetchErr *manifestreader.FetchError
 
@@ -364,7 +373,130 @@ func TestS3Store_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").Get(ctx, "k", "", 10)
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+		Get(ctx, manifestreader.GetRequest{Key: "k", Limit: 10})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestS3Store_VersionID(t *testing.T) {
+	t.Parallel()
+
+	const invalidArgumentXML = xmlHead + `<Error><Code>InvalidArgument</Code><Message>Invalid version id</Message></Error>`
+
+	tests := []struct {
+		want  error
+		name  string
+		wantQ string
+		step  httpStep
+	}{
+		{name: "the version id is sent as the versionId query parameter", step: okAnswer("hi"), wantQ: queryVersion},
+		{
+			name:  "404 NoSuchKey for a version is not found",
+			step:  httpStep{status: http.StatusNotFound, body: noSuchKeyXML},
+			want:  manifestreader.ErrNotFound,
+			wantQ: queryVersion,
+		},
+		{
+			name:  "400 InvalidArgument for a version is also not found",
+			step:  httpStep{status: http.StatusBadRequest, body: invalidArgumentXML},
+			want:  manifestreader.ErrNotFound,
+			wantQ: queryVersion,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			transport := &scriptedTransport{steps: []httpStep{tt.step}}
+			fac := connection.New(connection.WithRoundTripper(transport))
+			require.NoError(t, fac.Set(s3Conn, s3Spec()))
+
+			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+				Get(t.Context(), manifestreader.GetRequest{Key: "k", VersionID: "v-1", Limit: 10})
+
+			if tt.want != nil {
+				require.ErrorIs(t, err, tt.want)
+			} else {
+				require.NoError(t, err)
+			}
+
+			reqs := transport.requests()
+			require.Len(t, reqs, 1)
+			assert.Contains(t, reqs[0].RawQuery, tt.wantQ)
+		})
+	}
+}
+
+func TestS3Store_InvalidArgumentWithoutAVersionIsADenial(t *testing.T) {
+	t.Parallel()
+
+	const invalidArgumentXML = xmlHead + `<Error><Code>InvalidArgument</Code><Message>bad</Message></Error>`
+
+	transport := &scriptedTransport{steps: []httpStep{{status: http.StatusBadRequest, body: invalidArgumentXML}}}
+	fac := connection.New(connection.WithRoundTripper(transport))
+	require.NoError(t, fac.Set(s3Conn, s3Spec()))
+
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
+
+	var fetchErr *manifestreader.FetchError
+
+	require.ErrorAs(t, err, &fetchErr)
+	assert.Equal(t, manifestreader.ReasonDenied, fetchErr.Reason)
+}
+
+func TestS3Store_ContentLengthSizesTheBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErrIs error
+		name      string
+		wantBytes string
+		step      httpStep
+		limit     int64
+		wantFetch bool
+	}{
+		{
+			name:      "a Content-Length over the limit is refused before reading",
+			step:      okAnswer("hello world"),
+			limit:     5,
+			wantErrIs: manifestreader.ErrTooLarge,
+		},
+		{
+			name:      "a body shorter than its Content-Length is a broken transfer",
+			step:      httpStep{status: 200, body: "hel", contentLength: "5"},
+			limit:     5,
+			wantFetch: true,
+		},
+		{name: "a body of the Content-Length", step: okAnswer("hello"), limit: 100, wantBytes: "hello"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			transport := &scriptedTransport{steps: []httpStep{tt.step}}
+			fac := connection.New(connection.WithRoundTripper(transport))
+			require.NoError(t, fac.Set(s3Conn, s3Spec()))
+
+			got, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+				Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: tt.limit})
+
+			switch {
+			case tt.wantErrIs != nil:
+				require.ErrorIs(t, err, tt.wantErrIs)
+			case tt.wantFetch:
+				var fetchErr *manifestreader.FetchError
+
+				require.ErrorAs(t, err, &fetchErr)
+				assert.True(t, fetchErr.Retryable)
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantBytes, string(got.Bytes))
+				assert.Equal(t, len(tt.wantBytes), cap(got.Bytes), "one buffer of exactly the size")
+			}
+		})
+	}
 }

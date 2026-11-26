@@ -69,3 +69,26 @@ func BenchmarkRound_OneObjectChanged(b *testing.B) {
 		b.StartTimer()
 	}
 }
+
+// BenchmarkRound_NotModifiedWithAFailingObject is a 304 round while one of 20000 objects keeps failing: the
+// round costs the conditional GET and the one failing object, and nothing that grows with the manifest.
+func BenchmarkRound_NotModifiedWithAFailingObject(b *testing.B) {
+	store := newFakeStore()
+	objs := scaleObjects(controlplane.DefaultMaxObjects)
+	publishJSON(b, store, 1, objs...)
+	store.remove(keyOf(b, objs[len(objs)/2]))
+
+	rdr := startRig(b, store, &manifestreader.Config{FetchConcurrency: manifestreader.MaxFetchConcurrency})
+	require.NotNil(b, rdr.snapshot())
+	require.Len(b, rdr.reader.Status().Failures, 1)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		rdr.round()
+	}
+
+	b.StopTimer()
+	require.Len(b, rdr.reader.Status().Failures, 1)
+}

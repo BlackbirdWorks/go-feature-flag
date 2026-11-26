@@ -62,10 +62,11 @@ func TestReader_ObjectFailureAndRecovery(t *testing.T) {
 			wantReason: manifestreader.ReasonChecksumMismatch, wantRetryable: true,
 		},
 		{
-			name:       "over size: more bytes than the manifest lists",
-			fail:       func(_ *testing.T, store *fakeStore) { store.put(alpha2Key, []byte(alpha2.content+" and some more")) },
-			heal:       func(_ *testing.T, store *fakeStore) { store.put(alpha2Key, []byte(alpha2.content)) },
-			wantReason: manifestreader.ReasonTooLarge,
+			name:          "over size: more bytes than the manifest lists",
+			fail:          func(_ *testing.T, store *fakeStore) { store.put(alpha2Key, []byte(alpha2.content+" and more")) },
+			heal:          func(_ *testing.T, store *fakeStore) { store.put(alpha2Key, []byte(alpha2.content)) },
+			wantReason:    manifestreader.ReasonSizeMismatch,
+			wantRetryable: true,
 		},
 		{
 			name: "transient error twice, then it passes",
@@ -274,7 +275,7 @@ func TestReader_UnknownConnection(t *testing.T) {
 	main, other := newFakeStore(), newFakeStore()
 
 	manifest := manifestOf(t, 1, alpha, beta)
-	manifest.Objects[1].Connection = "elsewhere"
+	manifest.Objects[1].Connection = connElsewhere
 	manifest.Objects = append(manifest.Objects, entryOf(t, threeObjects()[2]))
 	manifest.Objects[2].Connection = "unknown"
 
@@ -287,7 +288,7 @@ func TestReader_UnknownConnection(t *testing.T) {
 		main,
 		&manifestreader.Config{},
 		manifestreader.WithObjectStores(map[string]manifestreader.ObjectStore{
-			connControl: main, "elsewhere": other,
+			connControl: main, connElsewhere: other,
 		}),
 	)
 

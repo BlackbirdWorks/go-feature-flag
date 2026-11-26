@@ -2,30 +2,40 @@ package manifestreader
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"math/rand/v2"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
-// Defaults of [Config].
+// Defaults and bounds of [Config].
 const (
 	// DefaultPollInterval is the poll interval of a manifest.
 	DefaultPollInterval = 60 * time.Second
+	// MinPollInterval is the shortest accepted poll interval, and the shortest wait between two rounds.
+	MinPollInterval = time.Second
 	// DefaultJitterFraction is the jitter of the poll interval: +/-10 %.
 	DefaultJitterFraction = 0.1
-	// DefaultMaxManifestBytes bounds the manifest download: 20000 entries are about 10 MiB of YAML.
-	DefaultMaxManifestBytes = 32 << 20
+	// DefaultRequestTimeout bounds every request of the reader (the manifest and each object).
+	DefaultRequestTimeout = 60 * time.Second
+	// DefaultMaxManifestBytes bounds the manifest download. 20000 entries are about 10 MiB of JSON or YAML.
+	DefaultMaxManifestBytes = 16 << 20
 	// DefaultMaxObjectBytes bounds one object download.
 	DefaultMaxObjectBytes = 16 << 20
+	// DefaultMaxTotalBytes bounds the sum of the sizes of the distinct objects of a manifest.
+	DefaultMaxTotalBytes = 1 << 30
 	// DefaultFetchConcurrency is the number of concurrent object downloads.
 	DefaultFetchConcurrency = 4
 	// MaxFetchConcurrency is the largest accepted number of concurrent object downloads.
 	MaxFetchConcurrency = 16
+	// maxStartPhase bounds the random delay before the first round.
+	maxStartPhase = 5 * time.Second
 )
 
 // ErrNothingRestored is what [Hooks.Restore] returns when there is no saved state: not a failure.
@@ -34,57 +44,99 @@ var ErrNothingRestored = errors.New("manifestreader: nothing to restore")
 // ErrInvalidConfig is matched by the error [New] returns for a configuration it cannot use.
 var ErrInvalidConfig = errors.New("manifestreader: invalid config")
 
-// Config configures a [Reader]. A zero field takes its default, except where noted.
+// Config configures a [Reader]. A zero field takes its default, except where noted. [New] copies it.
 type Config struct {
 	// ManifestKey is the key of the manifest in the store. Required.
 	ManifestKey string
+	// Connection is the name of the connection the store of the reader serves. Required: an object whose entry
+	// names another connection is failed with [ReasonUnknownConnection] unless [WithObjectStores] has a store
+	// for that name.
+	Connection string
 	// Channel is the expected channel of the manifest; a manifest of another channel is rejected. Empty
 	// accepts any channel.
 	Channel string
-	// PollInterval is the time between two rounds, before jitter.
+	// PollInterval is the time between two rounds, before jitter; at least [MinPollInterval].
 	PollInterval time.Duration
-	// JitterFraction spreads the interval by +/- this fraction (0.1 is +/-10 %). Zero selects the default; a
-	// negative value switches the jitter off. At most 1.
+	// JitterFraction spreads the interval by +/- this fraction (0.1 is +/-10 %). Zero selects the default; it
+	// must be in [0, 1). Set DisableJitter to poll at exactly the interval.
 	JitterFraction float64
+	// RequestTimeout bounds every request of the reader: the manifest GET and each object GET.
+	RequestTimeout time.Duration
 	// MaxObjects is the largest number of objects a manifest may list; a bigger manifest is rejected whole.
 	MaxObjects int
-	// MaxManifestBytes and MaxObjectBytes bound what one download may read; a larger body is rejected
+	// MaxManifestBytes bounds the manifest download. Decoding a 20000 entry manifest costs about 190 ms and
+	// 144 MB of allocations (measured with the controlplane decoder), and a hostile manifest near the cap can
+	// allocate far more before it is rejected: the cap is what bounds that cost. A larger body is refused
 	// without being buffered.
 	MaxManifestBytes int64
-	MaxObjectBytes   int64
+	// MaxObjectBytes bounds one object: an entry that lists a larger size is not requested.
+	MaxObjectBytes int64
+	// MaxTotalBytes bounds the sum of the listed sizes of the distinct checksums of a manifest. A manifest
+	// above it is rejected whole before any object request. The worst-case memory of the reader is about this
+	// cap for the current content, plus the same again for stale content that is still carried, plus
+	// FetchConcurrency times MaxObjectBytes in flight.
+	MaxTotalBytes int64
 	// FetchConcurrency is the number of concurrent object downloads, at most [MaxFetchConcurrency].
 	FetchConcurrency int
+	// DisableJitter turns the jitter off (and with it the random start phase).
+	DisableJitter bool
 }
 
 func (c *Config) withDefaults() error {
+	err := c.validate()
+	if err != nil {
+		return err
+	}
+
+	c.PollInterval = cmp.Or(c.PollInterval, DefaultPollInterval)
+	c.RequestTimeout = cmp.Or(c.RequestTimeout, DefaultRequestTimeout)
+	c.MaxObjects = cmp.Or(c.MaxObjects, controlplane.DefaultMaxObjects)
+	c.MaxManifestBytes = cmp.Or(c.MaxManifestBytes, DefaultMaxManifestBytes)
+	c.MaxObjectBytes = cmp.Or(c.MaxObjectBytes, DefaultMaxObjectBytes)
+	c.MaxTotalBytes = cmp.Or(c.MaxTotalBytes, DefaultMaxTotalBytes)
+	c.FetchConcurrency = cmp.Or(c.FetchConcurrency, DefaultFetchConcurrency)
+	c.JitterFraction = cmp.Or(c.JitterFraction, DefaultJitterFraction)
+
+	if c.DisableJitter {
+		c.JitterFraction = 0
+	}
+
+	return nil
+}
+
+func (c *Config) validateLimits() error {
+	if c.PollInterval < 0 || c.RequestTimeout < 0 || c.MaxObjects < 0 || c.MaxManifestBytes < 0 ||
+		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 {
+		return fmt.Errorf("%w: a limit is negative", ErrInvalidConfig)
+	}
+
+	return nil
+}
+
+func (c *Config) validate() error {
 	if c.ManifestKey == "" {
 		return fmt.Errorf("%w: ManifestKey is required", ErrInvalidConfig)
 	}
 
-	if c.PollInterval < 0 || c.MaxObjects < 0 || c.MaxManifestBytes < 0 || c.MaxObjectBytes < 0 ||
-		c.FetchConcurrency < 0 {
-		return fmt.Errorf("%w: a limit is negative", ErrInvalidConfig)
+	if c.Connection == "" {
+		return fmt.Errorf("%w: Connection is required", ErrInvalidConfig)
 	}
 
-	if c.JitterFraction > 1 {
-		return fmt.Errorf("%w: JitterFraction is above 1", ErrInvalidConfig)
+	err := c.validateLimits()
+	if err != nil {
+		return err
+	}
+
+	if c.PollInterval != 0 && c.PollInterval < MinPollInterval {
+		return fmt.Errorf("%w: PollInterval is below %s", ErrInvalidConfig, MinPollInterval)
+	}
+
+	if c.JitterFraction < 0 || c.JitterFraction >= 1 || math.IsNaN(c.JitterFraction) {
+		return fmt.Errorf("%w: JitterFraction is outside [0, 1)", ErrInvalidConfig)
 	}
 
 	if c.FetchConcurrency > MaxFetchConcurrency {
 		return fmt.Errorf("%w: FetchConcurrency is above %d", ErrInvalidConfig, MaxFetchConcurrency)
-	}
-
-	c.PollInterval = cmp.Or(c.PollInterval, DefaultPollInterval)
-	c.MaxObjects = cmp.Or(c.MaxObjects, controlplane.DefaultMaxObjects)
-	c.MaxManifestBytes = cmp.Or(c.MaxManifestBytes, DefaultMaxManifestBytes)
-	c.MaxObjectBytes = cmp.Or(c.MaxObjectBytes, DefaultMaxObjectBytes)
-	c.FetchConcurrency = cmp.Or(c.FetchConcurrency, DefaultFetchConcurrency)
-
-	switch {
-	case c.JitterFraction == 0:
-		c.JitterFraction = DefaultJitterFraction
-	case c.JitterFraction < 0:
-		c.JitterFraction = 0
 	}
 
 	return nil
@@ -100,16 +152,20 @@ type Restored struct {
 	Objects [][]byte
 }
 
-// Persist is what a [Hooks.Save] call gets after a snapshot was published.
+// Persist is what a [Hooks.Save] call gets after a snapshot was published. Every field is read-only and
+// shared with the reader: a hook must copy what it keeps.
 type Persist struct {
 	Snapshot *Snapshot
-	// ETag and Manifest are the held manifest.
+	// ETag and Manifest are the ACCEPTED manifest (the one the snapshot comes from), never a rejected one that
+	// was read later.
 	ETag     string
 	Manifest []byte
 }
 
 // Hooks are the seams the state directory of a later change uses. Every field is optional. A hook runs on the
-// polling goroutine and must not block.
+// polling goroutine and must not block. A panic in a hook is recovered, logged once per hook, counted in
+// [Status.HookPanics], and polling goes on. The arguments of Save and OnRound are read-only: do not change them
+// and do not keep them without copying.
 type Hooks struct {
 	// Restore is called once when [Reader.Run] starts. It returns [ErrNothingRestored] when nothing was saved.
 	Restore func() (*Restored, error)
@@ -161,6 +217,18 @@ func WithHooks(h Hooks) Option {
 // from the store of the manifest.
 func WithObjectStores(stores map[string]ObjectStore) Option {
 	return func(r *Reader) { r.stores = maps.Clone(stores) }
+}
+
+// WithRequestContext replaces the creation of the context of each request (manifest and objects), which is
+// [context.WithTimeout] by default. Tests use it to end a request without waiting for a real timer.
+func WithRequestContext(
+	create func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc),
+) Option {
+	return func(r *Reader) {
+		if create != nil {
+			r.reqCtx = create
+		}
+	}
 }
 
 func defaultJitter() float64 {

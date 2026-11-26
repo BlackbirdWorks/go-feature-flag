@@ -39,46 +39,63 @@ func NewS3Store(provider S3Provider, connectionName, bucket, prefix string) *S3S
 
 var _ ObjectStore = (*S3Store)(nil)
 
-// Get implements [ObjectStore] with GetObject and IfNoneMatch.
-func (s *S3Store) Get(ctx context.Context, key, etag string, limit int64) (Object, error) {
+// Get implements [ObjectStore] with GetObject, IfNoneMatch and VersionId. The body is read into one buffer
+// sized from the Content-Length (or from the limit when the answer has none), never beyond the limit.
+func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 	client, err := s.provider.S3(ctx, s.connection)
 	if err != nil {
 		// the connection is unknown or not S3: a configuration problem, not a transient one
 		return Object{}, &FetchError{Err: err, Reason: ReasonDenied, Retryable: false}
 	}
 
-	input := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.prefix + key)}
-	if etag != "" {
-		input.IfNoneMatch = aws.String(etag)
+	input := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.prefix + req.Key)}
+	if req.ETag != "" {
+		input.IfNoneMatch = aws.String(req.ETag)
+	}
+
+	if req.VersionID != "" {
+		input.VersionId = aws.String(req.VersionID)
 	}
 
 	out, err := client.GetObject(ctx, input)
 	if err != nil {
-		return Object{}, classifyS3(err)
+		return Object{}, classifyS3(err, req.VersionID != "")
 	}
 
 	defer func() { _ = out.Body.Close() }()
 
-	if aws.ToInt64(out.ContentLength) > limit {
-		return Object{}, ErrTooLarge
+	size := req.Limit + 1 // one byte more than the limit tells an over-limit body from one at the limit
+
+	if out.ContentLength != nil {
+		if *out.ContentLength > req.Limit {
+			return Object{}, ErrTooLarge
+		}
+
+		size = *out.ContentLength
 	}
 
-	// one byte more than the limit tells an over-limit body from one exactly at the limit
-	body, err := io.ReadAll(io.LimitReader(out.Body, limit+1))
-	if err != nil {
+	buf := make([]byte, size)
+
+	read, err := io.ReadFull(out.Body, buf)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return Object{}, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
 	}
 
-	if int64(len(body)) > limit {
+	if out.ContentLength != nil && int64(read) < size {
+		// the body ended before its Content-Length: a broken transfer
+		return Object{}, &FetchError{Err: io.ErrUnexpectedEOF, Reason: ReasonError, Retryable: true}
+	}
+
+	if int64(read) > req.Limit {
 		return Object{}, ErrTooLarge
 	}
 
-	return Object{Bytes: body, ETag: aws.ToString(out.ETag)}, nil
+	return Object{Bytes: buf[:read], ETag: aws.ToString(out.ETag)}, nil
 }
 
 // classifyS3 maps an SDK error to the results of [ObjectStore]. The 304 comes first: the SDK reports it as an
 // error and it is not one.
-func classifyS3(err error) error {
+func classifyS3(err error, withVersion bool) error {
 	if connection.IsNotModified(err) {
 		return ErrNotModified
 	}
@@ -94,8 +111,7 @@ func classifyS3(err error) error {
 		return &FetchError{Err: err, Reason: ReasonDenied, Retryable: false}
 	}
 
-	_, noKey := errors.AsType[*types.NoSuchKey](err)
-	if noKey || status == http.StatusNotFound {
+	if isNotFound(err, status, withVersion) {
 		return ErrNotFound
 	}
 
@@ -122,4 +138,17 @@ func throttleCode(code string) bool {
 	}
 
 	return false
+}
+
+// isNotFound reports a missing object or version. A version id that does not exist is 404 NoSuchKey on the
+// emulator and 400 InvalidArgument on AWS.
+func isNotFound(err error, status int, withVersion bool) bool {
+	_, noKey := errors.AsType[*types.NoSuchKey](err)
+	if noKey || status == http.StatusNotFound {
+		return true
+	}
+
+	apiErr, isAPI := errors.AsType[smithy.APIError](err)
+
+	return withVersion && isAPI && apiErr.ErrorCode() == "InvalidArgument"
 }

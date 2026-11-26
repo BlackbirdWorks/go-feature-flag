@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -21,40 +23,56 @@ var ErrAlreadyRunning = errors.New("manifestreader: reader already running")
 //
 // Everything below the "poller" comment is touched by the polling goroutine only; other goroutines use
 // [Reader.Snapshots] and [Reader.Status].
+//
+// Request budget: a round is one logical conditional GET of the manifest. When it fails, the SDK of the store
+// may retry it: those are extra attempts, each observed once by the connection observer. The steady state (every
+// round answered 304, no failing object) is exactly one request per round.
 type Reader struct {
-	hooks    Hooks
-	lastSync time.Time
-	store    ObjectStore
-	sched    Scheduler
-	cache    map[string][]byte
-	last     map[string]pubKey
-	status   atomic.Pointer[Status]
-	jitter   func() float64
-	stores   map[string]ObjectStore
-	snaps    chan *Snapshot
-	logged   map[string]string
-	held     *held
-	log      *slog.Logger
-	names    map[string]*nameState
-	lastPoll string
-	etag     string
+	hooks      Hooks
+	lastSync   time.Time
+	store      ObjectStore
+	sched      Scheduler
+	cache      map[string][]byte
+	status     atomic.Pointer[Status]
+	jitter     func() float64
+	reqCtx     func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	stores     map[string]ObjectStore
+	snaps      chan *Snapshot
+	logged     map[string]string
+	hookPanics map[string]uint64
+	held       *held
+	log        *slog.Logger
+	names      map[string]*nameState
+	lastPoll   string
+	// seen is the ETag sent as If-None-Match: the one of the last manifest read, accepted or not.
+	seen     string
+	groups   []*group
 	failures []ObjectFailure
 	manifest ManifestStatus
 	cfg      Config
 	counts   Counts
-	lastGen  uint64
 	polls    uint64
 	notMod   uint64
 	started  atomic.Bool
+	// dirty is set when the state of a name changed since the last snapshot.
+	dirty bool
 }
 
-// held is the accepted manifest.
+// held is the accepted manifest. etag is its own ETag, which is not the one of a rejected manifest read later.
 type held struct {
-	sums       map[string]string
+	ident      map[string]identity
 	channel    string
+	etag       string
 	raw        []byte
 	objects    []controlplane.ManifestObject
 	generation uint64
+}
+
+// identity is what a name is at one generation: a change of it at an equal generation is a conflict.
+type identity struct {
+	sum    string
+	kind   string
+	format string
 }
 
 // good is the last verified content of a name.
@@ -68,52 +86,71 @@ type good struct {
 // nameState is what the reader knows of one object name.
 type nameState struct {
 	good      *good
-	entry     controlplane.ManifestObject
+	entry     *controlplane.ManifestObject
 	state     State
 	reason    string
 	retryable bool
 }
 
-// pubKey is what makes a published object differ from another.
-type pubKey struct {
-	state  State
-	reason string
-	sum    string
+// group is the objects of a manifest that share one checksum: the content is fetched once for all of them.
+type group struct {
+	sum         string
+	localReason string
+	// entries are the entries that can be requested, in manifest order: the next one is tried only when the
+	// one before failed.
+	entries []*controlplane.ManifestObject
+	names   []*nameState
 }
 
-// New returns a reader of store with cfg.
-func New(
-	store ObjectStore,
-	cfg Config, //nolint:gocritic // a value by design: callers pass a literal and it is copied once
-	opts ...Option,
-) (*Reader, error) {
-	err := cfg.withDefaults()
+// New returns a reader of store. cfg is copied and never changed; nil selects the defaults (which still need a
+// manifest key and a connection name, so nil is an error today).
+func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
+	var own Config
+
+	if cfg != nil {
+		own = *cfg
+	}
+
+	err := own.withDefaults()
 	if err != nil {
 		return nil, err
 	}
 
 	reader := &Reader{
-		store:  store,
-		cfg:    cfg,
-		log:    slog.New(slog.DiscardHandler),
-		sched:  timerScheduler{},
-		jitter: defaultJitter,
-		snaps:  make(chan *Snapshot, 1),
-		cache:  map[string][]byte{},
-		names:  map[string]*nameState{},
-		logged: map[string]string{},
-		manifest: ManifestStatus{
-			Outcome: OutcomeNone,
-		},
+		store:      store,
+		cfg:        own,
+		log:        slog.New(slog.DiscardHandler),
+		sched:      timerScheduler{},
+		jitter:     defaultJitter,
+		reqCtx:     withTimeout,
+		snaps:      make(chan *Snapshot, 1),
+		cache:      map[string][]byte{},
+		names:      map[string]*nameState{},
+		logged:     map[string]string{},
+		hookPanics: map[string]uint64{},
+		manifest:   ManifestStatus{Outcome: OutcomeNone},
 	}
 
 	for _, opt := range opts {
 		opt(reader)
 	}
 
+	// the store of the manifest serves its own connection, unless WithObjectStores says otherwise
+	if reader.stores == nil {
+		reader.stores = map[string]ObjectStore{}
+	}
+
+	if _, ok := reader.stores[own.Connection]; !ok {
+		reader.stores[own.Connection] = store
+	}
+
 	reader.status.Store(&Status{Poll: PollStatus{Result: PollNone}, Manifest: reader.manifest})
 
 	return reader, nil
+}
+
+func withTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, timeout)
 }
 
 // Snapshots returns the channel of snapshots. It has room for one: a snapshot that is not consumed when the
@@ -125,9 +162,12 @@ func (r *Reader) Snapshots() <-chan *Snapshot { return r.snaps }
 func (r *Reader) Status() Status { return *r.status.Load() }
 
 // Run polls until ctx is done and returns nil then. It runs the rounds on the calling goroutine; object
-// downloads run on a bounded group of workers that ends with each round, so no goroutine outlives Run. The
-// first round starts at once; the others follow the poll interval with jitter. A failed round is simply tried
-// again at the next interval.
+// downloads run on a bounded group of workers that ends with each round, so no goroutine outlives Run.
+//
+// The first round is delayed by a random start phase, jitter() x min(PollInterval, 5 s), so replicas started
+// together do not poll together, unless the jitter is disabled or restored state already made a snapshot
+// available. The other rounds follow the poll interval with jitter, and every wait is within
+// [MinPollInterval, PollInterval x (1+jitter)]. A failed round is simply tried again at the next interval.
 func (r *Reader) Run(ctx context.Context) error {
 	if !r.started.CompareAndSwap(false, true) {
 		return ErrAlreadyRunning
@@ -136,6 +176,13 @@ func (r *Reader) Run(ctx context.Context) error {
 	defer close(r.snaps)
 
 	r.restore(ctx)
+
+	if r.held == nil && r.cfg.JitterFraction > 0 {
+		phase := time.Duration(r.jitterValue() * float64(min(r.cfg.PollInterval, maxStartPhase)))
+		if phase > 0 && r.sched.Wait(ctx, phase) != nil {
+			return nil
+		}
+	}
 
 	for {
 		r.round(ctx)
@@ -151,15 +198,59 @@ func (r *Reader) Run(ctx context.Context) error {
 	}
 }
 
-// next is the wait before the next round: the interval spread by the jitter.
-func (r *Reader) next() time.Duration {
-	wait := r.cfg.PollInterval
-	if r.cfg.JitterFraction > 0 {
-		factor := 1 + r.cfg.JitterFraction*(2*r.jitter()-1)
-		wait = time.Duration(float64(wait) * factor)
+// jitterValue is the jitter source clamped into [0, 1).
+func (r *Reader) jitterValue() float64 {
+	value := r.jitter()
+
+	switch {
+	case math.IsNaN(value) || value < 0:
+		return 0
+	case value >= 1:
+		return math.Nextafter(1, 0)
 	}
 
-	return wait
+	return value
+}
+
+// next is the wait before the next round: the interval spread by the jitter, within its bounds.
+func (r *Reader) next() time.Duration {
+	interval := float64(r.cfg.PollInterval)
+	wait := interval
+
+	if r.cfg.JitterFraction > 0 {
+		wait = interval * (1 + r.cfg.JitterFraction*(2*r.jitterValue()-1))
+	}
+
+	upper := time.Duration(interval * (1 + r.cfg.JitterFraction))
+
+	return min(max(time.Duration(wait), MinPollInterval), max(upper, MinPollInterval))
+}
+
+// safe runs a hook and recovers a panic: it is counted, logged once per hook, and polling goes on. It reports
+// whether the hook returned normally.
+func (r *Reader) safe(ctx context.Context, name string, call func()) bool {
+	returned := false
+
+	defer func() {
+		if returned {
+			return
+		}
+
+		_ = recover()
+
+		r.hookPanics[name]++
+
+		if r.hookPanics[name] == 1 {
+			r.log.LogAttrs(ctx, slog.LevelError, "manifest reader: hook panicked, polling goes on",
+				slog.String("hook", name))
+		}
+	}()
+
+	call()
+
+	returned = true
+
+	return true
 }
 
 func (r *Reader) restore(ctx context.Context) {
@@ -167,9 +258,17 @@ func (r *Reader) restore(ctx context.Context) {
 		return
 	}
 
-	restored, err := r.hooks.Restore()
-	if err != nil {
-		if !errors.Is(err, ErrNothingRestored) {
+	var (
+		restored *Restored
+		err      error
+	)
+
+	if !r.safe(ctx, hookRestore, func() { restored, err = r.hooks.Restore() }) {
+		return
+	}
+
+	if err != nil || restored == nil {
+		if err != nil && !errors.Is(err, ErrNothingRestored) {
 			r.log.LogAttrs(ctx, slog.LevelWarn, "manifest reader: restore failed")
 		}
 
@@ -180,15 +279,31 @@ func (r *Reader) restore(ctx context.Context) {
 		r.cache[controlplane.ChecksumOf(content).Value] = content
 	}
 
-	r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag})
+	if !r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag}) {
+		// the saved ETag names bytes that were not accepted: the first poll must read the manifest
+		r.seen = ""
+	}
+
 	r.finish(ctx, PollStatus{Result: PollNone}, false)
 }
+
+// Hook names, as reported in [Status.HookPanics].
+const (
+	hookRestore = "restore"
+	hookSave    = "save"
+	hookOnRound = "onRound"
+)
 
 // round is one poll: the conditional GET of the manifest and what follows from the answer.
 func (r *Reader) round(ctx context.Context) {
 	r.polls++
 
-	obj, err := r.store.Get(ctx, r.cfg.ManifestKey, r.etag, r.cfg.MaxManifestBytes)
+	reqCtx, cancel := r.reqCtx(ctx, r.cfg.RequestTimeout)
+	obj, err := r.store.Get(reqCtx, GetRequest{Key: r.cfg.ManifestKey, ETag: r.seen, Limit: r.cfg.MaxManifestBytes})
+	timedOut := err != nil && reqCtx.Err() != nil && ctx.Err() == nil
+
+	cancel()
+
 	if ctx.Err() != nil {
 		return
 	}
@@ -199,15 +314,17 @@ func (r *Reader) round(ctx context.Context) {
 	switch {
 	case err == nil:
 		confirmed = r.accept(ctx, obj)
+	case timedOut:
+		poll = PollStatus{Result: PollError, Reason: ReasonTimeout}
 	case errors.Is(err, ErrNotModified):
 		r.notMod++
 		poll.Result = PollNotModified
 		confirmed = r.manifest.Outcome == OutcomeAccepted
 
-		// only the objects that failed are fetched again; with none, nothing else happens
-		if len(r.failures) > 0 {
-			r.settle(ctx)
-		}
+		// Only the objects that failed are fetched again, and only on a round whose manifest GET worked: when
+		// the manifest cannot be read (an outage) the reader does not add object requests to the failing ones.
+		// With no failed object nothing else happens.
+		r.settle(ctx, false)
 	default:
 		poll = failedPoll(err)
 	}
@@ -258,9 +375,10 @@ func (r *Reader) logPoll(ctx context.Context, poll PollStatus) {
 		slog.String("result", poll.Result), slog.String("reason", poll.Reason))
 }
 
-// reject records a manifest that is not applied. The ETag of the rejected bytes is kept on purpose: the same
-// bytes are rejected again with the same result, so the next 304 spares the download and the repeated log,
-// and a corrected manifest has other bytes, so another ETag, and is read.
+// reject records a manifest that is not applied. The ETag of the rejected bytes is sent next (r.seen): the same
+// bytes are rejected again with the same result, so the next 304 spares the download and the repeated log, and
+// a corrected manifest has other bytes, so another ETag, and is read. The ETag of the ACCEPTED manifest is
+// kept apart in held.etag, and is what Save gets.
 func (r *Reader) reject(ctx context.Context, outcome, reason string, unknown int) {
 	r.manifest.Outcome = outcome
 	r.manifest.Reason = reason
@@ -274,7 +392,7 @@ func (r *Reader) reject(ctx context.Context, outcome, reason string, unknown int
 // accept decodes, validates and applies the manifest of a 200 answer. It reports whether the manifest was
 // accepted.
 func (r *Reader) accept(ctx context.Context, obj Object) bool {
-	r.etag = obj.ETag
+	r.seen = obj.ETag
 
 	manifest, info, err := controlplane.UnmarshalManifest(obj.Bytes)
 	if err == nil {
@@ -295,10 +413,19 @@ func (r *Reader) accept(ctx context.Context, obj Object) bool {
 		return false
 	}
 
-	sums := make(map[string]string, len(manifest.Objects))
-	for i := range manifest.Objects {
-		sums[manifest.Objects[i].Name] = manifest.Objects[i].Checksum.Value
+	if totalSize(manifest.Objects) > r.cfg.MaxTotalBytes {
+		r.reject(ctx, OutcomeInvalid, ReasonTotalTooLarge, unknown)
+
+		return false
 	}
+
+	ident := make(map[string]identity, len(manifest.Objects))
+	for i := range manifest.Objects {
+		entry := &manifest.Objects[i]
+		ident[entry.Name] = identity{sum: entry.Checksum.Value, kind: entry.Kind, format: entry.Format}
+	}
+
+	genChanged := r.held == nil || manifest.Generation != r.held.generation
 
 	if r.held != nil {
 		switch {
@@ -306,36 +433,40 @@ func (r *Reader) accept(ctx context.Context, obj Object) bool {
 			r.reject(ctx, OutcomeLowerGeneration, "generation", unknown)
 
 			return false
-		case manifest.Generation == r.held.generation && !sameSums(r.held.sums, sums):
+		case !genChanged && !maps.Equal(r.held.ident, ident):
 			r.reject(ctx, OutcomeConflict, "generation", unknown)
 
 			return false
 		}
 	}
 
-	r.adopt(manifest, sums, obj.Bytes)
+	r.adopt(manifest, ident, obj)
 	r.manifest = ManifestStatus{
 		Outcome: OutcomeAccepted, Channel: manifest.Channel, Generation: manifest.Generation,
 		Objects: len(manifest.Objects), UnknownFields: unknown,
 	}
 
-	r.settle(ctx)
+	r.settle(ctx, genChanged)
 
 	return true
 }
 
-func sameSums(have, want map[string]string) bool {
-	if len(have) != len(want) {
-		return false
-	}
+// totalSize is the sum of the listed sizes of the distinct checksums.
+func totalSize(objects []controlplane.ManifestObject) int64 {
+	seen := make(map[string]struct{}, len(objects))
 
-	for name, sum := range want {
-		if have[name] != sum {
-			return false
+	var total int64
+
+	for i := range objects {
+		if _, dup := seen[objects[i].Checksum.Value]; dup {
+			continue
 		}
+
+		seen[objects[i].Checksum.Value] = struct{}{}
+		total += objects[i].Size
 	}
 
-	return true
+	return total
 }
 
 // manifestReason is the closed code of a manifest that cannot be used. The text of the error is not used: it
@@ -358,115 +489,163 @@ func manifestReason(err error) string {
 	return "invalid"
 }
 
-// adopt makes manifest the held one. A name that stays keeps its last verified content; a name that left is
-// forgotten with it (removal is not a failure).
-func (r *Reader) adopt(manifest *controlplane.Manifest, sums map[string]string, raw []byte) {
+// adopt makes manifest the held one and plans the downloads. A name that stays keeps its last verified content
+// and, while its checksum is the same, its state; a name that left is forgotten with it (removal is not a
+// failure). Entries with the same checksum form one group, fetched once.
+func (r *Reader) adopt(manifest *controlplane.Manifest, ident map[string]identity, obj Object) {
+	previous := r.names
 	names := make(map[string]*nameState, len(manifest.Objects))
+	byChecksum := map[string]*group{}
+
+	var order []*group
 
 	for i := range manifest.Objects {
-		entry := manifest.Objects[i]
-		state := &nameState{entry: entry, state: StatePending}
+		entry := &manifest.Objects[i]
+		state := &nameState{entry: entry}
 
-		if prev := r.names[entry.Name]; prev != nil {
+		if prev := previous[entry.Name]; prev != nil {
 			state.good = prev.good
+
+			if prev.entry.Checksum.Value == entry.Checksum.Value {
+				state.state, state.reason, state.retryable = prev.state, prev.reason, prev.retryable
+			}
 		}
 
 		names[entry.Name] = state
+
+		if data, held := r.cache[entry.Checksum.Value]; held {
+			r.applyOK(state, data)
+
+			continue
+		}
+
+		grp := byChecksum[entry.Checksum.Value]
+		if grp == nil {
+			grp = &group{sum: entry.Checksum.Value}
+			byChecksum[grp.sum] = grp
+			order = append(order, grp)
+		}
+
+		grp.names = append(grp.names, state)
+
+		if reason := r.localFailure(entry); reason != "" {
+			grp.localReason = cmp.Or(grp.localReason, reason)
+
+			continue
+		}
+
+		grp.entries = append(grp.entries, entry)
 	}
 
 	r.names = names
+	r.groups = nil
 	r.held = &held{
-		generation: manifest.Generation, channel: manifest.Channel, sums: sums, raw: raw,
+		generation: manifest.Generation, channel: manifest.Channel, ident: ident, raw: obj.Bytes, etag: obj.ETag,
 		objects: manifest.Objects,
+	}
+
+	for _, grp := range order {
+		if len(grp.entries) == 0 {
+			// no request can be made for it, now or in a later round: the failure is final until the manifest changes
+			r.applyFail(grp, result{reason: grp.localReason})
+
+			continue
+		}
+
+		r.groups = append(r.groups, grp)
 	}
 }
 
-// job is the download of one distinct checksum.
-type job struct {
-	entry *controlplane.ManifestObject
+// localFailure is the reason an entry cannot be requested at all, or "". It depends on the entry only, so it
+// costs no request, now or in any later round.
+func (r *Reader) localFailure(entry *controlplane.ManifestObject) string {
+	switch {
+	case entry.Size < 1:
+		return ReasonInvalidSize
+	case entry.Size > r.cfg.MaxObjectBytes:
+		return ReasonTooLarge
+	}
+
+	if _, ok := r.stores[entry.Connection]; !ok {
+		return ReasonUnknownConnection
+	}
+
+	return ""
 }
 
-// result is the outcome of a job.
+// result is the outcome of fetching a group.
 type result struct {
 	reason    string
 	data      []byte
 	retryable bool
 }
 
-// settle brings every name of the held manifest to a state: a held verified content, or a download of the
-// checksums that are not held, each once. It publishes a snapshot when the generation or any state changed.
-func (r *Reader) settle(ctx context.Context) {
-	if r.held == nil {
+// settle fetches the groups that have no verified content yet (the new ones, and the ones that failed in an
+// earlier round, each once), applies the results, and publishes a snapshot when the generation or the state of
+// a name changed. Nothing here walks the objects of the manifest unless something changed.
+func (r *Reader) settle(ctx context.Context, genChanged bool) {
+	if len(r.groups) > 0 {
+		results := r.fetchAll(ctx, r.groups)
+		if ctx.Err() != nil {
+			return
+		}
+
+		var keep []*group
+
+		for i, grp := range r.groups {
+			if results[i].reason == "" {
+				r.cache[grp.sum] = results[i].data
+
+				for _, name := range grp.names {
+					r.applyOK(name, results[i].data)
+				}
+
+				continue
+			}
+
+			r.applyFail(grp, results[i])
+
+			keep = append(keep, grp)
+		}
+
+		r.groups = keep
+	}
+
+	if !genChanged && !r.dirty {
 		return
 	}
 
-	var jobs []job
-
-	queued := map[string]struct{}{}
-
-	for i := range r.held.objects {
-		obj := &r.held.objects[i]
-		if _, held := r.cache[obj.Checksum.Value]; held {
-			continue
-		}
-
-		if _, dup := queued[obj.Checksum.Value]; dup {
-			continue
-		}
-
-		queued[obj.Checksum.Value] = struct{}{}
-
-		jobs = append(jobs, job{entry: obj})
-	}
-
-	results := r.fetchAll(ctx, jobs)
-	if ctx.Err() != nil {
-		return
-	}
-
-	failed := make(map[string]result, len(jobs))
-
-	for i := range jobs {
-		res := results[i]
-		if res.reason == "" {
-			r.cache[jobs[i].entry.Checksum.Value] = res.data
-
-			continue
-		}
-
-		failed[jobs[i].entry.Checksum.Value] = res
-	}
-
-	for i := range r.held.objects {
-		obj := &r.held.objects[i]
-		r.apply(r.names[obj.Name], failed[obj.Checksum.Value])
-	}
+	r.dirty = false
 
 	r.prune()
 	r.report(ctx)
 	r.publish(ctx)
 }
 
-// apply sets the state of one name from the download of its checksum (a zero result when it is held).
-func (r *Reader) apply(name *nameState, fail result) {
+// applyOK gives a name the verified content.
+func (r *Reader) applyOK(name *nameState, data []byte) {
 	entry := name.entry
 
-	if data, ok := r.cache[entry.Checksum.Value]; ok {
-		if name.good == nil || name.good.sum.Value != entry.Checksum.Value ||
-			name.good.kind != entry.Kind || name.good.format != entry.Format {
-			name.good = &good{kind: entry.Kind, format: entry.Format, sum: entry.Checksum, bytes: data}
+	if name.state != StateOK || name.good == nil || name.good.sum.Value != entry.Checksum.Value ||
+		name.good.kind != entry.Kind || name.good.format != entry.Format {
+		name.good = &good{kind: entry.Kind, format: entry.Format, sum: entry.Checksum, bytes: data}
+		name.state, name.reason, name.retryable = StateOK, "", false
+		r.dirty = true
+	}
+}
+
+// applyFail gives every name of the group the failure: stale when it has earlier content, else missing.
+func (r *Reader) applyFail(grp *group, res result) {
+	for _, name := range grp.names {
+		state := StateMissing
+		if name.good != nil {
+			state = StateStale
 		}
 
-		name.state, name.reason, name.retryable = StateOK, "", false
-
-		return
-	}
-
-	name.reason, name.retryable = fail.reason, fail.retryable
-	name.state = StateMissing
-
-	if name.good != nil {
-		name.state = StateStale
+		if name.state != state || name.reason != res.reason || name.retryable != res.retryable {
+			name.state, name.reason, name.retryable = state, res.reason, res.retryable
+			r.dirty = true
+		}
 	}
 }
 
@@ -492,7 +671,7 @@ func (r *Reader) prune() {
 // report refreshes the counts and failures and logs the state changes of the objects, once per change.
 func (r *Reader) report(ctx context.Context) {
 	r.counts = Counts{}
-	r.failures = r.failures[:0:0]
+	r.failures = nil
 
 	for name, state := range r.names {
 		switch state.state {
@@ -502,8 +681,6 @@ func (r *Reader) report(ctx context.Context) {
 			r.counts.Stale++
 		case StateMissing:
 			r.counts.Missing++
-		case StatePending:
-			r.counts.Pending++
 		}
 
 		if state.state == StateOK {
@@ -537,45 +714,22 @@ func (r *Reader) report(ctx context.Context) {
 	slices.SortFunc(r.failures, func(a, b ObjectFailure) int { return cmp.Compare(a.Name, b.Name) })
 }
 
-// publish sends a snapshot when the generation or the state of any object differs from the last one sent.
+// publish sends the snapshot of the current states and hands the accepted manifest to the Save hook.
 func (r *Reader) publish(ctx context.Context) {
-	snap, keys := r.build()
-	if snap == nil {
-		return
+	objects := make(map[string]ObjectState, len(r.names))
+	for name, state := range r.names {
+		objects[name] = state.objectState()
 	}
 
-	r.last, r.lastGen = keys, snap.Generation
+	snap := &Snapshot{Generation: r.held.generation, Channel: r.held.channel, Objects: objects}
 
 	r.send(ctx, snap)
 
 	if r.hooks.Save != nil {
-		r.hooks.Save(Persist{Snapshot: snap, ETag: r.etag, Manifest: r.held.raw})
+		persist := Persist{Snapshot: snap, ETag: r.held.etag, Manifest: r.held.raw}
+
+		r.safe(ctx, hookSave, func() { r.hooks.Save(persist) })
 	}
-}
-
-// build returns the snapshot of the current states with the keys that identify it, or nil when it does not
-// differ from the last one sent.
-func (r *Reader) build() (*Snapshot, map[string]pubKey) {
-	keys := make(map[string]pubKey, len(r.names))
-	changed := r.last == nil || r.lastGen != r.held.generation || len(r.last) != len(r.names)
-	objects := make(map[string]ObjectState, len(r.names))
-
-	for name, state := range r.names {
-		key := pubKey{state: state.state, reason: state.reason, sum: state.entry.Checksum.Value}
-		if state.good != nil {
-			key.sum = state.good.sum.Value
-		}
-
-		keys[name] = key
-		objects[name] = state.objectState()
-		changed = changed || r.last[name] != key
-	}
-
-	if !changed {
-		return nil, nil
-	}
-
-	return &Snapshot{Generation: r.held.generation, Channel: r.held.channel, Objects: objects}, keys
 }
 
 // send puts snap in the channel, replacing a snapshot that was not consumed. The poller is the only sender:
@@ -613,7 +767,7 @@ func (n *nameState) objectState() ObjectState {
 }
 
 // finish stores the status at the end of a round.
-func (r *Reader) finish(_ context.Context, poll PollStatus, confirmed bool) {
+func (r *Reader) finish(ctx context.Context, poll PollStatus, confirmed bool) {
 	now := clock.Now()
 	poll.At = now
 
@@ -625,35 +779,40 @@ func (r *Reader) finish(_ context.Context, poll PollStatus, confirmed bool) {
 		LastSync: r.lastSync, Poll: poll, Manifest: r.manifest, Failures: r.failures, Counts: r.counts,
 		Polls: r.polls, NotModified: r.notMod,
 	}
+
+	if len(r.hookPanics) > 0 {
+		for name, count := range r.hookPanics {
+			status.HookPanics = append(status.HookPanics, HookPanic{Name: name, Count: count})
+		}
+
+		slices.SortFunc(status.HookPanics, func(a, b HookPanic) int { return cmp.Compare(a.Name, b.Name) })
+	}
+
 	r.status.Store(status)
 
 	if r.hooks.OnRound != nil {
-		r.hooks.OnRound(status)
+		r.safe(ctx, hookOnRound, func() { r.hooks.OnRound(status) })
 	}
 }
 
-// fetchAll downloads the jobs with at most FetchConcurrency requests in flight and returns the results in
-// the order of the jobs. It returns after every worker ended.
-func (r *Reader) fetchAll(ctx context.Context, jobs []job) []result {
-	results := make([]result, len(jobs))
-	if len(jobs) == 0 {
-		return results
-	}
-
+// fetchAll downloads the groups with at most FetchConcurrency requests in flight and returns the results in
+// the order of the groups. It returns after every worker ended.
+func (r *Reader) fetchAll(ctx context.Context, groups []*group) []result {
+	results := make([]result, len(groups))
 	next := make(chan int)
 
-	var group sync.WaitGroup
+	var wg sync.WaitGroup
 
-	for range min(r.cfg.FetchConcurrency, len(jobs)) {
-		group.Go(func() {
+	for range min(r.cfg.FetchConcurrency, len(groups)) {
+		wg.Go(func() {
 			for idx := range next {
-				results[idx] = r.fetch(ctx, jobs[idx].entry)
+				results[idx] = r.fetchGroup(ctx, groups[idx])
 			}
 		})
 	}
 
 feed:
-	for idx := range jobs {
+	for idx := range groups {
 		select {
 		case next <- idx:
 		case <-ctx.Done():
@@ -662,36 +821,49 @@ feed:
 	}
 
 	close(next)
-	group.Wait()
+	wg.Wait()
 
 	return results
 }
 
-// fetch downloads and verifies one object.
-func (r *Reader) fetch(ctx context.Context, entry *controlplane.ManifestObject) result {
-	if entry.Size > r.cfg.MaxObjectBytes {
-		return result{reason: ReasonTooLarge}
-	}
+// fetchGroup fetches the content of a checksum through the first entry that lists it; only when that fails is
+// the next entry tried (one more request per extra entry, and only on failure). A failure of all of them is the
+// failure of the first.
+func (r *Reader) fetchGroup(ctx context.Context, grp *group) result {
+	var first result
 
-	store := r.store
-
-	if r.stores != nil {
-		found, ok := r.stores[entry.Connection]
-		if !ok {
-			return result{reason: ReasonUnknownConnection}
+	for i, entry := range grp.entries {
+		res := r.fetch(ctx, entry)
+		if res.reason == "" || ctx.Err() != nil {
+			return res
 		}
 
-		store = found
+		if i == 0 {
+			first = res
+		}
 	}
 
-	obj, err := store.Get(ctx, entry.Key, "", entry.Size)
+	return first
+}
+
+// fetch downloads and verifies one object. The listed size is binding: it is the limit of the request, and a
+// body of another length fails before the checksum is looked at.
+func (r *Reader) fetch(ctx context.Context, entry *controlplane.ManifestObject) result {
+	store := r.stores[entry.Connection]
+
+	reqCtx, cancel := r.reqCtx(ctx, r.cfg.RequestTimeout)
+	defer cancel()
+
+	obj, err := store.Get(reqCtx, GetRequest{Key: entry.Key, VersionID: entry.VersionID, Limit: entry.Size})
 
 	switch {
 	case err == nil:
+	case reqCtx.Err() != nil && ctx.Err() == nil:
+		return result{reason: ReasonTimeout, retryable: true}
 	case errors.Is(err, ErrNotFound):
 		return result{reason: ReasonMissing, retryable: true}
 	case errors.Is(err, ErrTooLarge):
-		return result{reason: ReasonTooLarge}
+		return result{reason: ReasonSizeMismatch, retryable: true}
 	default:
 		fetchErr, ok := errors.AsType[*FetchError](err)
 		if ok {
@@ -699,6 +871,10 @@ func (r *Reader) fetch(ctx context.Context, entry *controlplane.ManifestObject) 
 		}
 
 		return result{reason: ReasonError, retryable: true}
+	}
+
+	if int64(len(obj.Bytes)) != entry.Size {
+		return result{reason: ReasonSizeMismatch, retryable: true}
 	}
 
 	if controlplane.VerifyChecksum(obj.Bytes, entry.Checksum) != nil {

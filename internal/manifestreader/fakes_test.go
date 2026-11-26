@@ -19,8 +19,9 @@ const wait = 10 * time.Second
 
 // call is one request the fake store received.
 type call struct {
-	Key  string
-	ETag string
+	Key       string
+	ETag      string
+	VersionID string
 }
 
 // fakeStore is an in-memory ObjectStore that records every call. The ETag of an object is derived from its
@@ -30,7 +31,10 @@ type fakeStore struct {
 	etags   map[string]string
 	fails   map[string][]error
 	// gate, when set, runs inside Get for every key other than the manifest, after the call is counted in flight.
-	gate        func(ctx context.Context, key string)
+	gate func(ctx context.Context, key string)
+	// hang holds the keys whose Get blocks until its context ends; hung is told when one blocks.
+	hang        map[string]bool
+	hung        chan string
 	calls       []call
 	inFlight    int
 	maxInFlight int
@@ -38,16 +42,21 @@ type fakeStore struct {
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{objects: map[string][]byte{}, etags: map[string]string{}, fails: map[string][]error{}}
+	return &fakeStore{
+		objects: map[string][]byte{}, etags: map[string]string{}, fails: map[string][]error{},
+		hang: map[string]bool{}, hung: make(chan string, 64),
+	}
 }
 
 func etagOf(content []byte) string {
 	return `"` + string(hexSum(content)) + `"`
 }
 
-func (f *fakeStore) Get(ctx context.Context, key, etag string, limit int64) (manifestreader.Object, error) {
+func (f *fakeStore) Get(ctx context.Context, req manifestreader.GetRequest) (manifestreader.Object, error) {
+	key, etag, limit := req.Key, req.ETag, req.Limit
+
 	f.mu.Lock()
-	f.calls = append(f.calls, call{Key: key, ETag: etag})
+	f.calls = append(f.calls, call{Key: key, ETag: etag, VersionID: req.VersionID})
 	f.inFlight++
 	f.maxInFlight = max(f.maxInFlight, f.inFlight)
 	gate := f.gate
@@ -61,6 +70,16 @@ func (f *fakeStore) Get(ctx context.Context, key, etag string, limit int64) (man
 
 	if gate != nil && key != manifestKey {
 		gate(ctx, key)
+	}
+
+	f.mu.Lock()
+	hang := f.hang[key]
+	f.mu.Unlock()
+
+	if hang {
+		f.hung <- key
+
+		<-ctx.Done()
 	}
 
 	if ctx.Err() != nil {
@@ -210,9 +229,7 @@ func startRig(tb testing.TB, store *fakeStore, cfg *manifestreader.Config, opts 
 	tb.Helper()
 
 	own := *cfg
-	if own.JitterFraction == 0 {
-		own.JitterFraction = -1
-	}
+	own.DisableJitter = true
 
 	rdr := launchRig(tb, store, &own, opts...)
 	rdr.settle()
@@ -230,6 +247,10 @@ func launchRig(
 	tb.Helper()
 
 	own := *cfg
+	if own.Connection == "" {
+		own.Connection = connControl
+	}
+
 	if own.ManifestKey == "" {
 		own.ManifestKey = manifestKey
 	}
@@ -241,7 +262,7 @@ func launchRig(
 	sched := newFakeSched()
 	opts = append([]manifestreader.Option{manifestreader.WithScheduler(sched)}, opts...)
 
-	reader, err := manifestreader.New(store, own, opts...)
+	reader, err := manifestreader.New(store, &own, opts...)
 	require.NoError(tb, err)
 
 	ctx, cancel := context.WithCancel(tb.Context())
@@ -314,4 +335,11 @@ func (r *rig) stop() {
 			assert.Fail(r.t, "Run did not return after the context ended")
 		}
 	})
+}
+
+func (f *fakeStore) setHang(key string, on bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.hang[key] = on
 }

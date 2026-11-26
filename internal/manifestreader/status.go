@@ -62,19 +62,11 @@ type ManifestStatus struct {
 	UnknownFields int
 }
 
-// Counts are the numbers of objects of the held manifest per state.
-type Counts struct {
-	OK      int
-	Stale   int
-	Missing int
-	Pending int
-}
-
 // ObjectFailure is an object that is not ok. It never holds bytes.
 type ObjectFailure struct {
 	// Name is the object name of the manifest.
 	Name string
-	// State is [StateStale], [StateMissing] or [StatePending].
+	// State is [StateStale] or [StateMissing].
 	State State
 	// Reason is the closed code of the failure.
 	Reason string
@@ -87,11 +79,17 @@ type ObjectFailure struct {
 // Status is the immutable state of the reader at the end of a round. Take it with [Reader.Status]; never
 // change the slice.
 type Status struct {
-	LastSync    time.Time
-	Poll        PollStatus
-	Failures    []ObjectFailure
+	LastSync time.Time
+	Poll     PollStatus
+	Failures []ObjectFailure
+	// HookPanics lists the hooks that panicked (recovered), with counts; empty when none.
+	HookPanics  []HookPanic
 	Manifest    ManifestStatus
 	Counts      Counts
 	Polls       uint64
 	NotModified uint64
 }
+
+// ReasonTotalTooLarge is the [ManifestStatus.Reason] of a manifest whose distinct objects add up to more than
+// [Config.MaxTotalBytes]: it is rejected whole, before any object request.
+const ReasonTotalTooLarge = "too-large-total"

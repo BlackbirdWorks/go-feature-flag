@@ -17,9 +17,6 @@ const (
 	StateStale State = "stale"
 	// StateMissing means the fetch or the verification failed and no content of the name was ever loaded.
 	StateMissing State = "missing"
-	// StatePending means the content was not fetched yet. The reader does not publish it today; it is what a
-	// restart without a state copy reports for an object while the first fetch is outstanding.
-	StatePending State = "pending"
 )
 
 // Reasons of a failed object, besides [ReasonError] and [ReasonDenied] of the store. The set is closed.
@@ -28,8 +25,12 @@ const (
 	ReasonMissing = "missing"
 	// ReasonChecksumMismatch is a download whose sha256 is not the listed one.
 	ReasonChecksumMismatch = "checksum-mismatch"
-	// ReasonTooLarge is a download larger than the listed size or than the object limit.
+	// ReasonTooLarge is an entry whose listed size is above the object limit: it is not requested.
 	ReasonTooLarge = "too-large"
+	// ReasonInvalidSize is an entry whose listed size is below 1: it is not requested.
+	ReasonInvalidSize = "invalid-size"
+	// ReasonSizeMismatch is a download that is shorter or longer than the listed size.
+	ReasonSizeMismatch = "size-mismatch"
 	// ReasonUnknownConnection is an object of a connection the reader has no store for.
 	ReasonUnknownConnection = "unknown-connection"
 )

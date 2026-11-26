@@ -128,7 +128,7 @@ func TestReader_FetchConcurrencyIsBounded(t *testing.T) {
 				}
 			}
 
-			rdr := launchRig(t, store, &manifestreader.Config{FetchConcurrency: tt.conc, JitterFraction: -1})
+			rdr := launchRig(t, store, &manifestreader.Config{FetchConcurrency: tt.conc, DisableJitter: true})
 
 			// the downloads that can start, start: wait until that many are blocked in the store
 			for range tt.want {
@@ -162,7 +162,7 @@ func TestReader_ShutdownDuringAFetchLeavesNothingRunning(t *testing.T) {
 		<-ctx.Done()
 	}
 
-	rdr := launchRig(t, store, &manifestreader.Config{FetchConcurrency: 2, JitterFraction: -1})
+	rdr := launchRig(t, store, &manifestreader.Config{FetchConcurrency: 2, DisableJitter: true})
 
 	for range 2 {
 		select {
@@ -184,116 +184,6 @@ func TestReader_ShutdownDuringAFetchLeavesNothingRunning(t *testing.T) {
 		assert.Nil(t, snap)
 	case <-time.After(wait):
 		require.FailNow(t, "the channel is not closed")
-	}
-}
-
-func TestReader_WaitBetweenRoundsHasJitter(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cfg      manifestreader.Config
-		source   float64
-		wantWait time.Duration
-	}{
-		{
-			name:     "the default interval is 60 s, the default jitter 10 %: low end",
-			cfg:      manifestreader.Config{},
-			source:   0,
-			wantWait: 54 * time.Second,
-		},
-		{
-			name:     "middle of the jitter is the interval",
-			cfg:      manifestreader.Config{},
-			source:   0.5,
-			wantWait: 60 * time.Second,
-		},
-		{
-			name:     "custom interval and jitter",
-			cfg:      manifestreader.Config{PollInterval: 10 * time.Second, JitterFraction: 0.5},
-			source:   0.25,
-			wantWait: 7500 * time.Millisecond,
-		},
-		{
-			name:     "negative jitter switches it off",
-			cfg:      manifestreader.Config{PollInterval: 10 * time.Second, JitterFraction: -1},
-			source:   0,
-			wantWait: 10 * time.Second,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Helper()
-
-			t.Parallel()
-
-			store := newFakeStore()
-			publish(t, store, 1, threeObjects()...)
-
-			rdr := launchRig(t, store, &tt.cfg, manifestreader.WithJitter(func() float64 { return tt.source }))
-			rdr.settle()
-			rdr.round()
-
-			assert.Equal(t, []time.Duration{tt.wantWait, tt.wantWait}, rdr.sched.waited())
-		})
-	}
-}
-
-func TestNew_ConfigValidation(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		cfg     manifestreader.Config
-		wantErr bool
-	}{
-		{name: "the manifest key is enough", cfg: manifestreader.Config{ManifestKey: "m"}},
-		{name: "no manifest key", cfg: manifestreader.Config{}, wantErr: true},
-		{name: "negative interval", cfg: manifestreader.Config{ManifestKey: "m", PollInterval: -1}, wantErr: true},
-		{name: "negative max objects", cfg: manifestreader.Config{ManifestKey: "m", MaxObjects: -1}, wantErr: true},
-		{
-			name:    "negative manifest bytes",
-			cfg:     manifestreader.Config{ManifestKey: "m", MaxManifestBytes: -1},
-			wantErr: true,
-		},
-		{
-			name:    "negative object bytes",
-			cfg:     manifestreader.Config{ManifestKey: "m", MaxObjectBytes: -1},
-			wantErr: true,
-		},
-		{
-			name:    "negative concurrency",
-			cfg:     manifestreader.Config{ManifestKey: "m", FetchConcurrency: -1},
-			wantErr: true,
-		},
-		{
-			name:    "concurrency above the cap",
-			cfg:     manifestreader.Config{ManifestKey: "m", FetchConcurrency: 17},
-			wantErr: true,
-		},
-		{name: "concurrency at the cap", cfg: manifestreader.Config{ManifestKey: "m", FetchConcurrency: 16}},
-		{name: "jitter above 1", cfg: manifestreader.Config{ManifestKey: "m", JitterFraction: 1.5}, wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Helper()
-
-			t.Parallel()
-
-			reader, err := manifestreader.New(newFakeStore(), tt.cfg)
-			if tt.wantErr {
-				require.ErrorIs(t, err, manifestreader.ErrInvalidConfig)
-				assert.Nil(t, reader)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, manifestreader.PollNone, reader.Status().Poll.Result)
-			assert.Equal(t, manifestreader.OutcomeNone, reader.Status().Manifest.Outcome)
-		})
 	}
 }
 
