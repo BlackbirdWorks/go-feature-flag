@@ -1,0 +1,15 @@
+deny-list:
+  variations:
+    allowed: true
+    denied: false
+  targeting:
+    - name: blocked users
+      query: targetingKey in segment("blocked")
+      onError: match
+      variation: denied
+    - name: careful
+      query: targetingKey in segment("careful")
+      onError: skip
+      variation: denied
+  defaultRule:
+    variation: allowed

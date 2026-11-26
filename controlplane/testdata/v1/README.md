@@ -21,6 +21,7 @@ Decode without error and without unknown fields, then pass validation. Flag-set 
 - `flags-numbers.yaml`: `2` and `2.0` are an integer and a float and stay so; integers above 2^53 and above 2^63 are exact.
 - `flags-empty-values.yaml`: explicit empty strings, an empty variation name and an empty map are values, not absence.
 - `flags-disabled-rule.yaml`: a disabled targeting rule needs no query or outcome.
+- `flags-on-error.yaml`: `onError: match` and `onError: skip` on targeting rules.
 - `flags-flow-style.yaml`, `flags-anchors.yaml`: YAML flow style, anchors and merge keys are read.
 - `manifest-size-zero.yaml`: a size of 0 is valid.
 - `manifest-merged-header.yaml`: `apiVersion` and `kind` can come from a YAML merge key.
@@ -43,6 +44,7 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `flagset-api-keys-not-a-list.yaml`: `apiKeys` as a scalar (the error must not repeat the value).
 - `flags-nan-variation.yaml`: NaN.
 - `flags-zero-percentages.yaml`, `flags-mixed-variation-types.yaml`, `flags-null-variation.yaml`, `flags-progressive-without-dates.yaml`, `flags-missing-default-rule.yaml`: flags that the engine would drop.
+- `flags-bad-on-error.yaml`: an `onError` other than `skip` or `match`.
 - `flags-huge-integer-variation.yaml`: a variation above the int64 range (the engine does not know its type).
 - `manifest-recursive-merge.yaml`: a merge key that refers to itself.
 - `manifest-unknown-object-kind.yaml`: object kind other than `flags` or `flagSets`.

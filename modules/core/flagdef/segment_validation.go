@@ -21,7 +21,8 @@ func ruleLabel(index int, rule *Rule) string {
 
 // wrapSegmentError names where the error of a segment term is. The other errors are returned as they are.
 func wrapSegmentError(err error, where string) error {
-	if errors.Is(err, ErrInvalidSegment) || errors.Is(err, errSegmentInDefaultRule) {
+	if errors.Is(err, ErrInvalidSegment) || errors.Is(err, errSegmentInDefaultRule) ||
+		errors.Is(err, errInvalidOnError) {
 		return fmt.Errorf("%s: %w", where, err)
 	}
 

@@ -363,6 +363,7 @@ func (d *describer) rule(label string, before, after flagdef.Rule, isDefault boo
 	}
 
 	d.unusedFields(label, before, after)
+	d.text(label+" onError", before.OnError, after.OnError, "")
 	d.toggle(label, "disable", before.Disable, after.Disable, false, "disabled"+ignored, "enabled"+ignored)
 }
 
@@ -608,6 +609,10 @@ func (d *describer) describePatch(rule flagdef.Rule) string {
 
 	if rule.Disable != nil {
 		parts = append(parts, d.code(fmt.Sprintf("disable: %t", *rule.Disable)))
+	}
+
+	if rule.OnError != nil {
+		parts = append(parts, d.code("onError: "+*rule.OnError))
 	}
 
 	if len(parts) == 0 {

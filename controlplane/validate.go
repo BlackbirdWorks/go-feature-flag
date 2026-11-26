@@ -426,11 +426,19 @@ func (c *flagCheck) rule(path string, rule *Rule, isDefault, partial bool) {
 		c.outcome(path, rule, isDefault)
 	}
 
+	c.onError(path, rule)
 	c.percentages(path, rule)
 	c.progressive(path+".progressiveRollout", rule.ProgressiveRollout, partial)
 
 	if rule.Percentage == nil && rule.ProgressiveRollout == nil && rule.Variation != nil {
 		c.declared(path+".variation", *rule.Variation)
+	}
+}
+
+// onError checks that the onError of a rule is skip or match.
+func (c *flagCheck) onError(path string, rule *Rule) {
+	if rule.OnError != nil && *rule.OnError != "skip" && *rule.OnError != "match" {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".onError", "must be skip or match, got %q", *rule.OnError)
 	}
 }
 
