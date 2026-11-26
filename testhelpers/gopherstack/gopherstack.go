@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -57,6 +58,13 @@ const (
 	EnvEndpoint = "GOPHERSTACK_ENDPOINT"
 	// EnvImage is the env var to override Image.
 	EnvImage = "GOPHERSTACK_IMAGE"
+	// EnvContainer is set by Main to the id of the container it started, so that Connect can show the end of its log
+	// when a test fails. It is not set for an external instance (GOPHERSTACK_ENDPOINT): there is no container to ask.
+	EnvContainer = "GOPHERSTACK_CONTAINER"
+	// logLines is the number of lines of the log of the container that a failed test shows.
+	logLines = "200"
+	// logTimeout bounds the reading of that log.
+	logTimeout = 20 * time.Second
 )
 
 // Server is a running gopherstack instance.
@@ -238,6 +246,9 @@ func Main(m *testing.M) int {
 
 			return 1
 		}
+
+		// Best effort: without it a failed test only lacks the log of the emulator.
+		_ = os.Setenv(EnvContainer, srv.container.GetContainerID())
 	}
 
 	return m.Run()
@@ -253,7 +264,29 @@ func Connect(tb testing.TB) *Server {
 		tb.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
 	}
 
+	if id := os.Getenv(EnvContainer); id != "" {
+		tb.Cleanup(func() {
+			if tb.Failed() {
+				tb.Logf("gopherstack container %s, last %s lines of its log:\n%s", id, logLines, containerLog(id))
+			}
+		})
+	}
+
 	return &Server{Endpoint: endpoint}
+}
+
+// containerLog returns the end of the log of the container, or why it could not be read.
+func containerLog(id string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), logTimeout)
+	defer cancel()
+
+	//nolint:gosec // G204: the id is the one of the container Main started
+	out, err := exec.CommandContext(ctx, "docker", "logs", "--tail", logLines, id).CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("(cannot read it: %v: %s)", err, out)
+	}
+
+	return string(out)
 }
 
 var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)

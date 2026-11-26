@@ -39,42 +39,30 @@ type received struct {
 	emitter string
 }
 
-// pollTimeout bounds one ReceiveMessage call (long poll of one second): a call that hangs is an error of the
-// emulator that the test reports, not a silent wait for the whole deadline.
-const pollTimeout = 10 * time.Second
+const (
+	// receiveDeadline is the deadline of the whole wait, and callTimeout bounds one call of the emulator (the long poll
+	// of a receive is one second): a call that hangs is stopped and reported, and no call runs past the deadline.
+	receiveDeadline = 30 * time.Second
+	callTimeout     = 10 * time.Second
+)
 
-// receiveAll polls the queue until want messages were received and deleted, and fails with what it saw (polls, empty
-// polls, the last error of the API) when the deadline passes.
+// receiveAll polls the queue until want messages were received and deleted. When the deadline passes it fails with
+// what the polling saw: the polls and the last error of the API.
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {
 	t.Helper()
 
-	var (
-		got      []received
-		polls    int
-		empty    int
-		lastErr  error
-		deadline = time.Now().Add(30 * time.Second)
-	)
+	ctx, cancel := context.WithTimeout(t.Context(), receiveDeadline)
+	defer cancel()
 
-	for len(got) < want && time.Now().Before(deadline) {
-		polls++
+	var got []received
 
-		ctx, cancel := context.WithTimeout(t.Context(), pollTimeout)
+	rep := gopherstack.Poll(ctx, callTimeout, 0, func(ctx context.Context) (bool, error) {
 		out, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 			QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
 			MessageAttributeNames: []string{"All"},
 		})
-
-		cancel()
-
 		if err != nil {
-			lastErr = err
-
-			continue
-		}
-
-		if len(out.Messages) == 0 {
-			empty++
+			return false, err
 		}
 
 		for _, msg := range out.Messages {
@@ -86,16 +74,22 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 
-			got = append(got, r)
 			_, deleteMessageErr := client.DeleteMessage(
-				t.Context(),
+				ctx,
 				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
 			)
-			require.NoError(t, deleteMessageErr)
-		}
-	}
+			if deleteMessageErr != nil {
+				return false, deleteMessageErr
+			}
 
-	require.Len(t, got, want, "after %d polls (%d empty), last error: %v", polls, empty, lastErr)
+			got = append(got, r)
+		}
+
+		return len(got) >= want, nil
+	})
+
+	// The message is built here, after the polling: it carries the real counts.
+	require.Len(t, got, want, "%s", rep)
 
 	return got
 }

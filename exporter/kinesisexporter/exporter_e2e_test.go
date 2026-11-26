@@ -23,67 +23,82 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
-// callTimeout bounds one call of the emulator, so that a call that hangs is reported with its error instead of the
-// test waiting for its whole deadline with nothing to show.
-const callTimeout = 10 * time.Second
+const (
+	// waitDeadline is the deadline of a whole wait, and callTimeout bounds one call of the emulator: a call that hangs
+	// is stopped and reported, and no call runs past the deadline.
+	waitDeadline = 30 * time.Second
+	callTimeout  = 10 * time.Second
+)
 
 func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), waitDeadline)
+	defer cancel()
+
 	name := gopherstack.UniqueName(t, "stream")
-	_, err := client.CreateStream(t.Context(), &kinesis.CreateStreamInput{
+
+	callCtx, cancelCall := context.WithTimeout(ctx, callTimeout)
+	_, err := client.CreateStream(callCtx, &kinesis.CreateStreamInput{
 		StreamName: aws.String(name), ShardCount: aws.Int32(shards),
 	})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		out, describeStreamErr := client.DescribeStream(
-			t.Context(),
-			&kinesis.DescribeStreamInput{StreamName: aws.String(name)},
-		)
 
-		return describeStreamErr == nil && out.StreamDescription.StreamStatus == types.StreamStatusActive
-	}, 30*time.Second, 100*time.Millisecond, "stream not ACTIVE")
+	cancelCall()
+	require.NoError(t, err)
+
+	rep := gopherstack.Poll(ctx, callTimeout, 100*time.Millisecond, func(ctx context.Context) (bool, error) {
+		out, describeStreamErr := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{StreamName: aws.String(name)})
+		if describeStreamErr != nil {
+			return false, describeStreamErr
+		}
+
+		return out.StreamDescription.StreamStatus == types.StreamStatusActive, nil
+	})
+	require.True(t, rep.Done, "stream %s not ACTIVE %s", name, rep)
 
 	return name
 }
 
-// readAll reads every shard of the stream from the beginning until want records are received.
+// readAll reads every shard of the stream from the beginning until want records are received. When the deadline
+// passes it fails with what the polling saw: the polls and the last error of the API.
 func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*exporter.FeatureEvent {
 	t.Helper()
-	desc, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+
+	ctx, cancel := context.WithTimeout(t.Context(), waitDeadline)
+	defer cancel()
+
+	callCtx, cancelCall := context.WithTimeout(ctx, callTimeout)
+	desc, err := client.DescribeStream(callCtx, &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+
+	cancelCall()
 	require.NoError(t, err)
 
 	iterators := map[string]*string{}
 
 	for _, shard := range desc.StreamDescription.Shards {
-		iter, getShardIteratorErr := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
+		iterCtx, cancelIter := context.WithTimeout(ctx, callTimeout)
+		iter, getShardIteratorErr := client.GetShardIterator(iterCtx, &kinesis.GetShardIteratorInput{
 			StreamName:        aws.String(stream),
 			ShardId:           shard.ShardId,
 			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 		})
+
+		cancelIter()
 		require.NoError(t, getShardIteratorErr)
 
 		iterators[aws.ToString(shard.ShardId)] = iter.ShardIterator
 	}
 
-	var (
-		got     []*exporter.FeatureEvent
-		lastErr error
-	)
+	var got []*exporter.FeatureEvent
 
-	require.Eventually(t, func() bool {
+	rep := gopherstack.Poll(ctx, callTimeout, 200*time.Millisecond, func(ctx context.Context) (bool, error) {
 		for id, it := range iterators {
-			ctx, cancel := context.WithTimeout(t.Context(), callTimeout)
 			out, getRecordsErr := client.GetRecords(
 				ctx,
 				&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
 			)
-
-			cancel()
-
 			if getRecordsErr != nil {
-				lastErr = getRecordsErr
-
-				return false
+				return false, getRecordsErr
 			}
 
 			iterators[id] = out.NextShardIterator
@@ -94,8 +109,11 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*e
 			}
 		}
 
-		return len(got) >= want
-	}, 30*time.Second, 200*time.Millisecond, "got %d/%d records, last error: %v", len(got), want, lastErr)
+		return len(got) >= want, nil
+	})
+
+	// The message is built here, after the polling: it carries the real counts.
+	require.GreaterOrEqual(t, len(got), want, "records read %s", rep)
 
 	return got
 }
