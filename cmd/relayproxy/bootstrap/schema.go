@@ -32,6 +32,7 @@ func JSONSchema() ([]byte, error) {
 
 	restrictNamedMaps(root)
 	setDurationDefaults(root)
+	allowEmptyEnums(root)
 	requireByKind(root)
 
 	raw, err := json.Marshal(root)
@@ -118,6 +119,20 @@ func setDurationDefaults(root *jsonschema.Schema) {
 	for key, value := range defaults {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
 			prop.Default = Duration(value).String()
+		}
+	}
+}
+
+// allowEmptyEnums lets the enumerated settings be written as an empty string: the loader treats an empty value as
+// unset and applies the default. The discriminators (type, kind) stay strict, they have no default.
+func allowEmptyEnums(root *jsonschema.Schema) {
+	for _, key := range [][2]string{
+		{"Listener", "role"}, {"Logging", "level"}, {"Logging", "format"}, {"Tracing", "sampler"},
+		{"Credentials", "type"}, {"S3Connection", "requestChecksumCalculation"},
+		{"S3Connection", "responseChecksumValidation"}, {"Exporter", "format"},
+	} {
+		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
+			prop.Enum = append(prop.Enum, "")
 		}
 	}
 }

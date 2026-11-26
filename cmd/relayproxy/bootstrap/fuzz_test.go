@@ -72,6 +72,11 @@ func isSecretKey(key string) bool {
 // onlyInSecretPositions reports whether the canary appears in the document only as a scalar value of a secret
 // key, an admin key, or a header value. Anywhere else it is an ordinary value that may be printed.
 func onlyInSecretPositions(node *yaml.Node, secretPosition bool, depth int) bool {
+	return secretPositions(node, secretPosition, false, depth)
+}
+
+// secretPositions is onlyInSecretPositions; plain is true below "meta", where every value is printed as is.
+func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) bool {
 	if node.Kind == yaml.AliasNode {
 		node = node.Alias
 	}
@@ -86,6 +91,7 @@ func onlyInSecretPositions(node *yaml.Node, secretPosition bool, depth int) bool
 
 	for i, child := range node.Content {
 		childSecret := secretPosition
+		plainBelow := plain
 
 		if node.Kind == yaml.MappingNode {
 			if i%2 == 0 {
@@ -97,10 +103,12 @@ func onlyInSecretPositions(node *yaml.Node, secretPosition bool, depth int) bool
 				continue
 			}
 
-			childSecret = isSecretKey(node.Content[i-1].Value) || (secretPosition && child.Kind == yaml.MappingNode)
+			parentKey := node.Content[i-1].Value
+			childSecret = !plain && (isSecretKey(parentKey) || (secretPosition && child.Kind == yaml.MappingNode))
+			plainBelow = plain || parentKey == "meta"
 		}
 
-		if !onlyInSecretPositions(child, childSecret, depth+1) {
+		if !secretPositions(child, childSecret, plainBelow, depth+1) {
 			return false
 		}
 	}
@@ -112,6 +120,7 @@ func onlyInSecretPositions(node *yaml.Node, secretPosition bool, depth int) bool
 func FuzzParseCanary(f *testing.F) {
 	for _, seed := range []string{
 		"version: 2\nauth: {adminKeys: [@@, @@]}\n",
+		"version: 2\nexporters:\n  e: {kind: log, meta: {secret: @@}}\n",
 		"version: 2\nauth: {adminKeys: [{fromEnv: @@}]}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: static, accessKeyId: @@, secretAccessKey: @@}}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: assumeRole, roleArn: r, externalId: @@}}\n",

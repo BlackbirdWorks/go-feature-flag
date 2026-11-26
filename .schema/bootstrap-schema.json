@@ -199,7 +199,8 @@
                         "chain",
                         "static",
                         "assumeRole",
-                        "webIdentity"
+                        "webIdentity",
+                        ""
                     ],
                     "default": "chain"
                 },
@@ -466,7 +467,8 @@
                     "enum": [
                         "json",
                         "csv",
-                        "parquet"
+                        "parquet",
+                        ""
                     ]
                 },
                 "filename": {
@@ -637,7 +639,8 @@
                     "type": "string",
                     "enum": [
                         "api",
-                        "ops"
+                        "ops",
+                        ""
                     ],
                     "default": "api"
                 },
@@ -667,7 +670,8 @@
                         "debug",
                         "info",
                         "warn",
-                        "error"
+                        "error",
+                        ""
                     ],
                     "default": "info"
                 },
@@ -675,7 +679,8 @@
                     "type": "string",
                     "enum": [
                         "json",
-                        "text"
+                        "text",
+                        ""
                     ],
                     "default": "json"
                 }
@@ -946,7 +951,8 @@
                     "type": "string",
                     "enum": [
                         "whenSupported",
-                        "whenRequired"
+                        "whenRequired",
+                        ""
                     ],
                     "default": "whenSupported"
                 },
@@ -954,7 +960,8 @@
                     "type": "string",
                     "enum": [
                         "whenSupported",
-                        "whenRequired"
+                        "whenRequired",
+                        ""
                     ],
                     "default": "whenSupported"
                 },
@@ -1063,7 +1070,8 @@
                         "traceidratio",
                         "parentbased_always_on",
                         "parentbased_always_off",
-                        "parentbased_traceidratio"
+                        "parentbased_traceidratio",
+                        ""
                     ],
                     "default": "parentbased_always_off"
                 }

@@ -271,3 +271,47 @@ func TestSchemaDurationPattern(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &doc))
 	assert.Contains(t, doc.Defs["Duration"].Pattern, "[1-9]", "a zero duration is excluded like the loader does")
 }
+
+// TestSchemaAndLoaderAgree feeds the same files to the schema checker and to the loader.
+func TestSchemaAndLoaderAgree(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
+	require.NoError(t, err)
+
+	checker, root, err := newSchemaChecker(raw)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		doc  string
+		want bool
+	}{
+		{name: "empty exporter format", doc: "exporters: {a: {kind: file, outputDir: /tmp, format: \"\"}}", want: true},
+		{name: "empty listener role", doc: "server: {listeners: [{name: api, address: \":1\", role: \"\"}]}", want: true},
+		{name: "empty log level and format", doc: "observability: {logging: {level: \"\", format: \"\"}}", want: true},
+		{name: "empty sampler", doc: "observability: {tracing: {sampler: \"\"}}", want: true},
+		{name: "empty credentials type", doc: "connections: {a: {type: s3, credentials: {type: \"\"}}}", want: true},
+		{name: "empty checksum settings", doc: "connections: {a: {type: s3, requestChecksumCalculation: \"\", responseChecksumValidation: \"\"}}", want: true},
+		{name: "unknown exporter format", doc: "exporters: {a: {kind: file, outputDir: /tmp, format: xml}}", want: false},
+		{name: "empty exporter kind", doc: "exporters: {a: {kind: \"\"}}", want: false},
+		{name: "empty connection type", doc: "connections: {a: {type: \"\"}}", want: false},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\n" + tcase.doc
+
+			var value any
+
+			require.NoError(t, yaml.Unmarshal([]byte(doc), &value))
+
+			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+
+			assert.Equal(t, tcase.want, parseErr == nil, "the loader")
+			assert.Equal(t, tcase.want, len(checker.check("", root, value)) == 0, "the schema")
+		})
+	}
+}

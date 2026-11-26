@@ -139,6 +139,12 @@ func (c *schemaChecker) checkItems(path string, schema schemaObject, value any) 
 
 	for i, item := range list {
 		out = append(out, c.check(fmt.Sprintf("%s[%d]", path, i), items, item)...)
+
+		if unique, _ := schema["uniqueItems"].(bool); unique && slices.IndexFunc(list, func(other any) bool {
+			return reflect.DeepEqual(other, item)
+		}) != i {
+			out = append(out, fmt.Sprintf("%s[%d]: duplicate item", path, i))
+		}
 	}
 
 	return out
