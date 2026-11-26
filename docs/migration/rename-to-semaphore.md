@@ -1,7 +1,7 @@
 # Rename to Semaphore
 
 This project was named GO Feature Flag ("GOFF") before it became **Semaphore**. It is an independent derivative of
-[GO Feature Flag](https://github.com/thomaspoignant/go-feature-flag) by Thomas Poignant (MIT); see [NOTICE](../../NOTICE)
+`GO Feature Flag` by Thomas Poignant (MIT); see [NOTICE](../../NOTICE)
 and [UPSTREAM.md](../../UPSTREAM.md).
 
 The wire protocol did not change: standard OpenFeature SDKs and GO Feature Flag OpenFeature providers keep working

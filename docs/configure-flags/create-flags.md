@@ -79,7 +79,7 @@ scream-level-feature:
 | `variations` | Yes | — | Map of variation names to typed values (`bool`, `string`, `int`, `float`, `array`, or `object`). |
 | `defaultRule` | Yes | — | Rule applied when no `targeting` rule matches. See [Targeting rules](target-with-flags.md). |
 | `targeting` | No | `[]` | Ordered list of targeting rules. See [Targeting rules](target-with-flags.md). |
-| `bucketingKey` | No | `targetingKey` | Evaluation context attribute hashed instead of `targetingKey`. If missing from the context, the flag falls back to default. |
+| `bucketingKey` | No | `targetingKey` | Evaluation context attribute hashed instead of `targetingKey`. If missing from the context, evaluation returns `TARGETING_KEY_MISSING` (HTTP 400 over OFREP; caller's default value in SDKs). |
 | `trackEvents` | No | `true` | Set to `false` to skip exporting evaluation events for this flag. |
 | `disable` | No | `false` | Set to `true` to disable the flag and return the caller's default value. |
 | `version` | No | `""` | Optional flag version included in notifications and exported events. |
@@ -87,22 +87,39 @@ scream-level-feature:
 | `scheduledRollout` | No | `[]` | Time-based patches applied to the flag. See [Scheduled rollout](rollout-strategies/scheduled.md). |
 | `experimentation` | No | — | Start/end window during which the flag is active. See [Experimentation](rollout-strategies/experimentation.md). |
 
-Example variation value types:
+Example flags for each supported variation type (each flag keeps one type across all its variations and includes a `defaultRule`):
 
 ```yaml
-example-types:
+example-string:
   variations:
-    str: "test"
-    flag: true
-    count: 1000
+    v1: "test"
+    v2: "prod"
+  defaultRule:
+    variation: v1
+
+example-number:
+  variations:
+    small: 1000
     ratio: 1000.23
-    items:
+  defaultRule:
+    variation: small
+
+example-array:
+  variations:
+    list:
       - item1
       - item2
+  defaultRule:
+    variation: list
+
+example-object:
+  variations:
     config:
       item1: 123
       item2: "this is a string"
       item3: false
+  defaultRule:
+    variation: config
 ```
 
 ## Advanced options

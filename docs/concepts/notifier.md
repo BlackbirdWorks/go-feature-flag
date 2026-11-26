@@ -13,7 +13,7 @@ A **notifier** sends alerts when Semaphore detects a change in your flag configu
 
 > [!NOTE]
 > **Multiple instances**
-> Semaphore is stateless, so running multiple instances sends a notification from each instance. Every notification includes the instance `hostname` so you can tell them apart.
+> Semaphore is stateless, so running multiple instances sends a notification from each instance. Webhook and chat notifiers include the instance `hostname` so you can tell them apart (the `Log` notifier writes records through your configured logger with the flag `key` only).
 
 ## Notifiers vs. Exporters
 

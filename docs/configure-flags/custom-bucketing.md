@@ -4,7 +4,7 @@
 
 By default, Semaphore hashes `targetingKey` (usually a user ID) to keep each user in the same variation bucket.
 
-Set `bucketingKey` to hash a different context attribute instead—such as `teamId`, `companyId`, or `orgId`—so everyone sharing that attribute receives the same variation.
+Set `bucketingKey` to hash a different context attribute instead—such as `teamId`, `companyId`, or `orgId`—so everyone sharing that attribute receives the same variation when they reach the same percentage rule (users matching different `targeting` rules can still receive different variations).
 
 ## How it works
 

@@ -2,7 +2,7 @@
 
 ## Build from source
 
-Requires Go (see `go.mod` for the version).
+Requires Go (see `go.mod` for the version) and [Task](https://taskfile.dev).
 
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git

@@ -58,7 +58,7 @@ semaphore-cli generate manifest \
 | Flag | Description |
 |---|---|
 | `--flag_manifest_destination` | **(mandatory)** Output path where the generated manifest will be written. |
-| `--config` | Location of your configuration file. If omitted, searches for `flags.semaphore.<ext>` (or legacy `flags.goff.<ext>`) in `./`, `/semaphore/`, and `/etc/opt/semaphore/`. |
+| `--config` | Location of your configuration file. If omitted, searches for `flags.semaphore.<ext>` (or legacy `flags.goff.<ext>`) in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, and `/etc/opt/goff/`. |
 | `--format` | Format of your configuration file (`yaml`, `json`, or `toml`). Default: `yaml`. |
 
 ### Example flag manifest

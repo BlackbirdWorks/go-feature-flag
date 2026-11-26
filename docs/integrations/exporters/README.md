@@ -2,7 +2,7 @@
 
 ## Overview
 
-An **exporter** records flag evaluation and tracking events and sends them to external analytics, logging, or storage systems. Events are buffered in memory and flushed either on a timer or when the buffer fills.
+An **exporter** records flag evaluation and tracking events and sends them to external analytics, logging, or storage systems. Bulk exporters (`IsBulk() == true`) buffer events in memory and flush on a timer or buffer limit; streaming exporters (`IsBulk() == false`) send events immediately.
 
 Every integration page below includes examples for both the **Relay Proxy** and the **Go module**.
 
@@ -37,8 +37,8 @@ type Exporter interface {
 }
 ```
 
-- `Export(...)` runs asynchronously with the collected `ExportableEvent` slice.
-- Return `false` from `IsBulk()` for streaming mode (one event per call) or `true` for batched flushes.
+- `Export(...)` runs in the `AddEvent` caller's goroutine for non-bulk exporters (so a slow exporter delays that caller), and in a background goroutine for `QueueEvents` or bulk flushes.
+- `IsBulk()` controls when flushing starts (`false` flushes immediately on `AddEvent`; `true` waits for `FlushInterval` or `MaxEventInMemory`).
 
 > [!NOTE]
 > Want to contribute an exporter? Open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls).

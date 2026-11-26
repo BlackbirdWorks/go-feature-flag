@@ -1,6 +1,6 @@
 # Rollout Strategies
 
-Semaphore supports four rollout strategies you can use in `defaultRule`, `targeting` rules, or at the flag level.
+Semaphore supports four rollout strategies. Configure `experimentation` and `scheduledRollout` at the flag level, and `percentage` and `progressiveRollout` inside `defaultRule` or a `targeting` rule.
 
 ## Available strategies
 

@@ -26,7 +26,7 @@ ones. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 ## Quick start
 
-Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`):
+Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`, and [Task](https://taskfile.dev)):
 
 ```shell
 task build-relayproxy        # binary: out/bin/semaphore

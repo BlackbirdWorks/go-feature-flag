@@ -40,15 +40,15 @@ See [Configure exporters](../integrations/exporters/README.md) for setup example
 
 Set `eventType` on each exporter to choose which events it receives:
 
-- **`"feature"`** (default): one event per flag evaluation (flag key, variation, user/context, source). See [Flag usage tracking](../tracking/flag-usage-tracking.md).
-- **`"tracking"`**: custom outcome events sent via the [OpenFeature Tracking API](../tracking/tracking-api.md).
+- **`"feature"`** (default): one event per flag evaluation (flag key, variation, `userKey`, source). See [Flag usage tracking](../tracking/flag-usage-tracking.md).
+- **`"tracking"`**: custom outcome events sent via the [OpenFeature Tracking API](../tracking/tracking-api.md). Support depends on the exporter backend (for example, `OpenTelemetry` skips tracking events).
 
 You can configure two exporter entries pointing at the same backend—one for `"feature"` and one for `"tracking"`.
 
 ## Event payload
 
-Each exported feature event typically includes:
+Each exported feature event includes:
 
 - Flag key and returned variation
-- `targetingKey` and evaluation context
-- Evaluation source (for example, `SERVER` or `PROVIDER`) and exporter metadata
+- `userKey` and `contextKind` (full evaluation-context attributes are exported only on tracking events)
+- Evaluation source (for example, `SERVER` or `PROVIDER_CACHE`) and exporter metadata
