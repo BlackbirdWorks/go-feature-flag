@@ -217,7 +217,7 @@ func secretVariants() []secretVariant {
 func exhaustiveOptions(inline bool) bootstrap.LoadOptions {
 	return bootstrap.LoadOptions{
 		LookupEnv: func(name string) (string, bool) {
-			if strings.HasPrefix(name, "SEMAPHORE_") {
+			if isOverrideName(name) {
 				return "", false
 			}
 

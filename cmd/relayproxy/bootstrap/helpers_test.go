@@ -2,6 +2,7 @@ package bootstrap_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -139,3 +140,13 @@ const (
 	tcServerListeners0Address          = "server.listeners[0].address"
 	tc60S                              = "60s"
 )
+
+// isOverrideName reports whether the name is one of the seven variables that the loader reads as overrides. The
+// injected environments leave exactly these unset, so that they keep their validated values; any other name, with
+// the same prefix or not, resolves.
+func isOverrideName(name string) bool {
+	return slices.Contains([]string{
+		bootstrap.EnvConfig, bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen, bootstrap.EnvOpsListen,
+		bootstrap.EnvManifestKey, bootstrap.EnvStateDir,
+	}, name)
+}

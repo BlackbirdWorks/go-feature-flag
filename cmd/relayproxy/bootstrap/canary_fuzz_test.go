@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ func canaryFor(data []byte) string {
 func resolvedOptions(canary string, inline bool) bootstrap.LoadOptions {
 	return bootstrap.LoadOptions{
 		LookupEnv: func(name string) (string, bool) {
-			if strings.HasPrefix(name, "SEMAPHORE_") {
+			if isOverrideName(name) {
 				return "", false
 			}
 
@@ -57,7 +56,7 @@ type canaryReport struct {
 // formatting and no encoding of the loaded configuration, and in no resolve error. Every secret of the loaded
 // configuration is resolved: a reference must reveal the canary, which proves that the checks had something to
 // leak. It does not look at the structure of the input.
-func checkResolvedCanary(tb testing.TB, doc []byte, inline bool) canaryReport {
+func checkResolvedCanary(tb testing.TB, doc []byte, inline, allowResolveErrors bool) canaryReport {
 	tb.Helper()
 
 	canary := canaryFor(doc)
@@ -97,6 +96,10 @@ func checkResolvedCanary(tb testing.TB, doc []byte, inline bool) canaryReport {
 		resolved, resolveErr := item.secret.Resolve(opts)
 		if resolveErr != nil {
 			require.NotContains(tb, resolveErr.Error(), canary)
+
+			// a document that loaded resolves, since the environment and the reader answer every name except the
+			// override variables: a failure is only expected where the case says so
+			require.True(tb, allowResolveErrors, "a secret of a loaded document did not resolve: %v", resolveErr)
 
 			continue
 		}
@@ -261,6 +264,10 @@ func fuzzSeeds() []fuzzSeed {
 			doc: "version: 2\nexporters:\n  e: {kind: webhook, endpointUrl: {fromFile: /u}, secret: {fromEnv: S}}\n",
 		},
 		{
+			name: "admin key from a SEMAPHORE_ variable that is not an override", wantLoads: true, wantSecrets: 1,
+			doc: "version: 2\nauth: {adminKeys: [{fromEnv: SEMAPHORE_ADMIN_KEY}]}\n",
+		},
+		{
 			name: "invalid variable name", wantErr: bootstrap.ErrInvalidSecret,
 			doc: "version: 2\nauth: {adminKeys: [{fromEnv: \"bad name\"}]}\n",
 		},
@@ -276,7 +283,7 @@ func TestFuzzSeedsReachTheChecks(t *testing.T) {
 			t.Parallel()
 
 			for _, inline := range []bool{false, true} {
-				report := checkResolvedCanary(t, []byte(seed.doc), inline)
+				report := checkResolvedCanary(t, []byte(seed.doc), inline, false)
 
 				assert.Equal(t, seed.wantLoads, report.loaded, "the seed loads")
 
@@ -310,7 +317,8 @@ func FuzzParseCanary(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		checkResolvedCanary(t, data, false)
-		checkResolvedCanary(t, data, true)
+		// arbitrary input may name an override variable as a reference, which does not resolve
+		checkResolvedCanary(t, data, false, true)
+		checkResolvedCanary(t, data, true, true)
 	})
 }
