@@ -229,12 +229,45 @@ func TestConformance_MyStore(t *testing.T) {
 - Capabilities: `deny`, `transient`, `throttle`, `hang` (a read that does not answer), `hang-body` (an answer whose
   body stalls), `versions`, `key-validation` (unclean keys are refused), `content-addressed-etag`, `nested-keys`, `reserved-name-chars` (keys with a question mark or a colon; the file
   store waives it on Windows, where file names cannot contain them).
-- The core cases (no waiver possible) cover: unconditional and conditional reads, a changed object, an unknown ETag,
-  missing and missing version, the limit at and one over, zero and negative limits, a conditional read over the limit
-  (never a body), the empty object, a large object, key characters (`?`, `#`, `%`, `%2F`, a space and a plus, a
-  leading dot), odd keys, ETag stability and ETag change for generated contents (including same-size in-place
-  rewrites), the bytes and ETag of one answer under concurrent writes, returned bytes that a later write does not
-  change, an ended context, no goroutine left behind, and concurrent reads.
+- The cases are in the table below. A case with a capability in the `Needs` column runs only for a store that does
+  not waive that capability; the others always run. A test compares this table with `storetest.CaseNames()` and
+  `storetest.CaseNeeds`, so the table cannot drift from the code.
+
+| Case | Needs | What it checks |
+|---|---|---|
+| `get-unconditional` | - | the bytes and an ETag of an object |
+| `conditional-unchanged-is-not-modified` | - | the current ETag is answered with `ErrNotModified` and an empty object |
+| `conditional-changed-returns-new-body-and-etag` | - | a changed object returns the new bytes and a new ETag |
+| `unknown-etag-returns-the-object` | - | an ETag the store never issued returns the object |
+| `missing-is-not-found` | - | never written, deleted, a deleted object with an ETag, a missing directory |
+| `missing-version-is-not-found` | - | a version that does not exist is not found |
+| `version-id-reads-an-older-version` | `versions` | an older version is read after an overwrite |
+| `denied-is-not-retryable` | `deny` | denied, not retryable, and recovery |
+| `transient-is-retryable` | `transient` | an error that may pass is retryable, and recovery |
+| `throttled-is-retryable-and-throttled` | `throttle` | a throttle is retryable and flagged, and recovery |
+| `limit-at-and-one-over` | - | a limit at the size, one under, one over and half |
+| `limit-zero-and-negative` | - | zero and negative limits admit the empty object only |
+| `conditional-over-limit-never-returns-a-body` | - | over the limit with the current ETag: not modified or too large, never a body |
+| `empty-object` | - | the empty object, its ETag, at limit zero |
+| `large-object-near-the-limit` | - | a 3 MiB object at the limit and one under |
+| `key-characters` | - | `#`, `%`, `%2F`, a space and a plus, a leading dot, unicode, `%41` against `A`: distinct objects |
+| `key-characters-reserved-by-some-file-systems` | `reserved-name-chars` | a question mark and a colon in a key |
+| `odd-keys-never-return-content` | - | empty, absolute and escaping keys never return an object |
+| `unclean-keys-are-refused` | `key-validation` | unclean keys are denied, not retryable (also a name that is too long) |
+| `object-and-child-keys-coexist` | `nested-keys` | an object `a` and an object `a/b` together |
+| `etag-is-stable-for-unchanged-content` | - | the same ETag on every read of unchanged content |
+| `etag-follows-content` | - | for generated contents, including same-size in-place rewrites, the ETag changes and is current for the new bytes |
+| `etag-is-content-addressed` | `content-addressed-etag` | the same bytes always give the same ETag |
+| `etag-describes-the-bytes-returned` | - | a read that starts after a write sees it; under concurrent writes one ETag never comes with two contents |
+| `returned-bytes-are-not-aliased` | - | a later write does not change bytes already returned |
+| `ended-context-is-an-error` | - | a cancelled or expired context is an error that wraps the context error, with no object |
+| `cancel-while-reading` | `hang` | a cancel ends a read that waits: `context.Canceled`, no object, nothing left |
+| `deadline-while-reading` | `hang` | a deadline ends a read that waits: `context.DeadlineExceeded`, no object; the context reports its deadline too |
+| `cancel-while-reading-the-body` | `hang-body` | a cancel while the body is read, then the store reads on |
+| `cancel-leaves-nothing-behind` | `hang` | many cancelled reads leave no request, and the store is not poisoned |
+| `gets-leave-no-goroutine-behind` | - | reads of every outcome leave no goroutine |
+| `concurrent-gets` | - | 16 readers, conditional and not |
+
 - Every case is also checked for leaked goroutines: the goroutines of a case carry a pprof label, and when the case
   is over the goroutine profile is read (with a bounded number of yields, no sleeps) and any goroutine of the case
   that is still there fails it. The loops of an idle HTTP connection are not counted; a connection whose response body

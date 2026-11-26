@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime/pprof"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,12 @@ func blocked(t *testing.T, runID, caseID string) func() {
 	stop := make(chan struct{})
 	started := make(chan struct{})
 
+	var once sync.Once
+
+	release := func() { once.Do(func() { close(stop) }) }
+
+	t.Cleanup(release) // idempotent: a test that fails before it releases does not leave the goroutine behind
+
 	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, caseID), func(context.Context) {
 		go func() {
 			close(started)
@@ -29,7 +36,7 @@ func blocked(t *testing.T, runID, caseID string) func() {
 
 	<-started
 
-	return func() { close(stop) }
+	return release
 }
 
 func TestLeakedGoroutines_FindsTheLabelledOnesOnly(t *testing.T) {
@@ -194,6 +201,11 @@ func TestLeakedGoroutines_AnOpenResponseBodyIsALeak(t *testing.T) {
 	t.Parallel()
 
 	finish := make(chan struct{})
+
+	var releaseOnce sync.Once
+
+	release := func() { releaseOnce.Do(func() { close(finish) }) }
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "100")
 		w.WriteHeader(http.StatusOK)
@@ -208,10 +220,11 @@ func TestLeakedGoroutines_AnOpenResponseBodyIsALeak(t *testing.T) {
 	transport := &http.Transport{}
 	client := &http.Client{Transport: transport}
 
-	defer func() {
-		transport.CloseIdleConnections()
-		server.Close()
-	}()
+	// the cleanups run in reverse order: the handler is released first, then the idle connections are closed, and
+	// only then does the server wait for its handlers; this holds on every exit path of the test
+	t.Cleanup(server.Close)
+	t.Cleanup(transport.CloseIdleConnections)
+	t.Cleanup(release)
 
 	runID := newID("body-test")
 
@@ -228,7 +241,7 @@ func TestLeakedGoroutines_AnOpenResponseBodyIsALeak(t *testing.T) {
 	leaks := leakedGoroutines(runID, "get")
 	assert.NotEmpty(t, leaks, "the reader of the connection waits for the body")
 
-	close(finish)
+	release()
 
 	_, err := io.Copy(io.Discard, resp.Body)
 	require.NoError(t, err)

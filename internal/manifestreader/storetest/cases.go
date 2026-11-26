@@ -58,6 +58,26 @@ func newManualDeadline(parent context.Context) *manualDeadline {
 
 func (m *manualDeadline) Done() <-chan struct{} { return m.done }
 
+// The seconds since the epoch that Deadline reports before and after the deadline passes.
+const (
+	deadlineLongPast = 1
+	deadlineFarAhead = 1 << 40
+)
+
+// Deadline implements [context.Context], consistent with Done and Err.
+//
+// A store that hands the deadline to the I/O it starts (a connection deadline, an HTTP client) sees a deadline far
+// ahead until the test expires the context, and one long past after. They are fixed instants, so the context
+// reads no clock.
+func (m *manualDeadline) Deadline() (time.Time, bool) {
+	select {
+	case <-m.done:
+		return time.Unix(deadlineLongPast, 0), true
+	default:
+		return time.Unix(deadlineFarAhead, 0), true
+	}
+}
+
 func (m *manualDeadline) Err() error {
 	select {
 	case <-m.done:
@@ -69,6 +89,17 @@ func (m *manualDeadline) Err() error {
 
 // expire makes the deadline pass.
 func (m *manualDeadline) expire() { m.once.Do(func() { close(m.done) }) }
+
+// CaseNeeds returns the capabilities that the named case needs, and false when there is no such case.
+func CaseNeeds(name string) ([]Capability, bool) {
+	for _, current := range allCases() {
+		if current.name == name {
+			return current.needs, true
+		}
+	}
+
+	return nil, false
+}
 
 func allCases() []contractCase {
 	return []contractCase{
@@ -680,9 +711,15 @@ func caseETagDescribesBytes(t TB, fixture Fixture) {
 	// in turn, with no writer at work: the reads of a fixed sequence of contents
 	var seen []manifestreader.Object
 
+	// A read that starts after a write has returned sees that write: the contract of the store (S3 is strongly
+	// consistent since 2020, a file system and a database are too).
 	for _, content := range [][]byte{contentA, contentB, contentA} {
 		mustPut(t, fixture, keyMain, content)
-		seen = append(seen, mustGet(t, fixture, keyMain, "", bigLimit))
+
+		obj := mustGet(t, fixture, keyMain, "", bigLimit)
+		assert.Equal(t, content, obj.Bytes, "the read that follows a write sees the write")
+
+		seen = append(seen, obj)
 	}
 
 	const readers, reads, writes = 4, 25, 40

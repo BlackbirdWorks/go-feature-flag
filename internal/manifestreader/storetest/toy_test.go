@@ -5,10 +5,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +35,9 @@ type toyStore struct {
 	nextID   int
 	worker   bool
 	started  bool
+	// deadlineOnly makes the toy wait on the deadline of the context alone, as a store that hands it to the
+	// I/O it starts does: it ignores Done.
+	deadlineOnly bool
 }
 
 type toyVersion struct {
@@ -62,13 +68,15 @@ const (
 	defectMissingIsEmpty    = "a missing object is an empty one"
 	defectETagOfOldBytes    = "ETag of the previous content with the new bytes"
 	defectPartialOnCancel   = "a cancelled read returns the bytes it had"
+	defectServesStale       = "keeps serving the first content after a later write"
 )
 
 // Names of cases that several rows name.
 const (
-	caseChanged = "conditional-changed-returns-new-body-and-etag"
-	caseFollows = "etag-follows-content"
-	caseKeys    = "unclean-keys-are-refused"
+	caseChanged   = "conditional-changed-returns-new-body-and-etag"
+	caseFollows   = "etag-follows-content"
+	caseKeys      = "unclean-keys-are-refused"
+	caseDescribes = "etag-describes-the-bytes-returned"
 )
 
 func newToy(defect string) *toyStore {
@@ -107,7 +115,7 @@ func (s *toyStore) Get(ctx context.Context, req manifestreader.GetRequest) (mani
 			continue
 		}
 
-		err := held.Block(ctx)
+		err := s.block(ctx, held)
 		if err != nil && s.defect == defectPartialOnCancel {
 			return manifestreader.Object{Bytes: []byte("part")}, err
 		}
@@ -173,22 +181,17 @@ func (s *toyStore) PutVersion(key string, content []byte) (string, error) {
 		go func() { <-s.release }()
 	}
 
+	if s.defect == defectServesStale && had {
+		return id, nil // the write is lost: the first content stays
+	}
+
 	if s.defect == defectAliases && had && len(old) == len(content) {
 		copy(old, content) // the slice a reader holds changes under it
 	} else {
 		s.versions[key] = append(versions, toyVersion{id: id, content: bytes.Clone(content)})
 	}
 
-	switch {
-	case s.defect == defectConstantETag:
-		s.etags[key] = `"constant"`
-	case s.defect == defectStaleETag && had:
-		// the ETag of the first content stays
-	case s.defect == defectETagOfOldBytes && had:
-		s.etags[key] = toyETag(old)
-	default:
-		s.etags[key] = toyETag(content)
-	}
+	s.updateETag(key, had, old, content)
 
 	return id, nil
 }
@@ -232,6 +235,20 @@ func (s *toyStore) HangBody(key string) (*storetest.Hang, error) {
 	s.mu.Unlock()
 
 	return hang, nil
+}
+
+// updateETag sets the ETag of the key after a write, as far as the defect of the toy lets it.
+func (s *toyStore) updateETag(key string, had bool, old, content []byte) {
+	switch {
+	case s.defect == defectConstantETag:
+		s.etags[key] = `"constant"`
+	case s.defect == defectStaleETag && had:
+		// the ETag of the first content stays
+	case s.defect == defectETagOfOldBytes && had:
+		s.etags[key] = toyETag(old)
+	default:
+		s.etags[key] = toyETag(content)
+	}
 }
 
 func (s *toyStore) hangsOf(key string) (*storetest.Hang, *storetest.Hang) {
@@ -315,6 +332,36 @@ func (s *toyStore) answer(content []byte, etag, held string) (manifestreader.Obj
 	return manifestreader.Object{Bytes: content, ETag: etag}, nil
 }
 
+// block holds the read in the hang. A toy that honours only the deadline watches Deadline() and ignores Done.
+func (s *toyStore) block(ctx context.Context, hang *storetest.Hang) error {
+	if !s.deadlineOnly {
+		return hang.Block(ctx)
+	}
+
+	inner, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancel()
+
+	go func() {
+		for inner.Err() == nil {
+			deadline, ok := ctx.Deadline()
+			if ok && time.Now().After(deadline) {
+				cancel()
+
+				return
+			}
+
+			runtime.Gosched()
+		}
+	}()
+
+	err := hang.Block(inner)
+	if err != nil {
+		return fmt.Errorf("toy: %w", context.DeadlineExceeded)
+	}
+
+	return nil
+}
+
 // TestSuiteRunsAgainstTheToy runs the whole suite on a store of the package itself: every case but the one that
 // needs key validation runs and passes.
 func TestSuiteRunsAgainstTheToy(t *testing.T) {
@@ -355,7 +402,7 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 		},
 		{
 			name: "the ETag is the same for every content", defect: defectConstantETag,
-			wantCases: []string{caseChanged, caseFollows, "empty-object", "etag-describes-the-bytes-returned"},
+			wantCases: []string{caseChanged, caseFollows, "empty-object", caseDescribes},
 		},
 		{
 			name: "the limit is ignored", defect: defectIgnoresLimit,
@@ -402,12 +449,16 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 			wantCases: []string{"missing-is-not-found"},
 		},
 		{
+			name: "a store keeps serving the first content after a later write", defect: defectServesStale,
+			wantCases: []string{caseDescribes, caseChanged},
+		},
+		{
 			name: "a cancelled read returns the bytes it had", defect: defectPartialOnCancel,
 			wantCases: []string{"cancel-while-reading", "cancel-while-reading-the-body", "deadline-while-reading"},
 		},
 		{
 			name: "the ETag is the one of the previous bytes", defect: defectETagOfOldBytes,
-			wantCases: []string{"etag-describes-the-bytes-returned", caseFollows},
+			wantCases: []string{caseDescribes, caseFollows},
 		},
 	}
 
@@ -454,4 +505,35 @@ func TestSuiteAcceptsAGoodToy(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{caseKeys}, notRun, "the one case that needs key validation")
+}
+
+// TestSuiteDeadlineReachesTheStore: the deadline case works for a store that waits on the deadline of its context
+// alone (it hands the deadline to the I/O it starts and ignores Done) and for one that waits on Done alone. Both
+// are valid stores; the context of the case has to end for each.
+func TestSuiteDeadlineReachesTheStore(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		deadlineOnly bool
+	}{
+		{name: "a store that watches Deadline and ignores Done", deadlineOnly: true},
+		{name: "a store that watches Done and ignores Deadline"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture, toy := toyFixture(defectNone)
+			toy.deadlineOnly = tt.deadlineOnly
+
+			failures, ran := storetest.Check("deadline-while-reading", fixture)
+
+			close(toy.release)
+
+			assert.True(t, ran)
+			assert.Empty(t, failures)
+		})
+	}
 }

@@ -174,6 +174,8 @@ func TestS3Store_LimitsWithoutAndWithContentLength(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantBody, string(obj.Bytes))
 			assert.Equal(t, s3ETag, obj.ETag)
+			assert.Equal(t, len(obj.Bytes), cap(obj.Bytes), "a buffer of exactly the size of the body")
+			assert.LessOrEqual(t, int64(cap(obj.Bytes)), max(tt.limit, 0), "nothing retained beyond the limit")
 		})
 	}
 }

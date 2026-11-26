@@ -75,39 +75,54 @@ func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 	return Object{Bytes: buf, ETag: aws.ToString(out.ETag)}, nil
 }
 
-// readBody reads the body into one buffer: of the Content-Length when the answer has one, else of the limit plus
-// one byte (which tells an over-limit body from one at the limit). It never reads more than that.
+// readBody reads the body. With a Content-Length it reads into one buffer of exactly that size. Without one it
+// reads at most limit plus one byte (which tells an over-limit body from one at the limit), growing as the body
+// arrives, and returns a buffer of exactly the size of the body, so that a body much smaller than the limit does
+// not keep a limit-sized buffer. It never returns more than limit bytes.
 func readBody(body io.Reader, contentLength *int64, limit int64) ([]byte, error) {
-	size := limit
-	if size < math.MaxInt64 {
-		size++
+	if contentLength == nil {
+		return readUnknownLength(body, limit)
 	}
 
-	if contentLength != nil {
-		if *contentLength > limit {
-			return nil, ErrTooLarge
-		}
-
-		size = *contentLength
+	if *contentLength > limit {
+		return nil, ErrTooLarge
 	}
 
-	buf := make([]byte, size)
+	buf := make([]byte, *contentLength)
 
 	read, err := io.ReadFull(body, buf)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
 	}
 
-	if contentLength != nil && int64(read) < size {
+	if int64(read) < *contentLength {
 		// the body ended before its Content-Length: a broken transfer
 		return nil, &FetchError{Err: io.ErrUnexpectedEOF, Reason: ReasonError, Retryable: true}
 	}
 
-	if int64(read) > limit {
+	return buf, nil
+}
+
+// readUnknownLength reads a body whose length the answer did not give.
+func readUnknownLength(body io.Reader, limit int64) ([]byte, error) {
+	window := limit
+	if window < math.MaxInt64 {
+		window++
+	}
+
+	data, err := io.ReadAll(io.LimitReader(body, window))
+	if err != nil {
+		return nil, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+	}
+
+	if int64(len(data)) > limit {
 		return nil, ErrTooLarge
 	}
 
-	return buf[:read], nil
+	out := make([]byte, len(data)) // exactly the size of the body: ReadAll leaves spare capacity
+	copy(out, data)
+
+	return out, nil
 }
 
 // classifyS3 maps an SDK error to the results of [ObjectStore]. The 304 comes first: the SDK reports it as an
