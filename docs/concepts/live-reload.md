@@ -52,12 +52,24 @@ The rule is the same on first load and later:
 
 ### Flags object forms
 
-A flags object declares its format (`yaml`, `json` or `toml`) and its bytes must read in that format:
+A flags object declares its format (`yaml`, `json` or `toml`) and is read by the flag parser of the relay engine, exactly as the version 1 relay reads a flag file: the runtime does no decoding of its own. A form that the parser rejects is a decode error: the object keeps its last good table (`invalid`).
 
-- the empty forms that mean "no flag" are `{}` for JSON, and an empty or comment-only document for YAML and TOML; `null` is also read as "no flag" in JSON and YAML;
-- a blank JSON file, `[]`, and a document that is not in the declared format are decode errors: the object keeps its last good table (`invalid`).
+| Form | json | yaml | toml |
+| --- | --- | --- | --- |
+| blank or whitespace only | error | no flag | no flag |
+| comment only | error | no flag | no flag |
+| `null` | no flag | no flag | error |
+| `{}` | no flag | no flag | error |
+| `[]` | error | error | error |
 
-JSON integers above 2^53 are kept exactly (a float would round them); every other JSON number is read as a float, as before. A `\u` escape of half a surrogate pair is a decode error, not a replacement character.
+### Known limits
+
+These are the behaviours of the engine parser, kept for parity:
+
+- JSON integers above 2^53 are read as floats and rounded (`9007199254740993` is served as `9007199254740992`). YAML keeps such an integer exact: publish those flags as YAML.
+- In a JSON flag, a mix of small and large numbers is read as floats, so it validates.
+- A JSON escape of a surrogate pair is read as the character; a lone surrogate escape is read as the replacement character (U+FFFD) without an error.
+- A repeated member name in a JSON object is accepted and the later one wins. Rejecting repeated names is the job of the publisher side: `controlplane.UnmarshalFlags` rejects them, so check a flags file there before it is published.
 
 ### Flag-set states
 
@@ -104,7 +116,7 @@ Values of variations are shared between flag sets: treat a returned value as rea
 
 ### Flag set hash
 
-`FlagSet.Hash` identifies the evaluable content of a flag set: it changes when, and only when, a flag of the set (its key or its parsed definition) changes. It does not depend on comments, formats, checksums, the order of the sources, or history. It is built from a hash of every parsed flag, computed once at parse time.
+`FlagSet.Hash` identifies the evaluable content of a flag set: it changes when, and only when, a flag of the set (its key or its parsed definition) changes. It does not depend on comments, formats, checksums, the order of the sources, or history. It is built from a hash of every parsed flag, computed once at parse time. One exception: a flag that cannot be encoded canonically (for example a NaN in its metadata) is hashed from the checksum of its object and its key, so any edit of that object, even a comment, changes the hash of the flag sets that use it.
 
 ## Change events
 

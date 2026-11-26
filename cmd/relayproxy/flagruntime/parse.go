@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
-	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -36,17 +34,8 @@ type parsedDoc struct {
 func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 	sum := obj.checksum()
 
-	var (
-		raw map[string]dto.DTO
-		err error
-	)
-
-	if strings.EqualFold(obj.Format, "json") {
-		raw, err = decodeJSONFlags(obj.Bytes)
-	} else {
-		raw, err = cache.ConvertToFlagStruct(obj.Bytes, obj.Format)
-	}
-
+	// the parser of the engine, as the version 1 relay calls it: nothing is decoded or rewritten here
+	raw, err := cache.ConvertToFlagStruct(obj.Bytes, obj.Format)
 	if err != nil {
 		return &parsedFlags{err: fmt.Errorf("%w: %w", ErrDecode, err)}
 	}
