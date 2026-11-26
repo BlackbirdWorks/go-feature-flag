@@ -39,7 +39,7 @@ func TestManifestKeyThatIsAnObjectKeyIsRefused(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(collide)
+			fake := newFakeFor(collide)
 			if tt.seed {
 				fake.Seed(collide, []byte("not a manifest"))
 			}
@@ -62,7 +62,7 @@ func TestManifestKeyThatIsAnObjectKeyIsRefused(t *testing.T) {
 func TestPublishRefusesToWrapTheGeneration(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	seedBucket(t, fake, math.MaxUint64, standardObjects(t, "a")[0])
 	pub := newPublisher(t, fake, nil)
 
@@ -117,7 +117,7 @@ func TestACompositeChecksumTypeIsNeverTrustedEvenWithoutASuffix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			objects := standardObjects(t, "a")[:1]
 			key := objectKey(t, objects[0].Body)
 
@@ -196,7 +196,7 @@ func TestVerifyReadsThePinnedVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			fake.Seed(key, tt.latest)
 
 			for id, data := range tt.versions {
@@ -226,7 +226,7 @@ func TestVerifyTreatsInvalidArgumentOnAPinnedVersionAsMissing(t *testing.T) {
 
 	body := flagsBody(t, "a")
 	key := objectKey(t, body)
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 
 	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
 		Channel: testChannel, Generation: 2,
@@ -268,7 +268,7 @@ var errEngine = errors.New("flag f: query does not compile")
 func TestVerifyRunsTheCheckHook(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	seedBucket(t, fake, 3, standardObjects(t, "a")...)
 
 	var seen []string
@@ -298,7 +298,7 @@ func TestVerifyRunsTheCheckHook(t *testing.T) {
 func TestVerifyDoesNotCallTheHookForAnObjectThatIsAlreadyBad(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 	seedBucket(t, fake, 3, objects...)
 	fake.Remove(objectKey(t, objects[0].Body))
@@ -335,7 +335,7 @@ func TestVerifyAcceptsTOMLFlagFilesTheRelayCanLoad(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	fake.Seed(key, toml)
 	fake.Seed(manifestKey, manifest)
 
@@ -387,7 +387,7 @@ func TestAccessDeniedIsAStoreErrorWithAHintAndNeverMeansExistsOrMissing(t *testi
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			failOn(fake, tt.deny, denied)
 
 			_, err := newPublisher(
@@ -408,7 +408,7 @@ func TestAccessDeniedIsAStoreErrorWithAHintAndNeverMeansExistsOrMissing(t *testi
 	t.Run("other errors carry no hint", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		failOn(fake, "GET ", s3fake.APIError("ServiceUnavailable"))
 
 		_, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
@@ -419,7 +419,7 @@ func TestAccessDeniedIsAStoreErrorWithAHintAndNeverMeansExistsOrMissing(t *testi
 	t.Run("verify reports the object as unreadable with the hint", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		objects := standardObjects(t, "a")
 		seedBucket(t, fake, 1, objects...)
 

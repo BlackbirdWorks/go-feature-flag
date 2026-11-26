@@ -14,7 +14,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
-	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
 // barrierWait bounds how long a publisher waits for the other one at the barrier.
@@ -91,7 +90,7 @@ func TestTwoPublishersOnOneBucket(t *testing.T) {
 
 	const rounds = 6
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	gated := &gatedAPI{API: fake}
 	pubA := newPublisher(t, gated, nil)
 	pubB := newPublisher(t, gated, nil)
@@ -159,7 +158,7 @@ func TestManyPublishersNeverBreakTheBucket(t *testing.T) {
 
 	const publishers = 8
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pubs := make([]*s3publish.Publisher, publishers)
 	docs := make([][]s3publish.Object, publishers)
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
+	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
 // flagsBody is a valid flag file with one boolean flag; label makes the content differ.
@@ -108,4 +109,16 @@ func newSHA(body []byte) *string {
 	raw := sha256.Sum256(body)
 
 	return aws.String(base64.StdEncoding.EncodeToString(raw[:]))
+}
+
+// newFake is an in-memory bucket named testBucket: a call for any other bucket is a missing bucket, so a test cannot
+// pass with a publisher that names the wrong one.
+func newFake() *s3fake.Fake { return newFakeFor(manifestKey) }
+
+// newFakeFor is newFake with another manifest key.
+func newFakeFor(key string) *s3fake.Fake {
+	fake := s3fake.New(key)
+	fake.Bucket = testBucket
+
+	return fake
 }

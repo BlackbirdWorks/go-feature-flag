@@ -88,7 +88,7 @@ func TestPublishValidatesFlagSetDocumentsTogether(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 
 			_, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: tt.objects})
 			require.ErrorIs(t, err, s3publish.ErrInvalid)
@@ -131,7 +131,7 @@ func seedBucket(t *testing.T, fake *s3fake.Fake, generation uint64, objects ...s
 func TestVerifyValidatesFlagSetDocumentsTogether(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	docOf := func(name string, sets ...controlplane.FlagSet) s3publish.Object {
 		return s3publish.Object{
 			Name:   name,
@@ -202,7 +202,7 @@ func TestPublishCheckHook(t *testing.T) {
 
 			var offered []string
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, func(c *s3publish.Config) {
 				c.Check = func(obj *s3publish.Object) error {
 					offered = append(offered, obj.Name+"|"+obj.Source+"|"+obj.Kind)
@@ -283,7 +283,7 @@ func TestMissingBucketIsAnErrorNotAMissingManifestNorAConflict(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			objects := standardObjects(t, "a")
 
 			if tt.hasOlder {
@@ -366,7 +366,7 @@ func TestManifestWriteThatCommittedBeforeTheRetryIsSuccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			if !tt.first {
 				_, err := newPublisher(
 					t,
@@ -402,7 +402,7 @@ func TestManifestWriteThatCommittedBeforeTheRetryIsSuccess(t *testing.T) {
 func TestManifestWriteWithAnotherWinnerIsStillAConflict(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	seedBucket(t, fake, 4, s3publish.Object{
 		Name: nameRival, Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: flagsBody(t, nameRival),
 	})
@@ -473,7 +473,7 @@ func TestExistingObjectIsNeverAcceptedOnItsSizeAlone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			fake.OmitChecksums = tt.omit
 			objects := standardObjects(t, "a")
 			key := objectKey(t, objects[0].Body)
@@ -522,7 +522,7 @@ func TestNoChangeHealsAMissingObject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, nil)
 			objects := standardObjects(t, "a")
 
@@ -578,7 +578,7 @@ func containsCall(calls []string, prefix string) bool {
 func TestNoChangeRefusesAnObjectWithOtherContent(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, nil)
 	objects := standardObjects(t, "a")
 
@@ -668,7 +668,7 @@ func TestReplaceInvalidManifest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			tt.seed(t, fake)
 
 			etag := fake.ETag(manifestKey)
@@ -713,7 +713,7 @@ func TestReplaceInvalidManifest(t *testing.T) {
 func TestReplaceInvalidManifestCannotOverwriteAWriterInBetween(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	fake.Seed(manifestKey, []byte("not a manifest"))
 	fake.Before = func(call string) error {
 		if strings.HasPrefix(call, "PUT "+manifestKey) {
@@ -737,7 +737,7 @@ func TestReplaceInvalidManifestCannotOverwriteAWriterInBetween(t *testing.T) {
 func TestReplaceFlagIsIgnoredForAValidManifest(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, nil)
 
 	_, err := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a"), Generation: 5})
@@ -826,7 +826,7 @@ func TestObjectCallsAreBoundedByConcurrency(t *testing.T) {
 				var inFlight, peak atomic.Int32
 
 				release := make(chan struct{})
-				api := &hooked{API: s3fake.New(manifestKey), head: func(ctx context.Context, _ string) error {
+				api := &hooked{API: newFake(), head: func(ctx context.Context, _ string) error {
 					now := inFlight.Add(1)
 					defer inFlight.Add(-1)
 
@@ -872,7 +872,7 @@ func TestObjectResultsAreInManifestOrderAndTheManifestIsLast(t *testing.T) {
 		objects := objectsNamed(t, 4)
 		firstKey, lastKey := objectKey(t, objects[0].Body), objectKey(t, objects[3].Body)
 		lastDone := make(chan struct{})
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 
 		// The first object is written only after the last one was: the completion order is not the manifest order.
 		api := &hooked{
@@ -927,7 +927,7 @@ func TestFirstErrorCancelsTheOtherObjectCalls(t *testing.T) {
 			keys[i] = objectKey(t, objects[i].Body)
 		}
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		started := make(chan struct{})
 
 		var canceled atomic.Bool

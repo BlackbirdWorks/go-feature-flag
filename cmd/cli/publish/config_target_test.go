@@ -2,13 +2,16 @@ package publish_test
 
 import (
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/connection"
+	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
 const sqsFile = `version: 2
@@ -48,7 +51,7 @@ func (rig *harness) withFiles(files, env map[string]string) {
 			return []byte(data), nil
 		}
 
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+		return nil, &fs.PathError{Op: opOpen, Path: name, Err: fs.ErrNotExist}
 	}
 	rig.deps.LookupEnv = func(name string) (string, bool) {
 		v, ok := env[name]
@@ -61,6 +64,7 @@ func TestPublishFromBootstrapFile(t *testing.T) {
 	t.Parallel()
 
 	rig := newHarness(t, treeOf(map[string]string{flagsA: checkoutFlags}))
+	rig.fake.Bucket = "acme-control" // the bucket of the connection in the bootstrap file
 	rig.withFiles(
 		map[string]string{bootstrapPath: bootstrapFile, secretKeyPath: canarySecret + "\n"},
 		map[string]string{envKeyID: canaryKeyID},
@@ -118,6 +122,7 @@ func TestPublishFromBootstrapFileWritesToTheConfiguredManifestKey(t *testing.T) 
 	t.Parallel()
 
 	rig := newHarness(t, treeOf(map[string]string{flagsA: checkoutFlags}))
+	rig.fake.Bucket = "acme-control" // the bucket of the connection in the bootstrap file
 	rig.withFiles(
 		map[string]string{bootstrapPath: bootstrapFile, secretKeyPath: canarySecret},
 		map[string]string{envKeyID: canaryKeyID},
@@ -184,7 +189,7 @@ func TestPublishConfigErrors(t *testing.T) {
 		},
 		{
 			name:      "flags that duplicate the file",
-			args:      []string{optConfig, cfgOK, optBucket, "x", "--channel", "canary"},
+			args:      []string{optConfig, cfgOK, optBucket, "x", optChannel, "canary"},
 			wantCode:  helper.ExitFailure,
 			wantInErr: []string{"--bucket, --channel", "cannot be combined with --config"},
 		},
@@ -225,4 +230,76 @@ func TestPublishWrongConnectionType(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitInvalid, helper.ExitCodeOf(err), err.Error())
 	assert.Contains(t, err.Error(), "connection has the wrong type")
+}
+
+// TestExplicitFlagsReachTheClientTheManifestAndTheKeys: every flag that names a place is used, by what the fake can
+// tell: the spec of the client (region, endpoint, bucket, connection name) and the keys that were written.
+func TestExplicitFlagsReachTheClientTheManifestAndTheKeys(t *testing.T) {
+	t.Parallel()
+
+	rig := newHarness(t, sourceTree())
+	rig.fake = s3fake.New("custom/m.yaml")
+	rig.fake.Bucket = "other-bucket"
+
+	stdout, _, err := rig.run(
+		t,
+		srcDir,
+		optBucket,
+		"other-bucket",
+		optRegion,
+		"eu-west-1",
+		optEndpoint,
+		"http://localhost:4566",
+		"--prefix",
+		"pfx",
+		optChannel,
+		"canary",
+		"--connection",
+		"flags-eu",
+		"--manifest-key",
+		"custom/m.yaml",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "to custom/m.yaml, channel canary")
+
+	require.Len(t, rig.specs, 1)
+	assert.Equal(t, "eu-west-1", rig.specs[0].Region)
+	assert.Equal(t, "http://localhost:4566", rig.specs[0].Endpoint)
+	assert.Equal(t, "other-bucket", rig.specs[0].Bucket)
+	assert.True(t, rig.specs[0].PathStyle, "a custom endpoint is addressed path-style")
+	assert.Equal(t, []string{"flags-eu"}, rig.names)
+
+	body, ok := rig.fake.Body("custom/m.yaml")
+	require.True(t, ok)
+
+	manifest, _, err := controlplane.UnmarshalManifest(body)
+	require.NoError(t, err)
+	assert.Equal(t, "canary", manifest.Channel)
+
+	for i := range manifest.Objects {
+		assert.Equal(t, "flags-eu", manifest.Objects[i].Connection)
+		assert.True(t, strings.HasPrefix(manifest.Objects[i].Key, "pfx/objects/sha256/"), manifest.Objects[i].Key)
+	}
+
+	// verify with the same place reads the same manifest.
+	rig.fake.ResetCalls()
+
+	_, _, err = rig.run(
+		t,
+		verifyWord,
+		optBucket,
+		"other-bucket",
+		optRegion,
+		"eu-west-1",
+		"--prefix",
+		"pfx",
+		optChannel,
+		"canary",
+		"--connection",
+		"flags-eu",
+		"--manifest-key",
+		"custom/m.yaml",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "GET custom/m.yaml", rig.fake.Calls()[0])
 }

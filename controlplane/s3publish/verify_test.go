@@ -28,7 +28,7 @@ func publishStandard(t *testing.T, fake *s3fake.Fake) (*s3publish.Publisher, []s
 func TestVerifyHealthyBucket(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub, objects := publishStandard(t, fake)
 
 	rep, err := pub.Verify(t.Context())
@@ -102,7 +102,7 @@ func TestVerifyReportsEveryProblem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub, objects := publishStandard(t, fake)
 			tt.damage(fake, objectKey(t, objects[0].Body))
 
@@ -122,7 +122,7 @@ func TestVerifyReportsEveryProblem(t *testing.T) {
 func TestVerifyUnresolvedSourceAndInvalidContent(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	flags := flagsBody(t, "a")
 	sets := flagSetBody(
 		t,
@@ -175,7 +175,7 @@ func TestVerifyManifestStates(t *testing.T) {
 	t.Run("no manifest", func(t *testing.T) {
 		t.Parallel()
 
-		rep, err := newPublisher(t, s3fake.New(manifestKey), nil).Verify(t.Context())
+		rep, err := newPublisher(t, newFake(), nil).Verify(t.Context())
 		require.ErrorIs(t, err, s3publish.ErrNoManifest)
 		assert.Nil(t, rep)
 	})
@@ -183,7 +183,7 @@ func TestVerifyManifestStates(t *testing.T) {
 	t.Run("invalid manifest is a problem", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		fake.Seed(manifestKey, []byte("apiVersion: semaphore/v1\nkind: FlagSet\nflagSets: []\n"))
 
 		rep, err := newPublisher(t, fake, nil).Verify(t.Context())
@@ -196,7 +196,7 @@ func TestVerifyManifestStates(t *testing.T) {
 	t.Run("read error is an OperationError", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		fake.Before = func(string) error { return s3fake.APIError("InternalError") }
 
 		_, err := newPublisher(t, fake, nil).Verify(t.Context())
@@ -210,7 +210,7 @@ func TestVerifyManifestStates(t *testing.T) {
 	t.Run("other channel", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		body, err := controlplane.MarshalManifest(&controlplane.Manifest{Channel: "canary", Generation: 1})
 		require.NoError(t, err)
 		fake.Seed(manifestKey, body)
@@ -224,7 +224,7 @@ func TestVerifyManifestStates(t *testing.T) {
 	t.Run("objects of other connections are skipped", func(t *testing.T) {
 		t.Parallel()
 
-		fake := s3fake.New(manifestKey)
+		fake := newFake()
 		body, err := controlplane.MarshalManifest(&controlplane.Manifest{
 			Channel: testChannel, Generation: 1,
 			Objects: []controlplane.ManifestObject{

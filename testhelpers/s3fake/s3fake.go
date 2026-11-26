@@ -40,13 +40,17 @@ type fakeObject struct {
 // "GET key", "HEAD key", "PUT key create", "PUT key if-match=<etag>" or "PUT key" (unconditional).
 // It is safe for concurrent use.
 type Fake struct {
-	objects     map[string]*fakeObject
-	manifestKey string
+	objects map[string]*fakeObject
 	// Before runs at the start of every call, outside the lock, with the call string. A non-nil error fails the
 	// call. It may use Seed and Remove to play another publisher.
-	Before func(call string) error
-	// violations lists the moments when the manifest listed an object that did not exist.
-	versions   map[string]*fakeObject
+	Before   func(call string) error
+	versions map[string]*fakeObject
+	// manifestKey is the key whose successful writes are checked for consistency.
+	manifestKey string
+	// Bucket, when not empty, is the only bucket that exists: a call for another bucket answers 404 NoSuchBucket, so
+	// a test cannot pass with a client that names the wrong bucket. Empty accepts any bucket.
+	Bucket string
+	// violations lists the moments when a manifest listed an object that did not exist.
 	violations []string
 	calls      []string
 	mu         sync.Mutex
@@ -167,6 +171,11 @@ func (f *Fake) GetObject(
 		return nil, err
 	}
 
+	err = f.checkBucket(input.Bucket)
+	if err != nil {
+		return nil, err
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -209,6 +218,11 @@ func (f *Fake) HeadObject(
 		return nil, err
 	}
 
+	err = f.checkBucket(input.Bucket)
+	if err != nil {
+		return nil, err
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -246,6 +260,11 @@ func (f *Fake) PutObject(
 	}
 
 	err := f.record(call)
+	if err != nil {
+		return nil, err
+	}
+
+	err = f.checkBucket(input.Bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -398,4 +417,13 @@ func (f *Fake) checkInvariantLocked(key string) {
 				fmt.Sprintf("generation %d lists %s with another checksum", manifest.Generation, listed.Key))
 		}
 	}
+}
+
+// checkBucket answers 404 NoSuchBucket for a bucket other than Fake.Bucket, when that is set.
+func (f *Fake) checkBucket(bucket *string) error {
+	if f.Bucket != "" && aws.ToString(bucket) != f.Bucket {
+		return &StatusError{Code: "NoSuchBucket", Status: http.StatusNotFound}
+	}
+
+	return nil
 }

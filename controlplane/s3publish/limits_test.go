@@ -9,7 +9,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
-	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
 func TestDefaultLimitsAreTheOnesOfTheReader(t *testing.T) {
@@ -34,7 +33,7 @@ func TestNewRejectsNegativeLimits(t *testing.T) {
 		cfg := testConfig()
 		mutate(&cfg)
 
-		pub, err := s3publish.New(s3fake.New(manifestKey), &cfg)
+		pub, err := s3publish.New(newFake(), &cfg)
 		require.ErrorIs(t, err, s3publish.ErrConfig)
 		assert.Nil(t, pub)
 	}
@@ -119,7 +118,7 @@ func TestPublishRefusesWhatTheReaderRejects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, tt.mutate)
 
 			_, err := pub.Publish(t.Context(), s3publish.Request{Objects: tt.objects})
@@ -135,7 +134,7 @@ func TestPublishCountsEqualContentOnceInTheTotal(t *testing.T) {
 	t.Parallel()
 
 	body := flagsBody(t, "a")
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, func(c *s3publish.Config) { c.MaxTotalBytes = int64(len(body)) })
 
 	_, err := pub.Publish(t.Context(), s3publish.Request{Objects: []s3publish.Object{
@@ -165,7 +164,7 @@ func TestVerifyAppliesTheWholeManifestLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			_, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: []s3publish.Object{
 				{Name: "a", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
 				{Name: "b", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: other},
@@ -214,7 +213,7 @@ func TestVerifyFailsABadEntryAloneLikeTheReader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			entries := make([]controlplane.ManifestObject, 0, 3)
 
 			for _, doc := range []struct {
@@ -275,7 +274,7 @@ func TestAnExistingManifestWithABadEntryIsPublishableOverWithoutTheFlag(t *testi
 	body := flagsBody(t, "old")
 	key := objectKey(t, body)
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	fake.Seed(key, body)
 
 	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
@@ -370,7 +369,7 @@ func TestVerifyClassificationTable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			entries := make([]controlplane.ManifestObject, 0, 3)
 
 			for _, doc := range []struct {

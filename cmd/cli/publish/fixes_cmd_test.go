@@ -179,7 +179,7 @@ func TestVerifyFailureJSONIsTheReportAlone(t *testing.T) {
 	rig.publishOnce(t)
 	rig.fake.Remove(checkoutKey)
 
-	stdout, _, err := rig.run(t, withTarget("verify", "-o", jsonFlag)...)
+	stdout, _, err := rig.run(t, withTarget(verifyWord, "-o", jsonFlag)...)
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
 
@@ -295,7 +295,11 @@ func TestUsageFailuresAreJSONInJSONMode(t *testing.T) {
 	}{
 		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 0"},
 		{name: "two directories", args: []string{"a", "b", "-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 2"},
-		{name: "arguments for verify", args: []string{"verify", "extra", "-o", jsonFlag}, wantInMsg: "unknown command"},
+		{
+			name:      "arguments for verify",
+			args:      []string{verifyWord, "extra", "-o", jsonFlag},
+			wantInMsg: "unknown command",
+		},
 		{
 			name:      "a flag value that does not parse",
 			args:      []string{"-o", jsonFlag, srcDir, "--generation", "abc"},
@@ -380,7 +384,7 @@ func TestVerifyRunsTheEngineCheck(t *testing.T) {
 			rig := newHarness(t, sourceTree())
 			seedEngineBadFlags(t, rig, format)
 
-			stdout, _, err := rig.run(t, withTarget("verify")...)
+			stdout, _, err := rig.run(t, withTarget(verifyWord)...)
 			require.Error(t, err)
 			assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
 			assert.Contains(t, stdout, "problem: engine invalid-content")
@@ -404,7 +408,7 @@ func TestVerifyNamesWhatItDidNotCheck(t *testing.T) {
 	require.NoError(t, err)
 	rig.fake.Seed(manifestKey, manifest)
 
-	stdout, _, err := rig.run(t, withTarget("verify")...)
+	stdout, _, err := rig.run(t, withTarget(verifyWord)...)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "checked 0 objects, skipped 1 (other connections)")
 	assert.Contains(t, stdout, "note: 1 object(s) of other connections were not checked: elsewhere")
@@ -424,7 +428,8 @@ func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
 		wantCode   int
 	}{
 		{
-			name: "the word is the subcommand: it verifies a bucket that holds no manifest", args: withTarget("verify"),
+			name:     "the word is the subcommand: it verifies a bucket that holds no manifest",
+			args:     withTarget(verifyWord),
 			wantCode: helper.ExitVerify,
 		},
 		{
@@ -437,12 +442,16 @@ func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
 			t.Parallel()
 
 			rig := newHarness(t, sourceTree())
+			// "./verify" is another directory than "src", with other content: what is published says which was opened.
+			rig.trees["./verify"] = treeOf(map[string]string{"flags/from-dot-slash-verify.yaml": checkoutFlags})
 
 			stdout, _, err := rig.run(t, tt.args...)
 
 			if tt.wantCode == 0 {
 				require.NoError(t, err)
 				assert.Contains(t, stdout, tt.wantStdout)
+				assert.Contains(t, stdout, "from-dot-slash-verify")
+				assert.NotContains(t, stdout, "checkout-sets", "the tree of src was not read")
 
 				return
 			}

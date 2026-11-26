@@ -213,7 +213,7 @@ func TestE2EPublishDirectoryRepublishAndVerify(t *testing.T) {
 	assert.Zero(t, env.count.put.Load())
 
 	// verify passes ...
-	out, err = runCLI(t, env.deps, "verify", optConfig, env.config)
+	out, err = runCLI(t, env.deps, verifyWord, optConfig, env.config)
 	require.NoError(t, err, out)
 	assert.Contains(t, out, "ok: every checked object matches")
 
@@ -227,7 +227,7 @@ func TestE2EPublishDirectoryRepublishAndVerify(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	out, err = runCLI(t, env.deps, "verify", optConfig, env.config)
+	out, err = runCLI(t, env.deps, verifyWord, optConfig, env.config)
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
 	assert.Contains(t, out, "problem: "+victim.Name+" checksum-mismatch "+victim.Key)
@@ -356,11 +356,11 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 		env.bucket,
 		optRegion,
 		gopherstack.Region,
-		"--endpoint",
+		optEndpoint,
 		env.srv.Endpoint,
 		"--prefix",
 		"p",
-		"--channel",
+		optChannel,
 		"canary",
 	}
 
@@ -371,16 +371,16 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 	out, err = runCLI(
 		t,
 		env.deps,
-		"verify",
+		verifyWord,
 		optBucket,
 		env.bucket,
 		optRegion,
 		gopherstack.Region,
-		"--endpoint",
+		optEndpoint,
 		env.srv.Endpoint,
 		"--prefix",
 		"p",
-		"--channel",
+		optChannel,
 		"canary",
 	)
 	require.NoError(t, err, out)

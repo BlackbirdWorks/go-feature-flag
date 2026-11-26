@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -16,11 +17,19 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
-// denyingTransport answers every request with 403 AccessDenied and counts them.
-type denyingTransport struct{ requests atomic.Int32 }
+// denyingTransport answers every request with 403 AccessDenied and records them (method, host and path).
+type denyingTransport struct {
+	seen     []string
+	mu       sync.Mutex
+	requests atomic.Int32
+}
 
 func (d *denyingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	d.requests.Add(1)
+
+	d.mu.Lock()
+	d.seen = append(d.seen, req.Method+" "+req.URL.Host+req.URL.Path)
+	d.mu.Unlock()
 
 	body := `<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>denied</Message></Error>`
 
@@ -30,6 +39,17 @@ func (d *denyingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		Body:    io.NopCloser(strings.NewReader(body)),
 		Request: req,
 	}, nil
+}
+
+// exactDir opens dir only: any other path is a directory that does not exist.
+func exactDir(dir string, tree fs.FS) func(string) fs.FS {
+	return func(path string) fs.FS {
+		if path == dir {
+			return tree
+		}
+
+		return missingDir{dir: path}
+	}
 }
 
 const assumeRoleFile = `version: 2
@@ -103,13 +123,21 @@ func TestPublishThroughTheConnectionFactory(t *testing.T) {
 
 	transport := &denyingTransport{}
 	deps := publish.DefaultDeps()
-	deps.OpenDir = func(string) fs.FS { return sourceTree() }
+	deps.OpenDir = exactDir(srcDir, sourceTree())
 	deps.ConnectionOptions = []connection.Option{connection.WithRoundTripper(transport)}
-	deps.ReadFile = func(string) ([]byte, error) { return []byte(staticFile), nil }
+	deps.ReadFile = func(name string) ([]byte, error) {
+		if name != "/b.yaml" {
+			return nil, &fs.PathError{Op: opOpen, Path: name, Err: fs.ErrNotExist}
+		}
+
+		return []byte(staticFile), nil
+	}
 	deps.LookupEnv = func(name string) (string, bool) {
-		return map[string]string{
+		value, ok := map[string]string{
 			envKeyID: canaryKeyID, "PUBLISH_SECRET": canarySecret, "PUBLISH_TOKEN": "t",
-		}[name], true
+		}[name]
+
+		return value, ok
 	}
 
 	cmd := publish.NewPublishCmdWith(deps)
@@ -122,16 +150,23 @@ func TestPublishThroughTheConnectionFactory(t *testing.T) {
 	assert.Contains(t, err.Error(), "AccessDenied")
 	assert.NotContains(t, err.Error(), canarySecret)
 	assert.Positive(t, transport.requests.Load(), "the request went through the factory's client")
+
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
+
+	require.NotEmpty(t, transport.seen)
+	assert.Equal(t, "GET acme.s3.us-east-1.amazonaws.com/manifests/stable.yaml", transport.seen[0],
+		"the first request reads the manifest of the connection's bucket and region")
 }
 
 func TestPublishFactoryRejectsAnInvalidSpec(t *testing.T) {
 	t.Parallel()
 
 	deps := publish.DefaultDeps()
-	deps.OpenDir = func(string) fs.FS { return sourceTree() }
+	deps.OpenDir = exactDir(srcDir, sourceTree())
 
 	cmd := publish.NewPublishCmdWith(deps)
-	cmd.SetArgs([]string{srcDir, optBucket, "b", optRegion, regionUSEast, "--endpoint", "://bad"})
+	cmd.SetArgs([]string{srcDir, optBucket, "b", optRegion, regionUSEast, optEndpoint, "://bad"})
 
 	err := cmd.ExecuteContext(t.Context())
 	require.Error(t, err)
@@ -149,7 +184,7 @@ func TestNewPublishCmdIsWiredToTheRealEnvironment(t *testing.T) {
 		names = append(names, c.Name())
 	}
 
-	assert.Equal(t, []string{"verify"}, names)
+	assert.Equal(t, []string{verifyWord}, names)
 
 	deps := publish.DefaultDeps()
 	assert.Equal(

@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	mineBucket    = "mine"
 	manifestKey   = "m.yaml"
 	stableChannel = "stable"
 )
@@ -457,6 +458,75 @@ func TestInvariantChecksThePinnedVersion(t *testing.T) {
 
 			require.Len(t, violations, 1)
 			assert.Contains(t, violations[0], tt.wantViolation)
+		})
+	}
+}
+
+func TestOnlyTheConfiguredBucketExists(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		fakeBucket string
+		bucket     string
+		wantCode   string
+	}{
+		{name: "the configured bucket", fakeBucket: mineBucket, bucket: mineBucket},
+		{name: "another bucket is a missing bucket", fakeBucket: mineBucket, bucket: "yours", wantCode: "NoSuchBucket"},
+		{name: "no configured bucket accepts any", fakeBucket: "", bucket: "anything"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			fake.Bucket = tt.fakeBucket
+			fake.Seed("k", []byte("x"))
+
+			calls := map[string]func() error{
+				"get": func() error {
+					_, err := fake.GetObject(
+						t.Context(),
+						&s3.GetObjectInput{Bucket: aws.String(tt.bucket), Key: aws.String("k")},
+					)
+
+					return err
+				},
+				"head": func() error {
+					_, err := fake.HeadObject(
+						t.Context(),
+						&s3.HeadObjectInput{Bucket: aws.String(tt.bucket), Key: aws.String("k")},
+					)
+
+					return err
+				},
+				"put": func() error {
+					return put(
+						t,
+						fake,
+						"k2",
+						[]byte("y"),
+						func(in *s3.PutObjectInput) { in.Bucket = aws.String(tt.bucket) },
+					)
+				},
+			}
+
+			for name, call := range calls {
+				err := call()
+
+				if tt.wantCode == "" {
+					require.NoError(t, err, name)
+
+					continue
+				}
+
+				require.Error(t, err, name)
+				assert.Equal(t, tt.wantCode, code(t, err), name)
+			}
+
+			if tt.wantCode != "" {
+				assert.NotContains(t, fake.Keys(), "k2", "a write to the wrong bucket stores nothing")
+			}
 		})
 	}
 }

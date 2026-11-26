@@ -42,7 +42,7 @@ func TestNewRejectsBadConfig(t *testing.T) {
 
 			var api s3publish.API
 			if !tt.nilAPI {
-				api = s3fake.New(manifestKey)
+				api = newFake()
 			}
 
 			pub, err := s3publish.New(api, &cfg)
@@ -55,7 +55,7 @@ func TestNewRejectsBadConfig(t *testing.T) {
 func TestPublishFirst(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 	flagsKey := objectKey(t, objects[0].Body)
 	setsKey := objectKey(t, objects[1].Body)
@@ -142,7 +142,7 @@ func TestPublishPrefixAndManifestKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			objects := standardObjects(t, "a")
 
 			pub := newPublisher(
@@ -177,7 +177,7 @@ func TestPublishPrefixAndManifestKey(t *testing.T) {
 func TestPublishRepublish(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, nil)
 	first := standardObjects(t, "a")
 
@@ -257,7 +257,7 @@ func TestPublishNothingChanged(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, nil)
 			objects := standardObjects(t, "a")
 
@@ -297,7 +297,7 @@ func TestPublishNothingChanged(t *testing.T) {
 func TestPublishObjectAlreadyPresent(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 	flagsKey := objectKey(t, objects[0].Body)
 	setsKey := objectKey(t, objects[1].Body)
@@ -320,7 +320,7 @@ func TestPublishObjectAlreadyPresent(t *testing.T) {
 func TestPublishSameContentTwiceUploadsOnce(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	body := flagsBody(t, "a")
 	key := objectKey(t, body)
 	objects := []s3publish.Object{
@@ -342,7 +342,7 @@ func TestPublishSameContentTwiceUploadsOnce(t *testing.T) {
 func TestPublishObjectCreatedByAnotherWriterAfterHead(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 	flagsKey := objectKey(t, objects[0].Body)
 	fake.Before = func(call string) error {
@@ -365,7 +365,7 @@ func TestPublishObjectCreatedByAnotherWriterAfterHead(t *testing.T) {
 func TestPublishExistingObjectWithOtherContentIsNeverOverwritten(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 	flagsKey := objectKey(t, objects[0].Body)
 	fake.Seed(flagsKey, []byte("short"))
@@ -433,7 +433,7 @@ func TestPublishLostManifestRace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, nil)
 
 			if tt.hasFirst {
@@ -509,7 +509,7 @@ func TestPublishGenerationMustIncrease(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, nil)
 
 			_, err := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a"), Generation: 5})
@@ -607,7 +607,7 @@ func TestPublishValidationFailureWritesNothing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			pub := newPublisher(t, fake, func(c *s3publish.Config) { c.MaxObjects = tt.maxObjects })
 
 			_, err := pub.Publish(t.Context(), s3publish.Request{Objects: tt.objects})
@@ -626,7 +626,7 @@ func TestPublishValidationFailureWritesNothing(t *testing.T) {
 func TestPublishTransientErrorThenRetryConverges(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, nil)
 	objects := standardObjects(t, "a")
 	flagsKey := objectKey(t, objects[0].Body)
@@ -687,7 +687,7 @@ func (l lostResponse) PutObject(
 func TestPublishLostResponseOfManifestWriteIsSafeToRepeat(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	objects := standardObjects(t, "a")
 
 	_, err := newPublisher(t, lostResponse{fake}, nil).Publish(t.Context(), s3publish.Request{Objects: objects})
@@ -725,7 +725,7 @@ func TestPublishDryRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			objects := standardObjects(t, "a")
 
 			if tt.seedObjects {
@@ -764,7 +764,7 @@ func TestPublishDryRun(t *testing.T) {
 func TestPublishManifestIsAlwaysTheLastCallAndNothingListsOrDeletes(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	pub := newPublisher(t, fake, nil)
 
 	for _, label := range []string{"a", "b", "c"} {
@@ -825,7 +825,7 @@ func TestPublishReadErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			fake := s3fake.New(manifestKey)
+			fake := newFake()
 			tt.setup(fake)
 
 			_, err := newPublisher(
@@ -850,7 +850,7 @@ func TestPublishReadErrors(t *testing.T) {
 func TestPublishWarnsAboutUnknownFields(t *testing.T) {
 	t.Parallel()
 
-	fake := s3fake.New(manifestKey)
+	fake := newFake()
 	body := []byte("flag-a:\n  variations: {on: true, off: false}\n  defaultRule: {variation: off}\n  futureField: 1\n")
 	objects := []s3publish.Object{
 		{Name: "a", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
@@ -867,7 +867,7 @@ func TestPublishWarnsAboutUnknownFields(t *testing.T) {
 func TestNewRejectsNilConfig(t *testing.T) {
 	t.Parallel()
 
-	pub, err := s3publish.New(s3fake.New(manifestKey), nil)
+	pub, err := s3publish.New(newFake(), nil)
 	require.ErrorIs(t, err, s3publish.ErrConfig)
 	assert.Nil(t, pub)
 }
