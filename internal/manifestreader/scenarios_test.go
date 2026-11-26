@@ -484,7 +484,7 @@ func TestReader_ManifestRejections(t *testing.T) {
 					t.Helper()
 
 					manifest := manifestOf(t, 2, threeObjects()...)
-					manifest.Channel = "canary"
+					manifest.Channel = otherChannel
 					putManifest(t, store, manifest)
 				},
 				wantCalls: func(_ *testing.T, held string) []call { return []call{manifestCall(held)} },

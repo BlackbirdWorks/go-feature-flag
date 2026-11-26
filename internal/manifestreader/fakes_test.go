@@ -255,8 +255,11 @@ func launchRig(
 		own.ManifestKey = manifestKey
 	}
 
-	if own.Channel == "" {
+	switch own.Channel {
+	case "":
 		own.Channel = testChannel
+	case anyChannel:
+		own.Channel = ""
 	}
 
 	sched := newFakeSched()
@@ -342,4 +345,12 @@ func (f *fakeStore) setHang(key string, on bool) {
 	defer f.mu.Unlock()
 
 	f.hang[key] = on
+}
+
+// callCount is the number of requests received and not taken yet.
+func (f *fakeStore) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.calls)
 }

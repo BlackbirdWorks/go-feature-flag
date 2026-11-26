@@ -73,9 +73,11 @@ type Config struct {
 	// MaxObjectBytes bounds one object: an entry that lists a larger size is not requested.
 	MaxObjectBytes int64
 	// MaxTotalBytes bounds the sum of the listed sizes of the distinct checksums of a manifest. A manifest
-	// above it is rejected whole before any object request. The worst-case memory of the reader is about this
-	// cap for the current content, plus the same again for stale content that is still carried, plus
-	// FetchConcurrency times MaxObjectBytes in flight.
+	// above it is rejected whole before any object request; a checksum listed with several sizes counts with the
+	// largest. The worst-case memory of the reader is about this cap for the current content, plus the last good
+	// content that stale names still carry, plus FetchConcurrency times MaxObjectBytes in flight. Each carried
+	// object was within the limits when it was loaded, but the carried bytes of several older generations are not
+	// bounded by this cap: they are bounded by MaxObjects times MaxObjectBytes.
 	MaxTotalBytes int64
 	// FetchConcurrency is the number of concurrent object downloads, at most [MaxFetchConcurrency].
 	FetchConcurrency int
@@ -223,8 +225,8 @@ func WithHooks(h Hooks) Option {
 }
 
 // WithObjectStores gives the store of each connection name that objects of the manifest may name. With it an
-// object of an unknown connection is failed with [ReasonUnknownConnection]; without it every object is read
-// from the store of the manifest.
+// object of an unknown connection is failed with [ReasonUnknownConnection]. The store of the manifest always
+// serves the connection named by [Config.Connection], and only that one.
 func WithObjectStores(stores map[string]ObjectStore) Option {
 	return func(r *Reader) { r.stores = maps.Clone(stores) }
 }

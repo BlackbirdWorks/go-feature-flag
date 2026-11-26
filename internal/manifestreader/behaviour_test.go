@@ -275,14 +275,20 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 	manifest := publish(t, store, 1, threeObjects()...)
 	raw := mustMarshal(t, manifest)
 
+	type save struct {
+		persist manifestreader.Persist
+		// requests is the number of requests the store had received when Save was called.
+		requests int
+	}
+
 	var (
 		mu      sync.Mutex
-		saved   []manifestreader.Persist
+		saved   []save
 		rounds  []string
 		restore = func() (*manifestreader.Restored, error) {
 			return &manifestreader.Restored{
 				ETag: etagOf(raw), Manifest: raw,
-				// gamma is corrupt: it is not found by its checksum and fetched again
+				// gamma is corrupt: it is not found by its checksum
 				Objects: [][]byte{[]byte(alpha.content), []byte(beta.content), []byte(`{"gamma":"corrupt"}`)},
 			}, nil
 		}
@@ -294,7 +300,7 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			saved = append(saved, p)
+			saved = append(saved, save{persist: p, requests: store.callCount()})
 		},
 		OnRound: func(status *manifestreader.Status) {
 			mu.Lock()
@@ -306,8 +312,8 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
-	// the restore fetches only the corrupt object, and the first poll sends the restored ETag (a 304)
-	assert.Equal(t, []call{manifestCall(etagOf(raw)), objCall(t, gamma)}, store.takeCalls())
+	// the first poll sends the restored ETag (a 304) and only then is the object that was not restored fetched
+	assert.Equal(t, sortCalls([]call{manifestCall(etagOf(raw)), objCall(t, gamma)}), store.takeCalls())
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)
@@ -318,12 +324,17 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	require.Len(t, saved, 1, "the restored state, completed with the one object that was not restored")
-	assert.Equal(t, snap, saved[0].Snapshot)
+	require.Len(t, saved, 2, "the restored state, then the state after the fetch")
+	assert.Equal(t, 0, saved[0].requests, "the restored objects were served before any request was made")
+	assert.Equal(t, 2, saved[1].requests)
+	assert.Equal(t, manifestreader.StateMissing, saved[0].persist.Snapshot.Objects[nameGamma].State)
+	assert.Equal(t, manifestreader.ReasonNotRestored, saved[0].persist.Snapshot.Objects[nameGamma].Reason)
+	assert.Equal(t, manifestreader.StateOK, saved[0].persist.Snapshot.Objects[nameAlpha].State)
+	assert.Equal(t, snap, saved[1].persist.Snapshot)
 
-	for _, p := range saved {
-		assert.Equal(t, etagOf(raw), p.ETag)
-		assert.Equal(t, raw, p.Manifest)
+	for _, entry := range saved {
+		assert.Equal(t, etagOf(raw), entry.persist.ETag)
+		assert.Equal(t, raw, entry.persist.Manifest)
 	}
 
 	assert.Equal(t, []string{manifestreader.PollNone, manifestreader.PollNotModified}, rounds)

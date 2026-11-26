@@ -84,7 +84,7 @@ Each object of a snapshot has a state:
 | `missing` | Fetching or verifying failed and no content of this name was ever loaded: no bytes |
 
 Every failed object has a reason: `missing` (404), `checksum-mismatch`, `size-mismatch`, `invalid-size`, `too-large`,
-`denied`, `timeout`, `error`, `unknown-connection`, `invalid-key`.
+`denied`, `timeout`, `error`, `unknown-connection`, `invalid-key`, `not-restored`.
 
 The listed `size` is binding:
 
@@ -95,6 +95,9 @@ The listed `size` is binding:
 - an entry whose key starts with `/` fails with `invalid-key`, without any request;
 - an entry that names a connection the reader has no store for fails with `unknown-connection`, without any request;
   it is never read from the store of the manifest. An entry with a `versionId` is read at that version.
+
+A cached object is also checked against the size of each entry that uses it: an entry that lists another size than
+the content has fails with `size-mismatch`, and the others that share the checksum are not affected.
 
 A failure that needs no request is final until the manifest changes: it costs nothing in later rounds.
 
@@ -144,8 +147,11 @@ machine. The decoder builds a tree of the whole document before the entry count 
 the byte cap can allocate far more before it is rejected. The manifest byte cap is what bounds that cost. This cost
 is paid only when the manifest changes, never on a `304`.
 
-Worst-case memory: about the total-size cap for the current content, plus the same again for stale content that is
-still carried, plus the concurrent downloads times the object limit in flight. Object bodies are read into one
+Worst-case memory: about the total-size cap for the current content, plus the last good content that stale names still
+carry, plus the concurrent downloads times the object limit in flight. A carried object was within the limits when it
+was loaded, but the carried bytes of several older generations are not bounded by the total-size cap: they are bounded
+by the number of objects times the object limit. A checksum listed with several sizes counts with the largest size
+against the total-size cap. Object bodies are read into one
 buffer sized from the listed size.
 
 ## Delivery and status
@@ -157,7 +163,9 @@ buffer sized from the listed size.
   the hooks that panicked.
 - Hooks (restore, save, round) run on the poller and must not block. Their arguments are read-only and shared with
   the reader: copy what you keep. The save hook always gets the manifest that was accepted, with its own ETag.
-- After a restart from saved state, the saved ETag is used only if the saved manifest is accepted. Otherwise the
+- After a restart from saved state, the saved objects are served at once, nothing is fetched before the first poll of
+the live manifest, and an object that was not saved is `missing` with reason `not-restored` until it is fetched.
+The saved ETag is used only if the saved manifest is accepted. Otherwise the
   first poll is an unconditional GET.
 - Logs and the status carry object names and reason codes only: never object bytes, keys or error text of the store.
 

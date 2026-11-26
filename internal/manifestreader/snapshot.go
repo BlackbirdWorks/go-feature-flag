@@ -27,6 +27,9 @@ const (
 	ReasonChecksumMismatch = "checksum-mismatch"
 	// ReasonTooLarge is an entry whose listed size is above the object limit: it is not requested.
 	ReasonTooLarge = "too-large"
+	// ReasonNotRestored is an object that the restored state did not have: it is fetched after the first poll of
+	// the live manifest.
+	ReasonNotRestored = "not-restored"
 	// ReasonInvalidKey is an entry whose key is empty or starts with "/": keys are absolute bucket keys, and the
 	// entry is not requested.
 	ReasonInvalidKey = "invalid-key"

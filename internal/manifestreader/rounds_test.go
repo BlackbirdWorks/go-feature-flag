@@ -57,7 +57,7 @@ func TestReader_RestoredManifestThatIsRejectedClearsTheETag(t *testing.T) {
 
 	// a saved manifest of a channel the reader does not serve
 	other := manifestOf(t, 1, threeObjects()...)
-	other.Channel = "canary"
+	other.Channel = otherChannel
 	raw := mustMarshal(t, other)
 
 	hooks := manifestreader.Hooks{Restore: func() (*manifestreader.Restored, error) {
@@ -734,4 +734,115 @@ func TestReader_EmptyKeyRejectsTheManifestWithoutObjectRequests(t *testing.T) {
 	assert.Equal(t, []call{manifestCall("")}, store.takeCalls())
 	assert.Nil(t, rdr.snapshot())
 	assert.Equal(t, string(controlplane.CodeMissingValue), rdr.reader.Status().Manifest.Reason)
+}
+
+func TestReader_TotalBytesDoesNotDependOnTheOrderOfEntries(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta := threeObjects()[0], threeObjects()[1] // 11 and 10 bytes
+	twin := obj{name: nameTwin, content: alpha.content}
+
+	tests := []struct {
+		name  string
+		sizes [2]int64 // the sizes listed for alpha and for its twin
+	}{
+		{name: "the small size first", sizes: [2]int64{5, 11}},
+		{name: "the large size first", sizes: [2]int64{11, 5}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			manifest := manifestOf(t, 1, alpha, twin, beta)
+			manifest.Objects[0].Size, manifest.Objects[1].Size = tt.sizes[0], tt.sizes[1]
+
+			store.put(keyOf(t, alpha), []byte(alpha.content))
+			store.put(keyOf(t, beta), []byte(beta.content))
+			putManifest(t, store, manifest)
+
+			// the largest size of the shared checksum (11) and beta (10) make 21: over a limit of 20
+			rdr := startRig(t, store, &manifestreader.Config{MaxTotalBytes: 20})
+
+			assert.Equal(t, []call{manifestCall("")}, store.takeCalls())
+			assert.Nil(t, rdr.snapshot())
+			assert.Equal(t, manifestreader.ReasonTotalTooLarge, rdr.reader.Status().Manifest.Reason)
+		})
+	}
+}
+
+func TestReader_CachedContentIsCheckedAgainstTheSizeOfEachEntry(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	twin := obj{name: nameTwin, content: alpha.content}
+
+	t.Run("a warm cache: the same checksum listed with another size in a later generation", func(t *testing.T) {
+		t.Parallel()
+
+		runSteps(t, []step{{
+			name: "gen 2 lists alpha with 10 bytes",
+			act: func(t *testing.T, store *fakeStore) {
+				t.Helper()
+
+				manifest := manifestOf(t, 2, alpha, beta, gamma)
+				manifest.Objects[0].Size = 10
+				putManifest(t, store, manifest)
+			},
+			wantCalls: condGet,
+			wantSnap: snapOf(2, map[string]manifestreader.ObjectState{
+				nameAlpha: func() manifestreader.ObjectState {
+					state := okState(t, alpha)
+					state.State, state.Reason = manifestreader.StateStale, manifestreader.ReasonSizeMismatch
+
+					return state
+				}(),
+				nameBeta: okState(t, beta), nameGamma: okState(t, gamma),
+			}),
+		}})
+	})
+
+	t.Run("a cold start: two entries with one checksum and two sizes", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeStore()
+		manifest := manifestOf(t, 1, alpha, twin)
+		manifest.Objects[1].Size = 5
+
+		store.put(keyOf(t, alpha), []byte(alpha.content))
+		putManifest(t, store, manifest)
+
+		rdr := startRig(t, store, &manifestreader.Config{})
+
+		snap := rdr.snapshot()
+		require.NotNil(t, snap)
+		assert.Equal(
+			t,
+			manifestreader.StateOK,
+			snap.Objects[nameAlpha].State,
+			"the entry with the right size is served",
+		)
+		assert.Equal(t, manifestreader.StateMissing, snap.Objects[nameTwin].State)
+		assert.Equal(t, manifestreader.ReasonSizeMismatch, snap.Objects[nameTwin].Reason)
+	})
+}
+
+func TestReader_ChannelIsPartOfTheIdentityAtAnEqualGeneration(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	publish(t, store, 1, threeObjects()...)
+
+	rdr := startRig(t, store, &manifestreader.Config{Channel: anyChannel})
+	require.NotNil(t, rdr.snapshot())
+
+	other := manifestOf(t, 1, threeObjects()...)
+	other.Channel = otherChannel
+	putManifest(t, store, other)
+
+	assert.Equal(t, []call{manifestCall(etagOf(mustMarshal(t, manifestOf(t, 1, threeObjects()...))))}, rdr.round())
+	assert.Nil(t, rdr.snapshot())
+	assert.Equal(t, manifestreader.OutcomeConflict, rdr.reader.Status().Manifest.Outcome)
+	assert.Equal(t, testChannel, rdr.reader.Status().Manifest.Channel)
 }

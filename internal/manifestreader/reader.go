@@ -279,7 +279,7 @@ func (r *Reader) restore(ctx context.Context) {
 		r.cache[controlplane.ChecksumOf(content).Value] = content
 	}
 
-	if !r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag}) {
+	if !r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag}, true) {
 		// the saved ETag names bytes that were not accepted: the first poll must read the manifest
 		r.seen = ""
 	}
@@ -313,7 +313,7 @@ func (r *Reader) round(ctx context.Context) {
 
 	switch {
 	case err == nil:
-		confirmed = r.accept(ctx, obj)
+		confirmed = r.accept(ctx, obj, false)
 	case timedOut:
 		poll = PollStatus{Result: PollError, Reason: ReasonTimeout}
 	case errors.Is(err, ErrNotModified):
@@ -324,7 +324,7 @@ func (r *Reader) round(ctx context.Context) {
 		// Only the objects that failed are fetched again, and only on a round whose manifest GET worked: when
 		// the manifest cannot be read (an outage) the reader does not add object requests to the failing ones.
 		// With no failed object nothing else happens.
-		r.settle(ctx, false)
+		r.settle(ctx, false, true)
 	default:
 		poll = failedPoll(err)
 	}
@@ -391,7 +391,7 @@ func (r *Reader) reject(ctx context.Context, outcome, reason string, unknown int
 
 // accept decodes, validates and applies the manifest of a 200 answer. It reports whether the manifest was
 // accepted.
-func (r *Reader) accept(ctx context.Context, obj Object) bool {
+func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 	r.seen = obj.ETag
 
 	manifest, info, err := controlplane.UnmarshalManifest(obj.Bytes)
@@ -433,7 +433,7 @@ func (r *Reader) accept(ctx context.Context, obj Object) bool {
 			r.reject(ctx, OutcomeLowerGeneration, "generation", unknown)
 
 			return false
-		case !genChanged && !maps.Equal(r.held.ident, ident):
+		case !genChanged && (manifest.Channel != r.held.channel || !maps.Equal(r.held.ident, ident)):
 			r.reject(ctx, OutcomeConflict, "generation", unknown)
 
 			return false
@@ -446,24 +446,24 @@ func (r *Reader) accept(ctx context.Context, obj Object) bool {
 		Objects: len(manifest.Objects), UnknownFields: unknown,
 	}
 
-	r.settle(ctx, genChanged)
+	r.settle(ctx, genChanged, !restoring)
 
 	return true
 }
 
-// totalSize is the sum of the listed sizes of the distinct checksums.
+// totalSize is the sum of the listed sizes of the distinct checksums. A checksum listed with several sizes counts
+// with the largest, so the result does not depend on the order of the entries.
 func totalSize(objects []controlplane.ManifestObject) int64 {
-	seen := make(map[string]struct{}, len(objects))
+	largest := make(map[string]int64, len(objects))
+
+	for i := range objects {
+		largest[objects[i].Checksum.Value] = max(largest[objects[i].Checksum.Value], objects[i].Size)
+	}
 
 	var total int64
 
-	for i := range objects {
-		if _, dup := seen[objects[i].Checksum.Value]; dup {
-			continue
-		}
-
-		seen[objects[i].Checksum.Value] = struct{}{}
-		total += objects[i].Size
+	for _, size := range largest {
+		total += size
 	}
 
 	return total
@@ -514,7 +514,7 @@ func (r *Reader) adopt(manifest *controlplane.Manifest, ident map[string]identit
 		names[entry.Name] = state
 
 		if data, held := r.cache[entry.Checksum.Value]; held {
-			r.applyOK(state, data)
+			r.applyData(state, data)
 
 			continue
 		}
@@ -585,8 +585,15 @@ type result struct {
 // settle fetches the groups that have no verified content yet (the new ones, and the ones that failed in an
 // earlier round, each once), applies the results, and publishes a snapshot when the generation or the state of
 // a name changed. Nothing here walks the objects of the manifest unless something changed.
-func (r *Reader) settle(ctx context.Context, genChanged bool) {
-	if len(r.groups) > 0 {
+func (r *Reader) settle(ctx context.Context, genChanged, fetch bool) {
+	if len(r.groups) > 0 && !fetch {
+		// restoring: serve what was saved, poll the live manifest first, and fetch what is missing after it
+		for _, grp := range r.groups {
+			r.applyFail(grp, result{reason: ReasonNotRestored, retryable: true})
+		}
+	}
+
+	if len(r.groups) > 0 && fetch {
 		results := r.fetchAll(ctx, r.groups)
 		if ctx.Err() != nil {
 			return
@@ -599,7 +606,7 @@ func (r *Reader) settle(ctx context.Context, genChanged bool) {
 				r.cache[grp.sum] = results[i].data
 
 				for _, name := range grp.names {
-					r.applyOK(name, results[i].data)
+					r.applyData(name, results[i].data)
 				}
 
 				continue
@@ -636,18 +643,35 @@ func (r *Reader) applyOK(name *nameState, data []byte) {
 	}
 }
 
-// applyFail gives every name of the group the failure: stale when it has earlier content, else missing.
+// applyData gives a name verified content, if its own listed size agrees with it. A checksum proves the bytes,
+// not that this entry declares their length.
+func (r *Reader) applyData(name *nameState, data []byte) {
+	if int64(len(data)) != name.entry.Size {
+		r.applyFailName(name, result{reason: ReasonSizeMismatch, retryable: true})
+
+		return
+	}
+
+	r.applyOK(name, data)
+}
+
+// applyFail gives every name of the group the failure.
 func (r *Reader) applyFail(grp *group, res result) {
 	for _, name := range grp.names {
-		state := StateMissing
-		if name.good != nil {
-			state = StateStale
-		}
+		r.applyFailName(name, res)
+	}
+}
 
-		if name.state != state || name.reason != res.reason || name.retryable != res.retryable {
-			name.state, name.reason, name.retryable = state, res.reason, res.retryable
-			r.dirty = true
-		}
+// applyFailName gives a name the failure: stale when it has earlier content, else missing.
+func (r *Reader) applyFailName(name *nameState, res result) {
+	state := StateMissing
+	if name.good != nil {
+		state = StateStale
+	}
+
+	if name.state != state || name.reason != res.reason || name.retryable != res.retryable {
+		name.state, name.reason, name.retryable = state, res.reason, res.retryable
+		r.dirty = true
 	}
 }
 

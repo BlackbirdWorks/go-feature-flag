@@ -15,11 +15,14 @@ import (
 )
 
 const (
-	nameAlpha     = "alpha"
-	nameBeta      = "beta"
-	nameGamma     = "gamma"
-	nameTwin      = "twin"
-	rawGet        = "x-id=GetObject"
+	nameAlpha = "alpha"
+	nameBeta  = "beta"
+	nameGamma = "gamma"
+	nameTwin  = "twin"
+	rawGet    = "x-id=GetObject"
+	// anyChannel makes the rig leave the expected channel empty.
+	anyChannel    = "*"
+	otherChannel  = "canary"
 	connElsewhere = "elsewhere"
 	queryVersion  = "versionId=v-1"
 
