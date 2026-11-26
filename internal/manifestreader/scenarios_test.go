@@ -594,17 +594,17 @@ func TestReader_ManifestLimits(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		wantReason   string
-		wantPoll     string
-		objs         []obj
-		cfg          manifestreader.Config
-		wantObjCalls int
-		wantSnapshot bool
+		name          string
+		wantReason    string
+		wantPoll      string
+		objs          []obj
+		wantRequested []obj
+		cfg           manifestreader.Config
+		wantSnapshot  bool
 	}{
 		{
 			name: "exactly at max objects is accepted", cfg: manifestreader.Config{MaxObjects: 5},
-			objs: many(5), wantSnapshot: true, wantPoll: manifestreader.PollUpdated, wantObjCalls: 5,
+			objs: many(5), wantSnapshot: true, wantPoll: manifestreader.PollUpdated, wantRequested: many(5),
 		},
 		{
 			name: "one over max objects is rejected whole, no object is fetched",
@@ -629,7 +629,7 @@ func TestReader_ManifestLimits(t *testing.T) {
 			rdr := startRig(t, store, &tt.cfg)
 
 			assert.Equal(t, tt.wantSnapshot, rdr.snapshot() != nil)
-			assert.Len(t, store.takeCalls(), 1+tt.wantObjCalls)
+			assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
 
 			status := rdr.reader.Status()
 			assert.Equal(t, tt.wantPoll, status.Poll.Result)

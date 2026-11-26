@@ -361,12 +361,12 @@ func (f *fakeStore) setHang(key string, on bool) {
 	f.hang[key] = on
 }
 
-// callCount is the number of requests received and not taken yet.
-func (f *fakeStore) callCount() int {
+// peekArrival returns the requests received and not taken yet, in arrival order, without taking them.
+func (f *fakeStore) peekArrival() []call {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return len(f.calls)
+	return append([]call(nil), f.calls...)
 }
 
 // orderLog records, for all the stores that share it, whether an object was requested before the manifest of its

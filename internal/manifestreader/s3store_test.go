@@ -322,10 +322,9 @@ func TestS3Store_IfNoneMatchOnlyWithAnETag(t *testing.T) {
 				Get(t.Context(), manifestreader.GetRequest{Key: "k", ETag: tt.etag, Limit: 10})
 			require.NoError(t, err)
 
-			reqs := transport.requests()
-			require.Len(t, reqs, 1)
-			assert.Equal(t, tt.wantSent, reqs[0].IfNoneMatch)
-			assert.Equal(t, "/"+s3Bucket+"/k", reqs[0].Path, "the store adds nothing to the key")
+			assert.Equal(t, []seenRequest{{
+				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", IfNoneMatch: tt.wantSent, RawQuery: rawGet,
+			}}, transport.requests(), "one GET of exactly the key, conditional only with an ETag")
 		})
 	}
 }
@@ -422,9 +421,9 @@ func TestS3Store_VersionID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			reqs := transport.requests()
-			require.Len(t, reqs, 1)
-			assert.Contains(t, reqs[0].RawQuery, tt.wantQ)
+			assert.Equal(t, []seenRequest{{
+				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", RawQuery: tt.wantQ + "&" + rawGet,
+			}}, transport.requests())
 		})
 	}
 }

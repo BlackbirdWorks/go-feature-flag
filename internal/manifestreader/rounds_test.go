@@ -39,10 +39,8 @@ func TestReader_RestoredGarbageWithTheLiveETagStartsWithAnUnconditionalGet(t *te
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
-	calls := store.takeCalls()
-	require.NotEmpty(t, calls)
-	assert.Equal(t, manifestCall(""), calls[0], "no If-None-Match: a 304 would have kept the reader empty for ever")
-	assert.Len(t, calls, 4)
+	assert.Equal(t, coldCalls(t, threeObjects()...), store.takeCalls(),
+		"no If-None-Match on the manifest: a 304 would have kept the reader empty for ever")
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)
@@ -67,7 +65,7 @@ func TestReader_RestoredManifestThatIsRejectedClearsTheETag(t *testing.T) {
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
-	assert.Equal(t, manifestCall(""), store.takeCalls()[0])
+	assert.Equal(t, coldCalls(t, threeObjects()...), store.takeCalls())
 	assert.NotNil(t, rdr.snapshot())
 }
 
@@ -229,11 +227,12 @@ func TestReader_ManifestRequestTimeout(t *testing.T) {
 	assert.NotNil(t, rdr.snapshot())
 	assert.Empty(t, rdr.reader.Status().Poll.Reason)
 
-	for _, d := range seam.seen() {
-		assert.Equal(t, 7*time.Second, d, "every request carries the configured timeout")
-	}
-
-	assert.Len(t, seam.seen(), 5, "the manifest twice and the three objects")
+	assert.Equal(
+		t,
+		[]time.Duration{7 * time.Second, 7 * time.Second, 7 * time.Second, 7 * time.Second, 7 * time.Second},
+		seam.seen(),
+		"the manifest twice and the three objects, each with the configured timeout",
+	)
 }
 
 func TestReader_ObjectRequestTimeout(t *testing.T) {
@@ -277,31 +276,30 @@ func TestReader_TotalBytesLimit(t *testing.T) {
 	twin := obj{name: nameTwin, content: alpha.content}
 
 	tests := []struct {
-		name         string
-		objs         []obj
-		max          int64
-		wantCalls    int
-		wantAccepted bool
+		name          string
+		objs          []obj
+		wantRequested []obj
+		max           int64
+		wantAccepted  bool
 	}{
 		{
-			name:         "the sum of three objects is 32: at the limit",
-			max:          32,
-			objs:         threeObjects(),
-			wantAccepted: true,
-			wantCalls:    4,
+			name:          "the sum of three objects is 32: at the limit",
+			max:           32,
+			objs:          threeObjects(),
+			wantAccepted:  true,
+			wantRequested: threeObjects(),
 		},
 		{
-			name:      "one byte over the limit is rejected whole, with no object request",
-			max:       31,
-			objs:      threeObjects(),
-			wantCalls: 1,
+			name: "one byte over the limit is rejected whole, with no object request",
+			max:  31,
+			objs: threeObjects(),
 		},
 		{
-			name:         "a checksum listed twice counts once",
-			max:          11,
-			objs:         []obj{alpha, twin},
-			wantAccepted: true,
-			wantCalls:    2,
+			name:          "a checksum listed twice counts once",
+			max:           11,
+			objs:          []obj{alpha, twin},
+			wantAccepted:  true,
+			wantRequested: []obj{alpha},
 		},
 	}
 
@@ -314,7 +312,7 @@ func TestReader_TotalBytesLimit(t *testing.T) {
 
 			rdr := startRig(t, store, &manifestreader.Config{MaxTotalBytes: tt.max})
 
-			assert.Len(t, store.takeCalls(), tt.wantCalls)
+			assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
 			assert.Equal(t, tt.wantAccepted, rdr.snapshot() != nil)
 
 			status := rdr.reader.Status()
@@ -775,39 +773,39 @@ func TestReader_TotalBytesCannotOverflow(t *testing.T) {
 	alpha, beta := threeObjects()[0], threeObjects()[1]
 
 	tests := []struct {
-		name         string
-		wantReason   string
-		cfg          manifestreader.Config
-		sizes        [2]int64
-		wantCalls    int
-		wantAccepted bool
+		name          string
+		wantReason    string
+		wantRequested []obj
+		cfg           manifestreader.Config
+		sizes         [2]int64
+		wantAccepted  bool
 	}{
 		{
-			name:         "a size above the object limit counts for nothing: the huge entry is not requested, the small one is",
-			sizes:        [2]int64{math.MaxInt64, 10},
-			wantAccepted: true,
-			wantReason:   manifestreader.ReasonTooLarge,
-			wantCalls:    2,
+			name:          "a size above the object limit counts for nothing: the huge entry is not requested, the small one is",
+			sizes:         [2]int64{math.MaxInt64, 10},
+			wantAccepted:  true,
+			wantReason:    manifestreader.ReasonTooLarge,
+			wantRequested: []obj{beta},
 		},
 		{
 			name:  "with a huge object limit the two sizes would wrap the sum: the manifest is rejected",
 			cfg:   manifestreader.Config{MaxObjectBytes: math.MaxInt64, MaxTotalBytes: math.MaxInt64},
-			sizes: [2]int64{math.MaxInt64, 1}, wantReason: manifestreader.ReasonTotalTooLarge, wantCalls: 1,
+			sizes: [2]int64{math.MaxInt64, 1}, wantReason: manifestreader.ReasonTotalTooLarge,
 		},
 		{
 			name:  "exactly the remaining budget is accepted",
 			cfg:   manifestreader.Config{MaxObjectBytes: math.MaxInt64, MaxTotalBytes: math.MaxInt64},
 			sizes: [2]int64{math.MaxInt64 - 10, 10}, wantAccepted: true,
-			wantReason: manifestreader.ReasonSizeMismatch, wantCalls: 3,
+			wantReason: manifestreader.ReasonSizeMismatch, wantRequested: []obj{alpha, beta},
 		},
 		{
 			name:  "many large objects add up over the total",
 			cfg:   manifestreader.Config{MaxTotalBytes: 100, MaxObjectBytes: 60},
-			sizes: [2]int64{60, 60}, wantReason: manifestreader.ReasonTotalTooLarge, wantCalls: 1,
+			sizes: [2]int64{60, 60}, wantReason: manifestreader.ReasonTotalTooLarge,
 		},
 		{
 			name:  "a negative size is an invalid manifest",
-			sizes: [2]int64{-5, 10}, wantReason: string(controlplane.CodeInvalidValue), wantCalls: 1,
+			sizes: [2]int64{-5, 10}, wantReason: string(controlplane.CodeInvalidValue),
 		},
 	}
 
@@ -830,14 +828,14 @@ func TestReader_TotalBytesCannotOverflow(t *testing.T) {
 			if !tt.wantAccepted {
 				assert.Nil(t, snap)
 				assert.Equal(t, tt.wantReason, rdr.reader.Status().Manifest.Reason)
-				assert.Len(t, store.takeCalls(), tt.wantCalls)
+				assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
 
 				return
 			}
 
 			require.NotNil(t, snap)
 			assert.Equal(t, tt.wantReason, snap.Objects[nameAlpha].Reason)
-			assert.Len(t, store.takeCalls(), tt.wantCalls)
+			assert.Equal(t, coldCalls(t, tt.wantRequested...), store.takeCalls())
 		})
 	}
 }

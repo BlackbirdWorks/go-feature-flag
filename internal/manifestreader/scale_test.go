@@ -36,7 +36,7 @@ func TestReader_TwentyThousandObjects(t *testing.T) {
 	rdr := startRig(t, store, &manifestreader.Config{FetchConcurrency: manifestreader.MaxFetchConcurrency})
 
 	// cold start: the manifest and one GET per object
-	assert.Len(t, store.takeCalls(), 1+count)
+	assert.Equal(t, coldCalls(t, objs...), store.takeCalls())
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)

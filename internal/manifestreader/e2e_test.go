@@ -22,6 +22,8 @@ import (
 type wireRequest struct {
 	Method string
 	Path   string
+	// Conditional tells whether the request carried If-None-Match.
+	Conditional bool
 }
 
 // wireCounter counts the HTTP requests that reach the emulator.
@@ -32,7 +34,10 @@ type wireCounter struct {
 
 func (w *wireCounter) RoundTrip(req *http.Request) (*http.Response, error) {
 	w.mu.Lock()
-	w.seen = append(w.seen, wireRequest{Method: req.Method, Path: req.URL.Path})
+	w.seen = append(
+		w.seen,
+		wireRequest{Method: req.Method, Path: req.URL.Path, Conditional: req.Header.Get("If-None-Match") != ""},
+	)
 	w.mu.Unlock()
 
 	return http.DefaultTransport.RoundTrip(req)
@@ -120,14 +125,17 @@ func TestE2E_PollingCostsOneConditionalGet(t *testing.T) {
 	wire, obs := rdr.wire.take(), rdr.obs.take()
 
 	// N polls cost exactly N requests, and both counters agree
-	require.Len(t, wire, polls)
-	require.Len(t, obs, polls)
-	assert.Len(t, obs, len(wire), "the observer and the wire saw the same number of requests")
+	wantWire := make([]wireRequest, polls)
+	wantObs := make([]observation, polls)
 
 	for i := range polls {
-		assert.Equal(t, wireRequest{Method: http.MethodGet, Path: rdr.manifestPath()}, wire[i])
-		assert.Equal(t, observation{connControl, connection.OperationGet, connection.ResultNotModified}, obs[i])
+		wantWire[i] = wireRequest{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true}
+		wantObs[i] = observation{connControl, connection.OperationGet, connection.ResultNotModified}
 	}
+
+	assert.Equal(t, wantWire, wire)
+	assert.Equal(t, wantObs, obs)
+	assert.Len(t, obs, len(wire), "the observer and the wire, collected apart, saw the same number of requests")
 
 	assert.Nil(t, rdr.snapshot(), "nothing was delivered")
 	assert.Equal(t, uint64(polls), rdr.reader.Status().NotModified)
@@ -150,12 +158,18 @@ func startE2EWithGeneration1(t *testing.T) *e2eRig {
 
 	// cold start: the manifest and one GET per object, nothing else
 	wire, obs := rdr.wire.take(), rdr.obs.take()
-	assert.Len(t, wire, 1+len(threeObjects()))
-	assert.Len(t, obs, 1+len(threeObjects()))
-
-	for _, req := range wire {
-		assert.Equal(t, http.MethodGet, req.Method, "no HEAD, no LIST")
-	}
+	assert.Equal(t, []wireRequest{
+		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, threeObjects()[0])},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, threeObjects()[1])},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, threeObjects()[2])},
+	}, wire, "the manifest unconditionally, then each object: no HEAD, no LIST")
+	assert.Equal(t, []observation{
+		{connControl, connection.OperationGet, connection.ResultOK},
+		{connControl, connection.OperationGet, connection.ResultOK},
+		{connControl, connection.OperationGet, connection.ResultOK},
+		{connControl, connection.OperationGet, connection.ResultOK},
+	}, obs)
 
 	return rdr
 }
@@ -196,7 +210,7 @@ func TestE2E_OneChangedObjectCostsTwoRequests(t *testing.T) {
 
 	wire, obs := rdr.wire.take(), rdr.obs.take()
 	assert.Equal(t, []wireRequest{
-		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true},
 		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
 	}, wire)
 	assert.Equal(t, []observation{
@@ -212,7 +226,11 @@ func TestE2E_OneChangedObjectCostsTwoRequests(t *testing.T) {
 
 	// and quiet again
 	rdr.round()
-	assert.Len(t, rdr.wire.take(), 1)
+	assert.Equal(
+		t,
+		[]wireRequest{{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true}},
+		rdr.wire.take(),
+	)
 	assert.Equal(t, []observation{{connControl, connection.OperationGet, connection.ResultNotModified}}, rdr.obs.take())
 }
 
@@ -230,7 +248,7 @@ func TestE2E_CorruptObjectIsStaleAndTheOthersUpdate(t *testing.T) {
 
 	rdr.round()
 	assert.Equal(t, []wireRequest{
-		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true},
 		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
 		{Method: http.MethodGet, Path: rdr.objectPath(t, beta2)},
 	}, rdr.wire.take(), "the manifest and the two changed objects; the corrupt one is read and rejected")
@@ -255,7 +273,7 @@ func TestE2E_CorruptObjectIsStaleAndTheOthersUpdate(t *testing.T) {
 	rdr.round()
 
 	assert.Equal(t, []wireRequest{
-		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true},
 		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
 	}, rdr.wire.take())
 
@@ -277,7 +295,11 @@ func TestE2E_DeletedManifestKeepsThePreviousSnapshot(t *testing.T) {
 
 	rdr.round()
 
-	assert.Equal(t, []wireRequest{{Method: http.MethodGet, Path: rdr.manifestPath()}}, rdr.wire.take())
+	assert.Equal(
+		t,
+		[]wireRequest{{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true}},
+		rdr.wire.take(),
+	)
 	assert.Equal(t, []observation{{connControl, connection.OperationGet, connection.ResultNotFound}}, rdr.obs.take())
 	assert.Nil(t, rdr.snapshot(), "the consumer keeps what it has")
 
@@ -292,7 +314,7 @@ func TestE2E_DeletedManifestKeepsThePreviousSnapshot(t *testing.T) {
 	rdr.wire.take()
 	rdr.round()
 	assert.Equal(t, []wireRequest{
-		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.manifestPath(), Conditional: true},
 		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
 	}, rdr.wire.take(), "the manifest again, then the one changed object")
 

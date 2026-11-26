@@ -130,6 +130,21 @@ func objCall(tb testing.TB, item obj) call {
 	return call{Key: keyOf(tb, item)}
 }
 
+// coldCalls is what a reader that holds nothing requests for a manifest whose objects to fetch are objs: the
+// manifest unconditionally, then each object once, in key order.
+func coldCalls(tb testing.TB, objs ...obj) []call {
+	tb.Helper()
+
+	calls := make([]call, 0, 1+len(objs))
+	calls = append(calls, manifestCall(""))
+
+	for _, item := range objs {
+		calls = append(calls, objCall(tb, item))
+	}
+
+	return sortCalls(calls)
+}
+
 // threeObjects returns the three objects most scenarios start from.
 func threeObjects() []obj {
 	return []obj{

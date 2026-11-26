@@ -29,16 +29,24 @@ func TestReader_SnapshotDeliveryIsLatestWins(t *testing.T) {
 	const generations = 5
 
 	for gen := uint64(2); gen <= generations; gen++ {
+		held := manifestETag(store)
+		changed := obj{name: nameAlpha, content: fmt.Sprintf(`{"alpha":%d}`, gen)}
+
 		publish(
 			t,
 			store,
 			gen,
-			obj{name: nameAlpha, content: fmt.Sprintf(`{"alpha":%d}`, gen)},
+			changed,
 			threeObjects()[1],
 			threeObjects()[2],
 		)
 
-		assert.Len(t, rdr.round(), 2, "the manifest and the one changed object")
+		assert.Equal(
+			t,
+			[]call{manifestCall(held), objCall(t, changed)},
+			rdr.round(),
+			"the manifest and the one changed object",
+		)
 	}
 
 	snap := rdr.snapshot()
@@ -145,7 +153,7 @@ func TestReader_FetchConcurrencyIsBounded(t *testing.T) {
 
 			assert.Equal(t, tt.want, store.maxConcurrent(), "never more than the bound, and the bound is used")
 			assert.Equal(t, objects, rdr.reader.Status().Counts.OK)
-			assert.Len(t, store.takeCalls(), 1+objects)
+			assert.Equal(t, coldCalls(t, objs...), store.takeCalls())
 		})
 	}
 }
@@ -279,8 +287,8 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 
 	type save struct {
 		persist manifestreader.Persist
-		// requests is the number of requests the store had received when Save was called.
-		requests int
+		// requests are the requests the store had received when Save was called.
+		requests []call
 	}
 
 	var (
@@ -304,7 +312,7 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			saved = append(saved, save{persist: p, requests: store.callCount()})
+			saved = append(saved, save{persist: p, requests: store.peekArrival()})
 		},
 		OnRound: func(status *manifestreader.Status) {
 			mu.Lock()
@@ -330,8 +338,8 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 	defer mu.Unlock()
 
 	require.Len(t, saved, 2, "the restored state, then the state after the fetch")
-	assert.Equal(t, 0, saved[0].requests, "the restored objects were served before any request was made")
-	assert.Equal(t, 2, saved[1].requests)
+	assert.Empty(t, saved[0].requests, "the restored objects were served before any request was made")
+	assert.Equal(t, []call{manifestCall(etagOf(raw)), objCall(t, gamma)}, saved[1].requests)
 	assert.Equal(t, manifestreader.StateMissing, saved[0].persist.Snapshot.Objects[nameGamma].State)
 	assert.Equal(t, manifestreader.ReasonNotRestored, saved[0].persist.Snapshot.Objects[nameGamma].Reason)
 	assert.Equal(t, manifestreader.StateOK, saved[0].persist.Snapshot.Objects[nameAlpha].State)
