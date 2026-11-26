@@ -169,6 +169,9 @@ func (g *GoFeatureFlag) JSONArrayVariationDetails(
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "[]interface{}")
 	notifyVariation(g, flagKey, ctx, res)
 
+	// the exporter keeps the value of the event: the caller gets a copy, it can change it.
+	res.Value = ownedArray(res.Value)
+
 	return res, err
 }
 
@@ -196,6 +199,9 @@ func (g *GoFeatureFlag) JSONVariationDetails(
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "bool")
 	notifyVariation(g, flagKey, ctx, res)
 
+	// the exporter keeps the value of the event: the caller gets a copy, it can change it.
+	res.Value = ownedObject(res.Value)
+
 	return res, err
 }
 
@@ -203,6 +209,9 @@ func (g *GoFeatureFlag) JSONVariationDetails(
 // This raw result is mostly used by software built on top of semaphore such as
 // semaphore relay proxy.
 // If you are using directly the library you should avoid calling this function.
+// The value of an object or array flag is the one of the cache, shared by every evaluation (the relay proxy
+// only serialises it, the copy would cost an allocation per evaluation): never modify it. The typed
+// JSONVariation and JSONArrayVariation methods return a copy. The metadata always belongs to the caller.
 // Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) RawVariation(
 	flagKey string,
@@ -213,6 +222,30 @@ func (g *GoFeatureFlag) RawVariation(
 	notifyVariation(g, flagKey, ctx, res)
 
 	return model.RawVarResult(res), err
+}
+
+// ownedObject returns a copy of an object value: the value of the cache is shared by every evaluation.
+func ownedObject(val map[string]any) map[string]any {
+	if val == nil {
+		return nil
+	}
+
+	// CloneValue returns the type it receives for an object or an array.
+	owned, _ := flagdef.CloneValue(val).(map[string]any)
+
+	return owned
+}
+
+// ownedArray returns a copy of an array value: the value of the cache is shared by every evaluation.
+func ownedArray(val []any) []any {
+	if val == nil {
+		return nil
+	}
+
+	// CloneValue returns the type it receives for an object or an array.
+	owned, _ := flagdef.CloneValue(val).([]any)
+
+	return owned
 }
 
 // getFlagFromCache try to get the flag from the cache.
@@ -344,7 +377,7 @@ func getVariation[T model.JSONType](
 		if targetFlag != nil {
 			varResult.TrackEvents = targetFlag.IsTrackEvents()
 			varResult.Version = targetFlag.GetVersion()
-			varResult.Metadata = targetFlag.GetMetadata()
+			varResult.Metadata = flagdef.CloneMetadata(targetFlag.GetMetadata())
 		}
 
 		return varResult, err
