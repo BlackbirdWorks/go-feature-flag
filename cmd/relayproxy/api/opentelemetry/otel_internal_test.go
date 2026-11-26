@@ -551,33 +551,69 @@ func TestEnabled(t *testing.T) {
 	}
 }
 
-// TestInit_Errors checks that a configuration that can not be turned into providers is reported with the step that
-// failed, and that nothing is created. t.Setenv: the OpenTelemetry SDK reads OTEL_* from the process environment.
-func TestInit_Errors(t *testing.T) {
-	const unknownExporter = "unknown-exporter"
+// initEnvironment is every variable that Init and the SDK behind it read from the process environment, with the
+// value that the error tests start from: a variable of the machine that runs the tests can not change the outcome.
+func initEnvironment() map[string]string {
+	return map[string]string{
+		"OTEL_SDK_DISABLED":                     "false",
+		"OTEL_TRACES_EXPORTER":                  "otlp",
+		"OTEL_TRACES_SAMPLER":                   "",
+		"OTEL_TRACES_SAMPLER_ARG":               "",
+		"OTEL_EXPORTER_OTLP_ENDPOINT":           httpsExampleCom4318,
+		"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT":    "",
+		"OTEL_EXPORTER_OTLP_PROTOCOL":           "http/protobuf",
+		"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL":    "",
+		"OTEL_RESOURCE_ATTRIBUTES":              "",
+		"OTEL_SERVICE_NAME":                     "",
+		"JAEGER_SAMPLER_MANAGER_HOST_PORT":      "",
+		"JAEGER_SAMPLER_REFRESH_INTERVAL":       "",
+		"JAEGER_SAMPLER_MAX_OPERATIONS":         "",
+		"OTEL_EXPORTER_OTLP_HEADERS":            "",
+		"OTEL_EXPORTER_OTLP_TRACES_HEADERS":     "",
+		"OTEL_EXPORTER_OTLP_CERTIFICATE":        "",
+		"OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE": "",
+		"OTEL_EXPORTER_OTLP_COMPRESSION":        "",
+		"OTEL_EXPORTER_OTLP_TRACES_COMPRESSION": "",
+		"OTEL_EXPORTER_OTLP_TIMEOUT":            "",
+		"OTEL_EXPORTER_OTLP_TRACES_TIMEOUT":     "",
+		"OTEL_EXPORTER_OTLP_INSECURE":           "",
+		"OTEL_EXPORTER_OTLP_TRACES_INSECURE":    "",
+	}
+}
 
+// TestInit_Errors checks that a configuration that can not be turned into providers is reported with the step that
+// failed, and that nothing is created. t.Setenv: the OpenTelemetry SDK reads OTEL_* from the process environment,
+// every case sets all of them (initEnvironment) and overrides the one it is about.
+func TestInit_Errors(t *testing.T) {
 	tests := []struct {
-		env      map[string]string
-		name     string
-		wantErr  string
-		settings Settings
+		env            map[string]string
+		name           string
+		wantErr        string
+		wantNotInError string
+		settings       Settings
 	}{
 		{
-			name:     "an unknown span exporter",
-			env:      map[string]string{"OTEL_TRACES_EXPORTER": unknownExporter},
-			settings: Settings{OTLPEndpoint: httpsExampleCom4318},
-			wantErr:  "initializing OTel exporter",
+			name:           "an unknown span exporter",
+			env:            map[string]string{"OTEL_TRACES_EXPORTER": "unknown-exporter"},
+			settings:       Settings{OTLPEndpoint: httpsExampleCom4318},
+			wantErr:        "initializing OTel exporter",
+			wantNotInError: "sampler",
 		},
 		{
 			name: "a refresh interval of the jaeger sampler that is not a duration",
 			settings: Settings{
 				OTLPEndpoint: httpsExampleCom4318, Sampler: jaegerRemote, JaegerSamplerRefreshInterval: "soon",
 			},
-			wantErr: "initializing OTel sampler: parsing JAEGER_SAMPLER_REFRESH_INTERVAL",
+			wantErr:        "initializing OTel sampler: parsing JAEGER_SAMPLER_REFRESH_INTERVAL",
+			wantNotInError: "exporter",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range initEnvironment() {
+				t.Setenv(k, v)
+			}
+
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
@@ -585,13 +621,19 @@ func TestInit_Errors(t *testing.T) {
 			svc := NewOtelService()
 			err := svc.Init(t.Context(), &tt.settings)
 
+			require.Error(t, err)
 			require.ErrorContains(t, err, tt.wantErr)
+			assert.NotContains(t, err.Error(), tt.wantNotInError, "the error is the one of the step under test")
 			assert.Nil(t, svc.otelTraceProvider)
 		})
 	}
 }
 
 func TestInitMetrics_UnknownExporter(t *testing.T) {
+	for k, v := range initEnvironment() {
+		t.Setenv(k, v)
+	}
+
 	t.Setenv("OTEL_METRICS_EXPORTER", "unknown-exporter")
 
 	svc := NewOtelService()

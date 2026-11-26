@@ -78,13 +78,19 @@ func New(cfg *config.Config, services *service.Services, logger *slog.Logger, op
 }
 
 // eventStream is the OFREP event stream of the configuration, or the zero value (nothing advertised) when the
-// configuration does not enable it.
+// configuration does not enable it or it is not valid.
 func eventStream(es config.OfrepEventStream) ofrep.EventStream {
 	if !es.IsEnabled() {
 		return ofrep.EventStream{}
 	}
 
-	return ofrep.EventStream{BaseURL: es.BaseURL, InactivityDelaySec: es.InactivityDelaySec}
+	stream, err := ofrep.NewEventStream(es.BaseURL, es.InactivityDelaySec)
+	if err != nil {
+		// the configuration validation refuses it at startup, nothing is advertised if it got here.
+		return ofrep.EventStream{}
+	}
+
+	return stream
 }
 
 func validateFlagsLimits(v config.ValidateFlagsEndpoint) controller.ValidateFlagsLimits {

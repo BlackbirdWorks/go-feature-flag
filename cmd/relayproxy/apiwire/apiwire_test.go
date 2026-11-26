@@ -89,7 +89,7 @@ func TestSettings(t *testing.T) {
 				UnixSocketPath: "/tmp/s.sock", LambdaAdapter: api.LambdaAdapterAPIGatewayV1,
 				AwsAPIGatewayBasePath: basePath, EnableH2C: true,
 				Pprof: true, ExposeLegacyMetrics: true, DisableVersionHeader: true, DisableSemaphoreMetadata: true,
-				OfrepEventStream: ofrep.EventStream{BaseURL: "https://example.com", InactivityDelaySec: 5},
+				OfrepEventStream: mustEventStream(t, "https://example.com", 5),
 				ValidateFlags: controller.ValidateFlagsLimits{
 					MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3,
 				},
@@ -285,4 +285,13 @@ func TestSettings_DeprecationWarnings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustEventStream(t *testing.T, baseURL string, delay int) ofrep.EventStream {
+	t.Helper()
+
+	stream, err := ofrep.NewEventStream(baseURL, delay)
+	require.NoError(t, err)
+
+	return stream
 }

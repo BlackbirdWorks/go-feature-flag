@@ -21,18 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
-// EventStream is what the bulk evaluation response advertises of the flag-change SSE endpoint (OpenFeature
-// ADR-0008). The zero value advertises nothing. The caller validates it: a value that is set is used as it is.
-type EventStream struct {
-	// BaseURL is the public base URL clients use to reach the relay proxy. Empty disables the advertisement.
-	BaseURL string
-	// InactivityDelaySec is the delay in seconds after which a client considers the stream inactive. 0 omits it.
-	InactivityDelaySec int
-}
-
-// IsEnabled reports whether the eventStreams field is added to the bulk evaluation response.
-func (e EventStream) IsEnabled() bool { return e.BaseURL != "" }
-
 // EvaluateCtrl serves the OFREP evaluation requests of the relay proxy.
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
@@ -263,7 +251,7 @@ const ofrepSSEPath = "/stream/v1/sse/flag/change"
 // and contains the API key of the caller, so the provider can connect without extra credentials.
 // This URL is sensitive, it must never be logged.
 func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStream {
-	baseURL := h.eventStream.BaseURL
+	baseURL := h.eventStream.baseURL
 
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -278,7 +266,7 @@ func (h *EvaluateCtrl) buildEventStreams(r *http.Request) []model.OFREPEventStre
 	return []model.OFREPEventStream{{
 		Type:               "sse",
 		URL:                parsedURL.String(),
-		InactivityDelaySec: h.eventStream.InactivityDelaySec,
+		InactivityDelaySec: h.eventStream.inactivityDelaySec,
 	}}
 }
 

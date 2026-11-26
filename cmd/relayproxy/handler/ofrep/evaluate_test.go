@@ -220,10 +220,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "base URL and inactivity delay from the configuration",
 			args: args{
-				eventStream: ofrep.EventStream{
-					BaseURL:            "https://gofeatureflag.example.com/",
-					InactivityDelaySec: 60,
-				},
+				eventStream: mustEventStream(t, "https://gofeatureflag.example.com/", 60),
 			},
 			want: []model.OFREPEventStream{
 				{
@@ -236,7 +233,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "base URL with a path prefix",
 			args: args{
-				eventStream: ofrep.EventStream{BaseURL: "https://example.com/goff"},
+				eventStream: mustEventStream(t, "https://example.com/goff", 0),
 			},
 			want: []model.OFREPEventStream{
 				{Type: sse, URL: "https://example.com/goff/stream/v1/sse/flag/change"},
@@ -245,7 +242,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "API key from the X-API-Key header",
 			args: args{
-				eventStream: ofrep.EventStream{BaseURL: "https://example.com"},
+				eventStream: mustEventStream(t, "https://example.com", 0),
 				headers:     map[string]string{"X-API-Key": "my-key"},
 			},
 			want: []model.OFREPEventStream{
@@ -255,7 +252,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "API key from the Authorization header is escaped",
 			args: args{
-				eventStream: ofrep.EventStream{BaseURL: "https://example.com"},
+				eventStream: mustEventStream(t, "https://example.com", 0),
 				headers:     map[string]string{"Authorization": "Bearer my key&x=1"},
 			},
 			want: []model.OFREPEventStream{
@@ -631,4 +628,13 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustEventStream(t *testing.T, baseURL string, delay int) ofrep.EventStream {
+	t.Helper()
+
+	stream, err := ofrep.NewEventStream(baseURL, delay)
+	require.NoError(t, err)
+
+	return stream
 }
