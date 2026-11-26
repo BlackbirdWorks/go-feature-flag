@@ -13,7 +13,8 @@ func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState 
 	}
 
 	key := obj.Format + "\x00" + sum
-	next := flagNext(name, obj, prev, st.parsedFlags(name, obj, sum, key), sum)
+	parsed, fresh := st.parsedFlags(name, obj, sum, key)
+	next := flagNext(name, obj, prev, parsed, sum, fresh)
 
 	if next == prev {
 		return prev
@@ -28,7 +29,7 @@ func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState 
 }
 
 // parsedFlags returns the parse result of an object, from the cache or by parsing it once.
-func (st *stage) parsedFlags(name string, obj *Object, sum, key string) *parsedFlags {
+func (st *stage) parsedFlags(name string, obj *Object, sum, key string) (*parsedFlags, bool) {
 	parsed, cached := st.lookupFlags(key)
 	if !cached {
 		parsed = parseFlags(st.b.svc, obj)
@@ -37,11 +38,11 @@ func (st *stage) parsedFlags(name string, obj *Object, sum, key string) *parsedF
 		st.emit(name, KindFlags, sum)
 	}
 
-	return parsed
+	return parsed, !cached
 }
 
 // flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so.
-func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum string) *objState {
+func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum string, fresh bool) *objState {
 	if parsed.err != nil {
 		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
 			return prev
@@ -61,7 +62,7 @@ func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, sum
 		return &held
 	}
 
-	table := buildTable(parsed, prev)
+	table := buildTable(parsed, prev, fresh)
 
 	return &objState{
 		name: name, format: obj.Format, checksum: sum, state: ObjectOK, loaded: true,

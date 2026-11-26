@@ -414,7 +414,7 @@ func TestEngineSetLevelComposition(t *testing.T) {
 			generation := func(gen int, tmp setStep, end int) *flagruntime.Content {
 				sets := []controlplane.FlagSet{
 					fset("aa-fill", src("f0"), "key-fill"),
-					fset("zz-end", src("fe"), "key-end"),
+					fset(endSet, src("fe"), "key-end"),
 				}
 				files := objs{"f0": flagsObj(gen, "x"), "fe": flagsObj(end, "x")}
 
@@ -454,7 +454,7 @@ func TestEngineSetLevelComposition(t *testing.T) {
 
 			for {
 				change := harness.nextChange()
-				if change.FlagSet == "zz-end" {
+				if change.FlagSet == endSet {
 					break
 				}
 

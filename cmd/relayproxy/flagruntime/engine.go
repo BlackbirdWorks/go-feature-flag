@@ -263,11 +263,6 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	if cfg != nil {
 		boot = e.planBootstrap(cfg)
 
-		if boot.apply && e.baseline == nil {
-			// the first accepted configuration is the one the process started with, whatever the round does
-			e.baseline = cfg
-		}
-
 		if boot.res.Outcome != "" {
 			results = append(results, boot.res)
 		}
@@ -277,6 +272,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		!slices.Equal(boot.pending, e.cur.Status.PendingRestart))
 
 	if plan.built == nil && !bootChanged {
+		e.adoptBaseline(&boot, cfg)
 		e.finish(ctx, results, nil)
 
 		return
@@ -289,7 +285,17 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		return
 	}
 
+	e.adoptBaseline(&boot, cfg)
+
 	e.finish(ctx, results, &e.cur.Status.LastReload)
+}
+
+// adoptBaseline makes the first accepted configuration the baseline of pendingRestart: a configuration that was
+// rejected or vetoed is never the baseline.
+func (e *Engine) adoptBaseline(boot *bootPlan, cfg *bootstrap.Config) {
+	if boot.apply && e.baseline == nil {
+		e.baseline = cfg
+	}
 }
 
 // swap assembles the candidate and stores it with one atomic store. It returns the rejection when the
@@ -581,6 +587,12 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 		}
 
 		queued := e.queue.byName[item.Name]
+		if queued == nil && change.Removed && !change.Diff.HasDiff() {
+			// a flag set without flags was never announced (its creation had no event), so its removal has
+			// nothing to tell either: this keeps the queue from growing with the names of empty flag sets
+			continue
+		}
+
 		if queued == nil {
 			e.queue.push(&pendingChange{change: change, fromNothing: item.Old == nil})
 

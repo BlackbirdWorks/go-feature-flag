@@ -151,6 +151,13 @@ func (r *rig) nextRound() flagruntime.Reload {
 	case res := <-r.rounds:
 		return res
 	case <-r.done:
+		// a round that ended before the engine stopped has its result buffered
+		select {
+		case res := <-r.rounds:
+			return res
+		default:
+		}
+
 		require.FailNow(r.t, "the engine stopped before the round ended")
 	case <-expired:
 		require.FailNow(r.t, "no round ended: the engine does not answer")

@@ -73,6 +73,7 @@ const (
 	docs2      = "docs-2"
 	sharedName = "shared"
 	extraName  = "extra"
+	endSet     = "zz-end"
 )
 
 type objs map[string]flagruntime.Object

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
@@ -32,7 +33,14 @@ type parsedDoc struct {
 
 // parseFlags decodes a flags object with the engine parser and validates every flag with the shared service.
 func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
-	raw, err := cache.ConvertToFlagStruct(obj.Bytes, obj.Format)
+	// JSON is read as YAML, which keeps the exact integers: the JSON decoder of the legacy loader turns every
+	// number into a float64 and rounds the integers above 2^53
+	format := obj.Format
+	if strings.EqualFold(format, "json") {
+		format = "yaml"
+	}
+
+	raw, err := cache.ConvertToFlagStruct(obj.Bytes, format)
 	if err != nil {
 		return &parsedFlags{err: fmt.Errorf("%w: %w", ErrDecode, err)}
 	}
@@ -97,8 +105,9 @@ type tables struct {
 
 // buildTable merges a parse result with the previous table of the same object (last-known-good per flag):
 // a flag that failed validation keeps its previous definition, and a flag whose definition did not change
-// keeps its previous pointer, so unchanged flags exist once across versions.
-func buildTable(parsed *parsedFlags, prev *objState) tables {
+// keeps its previous pointer, so unchanged flags exist once across versions. fresh says that parsed was parsed
+// for this object just now (nobody else holds its map), so it may be updated to the kept pointers.
+func buildTable(parsed *parsedFlags, prev *objState, fresh bool) tables {
 	rejected := make([]FlagRejection, 0, len(parsed.rejected))
 
 	hasPrev := prev != nil && prev.loaded
@@ -109,12 +118,17 @@ func buildTable(parsed *parsedFlags, prev *objState) tables {
 	flags := make(map[string]*flagdef.InternalFlag, len(parsed.valid)+len(parsed.rejected))
 	hashes := make(map[string]uint64, len(parsed.valid)+len(parsed.rejected))
 
-	for key, fresh := range parsed.valid {
-		flags[key], hashes[key] = fresh, parsed.hashes[key]
+	for key, candidate := range parsed.valid {
+		flags[key], hashes[key] = candidate, parsed.hashes[key]
 
 		if hasPrev {
-			if old, ok := prev.flags[key]; ok && reflect.DeepEqual(old, fresh) {
+			if old, ok := prev.flags[key]; ok && reflect.DeepEqual(old, candidate) {
 				flags[key], hashes[key] = old, prev.hashes[key]
+
+				if fresh {
+					// the parse result is not shared yet: it keeps the running pointer too, so the flag is held once
+					parsed.valid[key] = old
+				}
 			}
 		}
 	}

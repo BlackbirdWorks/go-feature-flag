@@ -80,3 +80,43 @@ func TestBuilderStateStaysBoundedUnderCreateAndWithdrawCycles(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("tmp-%d", cycles-1), state.withdrawn[wantCap-1].Name, "the newest is kept")
 	assert.LessOrEqual(t, builder.CachedParses(), 2, "parse results of withdrawn documents are dropped")
 }
+
+// A flag that did not change in a changed object is held once: the parse result that the cache keeps for the new
+// checksum points to the running flag, not to a second copy.
+func TestParseCacheHoldsTheRunningPointersOfUnchangedFlags(t *testing.T) {
+	t.Parallel()
+
+	svc := flagdef.NewService()
+	t.Cleanup(svc.Close)
+
+	builder := NewBuilder(svc, BuilderOptions{})
+	doc := internalDoc(t, controlplane.FlagSet{Name: "a", Sources: []string{"f1"}, APIKeys: []string{"key-a"}})
+	flagsOf := func(y int) Object {
+		data := []byte(fmt.Sprintf("x:\n  variations:\n    v: 1\n  defaultRule:\n    variation: v\ny:\n"+
+			"  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", y))
+
+		return Object{Kind: KindFlags, Format: "yaml", Checksum: controlplane.ChecksumOf(data).Value, Bytes: data}
+	}
+
+	build := func(gen uint64, y int) *Built {
+		built, err := builder.Build(context.Background(), &Content{
+			Generation: gen, Objects: map[string]Object{"f1": flagsOf(y), "sets": doc},
+		})
+		require.NoError(t, err)
+
+		builder.Commit(built)
+
+		return built
+	}
+
+	build(1, 1)
+
+	second := build(2, 2)
+	running := second.Runtime.FlagSets["a"].Flags
+
+	entry := builder.flags.lookup("yaml\x00" + flagsOf(2).Checksum)
+	require.NotNil(t, entry)
+
+	assert.Same(t, running["x"], entry.value.valid["x"], "the unchanged flag is held once")
+	assert.Same(t, running["y"], entry.value.valid["y"], "the changed flag is the cached one")
+}

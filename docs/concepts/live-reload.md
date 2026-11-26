@@ -87,7 +87,7 @@ Costs that remain proportional to the fleet, and nothing else:
 
 - every round scans the objects of the content (O(objects), checksum comparison, no parsing of unchanged bytes);
 - a round that changes a flag set copies the flag-set table, the status table and the key table once (O(flag sets) and O(keys) map copies, no per-flag work);
-- a round that changes a flag-set document, or adds or removes any object, also walks every entry of the documents (O(entries + keys)) and reuses the unchanged flag sets by pointer.
+- a round that changes a flag-set document, or adds or removes any object, also walks every entry of the documents (O(entries + keys)) and reuses the unchanged flag sets by pointer. The document validation of the `controlplane` package looks the source names up once per document, so that walk also costs O(documents x objects).
 
 During a swap at most two versions of a changed flag set are reachable. Unchanged flag sets exist once.
 
