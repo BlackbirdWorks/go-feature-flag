@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -132,7 +133,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		Metrics:           metrics,
 	}
 	if opts.Listen {
-		s := api.New(conf, &r.Services, logger.Slog, api.WithListener(listener))
+		s := apiwire.New(conf, &r.Services, logger.Slog, api.WithListener(listener))
 
 		r.server = &s
 		go s.StartWithContext(context.Background())

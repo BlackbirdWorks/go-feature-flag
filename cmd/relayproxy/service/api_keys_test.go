@@ -1,0 +1,39 @@
+package service_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+)
+
+func TestAPIKeys(t *testing.T) {
+	t.Parallel()
+
+	conf := &config.Config{AuthorizedKeys: config.APIKeys{Evaluation: []string{"user"}, Admin: []string{"admin"}}}
+	conf.ForceReloadAPIKeys()
+
+	keys := service.NewAPIKeys(conf)
+
+	assert.True(t, keys.AuthenticationEnabled())
+	assert.True(t, keys.KeyExists("user"))
+	assert.True(t, keys.KeyExists("admin"))
+	assert.False(t, keys.KeyExists("other"))
+	assert.False(t, keys.AdminKeyExists("user"))
+	assert.True(t, keys.AdminKeyExists("admin"))
+
+	// the accessor follows the configuration: the keys that a reload replaces in place are the ones it answers with,
+	// and so does a copy of it.
+	copied := keys
+
+	conf.ReplaceAPIKeys(config.APIKeys{Admin: []string{"rotated"}})
+
+	for _, k := range []service.APIKeys{keys, copied} {
+		assert.False(t, k.AuthenticationEnabled(), "only admin keys: the evaluation endpoints are not authenticated")
+		assert.False(t, k.KeyExists("user"))
+		assert.True(t, k.AdminKeyExists("rotated"))
+		assert.False(t, k.AdminKeyExists("admin"))
+	}
+}

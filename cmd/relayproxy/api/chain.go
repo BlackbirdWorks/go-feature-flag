@@ -78,7 +78,7 @@ func (s *Server) accessLog() middleware.Func {
 	return accesslog.Handler(
 		accesslog.WithLogger(s.logger),
 		accesslog.WithRecordFunc(reqlog.AccessLog()),
-		accesslog.WithRequestSkip(reqlog.SkipRequest(s.config.IsDebugEnabled())),
+		accesslog.WithRequestSkip(reqlog.SkipRequest(s.settings.Debug)),
 	)
 }
 
@@ -86,7 +86,7 @@ func (s *Server) accessLog() middleware.Func {
 // given to the server). Otherwise the tracing middleware is not installed, it would cost on every request for
 // spans nobody receives.
 func (s *Server) tracingEnabled() bool {
-	return s.tracerProvider != nil || opentelemetry.Enabled(s.config)
+	return s.tracerProvider != nil || opentelemetry.Enabled(&s.settings.Telemetry)
 }
 
 func (s *Server) tracing() middleware.Func {
@@ -104,7 +104,7 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 		s.requestLogger(),
 		s.accessLog(),
 		cleanpath.Handler(),
-		middleware.VersionHeader(s.config),
+		middleware.VersionHeader(s.settings.Version, s.settings.DisableVersionHeader),
 		middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()),
 	)
 	if s.services.Metrics.Enabled() {
@@ -140,7 +140,7 @@ func (s *Server) monitoringChain(mux http.Handler) http.Handler {
 		s.requestLogger(),
 		s.accessLog(),
 		cleanpath.Handler(),
-		middleware.VersionHeader(s.config),
+		middleware.VersionHeader(s.settings.Version, s.settings.DisableVersionHeader),
 		middleware.CORS(),
 		s.recovery(),
 	)
@@ -149,7 +149,7 @@ func (s *Server) monitoringChain(mux http.Handler) http.Handler {
 // recovery turns a panic of a handler into a 500 with the error body of the relay proxy; the library logs it with
 // the error level through the logger of the server and marks the span.
 func (s *Server) recovery() middleware.Func {
-	debug := s.config.IsDebugEnabled()
+	debug := s.settings.Debug
 
 	return recovery.Handler(
 		recovery.WithRequestHandler(func(w http.ResponseWriter, r *http.Request, recovered any) {

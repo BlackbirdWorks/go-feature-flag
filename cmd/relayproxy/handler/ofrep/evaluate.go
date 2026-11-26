@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -22,11 +21,23 @@ import (
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
+// EventStream is what the bulk evaluation response advertises of the flag-change SSE endpoint (OpenFeature
+// ADR-0008). The zero value advertises nothing. The caller validates it: a value that is set is used as it is.
+type EventStream struct {
+	// BaseURL is the public base URL clients use to reach the relay proxy. Empty disables the advertisement.
+	BaseURL string
+	// InactivityDelaySec is the delay in seconds after which a client considers the stream inactive. 0 omits it.
+	InactivityDelaySec int
+}
+
+// IsEnabled reports whether the eventStreams field is added to the bulk evaluation response.
+func (e EventStream) IsEnabled() bool { return e.BaseURL != "" }
+
 // EvaluateCtrl serves the OFREP evaluation requests of the relay proxy.
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        *metric.Metrics
-	eventStream    config.OfrepEventStream
+	eventStream    EventStream
 	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
 	legacyMetadataOnly bool
 }
@@ -44,7 +55,7 @@ func WithLegacyMetadataOnly(legacyOnly bool) Option {
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
 	metrics *metric.Metrics,
-	eventStream config.OfrepEventStream,
+	eventStream EventStream,
 	opts ...Option,
 ) EvaluateCtrl {
 	ctrl := EvaluateCtrl{

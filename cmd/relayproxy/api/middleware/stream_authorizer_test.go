@@ -63,7 +63,7 @@ func TestStreamAuthorizer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := middleware.StreamAuthorizer(tt.conf, tt.manager, tt.exposeError)(newOK())
+			h := middleware.StreamAuthorizer(service.NewAPIKeys(tt.conf), tt.manager, tt.exposeError)(newOK())
 			rec := serve(h, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream"+tt.query, nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 
@@ -72,4 +72,31 @@ func TestStreamAuthorizer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStreamAuthorizerObservesReload checks that the authorizer follows the keys of the configuration when they are
+// replaced after it was built: a rotation (reload) takes effect on the next request.
+func TestStreamAuthorizerObservesReload(t *testing.T) {
+	t.Parallel()
+
+	conf := &config.Config{AuthorizedKeys: config.APIKeys{Evaluation: []string{"old-key"}}}
+	conf.ForceReloadAPIKeys()
+
+	h := middleware.StreamAuthorizer(service.NewAPIKeys(conf), nil, false)(newOK())
+	status := func(key string) int {
+		return serve(h, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream?apiKey="+key, nil)).Code
+	}
+
+	assert.Equal(t, http.StatusOK, status("old-key"))
+	assert.Equal(t, http.StatusUnauthorized, status("new-key"))
+
+	conf.ReplaceAPIKeys(config.APIKeys{Evaluation: []string{"new-key"}})
+
+	assert.Equal(t, http.StatusUnauthorized, status("old-key"))
+	assert.Equal(t, http.StatusOK, status("new-key"))
+
+	// authentication switched off by the reload: every request is accepted.
+	conf.ReplaceAPIKeys(config.APIKeys{})
+
+	assert.Equal(t, http.StatusOK, status("old-key"))
 }

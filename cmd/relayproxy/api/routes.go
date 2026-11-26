@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -32,14 +31,14 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 	mux := http.NewServeMux()
 	// what no route serves, a request with a method that the route does not serve included, is a 404.
 	mux.Handle("/", helper.Handle(func(http.ResponseWriter, *http.Request) error { return helper.ErrNotFound },
-		s.config.IsDebugEnabled()))
+		s.settings.Debug))
 
 	if docs {
 		// the documented entry point of the Swagger UI.
 		mux.Handle("GET /swagger/{$}", http.RedirectHandler("/swagger/index.html", http.StatusFound))
 	}
 
-	return &routeSet{mux: mux, api: humago.New(mux, newHumaConfig(s.config.IsDebugEnabled(), docs))}
+	return &routeSet{mux: mux, api: humago.New(mux, newHumaConfig(s.settings.Debug, docs))}
 }
 
 // mergeOpenAPI adds the operations and the schemas of src to dst.
@@ -116,11 +115,11 @@ func (rs *routeSet) raw(op *huma.Operation, pattern string, h http.Handler, mws 
 
 func (s *Server) userKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
-		Skipper: func() bool { return !s.config.IsAuthenticationEnabled() },
+		Skipper: func() bool { return !s.keys.AuthenticationEnabled() },
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			manager := s.services.FlagsetManager
 			if manager == nil || manager.IsDefaultFlagSet() {
-				return ctx, s.config.APIKeyExists(key)
+				return ctx, s.keys.KeyExists(key)
 			}
 			// In flag set mode a key is accepted if it routes to a flag set: the routing is the single
 			// table, and the flag set resolved here is the one the handler uses.
@@ -129,7 +128,7 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 				return out, true
 			}
 
-			return ctx, s.config.APIKeysAdminExists(key)
+			return ctx, s.keys.AdminKeyExists(key)
 		},
 	})
 }
@@ -138,7 +137,7 @@ func (s *Server) adminKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
 		Skipper: nil,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
-			return ctx, s.config.APIKeysAdminExists(key)
+			return ctx, s.keys.AdminKeyExists(key)
 		},
 	})
 }
@@ -146,17 +145,17 @@ func (s *Server) adminKeyAuth() middleware.KeyAuth {
 // initRoutes builds the routers of the listeners, with the endpoints that contain business logic and specificity
 // for the relay proxy, and their middleware.
 func (s *Server) initRoutes() {
-	routes := s.newRouteSet(s.config.IsSwaggerEnabled())
+	routes := s.newRouteSet(s.settings.Swagger)
 
-	swagger := s.config.IsSwaggerEnabled()
+	swagger := s.settings.Swagger
 	if swagger {
 		// no server is advertised: the requests of the Swagger UI go to the origin of the page, whatever scheme
 		// and host an ingress serves it with.
-		routes.api.OpenAPI().Info.Version = s.config.Version
+		routes.api.OpenAPI().Info.Version = s.settings.Version
 	}
 
 	var monitoring *routeSet
-	if s.config.EffectiveMonitoringPort(s.logger) != 0 {
+	if s.settings.MonitoringPort != 0 {
 		monitoring = s.newRouteSet(false)
 		s.addMonitoringRoutes(monitoring)
 	} else {
@@ -186,7 +185,7 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	userAuth := s.userKeyAuth()
 	adminAuth := s.adminKeyAuth()
 	api := routes.api
-	debug := s.config.IsDebugEnabled()
+	debug := s.settings.Debug
 
 	// the controllers
 	cAllFlags := controller.NewAllFlags(s.services.FlagsetManager, s.services.Metrics)
@@ -194,16 +193,16 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	cFlagEvalOFREP := ofrep.NewOFREPEvaluate(
 		s.services.FlagsetManager,
 		s.services.Metrics,
-		s.config.OfrepEventStream,
-		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
+		s.settings.OfrepEventStream,
+		ofrep.WithLegacyMetadataOnly(s.settings.DisableSemaphoreMetadata),
 	)
 	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics)
 	cEvalDataCollector := controller.NewCollectEvalData(s.services.FlagsetManager, s.services.Metrics)
 	cRetrieverRefresh := controller.NewForceFlagsRefresh(s.services.FlagsetManager, s.services.Metrics)
 	cValidateFlags := controller.NewValidateFlags(
-		s.config.Version,
+		s.settings.Version,
 		s.services.Metrics,
-		s.config.Endpoints.ValidateFlags,
+		s.settings.ValidateFlags,
 	)
 	cFlagChangeAPI := controller.NewAPIFlagChange(s.services.FlagsetManager, s.services.Metrics)
 	cFlagConfiguration := controller.NewAPIFlagConfiguration(s.services.FlagsetManager, s.services.Metrics)
@@ -237,7 +236,7 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 		helper.Handle(cFlagEvalOFREP.Evaluate, debug), userAuth.HTTP())
 
 	// /stream/v1: the streams of flag changes, and the legacy websocket alias
-	authorize := middleware.StreamAuthorizer(s.config, s.services.FlagsetManager, debug)
+	authorize := middleware.StreamAuthorizer(s.keys, s.services.FlagsetManager, debug)
 	routes.raw(
 		operationWebsocket(api, false),
 		"/stream/v1/ws/flag/change",
@@ -268,10 +267,10 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 	api.OpenAPI().AddOperation(operationMetrics())
 
 	if s.services.Metrics.Enabled() {
-		gatherer := s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)
+		gatherer := s.services.Metrics.Gatherer(s.settings.ExposeLegacyMetrics)
 
 		h := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{DisableCompression: true})
-		if !s.config.ExposeLegacyMetrics {
+		if !s.settings.ExposeLegacyMetrics {
 			h = promhttp.InstrumentMetricHandler(s.services.Metrics.Registry, h)
 		}
 
@@ -280,7 +279,7 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 
 	api.OpenAPI().AddOperation(operationPprof())
 
-	if s.config.IsDebugEnabled() || s.config.EnablePprof {
+	if s.settings.Debug || s.settings.Pprof {
 		const prefix = "/debug/pprof"
 		for name, handler := range map[string]http.HandlerFunc{
 			"/{$}":          pprof.Index,
@@ -305,7 +304,7 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 // OpenAPI returns the OpenAPI document of the relay proxy, generated from the operations it registers.
 func OpenAPI() *huma.OpenAPI {
 	// a server with all the optional endpoints, on one listener: its router holds every operation.
-	s := &Server{config: documentedConfig(), logger: slog.New(slog.DiscardHandler)}
+	s := &Server{settings: documentedSettings(), logger: slog.New(slog.DiscardHandler)}
 	rs := s.newRouteSet(true)
 	s.addAPIRoutes(rs)
 	s.addMonitoringRoutes(rs)
@@ -324,7 +323,5 @@ func OpenAPIJSON() ([]byte, error) {
 	return append(doc, '\n'), nil
 }
 
-// documentedConfig is the configuration of the server that describes every endpoint.
-func documentedConfig() *config.Config {
-	return &config.Config{EnablePprof: true, Swagger: config.Swagger{Enabled: true, Host: ""}}
-}
+// documentedSettings are the settings of the server that describes every endpoint.
+func documentedSettings() Settings { return Settings{Pprof: true, Swagger: true} }

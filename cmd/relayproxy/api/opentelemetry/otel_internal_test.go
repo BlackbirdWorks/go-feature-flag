@@ -42,7 +42,7 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		got, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, settingsOf(c))
 		require.NoError(t, err)
 		assert.Equal(t, sdktrace.AlwaysSample(), got.sampler)
 	})
@@ -54,7 +54,7 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		got, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, settingsOf(c))
 		require.NoError(t, err)
 		assert.Nil(t, got.sampler)
 	})
@@ -66,7 +66,7 @@ func TestInitSampler(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		got, err := initSampler(fixtures.PlaceholderTest, c)
+		got, err := initSampler(fixtures.PlaceholderTest, settingsOf(c))
 		require.NoError(t, err)
 
 		// not really any way to assert on the sampler other than calling
@@ -82,7 +82,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		opts, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(settingsOf(c))
 		require.NoError(t, err)
 		assert.Equal(t, defaultSamplerURL, opts.url)
 		assert.Equal(t, defaultSamplingRefreshInterval, opts.refreshInterval)
@@ -97,7 +97,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		opts, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(settingsOf(c))
 		require.NoError(t, err)
 		assert.Equal(t, expected, opts.url)
 	})
@@ -110,7 +110,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		opts, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(settingsOf(c))
 		require.NoError(t, err)
 		assert.Equal(t, expected, opts.refreshInterval)
 	})
@@ -123,7 +123,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		opts, err := jaegerRemoteSamplerOpts(c)
+		opts, err := jaegerRemoteSamplerOpts(settingsOf(c))
 		require.NoError(t, err)
 		assert.Equal(t, expected, opts.maxOperations)
 	})
@@ -135,7 +135,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		_, err := jaegerRemoteSamplerOpts(c)
+		_, err := jaegerRemoteSamplerOpts(settingsOf(c))
 		require.EqualError(t, err, `parsing JAEGER_SAMPLER_REFRESH_INTERVAL: time: invalid duration "bogus"`)
 	})
 
@@ -194,7 +194,7 @@ func TestInitResource(t *testing.T) {
 func TestInit(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
 		svc := NewOtelService()
-		err := svc.Init(context.Background(), &config.Config{})
+		err := svc.Init(context.Background(), settingsOf(&config.Config{}))
 		require.NoError(t, err)
 
 		defer func() { _ = svc.Stop(context.Background()) }()
@@ -211,7 +211,7 @@ func TestInit(t *testing.T) {
 		require.NoError(t, errC)
 
 		svc := NewOtelService()
-		err := svc.Init(context.Background(), c)
+		err := svc.Init(context.Background(), settingsOf(c))
 		require.NoError(t, err)
 
 		defer func() { _ = svc.Stop(context.Background()) }()
@@ -224,9 +224,9 @@ func TestInit(t *testing.T) {
 
 		before := otel.GetTracerProvider()
 		svc := NewOtelService()
-		err := svc.Init(context.Background(), &config.Config{
+		err := svc.Init(context.Background(), settingsOf(&config.Config{
 			OpenTelemetryOtlpEndpoint: httpsExampleCom4318,
-		})
+		}))
 		require.NoError(t, err)
 
 		defer func() { _ = svc.Stop(context.Background()) }()
@@ -289,7 +289,7 @@ func TestInstall(t *testing.T) {
 
 	require.NoError(
 		t,
-		svc.Init(context.Background(), &config.Config{OpenTelemetryOtlpEndpoint: httpsExampleCom4318}),
+		svc.Init(context.Background(), settingsOf(&config.Config{OpenTelemetryOtlpEndpoint: httpsExampleCom4318})),
 	)
 	defer func() { _ = svc.Stop(context.Background()) }()
 
@@ -310,21 +310,18 @@ func TestExportEnvironment(t *testing.T) {
 		endpoint     string
 		otlpEndpoint string
 		wantEnv      string
-		wantEndpoint string
 	}{
 		{
-			name:         "the openTelemetryOtlpEndpoint element is exported",
-			endpoint:     httpsExampleCom4318,
-			wantEnv:      httpsExampleCom4318,
-			wantEndpoint: httpsExampleCom4318,
+			name:     "the openTelemetryOtlpEndpoint element is exported",
+			endpoint: httpsExampleCom4318,
+			wantEnv:  httpsExampleCom4318,
 		},
 		{
 			name:         "the OTLP exporter endpoint is exported when the environment has none",
 			otlpEndpoint: httpsOtlpExampleCom,
 			wantEnv:      httpsOtlpExampleCom,
-			wantEndpoint: httpsOtlpExampleCom,
 		},
-		{name: "no endpoint exports nothing", endpoint: "", wantEnv: "", wantEndpoint: ""},
+		{name: "no endpoint exports nothing", endpoint: "", wantEnv: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -332,9 +329,8 @@ func TestExportEnvironment(t *testing.T) {
 
 			conf := &config.Config{OpenTelemetryOtlpEndpoint: tt.endpoint}
 			conf.OtelConfig.Exporter.Otlp.Endpoint = tt.otlpEndpoint
-			ExportEnvironment(conf)
+			ExportEnvironment(settingsOf(conf))
 			assert.Equal(t, tt.wantEnv, os.Getenv(otelExporterOtlpEndpoint))
-			assert.Equal(t, tt.wantEndpoint, conf.OtelConfig.Exporter.Otlp.Endpoint)
 		})
 	}
 }
@@ -348,7 +344,7 @@ func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 
 	c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
 
-	ExportEnvironment(c)
+	ExportEnvironment(settingsOf(c))
 
 	assert.Equal(t, httpsExampleCom4318, os.Getenv(otelExporterOtlpEndpoint))
 }
@@ -478,7 +474,10 @@ func TestStop(t *testing.T) {
 			)
 			require.NoError(
 				t,
-				svc.InitMetrics(t.Context(), &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
+				svc.InitMetrics(
+					t.Context(),
+					settingsOf(&config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
+				),
 			)
 
 			counter, err := svc.MeterProvider().Meter(fixtures.PlaceholderTest).Int64Counter("test.pending")
@@ -504,6 +503,49 @@ func TestStop(t *testing.T) {
 			if len(tt.wantErrs) == 0 {
 				require.NoError(t, stopErr)
 			}
+		})
+	}
+}
+
+// settingsOf is the telemetry settings of a configuration. The apiwire package does it for the relay proxy, but it
+// imports this package, so the internal tests can not use it.
+func settingsOf(conf *config.Config) *Settings {
+	return &Settings{
+		ResourceAttributes:           conf.OtelConfig.Resource.Attributes,
+		Version:                      conf.Version,
+		OTLPEndpoint:                 conf.OpenTelemetryOtlpEndpoint,
+		ExporterOTLPEndpoint:         conf.OtelConfig.Exporter.Otlp.Endpoint,
+		ServiceName:                  conf.OtelConfig.Service.Name,
+		Sampler:                      conf.OtelConfig.Traces.Sampler,
+		JaegerSamplerManagerHostPort: conf.JaegerConfig.Sampler.Manager.Host.Port,
+		JaegerSamplerRefreshInterval: conf.JaegerConfig.Sampler.Refresh.Interval,
+		JaegerSamplerMaxOperations:   conf.JaegerConfig.Sampler.Max.Operations,
+		SDKDisabled:                  conf.OtelConfig.SDK.Disabled,
+	}
+}
+
+func TestEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		settings Settings
+		want     bool
+	}{
+		{name: "no endpoint", settings: Settings{}, want: false},
+		{name: "the legacy endpoint element", settings: Settings{OTLPEndpoint: httpsExampleCom4318}, want: true},
+		{name: "the OTLP exporter endpoint", settings: Settings{ExporterOTLPEndpoint: httpsOtlpExampleCom}, want: true},
+		{
+			name:     "disabled by the SDK setting",
+			settings: Settings{OTLPEndpoint: httpsExampleCom4318, SDKDisabled: true},
+			want:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, Enabled(&tt.settings))
 		})
 	}
 }

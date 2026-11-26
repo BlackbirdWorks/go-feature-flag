@@ -152,7 +152,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -204,7 +204,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 
 	type args struct {
 		headers     map[string]string
-		eventStream config.OfrepEventStream
+		eventStream ofrep.EventStream
 	}
 
 	tests := []struct {
@@ -220,7 +220,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "base URL and inactivity delay from the configuration",
 			args: args{
-				eventStream: config.OfrepEventStream{
+				eventStream: ofrep.EventStream{
 					BaseURL:            "https://gofeatureflag.example.com/",
 					InactivityDelaySec: 60,
 				},
@@ -236,7 +236,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "base URL with a path prefix",
 			args: args{
-				eventStream: config.OfrepEventStream{BaseURL: "https://example.com/goff"},
+				eventStream: ofrep.EventStream{BaseURL: "https://example.com/goff"},
 			},
 			want: []model.OFREPEventStream{
 				{Type: sse, URL: "https://example.com/goff/stream/v1/sse/flag/change"},
@@ -245,7 +245,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "API key from the X-API-Key header",
 			args: args{
-				eventStream: config.OfrepEventStream{BaseURL: "https://example.com"},
+				eventStream: ofrep.EventStream{BaseURL: "https://example.com"},
 				headers:     map[string]string{"X-API-Key": "my-key"},
 			},
 			want: []model.OFREPEventStream{
@@ -255,7 +255,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		{
 			name: "API key from the Authorization header is escaped",
 			args: args{
-				eventStream: config.OfrepEventStream{BaseURL: "https://example.com"},
+				eventStream: ofrep.EventStream{BaseURL: "https://example.com"},
 				headers:     map[string]string{"Authorization": "Bearer my key&x=1"},
 			},
 			want: []model.OFREPEventStream{
@@ -458,7 +458,7 @@ func Test_Evaluate(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
 			mux := http.NewServeMux()
 			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
@@ -548,7 +548,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, config.OfrepEventStream{})
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, ofrep.EventStream{})
 			mux := http.NewServeMux()
 			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 
@@ -599,7 +599,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 
 			defer flagsetManager.Close()
 
-			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{}, tt.opts...)
 			mux := http.NewServeMux()
 			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
 

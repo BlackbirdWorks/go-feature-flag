@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
@@ -62,7 +63,8 @@ func TestInitMetrics(t *testing.T) {
 
 			reader := sdkmetric.NewManualReader()
 			svc := opentelemetry.NewOtelService(opentelemetry.WithMetricReader(reader))
-			require.NoError(t, svc.InitMetrics(t.Context(), tt.conf))
+			telemetry := apiwire.Telemetry(tt.conf)
+			require.NoError(t, svc.InitMetrics(t.Context(), &telemetry))
 
 			if !tt.wantProvider {
 				assert.Nil(t, svc.MeterProvider(), "nothing is created when OpenTelemetry is not configured")
