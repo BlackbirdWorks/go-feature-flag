@@ -117,6 +117,7 @@ const (
 	nameStatic      = "static"
 	nameWebIdentity = "webIdentity"
 	valBogus        = "bogus"
+	bundleGarbage   = "garbage"
 	verbPlusV       = "%+v"
 	verbGoV         = "%#v"
 	pemCertificate  = "CERTIFICATE"

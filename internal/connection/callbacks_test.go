@@ -44,10 +44,13 @@ func finishes(run func()) bool {
 		run()
 	}()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	select {
 	case <-done:
 		return true
-	case <-time.After(10 * time.Second):
+	case <-ctx.Done():
 		return false
 	}
 }

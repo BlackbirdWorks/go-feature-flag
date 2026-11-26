@@ -38,6 +38,13 @@ func TestSecret_FormatVerbs(t *testing.T) {
 
 	secret := connection.NewSecret(canary)
 	nested := nestedSecrets{Plain: secret}
+	populated := nestedSecrets{
+		Pointer: &secret,
+		ByKey:   map[connection.Secret]int{secret: 1},
+		ByValue: map[string]connection.Secret{"k": secret},
+		Plain:   secret,
+	}
+	populated.Inner.Secret = secret
 
 	verbs := []string{
 		"%v", verbPlusV, verbGoV, "%s", "%q", "%d", "%x", "%X", "%c", "%U", "%t", "%e", "%08.3f", "%10s", "%-10v",
@@ -53,6 +60,11 @@ func TestSecret_FormatVerbs(t *testing.T) {
 			{name: "pointer", got: fmt.Sprintf(verb, &secret), wantExact: connection.RedactedValue},
 			{name: "slice", got: fmt.Sprintf(verb, []connection.Secret{secret})},
 			{name: "struct", got: fmt.Sprintf(verb, nested)},
+			{name: "map of secret values", got: fmt.Sprintf(verb, map[string]connection.Secret{"k": secret})},
+			{name: "map keyed by secrets", got: fmt.Sprintf(verb, map[connection.Secret]string{secret: "v"})},
+			{name: "map of secret pointers", got: fmt.Sprintf(verb, map[string]*connection.Secret{"k": &secret})},
+			{name: "struct with populated maps", got: fmt.Sprintf(verb, populated)},
+			{name: "pointer to a struct with populated maps", got: fmt.Sprintf(verb, &populated)},
 		}
 
 		for _, tt := range tests {

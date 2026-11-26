@@ -240,7 +240,9 @@ func TestTimeouts(t *testing.T) {
 			}
 
 			select {
-			case <-time.After(3 * timeout): // the body outlasts RequestTimeout
+			// the property under test is a duration: the body takes longer than RequestTimeout, so real time must
+			// elapse (this is not a synchronisation)
+			case <-time.After(3 * timeout):
 			case <-r.Context().Done():
 				return
 			}
@@ -310,6 +312,7 @@ func TestTimeouts(t *testing.T) {
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			select {
+			// same: the headers take longer than a limit that is not set
 			case <-time.After(2 * timeout):
 			case <-r.Context().Done():
 				return

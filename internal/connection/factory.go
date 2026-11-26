@@ -275,9 +275,8 @@ func (f *Factory) S3(ctx context.Context, name string) (*s3.Client, error) {
 	var client *s3.Client
 
 	err := f.withEntry(ctx, name, true, func(ent *entry, cfg *aws.Config) {
-		if ent.s3 == nil {
-			spec := ent.spec.(*S3Spec) //nolint:forcetypeassert,errcheck // checked by withEntry (wantS3)
-
+		// withEntry checked the kind (wantS3): an entry that is not S3 never gets here
+		if spec, isS3 := ent.spec.(*S3Spec); isS3 && ent.s3 == nil {
 			ent.s3 = s3.NewFromConfig(*cfg, func(opts *s3.Options) {
 				opts.UsePathStyle = spec.PathStyle
 				// the spec endpoint wins over any service endpoint the SDK would resolve by itself

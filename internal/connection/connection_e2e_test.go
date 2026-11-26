@@ -30,7 +30,15 @@ const (
 	keyTwoB   = "AKIDTWOB"
 )
 
-var credentialRE = regexp.MustCompile(`Credential=([^/]+)/`)
+// credentialKeyID returns the access key id of a SigV4 Authorization header, or an empty string.
+func credentialKeyID(authorization string) string {
+	match := regexp.MustCompile(`Credential=([^/]+)/`).FindStringSubmatch(authorization)
+	if match == nil {
+		return ""
+	}
+
+	return match[1]
+}
 
 // countingTransport counts the HTTP requests that reach the emulator and records who signed them.
 type countingTransport struct {
@@ -50,12 +58,7 @@ func (ct *countingTransport) RoundTrip(req *http.Request) (*http.Response, error
 	ct.hosts = append(ct.hosts, req.URL.Host)
 	ct.methods = append(ct.methods, req.Method)
 
-	keyID := ""
-	if m := credentialRE.FindStringSubmatch(req.Header.Get("Authorization")); m != nil {
-		keyID = m[1]
-	}
-
-	ct.keyIDs = append(ct.keyIDs, keyID)
+	ct.keyIDs = append(ct.keyIDs, credentialKeyID(req.Header.Get("Authorization")))
 	ct.mu.Unlock()
 
 	return ct.next.RoundTrip(req)

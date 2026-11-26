@@ -62,6 +62,7 @@ Kinesis, SQS and Redshift connections take the same fields except `bucket`, `pat
 - The credentials provider in the returned AWS config prints `[REDACTED]` too.
 - Limit of the `chain` type: the SDK validates every `AWS_*` variable and the shared files when it loads the chain, and no option skips that. An invalid variable (even an unrelated one such as `AWS_DEFAULTS_MODE`) makes the chain connection fail to build, with an error naming the connection. Static, `webIdentity` and `assumeRole` with source keys never load the chain.
 - The STS endpoint is separate from the connection endpoint.
+- STS calls of `assumeRole` and `webIdentity` use the HTTP transport of the connection (so its `caBundleFile`, and no `AWS_CA_BUNDLE`, proxy or endpoint variable). Only the credential lookups of the `chain` type (and of `assumeRole` without source keys) use the SDK's own HTTP client, which honours `AWS_CA_BUNDLE`; an `AWS_CA_BUNDLE` without a certificate then fails the build of the connection.
 - STS calls are not counted in the request metric.
 
 ## Identity and reload
