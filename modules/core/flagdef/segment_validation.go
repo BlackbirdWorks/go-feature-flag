@@ -85,7 +85,7 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 
 // warnUndefinedSegments logs a warning for each segment of the rule that the Service does not define: it matches
 // nobody. Nothing is logged when the Service has no segment definitions at all.
-func (s *Service) warnUndefinedSegments(rule *Rule, label string, ev *parser.Evaluator) {
+func (s *Service) warnUndefinedSegments(rule *Rule, index int, ev *parser.Evaluator) {
 	if s.segments == nil {
 		return
 	}
@@ -93,7 +93,7 @@ func (s *Service) warnUndefinedSegments(rule *Rule, label string, ev *parser.Eva
 	for _, term := range s.queryTerms(rule, ev) {
 		if _, ok := s.segments.Lookup(term.Name); !ok {
 			s.logger.Warn("the rule uses a segment that is not defined: it matches nobody",
-				slog.String("rule", label), slog.String("segment", term.Name))
+				slog.String("rule", ruleLabel(index, rule)), slog.String("segment", term.Name))
 		}
 	}
 }

@@ -29,25 +29,9 @@ func (r *Rule) unknownMatches() bool {
 	return r.OnError != nil && *r.OnError == onErrorMatch
 }
 
-// evaluateNikunjySegments is evaluateNikunjy for a rule that has segment() terms.
-//
-//nolint:nonamedreturns // recover sets the result
-func (r *Rule) evaluateNikunjySegments(
-	evaluator *parser.Evaluator,
-	query string,
-	queryCtx *queryContext,
-) (success bool) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
-				slog.Any("panic", rec),
-				slog.String(queryName, query),
-			)
-
-			success = false
-		}
-	}()
-
+// evaluateNikunjySegments is evaluateNikunjy for a rule that has segment() terms. The evaluator recovers its own
+// panics and the provider's are recovered by lookupSegments.
+func (r *Rule) evaluateNikunjySegments(evaluator *parser.Evaluator, query string, queryCtx *queryContext) bool {
 	terms := evaluator.SegmentTerms()
 
 	var buf [statesInline]parser.SegmentState
@@ -79,15 +63,13 @@ func (r *Rule) matches(match parser.Match) bool {
 // by evaluateRule.
 func (r *Rule) evaluateSegments(compiled *compiledQuery, queryCtx *queryContext) bool {
 	if compiled.format == JSONLogicQueryFormat {
-		if compiled.jlSeg == nil {
-			return evaluateRule(compiled, queryCtx)
-		}
-
+		// compiled.segments is only set for a JsonLogic query when it was compiled
 		return r.evaluateJSONLogicSegments(compiled, queryCtx)
 	}
 
+	// compiled.segments is only set for a Rules query that calls segment(): it has terms when it parses
 	evaluator, err := queryCtx.svc.nikunjy.get(compiled.trimmed)
-	if err != nil || !evaluator.HasSegments() {
+	if err != nil {
 		return evaluateRule(compiled, queryCtx)
 	}
 

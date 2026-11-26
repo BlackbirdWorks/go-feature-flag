@@ -400,3 +400,28 @@ func TestSegmentOnlyTheTermsThatMatterAreLookedUp(t *testing.T) {
 		}
 	}
 }
+
+// halfFailingProvider answers a lookup and then fails: a failed call has no answer.
+type halfFailingProvider struct{}
+
+func (halfFailingProvider) Contains(_ context.Context, lookups []segment.Lookup) error {
+	for i := range lookups {
+		lookups[i].State = segment.Member
+	}
+
+	return errStoreDown
+}
+
+func TestSegmentAnswersOfAFailedCallAreIgnored(t *testing.T) {
+	t.Parallel()
+
+	svc := flagdef.NewService()
+	flag := onOffFlag(queryRule("r", nikunjyInclude))
+	require.NoError(t, flag.IsValid(svc))
+
+	_, details := flag.Value("f", ffcontext.NewEvaluationContext(keyAlice),
+		flagdef.Context{Service: svc, Segments: halfFailingProvider{}})
+
+	assert.Equal(t, variantOff, details.Variant, "a member answer of a call that failed does not match")
+	assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+}

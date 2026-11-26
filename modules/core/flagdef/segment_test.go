@@ -916,6 +916,7 @@ func TestSegmentNames(t *testing.T) {
 		queryRule("a", `age gt 1`),
 		queryRule("b", `{"==": [{"var": "k"}, 1]}`),
 		queryRule("c", `key in [`),
+		queryRule("d", `segment in [`),
 		flagdef.Rule{VariationResult: new(variantOn)},
 	)
 	assert.Empty(t, noSegments.SegmentNames(svc))

@@ -650,7 +650,7 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 			return nil, wrapSegmentError(err, ruleLabel(i, rule))
 		}
 
-		svc.warnUndefinedSegments(rule, ruleLabel(i, rule), evaluators[i])
+		svc.warnUndefinedSegments(rule, i, evaluators[i])
 
 		// Check if we have duplicated rule name
 		if _, ok := ruleNames[rule.GetName()]; ok && rule.GetName() != "" {

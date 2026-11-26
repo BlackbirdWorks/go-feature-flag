@@ -223,6 +223,13 @@ func TestSegmentEvaluationErrorsDoNotMatch(t *testing.T) {
 			wantLog:  "error while evaluating the nikunjy query",
 		},
 		{
+			name: "jsonlogic: a leaf that fails when it is applied",
+			query: `{"and": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, ` +
+				`{"map": [{"var": "targetingKey"}, {"var": ""}]}]}`,
+			provider: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}}),
+			wantLog:  "error while evaluating the jsonlogic query",
+		},
+		{
 			name:     "jsonlogic: a context the library cannot read",
 			query:    `{"and": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, {"==": [{"var": "ch"}, 1]}]}`,
 			provider: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}}),
