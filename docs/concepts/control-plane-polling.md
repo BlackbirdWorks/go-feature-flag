@@ -301,6 +301,9 @@ restored object is checked like a fetched one (the listed size, the object limit
   and forgets what it believed about the disk, then rebuilds the layout and writes every object again. A reopen
   that fails is retried by the next write. This is the safer rule: whatever the error was, nothing is trusted that
   the failed write may have left half done.
+- Any write that does not complete, whether it failed or was rejected as unsafe, makes the next write open the
+  directory again by path: a rejected directory that was moved aside and replaced is left alone, and the
+  replacement is used; one left in place stays rejected on every write and is never modified.
 - A directory under the name of an object or of the manifest copy is replaced when it is empty. One with content is
   never removed, and a symbolic link is replaced itself (a rename never follows it): the object is left out of the
   save before the budget is applied, so it never takes the place of an object that could be kept; the save is
@@ -336,12 +339,24 @@ restored object is checked like a fetched one (the listed size, the object limit
   the other's new object before its manifest is renamed). Nothing is corrupted, because every file is complete or
   absent and everything read back is verified, but the restore is then partial and the missing objects are
   fetched again.
-- Windows (compile-checked, not run there). The directory flush is a no-op on Windows, in one place (`flushDir`),
-  both for the parents of a created directory and for the layout steps: a directory handle cannot be flushed there.
-  Files are still written to a temporary file, flushed, closed, and renamed over their name (`os.Rename` replaces an
-  existing file on Windows, and every file is closed before the rename), but there is no guarantee that a directory
-  entry survives a power loss: a restart reads what is there, verifies it, and fetches what is missing. There is
-  no file lock (see above).
+- Windows (compile-checked, not run there: the test binary builds with `GOOS=windows`, nothing was run on Windows
+  or under wine). Every rule that is expressed in POSIX terms lives in `platform_other.go`, with its Windows variant
+  in `platform_windows.go`; the rules that every system can express stay where they are applied.
+
+  | Rule | Linux and macOS | Windows |
+  |---|---|---|
+  | Directory flush (parents of a created directory, layout steps) | `fsync` of the directory | none: a directory handle cannot be flushed; no guarantee that a directory entry survives a power loss, a restart reads what is there, verifies it and fetches what is missing |
+  | World-writable directory refused | mode bit `0002` | skipped: Go reports the bits from attributes (`0777`), not from the access list, so the rule cannot be expressed |
+  | Owner of the directory | not checked (a root-owned group-writable volume is fine) | not checked |
+  | Exclusive lock (`ErrLocked`) | `flock` | none: two writers can delete each other's objects, the restore is then partial, never corrupt |
+  | Full disk / read-only errors | `ENOSPC`, `EROFS` | the same, plus `ERROR_DISK_FULL`, `ERROR_HANDLE_DISK_FULL`, `ERROR_WRITE_PROTECT` |
+  | Symbolic link or reparse point as the directory or a layout name | refused | refused (symbolic links, and junctions where Go reports them as irregular) |
+  | Only a regular file is read, names cannot leave the directory (`os.Root`) | yes | yes |
+  | Write: temporary file, fsync, close, rename over the name | yes | yes (files are closed before the rename; `os.Rename` replaces an existing file) |
+
+  So on Windows the protections that apply are: the checks of type and name, the digest and checksum verification,
+  the atomic replace of every file, the foreign-directory rules (`VERSION`, foreign files, symbolic links), and the
+  bounded reads. Not applied: directory durability, the lock, and the world-writable rule.
 
 **Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
 `ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to

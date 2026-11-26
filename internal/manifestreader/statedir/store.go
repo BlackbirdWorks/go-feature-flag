@@ -447,11 +447,11 @@ func (s *Store) drain(ctx context.Context) {
 // reasonOf maps an error of the file system to a closed code.
 func reasonOf(err error) string {
 	switch {
-	case errors.Is(err, errNoSpace):
+	case isNoSpace(err):
 		return ReasonNoSpace
 	case errors.Is(err, ErrUnsafe), errors.Is(err, ErrForeignVersion):
 		return ReasonUnsafe
-	case errors.Is(err, fs.ErrPermission), errors.Is(err, errReadOnly):
+	case errors.Is(err, fs.ErrPermission), isReadOnly(err):
 		return ReasonDenied
 	}
 

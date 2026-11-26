@@ -116,6 +116,9 @@ func (s *Store) write(ctx context.Context, job *job) outcome {
 	if err != nil {
 		s.forget()
 
+		// the directory at the path may be another one by the next write: it is opened again by path
+		s.needReopen = true
+
 		return outcome{written: true, reason: reasonOf(err)}
 	}
 

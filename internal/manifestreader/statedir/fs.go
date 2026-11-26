@@ -157,11 +157,11 @@ func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements th
 	}
 
 	switch {
-	case info.Mode()&fs.ModeSymlink != 0:
-		return nil, fmt.Errorf("%w: it is a symbolic link", ErrUnsafe)
+	case info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0:
+		return nil, fmt.Errorf("%w: it is a symbolic link or a reparse point", ErrUnsafe)
 	case !info.IsDir():
 		return nil, fmt.Errorf("%w: it is not a directory", ErrUnsafe)
-	case info.Mode().Perm()&0o002 != 0:
+	case worldWritable(info):
 		return nil, fmt.Errorf("%w: it is writable by everybody", ErrUnsafe)
 	}
 
