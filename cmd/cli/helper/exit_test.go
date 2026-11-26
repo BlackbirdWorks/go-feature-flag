@@ -2,6 +2,7 @@ package helper_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -121,8 +122,35 @@ func TestWriteJSONError(t *testing.T) {
 func TestFatalPrinterWritesToStderr(t *testing.T) {
 	t.Parallel()
 
-	var stderr bytes.Buffer
+	tests := []struct {
+		err        error
+		name       string
+		wantStderr string
+	}{
+		{name: "plain error", err: errBoom, wantStderr: "error executing command: boom"},
+		{
+			name:       "exit-coded error",
+			err:        helper.WithExitCode(errBoom, helper.ExitConflict),
+			wantStderr: "error executing command: boom",
+		},
+		{
+			name:       "error whose JSON result was already written",
+			wantStderr: "error executing command: verification failed",
+			err:        helper.WithExitCode(helper.MarkReported(errVerifyFailed), helper.ExitVerify),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	helper.PrintFatal(helper.FatalPrinter(&stderr), func(int) {}, errBoom)
-	assert.Contains(t, stderr.String(), "boom")
+			var stderr bytes.Buffer
+
+			printer := helper.FatalPrinter(&stderr)
+			helper.PrintFatal(printer, func(int) {}, tt.err)
+
+			assert.Contains(t, pterm.RemoveColorFromString(stderr.String()), tt.wantStderr)
+		})
+	}
 }
+
+var errVerifyFailed = errors.New("verification failed")

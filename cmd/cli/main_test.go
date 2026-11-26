@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -372,21 +374,71 @@ func TestWholeProcessStreams(t *testing.T) {
 	}
 }
 
+// jsonDoc is the shape of what the whole-process tests read from stdout.
+type jsonDoc struct {
+	Error *struct {
+		Code string `json:"code"`
+	} `json:"error"`
+	OK *bool `json:"ok"`
+}
+
+// decodeOneJSON decodes stdout as exactly one JSON value. Trailing whitespace is fine; a trailing delimiter, any
+// other text or a second value is an error.
+func decodeOneJSON(stdout string) (jsonDoc, error) {
+	dec := json.NewDecoder(strings.NewReader(stdout))
+
+	var doc jsonDoc
+
+	err := dec.Decode(&doc)
+	if err != nil {
+		return doc, fmt.Errorf("first value: %w", err)
+	}
+
+	var extra json.RawMessage
+
+	err = dec.Decode(&extra)
+	if !errors.Is(err, io.EOF) {
+		return doc, fmt.Errorf("%w after the first value: %w", errNotOneValue, err)
+	}
+
+	return doc, nil
+}
+
+var errNotOneValue = errors.New("stdout is not exactly one JSON value")
+
+func TestDecodeOneJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		stdout  string
+		wantErr bool
+	}{
+		{name: "one value", stdout: `{"error":{"code":"invalid"}}`},
+		{name: "trailing whitespace is fine", stdout: "{\"ok\":false}\n\n  \t"},
+		{name: "a trailing array terminator", stdout: `{"error":{"code":"invalid"}}]`, wantErr: true},
+		{name: "a trailing brace", stdout: `{"ok":false}}`, wantErr: true},
+		{name: "a second value", stdout: `{"ok":false}{"ok":true}`, wantErr: true},
+		{name: "trailing text", stdout: "{\"ok\":false}\nERROR boom", wantErr: true},
+		{name: "empty stdout", stdout: "", wantErr: true},
+		{name: "not JSON", stdout: "ERROR boom", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := decodeOneJSON(tt.stdout)
+			assert.Equal(t, tt.wantErr, err != nil, "%v", err)
+		})
+	}
+}
+
 // assertOneJSON checks that stdout is exactly one JSON value: an error object with the given code, or a report.
 func assertOneJSON(t *testing.T, stdout, want string) {
 	t.Helper()
 
-	dec := json.NewDecoder(strings.NewReader(stdout))
-
-	var doc struct {
-		Error *struct {
-			Code string `json:"code"`
-		} `json:"error"`
-		OK *bool `json:"ok"`
-	}
-
-	require.NoError(t, dec.Decode(&doc), "stdout: %q", stdout)
-	assert.False(t, dec.More(), "stdout holds exactly one JSON value")
+	doc, err := decodeOneJSON(stdout)
+	require.NoError(t, err, "stdout: %q", stdout)
 
 	if want == "report" {
 		require.NotNil(t, doc.OK)

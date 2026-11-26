@@ -17,7 +17,10 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
-const manifestKey = "m.yaml"
+const (
+	manifestKey   = "m.yaml"
+	stableChannel = "stable"
+)
 
 func put(t *testing.T, fake *s3fake.Fake, key string, body []byte, mutate func(*s3.PutObjectInput)) error {
 	t.Helper()
@@ -192,7 +195,7 @@ func TestManifestInvariant(t *testing.T) {
 	sum := controlplane.ChecksumOf(body)
 
 	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
-		Channel: "stable", Generation: 1,
+		Channel: stableChannel, Generation: 1,
 		Objects: []controlplane.ManifestObject{{
 			Name: "a", Kind: controlplane.KindFlags, Connection: "c", Key: "objects/a", Format: controlplane.FormatYAML,
 			Checksum: sum, Size: int64(len(body)),
@@ -316,7 +319,7 @@ func TestInvariantChecksSizeAndChecksumOfListedObjects(t *testing.T) {
 	body := []byte("object")
 	listed := func(size int64, sum controlplane.Checksum) []byte {
 		manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
-			Channel: "stable", Generation: 1,
+			Channel: stableChannel, Generation: 1,
 			Objects: []controlplane.ManifestObject{
 				{
 					Name:       "a",
@@ -368,6 +371,90 @@ func TestInvariantChecksSizeAndChecksumOfListedObjects(t *testing.T) {
 
 			require.Len(t, violations, 1)
 			assert.Contains(t, violations[0], tt.want)
+		})
+	}
+}
+
+func TestInvariantChecksThePinnedVersion(t *testing.T) {
+	t.Parallel()
+
+	const object = "objects/a"
+
+	pinned := []byte("pinned version")
+	latest := []byte("a different latest")
+
+	manifestPinning := func(versionID string) []byte {
+		out, err := controlplane.MarshalManifest(&controlplane.Manifest{
+			Channel: stableChannel, Generation: 1,
+			Objects: []controlplane.ManifestObject{
+				{
+					Name:       "a",
+					Kind:       controlplane.KindFlags,
+					Connection: "c",
+					Key:        object,
+					Format:     controlplane.FormatYAML,
+					Checksum:   controlplane.ChecksumOf(pinned),
+					Size:       int64(len(pinned)),
+					VersionID:  versionID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		return out
+	}
+
+	tests := []struct {
+		name          string
+		seed          func(f *s3fake.Fake)
+		versionID     string
+		wantViolation string
+	}{
+		{
+			name: "the pinned version is intact while the latest differs", versionID: "v1",
+			seed: func(f *s3fake.Fake) {
+				f.Seed(object, latest)
+				f.SeedVersion(object, "v1", pinned)
+			},
+		},
+		{
+			name: "the pinned version is missing while the latest matches", versionID: "v9",
+			seed: func(f *s3fake.Fake) {
+				f.Seed(object, pinned)
+				f.SeedVersion(object, "v1", pinned)
+			},
+			wantViolation: "lists missing objects/a",
+		},
+		{
+			name: "the pinned version has other bytes", versionID: "v1",
+			seed: func(f *s3fake.Fake) {
+				f.Seed(object, pinned)
+				f.SeedVersion(object, "v1", []byte("pinned versiOn"))
+			},
+			wantViolation: "another checksum",
+		},
+		{
+			name: "an unpinned entry still reads the latest object", versionID: "",
+			seed: func(f *s3fake.Fake) { f.Seed(object, pinned) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			tt.seed(fake)
+			require.NoError(t, put(t, fake, manifestKey, manifestPinning(tt.versionID), nil))
+
+			violations := fake.Violations()
+			if tt.wantViolation == "" {
+				assert.Empty(t, violations)
+
+				return
+			}
+
+			require.Len(t, violations, 1)
+			assert.Contains(t, violations[0], tt.wantViolation)
 		})
 	}
 }

@@ -18,8 +18,11 @@ type Level = string
 const (
 	// WarnLevel is the severity of a warning line of command output.
 	WarnLevel Level = "WARNING"
-	// InfoLevel is the severity of an informational line of command output.
+	// InfoLevel is the severity of an informational diagnostic (progress, notes): it goes to stderr.
 	InfoLevel Level = "INFO"
+	// StatusLevel is the severity of a line that is the result of the command (for example "Valid Semaphore
+	// configuration"): it is printed like an info line, on stdout.
+	StatusLevel Level = "STATUS"
 	// ErrorLevel is the severity of an error line of command output.
 	ErrorLevel Level = "ERROR"
 	// DefaultLevel is the severity of an output line when none is given.
@@ -44,7 +47,8 @@ func (o *Output) Add(line string, level Level) Output {
 	return *o
 }
 
-// PrintLines writes the collected lines to the output of the command.
+// PrintLines writes the collected lines. stdout carries results only: [StatusLevel] and [DefaultLevel] lines go to
+// stdout; every diagnostic ([InfoLevel], [WarnLevel], [ErrorLevel]) goes to stderr.
 func (o *Output) PrintLines(cmd *cobra.Command) {
 	for _, line := range o.Lines {
 		var outputText string
@@ -52,10 +56,14 @@ func (o *Output) PrintLines(cmd *cobra.Command) {
 		writer := cmd.OutOrStdout()
 
 		switch line.Level {
+		case StatusLevel:
+			outputText = pterm.Info.Sprint(line.Text)
 		case InfoLevel:
 			outputText = pterm.Info.Sprint(line.Text)
+			writer = cmd.ErrOrStderr()
 		case WarnLevel:
 			outputText = pterm.Warning.Sprint(line.Text)
+			writer = cmd.ErrOrStderr()
 		case ErrorLevel:
 			outputText = pterm.Error.Sprint(line.Text)
 			writer = cmd.ErrOrStderr()

@@ -205,6 +205,7 @@ One rule holds for every `semaphore-cli` command:
 | `publish verify` with problems, text | the report | the final line (`verification failed`) | 5 |
 | `publish verify` with problems, `-o json` | the report (one JSON document, `ok: false`) | the final line | 5 |
 | Unknown root flag or subcommand | nothing | Cobra's message, usage and the final line | 1 |
+| Argument or flag error of `publish` or `config`, `-o json` | one JSON error object (`usage`) | the final line | 1 |
 
 ## Exit codes
 

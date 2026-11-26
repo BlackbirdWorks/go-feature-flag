@@ -41,19 +41,15 @@ conditional write, so a reader never sees a half-written state.
 Where to publish comes from the control-plane connection of a bootstrap file (--config), or from --bucket and
 --region. Exit codes: 0 success, 1 failure or bad usage, 2 invalid documents or configuration, 3 conflict (another
 publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5 the bucket holds a bad state.`,
-		Args:          jsonArgs(opts, cobra.ExactArgs(1)),
+		Args:          cobra.ExactArgs(1),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reportError(cmd, opts, runPublish(cmd, args[0], opts, &deps))
+			return runPublish(cmd, args[0], opts, &deps)
 		},
 	}
 
 	addTargetFlags(cmd, opts)
-	// A flag that does not parse is reported as JSON too, when -o json came before it (flags are read in order).
-	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
-		return reportError(cmd, opts, fmt.Errorf("%w: %w", ErrUsage, err))
-	})
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "plan the publication: the same reads, no write")
 	cmd.Flags().
 		Uint64Var(&opts.generation, "generation", 0, "generation to write (default: the one in the bucket plus one)")
@@ -61,6 +57,12 @@ publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5
 		"replace a manifest in the bucket that is invalid or over the limits (needs --generation)")
 
 	cmd.AddCommand(newVerifyCmd(opts, &deps))
+
+	// One mechanism for every failure of the command and its subcommands (argument and flag errors included).
+	helper.JSONErrors(cmd, helper.JSONErrorOptions{
+		Enabled: func() bool { return opts.output == outputJSON },
+		Details: errorDetails,
+	})
 
 	return cmd
 }
@@ -102,7 +104,7 @@ func addTargetFlags(cmd *cobra.Command, opts *options) {
 
 func checkOutput(format string) error {
 	if format != outputText && format != outputJSON {
-		return fmt.Errorf("%w: --output must be text or json, not %q", ErrUsage, format)
+		return fmt.Errorf("%w: --output must be text or json, not %q", helper.ErrUsage, format)
 	}
 
 	return nil
@@ -144,19 +146,6 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 	return printResult(cmd.OutOrStdout(), opts.output, res)
 }
 
-// jsonArgs wraps an argument validator so that its failure is a usage error, written as JSON when --output json
-// was given (cobra validates the arguments before RunE runs).
-func jsonArgs(opts *options, validate cobra.PositionalArgs) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		err := validate(cmd, args)
-		if err == nil {
-			return nil
-		}
-
-		return reportError(cmd, opts, fmt.Errorf("%w: %w", ErrUsage, err))
-	}
-}
-
 // checkFlags validates a flag file with the engine of the relay (the flagcheck package).
 func checkFlags(obj *s3publish.Object) error {
 	if obj.Kind != controlplane.KindFlags {
@@ -169,34 +158,6 @@ func checkFlags(obj *s3publish.Object) error {
 	}
 
 	return nil
-}
-
-// reportError writes the JSON error object of a failed command when --output is json, and returns the error. The
-// report of a failed verification is already the output of the command, so it gets no second document.
-func reportError(cmd *cobra.Command, opts *options, err error) error {
-	if err == nil {
-		return nil
-	}
-
-	err = withCode(err) // every failure carries its exit code, so its final line goes to stderr
-
-	if opts.output != outputJSON || errors.Is(err, errVerify) {
-		return err
-	}
-
-	code := helper.ExitCodeOf(err)
-	name := helper.JSONErrorName(code)
-
-	if errors.Is(err, ErrUsage) {
-		name = "usage"
-	}
-
-	writeErr := helper.WriteJSONError(cmd.OutOrStdout(), name, err, errorDetails(err))
-	if writeErr != nil {
-		return fmt.Errorf("report error: %w", writeErr)
-	}
-
-	return err
 }
 
 // errorDetails lists the individual problems behind an error: the field errors of a validation and the flags
@@ -252,11 +213,11 @@ func newVerifyCmd(opts *options, deps *Deps) *cobra.Command {
 		Short: "Check the manifest and every object it lists in the bucket",
 		Long: `Reads the manifest and every listed object of the connection, and checks size, checksum, the content of
 each document, and that every flag-set source resolves. It never writes. Exit code 5 when a problem is found.`,
-		Args:          jsonArgs(opts, cobra.NoArgs),
+		Args:          cobra.NoArgs,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return reportError(cmd, opts, runVerify(cmd, opts, deps))
+			return runVerify(cmd, opts, deps)
 		},
 	}
 }
@@ -291,7 +252,7 @@ func runVerify(cmd *cobra.Command, opts *options, deps *Deps) error {
 
 	if !rep.OK() {
 		return &helper.ExitError{
-			Err:  fmt.Errorf("%w: %d problems", errVerify, len(rep.Problems)),
+			Err:  helper.MarkReported(fmt.Errorf("%w: %d problems", errVerify, len(rep.Problems))),
 			Code: helper.ExitVerify,
 		}
 	}
@@ -320,7 +281,7 @@ func codeOf(err error) int {
 	case errors.Is(err, s3publish.ErrPreviousManifest), errors.Is(err, s3publish.ErrObjectMismatch),
 		errors.Is(err, s3publish.ErrNoManifest):
 		return helper.ExitVerify
-	case errors.Is(err, ErrUsage):
+	case errors.Is(err, helper.ErrUsage):
 		return helper.ExitFailure
 	case isInvalidInput(err):
 		return helper.ExitInvalid

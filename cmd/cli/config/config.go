@@ -19,9 +19,6 @@ const (
 	outputJSON = "json"
 )
 
-// ErrUsage is returned for flags that are missing or have a value that is not allowed.
-var ErrUsage = errors.New("usage")
-
 // Deps are the parts of the outside world that the commands use.
 type Deps struct {
 	// LookupEnv reads an environment variable: the SEMAPHORE_* overrides apply to the effective configuration.
@@ -38,6 +35,8 @@ func NewConfigCmd() *cobra.Command { return NewConfigCmdWith(DefaultDeps()) }
 
 // NewConfigCmdWith returns the config command group with the given dependencies.
 func NewConfigCmdWith(deps Deps) *cobra.Command {
+	var output string
+
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Validate and print the version 2 bootstrap file of the relay proxy",
@@ -49,7 +48,11 @@ func NewConfigCmdWith(deps Deps) *cobra.Command {
 		SilenceUsage:  true,
 	}
 
-	cmd.AddCommand(newValidateCmd(&deps), newPrintCmd(&deps))
+	cmd.PersistentFlags().StringVarP(&output, "output", "o", outputText, "output format: text or json (YAML for print)")
+	cmd.AddCommand(newValidateCmd(&deps, &output), newPrintCmd(&deps, &output))
+
+	// Every failure of the group, argument and flag errors included, follows the one JSON error mechanism.
+	helper.JSONErrors(cmd, helper.JSONErrorOptions{Enabled: func() bool { return output == outputJSON }})
 
 	return cmd
 }
@@ -73,7 +76,7 @@ func load(file string, deps *Deps) (*bootstrap.Config, error) {
 
 func checkOutput(format string) error {
 	if format != outputText && format != outputJSON {
-		return fmt.Errorf("%w: --output must be text or json, not %q", ErrUsage, format)
+		return fmt.Errorf("%w: --output must be text or json, not %q", helper.ErrUsage, format)
 	}
 
 	return nil
@@ -97,9 +100,7 @@ type jsonError struct {
 	Message string `json:"message"`
 }
 
-func newValidateCmd(deps *Deps) *cobra.Command {
-	var output string
-
+func newValidateCmd(deps *Deps, output *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate <file>",
 		Short: "Check a bootstrap file with the loader of the relay proxy",
@@ -110,10 +111,9 @@ shape, not resolved. Exit code 0 when valid, 2 when invalid, 1 on another failur
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runValidate(cmd.OutOrStdout(), args[0], output, deps)
+			return runValidate(cmd.OutOrStdout(), args[0], *output, deps)
 		},
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", outputText, "output format: text or json")
 
 	return cmd
 }
@@ -139,6 +139,11 @@ func runValidate(w io.Writer, file, output string, deps *Deps) error {
 		if printErr != nil {
 			return printErr
 		}
+
+		return &helper.ExitError{
+			Err:  helper.MarkReported(err),
+			Code: helper.ExitCodeOf(err),
+		} // the report is the JSON document
 	}
 
 	return err
@@ -169,11 +174,8 @@ func writeJSON(w io.Writer, v any) error {
 	return nil
 }
 
-func newPrintCmd(deps *Deps) *cobra.Command {
-	var (
-		output    string
-		effective bool
-	)
+func newPrintCmd(deps *Deps, output *string) *cobra.Command {
+	var effective bool
 
 	cmd := &cobra.Command{
 		Use:   "print --effective <file>",
@@ -186,14 +188,13 @@ defaults. Secrets, API keys and admin keys print as [REDACTED]; references (from
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !effective {
-				return fmt.Errorf("%w: --effective is required", ErrUsage)
+				return fmt.Errorf("%w: --effective is required", helper.ErrUsage)
 			}
 
-			return runPrint(cmd.OutOrStdout(), args[0], output, deps)
+			return runPrint(cmd.OutOrStdout(), args[0], *output, deps)
 		},
 	}
 	cmd.Flags().BoolVar(&effective, "effective", false, "print the effective configuration (required)")
-	cmd.Flags().StringVarP(&output, "output", "o", outputText, "output format: text (YAML) or json")
 
 	return cmd
 }
@@ -206,15 +207,6 @@ func runPrint(w io.Writer, file, output string, deps *Deps) error {
 
 	cfg, err := load(file, deps)
 	if err != nil {
-		if output == outputJSON {
-			name := helper.JSONErrorName(helper.ExitCodeOf(err))
-
-			writeErr := helper.WriteJSONError(w, name, err, nil)
-			if writeErr != nil {
-				return fmt.Errorf("report error: %w", writeErr)
-			}
-		}
-
 		return err
 	}
 

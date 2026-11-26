@@ -380,6 +380,10 @@ func (f *Fake) checkInvariantLocked(key string) {
 		listed := &manifest.Objects[i]
 
 		stored, ok := f.objects[listed.Key]
+		if listed.VersionID != "" {
+			// A pinned entry names that version, whatever the latest object is.
+			stored, ok = f.versions[listed.Key+"\x00"+listed.VersionID]
+		}
 
 		switch {
 		case !ok:

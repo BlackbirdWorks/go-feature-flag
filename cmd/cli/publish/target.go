@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
@@ -19,8 +20,6 @@ const (
 
 // Errors of the target resolution. Test them with [errors.Is].
 var (
-	// ErrUsage is returned for flags that cannot be combined or are missing.
-	ErrUsage = errors.New("usage")
 	// ErrNoControlPlane is returned when the bootstrap file has no controlPlane section.
 	ErrNoControlPlane = errors.New("the bootstrap file has no controlPlane section")
 	// ErrNotS3 is returned when the control-plane connection is not an S3 connection.
@@ -74,7 +73,7 @@ func resolveTarget(flags *targetFlags, deps *Deps) (*target, error) {
 	if flags.config != "" {
 		if set := flags.explicit(); len(set) > 0 {
 			return nil, fmt.Errorf("%w: %s cannot be combined with --config (the file says where to publish)",
-				ErrUsage, strings.Join(set, ", "))
+				helper.ErrUsage, strings.Join(set, ", "))
 		}
 
 		return targetFromConfig(flags, deps)
@@ -85,7 +84,7 @@ func resolveTarget(flags *targetFlags, deps *Deps) (*target, error) {
 
 func targetFromFlags(flags *targetFlags) (*target, error) {
 	if flags.bucket == "" || flags.region == "" {
-		return nil, fmt.Errorf("%w: give --config, or --bucket and --region", ErrUsage)
+		return nil, fmt.Errorf("%w: give --config, or --bucket and --region", helper.ErrUsage)
 	}
 
 	channel := orDefault(flags.channel, defaultChannel)
