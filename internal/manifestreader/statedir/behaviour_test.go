@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"testing"
@@ -371,4 +372,26 @@ type failingFS struct{ err error }
 
 func (f failingFS) Open(string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
 	return nil, f.err
+}
+
+func TestStore_ASkippedParentFlushIsReportedLoggedOnceAndDoesNotDisable(t *testing.T) {
+	t.Parallel()
+
+	logs := &logBuffer{}
+	fsys := &memFS{disk: newMemDisk(), faults: &faults{}, parentSync: manifestreader.ParentSyncSkipped}
+
+	store, hooks, reason := statedir.OpenOrDisable(statedir.Config{
+		FS: fsys, Dir: "cache/state", Logger: slog.New(slog.NewTextHandler(logs, nil)),
+	})
+	require.Empty(t, reason, "persistence is not disabled")
+	require.NotNil(t, store)
+
+	defer func() { require.NoError(t, store.Close()) }()
+
+	assert.Equal(t, manifestreader.ParentSyncSkipped, hooks.StateStatus().ParentSync)
+
+	lines := logs.lines()
+	require.Len(t, lines, 1, "logged once")
+	assert.Contains(t, lines[0], "level=WARN")
+	assert.Contains(t, lines[0], "path=cache/state")
 }

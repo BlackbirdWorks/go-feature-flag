@@ -9,6 +9,9 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sync"
+
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 // Errors of opening a state directory.
@@ -28,6 +31,9 @@ var (
 	ErrNotRegular = errors.New("statedir: not a regular file")
 	// ErrFileTooLarge is what [Root.ReadFile] returns for a file above its limit: it is not read.
 	ErrFileTooLarge = errors.New("statedir: file above its limit")
+	// ErrParentSync is returned by [OSFS.Open] when the flush of a parent of a directory it created failed (not for lack
+	// of permission): the flush is retried by the next Open.
+	ErrParentSync = errors.New("statedir: the parent directory could not be flushed")
 )
 
 // FS opens a state directory. [NewOSFS] is the real one; tests wrap it or replace it to inject failures.
@@ -79,21 +85,69 @@ type File interface {
 type OSFS struct {
 	// syncDir flushes a directory; nil is the real one. A test replaces it.
 	syncDir func(string) error
+	// pending remembers the flushes that failed, by state directory, until they succeed.
+	pending *pendingFlushes
+}
+
+// pendingFlushes are the parent directories that a failed flush left to flush, by the state directory they lead to.
+type pendingFlushes struct {
+	byDir map[string][]string
+	mu    sync.Mutex
+}
+
+func (p *pendingFlushes) get(dir string) []string {
+	if p == nil {
+		return nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return slices.Clone(p.byDir[dir])
+}
+
+func (p *pendingFlushes) set(dir string, parents []string) {
+	if p == nil {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(parents) == 0 {
+		delete(p.byDir, dir)
+
+		return
+	}
+
+	p.byDir[dir] = slices.Clone(parents)
 }
 
 // NewOSFS returns the real file system.
-func NewOSFS() OSFS { return OSFS{syncDir: syncPath} }
+func NewOSFS() OSFS {
+	return OSFS{syncDir: syncPath, pending: &pendingFlushes{byDir: map[string][]string{}}}
+}
 
-// Open implements [FS].
+// Open implements [FS]. A directory that Open creates is made durable: the parent of each directory it created is
+// flushed, top down, so the path survives a power loss with the first save. A flush that fails is remembered and
+// retried by the next Open of the same directory (an existing path does not mean its entry is durable), and Open
+// returns [ErrParentSync] until it succeeds. A parent that cannot be opened for the flush because of permissions is
+// skipped: the state directory is a cache, so it is used, and the root reports
+// [manifestreader.ParentSyncSkipped] (after a power loss the directory entry itself may be missing, and the relay
+// then starts as on a first run).
 func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the FS seam, which returns an interface
 	clean := filepath.Clean(dir)
 
+	var parents []string
+
 	info, err := os.Lstat(clean)
 	if errors.Is(err, fs.ErrNotExist) {
-		err = o.create(clean)
+		parents, err = o.create(clean)
 		if err == nil {
 			info, err = os.Lstat(clean)
 		}
+	} else {
+		parents = o.pending.get(clean)
 	}
 
 	if err != nil {
@@ -109,17 +163,26 @@ func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements th
 		return nil, fmt.Errorf("%w: it is writable by everybody", ErrUnsafe)
 	}
 
+	skipped, err := o.flush(clean, parents)
+	if err != nil {
+		return nil, err
+	}
+
 	root, err := os.OpenRoot(clean)
 	if err != nil {
 		return nil, wrapPermission(fmt.Errorf("statedir: open directory: %w", err))
 	}
 
-	return &osRoot{root: root}, nil
+	parentSync := ""
+	if skipped {
+		parentSync = manifestreader.ParentSyncSkipped
+	}
+
+	return &osRoot{root: root, parentSync: parentSync}, nil
 }
 
-// create makes the directory and the missing directories above it, and makes their entries durable: the parent of
-// each directory that was created is flushed, top down, so the path survives a power loss with the first save.
-func (o OSFS) create(clean string) error {
+// create makes the directory and the missing directories above it, and returns the parents to flush, top down.
+func (OSFS) create(clean string) ([]string, error) {
 	var created []string
 
 	for current := clean; ; {
@@ -140,22 +203,45 @@ func (o OSFS) create(clean string) error {
 
 	err := os.MkdirAll(clean, dirMode)
 	if err != nil {
-		return fmt.Errorf("statedir: create directory: %w", err)
+		return nil, fmt.Errorf("statedir: create directory: %w", err)
 	}
 
+	parents := make([]string, 0, len(created))
+	for _, made := range slices.Backward(created) {
+		parents = append(parents, filepath.Dir(made))
+	}
+
+	return parents, nil
+}
+
+// flush flushes the parents, in order. A permission error skips that parent (and is reported); any other error
+// stops, remembers what is left (this parent included), and fails with [ErrParentSync]. When all is done nothing
+// stays pending.
+func (o OSFS) flush(dir string, parents []string) (bool, error) {
 	syncDir := o.syncDir
 	if syncDir == nil {
 		syncDir = syncPath
 	}
 
-	for _, made := range slices.Backward(created) {
-		err = syncDir(filepath.Dir(made))
-		if err != nil {
-			return fmt.Errorf("statedir: sync %s: %w", filepath.Dir(made), err)
+	skipped := false
+
+	for i, parent := range parents {
+		err := syncDir(parent)
+
+		switch {
+		case err == nil:
+		case errors.Is(err, fs.ErrPermission):
+			skipped = true
+		default:
+			o.pending.set(dir, parents[i:])
+
+			return skipped, fmt.Errorf("%w: sync %s: %w", ErrParentSync, parent, err)
 		}
 	}
 
-	return nil
+	o.pending.set(dir, nil)
+
+	return skipped, nil
 }
 
 // wrapPermission makes a refusal of the system a [ErrUnsafe]: a directory the process cannot use is not safe to use.
@@ -173,9 +259,14 @@ const (
 )
 
 type osRoot struct {
-	root *os.Root
-	lock *os.File
+	root       *os.Root
+	lock       *os.File
+	parentSync string
 }
+
+// ParentSync reports [manifestreader.ParentSyncSkipped] when the flush of a created parent was skipped for lack of
+// permission.
+func (r *osRoot) ParentSync() string { return r.parentSync }
 
 func (r *osRoot) Lock() error {
 	if r.lock != nil {

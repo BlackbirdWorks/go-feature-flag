@@ -2,6 +2,7 @@ package statedir
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,4 +72,86 @@ func TestOSFS_OpenFlushesTheParentOfEachDirectoryItCreates(t *testing.T) {
 			assert.True(t, info.IsDir())
 		})
 	}
+}
+
+var errBusy = errors.New("flush busy")
+
+// TestOSFS_AFailedFlushIsRememberedAndRetriedByTheNextOpen: the path exists after a failed flush, and that does not
+// mean its entry is durable. The next Open flushes what is left (not what was done) until it works, and then no more.
+func TestOSFS_AFailedFlushIsRememberedAndRetriedByTheNextOpen(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	dir := filepath.Join(base, "a", "state")
+
+	var (
+		synced []string
+		fail   = map[string]error{filepath.Join(base, "a"): errBusy}
+	)
+
+	opener := NewOSFS()
+	opener.syncDir = func(path string) error {
+		synced = append(synced, path)
+
+		return fail[path]
+	}
+
+	// the first open creates the path, flushes base, and fails on base/a
+	_, err := opener.Open(dir)
+	require.ErrorIs(t, err, ErrParentSync)
+	require.ErrorIs(t, err, errBusy)
+	assert.Equal(t, []string{base, filepath.Join(base, "a")}, synced)
+
+	// the path exists now; the next open flushes only what was left, and fails again the same way
+	synced = nil
+	_, err = opener.Open(dir)
+	require.ErrorIs(t, err, ErrParentSync)
+	assert.Equal(t, []string{filepath.Join(base, "a")}, synced)
+
+	// the flush works: the open succeeds, and the one after it has nothing left to flush
+	synced, fail = nil, nil
+
+	root, err := opener.Open(dir)
+	require.NoError(t, err)
+	require.NoError(t, root.Close())
+	assert.Equal(t, []string{filepath.Join(base, "a")}, synced)
+
+	synced = nil
+	root, err = opener.Open(dir)
+	require.NoError(t, err)
+	require.NoError(t, root.Close())
+	assert.Empty(t, synced)
+}
+
+// TestOSFS_APermissionErrorOnTheFlushSkipsIt: a parent that cannot be opened for the flush does not stop the open;
+// the root reports the skip, and the other parents are still flushed.
+func TestOSFS_APermissionErrorOnTheFlushSkipsIt(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	dir := filepath.Join(base, "a", "state")
+
+	var synced []string
+
+	opener := NewOSFS()
+	opener.syncDir = func(path string) error {
+		synced = append(synced, path)
+
+		if path == base {
+			return fs.ErrPermission
+		}
+
+		return nil
+	}
+
+	root, err := opener.Open(dir)
+	require.NoError(t, err)
+
+	defer func() { require.NoError(t, root.Close()) }()
+
+	assert.Equal(t, []string{base, filepath.Join(base, "a")}, synced)
+
+	reporter, ok := root.(interface{ ParentSync() string })
+	require.True(t, ok)
+	assert.Equal(t, "skipped", reporter.ParentSync())
 }

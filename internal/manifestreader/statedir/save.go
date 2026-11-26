@@ -3,6 +3,7 @@ package statedir
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,23 +93,27 @@ type outcome struct {
 
 // write saves a job: the objects that are not on disk, then the manifest, then the garbage collection. Nothing
 // is written when the state on disk is already this one.
-func (s *Store) write(job *job) outcome {
+func (s *Store) write(ctx context.Context, job *job) outcome {
 	s.ioMu.Lock()
 	defer s.ioMu.Unlock()
 
-	if s.root == nil {
-		// an earlier reopen failed: the directory is lost until it can be opened again
-		err := s.reopen()
+	if s.root == nil || s.needReopen {
+		// an earlier write failed (or an earlier reopen did): the directory is opened again and validated before
+		// anything is trusted
+		err := s.reopen(ctx)
 		if err != nil {
+			s.needReopen = true
+
 			return outcome{written: true, reason: reasonOf(err)}
 		}
 	}
 
 	s.reconcile()
 
-	keep, staleKept, partial := s.fit(job)
-
-	keep, blocked := s.usableDestinations(keep)
+	// what cannot be written is left out before the budget is applied, so it never takes the place of an object
+	// that could be kept
+	usable, blocked := s.withoutBlocked(job)
+	keep, staleKept, partial := s.fit(usable)
 	partial = partial || blocked
 
 	refs := make([]objectRef, len(keep))
@@ -129,7 +134,7 @@ func (s *Store) write(job *job) outcome {
 		// something under us vanished (the objects directory, the whole directory): rebuild from nothing
 		s.forget()
 
-		err = s.reopen()
+		err = s.reopen(ctx)
 		if err == nil {
 			err = s.persist(job, keep, refs, staleKept, digest)
 		}
@@ -137,6 +142,8 @@ func (s *Store) write(job *job) outcome {
 
 	if err != nil {
 		s.forget()
+
+		s.needReopen = true
 
 		return outcome{written: true, reason: reasonOf(err)}
 	}
@@ -183,32 +190,70 @@ func (s *Store) reconcile() {
 	}
 
 	for sum := range s.disk.objects {
-		if _, ok := present[sum]; !ok {
+		if _, ok := present[sum]; !ok || !s.isRegular(objectsDir+"/"+sum) {
 			delete(s.disk.objects, sum)
 		}
 	}
+
+	if !s.isRegular(manifestFile) {
+		s.disk.digest = ""
+	}
 }
 
-// usableDestinations drops the objects whose file name is taken by a directory that cannot be removed (it is not
-// empty): they are not saved, and the save is partial. An empty directory is removed. Nothing else is ever
-// removed recursively.
-func (s *Store) usableDestinations(keep []object) ([]object, bool) {
+// isRegular reports whether name is a regular file: a name that became a directory, a symbolic link or anything
+// else is not what the store wrote, and is written again (a rename replaces a symbolic link itself and never
+// follows it).
+func (s *Store) isRegular(name string) bool {
+	info, err := s.root.Lstat(name)
+
+	return err == nil && info.Mode().IsRegular()
+}
+
+// withoutBlocked returns the job without the objects whose file name is taken by a directory that cannot be
+// removed (it is not empty): they are not saved, and the save is partial when one of them is current. An empty
+// directory is removed. Nothing is ever removed recursively.
+func (s *Store) withoutBlocked(job *job) (*job, bool) {
 	var (
-		usable  = make([]object, 0, len(keep))
-		blocked bool
+		current []object
+		stale   []object
+		blocked = map[string]struct{}{}
+		partial bool
 	)
 
-	for _, obj := range keep {
-		if _, known := s.disk.objects[obj.sum]; !known && s.destinationBlocked(objectsDir+"/"+obj.sum) {
-			blocked = true
+	filter := func(objects []object, isCurrent bool) []object {
+		usable := make([]object, 0, len(objects))
 
-			continue
+		for _, obj := range objects {
+			if _, known := s.disk.objects[obj.sum]; !known && s.destinationBlocked(objectsDir+"/"+obj.sum) {
+				blocked[obj.sum] = struct{}{}
+				partial = partial || isCurrent
+
+				continue
+			}
+
+			usable = append(usable, obj)
 		}
 
-		usable = append(usable, obj)
+		return usable
 	}
 
-	return usable, blocked
+	current, stale = filter(job.current, true), filter(job.stale, false)
+
+	if len(blocked) == 0 {
+		return job, false
+	}
+
+	usable := *job
+	usable.current, usable.stale = current, stale
+	usable.staleNames = nil
+
+	for _, ref := range job.staleNames {
+		if _, gone := blocked[ref.Sum]; !gone {
+			usable.staleNames = append(usable.staleNames, ref)
+		}
+	}
+
+	return &usable, partial
 }
 
 // destinationBlocked reports whether name is a directory that cannot be replaced; an empty one is removed.
@@ -222,7 +267,7 @@ func (s *Store) destinationBlocked(name string) bool {
 }
 
 // reopen opens the directory again (it may have been removed and made anew) and takes the lock.
-func (s *Store) reopen() error {
+func (s *Store) reopen(ctx context.Context) error {
 	if s.root != nil {
 		_ = s.root.Close()
 		s.root = nil
@@ -230,10 +275,15 @@ func (s *Store) reopen() error {
 
 	root, _, err := openLocked(s.fsys, s.dir)
 	if err != nil {
+		s.noteParentSync(ctx, nil, err)
+
 		return err
 	}
 
 	s.root = root
+	s.needReopen = false
+
+	s.noteParentSync(ctx, root, nil)
 
 	return nil
 }
@@ -241,7 +291,9 @@ func (s *Store) reopen() error {
 // fit returns the objects to keep within the byte budget, the stale names whose content is kept, and whether
 // the save is partial. The current objects come first. When they fit, the stale ones that still fit are added.
 // When the current objects alone are above the budget, the stale ones are dropped and the current ones are kept
-// smallest first (ties by checksum), so that the largest number of contents comes back after a restart.
+// in this order: the ones that are on disk already (they cost nothing to keep, and a save never removes an object
+// that the snapshot still needs if the budget allows it), then the others, each smallest first (ties by checksum),
+// so that the largest number of contents comes back after a restart.
 func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
 	var total int64
 	for _, obj := range job.current {
@@ -257,7 +309,7 @@ func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
 		keep = slices.Clone(job.current)
 		used := total
 
-		for _, obj := range job.stale {
+		for _, obj := range s.byPriority(job.stale) {
 			if used+int64(len(obj.data)) <= s.max {
 				used += int64(len(obj.data))
 
@@ -266,17 +318,12 @@ func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
 		}
 	} else {
 		partial = true
-		ordered := slices.Clone(job.current)
-
-		slices.SortFunc(ordered, func(a, b object) int {
-			return cmp.Or(cmp.Compare(len(a.data), len(b.data)), cmp.Compare(a.sum, b.sum))
-		})
 
 		var used int64
 
-		for _, obj := range ordered {
+		for _, obj := range s.byPriority(job.current) {
 			if used+int64(len(obj.data)) > s.max {
-				break
+				continue
 			}
 
 			used += int64(len(obj.data))
@@ -301,6 +348,27 @@ func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
 	}
 
 	return keep, stale, partial
+}
+
+// byPriority orders objects for the budget: the ones on disk first, then smallest first, ties by checksum.
+func (s *Store) byPriority(objects []object) []object {
+	ordered := slices.Clone(objects)
+
+	slices.SortFunc(ordered, func(left, right object) int {
+		_, onA := s.disk.objects[left.sum]
+		_, onB := s.disk.objects[right.sum]
+
+		switch {
+		case onA && !onB:
+			return -1
+		case onB && !onA:
+			return 1
+		}
+
+		return cmp.Or(cmp.Compare(len(left.data), len(right.data)), cmp.Compare(left.sum, right.sum))
+	})
+
+	return ordered
 }
 
 func (s *Store) upToDate(digest string, refs []objectRef) bool {

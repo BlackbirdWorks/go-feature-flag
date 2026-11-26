@@ -199,17 +199,20 @@ func (f *faults) reset() {
 
 // memFS is a statedir.FS on a memDisk. noLock makes Lock a no-op, as on a system without flock.
 type memFS struct {
-	disk   *memDisk
-	faults *faults
-	// failOpens is the number of the next Open calls that fail.
-	failOpens atomic.Int32
-	noLock    bool
+	disk       *memDisk
+	faults     *faults
+	parentSync string
+	failOpens  atomic.Int32
+	opens      atomic.Int32
+	noLock     bool
 }
 
 func (m *memFS) Open(string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
 	if m.failOpens.Add(-1) >= 0 {
 		return nil, errNotAvailable
 	}
+
+	m.opens.Add(1)
 
 	return &memRoot{fsys: m}, nil
 }
@@ -531,5 +534,8 @@ func (r *memRoot) SyncDir(name string) error {
 
 	return nil
 }
+
+// ParentSync implements the optional report of the flush of the parents.
+func (r *memRoot) ParentSync() string { return r.fsys.parentSync }
 
 func (r *memRoot) disk() *memDisk { return r.fsys.disk }

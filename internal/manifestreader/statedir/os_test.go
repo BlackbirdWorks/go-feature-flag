@@ -334,3 +334,85 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 		})
 	}
 }
+
+const outsideContent = "outside"
+
+// TestOS_ALiveWriterNoticesANameThatChangedType: on a store that stays open (no restart), an object file that was
+// replaced by a directory or a symbolic link is not trusted. An empty directory and a symbolic link are replaced by
+// the file again (a rename replaces the link itself, never what it points to); a directory with content is never
+// removed and the object is left out of the save.
+func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		replace      func(t *testing.T, name, outside string)
+		name         string
+		wantOutside  string
+		wantOnDisk   []string
+		wantPartial  bool
+		wantKeepFile bool
+	}{
+		{
+			name: "an empty directory", wantOnDisk: []string{contentAlpha, contentBeta}, wantOutside: outsideContent,
+			replace: func(t *testing.T, name, _ string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(name, 0o700))
+			},
+		},
+		{
+			name: "a directory with content", wantOnDisk: []string{contentAlpha}, wantPartial: true,
+			wantOutside: outsideContent, wantKeepFile: true,
+			replace: func(t *testing.T, name, _ string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(name, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(name, "keep"), []byte("mine"), 0o600))
+			},
+		},
+		{
+			name:        "a symbolic link to a file outside",
+			wantOnDisk:  []string{contentAlpha, contentBeta},
+			wantOutside: outsideContent,
+			replace: func(t *testing.T, name, outside string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(outside, name))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			dir := filepath.Join(root, "state")
+			outside := filepath.Join(root, "outside.txt")
+			require.NoError(t, os.WriteFile(outside, []byte(outsideContent), 0o600))
+
+			run := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha, contentBeta))
+
+			victim := filepath.Join(dir, "objects", sumOf(contentBeta))
+			require.NoError(t, os.Remove(victim))
+			tt.replace(t, victim, outside)
+
+			// the same store, the same objects, a new manifest: nothing is reopened
+			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+
+			status := run.store.Hooks().StateStatus()
+			assert.Empty(t, status.LastSaveError)
+			assert.Equal(t, tt.wantPartial, status.LastSavePartial)
+
+			assert.ElementsMatch(t, tt.wantOnDisk, objectsOnDisk(t, dir, contentAlpha, contentBeta))
+
+			untouched, err := os.ReadFile(outside)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantOutside, string(untouched), "what a link points to is never written")
+
+			if tt.wantKeepFile {
+				kept, keepErr := os.ReadFile(filepath.Join(victim, "keep"))
+				require.NoError(t, keepErr)
+				assert.Equal(t, "mine", string(kept), "a directory with content is never removed")
+			}
+		})
+	}
+}

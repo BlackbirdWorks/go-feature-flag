@@ -52,6 +52,8 @@ const (
 	DisabledLocked = "locked"
 	// DisabledForeignVersion is [ErrForeignVersion].
 	DisabledForeignVersion = "foreign-version"
+	// DisabledParentSync is [ErrParentSync]: a flush of a parent of the directory that was created failed.
+	DisabledParentSync = "parent-sync"
 	// DisabledError is any other failure to open the directory.
 	DisabledError = "error"
 )
@@ -102,6 +104,10 @@ type Store struct {
 	writing bool
 	layout  bool
 	closed  bool
+	// needReopen is set by a failed write: the next write opens the directory again and validates it.
+	needReopen bool
+	// parentLogged tells that the skipped flush of a parent was logged.
+	parentLogged bool
 }
 
 // diskState is what the store knows to be on disk and durable. It is dropped after any failed write.
@@ -151,15 +157,22 @@ func New(cfg Config) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store{
+	store := &Store{
 		fsys: fsys, root: root, dir: cfg.Dir, log: logger, wake: make(chan struct{}, 1), changed: make(chan struct{}),
 		max:     orDefault(cfg.MaxBytes, manifestreader.DefaultMaxTotalBytes),
 		maxMan:  orDefault(cfg.MaxManifestBytes, manifestreader.DefaultMaxManifestBytes),
 		maxObj:  orDefault(cfg.MaxObjectBytes, manifestreader.DefaultMaxObjectBytes),
 		maxObjs: int(orDefault(int64(cfg.MaxObjects), controlplane.DefaultMaxObjects)),
 		disk:    diskState{objects: map[string]struct{}{}}, st: manifestreader.StateStatus{Enabled: true},
-	}, nil
+	}
+
+	store.noteParentSync(context.Background(), root, nil)
+
+	return store, nil
 }
+
+// parentSyncReporter is implemented by a root that tells how the flush of the parents of a created directory went.
+type parentSyncReporter interface{ ParentSync() string }
 
 func orDefault(value, fallback int64) int64 {
 	if value <= 0 {
@@ -251,6 +264,8 @@ func OpenOrDisable(cfg Config) (*Store, manifestreader.Hooks, string) {
 		reason = DisabledLocked
 	case errors.Is(err, ErrForeignVersion):
 		reason = DisabledForeignVersion
+	case errors.Is(err, ErrParentSync):
+		reason = DisabledParentSync
 	}
 
 	logger := cfg.Logger
@@ -333,6 +348,38 @@ func (s *Store) Flush(ctx context.Context) error {
 	return nil
 }
 
+// noteParentSync records in the status that the flush of a parent was skipped (once, with a warning that names the
+// directory) or is pending after a failed open.
+func (s *Store) noteParentSync(ctx context.Context, root Root, openErr error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch {
+	case errors.Is(openErr, ErrParentSync):
+		s.st.ParentSync = manifestreader.ParentSyncPending
+	case s.st.ParentSync == manifestreader.ParentSyncPending && openErr == nil:
+		s.st.ParentSync = ""
+	}
+
+	reporter, ok := root.(parentSyncReporter)
+	if !ok || reporter.ParentSync() != manifestreader.ParentSyncSkipped {
+		return
+	}
+
+	s.st.ParentSync = manifestreader.ParentSyncSkipped
+
+	if !s.parentLogged {
+		s.parentLogged = true
+
+		s.log.LogAttrs(
+			ctx,
+			slog.LevelWarn,
+			"state directory: its parent could not be flushed (permission): after a power loss the directory may be missing",
+			slog.String("path", s.dir),
+		)
+	}
+}
+
 func (s *Store) status() manifestreader.StateStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -355,7 +402,7 @@ func (s *Store) drain(ctx context.Context) {
 			return
 		}
 
-		res := s.write(job)
+		res := s.write(ctx, job)
 
 		s.mu.Lock()
 		s.writing = false

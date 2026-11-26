@@ -119,6 +119,17 @@ const (
 	RestoreDisabled = "disabled"
 )
 
+// States of the flush of the parent directories of a state directory that was created, in
+// [StateStatus.ParentSync]. The set is closed; the empty value is "nothing to report".
+const (
+	// ParentSyncSkipped: a parent could not be opened for the flush for lack of permission. The state directory is
+	// used all the same (it is a cache); after a power loss the directory entry itself may be missing, and the relay
+	// then starts as on a first run.
+	ParentSyncSkipped = "skipped"
+	// ParentSyncPending: a flush failed and is retried by the next write.
+	ParentSyncPending = "pending"
+)
+
 // StateStatus is what the persistence behind the hooks reports. A hook that is not installed reports the zero value.
 type StateStatus struct {
 	// LastSave is the time of the last write that ended, zero when none did.
@@ -127,6 +138,8 @@ type StateStatus struct {
 	Restore string
 	// LastSaveError is the closed code of the failure of the last write, empty when it worked.
 	LastSaveError string
+	// ParentSync is a ParentSync* constant, or empty.
+	ParentSync string
 	// DisabledReason is the closed code of the refusal of the state directory (with [RestoreDisabled]).
 	DisabledReason string
 	// Saves and SaveErrors count the writes that ended, and the ones that failed.

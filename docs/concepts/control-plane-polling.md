@@ -277,22 +277,33 @@ restored object is checked like a fetched one (the listed size, the object limit
   snapshot writes nothing. One changed object is two file writes (the object and the manifest).
 - Bounded disk use. `MaxBytes` (default 1 GiB, the default `maxTotalBytes`) bounds the objects, the manifest copy
   comes on top. The current objects come first, then the stale ones that still fit. When the current objects alone
-  do not fit, the stale ones are dropped first and the current ones are kept smallest first (ties by checksum), so
-  the largest number of contents comes back after a restart. Such a write is a partial save: it is counted as its
+  do not fit, the stale ones are dropped first and the current ones are kept in this order: the ones already on
+  disk first (a save never removes an object the snapshot still needs when the budget allows it), then the others,
+  each smallest first (ties by checksum), so the largest number of contents comes back after a restart. Such a write is a partial save: it is counted as its
   own result (`partial`), not as an error.
 - Polling never waits for the disk. `Save` only queues the snapshot; one background writer writes the latest one
   (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is
   reported in the status and the metrics, the next snapshot tries again, and polling goes on. The result of a
   write that ends after a round reaches `Status` one round late.
-- Self-healing. Before each write the store lists `objects/` and the directory and drops what it believed about files
-  that are gone, so a vanished object or manifest copy is written again even when the new state adds no checksum.
-  After any failed write, or when the whole directory vanishes while the relay runs, it forgets everything, opens the
-  directory again (a failed open is retried by the next write) and rebuilds the layout.
+- Self-healing. Before each write the store lists `objects/` and the directory and checks the type of every file it
+  trusts (a regular file): a vanished object or manifest copy, or a name that became a directory or a symbolic link,
+  is written again even when the new state adds no checksum, on a store that stays open as well as after a restart.
+  After ANY failed write the next write opens the directory again (a new lock, the symbolic links checked again)
+  and forgets what it believed about the disk, then rebuilds the layout and writes every object again. A reopen
+  that fails is retried by the next write. This is the safer rule: whatever the error was, nothing is trusted that
+  the failed write may have left half done.
 - A directory under the name of an object or of the manifest copy is replaced when it is empty. One with content is
-  never removed: the object is left out of the save (a partial save), and for the manifest copy the save fails with
-  reason `unsafe`.
+  never removed, and a symbolic link is replaced itself (a rename never follows it): the object is left out of the
+  save before the budget is applied, so it never takes the place of an object that could be kept; the save is
+  partial. For the manifest copy the save fails with reason `unsafe`.
 - A state directory that `Open` creates, with its parents, is made durable at once (the parent of each created
-  directory is flushed), so the first save survives a power loss.
+  directory is flushed), so the first save survives a power loss. A flush that fails (not for lack of permission)
+  is remembered: the path exists afterwards, but the next `Open` of it flushes what is left, until it works, and
+  fails with `ErrParentSync` meanwhile (`parent-sync` in the disabled status, `ParentSync = pending` while a save
+  waits for it). A parent that cannot be opened for the flush because of permissions (write and search, no read) is
+  skipped: the directory is a cache, so persistence stays on, the relay logs once at warn level with the path, and
+  `State.ParentSync` is `skipped`. After a power loss the directory entry itself may then be missing, and the relay
+  starts as on a first run.
 - `Flush` returns when the writer is done with a snapshot: written, failed or replaced. The failure is in the status.
 
 **The directory must be ours.** Nothing is ever written to, changed in or deleted from a directory that is not.
@@ -302,6 +313,7 @@ restored object is checked like a fetched one (the listed size, the object limit
 | `ErrUnsafe` | A symbolic link, a file, a world-writable directory, a directory the process cannot read, write or lock, a layout name that is a symbolic link, or a directory with no `VERSION` that holds anything other than our `LOCK` and `.tmp-<number>` files (a volume root with `lost+found`: use a subdirectory) | Nothing |
 | `ErrForeignVersion` | `VERSION` names another layout version | Nothing: not read, not written, not deleted |
 | `ErrLocked` | Another process or store holds the lock | Nothing |
+| `ErrParentSync` | The flush of a parent of a directory that was just created failed (an I/O error): it is retried by the next `Open` | The directory was created |
 
 - The owner of the directory does not matter: a Kubernetes `fsGroup` volume is owned by root and group-writable, and
   is accepted. A directory that is not world-writable and that the process can read, write and lock is accepted;
@@ -317,7 +329,7 @@ restored object is checked like a fetched one (the listed size, the object limit
 **Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
 `ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to
 start. The helper logs once at error level and returns hooks that only report the refusal: the status has
-`State.Restore = "disabled"` and `State.DisabledReason` (`unsafe`, `locked`, `foreign-version`, `error`), and the
+`State.Restore = "disabled"` and `State.DisabledReason` (`unsafe`, `locked`, `foreign-version`, `parent-sync`, `error`), and the
 restore metric shows `result="disabled"`.
 
 ## Metrics

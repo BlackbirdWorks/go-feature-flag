@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 func TestStore_RebuildsWhatVanishedWhileRunning(t *testing.T) {
@@ -217,4 +219,51 @@ func TestStore_ALostDirectoryIsOpenedAgainByALaterSave(t *testing.T) {
 	restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
 	require.NoError(t, err)
 	assertRestored(t, wantRestored{etag: etagB, manifest: manifestB, objects: []string{contentBeta}}, restored)
+}
+
+// TestStore_AnyFailedWriteMakesTheNextWriteOpenTheDirectoryAgain: after a failed write, whatever the error, the next
+// write opens the directory again (a new lock, the symbolic links checked again) before it trusts anything. A
+// successful write does not.
+func TestStore_AnyFailedWriteMakesTheNextWriteOpenTheDirectoryAgain(t *testing.T) {
+	t.Parallel()
+
+	probe := &faults{}
+	p := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedirConfig())
+	p.saveAndFlush(persistOf(etagB, manifestB, contentBeta))
+	p.close()
+
+	tests := []struct {
+		name      string
+		err       error
+		wantOpens []int32
+	}{
+		{name: "an I/O error", err: syscall.EIO, wantOpens: []int32{1, 2, 2}},
+		{name: "a full disk", err: syscall.ENOSPC, wantOpens: []int32{1, 2, 2}},
+		{name: "a permission error", err: fs.ErrPermission, wantOpens: []int32{1, 2, 2}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fault := &faults{failAt: stepOf(t, probe.ops, "create objects/", 1), err: tt.err}
+			fsys := &memFS{disk: newMemDisk(), faults: fault}
+			run := openStore(t, fsys, statedirConfig())
+
+			opens := make([]int32, 0, 3)
+
+			// the failing write, the write after it, and a write after a good one
+			for _, persist := range []manifestreader.Persist{
+				persistOf(etagB, manifestB, contentBeta), persistOf(etagB, manifestB, contentBeta),
+				persistOf(etagTwo, manifestTwo, contentBeta),
+			} {
+				run.saveAndFlush(persist)
+
+				opens = append(opens, fsys.opens.Load())
+			}
+
+			assert.Equal(t, tt.wantOpens, opens)
+			assert.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+		})
+	}
 }
