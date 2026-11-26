@@ -83,9 +83,11 @@ type Status struct {
 	Poll     PollStatus
 	Failures []ObjectFailure
 	// HookPanics lists the hooks that panicked (recovered), with counts; empty when none.
-	HookPanics  []HookPanic
-	Manifest    ManifestStatus
-	Counts      Counts
+	HookPanics []HookPanic
+	Manifest   ManifestStatus
+	Counts     Counts
+	// Cache is what the reader holds in memory: verified objects, by checksum.
+	Cache       CacheStatus
 	Polls       uint64
 	NotModified uint64
 }

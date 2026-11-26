@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -64,33 +65,47 @@ func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 
 	defer func() { _ = out.Body.Close() }()
 
-	size := req.Limit + 1 // one byte more than the limit tells an over-limit body from one at the limit
+	buf, err := readBody(out.Body, out.ContentLength, req.Limit)
+	if err != nil {
+		return Object{}, err
+	}
 
-	if out.ContentLength != nil {
-		if *out.ContentLength > req.Limit {
-			return Object{}, ErrTooLarge
+	return Object{Bytes: buf, ETag: aws.ToString(out.ETag)}, nil
+}
+
+// readBody reads the body into one buffer: of the Content-Length when the answer has one, else of the limit plus
+// one byte (which tells an over-limit body from one at the limit). It never reads more than that.
+func readBody(body io.Reader, contentLength *int64, limit int64) ([]byte, error) {
+	size := limit
+	if size < math.MaxInt64 {
+		size++
+	}
+
+	if contentLength != nil {
+		if *contentLength > limit {
+			return nil, ErrTooLarge
 		}
 
-		size = *out.ContentLength
+		size = *contentLength
 	}
 
 	buf := make([]byte, size)
 
-	read, err := io.ReadFull(out.Body, buf)
+	read, err := io.ReadFull(body, buf)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return Object{}, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+		return nil, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
 	}
 
-	if out.ContentLength != nil && int64(read) < size {
+	if contentLength != nil && int64(read) < size {
 		// the body ended before its Content-Length: a broken transfer
-		return Object{}, &FetchError{Err: io.ErrUnexpectedEOF, Reason: ReasonError, Retryable: true}
+		return nil, &FetchError{Err: io.ErrUnexpectedEOF, Reason: ReasonError, Retryable: true}
 	}
 
-	if int64(read) > req.Limit {
-		return Object{}, ErrTooLarge
+	if int64(read) > limit {
+		return nil, ErrTooLarge
 	}
 
-	return Object{Bytes: buf[:read], ETag: aws.ToString(out.ETag)}, nil
+	return buf[:read], nil
 }
 
 // classifyS3 maps an SDK error to the results of [ObjectStore]. The 304 comes first: the SDK reports it as an

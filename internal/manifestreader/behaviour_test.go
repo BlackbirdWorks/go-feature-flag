@@ -282,10 +282,12 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 	}
 
 	var (
-		mu      sync.Mutex
-		saved   []save
-		rounds  []string
-		restore = func() (*manifestreader.Restored, error) {
+		mu     sync.Mutex
+		saved  []save
+		rounds []string
+		// roundPolls is the poll count of the status at each OnRound call.
+		roundPolls []uint64
+		restore    = func() (*manifestreader.Restored, error) {
 			return &manifestreader.Restored{
 				ETag: etagOf(raw), Manifest: raw,
 				// gamma is corrupt: it is not found by its checksum
@@ -307,13 +309,14 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 			defer mu.Unlock()
 
 			rounds = append(rounds, status.Poll.Result)
+			roundPolls = append(roundPolls, status.Polls)
 		},
 	}
 
 	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
 
 	// the first poll sends the restored ETag (a 304) and only then is the object that was not restored fetched
-	assert.Equal(t, sortCalls([]call{manifestCall(etagOf(raw)), objCall(t, gamma)}), store.takeCalls())
+	assert.Equal(t, []call{manifestCall(etagOf(raw)), objCall(t, gamma)}, store.takeArrival(), "the manifest first")
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)
@@ -337,7 +340,8 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 		assert.Equal(t, raw, entry.persist.Manifest)
 	}
 
-	assert.Equal(t, []string{manifestreader.PollNone, manifestreader.PollNotModified}, rounds)
+	assert.Equal(t, []string{manifestreader.PollNotModified}, rounds, "the round hook runs for live polls only")
+	assert.Equal(t, []uint64{1}, roundPolls, "and it is first called after the first live poll ended")
 }
 
 func TestReader_RestoreThatFailsOrHasNothingStartsCold(t *testing.T) {

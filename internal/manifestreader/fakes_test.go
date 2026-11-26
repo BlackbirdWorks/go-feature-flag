@@ -33,9 +33,13 @@ type fakeStore struct {
 	// gate, when set, runs inside Get for every key other than the manifest, after the call is counted in flight.
 	gate func(ctx context.Context, key string)
 	// hang holds the keys whose Get blocks until its context ends; hung is told when one blocks.
-	hang        map[string]bool
-	hung        chan string
-	calls       []call
+	hang  map[string]bool
+	hung  chan string
+	calls []call
+	// sawManifest is set when the manifest was requested since the calls were taken; badOrder when an object was
+	// requested before that: a round always reads the manifest first.
+	sawManifest bool
+	badOrder    bool
 	inFlight    int
 	maxInFlight int
 	mu          sync.Mutex
@@ -57,6 +61,13 @@ func (f *fakeStore) Get(ctx context.Context, req manifestreader.GetRequest) (man
 
 	f.mu.Lock()
 	f.calls = append(f.calls, call{Key: key, ETag: etag, VersionID: req.VersionID})
+
+	if key == manifestKey {
+		f.sawManifest = true
+	} else if !f.sawManifest {
+		f.badOrder = true
+	}
+
 	f.inFlight++
 	f.maxInFlight = max(f.maxInFlight, f.inFlight)
 	gate := f.gate
@@ -135,16 +146,24 @@ func (f *fakeStore) failNext(key string, errs ...error) {
 	f.fails[key] = append(f.fails[key], errs...)
 }
 
-// takeCalls returns the calls since the last take, in a stable order: the manifest first, then the objects
-// by key (concurrent downloads have no order of their own).
-func (f *fakeStore) takeCalls() []call {
+// takeArrival returns the calls since the last take, in the order they arrived.
+func (f *fakeStore) takeArrival() []call {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	out := f.calls
 	f.calls = nil
+	f.sawManifest = false
 
-	return sortCalls(out)
+	return out
+}
+
+// takeCalls returns the calls since the last take with the objects in key order: concurrent downloads have no
+// order of their own. The order between the manifest and the objects is not sorted away: a request for an object
+// before the manifest sets badOrder, which the rig checks when it stops. Tests that assert the exact arrival
+// order use takeArrival.
+func (f *fakeStore) takeCalls() []call {
+	return sortCalls(f.takeArrival())
 }
 
 // sortCalls orders calls the way takeCalls does.
@@ -334,6 +353,14 @@ func (r *rig) stop() {
 		select {
 		case err := <-r.done:
 			require.NoError(r.t, err)
+
+			if r.store != nil {
+				r.store.mu.Lock()
+				bad := r.store.badOrder
+				r.store.mu.Unlock()
+
+				assert.False(r.t, bad, "an object was requested before the manifest of its round")
+			}
 		case <-time.After(wait):
 			assert.Fail(r.t, "Run did not return after the context ended")
 		}

@@ -31,15 +31,16 @@ Per replica and per control-plane connection:
 
 | Situation | Requests |
 |---|---|
-| Nothing changed (the normal case) | exactly 1 conditional GET of the manifest per poll interval, answered with `304 Not Modified` |
+| Nothing changed and no object failing (the normal case) | exactly 1 conditional GET of the manifest per poll interval, answered with `304 Not Modified`, and nothing else |
 | A new manifest that changes `K` objects | the manifest GET (200) plus `K` object GETs, once |
 | Two entries with the same checksum | fetched once |
-| An object that failed | 1 GET of that object per round until it succeeds, nothing else |
+| Objects that failed | every round: the manifest GET, plus 1 GET for each failing object until it succeeds (plus 1 more for each other entry that lists the same checksum, only when the first fails) |
 | Any situation | 0 LIST, 0 HEAD |
 
 "One request" means one logical conditional GET. When a GET fails (5xx, throttling, a dropped connection) the S3
 client retries it: those retries are extra attempts, and each attempt is counted once by the request metric. The
-steady-state budget (every round answered `304`, no failing object) is exactly one request per round.
+steady-state budget (every round answered `304`, no failing object) is exactly one request per round. With failing
+objects a round costs the manifest GET plus the object retries, and nothing else.
 
 The numbers do not depend on how many objects, flag sets or API keys the manifest lists. With 60 s polling a replica
 makes 1 440 requests a day; 200 replicas make 288 000. The manifest may list up to `maxObjects` entries (default
@@ -53,8 +54,9 @@ jitter is disabled or when restored state served a snapshot at once.
 ## A poll round
 
 1. Send the conditional GET of the manifest with the ETag of the last manifest read.
-2. `304`: nothing else happens (no download, no parsing, no snapshot). The only exception is an object that failed
-   earlier: it is fetched again (see below). Nothing that grows with the size of the manifest runs in such a round.
+2. `304`: when no object is failing, nothing else happens (no download, no parsing, no snapshot). Otherwise each
+   failing object is fetched again (see below), and a snapshot is published if one of them changed state. Nothing that
+   grows with the size of the manifest runs in such a round.
 3. `200`: decode and validate the manifest with the `controlplane` package. An invalid manifest is rejected whole.
 4. Apply the generation rules.
 5. Fetch the objects whose checksum is not held, at most 4 at a time (configurable, at most 16), verify each
@@ -99,7 +101,11 @@ The listed `size` is binding:
 A cached object is also checked against the size of each entry that uses it: an entry that lists another size than
 the content has fails with `size-mismatch`, and the others that share the checksum are not affected.
 
-A failure that needs no request is final until the manifest changes: it costs nothing in later rounds.
+The checks of one entry (`invalid-key`, `invalid-size`, `too-large`, `unknown-connection`) apply to that entry only,
+even when another entry lists the same checksum, or the content is already held: an entry that fails them is failed
+with its own reason and never takes the result of a sibling. Such a failure needs no request and is final until the
+manifest changes. When every route to a checksum fails, the failure is retryable if any route failed retryably, and
+its reason is the most actionable one: `denied`, then `checksum-mismatch`, `size-mismatch`, `missing`, then the rest.
 
 A failed object is tried again at the next round, and only that object: the verified ones are not fetched again. When it
 succeeds, a new snapshot of the **same generation** is published with the new state. A consumer must accept a state
@@ -137,7 +143,7 @@ failed round is simply tried again at the next interval.
 | Objects in a manifest | 20000 | The manifest is rejected whole above it |
 | Manifest size | 16 MiB | The download is refused without buffering above it |
 | Object size | 16 MiB, and the `size` the manifest lists | An entry above it is not requested; a body of another length fails |
-| Sum of the sizes of the distinct objects | 1 GiB | The manifest is rejected whole above it |
+| Sum of the sizes of the distinct objects | 1 GiB | The manifest is rejected whole above it. An entry above the object limit counts for nothing (it is not requested); each size is compared with the budget left, so the sum cannot overflow |
 | Request timeout | 60 s | Every request (manifest and each object) |
 | Concurrent object downloads | 4 | At most 16 |
 | Poll interval | 60 s, +/-10 % jitter | At least 1 s |
@@ -159,12 +165,14 @@ buffer sized from the listed size.
 - Snapshots go through a Go channel of size 1 with latest-wins delivery: a snapshot that was not consumed is replaced
   by a newer one, and the poller never waits for the consumer.
 - The status is an immutable value readable at any time: last poll result and reason, held generation, last sync, the
-  state counts and the failed objects (name, state, reason, no bytes), the counts of polls and `304` answers, and
+  state counts and the failed objects (name, state, reason, no bytes), the counts of polls and `304` answers, the verified objects held in memory (count and bytes), and
   the hooks that panicked.
 - Hooks (restore, save, round) run on the poller and must not block. Their arguments are read-only and shared with
   the reader: copy what you keep. The save hook always gets the manifest that was accepted, with its own ETag.
 - After a restart from saved state, the saved objects are served at once, nothing is fetched before the first poll of
 the live manifest, and an object that was not saved is `missing` with reason `not-restored` until it is fetched.
+Restoring is not a poll round: the round hook runs for live polls only. A saved manifest that is not accepted is
+dropped with its objects.
 The saved ETag is used only if the saved manifest is accepted. Otherwise the
   first poll is an unconditional GET.
 - Logs and the status carry object names and reason codes only: never object bytes, keys or error text of the store.

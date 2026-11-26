@@ -1,7 +1,9 @@
 // Package manifestreader polls the control-plane manifest and delivers verified objects.
 //
 // A [Reader] sends one conditional GET of the manifest per poll interval (If-None-Match with the ETag it
-// holds). A 304 answer costs nothing else: no object request, no parsing, no snapshot. A new manifest is
+// holds). While no object is failing, a 304 answer costs nothing else: no object request, no parsing, no snapshot.
+// While an object is failing, a round costs the manifest GET plus one GET for each failing object (and, only when
+// that fails, one more for each other entry that lists the same checksum). A new manifest is
 // decoded and validated with the controlplane package, the generation rules are applied, and only the objects
 // whose checksum is not already held are fetched, with a bounded number of concurrent requests. Every object
 // is verified with its sha256 checksum before it is served. The reader never lists a bucket and never asks
