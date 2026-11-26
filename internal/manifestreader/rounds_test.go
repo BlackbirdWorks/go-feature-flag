@@ -974,9 +974,13 @@ func TestReader_ConnectionChangeAtAnEqualGeneration(t *testing.T) {
 			publish(t, store, 1, threeObjects()...)
 
 			opts := []manifestreader.Option{}
+
 			if tt.known {
+				secondary := newFakeStore()
+				store.shareOrder(secondary)
+
 				opts = append(opts, manifestreader.WithObjectStores(map[string]manifestreader.ObjectStore{
-					connElsewhere: newFakeStore(),
+					connElsewhere: secondary,
 				}))
 			}
 
@@ -1238,4 +1242,33 @@ func TestReader_RejectedRestoreDropsTheSavedObjects(t *testing.T) {
 			assert.Equal(t, tt.wantCache, status.Cache)
 		})
 	}
+}
+
+func TestReader_AnEntryThatFailedItsOwnChecksPinsNoCachedBytes(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+	big := obj{name: "big", content: alpha.content} // the content of alpha, under a name whose size is too large
+
+	store := newFakeStore()
+	publish(t, store, 1, alpha, beta, gamma)
+
+	rdr := startRig(t, store, &manifestreader.Config{MaxObjectBytes: 20})
+	require.NotNil(t, rdr.snapshot())
+
+	assert.Equal(t, manifestreader.CacheStatus{Objects: 3, Bytes: 32}, rdr.reader.Status().Cache, "generation 1")
+
+	// generation 2: alpha is gone, and its content is only listed by an entry that is too large to be requested
+	held := manifestETag(store)
+	manifest := manifestOf(t, 2, big, beta, gamma)
+	manifest.Objects[0].Size = 30
+	putManifest(t, store, manifest)
+
+	assert.Equal(t, []call{manifestCall(held)}, rdr.round())
+
+	snap := rdr.snapshot()
+	require.NotNil(t, snap)
+	assert.Equal(t, manifestreader.ReasonTooLarge, snap.Objects["big"].Reason)
+	assert.Equal(t, manifestreader.CacheStatus{Objects: 2, Bytes: 21}, rdr.reader.Status().Cache,
+		"the bytes of alpha are not pinned by an entry that never serves them")
 }

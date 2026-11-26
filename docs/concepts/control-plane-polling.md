@@ -42,7 +42,7 @@ client retries it: those retries are extra attempts, and each attempt is counted
 steady-state budget (every round answered `304`, no failing object) is exactly one request per round. With failing
 objects a round costs the manifest GET plus the object retries, and nothing else.
 
-The numbers do not depend on how many objects, flag sets or API keys the manifest lists. With 60 s polling a replica
+The request numbers do not depend on how many objects, flag sets or API keys the manifest lists. With 60 s polling a replica
 makes 1 440 requests a day; 200 replicas make 288 000. The manifest may list up to `maxObjects` entries (default
 20000): a bigger manifest is rejected whole, one at the limit is accepted.
 
@@ -55,8 +55,9 @@ jitter is disabled or when restored state served a snapshot at once.
 
 1. Send the conditional GET of the manifest with the ETag of the last manifest read.
 2. `304`: when no object is failing, nothing else happens (no download, no parsing, no snapshot). Otherwise each
-   failing object is fetched again (see below), and a snapshot is published if one of them changed state. Nothing that
-   grows with the size of the manifest runs in such a round.
+   failing object is fetched again (see below). Nothing that grows with the size of the manifest runs in such a round
+   as long as no object changes state. A round in which an object recovers or fails in another way rebuilds the
+   snapshot and the status, which costs time and memory proportional to the size of the manifest.
 3. `200`: decode and validate the manifest with the `controlplane` package. An invalid manifest is rejected whole.
 4. Apply the generation rules.
 5. Fetch the objects whose checksum is not held, at most 4 at a time (configurable, at most 16), verify each
@@ -70,8 +71,8 @@ A failed object never blocks the others.
 |---|---|
 | Higher generation than the held one | accepted |
 | Lower generation | ignored and reported (`lower-generation`) |
-| Equal generation, same objects, checksums, kinds and formats | accepted, nothing to do (a rewrite of the same content; a changed `key`, `connection` or `createdAt` alone changes nothing) |
-| Equal generation, another object set, checksum, `kind` or `format` | rejected and reported (`generation-conflict`): a publisher bug |
+| Equal generation, same channel, objects, checksums, kinds and formats | accepted. A rewrite that changes only `createdAt`, a valid `key` or a known `connection` changes nothing and publishes no snapshot. The entry checks still apply to the new entry: an unknown `connection`, an invalid `key` or another `size` than the content fails that entry (`unknown-connection`, `invalid-key`, `size-mismatch`), which is then `stale` (or `missing`) and published as a state change |
+| Equal generation, another channel, object set, checksum, `kind` or `format` | rejected and reported (`generation-conflict`): a publisher bug |
 
 A rollback is a new, higher generation that references older objects.
 
@@ -112,11 +113,12 @@ succeeds, a new snapshot of the **same generation** is published with the new st
 change inside a generation.
 
 Verified bytes are cached by checksum, so two names with one checksum share one download and one copy. A cached
-copy is dropped when no entry of the current manifest and no stale name refers to it.
+copy is dropped when no name serves it (an `ok` name, or a `stale` one that carries it) and no retry for it is
+pending. An entry that failed one of its own checks pins nothing.
 
 When several entries list one checksum, the content is fetched through the first one. Only if that fails is the next
 entry tried (one more request per extra entry, only on failure). All names that share the checksum get the same
-result.
+fetched content; each entry still passes its own checks (below).
 
 ## What happens on each failure
 

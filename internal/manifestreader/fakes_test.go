@@ -27,19 +27,14 @@ type call struct {
 // fakeStore is an in-memory ObjectStore that records every call. The ETag of an object is derived from its
 // content, so an unchanged object answers a conditional call with ErrNotModified.
 type fakeStore struct {
-	objects map[string][]byte
-	etags   map[string]string
-	fails   map[string][]error
-	// gate, when set, runs inside Get for every key other than the manifest, after the call is counted in flight.
-	gate func(ctx context.Context, key string)
-	// hang holds the keys whose Get blocks until its context ends; hung is told when one blocks.
-	hang  map[string]bool
-	hung  chan string
-	calls []call
-	// sawManifest is set when the manifest was requested since the calls were taken; badOrder when an object was
-	// requested before that: a round always reads the manifest first.
-	sawManifest bool
-	badOrder    bool
+	objects     map[string][]byte
+	etags       map[string]string
+	fails       map[string][]error
+	gate        func(ctx context.Context, key string)
+	hang        map[string]bool
+	hung        chan string
+	order       *orderLog
+	calls       []call
 	inFlight    int
 	maxInFlight int
 	mu          sync.Mutex
@@ -47,7 +42,7 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		objects: map[string][]byte{}, etags: map[string]string{}, fails: map[string][]error{},
+		order: &orderLog{}, objects: map[string][]byte{}, etags: map[string]string{}, fails: map[string][]error{},
 		hang: map[string]bool{}, hung: make(chan string, 64),
 	}
 }
@@ -62,11 +57,7 @@ func (f *fakeStore) Get(ctx context.Context, req manifestreader.GetRequest) (man
 	f.mu.Lock()
 	f.calls = append(f.calls, call{Key: key, ETag: etag, VersionID: req.VersionID})
 
-	if key == manifestKey {
-		f.sawManifest = true
-	} else if !f.sawManifest {
-		f.badOrder = true
-	}
+	f.order.note(key)
 
 	f.inFlight++
 	f.maxInFlight = max(f.maxInFlight, f.inFlight)
@@ -153,7 +144,7 @@ func (f *fakeStore) takeArrival() []call {
 
 	out := f.calls
 	f.calls = nil
-	f.sawManifest = false
+	f.order.reset()
 
 	return out
 }
@@ -355,11 +346,7 @@ func (r *rig) stop() {
 			require.NoError(r.t, err)
 
 			if r.store != nil {
-				r.store.mu.Lock()
-				bad := r.store.badOrder
-				r.store.mu.Unlock()
-
-				assert.False(r.t, bad, "an object was requested before the manifest of its round")
+				assert.False(r.t, r.store.order.bad(), "an object was requested before the manifest of its round")
 			}
 		case <-time.After(wait):
 			assert.Fail(r.t, "Run did not return after the context ended")
@@ -381,3 +368,39 @@ func (f *fakeStore) callCount() int {
 
 	return len(f.calls)
 }
+
+// orderLog records, for all the stores that share it, whether an object was requested before the manifest of its
+// round: a round always reads the manifest first.
+type orderLog struct {
+	sawManifest bool
+	badOrder    bool
+	mu          sync.Mutex
+}
+
+func (o *orderLog) note(key string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if key == manifestKey {
+		o.sawManifest = true
+	} else if !o.sawManifest {
+		o.badOrder = true
+	}
+}
+
+func (o *orderLog) reset() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	o.sawManifest = false
+}
+
+func (o *orderLog) bad() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return o.badOrder
+}
+
+// shareOrder makes other record into the same arrival log as f: the order is checked across stores.
+func (f *fakeStore) shareOrder(other *fakeStore) { other.order = f.order }

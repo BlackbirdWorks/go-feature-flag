@@ -594,7 +594,8 @@ type result struct {
 
 // settle fetches the groups that have no verified content yet (the new ones, and the ones that failed in an
 // earlier round, each once), applies the results, and publishes a snapshot when the generation or the state of
-// a name changed. Nothing here walks the objects of the manifest unless something changed.
+// a name changed. Nothing here walks the objects of the manifest unless something changed; when something did,
+// the cost of rebuilding the snapshot and the status is proportional to the manifest.
 func (r *Reader) settle(ctx context.Context, genChanged, fetch bool) {
 	if len(r.groups) > 0 && !fetch {
 		// restoring: serve what was saved, poll the live manifest first, and fetch what is missing after it
@@ -687,16 +688,19 @@ func (r *Reader) applyFailName(name *nameState, res result) {
 	}
 }
 
-// prune drops the cached bytes that no entry of the held manifest and no stale name refers to.
+// prune drops the cached bytes that no name serves (an ok name, or a stale one that carries them) and that no
+// pending retry will need. An entry that failed one of its own checks pins nothing.
 func (r *Reader) prune() {
-	keep := make(map[string]struct{}, len(r.names))
+	keep := make(map[string]struct{}, len(r.names)+len(r.groups))
 
 	for _, name := range r.names {
-		keep[name.entry.Checksum.Value] = struct{}{}
-
 		if name.good != nil {
 			keep[name.good.sum.Value] = struct{}{}
 		}
+	}
+
+	for _, grp := range r.groups {
+		keep[grp.sum] = struct{}{}
 	}
 
 	r.cacheBytes = 0

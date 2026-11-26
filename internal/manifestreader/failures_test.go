@@ -273,6 +273,7 @@ func TestReader_UnknownConnection(t *testing.T) {
 
 	alpha, beta := threeObjects()[0], threeObjects()[1]
 	main, other := newFakeStore(), newFakeStore()
+	main.shareOrder(other)
 
 	manifest := manifestOf(t, 1, alpha, beta)
 	manifest.Objects[1].Connection = connElsewhere
