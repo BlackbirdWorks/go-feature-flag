@@ -113,6 +113,8 @@ const (
 	RestoreEmpty = "empty"
 	// RestoreFailed: the saved state could not be read at all (an unreadable directory).
 	RestoreFailed = "failed"
+	// RestoreDisabled: the state directory is not used (it was refused: see [StateStatus.DisabledReason]).
+	RestoreDisabled = "disabled"
 )
 
 // StateStatus is what the persistence behind the hooks reports. A hook that is not installed reports the zero value.
@@ -123,15 +125,22 @@ type StateStatus struct {
 	Restore string
 	// LastSaveError is the closed code of the failure of the last write, empty when it worked.
 	LastSaveError string
+	// DisabledReason is the closed code of the refusal of the state directory (with [RestoreDisabled]).
+	DisabledReason string
 	// Saves and SaveErrors count the writes that ended, and the ones that failed.
 	Saves      uint64
 	SaveErrors uint64
+	// PartialSaves counts the writes that kept only part of the objects because of the byte budget; they are
+	// not errors, and LastSavePartial tells that the last write was one.
+	PartialSaves uint64
 	// RestoredObjects and DiscardedObjects count the saved objects that were restored and the ones that were
 	// discarded as missing or corrupt.
 	RestoredObjects  int
 	DiscardedObjects int
 	// Enabled tells that a state hook is installed.
 	Enabled bool
+	// LastSavePartial tells that the last write kept only part of the objects (the byte budget).
+	LastSavePartial bool
 	// Pending tells that a write is queued or running.
 	Pending bool
 }

@@ -169,6 +169,18 @@ type Restored struct {
 	// Objects are the saved verified objects. The reader hashes them: a corrupted one is simply not found by
 	// its checksum and fetched again.
 	Objects [][]byte
+	// Stale lists the names that were served from earlier content when the state was saved: the reader gives
+	// each of them that content again (from Objects) as its last good one, so after the restart the name is
+	// stale with the same bytes, not missing.
+	Stale []StaleObject
+}
+
+// StaleObject is the entry a name was served from when it was stale: the content is in [Restored.Objects].
+type StaleObject struct {
+	Name     string
+	Kind     string
+	Format   string
+	Checksum controlplane.Checksum
 }
 
 // Persist is what a [Hooks.Save] call gets after a snapshot was published. Every field is read-only and

@@ -19,6 +19,14 @@ var (
 	ErrUnsafe = errors.New("statedir: directory is not safe to use")
 	// ErrNoDir is returned when [Config.Dir] is empty.
 	ErrNoDir = errors.New("statedir: no directory configured")
+	// ErrForeignVersion is returned when VERSION names another layout version: the directory belongs to another
+	// version of the software. Nothing is read from it, written to it or deleted from it.
+	ErrForeignVersion = errors.New("statedir: directory has another layout version")
+	// ErrNotRegular is what [Root.ReadFile] returns for a name that is not a regular file (a FIFO, a device, a
+	// directory, a symbolic link): such a file is discarded and never opened.
+	ErrNotRegular = errors.New("statedir: not a regular file")
+	// ErrFileTooLarge is what [Root.ReadFile] returns for a file above its limit: it is not read.
+	ErrFileTooLarge = errors.New("statedir: file above its limit")
 )
 
 // FS opens a state directory. [NewOSFS] is the real one; tests wrap it or replace it to inject failures.
@@ -33,8 +41,10 @@ type Root interface {
 	// Lock takes the exclusive lock of the directory without waiting; it returns [ErrLocked] when it is held.
 	// The lock is released by Close (and by the end of the process).
 	Lock() error
-	// ReadFile returns the content of a file; a missing file is [fs.ErrNotExist].
-	ReadFile(name string) ([]byte, error)
+	// ReadFile returns the content of a regular file of at most limit bytes. A missing file is [fs.ErrNotExist],
+	// a name that is not a regular file [ErrNotRegular], a larger file [ErrFileTooLarge]; none of them is opened
+	// past its type and size check, and the read itself is limited.
+	ReadFile(name string, limit int64) ([]byte, error)
 	// Lstat returns the information of a name without following a symlink.
 	Lstat(name string) (fs.FileInfo, error)
 	// Create creates a new file of mode 0600 for writing; it fails when the name exists.
@@ -61,19 +71,17 @@ type File interface {
 	Close() error
 }
 
-// osFS is the file system of the process, on [os.Root]: a name cannot escape the directory through a symlink.
-type osFS struct {
-	// owner reports whether the process may own the directory; the default checks the user id.
-	owner func(fs.FileInfo) bool
-}
+// OSFS is the file system of the process, on [os.Root]: a name cannot escape the directory through a symlink.
+// A directory is accepted when it is not a symbolic link, is not world-writable, and the process can read,
+// write and lock it. Its owner does not matter: a volume that Kubernetes mounts with fsGroup is owned by root and
+// group-writable. A directory that does not exist is created with mode 0700; an existing one keeps its mode.
+type OSFS struct{}
 
 // NewOSFS returns the real file system.
-func NewOSFS() FS { //nolint:ireturn // the FS seam is an interface by design: tests replace it
-	return osFS{owner: ownedByProcess}
-}
+func NewOSFS() OSFS { return OSFS{} }
 
 // Open implements [FS].
-func (o osFS) Open(dir string) (Root, error) { //nolint:ireturn // the FS seam is an interface by design
+func (OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the FS seam, which returns an interface
 	clean := filepath.Clean(dir)
 
 	info, err := os.Lstat(clean)
@@ -85,7 +93,7 @@ func (o osFS) Open(dir string) (Root, error) { //nolint:ireturn // the FS seam i
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("statedir: open directory: %w", err)
+		return nil, wrapPermission(fmt.Errorf("statedir: open directory: %w", err))
 	}
 
 	switch {
@@ -93,23 +101,25 @@ func (o osFS) Open(dir string) (Root, error) { //nolint:ireturn // the FS seam i
 		return nil, fmt.Errorf("%w: it is a symbolic link", ErrUnsafe)
 	case !info.IsDir():
 		return nil, fmt.Errorf("%w: it is not a directory", ErrUnsafe)
-	case o.owner != nil && !o.owner(info):
-		return nil, fmt.Errorf("%w: it belongs to another user", ErrUnsafe)
-	}
-
-	if info.Mode().Perm()&0o077 != 0 {
-		chmodErr := os.Chmod(clean, dirMode)
-		if chmodErr != nil {
-			return nil, fmt.Errorf("%w: its mode cannot be made private: %w", ErrUnsafe, chmodErr)
-		}
+	case info.Mode().Perm()&0o002 != 0:
+		return nil, fmt.Errorf("%w: it is writable by everybody", ErrUnsafe)
 	}
 
 	root, err := os.OpenRoot(clean)
 	if err != nil {
-		return nil, fmt.Errorf("statedir: open directory: %w", err)
+		return nil, wrapPermission(fmt.Errorf("statedir: open directory: %w", err))
 	}
 
 	return &osRoot{root: root}, nil
+}
+
+// wrapPermission makes a refusal of the system a [ErrUnsafe]: a directory the process cannot use is not safe to use.
+func wrapPermission(err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return fmt.Errorf("%w: %w", ErrUnsafe, err)
+	}
+
+	return err
 }
 
 const (
@@ -129,7 +139,7 @@ func (r *osRoot) Lock() error {
 
 	file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, fileMode)
 	if err != nil {
-		return fmt.Errorf("statedir: open lock file: %w", err)
+		return wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
 	}
 
 	err = lockFileExclusive(file)
@@ -144,10 +154,33 @@ func (r *osRoot) Lock() error {
 	return nil
 }
 
-func (r *osRoot) ReadFile(name string) ([]byte, error) {
-	data, err := r.root.ReadFile(name)
+func (r *osRoot) ReadFile(name string, limit int64) ([]byte, error) {
+	info, err := r.root.Lstat(name)
+	if err != nil {
+		return nil, fmt.Errorf("statedir: stat %s: %w", name, err)
+	}
+
+	switch {
+	case !info.Mode().IsRegular():
+		return nil, fmt.Errorf("%w: %s", ErrNotRegular, name)
+	case info.Size() > limit:
+		return nil, fmt.Errorf("%w: %s", ErrFileTooLarge, name)
+	}
+
+	file, err := r.root.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("statedir: open %s: %w", name, err)
+	}
+
+	defer func() { _ = file.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("statedir: read %s: %w", name, err)
+	}
+
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w: %s", ErrFileTooLarge, name)
 	}
 
 	return data, nil

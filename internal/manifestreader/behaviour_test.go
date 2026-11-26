@@ -318,8 +318,14 @@ func TestReader_HooksRestoreSaveAndRound(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	require.Len(t, saved, 1, "the restored state, completed with the one object that was not restored")
-	assert.Equal(t, snap, saved[0].Snapshot)
+	require.Len(t, saved, 2, "the restored state first, then completed with the one object that was not restored")
+
+	gammaEntry := entryOf(t, gamma)
+	assert.Equal(t, manifestreader.ObjectState{
+		Kind: gammaEntry.Kind, Format: gammaEntry.Format, Checksum: gammaEntry.Checksum,
+		State: manifestreader.StateMissing, Reason: manifestreader.ReasonPending,
+	}, saved[0].Snapshot.Objects[nameGamma], "the restored snapshot is published before any request")
+	assert.Equal(t, snap, saved[1].Snapshot)
 
 	for _, p := range saved {
 		assert.Equal(t, etagOf(raw), p.ETag)

@@ -76,7 +76,7 @@ Each object of a snapshot has a state:
 | `missing` | Fetching or verifying failed and no content of this name was ever loaded: no bytes |
 
 Every failed object has a reason: `missing` (404), `checksum-mismatch`, `size-mismatch`, `invalid-size`, `too-large`,
-`denied`, `timeout`, `error`, `unknown-connection`.
+`denied`, `timeout`, `error`, `unknown-connection`, `pending` (restored from the state directory, not fetched yet).
 
 The listed `size` is binding:
 
@@ -196,6 +196,11 @@ manifest do not send their object requests in the same instant. It costs no requ
 - No delay on a cold start with no content: nothing is served yet, so the first manifest is fetched at once.
 - No delay for the retry of a failed object in the same generation.
 - `DisableFetchSpread` turns it off.
+- Phase shift: the delay is inside the round, and the wait to the next round starts after the round ends, so a
+  replica that waited `d` polls `d` later from then on (up to 5 s). The shift is permanent and different for every
+  replica, which is the point: replicas drift apart instead of polling together. It does not change the number of
+  requests.
+- The delay is counted in the virtual time of the object schedule like any other wait.
 
 ## State directory
 
@@ -208,46 +213,84 @@ the reader through the `Hooks` (`Restore`, `Save`, `StateStatus`): the reader do
 |---|---|
 | Restart, nothing changed | 1 conditional GET (`If-None-Match` with the ETag of the accepted manifest), answered `304`; 0 object GETs; the snapshot is served before that request |
 | Restart, store unreachable | The failed poll only; the saved content is served at once |
-| An object file is missing or corrupt | One GET for that object, nothing else |
-| The manifest copy is missing or corrupt, another layout version, empty or unreadable directory | A cold start: the manifest and the objects |
+| An object file is missing or corrupt | One GET for that object, in the first round, after the restored snapshot was published (the object is `missing` with reason `pending` until then) |
+| The manifest copy is missing or corrupt, empty directory | A cold start: the manifest and the objects |
+| The directory is refused (see below) | A cold start; nothing is read from or written to the directory |
 
-**Layout** (version 1; directory mode `0700`, files `0600`)
+The restored snapshot is published before any request: verified objects are `ok`, objects that are not there are
+`missing` (reason `pending`), and a name that was served stale when the state was saved is `stale` again with the
+bytes it was served with. When the store is back the first round fetches what is missing, and the name is `ok`. A
+restored object passes the same checks as a fetched one (the listed size, the object limit); one that does not is
+fetched again.
+
+**Layout** (version 1; the directory is created with mode `0700`, files are `0600`)
 
 ```text
 <stateDir>/
-  VERSION            the layout version; another version is treated as empty
+  VERSION            "semaphore-manifest-state 1": marks the directory as ours
   LOCK               exclusive advisory lock (flock)
-  manifest.json      the ETag, the manifest, the checksums of its objects and a digest of all of it
+  manifest.json      the ETag, the manifest, the checksum and size of each object, the stale names, and a digest of all of it
   objects/<sha256>   one file per distinct content, named by its checksum
 ```
 
 **Guarantees**
 
 - Crash safe. A write goes to a temporary file in the same directory, is fsynced, renamed over its name, and the
-  directory is fsynced. Objects are written first and the manifest last, so a manifest on disk never names an object
-  that was not durable. Files that nothing names any more are removed after the new manifest is durable. A crash at any
-  step leaves the old state or the new one, never a mix.
-- Nothing unverified is served. On load the manifest copy must match its digest and every object its sha256. A file
-  that fails is ignored on its own: a bad object costs one GET, a bad manifest copy a cold start. A torn or corrupt
-  file never crashes the reader.
+  directory is fsynced. The order is: object files, fsync of `objects/`, the manifest (temporary file, fsync,
+  rename), fsync of the directory, and only then the garbage collection. A manifest on disk never names an object
+  that was not durable. A crash or a power loss at any step leaves the old state or the new one, never a mix: the
+  tests cut the power after every file operation against a model that drops whatever was not fsynced.
+- Nothing unverified is served. On load the manifest copy must match its digest and every object its sha256 and
+  its recorded size. A file that fails is ignored on its own: a bad object costs one GET, a bad manifest copy a
+  cold start.
+- Reads are bounded. A name that is not a regular file (a FIFO, a device, a directory, a symbolic link) is never
+  opened. A manifest copy above `MaxManifestBytes` (with the base64 allowance), an object above its recorded size
+  or `MaxObjectBytes`, and lists above `MaxObjects` are discarded without being read.
 - Cost proportional to the change: an object that is already on disk is not written again, and an unchanged
   snapshot writes nothing. One changed object is two file writes (the object and the manifest).
-- Bounded disk use: `MaxBytes` (default 1 GiB, the default `maxTotalBytes`) for the objects: the current ones first,
-  then stale ones that still fit, plus the manifest copy. Current objects that do not fit are reported as
-  `too-large`.
+- Bounded disk use. `MaxBytes` (default 1 GiB, the default `maxTotalBytes`) bounds the objects, the manifest copy
+  comes on top. The current objects come first, then the stale ones that still fit. When the current objects alone
+  do not fit, the stale ones are dropped first and the current ones are kept smallest first (ties by checksum), so
+  the largest number of contents comes back after a restart. Such a write is a partial save: it is counted as its
+  own result (`partial`), not as an error.
 - Polling never waits for the disk. `Save` only queues the snapshot; one background writer writes the latest one
-  (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is reported
-  in the status and the metrics, the next snapshot tries again, and polling goes on.
-- The directory has one owner. It is refused when it is a symbolic link, a file, owned by another user, or has a
-  symbolic link for one of the names of the layout; a loose mode is tightened to `0700`. Names cannot leave the
-  directory (the directory is opened with `os.Root`).
-- Two processes on one directory by mistake: the second one fails to open it (`ErrLocked`). Where the system has no `flock`, the layout is last-writer-wins: every file is complete or
-  absent and everything read back is verified, so the worst case is one object fetched again.
+  (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is
+  reported in the status and the metrics, the next snapshot tries again, and polling goes on. The result of a
+  write that ends after a round reaches `Status` one round late.
+- Self-healing. After any failed write, or when `objects/` or the whole directory vanishes while the relay runs, the
+  store forgets what it believed about the disk and the next write rebuilds the layout and writes every object again.
+
+**The directory must be ours.** Nothing is ever written to, changed in or deleted from a directory that is not.
+
+| Sentinel | Meaning | What was done to the directory |
+|---|---|---|
+| `ErrUnsafe` | A symbolic link, a file, a world-writable directory, a directory the process cannot read, write or lock, a layout name that is a symbolic link, or a directory with no `VERSION` that holds anything other than our `LOCK` and `.tmp-<number>` files (a volume root with `lost+found`: use a subdirectory) | Nothing |
+| `ErrForeignVersion` | `VERSION` names another layout version | Nothing: not read, not written, not deleted |
+| `ErrLocked` | Another process or store holds the lock | Nothing |
+
+- The owner of the directory does not matter: a Kubernetes `fsGroup` volume is owned by root and group-writable, and
+  is accepted. A directory that is not world-writable and that the process can read, write and lock is accepted;
+  its mode is never changed. A directory that does not exist is created with mode `0700`.
+- Garbage collection removes only names this package writes (a checksum in lower case hex, `.tmp-<number>`), under a
+  `VERSION` it wrote or recognised.
+- Two processes on one directory by mistake: the second fails with `ErrLocked`. Where the system has no `flock`
+  (not unix) there is no lock: two writers can delete each other's objects (each one's garbage collection removes
+  the other's new object before its manifest is renamed). Nothing is corrupted, because every file is complete or
+  absent and everything read back is verified, but the restore is then partial and the missing objects are
+  fetched again.
+
+**Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
+`ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to
+start. The helper logs once at error level and returns hooks that only report the refusal: the status has
+`State.Restore = "disabled"` and `State.DisabledReason` (`unsafe`, `locked`, `foreign-version`, `error`), and the
+restore metric shows `result="disabled"`.
 
 ## Metrics
 
-All series carry the `connection` label. The collector reads the reader status at scrape time. No series has a
-per-object or per-flag label, so the number of series does not grow with the manifest.
+All series carry the `connection` label (a constant label, so several connections register on one registry). The
+collector reads the reader status at scrape time. There is deliberately no per-object or per-flag series: the
+number of series would grow with the manifest (up to 20000 objects) and with every flag. Per-object detail
+(name, state, reason, checksum) is in the status. Series by closed sets (state, result) are the only ones.
 
 | Series | Type | Labels | Meaning |
 |---|---|---|---|
@@ -259,8 +302,8 @@ per-object or per-flag label, so the number of series does not grow with the man
 | `semaphore_manifest_backoff_failures` | gauge | | Consecutive failed polls |
 | `semaphore_manifest_backoff_wait_seconds` | gauge | | Wait planned before the next poll |
 | `semaphore_manifest_backoff_objects_waiting` | gauge | | Failed objects waiting for their retry |
-| `semaphore_manifest_state_saves_total` | counter | `result`: `ok`, `error` | Writes of the state directory (only with one) |
-| `semaphore_manifest_state_restore_total` | counter | `result`: `restored`, `partial`, `empty`, `failed` | Restore at start (only with a state directory) |
+| `semaphore_manifest_state_saves_total` | counter | `result`: `ok`, `partial`, `error` | Writes of the state directory (only with one); `partial` is a write that kept only part of the objects (byte budget) |
+| `semaphore_manifest_state_restore_total` | counter | `result`: `restored`, `partial`, `empty`, `failed`, `disabled` | Restore at start (with a state directory, or `disabled` when it was refused) |
 
 They are not registered by `NewMetrics`: the relay registers them when it runs the reader, so the output of the
 running relay does not change before that.
@@ -290,7 +333,9 @@ running relay does not change before that.
 - `operation`: `get`, `list`, `head`, `put`, `delete` or `other`
 - `result`: `ok`, `not_modified`, `not_found`, `throttled`, `client_error`, `redirect`, `server_error` or `error`
 
-A request retried after a `503` counts twice. A `304` is `not_modified`, never an error. The only labels are the
+A request retried after a `503` counts twice: one poll of the reader, two requests on the wire, two observations and
+two counts (a test with the retries of the SDK on checks it). The counter is fed by the same observer, so the
+independent count is the wire (a counting `RoundTripper` under the SDK) in the tests. A `304` is `not_modified`, never an error. The only labels are the
 connection name and the two closed sets: there is no per-flag or per-object series. With the manifest reader the
 steady state is one `get`/`not_modified` per interval per connection.
 

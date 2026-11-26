@@ -26,6 +26,7 @@ const (
 	contentAlpha  = "alpha"
 	contentBeta   = "beta"
 	contentShared = "shared"
+	contentAAAA   = "aaaa"
 )
 
 // wait bounds every wait of a test: a missing event fails the test instead of hanging it.

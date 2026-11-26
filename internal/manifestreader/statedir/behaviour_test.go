@@ -1,9 +1,11 @@
 package statedir_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -116,25 +118,29 @@ func TestStore_ByteBudget(t *testing.T) {
 	const budget = 8
 
 	tests := []struct {
-		name          string
-		wantReason    string
-		persist       manifestreader.Persist
-		wantObjectsIn int
+		persist     manifestreader.Persist
+		name        string
+		wantObjects []string
+		wantPartial bool
 	}{
 		{
-			name: "current objects that fit are all saved", persist: persistOf(etagOne, "m", "aaaa", "bbbb"),
-			wantObjectsIn: 2,
+			name: "current objects that fit are all saved", persist: persistOf(etagOne, "m", contentAAAA, "bbbb"),
+			wantObjects: []string{contentAAAA, "bbbb"},
 		},
 		{
-			name:          "a current object that does not fit is reported, the others are saved",
-			persist:       persistOf(etagOne, "m", "aaaa", "bbbb", "cccc"),
-			wantReason:    statedir.ReasonTooLarge,
-			wantObjectsIn: 2,
+			name:        "over the budget the current objects are kept smallest first: two names come back, not one",
+			persist:     persistOf(etagOne, "m", contentAAAA, "bb", "cccccc"),
+			wantObjects: []string{contentAAAA, "bb"}, wantPartial: true,
 		},
 		{
-			name:          "stale content takes what is left, and no more",
-			persist:       withStale(persistOf(etagOne, "m", "aaaa"), "bbbb", "cccc"),
-			wantObjectsIn: 2,
+			name:        "over the budget the stale content is dropped first",
+			persist:     withStale(persistOf(etagOne, "m", contentAAAA, "bbbb", "cccc"), "dd"),
+			wantObjects: []string{contentAAAA, "bbbb"}, wantPartial: true,
+		},
+		{
+			name:        "stale content takes what is left, and no more, and that is not a partial save",
+			persist:     withStale(persistOf(etagOne, "m", contentAAAA), "bbbb", "cccc"),
+			wantObjects: []string{contentAAAA, sumOrderedFirst("bbbb", "cccc")},
 		},
 	}
 
@@ -146,21 +152,31 @@ func TestStore_ByteBudget(t *testing.T) {
 			run := openStore(t, fsys, statedir.Config{MaxBytes: budget})
 			run.saveAndFlush(tt.persist)
 
-			assert.Equal(t, tt.wantReason, run.store.Hooks().StateStatus().LastSaveError)
+			status := run.store.Hooks().StateStatus()
+			assert.Empty(t, status.LastSaveError, "a partial save is not an error")
+			assert.Equal(t, tt.wantPartial, status.LastSavePartial)
+			assert.Equal(t, uint64(1), status.Saves)
+			assert.Zero(t, status.SaveErrors)
+
+			wantPartials := uint64(0)
+			if tt.wantPartial {
+				wantPartials = 1
+			}
+
+			assert.Equal(t, wantPartials, status.PartialSaves)
 			run.close()
 
 			restored, _, err := restoreOf(t, fsys)
 			require.NoError(t, err)
-			assert.Len(t, restored.Objects, tt.wantObjectsIn)
-
-			total := 0
-			for _, content := range restored.Objects {
-				total += len(content)
-			}
-
-			assert.LessOrEqual(t, total, budget, "the objects on disk stay in the budget")
+			assertRestored(t, wantRestored{etag: etagOne, manifest: "m", objects: tt.wantObjects}, restored)
 		})
 	}
+}
+
+// sumOrderedFirst is the one of the contents whose checksum sorts first: the stale object that is kept when only one
+// fits.
+func sumOrderedFirst(contents ...string) string {
+	return slices.MinFunc(contents, func(a, b string) int { return cmp.Compare(sumOf(a), sumOf(b)) })
 }
 
 func TestStore_SaveNeverWaitsForTheDisk(t *testing.T) {

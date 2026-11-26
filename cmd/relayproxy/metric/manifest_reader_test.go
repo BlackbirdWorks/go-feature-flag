@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	gaugeKind   = "gauge"
-	counterKind = "counter"
+	stableChannel = "stable"
+	gaugeKind     = "gauge"
+	counterKind   = "counter"
 
 	generationName = "semaphore_manifest_generation"
 	lastSyncName   = "semaphore_manifest_last_sync_timestamp_seconds"
@@ -33,8 +34,9 @@ const (
 	objectsHelp  = "Objects of the held manifest by state (ok, stale, missing)."
 	failuresHelp = "Objects of the held manifest that are not ok (stale or missing); " +
 		"names and reasons are in the status."
-	savesHelp   = "Writes of the state directory by result (ok, error); a failed write never stops polling."
-	restoreHelp = "Restore of the state directory at start by result (restored, partial, empty, failed)."
+	savesHelp = "Writes of the state directory by result (ok, partial, error); a failed write never stops polling. " +
+		"partial is a write that kept only part of the objects because of the byte budget."
+	restoreHelp = "Restore of the state directory at start by result (restored, partial, empty, failed, disabled)."
 )
 
 // family is the text of one metric family as the exposition format prints it, for the series of the control
@@ -75,7 +77,7 @@ func TestManifestReader_Collect(t *testing.T) {
 			status: manifestreader.Status{
 				LastSync: synced,
 				Manifest: manifestreader.ManifestStatus{
-					Outcome: manifestreader.OutcomeAccepted, Channel: "stable", Generation: 7,
+					Outcome: manifestreader.OutcomeAccepted, Channel: stableChannel, Generation: 7,
 				},
 				PollResults: []manifestreader.PollCount{
 					{Result: manifestreader.PollError, Count: 2},
@@ -130,10 +132,33 @@ func TestManifestReader_Collect(t *testing.T) {
 			}},
 			names: []string{savesName, restoreName},
 			want: family(restoreName, restoreHelp, counterKind,
+				`{connection="control",result="disabled"} 0`,
 				`{connection="control",result="empty"} 0`, `{connection="control",result="failed"} 0`,
 				`{connection="control",result="partial"} 1`, `{connection="control",result="restored"} 0`) +
 				family(savesName, savesHelp, counterKind,
-					`{connection="control",result="error"} 2`, `{connection="control",result="ok"} 3`),
+					`{connection="control",result="error"} 2`, `{connection="control",result="ok"} 3`,
+					`{connection="control",result="partial"} 0`),
+		},
+		{
+			name: "partial saves are their own result, not errors",
+			status: manifestreader.Status{State: manifestreader.StateStatus{
+				Enabled: true, Saves: 6, SaveErrors: 1, PartialSaves: 2, Restore: manifestreader.RestoreRestored,
+			}},
+			names: []string{savesName},
+			want: family(savesName, savesHelp, counterKind,
+				`{connection="control",result="error"} 1`, `{connection="control",result="ok"} 3`,
+				`{connection="control",result="partial"} 2`),
+		},
+		{
+			name: "a refused state directory shows in the restore metric and has no writes",
+			status: manifestreader.Status{State: manifestreader.StateStatus{
+				Restore: manifestreader.RestoreDisabled, DisabledReason: "locked",
+			}},
+			names: []string{savesName, restoreName},
+			want: family(restoreName, restoreHelp, counterKind,
+				`{connection="control",result="disabled"} 1`,
+				`{connection="control",result="empty"} 0`, `{connection="control",result="failed"} 0`,
+				`{connection="control",result="partial"} 0`, `{connection="control",result="restored"} 0`),
 		},
 		{
 			name:   "no state directory: no state series",
@@ -183,7 +208,7 @@ func TestManifestReader_SeriesAreClosedAndFollowTheStatus(t *testing.T) {
 
 	status = manifestreader.Status{
 		Failures: failures, Counts: manifestreader.Counts{Missing: len(failures)},
-		Manifest: manifestreader.ManifestStatus{Channel: "stable", Generation: 1},
+		Manifest: manifestreader.ManifestStatus{Channel: stableChannel, Generation: 1},
 	}
 
 	assert.Equal(
@@ -219,4 +244,37 @@ func TestNewMetrics_DoesNotExposeManifestReader(t *testing.T) {
 	for _, one := range families {
 		assert.False(t, strings.HasPrefix(one.GetName(), "semaphore_manifest_"), one.GetName())
 	}
+}
+
+func TestManifestReader_TwoConnectionsShareARegistry(t *testing.T) {
+	t.Parallel()
+
+	reg := prom.NewRegistry()
+	control := manifestreader.Status{
+		Manifest: manifestreader.ManifestStatus{Channel: stableChannel, Generation: 7},
+		Backoff:  manifestreader.BackoffStatus{Failures: 2},
+	}
+	other := manifestreader.Status{Manifest: manifestreader.ManifestStatus{Channel: "beta", Generation: 3}}
+
+	_, err := metric.NewManifestReader(reg, connControl, func() manifestreader.Status { return control })
+	require.NoError(t, err)
+
+	_, err = metric.NewManifestReader(reg, "other", func() manifestreader.Status { return other })
+	require.NoError(t, err, "a second connection registers on the same registry")
+
+	want := family(generationName, generationHelp, gaugeKind,
+		`{channel="beta",connection="other"} 3`, `{channel="stable",connection="control"} 7`)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(want), generationName))
+
+	wantBackoff := family(
+		"semaphore_manifest_backoff_failures",
+		"Consecutive failed manifest polls; 0 after a success.",
+		gaugeKind,
+		`{connection="control"} 2`,
+		`{connection="other"} 0`,
+	)
+	assert.NoError(
+		t,
+		testutil.GatherAndCompare(reg, strings.NewReader(wantBackoff), "semaphore_manifest_backoff_failures"),
+	)
 }

@@ -4,34 +4,57 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"strings"
 )
 
-// envelope is the content of manifest.json: the accepted manifest with its ETag, the checksums of the objects
-// saved with it, and a digest of all of that. A flipped or missing byte anywhere makes the digest fail and the
-// file is ignored.
+// envelope is the content of manifest.json: the accepted manifest with its ETag, the objects saved with it (checksum
+// and size), the names that were served stale (and the content each of them is served from), and a digest of all
+// of that. A flipped or missing byte anywhere makes the digest fail and the file is ignored.
 type envelope struct {
-	ETag     string   `json:"etag"`
-	Digest   string   `json:"digest"`
-	Objects  []string `json:"objects"`
-	Manifest []byte   `json:"manifest"`
-	Version  int      `json:"version"`
+	ETag     string      `json:"etag"`
+	Digest   string      `json:"digest"`
+	Objects  []objectRef `json:"objects"`
+	Stale    []staleRef  `json:"stale,omitempty"`
+	Manifest []byte      `json:"manifest"`
+	Version  int         `json:"version"`
+}
+
+// objectRef names an object file and the size it must have.
+type objectRef struct {
+	Sum  string `json:"sum"`
+	Size int64  `json:"size"`
+}
+
+// staleRef is a name that was served from earlier content: the entry (kind, format, checksum) of that content.
+type staleRef struct {
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	Format    string `json:"format"`
+	Algorithm string `json:"algorithm"`
+	Sum       string `json:"sum"`
 }
 
 // digestOf is the sha256 over the length-prefixed parts, so no part can shift into another.
-func digestOf(etag string, manifest []byte, sums []string) string {
+func digestOf(etag string, manifest []byte, objects []objectRef, stale []staleRef) string {
 	hash := sha256.New()
 
-	write := func(part []byte) {
+	write := func(part string) {
 		_, _ = hash.Write([]byte(strconv.Itoa(len(part))))
 		_, _ = hash.Write([]byte{':'})
-		_, _ = hash.Write(part)
+		_, _ = hash.Write([]byte(part))
 	}
 
-	write([]byte(etag))
-	write(manifest)
+	write(etag)
+	write(string(manifest))
 
-	for _, sum := range sums {
-		write([]byte(sum))
+	for _, ref := range objects {
+		write(ref.Sum + ":" + strconv.FormatInt(ref.Size, 10))
+	}
+
+	write("stale")
+
+	for _, ref := range stale {
+		write(strings.Join([]string{ref.Name, ref.Kind, ref.Format, ref.Algorithm, ref.Sum}, "\x00"))
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))
@@ -45,6 +68,22 @@ func isSum(name string) bool {
 
 	for _, char := range name {
 		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isOurTmp reports whether name is a temporary file of this package: ".tmp-" and a number.
+func isOurTmp(name string) bool {
+	number, ok := strings.CutPrefix(name, tmpPrefix)
+	if !ok || number == "" {
+		return false
+	}
+
+	for _, char := range number {
+		if char < '0' || char > '9' {
 			return false
 		}
 	}

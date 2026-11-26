@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -33,6 +34,8 @@ type switchWire struct {
 	seen []wireRequest
 	mu   sync.Mutex
 	down atomic.Bool
+	// serverErrors is the number of requests that are answered 503 before the emulator is asked again.
+	serverErrors atomic.Int32
 }
 
 func (w *switchWire) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -42,6 +45,15 @@ func (w *switchWire) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	if w.down.Load() {
 		return nil, errRefused
+	}
+
+	if w.serverErrors.Add(-1) >= 0 {
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable, Status: "503 Service Unavailable", Request: req,
+			Header: http.Header{"Content-Type": []string{"application/xml"}},
+			Body: io.NopCloser(strings.NewReader(
+				"<Error><Code>ServiceUnavailable</Code><Message>try again</Message></Error>")),
+		}, nil
 	}
 
 	return http.DefaultTransport.RoundTrip(req)
@@ -124,6 +136,15 @@ func newStateRig(
 ) *stateRig {
 	t.Helper()
 
+	return newStateRigWithRetry(t, srv, endpoint, bucket, dir, jitter, connection.Retry{MaxAttempts: 1})
+}
+
+// newStateRigWithRetry is newStateRig with the retry settings of the connection.
+func newStateRigWithRetry(
+	t *testing.T, srv *gopherstack.Server, endpoint, bucket, dir string, jitter float64, retry connection.Retry,
+) *stateRig {
+	t.Helper()
+
 	wire, obs, reg := &switchWire{}, &observed{}, prom.NewRegistry()
 
 	s3Requests, err := metric.NewS3Requests(reg)
@@ -137,7 +158,7 @@ func newStateRig(
 	)
 	require.NoError(t, fac.Set(connControl, &connection.S3Spec{
 		Endpoint: endpoint, Region: gopherstack.Region, Bucket: bucket, PathStyle: true,
-		Retry: connection.Retry{MaxAttempts: 1},
+		Retry: retry,
 		Credentials: connection.Credentials{
 			Type: connection.CredentialsStatic, AccessKeyID: connection.NewSecret(gopherstack.AccessKey),
 			SecretAccessKey: connection.NewSecret(gopherstack.SecretKey),
@@ -155,8 +176,10 @@ func newStateRig(
 }
 
 // agreeNow asserts that the three counts name the same requests since the last call: wantRequests in all, with
-// the given results.
-func (s *stateRig) agreeNow(t *testing.T, wantRequests int, wantResults map[string]float64) {
+// the given results. The wire count (a RoundTripper under the SDK) is the independent one: the Prometheus counter is
+// fed by the observer of the connection factory, so those two agree by construction, and the check on the counter
+// proves the plumbing (the names and the results), not a second count.
+func (s *stateRig) agreeNow(t *testing.T, wantRequests int, wantResults map[string]float64) []observation {
 	t.Helper()
 
 	wire, obs, totals := s.counters.take(t)
@@ -182,6 +205,8 @@ func (s *stateRig) agreeNow(t *testing.T, wantRequests int, wantResults map[stri
 	}
 
 	s.prom = totals
+
+	return obs
 }
 
 func publishObjects(t *testing.T, srv *gopherstack.Server, bucket string, gen uint64, objs ...obj) {
@@ -393,4 +418,38 @@ func TestE2E_OutageThenRecoveryResetsTheBackoff(t *testing.T) {
 
 	rdr.round()
 	assert.Equal(t, sec(60), rdr.sched.waited()[len(rdr.sched.waited())-1])
+}
+
+// TestE2E_SDKRetryIsOnePollAndTwoRequests turns the retries of the SDK on: a 503 followed by a 200 is one poll of the
+// reader and two requests. The wire (a counting RoundTripper under the SDK) and the observer of the connection
+// factory are two independent counts and they agree. The Prometheus counter is fed by that observer, so it agrees
+// by construction: the wire is the independent count.
+func TestE2E_SDKRetryIsOnePollAndTwoRequests(t *testing.T) {
+	t.Parallel()
+
+	srv := gopherstack.Connect(t)
+	bucket := srv.CreateBucket(t, "mrt")
+	objs := threeObjects()
+	publishObjects(t, srv, bucket, 1, objs...)
+
+	rdr := newStateRigWithRetry(t, srv, srv.Endpoint, bucket, filepath.Join(t.TempDir(), "state"), 0,
+		connection.Retry{MaxAttempts: 3, MaxBackoff: time.Millisecond})
+	rdr.settle()
+	rdr.agreeNow(t, 1+len(objs), map[string]float64{connection.ResultOK: float64(1 + len(objs))})
+
+	pollsBefore := rdr.reader.Status().Polls
+
+	rdr.wire.serverErrors.Store(1)
+	rdr.round()
+
+	status := rdr.reader.Status()
+	assert.Equal(t, pollsBefore+1, status.Polls, "one poll")
+	assert.Equal(t, manifestreader.PollNotModified, status.Poll.Result, "which succeeded")
+	assert.Zero(t, status.Backoff.Failures, "a request that the SDK retried is not a failed poll")
+
+	obs := rdr.agreeNow(t, 2, map[string]float64{connection.ResultServerError: 1, connection.ResultNotModified: 1})
+	assert.Equal(t, []observation{
+		{connControl, connection.OperationGet, connection.ResultServerError},
+		{connControl, connection.OperationGet, connection.ResultNotModified},
+	}, obs, "two requests on the wire, two observations (one per attempt), and the counter counted both")
 }

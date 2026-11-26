@@ -66,18 +66,41 @@ func TestOS_RoundTripAndModes(t *testing.T) {
 	)
 }
 
-func TestOS_LooseDirectoryIsMadePrivate(t *testing.T) {
+func TestOS_AcceptsOrRefusesAnExistingDirectoryByItsMode(t *testing.T) {
 	t.Parallel()
 
-	dir := filepath.Join(t.TempDir(), "state")
-	require.NoError(t, os.Mkdir(dir, 0o755))
-	require.NoError(t, os.Chmod(dir, 0o755))
+	tests := []struct {
+		wantErr  error
+		name     string
+		mode     fs.FileMode
+		wantMode fs.FileMode
+	}{
+		{name: "private", mode: 0o700, wantMode: fs.ModeDir | 0o700},
+		{name: "group-writable, as a Kubernetes fsGroup volume", mode: 0o770, wantMode: fs.ModeDir | 0o770},
+		{name: "readable by everybody", mode: 0o755, wantMode: fs.ModeDir | 0o755},
+		{name: "writable by everybody", mode: 0o777, wantErr: statedir.ErrUnsafe, wantMode: fs.ModeDir | 0o777},
+		{name: "writable by others", mode: 0o702, wantErr: statedir.ErrUnsafe, wantMode: fs.ModeDir | 0o702},
+	}
 
-	store, err := statedir.New(statedir.Config{Dir: dir})
-	require.NoError(t, err)
-	require.NoError(t, store.Close())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Equal(t, fs.ModeDir|0o700, modeOf(t, dir))
+			dir := filepath.Join(t.TempDir(), "state")
+			require.NoError(t, os.Mkdir(dir, 0o700))
+			require.NoError(t, os.Chmod(dir, tt.mode))
+
+			store, err := statedir.New(statedir.Config{Dir: dir})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, store.Close())
+			}
+
+			assert.Equal(t, tt.wantMode, modeOf(t, dir), "the mode of an existing directory is never changed")
+		})
+	}
 }
 
 func TestOS_RefusesWhatItCannotOwn(t *testing.T) {

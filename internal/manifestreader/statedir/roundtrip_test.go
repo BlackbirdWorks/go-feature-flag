@@ -6,7 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 )
 
 func TestStore_RoundTrip(t *testing.T) {
@@ -109,4 +111,37 @@ func TestStore_RestoreOfAnEmptyDirectory(t *testing.T) {
 	require.ErrorIs(t, err, manifestreader.ErrNothingRestored)
 	assert.Nil(t, restored)
 	assert.Equal(t, manifestreader.StateStatus{Enabled: true, Restore: manifestreader.RestoreEmpty}, status)
+}
+
+func TestStore_StaleNamesAreSavedWithTheEntryTheyAreServedFrom(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantStale []manifestreader.StaleObject
+		cfg       statedir.Config
+	}{
+		{
+			name: "the stale name and its content come back",
+			wantStale: []manifestreader.StaleObject{{
+				Name: "stale-0", Kind: "flags", Format: "json", Checksum: controlplane.ChecksumOf([]byte("old-beta")),
+			}},
+		},
+		{name: "a stale content that the budget dropped is not listed", cfg: statedir.Config{MaxBytes: 5}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := &memFS{disk: newMemDisk(), faults: &faults{}}
+			first := openStore(t, fsys, tt.cfg)
+			first.saveAndFlush(withStale(persistOf(etagOne, manifestOne, contentAlpha), "old-beta"))
+			first.close()
+
+			restored, _, err := restoreOf(t, fsys)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantStale, restored.Stale)
+		})
+	}
 }

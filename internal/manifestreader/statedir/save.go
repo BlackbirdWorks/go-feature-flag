@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"path"
 	"slices"
-	"strings"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
@@ -26,7 +25,9 @@ type job struct {
 	manifest []byte
 	current  []object
 	stale    []object
-	seq      uint64
+	// staleNames are the names that were served stale, with the content they are served from.
+	staleNames []staleRef
+	seq        uint64
 }
 
 // save is the Save hook: it queues the snapshot and returns at once. A snapshot that was not written yet is
@@ -49,19 +50,26 @@ func (s *Store) save(persist manifestreader.Persist) {
 		}
 	}
 
-	for _, state := range persist.Snapshot.Objects {
-		if state.State != manifestreader.StateOK && state.Bytes != nil {
-			if _, dup := seen[state.Checksum.Value]; !dup {
-				seen[state.Checksum.Value] = struct{}{}
+	for name, state := range persist.Snapshot.Objects {
+		if state.State != manifestreader.StateStale || state.Bytes == nil {
+			continue
+		}
 
-				job.stale = append(job.stale, object{sum: state.Checksum.Value, data: state.Bytes})
-			}
+		job.staleNames = append(job.staleNames, staleRef{
+			Name: name, Kind: state.Kind, Format: state.Format, Algorithm: state.Checksum.Algorithm,
+			Sum: state.Checksum.Value,
+		})
+
+		if _, dup := seen[state.Checksum.Value]; !dup {
+			seen[state.Checksum.Value] = struct{}{}
+
+			job.stale = append(job.stale, object{sum: state.Checksum.Value, data: state.Bytes})
 		}
 	}
 
-	byName := func(a, b object) int { return cmp.Compare(a.sum, b.sum) }
-	slices.SortFunc(job.current, byName)
-	slices.SortFunc(job.stale, byName)
+	slices.SortFunc(job.current, func(a, b object) int { return cmp.Compare(a.sum, b.sum) })
+	slices.SortFunc(job.stale, func(a, b object) int { return cmp.Compare(a.sum, b.sum) })
+	slices.SortFunc(job.staleNames, func(a, b staleRef) int { return cmp.Compare(a.Name, b.Name) })
 
 	s.mu.Lock()
 	s.seq++
@@ -79,6 +87,7 @@ func (s *Store) save(persist manifestreader.Persist) {
 type outcome struct {
 	reason  string
 	written bool
+	partial bool
 }
 
 // write saves a job: the objects that are not on disk, then the manifest, then the garbage collection. Nothing
@@ -87,79 +96,133 @@ func (s *Store) write(job *job) outcome {
 	s.ioMu.Lock()
 	defer s.ioMu.Unlock()
 
-	keep, over := s.fit(job)
-	sums := make([]string, len(keep))
+	keep, staleKept, partial := s.fit(job)
+	refs := make([]objectRef, len(keep))
 
 	for i := range keep {
-		sums[i] = keep[i].sum
+		refs[i] = objectRef{Sum: keep[i].sum, Size: int64(len(keep[i].data))}
 	}
 
-	digest := digestOf(job.etag, job.manifest, sums)
+	digest := digestOf(job.etag, job.manifest, refs, staleKept)
 
-	if s.upToDate(digest, sums) {
-		return outcome{reason: reasonIf(over)}
+	if s.upToDate(digest, refs) {
+		return outcome{partial: partial}
 	}
 
-	err := s.persist(job, keep, sums, digest)
+	err := s.persist(job, keep, refs, staleKept, digest)
+
+	if errors.Is(err, fs.ErrNotExist) {
+		// something under us vanished (the objects directory, the whole directory): rebuild from nothing
+		s.forget()
+
+		err = s.reopen()
+		if err == nil {
+			err = s.persist(job, keep, refs, staleKept, digest)
+		}
+	}
+
 	if err != nil {
+		s.forget()
+
 		return outcome{written: true, reason: reasonOf(err)}
 	}
 
-	return outcome{written: true, reason: reasonIf(over)}
+	return outcome{written: true, partial: partial}
 }
 
-func reasonIf(tooLarge bool) string {
-	if tooLarge {
-		return ReasonTooLarge
+// forget drops what the store believes about the disk: the next write checks and rebuilds the layout and writes
+// every object again.
+func (s *Store) forget() {
+	s.layout = false
+	s.disk = diskState{objects: map[string]struct{}{}}
+}
+
+// reopen opens the directory again (it may have been removed and made anew) and takes the lock.
+func (s *Store) reopen() error {
+	_ = s.root.Close()
+
+	root, _, err := openLocked(s.fsys, s.dir)
+	if err != nil {
+		return err
 	}
 
-	return ""
+	s.root = root
+
+	return nil
 }
 
-// fit returns the objects to keep within the byte budget: the current ones first, then the stale ones. The second
-// result tells that a current object did not fit.
-func (s *Store) fit(job *job) ([]object, bool) {
+// fit returns the objects to keep within the byte budget, the stale names whose content is kept, and whether
+// the save is partial. The current objects come first. When they fit, the stale ones that still fit are added.
+// When the current objects alone are above the budget, the stale ones are dropped and the current ones are kept
+// smallest first (ties by checksum), so that the largest number of contents comes back after a restart.
+func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
+	var total int64
+	for _, obj := range job.current {
+		total += int64(len(obj.data))
+	}
+
 	var (
-		used int64
-		over bool
+		keep    []object
+		partial bool
 	)
 
-	keep := make([]object, 0, len(job.current)+len(job.stale))
+	if total <= s.max {
+		keep = slices.Clone(job.current)
+		used := total
 
-	for _, obj := range job.current {
-		if used+int64(len(obj.data)) > s.max {
-			over = true
+		for _, obj := range job.stale {
+			if used+int64(len(obj.data)) <= s.max {
+				used += int64(len(obj.data))
 
-			continue
+				keep = append(keep, obj)
+			}
 		}
+	} else {
+		partial = true
+		ordered := slices.Clone(job.current)
 
-		used += int64(len(obj.data))
+		slices.SortFunc(ordered, func(a, b object) int {
+			return cmp.Or(cmp.Compare(len(a.data), len(b.data)), cmp.Compare(a.sum, b.sum))
+		})
 
-		keep = append(keep, obj)
-	}
+		var used int64
 
-	for _, obj := range job.stale {
-		if used+int64(len(obj.data)) > s.max {
-			continue
+		for _, obj := range ordered {
+			if used+int64(len(obj.data)) > s.max {
+				break
+			}
+
+			used += int64(len(obj.data))
+
+			keep = append(keep, obj)
 		}
-
-		used += int64(len(obj.data))
-
-		keep = append(keep, obj)
 	}
 
 	slices.SortFunc(keep, func(a, b object) int { return cmp.Compare(a.sum, b.sum) })
 
-	return keep, over
+	kept := make(map[string]struct{}, len(keep))
+	for _, obj := range keep {
+		kept[obj.sum] = struct{}{}
+	}
+
+	var stale []staleRef
+
+	for _, ref := range job.staleNames {
+		if _, ok := kept[ref.Sum]; ok {
+			stale = append(stale, ref)
+		}
+	}
+
+	return keep, stale, partial
 }
 
-func (s *Store) upToDate(digest string, sums []string) bool {
-	if s.disk.digest != digest {
+func (s *Store) upToDate(digest string, refs []objectRef) bool {
+	if !s.layout || s.disk.digest != digest {
 		return false
 	}
 
-	for _, sum := range sums {
-		if _, ok := s.disk.objects[sum]; !ok {
+	for _, ref := range refs {
+		if _, ok := s.disk.objects[ref.Sum]; !ok {
 			return false
 		}
 	}
@@ -168,8 +231,10 @@ func (s *Store) upToDate(digest string, sums []string) bool {
 }
 
 // persist is the save sequence. Every step that can fail returns at once; what was written until then is either
-// an object file that is complete and named by its checksum, or a temporary file nobody reads.
-func (s *Store) persist(job *job, keep []object, sums []string, digest string) error {
+// an object file that is complete and named by its checksum, or a temporary file nobody reads. The order is the
+// crash-safety argument: object files, fsync of objects/, the manifest, fsync of the directory, and only then the
+// garbage collection.
+func (s *Store) persist(job *job, keep []object, refs []objectRef, stale []staleRef, digest string) error {
 	err := s.ensureLayout()
 	if err != nil {
 		return err
@@ -203,7 +268,7 @@ func (s *Store) persist(job *job, keep []object, sums []string, digest string) e
 	}
 
 	content, err := json.Marshal(&envelope{
-		Version: layoutVersion, ETag: job.etag, Digest: digest, Objects: sums, Manifest: job.manifest,
+		Version: layoutVersion, ETag: job.etag, Digest: digest, Objects: refs, Stale: stale, Manifest: job.manifest,
 	})
 	if err != nil {
 		return fmt.Errorf("statedir: encode manifest: %w", err)
@@ -265,32 +330,21 @@ func (s *Store) writeAtomic(name string, content []byte) error {
 	return nil
 }
 
-// ensureLayout makes the directory ready: objects/ exists and VERSION is ours. A directory of another layout
-// version (or with no version file) is emptied of what this package would have written.
+// ensureLayout makes the directory ready: VERSION is ours and objects/ exists. A directory that is not ours is
+// never touched: without VERSION it must hold nothing but our LOCK and temporary files ([ErrUnsafe]), and a
+// VERSION of another layout is [ErrForeignVersion]. VERSION is written first and made durable, so that a crash
+// leaves a directory that is recognisably ours.
 func (s *Store) ensureLayout() error {
 	if s.layout {
 		return nil
 	}
 
-	version, err := s.root.ReadFile(versionFile)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("statedir: %w", err)
-	}
-
-	writeVersion := err != nil || string(version) != versionContent
-	if writeVersion {
-		err = s.reset()
-		if err != nil {
-			return err
-		}
-	}
-
-	err = s.root.MkdirAll(objectsDir)
+	haveVersion, err := inspect(s.root)
 	if err != nil {
-		return fmt.Errorf("statedir: %w", err)
+		return err
 	}
 
-	if writeVersion {
+	if !haveVersion {
 		err = s.writeAtomic(versionFile, []byte(versionContent))
 		if err == nil {
 			err = s.root.SyncDir(".")
@@ -301,40 +355,24 @@ func (s *Store) ensureLayout() error {
 		}
 	}
 
+	err = s.root.MkdirAll(objectsDir)
+	if err == nil {
+		err = s.root.SyncDir(".")
+	}
+
+	if err != nil {
+		return fmt.Errorf("statedir: %w", err)
+	}
+
 	s.layout = true
 
 	return nil
 }
 
-// reset removes the files of this package from a directory of another layout.
-func (s *Store) reset() error {
-	err := s.root.Remove(manifestFile)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("statedir: %w", err)
-	}
-
-	names, err := s.root.ReadDir(objectsDir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("statedir: %w", err)
-	}
-
-	for _, name := range names {
-		if isSum(name) || strings.HasPrefix(name, tmpPrefix) {
-			removeErr := s.root.Remove(objectsDir + "/" + name)
-			if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-				return fmt.Errorf("statedir: %w", removeErr)
-			}
-		}
-	}
-
-	s.disk = diskState{objects: map[string]struct{}{}}
-
-	return nil
-}
-
 // collect removes the object files that the manifest on disk does not name, and the leftovers of a crashed
-// write. It runs after the manifest rename: a failure here costs disk space until the next save, never
-// consistency, so it is logged and not reported as a failed save.
+// write. Only names this package writes are removed (a checksum in hex, ".tmp-" and a number), and only under
+// a VERSION that is ours. It runs after the manifest rename: a failure here costs disk space until the next
+// save, never consistency, so it is not reported as a failed save.
 func (s *Store) collect(keep []object) {
 	wanted := make(map[string]struct{}, len(keep))
 	for _, obj := range keep {
@@ -350,7 +388,7 @@ func (s *Store) collect(keep []object) {
 
 	for _, name := range names {
 		_, isWanted := wanted[name]
-		if isWanted || (!isSum(name) && !strings.HasPrefix(name, tmpPrefix)) {
+		if isWanted || (!isSum(name) && !isOurTmp(name)) {
 			continue
 		}
 
@@ -364,7 +402,7 @@ func (s *Store) collect(keep []object) {
 	rootNames, err := s.root.ReadDir(".")
 	if err == nil {
 		for _, name := range rootNames {
-			if strings.HasPrefix(name, tmpPrefix) && s.root.Remove(name) == nil {
+			if isOurTmp(name) && s.root.Remove(name) == nil {
 				removed = true
 			}
 		}

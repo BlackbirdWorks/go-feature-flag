@@ -31,6 +31,9 @@ const (
 	ReasonInvalidSize = "invalid-size"
 	// ReasonSizeMismatch is a download that is shorter or longer than the listed size.
 	ReasonSizeMismatch = "size-mismatch"
+	// ReasonPending is an object of a restored manifest that is not fetched yet: the restored snapshot is
+	// published before any request, and what is missing is fetched in the first round.
+	ReasonPending = "pending"
 	// ReasonUnknownConnection is an object of a connection the reader has no store for.
 	ReasonUnknownConnection = "unknown-connection"
 )

@@ -5,7 +5,6 @@ package statedir
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"syscall"
 )
@@ -26,11 +25,4 @@ func lockFileExclusive(file *os.File) error {
 	}
 
 	return nil
-}
-
-// ownedByProcess reports whether the directory belongs to the user of the process.
-func ownedByProcess(info fs.FileInfo) bool {
-	stat, ok := info.Sys().(*syscall.Stat_t)
-
-	return !ok || int(stat.Uid) == os.Geteuid()
 }

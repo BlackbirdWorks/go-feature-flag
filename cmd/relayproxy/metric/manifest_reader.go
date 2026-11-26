@@ -19,7 +19,6 @@ import (
 type ManifestReader struct {
 	status func() manifestreader.Status
 	desc   manifestDescs
-	conn   string
 }
 
 type manifestDescs struct {
@@ -49,7 +48,7 @@ func pollResults() []string {
 func restoreResults() []string {
 	return []string{
 		manifestreader.RestoreRestored, manifestreader.RestorePartial, manifestreader.RestoreEmpty,
-		manifestreader.RestoreFailed,
+		manifestreader.RestoreFailed, manifestreader.RestoreDisabled,
 	}
 }
 
@@ -61,13 +60,13 @@ func NewManifestReader(
 	reg prom.Registerer, connectionName string, status func() manifestreader.Status,
 ) (*ManifestReader, error) {
 	name := func(suffix string) string { return prom.BuildFQName(SubSystem, "manifest", suffix) }
-	labels := []string{"connection"}
-	desc := func(suffix, help string, extra ...string) *prom.Desc {
-		return prom.NewDesc(name(suffix), help, append(append([]string(nil), labels...), extra...), nil)
+	constLabels := prom.Labels{"connection": connectionName}
+	desc := func(suffix, help string, labels ...string) *prom.Desc {
+		return prom.NewDesc(name(suffix), help, labels, constLabels)
 	}
 
 	collector := &ManifestReader{
-		status: status, conn: connectionName,
+		status: status,
 		desc: manifestDescs{
 			generation: desc("generation", "Generation of the manifest the reader holds (the applied one).", "channel"),
 			lastSync: desc("last_sync_timestamp_seconds",
@@ -81,9 +80,11 @@ func NewManifestReader(
 				"Objects of the held manifest that are not ok (stale or missing); names and reasons are in the status.",
 			),
 			saves: desc("state_saves_total",
-				"Writes of the state directory by result (ok, error); a failed write never stops polling.", "result"),
+				"Writes of the state directory by result (ok, partial, error); a failed write never stops polling. "+
+					"partial is a write that kept only part of the objects because of the byte budget.", "result"),
 			restore: desc("state_restore_total",
-				"Restore of the state directory at start by result (restored, partial, empty, failed).", "result"),
+				"Restore of the state directory at start by result (restored, partial, empty, failed, disabled).",
+				"result"),
 			backoffFails: desc("backoff_failures", "Consecutive failed manifest polls; 0 after a success."),
 			backoffWait:  desc("backoff_wait_seconds", "Wait planned before the next manifest poll."),
 			backoffObjs: desc("backoff_objects_waiting",
@@ -114,10 +115,10 @@ func (m *ManifestReader) Collect(metrics chan<- prom.Metric) {
 	status := m.status()
 
 	gauge := func(desc *prom.Desc, value float64, labels ...string) {
-		metrics <- prom.MustNewConstMetric(desc, prom.GaugeValue, value, append([]string{m.conn}, labels...)...)
+		metrics <- prom.MustNewConstMetric(desc, prom.GaugeValue, value, labels...)
 	}
 	counter := func(desc *prom.Desc, value float64, labels ...string) {
-		metrics <- prom.MustNewConstMetric(desc, prom.CounterValue, value, append([]string{m.conn}, labels...)...)
+		metrics <- prom.MustNewConstMetric(desc, prom.CounterValue, value, labels...)
 	}
 
 	if status.Manifest.Channel != "" {
@@ -152,15 +153,13 @@ func (m *ManifestReader) Collect(metrics chan<- prom.Metric) {
 	gauge(m.desc.backoffObjs, float64(status.Backoff.ObjectsWaiting))
 }
 
-// collectState emits the series of the state directory, only when one is installed.
+// collectState emits the series of the state directory: the restore result when one is installed or refused, the
+// writes only when one is installed.
 func (m *ManifestReader) collectState(status *manifestreader.Status, counter func(*prom.Desc, float64, ...string)) {
 	state := status.State
-	if !state.Enabled {
+	if !state.Enabled && state.Restore != manifestreader.RestoreDisabled {
 		return
 	}
-
-	counter(m.desc.saves, float64(state.Saves-state.SaveErrors), "ok")
-	counter(m.desc.saves, float64(state.SaveErrors), "error")
 
 	for _, result := range restoreResults() {
 		value := 0.0
@@ -170,4 +169,12 @@ func (m *ManifestReader) collectState(status *manifestreader.Status, counter fun
 
 		counter(m.desc.restore, value, result)
 	}
+
+	if !state.Enabled {
+		return
+	}
+
+	counter(m.desc.saves, float64(state.Saves-state.SaveErrors-state.PartialSaves), "ok")
+	counter(m.desc.saves, float64(state.PartialSaves), "partial")
+	counter(m.desc.saves, float64(state.SaveErrors), "error")
 }

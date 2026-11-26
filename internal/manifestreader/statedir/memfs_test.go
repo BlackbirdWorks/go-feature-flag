@@ -3,6 +3,7 @@ package statedir_test
 import (
 	"errors"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -12,26 +13,42 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 )
 
+const lockName = "LOCK"
+
 var errCrash = errors.New("simulated crash")
 
-// memDisk is the persistent part of the in-memory file system: it survives the stores opened on it.
+// inode is a file: the data the running process sees and the data that survives a power loss (what was
+// synced).
+type inode struct {
+	data    []byte
+	durable []byte
+}
+
+// memDisk is the persistent part of the in-memory file system: it survives the stores opened on it. It models
+// durability: file data is durable after File.Sync, a directory entry (create, rename, remove) after SyncDir of its
+// directory. powerLoss returns the disk as it is after a power cut: only what is durable.
 type memDisk struct {
-	files  map[string][]byte
-	dirs   map[string]bool
-	locked bool
-	mu     sync.Mutex
+	live      map[string]*inode
+	durable   map[string]*inode
+	dirs      map[string]bool
+	irregular map[string]bool
+	locked    bool
+	mu        sync.Mutex
 }
 
 func newMemDisk() *memDisk {
-	return &memDisk{files: map[string][]byte{}, dirs: map[string]bool{".": true}}
+	return &memDisk{
+		live: map[string]*inode{}, durable: map[string]*inode{}, dirs: map[string]bool{".": true},
+		irregular: map[string]bool{},
+	}
 }
 
 func (d *memDisk) names() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	out := make([]string, 0, len(d.files))
-	for name := range d.files {
+	out := make([]string, 0, len(d.live))
+	for name := range d.live {
 		out = append(out, name)
 	}
 
@@ -44,16 +61,21 @@ func (d *memDisk) read(name string) ([]byte, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	data, ok := d.files[name]
+	ino, ok := d.live[name]
+	if !ok {
+		return nil, false
+	}
 
-	return append([]byte(nil), data...), ok
+	return append([]byte(nil), ino.data...), true
 }
 
+// write puts a file on the disk as if it had been there for ever (durable).
 func (d *memDisk) write(name string, data []byte) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.files[name] = append([]byte(nil), data...)
+	ino := &inode{data: append([]byte(nil), data...), durable: append([]byte(nil), data...)}
+	d.live[name], d.durable[name] = ino, ino
 	d.dirs[path.Dir(name)] = true
 }
 
@@ -61,7 +83,43 @@ func (d *memDisk) remove(name string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	delete(d.files, name)
+	delete(d.live, name)
+	delete(d.durable, name)
+}
+
+// removeDir removes a directory and every file in it.
+func (d *memDisk) removeObjectsDir() {
+	const name = "objects"
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for file := range d.live {
+		if strings.HasPrefix(file, name+"/") {
+			delete(d.live, file)
+			delete(d.durable, file)
+		}
+	}
+
+	delete(d.dirs, name)
+}
+
+// powerLoss is the disk after a power cut: the durable entries with their synced data (an entry whose data was
+// never synced is an empty file), nothing else.
+func (d *memDisk) powerLoss() *memDisk {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	lost := newMemDisk()
+	maps.Copy(lost.dirs, d.dirs)
+
+	for name, ino := range d.durable {
+		data := append([]byte(nil), ino.durable...)
+		kept := &inode{data: data, durable: data}
+		lost.live[name], lost.durable[name] = kept, kept
+	}
+
+	return lost
 }
 
 // faults decides which mutating step of a store fails. Steps are counted from 1 over: create, write, sync,
@@ -154,13 +212,13 @@ type memRoot struct {
 }
 
 func (r *memRoot) Lock() error {
-	if r.fsys.noLock {
-		return nil
-	}
-
 	dsk := r.disk()
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
+
+	if r.fsys.noLock {
+		return nil
+	}
 
 	if dsk.locked {
 		return statedir.ErrLocked
@@ -184,18 +242,28 @@ func (r *memRoot) Close() error {
 	return nil
 }
 
-func (r *memRoot) ReadFile(name string) ([]byte, error) {
+func (r *memRoot) ReadFile(name string, limit int64) ([]byte, error) {
 	err := r.fsys.faults.readErr(name)
 	if err != nil {
 		return nil, err
 	}
 
-	data, ok := r.disk().read(name)
-	if !ok {
+	dsk := r.disk()
+	dsk.mu.Lock()
+	defer dsk.mu.Unlock()
+
+	ino, ok := dsk.live[name]
+
+	switch {
+	case !ok:
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrNotExist}
+	case dsk.irregular[name]:
+		return nil, statedir.ErrNotRegular
+	case int64(len(ino.data)) > limit:
+		return nil, statedir.ErrFileTooLarge
 	}
 
-	return data, nil
+	return append([]byte(nil), ino.data...), nil
 }
 
 type memInfo struct {
@@ -215,7 +283,7 @@ func (r *memRoot) Lstat(name string) (fs.FileInfo, error) {
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
-	if _, ok := dsk.files[name]; ok {
+	if _, ok := dsk.live[name]; ok {
 		return memInfo{name: name, mode: 0o600}, nil
 	}
 
@@ -236,21 +304,23 @@ func (r *memRoot) Create(name string) (statedir.File, error) { //nolint:ireturn 
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
-	if _, ok := dsk.files[name]; ok {
-		return nil, &fs.PathError{Op: opCreate, Path: name, Err: fs.ErrExist}
+	if _, ok := dsk.live[name]; ok {
+		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrExist}
 	}
 
 	if !dsk.dirs[path.Dir(name)] {
-		return nil, &fs.PathError{Op: opCreate, Path: name, Err: fs.ErrNotExist}
+		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrNotExist}
 	}
 
-	dsk.files[name] = nil
+	ino := &inode{}
+	dsk.live[name] = ino
 
-	return &memFile{root: r, name: name}, nil
+	return &memFile{root: r, ino: ino, name: name}, nil
 }
 
 type memFile struct {
 	root *memRoot
+	ino  *inode
 	name string
 }
 
@@ -275,8 +345,17 @@ func (f *memFile) Write(data []byte) (int, error) {
 
 func (f *memFile) Sync() error {
 	_, err := f.root.fsys.faults.step("sync", f.name)
+	if err != nil {
+		return err
+	}
 
-	return err
+	dsk := f.root.disk()
+	dsk.mu.Lock()
+
+	f.ino.durable = append([]byte(nil), f.ino.data...)
+	dsk.mu.Unlock()
+
+	return nil
 }
 
 func (f *memFile) Close() error {
@@ -286,10 +365,11 @@ func (f *memFile) Close() error {
 }
 
 func (f *memFile) append(data []byte) {
-	d := f.root.disk()
-	d.mu.Lock()
-	d.files[f.name] = append(d.files[f.name], data...)
-	d.mu.Unlock()
+	dsk := f.root.disk()
+	dsk.mu.Lock()
+
+	f.ino.data = append(f.ino.data, data...)
+	dsk.mu.Unlock()
 }
 
 func (r *memRoot) Rename(oldname, newname string) error {
@@ -302,18 +382,22 @@ func (r *memRoot) Rename(oldname, newname string) error {
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
-	data, ok := dsk.files[oldname]
+	ino, ok := dsk.live[oldname]
 	if !ok {
 		return &fs.PathError{Op: "rename", Path: oldname, Err: fs.ErrNotExist}
 	}
 
-	delete(dsk.files, oldname)
-	dsk.files[newname] = data
+	delete(dsk.live, oldname)
+	dsk.live[newname] = ino
 
 	return nil
 }
 
 func (r *memRoot) Remove(name string) error {
+	if name == lockName {
+		return nil // the lock of the memory file system is not a file
+	}
+
 	_, err := r.fsys.faults.step("remove", name)
 	if err != nil {
 		return err
@@ -323,11 +407,11 @@ func (r *memRoot) Remove(name string) error {
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
-	if _, ok := dsk.files[name]; !ok {
+	if _, ok := dsk.live[name]; !ok {
 		return &fs.PathError{Op: "remove", Path: name, Err: fs.ErrNotExist}
 	}
 
-	delete(dsk.files, name)
+	delete(dsk.live, name)
 
 	return nil
 }
@@ -348,9 +432,15 @@ func (r *memRoot) ReadDir(name string) ([]string, error) {
 
 	var out []string
 
-	for file := range dsk.files {
+	for file := range dsk.live {
 		if path.Dir(file) == name {
 			out = append(out, path.Base(file))
+		}
+	}
+
+	for dir := range dsk.dirs {
+		if dir != "." && path.Dir(dir) == name {
+			out = append(out, path.Base(dir))
 		}
 	}
 
@@ -371,10 +461,32 @@ func (r *memRoot) MkdirAll(name string) error {
 	return nil
 }
 
+// SyncDir makes the entries of a directory durable: what is there now stays, what was removed stays removed.
 func (r *memRoot) SyncDir(name string) error {
 	_, err := r.fsys.faults.step("syncdir", name)
+	if err != nil {
+		return err
+	}
 
-	return err
+	dsk := r.disk()
+	dsk.mu.Lock()
+	defer dsk.mu.Unlock()
+
+	for file := range dsk.durable {
+		if path.Dir(file) == name {
+			if _, ok := dsk.live[file]; !ok {
+				delete(dsk.durable, file)
+			}
+		}
+	}
+
+	for file, ino := range dsk.live {
+		if path.Dir(file) == name {
+			dsk.durable[file] = ino
+		}
+	}
+
+	return nil
 }
 
 func (r *memRoot) disk() *memDisk { return r.fsys.disk }

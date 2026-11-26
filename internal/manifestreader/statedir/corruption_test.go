@@ -42,7 +42,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 		return out
 	}
 
-	manifestFile, versionFile := manifestName, versionName
+	manifestFile := manifestName
 
 	tests := []struct {
 		mutate        func(*memDisk)
@@ -135,14 +135,6 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			name: "manifest copy missing", wantRestore: manifestreader.RestoreEmpty,
 			mutate: func(d *memDisk) { d.remove(manifestFile) },
 		},
-		{
-			name: "another layout version", wantRestore: manifestreader.RestoreEmpty,
-			mutate: func(d *memDisk) { d.write(versionFile, []byte("semaphore-manifest-state 2\n")) },
-		},
-		{
-			name: "layout version file missing", wantRestore: manifestreader.RestoreEmpty,
-			mutate: func(d *memDisk) { d.remove(versionFile) },
-		},
 	}
 
 	for _, tt := range tests {
@@ -189,10 +181,6 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "the version file cannot be read", failRead: map[string]error{versionName: syscall.EIO},
-			wantRestore: manifestreader.RestoreFailed, wantErr: true,
-		},
-		{
 			name: "the manifest copy cannot be read", failRead: map[string]error{manifestName: fs.ErrPermission},
 			wantRestore: manifestreader.RestoreFailed, wantErr: true,
 		},
@@ -231,31 +219,4 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 			assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne}, restored)
 		})
 	}
-}
-
-func TestStore_SaveAfterAnotherLayoutVersionStartsOver(t *testing.T) {
-	t.Parallel()
-
-	disk := newMemDisk()
-	fsys := &memFS{disk: disk, faults: &faults{}}
-
-	// a directory of a later layout: its files are not ours to read, and the next save replaces them
-	disk.write(versionName, []byte("semaphore-manifest-state 2\n"))
-	disk.write(manifestName, []byte("future format"))
-	disk.write(objectFile("future"), []byte("future"))
-	disk.write("objects/README", []byte("kept"))
-
-	run := openStore(t, fsys, statedirConfig())
-
-	_, err := run.store.Hooks().Restore()
-	require.ErrorIs(t, err, manifestreader.ErrNothingRestored)
-
-	run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
-	run.close()
-
-	assert.Equal(t, []string{versionName, manifestName, objectFile(contentAlpha), "objects/README"}, disk.names())
-
-	restored, _, err := restoreOf(t, fsys)
-	require.NoError(t, err)
-	assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}}, restored)
 }

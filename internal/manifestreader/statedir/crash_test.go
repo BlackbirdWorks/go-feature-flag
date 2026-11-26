@@ -45,7 +45,11 @@ func stepOf(tb testing.TB, ops []string, prefix string, from int) int {
 
 // TestStore_CrashAtEveryStep stops the process at each file operation of a save in turn (every operation after
 // the failing one fails too, and a failing write is torn: half of it reaches the file) and checks what the next
-// start finds: the old state before the rename of the manifest, the new one after it, nothing else.
+// start finds: the old state before the rename of the manifest, the new one after it, nothing else. With powerLoss
+// the disk also forgets everything that was not made durable (file data that was not synced, a directory entry that
+// was not synced): the old state is then found until the directory sync that follows the rename of the manifest,
+// the new one after it. A file with unsynced data, or an entry of a directory that was not synced, is never
+// mistaken for valid content: it fails its digest or its checksum and is ignored.
 func TestStore_CrashAtEveryStep(t *testing.T) {
 	t.Parallel()
 
@@ -54,7 +58,23 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 	wantA := wantRestored{etag: `"eA"`, manifest: "manifest-A", objects: []string{"a-only", contentShared}}
 	wantB := wantRestored{etag: `"eB"`, manifest: "manifest-B", objects: []string{"b-only", contentShared}}
 
-	for _, hasOld := range []bool{true, false} {
+	for _, mode := range []struct {
+		name      string
+		powerLoss bool
+	}{{"process death", false}, {"power loss", true}} {
+		for _, hasOld := range []bool{true, false} {
+			crashTable(t, mode.name, mode.powerLoss, hasOld, stateA, stateB, wantA, wantB)
+		}
+	}
+}
+
+func crashTable(
+	t *testing.T, mode string, powerLoss, hasOld bool,
+	stateA, stateB manifestreader.Persist, wantA, wantB wantRestored,
+) {
+	t.Helper()
+
+	{
 		// a clean run records the steps
 		probe := &faults{}
 		probeDisk := newMemDisk()
@@ -72,12 +92,18 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 		ops := slices.Clone(probe.ops)
 		total := len(ops)
 		manifestRename := stepOf(t, ops, "rename manifest.json", 1)
-		lastFatal := stepOf(t, ops, "syncdir .", manifestRename)
+		syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
+		lastFatal := syncRoot
+		// the first step from which the new state is found: the rename, or, after a power loss, the directory sync
+		newFrom := manifestRename
+		if powerLoss {
+			newFrom = syncRoot
+		}
 
 		require.GreaterOrEqual(t, total, lastFatal, "the garbage collection comes after the manifest is durable")
 
 		for step := 1; step <= total+1; step++ {
-			t.Run(fmt.Sprintf("old=%v/step=%d", hasOld, step), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/old=%v/step=%d", mode, hasOld, step), func(t *testing.T) {
 				t.Parallel()
 
 				disk := newMemDisk()
@@ -106,10 +132,14 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 					}, status)
 				}
 
+				if powerLoss {
+					disk = disk.powerLoss()
+				}
+
 				restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
 
 				switch {
-				case step > manifestRename:
+				case step > newFrom:
 					require.NoError(t, err)
 					assertRestored(t, wantB, restored)
 				case hasOld:
@@ -221,5 +251,75 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 				restored,
 			)
 		})
+	}
+}
+
+// TestStore_SaveOperationOrder asserts the order of the file operations of a save, which is the whole crash-safety
+// argument: every file is flushed before its rename; the objects directory is flushed after the last object rename
+// and before the manifest is written; the manifest is flushed, renamed, and the directory flushed after it; the
+// garbage collection comes last.
+func TestStore_SaveOperationOrder(t *testing.T) {
+	t.Parallel()
+
+	disk := newMemDisk()
+
+	first := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())
+	first.saveAndFlush(persistOf(`"eA"`, "manifest-A", "a-only", contentShared))
+	first.close()
+
+	probe := &faults{}
+	second := openStore(t, &memFS{disk: disk, faults: probe}, statedirConfig())
+
+	_, err := second.store.Hooks().Restore()
+	require.NoError(t, err)
+
+	second.saveAndFlush(persistOf(`"eB"`, "manifest-B", "b-only", contentShared))
+	second.close()
+
+	ops := probe.ops
+
+	// every rename of a file comes right after the flush and the close of that file
+	renames := 0
+
+	for i, op := range ops {
+		if !strings.HasPrefix(op, "rename ") {
+			continue
+		}
+
+		renames++
+
+		require.GreaterOrEqual(t, i, 2)
+		assert.True(
+			t,
+			strings.HasPrefix(ops[i-2], "sync "),
+			"the file is flushed before it is renamed: %q",
+			ops[i-2:i+1],
+		)
+		assert.True(t, strings.HasPrefix(ops[i-1], "close "), "and closed: %q", ops[i-2:i+1])
+	}
+
+	assert.Equal(t, 2, renames, "one object and the manifest")
+
+	lastObject := stepBefore(t, ops, "rename objects/", stepOf(t, ops, "rename manifest.json", 1))
+	syncObjects := stepOf(t, ops, "syncdir objects", lastObject)
+	manifestSync := stepOf(t, ops, "sync .tmp-", syncObjects)
+	manifestRename := stepOf(t, ops, "rename manifest.json", 1)
+	syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
+	collect := stepOf(t, ops, "remove objects/"+sumOf("a-only"), syncRoot)
+
+	assert.Less(t, lastObject, syncObjects, "the objects directory is flushed after the last object is renamed")
+	assert.Less(t, syncObjects, manifestSync, "and before the manifest is written")
+	assert.Less(t, manifestSync, manifestRename)
+	assert.Less(t, manifestRename, syncRoot, "the directory is flushed after the manifest is renamed")
+	assert.Less(t, syncRoot, collect, "the garbage collection comes after the new manifest is durable")
+
+	// nothing but removals follows the first removal of the collection
+	for _, op := range ops[collect-1:] {
+		assert.True(
+			t,
+			strings.HasPrefix(op, "remove ") || strings.HasPrefix(op, "syncdir objects"),
+			"after the collection: %s",
+			op,
+		)
 	}
 }

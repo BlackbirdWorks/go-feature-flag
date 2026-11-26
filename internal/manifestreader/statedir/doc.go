@@ -17,8 +17,15 @@
 //     so a slow disk never delays a poll. A failed write is reported in the state status, never stops polling and
 //     is retried with the next snapshot.
 //   - A directory has one owner at a time: an exclusive advisory lock (flock, on systems that have it) makes a
-//     second process fail with [ErrLocked]. Without the lock the layout is still last-writer-wins and cannot be
-//     corrupted: every file is complete or absent, and a reader verifies what it reads.
+//     second process fail with [ErrLocked]. Without the lock two writers can delete each other's objects, and the
+//     restore is then partial; nothing is corrupted, because every file is complete or absent and everything read
+//     back is verified.
+//   - A directory that is not ours is never touched: a symbolic link, a world-writable directory, foreign files
+//     and no VERSION ([ErrUnsafe]), another layout version ([ErrForeignVersion]). [OpenOrDisable] turns those
+//     refusals into hooks that only report them, so the relay runs without a state directory and never fails to
+//     start.
+//   - A restart publishes the restored snapshot first: names that were stale when the state was saved come back
+//     stale with their old bytes.
 //
 // All file system access goes through the small [FS] and [Root] interfaces, so tests inject failures.
 package statedir

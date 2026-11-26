@@ -255,28 +255,12 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 			wantCalls: coldCalls(objs),
 		},
 		{
-			name: "another layout version: a cold start",
-			damage: func(t *testing.T, dir string) {
-				t.Helper()
-				require.NoError(
-					t,
-					os.WriteFile(filepath.Join(dir, "VERSION"), []byte("semaphore-manifest-state 99\n"), 0o600),
-				)
-			},
-			wantCalls: coldCalls(objs),
-		},
-		{
 			name: "an empty directory: a cold start",
 			damage: func(t *testing.T, dir string) {
 				t.Helper()
 				require.NoError(t, os.RemoveAll(dir))
 				require.NoError(t, os.Mkdir(dir, 0o700))
 			},
-			wantCalls: coldCalls(objs),
-		},
-		{
-			name: "an unreadable directory: a cold start", damage: func(*testing.T, string) {},
-			fsys:      func() statedir.FS { return unreadableFS{statedir.NewOSFS()} },
 			wantCalls: coldCalls(objs),
 		},
 	}
@@ -299,9 +283,6 @@ func TestRestart_CorruptedFilesCostExactlyWhatTheyShould(t *testing.T) {
 			store.takeCalls()
 
 			var fsys statedir.FS
-			if tt.fsys != nil {
-				fsys = tt.fsys()
-			}
 
 			etag := manifestETag(store)
 			second, state2 := startWithState(t, store, dir, fsys)
@@ -358,18 +339,6 @@ func coldCalls(objs []obj) func(*testing.T, string) []call {
 	}
 }
 
-// unreadableFS opens the directory and fails every read.
-type unreadableFS struct{ statedir.FS }
-
-func (u unreadableFS) Open(dir string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
-	root, err := u.FS.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	return failingRoot{Root: root, readErr: syscall.EIO}, nil
-}
-
 // failingRoot fails the reads and, when createErr is set, the creation of files.
 type failingRoot struct {
 	statedir.Root
@@ -378,7 +347,13 @@ type failingRoot struct {
 	createErr error
 }
 
-func (f failingRoot) ReadFile(string) ([]byte, error) { return nil, f.readErr }
+func (f failingRoot) ReadFile(name string, limit int64) ([]byte, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+
+	return f.Root.ReadFile(name, limit)
+}
 
 func (f failingRoot) Create(name string) (statedir.File, error) { //nolint:ireturn // implements the FS seam
 	if f.createErr != nil {

@@ -243,7 +243,7 @@ func TestBudget_StartupCostsAtMostConnectionsPlusDistinctObjects(t *testing.T) {
 	}
 }
 
-// indexed puts a stratified jitter source on a replica: replica i of n draws (i + 0.5) / n, the values of
+// stratified puts a stratified jitter source on a replica: replica i of n draws (i + 0.5) / n, the values of
 // evenly spread random draws, so the test asserts how a draw maps to a delay without depending on luck.
 func stratified(index, total int) manifestreader.Option {
 	value := (float64(index) + 0.5) / float64(total)
@@ -313,7 +313,7 @@ func TestBudget_TwoHundredReplicasOnePublish(t *testing.T) {
 	assert.Len(t, byCall, 4, "no other request")
 }
 
-func TestBudget_FetchesOfANewGenerationAreSpread(t *testing.T) {
+func TestBudget_SpreadDelayIsJitterTimesTheWindow(t *testing.T) {
 	t.Parallel()
 
 	const (
