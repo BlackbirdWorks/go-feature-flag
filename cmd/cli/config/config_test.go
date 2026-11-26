@@ -87,7 +87,10 @@ func testDeps() config.Deps {
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
-	cmd := config.NewConfigCmdWith(testDeps())
+	deps := testDeps()
+	deps.Args = func() []string { return args }
+
+	cmd := config.NewConfigCmdWith(deps)
 
 	var out, errOut bytes.Buffer
 

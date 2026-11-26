@@ -30,7 +30,7 @@ func main() {
 // stdout carries results only, stderr carries every diagnostic (Cobra's usage and errors, and the final error line).
 // The exit code is 1 unless the command defines another one (2, 3, 4 or 5, see helper.ExitError).
 func execute(args []string) int {
-	cmd := initRootCmd()
+	cmd := initRootCmd(args)
 	cmd.SetArgs(args)
 
 	err := cmd.Execute()
@@ -44,7 +44,7 @@ func execute(args []string) int {
 	return code
 }
 
-func initRootCmd() *cobra.Command {
+func initRootCmd(args []string) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "semaphore-cli",
 		Short: "Semaphore CLI tool",
@@ -57,8 +57,17 @@ func initRootCmd() *cobra.Command {
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())
 	rootCmd.AddCommand(generate.NewGenerateCmd())
-	rootCmd.AddCommand(publish.NewPublishCmd())
-	rootCmd.AddCommand(config.NewConfigCmd())
+	// The commands read the raw arguments to know about --output json when a flag does not parse.
+	rawArgs := func() []string { return args }
+
+	publishDeps := publish.DefaultDeps()
+	publishDeps.Args = rawArgs
+
+	configDeps := config.DefaultDeps()
+	configDeps.Args = rawArgs
+
+	rootCmd.AddCommand(publish.NewPublishCmdWith(publishDeps))
+	rootCmd.AddCommand(config.NewConfigCmdWith(configDeps))
 
 	return rootCmd
 }

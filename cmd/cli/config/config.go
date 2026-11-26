@@ -25,6 +25,8 @@ type Deps struct {
 	LookupEnv func(string) (string, bool)
 	// ReadFile reads the bootstrap file.
 	ReadFile func(string) ([]byte, error)
+	// Args returns the raw command-line arguments (nil: os.Args[1:]); see publish.Deps.Args.
+	Args func() []string
 }
 
 // DefaultDeps returns the dependencies of the real command.
@@ -52,7 +54,9 @@ func NewConfigCmdWith(deps Deps) *cobra.Command {
 	cmd.AddCommand(newValidateCmd(&deps, &output), newPrintCmd(&deps, &output))
 
 	// Every failure of the group, argument and flag errors included, follows the one JSON error mechanism.
-	helper.JSONErrors(cmd, helper.JSONErrorOptions{Enabled: func() bool { return output == outputJSON }})
+	helper.JSONErrors(cmd, helper.JSONErrorOptions{
+		Enabled: func() bool { return output == outputJSON }, RawArgs: deps.Args,
+	})
 
 	return cmd
 }

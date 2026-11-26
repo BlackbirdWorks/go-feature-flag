@@ -62,6 +62,7 @@ publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5
 	helper.JSONErrors(cmd, helper.JSONErrorOptions{
 		Enabled: func() bool { return opts.output == outputJSON },
 		Details: errorDetails,
+		RawArgs: deps.Args,
 	})
 
 	return cmd

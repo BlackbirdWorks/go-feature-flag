@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	subName  = "sub"
-	jsonFlag = "--json"
+	jsonValue = "json"
+	textValue = "text"
+	subName   = "sub"
+	pubName   = "publish"
+	jsonFlag  = "--json"
 )
 
 var errRun = errors.New("run failed")
@@ -23,7 +26,7 @@ var errRun = errors.New("run failed")
 // newTree is a command with one subcommand, wired to the JSON error mechanism like a real command group.
 func newTree(jsonMode *bool, runErr error) *cobra.Command {
 	root := &cobra.Command{Use: "root", SilenceErrors: true, SilenceUsage: true, Args: cobra.NoArgs}
-	root.PersistentFlags().BoolVar(jsonMode, "json", false, "")
+	root.PersistentFlags().BoolVar(jsonMode, jsonValue, false, "")
 	root.AddCommand(&cobra.Command{
 		Use: subName, SilenceErrors: true, SilenceUsage: true, Args: cobra.ExactArgs(1),
 		RunE: func(*cobra.Command, []string) error { return runErr },
@@ -128,12 +131,80 @@ func TestJSONErrors(t *testing.T) {
 func TestMarkReportedKeepsTheErrorAndItsCode(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, helper.MarkReported(nil))
+	tests := []struct {
+		err         error
+		name        string
+		wantMessage string
+		wantCode    int
+		wantNil     bool
+		wantIs      bool
+	}{
+		{name: "nil stays nil", err: nil, wantNil: true},
+		{
+			name:        "a marked error keeps its message and its code",
+			err:         helper.WithExitCode(helper.MarkReported(errRun), helper.ExitVerify),
+			wantMessage: "run failed",
+			wantCode:    helper.ExitVerify,
+			wantIs:      true,
+		},
+		{
+			name: "a marked plain error has the default code", err: helper.MarkReported(errRun),
+			wantMessage: "run failed", wantCode: helper.ExitFailure, wantIs: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	err := helper.WithExitCode(helper.MarkReported(errRun), helper.ExitVerify)
-	require.ErrorIs(t, err, errRun)
-	assert.Equal(t, helper.ExitVerify, helper.ExitCodeOf(err))
-	assert.Equal(t, "run failed", err.Error())
+			if tt.wantNil {
+				require.NoError(t, helper.MarkReported(tt.err))
+
+				return
+			}
+
+			assert.Equal(t, tt.wantMessage, tt.err.Error())
+			assert.Equal(t, tt.wantCode, helper.ExitCodeOf(tt.err))
+			assert.Equal(t, tt.wantIs, errors.Is(tt.err, errRun))
+		})
+	}
+}
+
+func TestWantsJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "no arguments"},
+		{name: "short flag", args: []string{pubName, "-o", jsonValue}, want: true},
+		{name: "short flag attached", args: []string{pubName, "-ojson"}, want: true},
+		{name: "short flag with equals", args: []string{pubName, "-o=json"}, want: true},
+		{name: "long flag", args: []string{pubName, "--output", jsonValue}, want: true},
+		{name: "long flag with equals", args: []string{pubName, "--output=json"}, want: true},
+		{name: "before an unknown flag", args: []string{"-o", jsonValue, "--no-such-flag"}, want: true},
+		{name: "after an unknown flag", args: []string{"--no-such-flag", "-o", jsonValue}, want: true},
+		{name: textValue, args: []string{"-o", textValue}},
+		{name: "the last one wins: text after json", args: []string{"-o", jsonValue, "-o", textValue}},
+		{name: "the last one wins: json after text", args: []string{"--output=text", "-o", jsonValue}, want: true},
+		{name: "a value that equals json for another flag", args: []string{"--endpoint", jsonValue, pubName}},
+		{name: "a positional argument that equals json", args: []string{pubName, jsonValue}},
+		{name: "stops at the double dash", args: []string{pubName, "--", "-o", jsonValue}},
+		{
+			name: "a flag whose value is the word json after the double dash only",
+			args: []string{"-o", textValue, "--", "--output=json"},
+		},
+		{name: "a dangling flag", args: []string{pubName, "-o"}},
+		{name: "another flag that starts with -o", args: []string{"-opt", jsonValue}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, helper.WantsJSON(tt.args))
+		})
+	}
 }
 
 func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {

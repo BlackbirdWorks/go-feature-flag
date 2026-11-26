@@ -152,7 +152,9 @@ func TestVerifyReadsThePinnedVersion(t *testing.T) {
 	body := flagsBody(t, "a")
 	key := objectKey(t, body)
 
-	manifestWith := func(versionID string) []byte {
+	manifestWith := func(t *testing.T, versionID string) []byte {
+		t.Helper()
+
 		out, err := controlplane.MarshalManifest(&controlplane.Manifest{
 			Channel: testChannel, Generation: 2,
 			Objects: []controlplane.ManifestObject{{
@@ -201,7 +203,7 @@ func TestVerifyReadsThePinnedVersion(t *testing.T) {
 				fake.SeedVersion(key, id, data)
 			}
 
-			fake.Seed(manifestKey, manifestWith(tt.versionID))
+			fake.Seed(manifestKey, manifestWith(t, tt.versionID))
 
 			rep, err := newPublisher(t, fake, nil).Verify(t.Context())
 			require.NoError(t, err)

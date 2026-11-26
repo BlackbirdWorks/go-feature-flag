@@ -137,8 +137,12 @@ The manifest is YAML, or JSON when the manifest key ends in `.json`.
 
 ## Verify
 
+An entry that the relay fails alone (size below 1 or over `MaxObjectBytes`, a key that is not an absolute bucket key) is a
+`ProblemInvalidEntry` of that entry and is not read; the other entries are still checked. A publication refuses to write such
+an entry, but a manifest in the bucket that lists one is a valid manifest to publish over (no `ReplaceInvalidManifest`).
+
 `Verify` reads the manifest and each object of `Config.Connection` (the pinned `versionId` of an entry, when it has one; an absent
 version is `missing`) and reports `Problem{Object, Key, Code, Detail}`:
-`missing`, `unreadable`, `size-mismatch`, `checksum-mismatch`, `invalid-content`, `manifest-invalid`, or the `controlplane`
+`missing`, `unreadable`, `invalid-entry`, `size-mismatch`, `checksum-mismatch`, `invalid-content`, `manifest-invalid`, or the `controlplane`
 code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. `Detail` never holds
 document content, so no API key. `ErrNoManifest` and `*OperationError` are returned as errors.

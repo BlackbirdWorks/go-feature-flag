@@ -42,7 +42,11 @@ func (p *Publisher) plan(req *Request) (*plan, error) {
 		}
 	}
 
-	err := p.checkLimits(manifest.Objects, func(i int) string { return label(items[i].entry.Name, items[i].source) })
+	err := p.checkLimits(
+		manifest.Objects,
+		func(i int) string { return label(items[i].entry.Name, items[i].source) },
+		true,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}

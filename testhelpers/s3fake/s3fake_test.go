@@ -383,7 +383,9 @@ func TestInvariantChecksThePinnedVersion(t *testing.T) {
 	pinned := []byte("pinned version")
 	latest := []byte("a different latest")
 
-	manifestPinning := func(versionID string) []byte {
+	manifestPinning := func(t *testing.T, versionID string) []byte {
+		t.Helper()
+
 		out, err := controlplane.MarshalManifest(&controlplane.Manifest{
 			Channel: stableChannel, Generation: 1,
 			Objects: []controlplane.ManifestObject{
@@ -444,7 +446,7 @@ func TestInvariantChecksThePinnedVersion(t *testing.T) {
 
 			fake := s3fake.New(manifestKey)
 			tt.seed(fake)
-			require.NoError(t, put(t, fake, manifestKey, manifestPinning(tt.versionID), nil))
+			require.NoError(t, put(t, fake, manifestKey, manifestPinning(t, tt.versionID), nil))
 
 			violations := fake.Violations()
 			if tt.wantViolation == "" {

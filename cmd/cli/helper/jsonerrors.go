@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -36,6 +38,47 @@ type JSONErrorOptions struct {
 	Enabled func() bool
 	// Details lists the individual problems behind an error; it may be nil.
 	Details func(err error) []string
+	// RawArgs returns the arguments of the command line as given (without the program name). A flag that does not
+	// parse stops Cobra before any flag value is known, so JSON mode is then read from these with [WantsJSON], in
+	// whatever order the flags came. Nil means os.Args[1:].
+	RawArgs func() []string
+}
+
+// WantsJSON reports whether raw command-line arguments ask for --output json: the last of -o VALUE, -oVALUE,
+// -o=VALUE, --output VALUE and --output=VALUE decides, and the scan stops at "--". It is a pure scan: it does not
+// know the other flags, so a value that merely equals "json" for another flag does not count.
+func WantsJSON(args []string) bool {
+	wants := false
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		var value string
+
+		switch {
+		case arg == "--":
+			return wants
+		case arg == "-o" || arg == "--output":
+			if i+1 >= len(args) {
+				continue
+			}
+
+			i++
+			value = args[i]
+		case strings.HasPrefix(arg, "--output="):
+			value = strings.TrimPrefix(arg, "--output=")
+		case strings.HasPrefix(arg, "-o="):
+			value = strings.TrimPrefix(arg, "-o=")
+		case strings.HasPrefix(arg, "-o") && !strings.HasPrefix(arg, "--"):
+			value = strings.TrimPrefix(arg, "-o")
+		default:
+			continue
+		}
+
+		wants = value == "json"
+	}
+
+	return wants
 }
 
 // JSONErrors makes every failure of cmd and of all its subcommands, present and future, follow one mechanism:
@@ -48,10 +91,22 @@ type JSONErrorOptions struct {
 // --output json flag cannot forget it: the wrap is applied to the whole tree.
 func JSONErrors(cmd *cobra.Command, opts JSONErrorOptions) {
 	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
-		return reportJSON(c.OutOrStdout(), opts, fmt.Errorf("%w: %w", ErrUsage, err))
+		// The flags were not parsed to the end: the flag value that was read so far is not reliable.
+		raw := opts
+		raw.Enabled = func() bool { return opts.Enabled() || WantsJSON(rawArgs(opts)) }
+
+		return reportJSON(c.OutOrStdout(), raw, fmt.Errorf("%w: %w", ErrUsage, err))
 	})
 
 	wrapTree(cmd, opts)
+}
+
+func rawArgs(opts JSONErrorOptions) []string {
+	if opts.RawArgs != nil {
+		return opts.RawArgs()
+	}
+
+	return os.Args[1:]
 }
 
 func wrapTree(cmd *cobra.Command, opts JSONErrorOptions) {

@@ -97,7 +97,10 @@ func newHarness(t *testing.T, tree fs.FS) *harness {
 func (rig *harness) run(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
-	cmd := publish.NewPublishCmdWith(rig.deps)
+	deps := rig.deps
+	deps.Args = func() []string { return args }
+
+	cmd := publish.NewPublishCmdWith(deps)
 
 	var stdout, stderr bytes.Buffer
 

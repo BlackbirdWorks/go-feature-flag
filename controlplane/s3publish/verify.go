@@ -14,6 +14,9 @@ import (
 const (
 	// ProblemManifestInvalid: the manifest cannot be decoded or fails validation.
 	ProblemManifestInvalid = "manifest-invalid"
+	// ProblemInvalidEntry: the entry cannot be requested (a size below 1 or over the limit, a key that is not an
+	// absolute bucket key). The reader fails such an entry alone; the other entries are still checked.
+	ProblemInvalidEntry = "invalid-entry"
 	// ProblemMissing: the object listed in the manifest does not exist.
 	ProblemMissing = "missing"
 	// ProblemUnreadable: the object could not be read (access, transport).
@@ -125,6 +128,16 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 			continue
 		}
 
+		reason := p.entryProblem(obj)
+		if reason != "" {
+			rep.Problems = append(
+				rep.Problems,
+				Problem{Object: obj.Name, Key: obj.Key, Code: ProblemInvalidEntry, Detail: reason},
+			)
+
+			continue
+		}
+
 		rep.Checked++
 
 		problems, doc := p.verifyObject(ctx, obj)
@@ -195,6 +208,20 @@ func documentIndex(path string) (int, bool) {
 	idx, err := strconv.Atoi(number)
 
 	return idx, err == nil
+}
+
+// entryProblem says why the reader would not request an entry at all, or "".
+func (p *Publisher) entryProblem(obj *controlplane.ManifestObject) string {
+	switch {
+	case obj.Key == "" || strings.HasPrefix(obj.Key, "/"):
+		return "the key is not an absolute bucket key"
+	case obj.Size < 1:
+		return fmt.Sprintf("size %d, an object must not be empty", obj.Size)
+	case obj.Size > p.cfg.MaxObjectBytes:
+		return fmt.Sprintf("size %d bytes is over the limit of %d bytes", obj.Size, p.cfg.MaxObjectBytes)
+	}
+
+	return ""
 }
 
 // verifyObject checks one object and returns its problems and, for a readable flag-set document, the document.

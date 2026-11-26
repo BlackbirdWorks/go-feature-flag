@@ -145,7 +145,9 @@ func TestPublishCountsEqualContentOnceInTheTotal(t *testing.T) {
 	require.NoError(t, err, "two entries with one checksum are one download for the reader")
 }
 
-func TestVerifyAppliesTheLimits(t *testing.T) {
+// TestVerifyAppliesTheWholeManifestLimits: what makes the reader reject the whole manifest is one problem of the
+// manifest and nothing is read.
+func TestVerifyAppliesTheWholeManifestLimits(t *testing.T) {
 	t.Parallel()
 
 	body := flagsBody(t, "a")
@@ -155,7 +157,6 @@ func TestVerifyAppliesTheLimits(t *testing.T) {
 		mutate func(*s3publish.Config)
 		name   string
 	}{
-		{name: "object over the limit", mutate: func(c *s3publish.Config) { c.MaxObjectBytes = int64(len(body)) - 1 }},
 		{name: "total over the limit", mutate: func(c *s3publish.Config) { c.MaxTotalBytes = int64(len(body)) }},
 		{name: msgTooMany, mutate: func(c *s3publish.Config) { c.MaxObjects = 1 }},
 		{name: "manifest over the limit", mutate: func(c *s3publish.Config) { c.MaxManifestBytes = 50 }},
@@ -178,4 +179,119 @@ func TestVerifyAppliesTheLimits(t *testing.T) {
 			assert.Zero(t, rep.Checked, "nothing is read from a manifest that the reader would reject")
 		})
 	}
+}
+
+// TestVerifyFailsABadEntryAloneLikeTheReader: an entry that the reader never requests is a problem of that entry;
+// the other entries are still read and checked, and the manifest itself stays valid.
+func TestVerifyFailsABadEntryAloneLikeTheReader(t *testing.T) {
+	t.Parallel()
+
+	good1, good2 := flagsBody(t, "g1"), flagsBody(t, "g2")
+	bad := flagsBody(t, "bad")
+
+	tests := []struct {
+		mutate     func(entry *controlplane.ManifestObject)
+		name       string
+		wantDetail string
+		maxObject  int64
+	}{
+		{
+			name:       "size 0",
+			mutate:     func(e *controlplane.ManifestObject) { e.Size = 0 },
+			wantDetail: "size 0, an object must not be empty",
+		},
+		{
+			name: "size over the object limit", maxObject: int64(len(bad)) - 1, wantDetail: "is over the limit of",
+			mutate: func(*controlplane.ManifestObject) {},
+		},
+		{
+			name:       "key with a leading slash",
+			mutate:     func(e *controlplane.ManifestObject) { e.Key = "/" + e.Key },
+			wantDetail: "not an absolute bucket key",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			entries := make([]controlplane.ManifestObject, 0, 3)
+
+			for _, doc := range []struct {
+				name string
+				body []byte
+			}{{"a-bad", bad}, {"b-good", good1}, {"c-good", good2}} {
+				key := objectKey(t, doc.body)
+				fake.Seed(key, doc.body)
+
+				entries = append(entries, controlplane.ManifestObject{
+					Name:       doc.name,
+					Kind:       controlplane.KindFlags,
+					Connection: testConnection,
+					Key:        key,
+					Format:     controlplane.FormatYAML,
+					Checksum:   controlplane.ChecksumOf(doc.body),
+					Size:       int64(len(doc.body)),
+				})
+			}
+
+			tt.mutate(&entries[0])
+
+			body, err := controlplane.MarshalManifest(&controlplane.Manifest{
+				Channel: testChannel, Generation: 2, Objects: entries,
+			})
+			require.NoError(t, err)
+			fake.Seed(manifestKey, body)
+			fake.ResetCalls()
+
+			rep, err := newPublisher(
+				t,
+				fake,
+				func(c *s3publish.Config) { c.MaxObjectBytes = tt.maxObject },
+			).Verify(t.Context())
+			require.NoError(t, err)
+
+			require.Len(t, rep.Problems, 1, "%v", rep.Problems)
+			assert.Equal(t, "a-bad", rep.Problems[0].Object)
+			assert.Equal(t, s3publish.ProblemInvalidEntry, rep.Problems[0].Code)
+			assert.Contains(t, rep.Problems[0].Detail, tt.wantDetail)
+			assert.Equal(t, 2, rep.Checked, "the two good entries are checked")
+			assert.Equal(
+				t,
+				s3publish.Requests{Get: 3},
+				rep.Requests,
+				"the manifest and the two good entries, nothing for the bad one",
+			)
+			assert.Equal(t, []string{
+				"GET " + manifestKey, "GET " + entries[1].Key, "GET " + entries[2].Key,
+			}, fake.Calls())
+		})
+	}
+}
+
+func TestAnExistingManifestWithABadEntryIsPublishableOverWithoutTheFlag(t *testing.T) {
+	t.Parallel()
+
+	body := flagsBody(t, "old")
+	key := objectKey(t, body)
+
+	fake := s3fake.New(manifestKey)
+	fake.Seed(key, body)
+
+	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
+		Channel: testChannel, Generation: 4,
+		Objects: []controlplane.ManifestObject{{
+			Name: "empty", Kind: controlplane.KindFlags, Connection: testConnection, Key: key,
+			Format: controlplane.FormatYAML, Checksum: controlplane.ChecksumOf(body), Size: 0,
+		}},
+	})
+	require.NoError(t, err)
+
+	etag := fake.Seed(manifestKey, manifest)
+
+	res, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "new")})
+	require.NoError(t, err, "the reader keeps such a manifest, so it is a valid manifest to publish over")
+
+	assert.Equal(t, uint64(5), res.Generation)
+	assert.Contains(t, fake.Calls(), "PUT "+manifestKey+" if-match="+etag)
 }

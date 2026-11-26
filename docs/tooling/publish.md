@@ -55,7 +55,7 @@ semaphore-cli publish ./flags-repo --config /etc/semaphore/bootstrap.yaml
 
 With `--output json` a failure writes one JSON object on stdout and exits with the usual code; the final `error executing command`
 line of the process goes to stderr, so stdout is one JSON document. A missing or extra argument and a flag that does not parse
-are reported the same way (a flag error only when `-o json` comes before it, since flags are read in order):
+are reported the same way, whatever the order of the flags (JSON mode is read from the raw arguments, the last `-o`/`--output` wins):
 
 ```json
 {"error": {"code": "invalid", "message": "...", "details": ["bad.variations: is required"]}}
@@ -154,6 +154,12 @@ names the file and the flag. (The engine accepts percentages that do not sum to 
 - `caBundleFile` of a connection is not available in `--config` mode yet (the bootstrap file has no such setting): the system
   roots are used.
 
+## Publishing over a manifest with a bad entry
+
+An existing manifest that lists an entry the relay fails alone (a size of 0, a size over the limit) is a valid manifest: `publish`
+writes the next generation over it with the usual `If-Match`, with no flag. `--replace-invalid-manifest` is only for a manifest
+that is invalid as a whole (not readable, wrong header, too many entries, over the total size).
+
 ## Recovery from an invalid manifest
 
 A manifest in the bucket that cannot be read, is invalid or is over the current limits blocks the channel: `publish` and
@@ -175,10 +181,14 @@ semaphore-cli publish verify --config /etc/semaphore/bootstrap.yaml
 
 Reads the manifest and every listed object of the connection (reads only) and checks the limits, the size, the sha256, the
 content of each document and that every flag-set source resolves, the flag-set documents taken together. Problems are listed per object with a stable code: `missing`, `unreadable`,
-`size-mismatch`, `checksum-mismatch`, `invalid-content` (or the code of a validation problem such as `unresolved-source`),
+`invalid-entry`, `size-mismatch`, `checksum-mismatch`, `invalid-content` (or the code of a validation problem such as `unresolved-source`),
 `manifest-invalid`. Objects of other connections are listed as skipped, and the text output says so. Same `--output` and target
 flags as `publish`.
 
+- Like the relay, `verify` fails an entry that cannot be requested alone: a size below 1 or over the limit, or a key that is
+  not an absolute bucket key, is an `invalid-entry` problem of that entry, and the other entries are still read and checked.
+  Only a manifest that cannot be parsed or fails the checks of the whole manifest (the header, the number of entries, the total
+  size) is `manifest-invalid`.
 - A manifest entry with a `versionId` is read at that version; an absent version is `missing`.
 - Flag files also go through the engine check (below), so a stored file that the relay would not load is `invalid-content`
   even when its size and checksum match. A flag file listed with `format: toml` is accepted as far as the structure goes

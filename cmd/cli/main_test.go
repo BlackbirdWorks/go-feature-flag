@@ -88,7 +88,7 @@ func TestCmdExist(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := initRootCmd()
+			cmd := initRootCmd(tt.args)
 
 			var out bytes.Buffer
 			cmd.SetOut(&out)
@@ -108,7 +108,7 @@ func TestVersionFlag(t *testing.T) {
 
 			var out bytes.Buffer
 
-			cmd := initRootCmd()
+			cmd := initRootCmd([]string{flag})
 			cmd.SetOut(&out)
 			cmd.SetArgs([]string{flag})
 			require.NoError(t, cmd.Execute())
@@ -119,17 +119,18 @@ func TestVersionFlag(t *testing.T) {
 }
 
 const (
-	cmdValidate = "validate"
-	cmdVerify   = "verify"
-	codeUsage   = "usage"
-	fatalLine   = "error executing command"
-	unknownFlag = "--not-a-flag"
-	usageText   = "Usage:"
-	cmdConfig   = "config"
-	cmdPublish  = "publish"
-	fmtJSON     = "json"
-	flagFormat  = "--format"
-	formatYAML  = "yaml"
+	cmdValidate    = "validate"
+	cmdVerify      = "verify"
+	codeUsage      = "usage"
+	fatalLine      = "error executing command"
+	unknownFlag    = "--not-a-flag"
+	unknownFlagMsg = "unknown flag"
+	usageText      = "Usage:"
+	cmdConfig      = "config"
+	cmdPublish     = "publish"
+	fmtJSON        = "json"
+	flagFormat     = "--format"
+	formatYAML     = "yaml"
 )
 
 func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
@@ -163,7 +164,7 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := initRootCmd()
+			cmd := initRootCmd(tt.args)
 
 			var out bytes.Buffer
 
@@ -309,6 +310,24 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantExit:   2,
 		},
 		{
+			name: "publish unknown flag after -o json", args: []string{cmdPublish, unknownFlag, "-o", fmtJSON},
+			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name: "publish unknown flag before --output=json", args: []string{cmdPublish, unknownFlag, "--output=json"},
+			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name: "config unknown flag before -ojson", args: []string{cmdConfig, cmdValidate, unknownFlag, "-ojson"},
+			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name:       "publish unknown flag with -o text last wins",
+			args:       []string{cmdPublish, unknownFlag, "-o", fmtJSON, "-o", "text"},
+			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
 			name: "config failure, JSON", args: []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
 			wantStderr: "version 2 required", jsonStdout: "invalid", wantExit: 2,
 		},
@@ -328,7 +347,7 @@ func TestWholeProcessStreams(t *testing.T) {
 		},
 		{
 			name: "publish flag error, JSON", args: []string{cmdPublish, "-o", fmtJSON, unknownFlag},
-			wantStderr: "unknown flag", jsonStdout: codeUsage, wantExit: 1,
+			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
 			name: "verify with problems, text", args: append([]string{cmdPublish, cmdVerify}, target...),

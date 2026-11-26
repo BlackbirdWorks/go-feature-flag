@@ -291,7 +291,7 @@ func (p *Publisher) decodeManifest(body []byte) (*controlplane.Manifest, error) 
 		return nil, fmt.Errorf("validate manifest: %w", err)
 	}
 
-	err = p.checkLimits(manifest.Objects, func(i int) string { return manifest.Objects[i].Name })
+	err = p.checkLimits(manifest.Objects, func(i int) string { return manifest.Objects[i].Name }, false)
 	if err != nil {
 		return nil, err
 	}
@@ -303,9 +303,11 @@ func (p *Publisher) decodeManifest(body []byte) (*controlplane.Manifest, error) 
 	return manifest, nil
 }
 
-// checkLimits applies the limits of the reader to the entries of a manifest: every size between 1 and
-// MaxObjectBytes, and the sum over the distinct checksums at most MaxTotalBytes. label names entry i.
-func (p *Publisher) checkLimits(objects []controlplane.ManifestObject, label func(i int) string) error {
+// checkLimits applies the limits of the reader to the entries of a manifest: the sum over the distinct checksums
+// is at most MaxTotalBytes and, when strict (a manifest about to be written), every size is between 1 and
+// MaxObjectBytes. The reader fails an entry of another size alone (it is never requested), so for a manifest that is
+// already in the bucket such an entry is not a problem of the manifest. label names entry i.
+func (p *Publisher) checkLimits(objects []controlplane.ManifestObject, label func(i int) string, strict bool) error {
 	var total int64
 
 	seen := make(map[string]struct{}, len(objects))
@@ -314,11 +316,15 @@ func (p *Publisher) checkLimits(objects []controlplane.ManifestObject, label fun
 		size := objects[i].Size
 
 		switch {
-		case size < 1:
+		case size < 1 && strict:
 			return fmt.Errorf("%w: %s: size %d, an object must not be empty", ErrLimit, label(i), size)
-		case size > p.cfg.MaxObjectBytes:
+		case size > p.cfg.MaxObjectBytes && strict:
 			return fmt.Errorf("%w: %s: size %d bytes is over the limit of %d bytes",
 				ErrLimit, label(i), size, p.cfg.MaxObjectBytes)
+		case size < 1 || size > p.cfg.MaxObjectBytes:
+			// An entry of a manifest that is already published and that the reader fails on its own: it is
+			// never requested and counts for nothing, so it is not a problem of the manifest.
+			continue
 		}
 
 		if _, dup := seen[objects[i].Checksum.Value]; dup {
