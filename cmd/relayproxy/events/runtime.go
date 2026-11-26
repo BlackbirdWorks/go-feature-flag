@@ -51,15 +51,12 @@ func NewRuntime(cfg *RuntimeConfig) *Runtime {
 	}
 }
 
-// Start starts the workers of the dispatcher and the consumer of the changes channel (nil for none).
+// Start starts the dispatcher and the consumer of the changes channel (nil for none). The end of ctx shuts both
+// down, each with the drain timeout of the configuration.
 func (r *Runtime) Start(ctx context.Context, changes <-chan flagruntime.Change) error {
 	err := r.Dispatcher.Start(ctx)
 	if err != nil {
 		return err
-	}
-
-	if changes == nil {
-		return nil
 	}
 
 	return r.Notifications.Start(ctx, changes)
@@ -74,13 +71,23 @@ type ReloadReport struct {
 	Notifiers ReloadSet
 }
 
-// Reload builds the exporters and the notifiers of the specs, and applies both in place. When any entry fails to
-// build nothing is changed and the error names every failing entry.
+// Reload builds the exporters and the notifiers of the specs, checks that both sides are open, and applies both
+// in place. When an entry fails to build, or one side is closed, nothing is changed and the error says why (every
+// failing entry is named).
 func (r *Runtime) Reload(ctx context.Context, specs Specs) (ReloadReport, error) {
 	expDefs, expErr := r.builder.Exporters(ctx, specs)
 	notDefs, notErr := r.builder.Notifiers(ctx, specs)
 
 	err := errors.Join(expErr, notErr)
+	if err != nil {
+		return ReloadReport{}, err
+	}
+
+	if r.Dispatcher.closed.Load() {
+		return ReloadReport{}, ErrClosed
+	}
+
+	err = r.Notifications.open()
 	if err != nil {
 		return ReloadReport{}, err
 	}

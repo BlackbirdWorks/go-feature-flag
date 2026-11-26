@@ -2,12 +2,8 @@ package events_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,7 +63,7 @@ func TestRuntime_ReloadFromBootstrapDocument(t *testing.T) {
 
 	_, err = runtime.Reload(context.Background(), broken)
 	require.ErrorIs(t, err, events.ErrInvalidSettings)
-	assert.Len(t, runtime.Status().Exporters, 3, "files, logs and the retired first logs")
+	assert.Len(t, runtime.Status().Exporters, 2, "one entry per name: files and logs")
 
 	assert.True(t, runtime.Collect(ev(1)))
 
@@ -123,73 +119,6 @@ func TestRuntime_ReloadErrors(t *testing.T) {
 	})
 }
 
-// TestRuntime_SecretsNeverLeak runs a runtime whose exporter and notifier fail with errors that carry their
-// secrets, and checks that no log line, error, status or identity shows a canary.
-func TestRuntime_SecretsNeverLeak(t *testing.T) {
-	t.Parallel()
-
-	// a server that is closed at once: the webhook exporter fails with an error that names its URL
-	srv := httptest.NewServer(http.NotFoundHandler())
-	endpoint := srv.URL + "/" + canaryURL
-	srv.Close()
-
-	env := map[string]string{
-		envURL:    endpoint,
-		envSecret: canarySecret,
-		"HDR":     canaryHeader,
-		"KEY":     canaryAzure,
-		"NOTIF":   "https://chat.example/" + canaryURL,
-	}
-	doc := `exporters:
-  hook: {kind: webhook, endpointUrl: {fromEnv: URL}, secret: {fromEnv: SECRET}, flushInterval: 1h,
-         headers: {X-Token: {fromEnv: HDR}}}
-  blob: {kind: azureBlobStorage, container: c, accountName: acc, accountKey: {fromEnv: KEY}}
-notifiers:
-  chat: {kind: slack, webhookUrl: {fromEnv: NOTIF}}
-`
-	cfg, opts := parseDoc(t, connections+doc, env)
-	specs := events.SpecsFrom(cfg)
-
-	rec, lines := newLogRecorder()
-	runtime := events.NewRuntime(&events.RuntimeConfig{Logger: slog.New(rec), Builder: events.Builder{Secrets: opts}})
-
-	changes := make(chan flagruntime.Change)
-	require.NoError(t, runtime.Start(context.Background(), changes))
-
-	_, err := runtime.Reload(context.Background(), specs)
-	require.NoError(t, err)
-
-	// an exporter that fails to flush, a notifier that fails: both messages carry their secret
-	require.True(t, runtime.Collect(ev(1)))
-
-	shutdown, err := runtime.Shutdown(bounded(t))
-	require.NoError(t, err)
-
-	status := runtime.Status()
-	statusJSON, jsonErr := json.Marshal(status)
-	require.NoError(t, jsonErr)
-
-	identities := make([]string, 0, len(status.Exporters))
-	for _, e := range status.Exporters {
-		identities = append(identities, e.Name+e.Kind+e.State+string(e.LastError))
-	}
-
-	everything := strings.Join(append(lines(), string(statusJSON), fmt.Sprintf("%+v %#v", status, status),
-		fmt.Sprintf("%+v", shutdown), strings.Join(identities, " ")), "\n")
-
-	for _, canary := range []string{canaryURL, canarySecret, canaryHeader, canaryAzure, endpoint} {
-		assert.NotContains(t, everything, canary)
-	}
-
-	assert.Contains(
-		t,
-		strings.Join(lines(), "\n"),
-		bootstrap.RedactedValue,
-		"the failure was logged, with the secret hidden",
-	)
-	assert.Equal(t, events.ErrorOther, exporterStatus(t, &status, "hook").LastError)
-}
-
 func TestRuntime_ErrorsNeverCarrySecrets(t *testing.T) {
 	t.Parallel()
 
@@ -206,20 +135,6 @@ func TestRuntime_ErrorsNeverCarrySecrets(t *testing.T) {
 	assert.NotContains(t, err.Error(), canaryURL)
 	assert.NotContains(t, err.Error(), canarySecret)
 	assert.Contains(t, err.Error(), fmt.Sprintf("exporters[0] %q", nameBad))
-}
-
-func exporterStatus(tb testing.TB, status *events.Status, name string) events.ExporterStatus {
-	tb.Helper()
-
-	for i := range status.Exporters {
-		if status.Exporters[i].Name == name {
-			return status.Exporters[i]
-		}
-	}
-
-	require.FailNow(tb, "no exporter named "+name)
-
-	return events.ExporterStatus{}
 }
 
 // TestExporterStatus checks the counters of the status against an exporter that succeeds and one that fails.
@@ -285,7 +200,7 @@ func TestExporterStatus(t *testing.T) {
 			report, err := disp.Shutdown(bounded(t))
 			require.NoError(t, err)
 
-			got := exporterStatus(t, new(disp.Status()), "a")
+			got := statusOf(t, new(disp.Status()), "a")
 			assert.Equal(t, tt.wantClass, got.LastError)
 			assert.Equal(t, tt.wantState, got.State)
 			assert.Equal(t, tt.wantExport, got.Exported)

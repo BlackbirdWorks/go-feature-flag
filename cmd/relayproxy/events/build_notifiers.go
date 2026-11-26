@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 
@@ -22,8 +23,8 @@ type builtNotifier struct {
 
 // NotifierDef is a notifier built from its spec, not started yet.
 type NotifierDef struct {
-	// Notifier is the engine notifier.
-	Notifier notifier.Notifier
+	// Notifier is the engine notifier. It is sealed: it holds the secrets of the entry in clear.
+	Notifier Sealed[notifier.Notifier]
 	// Name is the name of the entry in the notifiers section.
 	Name string
 	// Kind is the kind of the notifier.
@@ -79,7 +80,7 @@ func (b Builder) notifier(name string, spec *bootstrap.Notifier) (NotifierDef, e
 		return NotifierDef{}, err
 	}
 
-	return NotifierDef{Name: name, Kind: spec.Kind, Identity: id.String(), Notifier: built.Notifier}, nil
+	return NewNotifierDef(name, spec.Kind, id.String(), built.Notifier), nil
 }
 
 func (b Builder) chatNotifier(id *identity, spec *bootstrap.Notifier) (builtNotifier, error) {
@@ -125,4 +126,27 @@ func (b Builder) webhookNotifier(id *identity, spec *bootstrap.Notifier) (builtN
 	return builtNotifier{Notifier: &webhooknotifier.Notifier{
 		EndpointURL: endpoint, Secret: secret, Meta: spec.Meta, Headers: headers,
 	}}, nil
+}
+
+// NewNotifierDef wraps an engine notifier in a definition [Notifications] can run.
+func NewNotifierDef(name, kind, identity string, notif notifier.Notifier) NotifierDef {
+	return NotifierDef{Name: name, Kind: kind, Identity: identity, Notifier: Seal(notif)}
+}
+
+// String implements [fmt.Stringer]: the name, the kind and the identity, never the notifier.
+func (d NotifierDef) String() string {
+	return fmt.Sprintf("NotifierDef{name=%s kind=%s identity=%.8s}", d.Name, d.Kind, d.Identity)
+}
+
+// GoString implements [fmt.GoStringer].
+func (d NotifierDef) GoString() string { return d.String() }
+
+// Format implements [fmt.Formatter] so that no verb prints the notifier.
+func (d NotifierDef) Format(f fmt.State, _ rune) {
+	_, _ = f.Write([]byte(d.String()))
+}
+
+// LogValue implements [slog.LogValuer].
+func (d NotifierDef) LogValue() slog.Value {
+	return slog.StringValue(d.String())
 }

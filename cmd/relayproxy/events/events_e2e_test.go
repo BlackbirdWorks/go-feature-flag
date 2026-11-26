@@ -113,7 +113,7 @@ connections:
 	assert.Positive(t, transport.count.Load(), "the upload went through the client of the connection")
 	assert.Equal(t, map[string]int{"ev": 1}, fac.Builds(), "one configuration for the connection")
 
-	status := exporterStatus(t, new(runtime.Status()), "archive")
+	status := statusOf(t, new(runtime.Status()), "archive")
 	assert.Equal(t, uint64(collectors*perCollect), status.Exported)
 	assert.Equal(t, events.ErrorNone, status.LastError)
 }

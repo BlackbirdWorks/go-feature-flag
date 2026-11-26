@@ -364,8 +364,7 @@
                             "secretArn": false,
                             "accountKey": false,
                             "secret": false,
-                            "endpointUrl": false,
-                            "autoMigrate": false
+                            "endpointUrl": false
                         },
                         "required": [
                             "projectId",
@@ -477,7 +476,6 @@
                             "headers": false,
                             "clusterIdentifier": false,
                             "streamName": false,
-                            "format": false,
                             "filename": false,
                             "csvTemplate": false,
                             "parquetCompressionCodec": false,
@@ -526,7 +524,6 @@
                             "headers": false,
                             "kafka": false,
                             "clusterIdentifier": false,
-                            "format": false,
                             "filename": false,
                             "csvTemplate": false,
                             "parquetCompressionCodec": false,
@@ -801,7 +798,6 @@
                             "kafka": false,
                             "clusterIdentifier": false,
                             "streamName": false,
-                            "format": false,
                             "filename": false,
                             "csvTemplate": false,
                             "parquetCompressionCodec": false,
@@ -1112,9 +1108,251 @@
                 "kind"
             ]
         },
+        "KafkaFlush": {
+            "properties": {
+                "frequency": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "bytes": {
+                    "type": "integer"
+                },
+                "messages": {
+                    "type": "integer"
+                },
+                "maxMessages": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaGSSAPI": {
+            "properties": {
+                "disablePafxfast": {
+                    "type": "boolean"
+                },
+                "authType": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "keytab",
+                        ""
+                    ]
+                },
+                "keyTabPath": {
+                    "type": "string"
+                },
+                "kerberosConfigPath": {
+                    "type": "string"
+                },
+                "serviceName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "realm": {
+                    "type": "string"
+                },
+                "password": {
+                    "$ref": "#/$defs/Secret"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaMetadata": {
+            "properties": {
+                "retry": {
+                    "$ref": "#/$defs/KafkaRetry"
+                },
+                "refreshFrequency": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "timeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "full": {
+                    "type": "boolean"
+                },
+                "allowAutoTopicCreation": {
+                    "type": "boolean"
+                },
+                "singleFlight": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaNet": {
+            "properties": {
+                "tls": {
+                    "$ref": "#/$defs/KafkaTLS"
+                },
+                "sasl": {
+                    "$ref": "#/$defs/KafkaSASL"
+                },
+                "dialTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "readTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "writeTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "keepAlive": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "resolveCanonicalBootstrapServers": {
+                    "type": "boolean"
+                },
+                "maxOpenRequests": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaProducer": {
+            "properties": {
+                "retry": {
+                    "$ref": "#/$defs/KafkaRetry"
+                },
+                "flush": {
+                    "$ref": "#/$defs/KafkaFlush"
+                },
+                "transaction": {
+                    "$ref": "#/$defs/KafkaTransaction"
+                },
+                "timeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "idempotent": {
+                    "type": "boolean"
+                },
+                "requiredAcks": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "local",
+                        "all",
+                        ""
+                    ]
+                },
+                "compression": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "gzip",
+                        "snappy",
+                        "lz4",
+                        "zstd",
+                        ""
+                    ]
+                },
+                "partitioner": {
+                    "type": "string",
+                    "enum": [
+                        "hash",
+                        "random",
+                        "roundrobin",
+                        ""
+                    ]
+                },
+                "maxMessageBytes": {
+                    "type": "integer"
+                },
+                "compressionLevel": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaRetry": {
+            "properties": {
+                "backoff": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "maxBufferBytes": {
+                    "type": "integer"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "maxBufferLength": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaSASL": {
+            "properties": {
+                "gssapi": {
+                    "$ref": "#/$defs/KafkaGSSAPI"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "handshake": {
+                    "type": "boolean"
+                },
+                "mechanism": {
+                    "type": "string",
+                    "enum": [
+                        "PLAIN",
+                        "SCRAM-SHA-256",
+                        "SCRAM-SHA-512",
+                        "GSSAPI",
+                        ""
+                    ]
+                },
+                "user": {
+                    "type": "string"
+                },
+                "authIdentity": {
+                    "type": "string"
+                },
+                "scramAuthzId": {
+                    "type": "string"
+                },
+                "password": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
         "KafkaSettings": {
             "properties": {
+                "net": {
+                    "$ref": "#/$defs/KafkaNet"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/KafkaMetadata"
+                },
+                "producer": {
+                    "$ref": "#/$defs/KafkaProducer"
+                },
+                "apiVersionsRequest": {
+                    "type": "boolean"
+                },
                 "topic": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "clientId": {
+                    "type": "string"
+                },
+                "rackId": {
                     "type": "string"
                 },
                 "addresses": {
@@ -1122,6 +1360,9 @@
                         "type": "string"
                     },
                     "type": "array"
+                },
+                "channelBufferSize": {
+                    "type": "integer"
                 }
             },
             "additionalProperties": false,
@@ -1130,6 +1371,45 @@
                 "topic",
                 "addresses"
             ]
+        },
+        "KafkaTLS": {
+            "properties": {
+                "enable": {
+                    "type": "boolean"
+                },
+                "insecureSkipVerify": {
+                    "type": "boolean"
+                },
+                "serverName": {
+                    "type": "string"
+                },
+                "caFile": {
+                    "type": "string"
+                },
+                "certFile": {
+                    "type": "string"
+                },
+                "keyFile": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaTransaction": {
+            "properties": {
+                "retry": {
+                    "$ref": "#/$defs/KafkaRetry"
+                },
+                "timeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "id": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
         },
         "KinesisConnection": {
             "properties": {

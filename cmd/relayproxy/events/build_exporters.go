@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"time"
@@ -46,9 +47,9 @@ type builtExporter struct {
 
 // ExporterDef is an exporter built from its spec, not started yet.
 type ExporterDef struct {
-	// Inner is the engine exporter, without the wrapper that counts what it exports.
-	Inner exporter.Exporter
-	stats *exporterStats
+	// Inner is the engine exporter, without the wrapper that counts what it exports. It is sealed: it holds the
+	// secrets of the entry in clear.
+	Inner Sealed[exporter.Exporter]
 	// Name is the name of the entry in the exporters section.
 	Name string
 	// Kind is the kind of the exporter.
@@ -134,10 +135,37 @@ func NewExporterDef(name, kind, identity string, exp exporter.Exporter, cfg expo
 func buildDef(
 	name, kind, identity string, exp exporter.Exporter, cfg exporter.Config, secrets []string,
 ) ExporterDef {
-	stats := &exporterStats{}
-	cfg.Exporter = &countingExporter{inner: exp, stats: stats, secrets: secrets}
+	counter := &countingExporter{inner: exp, instance: &instanceStats{}, secrets: scrubForms(secrets)}
+	cfg.Exporter = counter
 
-	return ExporterDef{Name: name, Kind: kind, Identity: identity, Inner: exp, stats: stats, Config: cfg}
+	return ExporterDef{Name: name, Kind: kind, Identity: identity, Inner: Seal(exp), Config: cfg}
+}
+
+// String implements [fmt.Stringer]: the name, the kind and the identity, never the exporter. A definition that
+// is printed by value shows no secret either: the exporter it holds is [Sealed].
+func (d *ExporterDef) String() string {
+	return fmt.Sprintf("ExporterDef{name=%s kind=%s identity=%.8s}", d.Name, d.Kind, d.Identity)
+}
+
+// GoString implements [fmt.GoStringer].
+func (d *ExporterDef) GoString() string { return d.String() }
+
+// Format implements [fmt.Formatter] so that no verb prints the exporter or its configuration.
+func (d *ExporterDef) Format(f fmt.State, _ rune) {
+	_, _ = f.Write([]byte(d.String()))
+}
+
+// LogValue implements [slog.LogValuer].
+func (d *ExporterDef) LogValue() slog.Value {
+	return slog.StringValue(d.String())
+}
+
+// wrapper returns the counting wrapper that buildDef put in the configuration. It is not a field: a field of the
+// definition that holds the wrapper would print the secrets it scrubs when the definition is printed by value.
+func (d *ExporterDef) wrapper() *countingExporter {
+	wrapper, _ := d.Config.Exporter.(*countingExporter)
+
+	return wrapper
 }
 
 func flushInterval(exp *bootstrap.Exporter) time.Duration {
@@ -283,12 +311,12 @@ func (b Builder) remoteExporter(id *identity, exp *bootstrap.Exporter) (builtExp
 			return builtExporter{}, settingsError("kafka", "needs a topic and addresses")
 		}
 
-		return builtExporter{Exporter: &kafkaexporter.Exporter{
-			Format: settings.format,
-			Settings: kafkaexporter.Settings{
-				Config: nil, Topic: exp.Kafka.Topic, Addresses: slices.Clone(exp.Kafka.Addresses),
-			},
-		}}, nil
+		kafkaCfg, err := b.kafkaSettings(id, exp.Kafka)
+		if err != nil {
+			return builtExporter{}, err
+		}
+
+		return builtExporter{Exporter: &kafkaexporter.Exporter{Format: settings.format, Settings: kafkaCfg}}, nil
 	}
 }
 

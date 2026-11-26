@@ -195,17 +195,45 @@ without credentials.
 | `webhook` | | `endpointUrl` (secret) | `secret` (secret), `headers` (map of secret) |
 | `log` | | | `logFormat` |
 | `s3` | `s3` with a `bucket` | `connection` | `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
-| `kinesis` | `kinesis` | `connection`, and a stream (`streamName`, `streamArn`, or `stream` on the connection) | |
+| `kinesis` | `kinesis` | `connection`, and a stream (`streamName`, `streamArn`, or `stream` on the connection) | `format` |
 | `googleStorage` | | `bucket` | `googleCredentials` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
-| `sqs` | `sqs` | `connection`, and a queue (`queueUrl` here or on the connection) | |
-| `kafka` | | `kafka.topic`, `kafka.addresses` (each `host:port`, without credentials) | |
+| `sqs` | `sqs` | `connection`, and a queue (`queueUrl` here or on the connection) | `format` (accepted and ignored, as in version 1) |
+| `kafka` | | `kafka.topic`, `kafka.addresses` (each `host:port`, without credentials) | `format`, the producer settings of `kafka` (see [Kafka producer settings](#kafka-producer-settings)) |
 | `pubsub` | | `projectId`, `topic` | `googleCredentials` (secret) |
-| `bigquery` | | `projectId`, `datasetId` | `tableName`, `googleCredentials` (secret) |
+| `bigquery` | | `projectId`, `datasetId` | `tableName`, `googleCredentials` (secret), `autoMigrate` |
 | `redshift` | `redshift` | `connection`, `database`, one of `clusterIdentifier` or `workgroupName` | `dbUser` (not with `workgroupName` or `secretArn`), `secretArn`, `tableName`, `autoMigrate` |
 | `azureBlobStorage` | | `container`, `accountName` | `accountKey` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
 | `opentelemetry` | | | `tracerName` |
 
 `format` is `json` (default for the file, s3, googleStorage and azureBlobStorage kinds), `csv` or `parquet`.
+
+### Kafka producer settings
+
+Version 1 took any scalar field of the sarama configuration under `kafka.config`. Version 2 names the fields a producer uses as keys of `kafka`. A zero or absent value keeps the sarama default (version 1 could not tell zero from unset either). `Producer.Return.Successes` and `Producer.Return.Errors` are always true. Passwords are secrets (`fromEnv` or `fromFile`). The files of `net.tls` are read when the exporter is built; a rotated file rebuilds the exporter at the next reload.
+
+| v1 field (sarama) | v2 key under `kafka` |
+|---|---|
+| `Version` | `version` (such as `3.6.0`) |
+| `ClientID`, `RackID`, `ChannelBufferSize`, `ApiVersionsRequest` | `clientId`, `rackId`, `channelBufferSize`, `apiVersionsRequest` |
+| `Net.MaxOpenRequests`, `DialTimeout`, `ReadTimeout`, `WriteTimeout`, `KeepAlive`, `ResolveCanonicalBootstrapServers` | `net.maxOpenRequests`, `dialTimeout`, `readTimeout`, `writeTimeout`, `keepAlive`, `resolveCanonicalBootstrapServers` (durations are strings such as `5s`) |
+| `Net.TLS.Enable` | `net.tls.enable` |
+| `Net.TLS.Config` `InsecureSkipVerify`, `ServerName`, `RootCAs`, `Certificates` | `net.tls.insecureSkipVerify`, `serverName`, `caFile`, `certFile` with `keyFile` (PEM files) |
+| `Net.SASL` `Enable`, `Handshake`, `Mechanism`, `User`, `AuthIdentity`, `SCRAMAuthzID`, `Version` | `net.sasl.enable`, `handshake`, `mechanism` (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `GSSAPI`), `user`, `authIdentity`, `scramAuthzId`, `version` |
+| `Net.SASL.Password` | `net.sasl.password` (secret) |
+| `Net.SASL.GSSAPI` `AuthType`, `KeyTabPath`, `KerberosConfigPath`, `ServiceName`, `Username`, `Realm`, `DisablePAFXFAST` | `net.sasl.gssapi.authType` (`user` or `keytab`), `keyTabPath`, `kerberosConfigPath`, `serviceName`, `username`, `realm`, `disablePafxfast` |
+| `Net.SASL.GSSAPI.Password` | `net.sasl.gssapi.password` (secret) |
+| `Metadata` `Retry.Max`, `Retry.Backoff`, `RefreshFrequency`, `Full`, `Timeout`, `AllowAutoTopicCreation`, `SingleFlight` | `metadata.retry.max`, `retry.backoff`, `refreshFrequency`, `full`, `timeout`, `allowAutoTopicCreation`, `singleFlight` |
+| `Producer` `MaxMessageBytes`, `Timeout`, `Idempotent`, `CompressionLevel` | `producer.maxMessageBytes`, `timeout`, `idempotent`, `compressionLevel` |
+| `Producer.RequiredAcks` | `producer.requiredAcks` (`none`, `local`, `all`) |
+| `Producer.Compression` | `producer.compression` (`none`, `gzip`, `snappy`, `lz4`, `zstd`) |
+| `Producer.Partitioner` | `producer.partitioner` (`hash`, `random`, `roundrobin`) |
+| `Producer.Retry` `Max`, `Backoff`, `MaxBufferLength`, `MaxBufferBytes` | `producer.retry.max`, `backoff`, `maxBufferLength`, `maxBufferBytes` |
+| `Producer.Flush` `Bytes`, `Messages`, `Frequency`, `MaxMessages` | `producer.flush.bytes`, `messages`, `frequency`, `maxMessages` |
+| `Producer.Transaction` `ID`, `Timeout`, `Retry.Max`, `Retry.Backoff` | `producer.transaction.id`, `timeout`, `retry.max`, `retry.backoff` |
+
+Not carried over: the fields that hold code (`Net.SASL.TokenProvider`, `Net.Proxy.Dialer`, `Net.LocalAddr`, the `BackoffFunc` fields, `Producer.Interceptors`, `MetricRegistry`), and `Consumer` and `Admin`, which a producer does not use. `Net.SASL.SCRAMClientGeneratorFunc` is set from the mechanism, as in version 1.
+
+The deprecated version 1 notifier key `slackWebhookURL` is not carried over: version 2 has no version 1 aliases, use `webhookUrl`.
 
 ### `notifiers.<name>`
 

@@ -1,7 +1,13 @@
 package events_test
 
+import "time"
+
 // Names the tests share.
 const (
+	// clockStep is the step of the clock of the package (see TestMain); stepSeconds is the same in seconds.
+	clockStep   = time.Second
+	stepSeconds = 1.0
+
 	nameBad     = "bad"
 	kindNope    = "nope"
 	connSQS     = "sqsc"

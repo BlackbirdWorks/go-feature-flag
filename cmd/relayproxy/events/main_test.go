@@ -9,6 +9,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	clocktest.Freeze()
+	clocktest.FreezeStepping(clockStep)
 	m.Run()
 }

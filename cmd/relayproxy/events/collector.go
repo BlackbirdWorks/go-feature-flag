@@ -97,31 +97,15 @@ func (c *Collector) Collect(out chan<- prometheus.Metric) {
 	counter(c.accepted, snap.Queue.Accepted)
 	counter(c.dropped, snap.Queue.Dropped.QueueFull, ReasonQueueFull)
 	counter(c.dropped, snap.Queue.Dropped.Shutdown, ReasonShutdown)
+	counter(c.dropped, snap.Queue.Dropped.NoExporter, ReasonNoExporter)
 	counter(c.dropped, snap.Queue.Dropped.Drain, ReasonDrain)
 
-	// the status lists the running entries first, then the retired ones: a retired entry that a running one of
-	// the same name replaced would repeat its series, so it is skipped.
-	seen := make(map[string]struct{}, len(snap.Exporters))
-
 	for i := range snap.Exporters {
-		if _, dup := seen[snap.Exporters[i].Name]; dup {
-			continue
-		}
-
-		seen[snap.Exporters[i].Name] = struct{}{}
-
 		c.collectExporter(out, &snap.Exporters[i], gauge, counter)
 	}
 
-	seen = make(map[string]struct{}, len(snap.Notifiers))
-
 	for i := range snap.Notifiers {
 		note := &snap.Notifiers[i]
-		if _, dup := seen[note.Name]; dup {
-			continue
-		}
-
-		seen[note.Name] = struct{}{}
 
 		gauge(c.notifierQueued, float64(note.Queued), note.Name, note.Kind)
 		counter(c.notifierTotal, note.Delivered, note.Name, note.Kind, "delivered")

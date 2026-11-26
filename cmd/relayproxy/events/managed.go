@@ -1,23 +1,44 @@
 package events
 
 import (
+	"sync"
 	"sync/atomic"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
-// managed is a running exporter: its definition, its manager and its counters.
+// managed is a running instance of an exporter: its definition, its engine manager, its own bounded hand-off
+// and the goroutine that moves the events from the hand-off to the manager.
+//
+// A worker of the dispatcher never waits on a manager: it offers the events to the hand-off of each instance
+// without blocking, and an instance whose hand-off is full drops (and counts) its own events. The manager may
+// wait (the engine manager waits for room in its store) in the goroutine of its instance only.
 type managed struct {
 	mgr   FeatureManager
 	queue func([]Event)
-	def   ExporterDef
-	// handed counts the events given to the manager.
-	handed atomic.Uint64
-	// cut counts the events that were not delivered when the exporter closed.
-	cut atomic.Uint64
-	// overflow is the final count of the events the manager dropped, once it stopped.
-	overflow atomic.Uint64
-	state    atomic.Int32
+	// in is the hand-off: bounded, closed when the instance leaves the set.
+	in       chan Event
+	consumed chan struct{}
+	finished chan struct{}
+	name     *nameEntry
+	instance *instanceStats
+	def      ExporterDef
+	// mgrFinal is the number of events the manager dropped, once it stopped.
+	mgrFinal atomic.Uint64
+	// undelivered is the number of events the instance could not deliver, known once it finished.
+	undelivered atomic.Uint64
+	closeOnce   sync.Once
+	state       atomic.Int32
+	batch       int
+	// finalized says that the counters of the instance were folded in those of its name.
+	finalized atomic.Bool
+}
+
+// nameEntry is the exporter name: the counters that survive the reloads, and its latest instance.
+type nameEntry struct {
+	latest atomic.Pointer[managed]
+	name   string
+	stats  nameStats
 }
 
 const (
@@ -40,58 +61,161 @@ func stateName(state int32) string {
 	}
 }
 
-func newManaged(def *ExporterDef, mgr FeatureManager) *managed {
-	mgd := &managed{def: *def, mgr: mgr}
+// newManaged returns an instance and starts the goroutine of its hand-off.
+func newManaged(def *ExporterDef, mgr FeatureManager, entry *nameEntry, handoff, batch int) *managed {
+	inst := &managed{
+		def:      *def,
+		mgr:      mgr,
+		name:     entry,
+		instance: def.wrapper().instance,
+		in:       make(chan Event, handoff),
+		consumed: make(chan struct{}),
+		finished: make(chan struct{}),
+		batch:    batch,
+	}
 
 	if async, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent]); ok {
-		mgd.queue = async.QueueEvents
+		inst.queue = async.QueueEvents
 	} else {
-		mgd.queue = func(batch []Event) {
-			for _, event := range batch {
+		inst.queue = func(events []Event) {
+			for _, event := range events {
 				mgr.AddEvent(event)
 			}
 		}
 	}
 
-	return mgd
+	go inst.run()
+
+	return inst
 }
 
-// deliver hands a batch to the manager.
-func (m *managed) deliver(batch []Event) {
-	m.handed.Add(uint64(len(batch)))
-	m.queue(batch)
+// run moves the events of the hand-off to the manager, in batches, until the hand-off is closed and empty.
+func (m *managed) run() {
+	defer close(m.consumed)
+
+	batch := make([]Event, 0, m.batch)
+
+	for event := range m.in {
+		batch = append(batch[:0], event)
+		batch = m.fill(batch)
+		m.queue(batch)
+	}
 }
 
-// overflowCount is the number of events the manager dropped because its queue was full.
-func (m *managed) overflowCount() uint64 {
-	if m.state.Load() == stateRunning || m.state.Load() == stateDraining {
-		if counter, ok := m.mgr.(exporter.DroppedEventsCounter); ok {
-			return uint64(max(counter.DroppedEvents(), 0))
+// fill appends the events that are already waiting, up to the batch size.
+func (m *managed) fill(batch []Event) []Event {
+	for len(batch) < m.batch {
+		select {
+		case event, open := <-m.in:
+			if !open {
+				return batch
+			}
+
+			batch = append(batch, event)
+		default:
+			return batch
 		}
 	}
 
-	return m.overflow.Load()
+	return batch
 }
 
-// queued is what was handed to the exporter and is neither exported nor dropped.
-func (m *managed) queued() int64 {
-	gone := m.def.stats.exported.Load() + m.overflowCount() + m.cut.Load()
+// offer hands the events to the instance without blocking. What does not fit is dropped and counted against the
+// instance.
+func (m *managed) offer(events []Event) {
+	count := uint64(len(events))
+	m.instance.handed.Add(count)
+	m.name.stats.handed.Add(count)
 
-	return max(int64(m.handed.Load())-int64(gone), 0) //nolint:gosec // event counts do not reach 2^63
+	for _, event := range events {
+		select {
+		case m.in <- event:
+		default:
+			m.instance.handoff.Add(1)
+			m.name.stats.handoff.Add(1)
+		}
+	}
 }
 
-func (m *managed) status() ExporterStatus {
-	return ExporterStatus{
-		Name:          m.def.Name,
-		Kind:          m.def.Kind,
-		State:         stateName(m.state.Load()),
-		LastError:     m.def.stats.last.get(),
-		Dropped:       Drops{Overflow: m.overflowCount(), Drain: m.cut.Load()},
-		Queued:        m.queued(),
-		Handed:        m.handed.Load(),
-		Exported:      m.def.stats.exported.Load(),
-		FlushFailures: m.def.stats.failures.Load(),
-		Flushes:       m.def.stats.flushes.Load(),
-		FlushSeconds:  float64(m.def.stats.flushNanos.Load()) / 1e9, //nolint:mnd // nanoseconds per second
+// managerDropped is the number of events the manager dropped because its store was full.
+func (m *managed) managerDropped() uint64 {
+	if m.finalized.Load() {
+		return m.mgrFinal.Load()
+	}
+
+	if counter, ok := m.mgr.(exporter.DroppedEventsCounter); ok {
+		return uint64(max(counter.DroppedEvents(), 0))
+	}
+
+	return 0
+}
+
+// pending is what was handed to the instance and is neither exported nor dropped.
+func (m *managed) pending() uint64 {
+	gone := m.instance.exported.Load() + m.instance.handoff.Load() + m.managerDropped()
+	handed := m.instance.handed.Load()
+
+	if handed < gone {
+		return 0
+	}
+
+	return handed - gone
+}
+
+// startClose closes the hand-off, lets the goroutine of the hand-off deliver what it holds, stops the manager
+// (which flushes it) and folds the counters of the instance in those of its name. It runs once, in the
+// background: the caller waits for [managed.finished] as long as it wants to.
+func (m *managed) startClose(background *sync.WaitGroup) {
+	m.closeOnce.Do(func() {
+		m.state.CompareAndSwap(stateRunning, stateDraining)
+
+		background.Go(func() {
+			defer close(m.finished)
+
+			close(m.in)
+			<-m.consumed
+			m.mgr.Stop()
+			m.finalize()
+		})
+	})
+}
+
+// finalize folds the instance in its name: the drops of the manager, and the events that were handed and are
+// neither exported nor dropped, which can no longer be delivered, are counted as drain drops. It runs when the
+// manager has stopped, however late that is, so a manager that finished after its drain was cut reconciles.
+func (m *managed) finalize() {
+	stats := &m.name.stats
+
+	stats.mu.Lock()
+	dropped := uint64(0)
+
+	if counter, ok := m.mgr.(exporter.DroppedEventsCounter); ok {
+		dropped = uint64(max(counter.DroppedEvents(), 0))
+	}
+
+	m.mgrFinal.Store(dropped)
+
+	stats.mgrDropped += dropped
+
+	m.finalized.Store(true)
+	stats.mu.Unlock()
+
+	left := m.pending()
+	if left > 0 {
+		stats.drain.Add(left)
+	}
+
+	m.undelivered.Store(left)
+
+	m.state.Store(stateStopped)
+}
+
+// isFinished says whether the instance finished closing.
+func (m *managed) isFinished() bool {
+	select {
+	case <-m.finished:
+		return true
+	default:
+		return false
 	}
 }

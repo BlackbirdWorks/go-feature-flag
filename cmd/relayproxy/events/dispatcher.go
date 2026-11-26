@@ -3,6 +3,8 @@ package events
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,17 +15,20 @@ import (
 
 // Defaults of the dispatcher.
 const (
-	// DefaultQueueSize is the capacity of the event channel.
+	// DefaultQueueSize is the capacity of the shared event channel.
 	DefaultQueueSize = 65536
 	// DefaultWorkers is the number of workers that move the events from the channel to the exporters.
 	DefaultWorkers = 2
-	// DefaultBatchSize is the largest batch a worker hands to the exporters at once.
+	// DefaultBatchSize is the largest batch a worker or an exporter hands over at once.
 	DefaultBatchSize = 256
+	// DefaultHandoffSize is the capacity of the hand-off of each exporter, in events.
+	DefaultHandoffSize = 16384
 	// DefaultDrainTimeout is the deadline of the drain of a replaced or removed exporter.
 	DefaultDrainTimeout = 10 * time.Second
 )
 
-// Event is what the evaluation path hands to the dispatcher.
+// Event is what the evaluation path hands to the dispatcher. The event belongs to the dispatcher from the call
+// of [Dispatcher.Collect]: the caller must not change it afterwards, the exporters read it concurrently.
 type Event = *exporter.FeatureEvent
 
 // FeatureManager is the engine manager of feature events.
@@ -41,13 +46,17 @@ type DispatcherConfig struct {
 	NewManager NewManagerFunc
 	// Builder builds the exporters of [Dispatcher.Reload].
 	Builder Builder
-	// QueueSize is the capacity of the event channel.
+	// QueueSize is the capacity of the shared event channel.
 	QueueSize int
 	// Workers is the size of the fixed worker pool.
 	Workers int
-	// BatchSize is the largest batch a worker hands over at once.
+	// BatchSize is the largest batch a worker or an exporter hands over at once.
 	BatchSize int
-	// DrainTimeout is the deadline of the drain of an exporter that a reload replaces or removes.
+	// HandoffSize is the capacity, in events, of the hand-off of each exporter: the bounded queue between the
+	// workers and the manager of the exporter. When it is full, that exporter drops its events.
+	HandoffSize int
+	// DrainTimeout is the deadline of the drain of an exporter that a reload replaces or removes. It does not
+	// depend on the context of the reload.
 	DrainTimeout time.Duration
 }
 
@@ -72,21 +81,29 @@ func (c *DispatcherConfig) defaults() {
 		c.BatchSize = DefaultBatchSize
 	}
 
+	if c.HandoffSize <= 0 {
+		c.HandoffSize = DefaultHandoffSize
+	}
+
 	if c.DrainTimeout <= 0 {
 		c.DrainTimeout = DefaultDrainTimeout
 	}
 }
 
-// Dispatcher owns the one bounded event channel and the fixed pool of workers that hands every event to every
-// exporter manager. It is safe for concurrent use.
+// Dispatcher owns the one bounded event channel, the fixed pool of workers that hands every event to every
+// exporter, and the exporters. It is safe for concurrent use.
 //
-// The workers read a batch from the channel and deliver it to the managers of the current set under a read
-// lock; a reload swaps the set under the write lock, so a batch goes entirely to the old set or entirely to the
-// new one, and the managers that left the set are not touched by any worker when they are drained.
+// The goroutines of a dispatcher are its workers and one goroutine per exporter: their number does not depend
+// on the number of flag sets. The workers read a batch from the channel and offer it, without blocking, to the
+// hand-off of every exporter of the current set under a read lock; a reload swaps the set under the write lock,
+// so a batch goes entirely to the old set or entirely to the new one.
 type Dispatcher struct {
 	// queue is the one bounded event channel.
 	queue chan Event
 	state atomic.Pointer[dispatchState]
+	// names is the table of the exporter names ever used; its entries keep the counters across reloads. It is
+	// replaced (copy on write) under lifecycle, read without a lock.
+	names atomic.Pointer[map[string]*nameEntry]
 	done  chan struct{}
 	stop  chan struct{}
 	// started is closed by Start.
@@ -96,16 +113,19 @@ type Dispatcher struct {
 	cfg     DispatcherConfig
 	report  ShutdownReport
 	workers sync.WaitGroup
+	// background counts the closing goroutines of the instances.
+	background sync.WaitGroup
 
-	accepted     atomic.Uint64
-	dropFull     atomic.Uint64
-	dropShutdown atomic.Uint64
-	dropDrain    atomic.Uint64
+	accepted       atomic.Uint64
+	dropFull       atomic.Uint64
+	dropShutdown   atomic.Uint64
+	dropNoExporter atomic.Uint64
+	dropDrain      atomic.Uint64
 	// inflight counts the collectors between their check of closed and the end of their send.
 	inflight atomic.Int64
 	// mu guards the delivery of a batch (read) against the swap of the set (write).
 	mu sync.RWMutex
-	// lifecycle serialises Start, Apply and Shutdown.
+	// lifecycle serialises Start, the swap of Apply and Shutdown. It is never held while waiting for a drain.
 	lifecycle sync.Mutex
 	closed    atomic.Bool
 	aborted   atomic.Bool
@@ -114,7 +134,7 @@ type Dispatcher struct {
 	isDone bool
 }
 
-// dispatchState is an immutable set of exporters. The retired ones left the set: they drain or are closed.
+// dispatchState is an immutable set of exporters. The retired ones left the set and are closing or closed.
 type dispatchState struct {
 	active  []*managed
 	retired []*managed
@@ -134,13 +154,15 @@ func NewDispatcher(config *DispatcherConfig) *Dispatcher {
 		done:    make(chan struct{}),
 	}
 	disp.state.Store(&dispatchState{})
+	disp.names.Store(&map[string]*nameEntry{})
 
 	return disp
 }
 
-// Collect hands the event to the exporters. It never blocks and does not allocate. It returns true when the
-// event was queued, and false when it was not: there is no exporter (nothing is counted), the channel is full
-// or the dispatcher is shut down (both are counted as drops).
+// Collect hands the event to the exporters. It never blocks, takes no lock and does not allocate. It returns
+// true when the event was queued, and false when it was not: there is no exporter (nothing is counted), the
+// channel is full or the dispatcher is shut down (both are counted as drops). The event must not be changed
+// after the call.
 func (d *Dispatcher) Collect(event Event) bool {
 	if d.active.Load() == 0 {
 		return false
@@ -169,8 +191,8 @@ func (d *Dispatcher) Collect(event Event) bool {
 	}
 }
 
-// Start starts the workers. The context stops the dispatcher like [Dispatcher.Shutdown] with the drain
-// timeout of the configuration.
+// Start starts the workers. The end of the context shuts the dispatcher down like [Dispatcher.Shutdown] with the
+// drain timeout of the configuration as its deadline.
 func (d *Dispatcher) Start(ctx context.Context) error {
 	d.lifecycle.Lock()
 	defer d.lifecycle.Unlock()
@@ -193,7 +215,7 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 		go d.worker()
 	}
 
-	// the end of the context shuts the dispatcher down: no goroutine waits for it, the function runs once
+	// no goroutine waits for the end of the context: the function runs once, when it ends
 	d.unwatch = context.AfterFunc(ctx, func() {
 		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.DrainTimeout)
 		defer cancel()
@@ -204,30 +226,88 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 	return nil
 }
 
-// Status returns a snapshot of the queue and of the exporters, without blocking.
+// WaitDrains waits until every exporter that left the set has finished closing, including the ones whose drain
+// was cut. It returns the error of ctx when that comes first.
+func (d *Dispatcher) WaitDrains(ctx context.Context) error {
+	finished := make(chan struct{})
+
+	go func() {
+		d.background.Wait()
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err() //nolint:wrapcheck // the context error says it
+	}
+}
+
+// Status returns a snapshot of the queue and of the exporters, without blocking on anything slower than a
+// counter. The exporters are listed by name, with their cumulative counters.
 func (d *Dispatcher) Status() Status {
 	snap := d.state.Load()
+	names := *d.names.Load()
 	out := Status{
 		Queue: QueueStatus{
 			Capacity: cap(d.queue),
-			Length:   d.queueLen(),
+			Length:   len(d.queue),
 			Accepted: d.accepted.Load(),
 			Dropped: Drops{
-				QueueFull: d.dropFull.Load(), Shutdown: d.dropShutdown.Load(), Drain: d.dropDrain.Load(),
+				QueueFull: d.dropFull.Load(), Shutdown: d.dropShutdown.Load(),
+				NoExporter: d.dropNoExporter.Load(), Drain: d.dropDrain.Load(),
 			},
 		},
-		Exporters: make([]ExporterStatus, 0, len(snap.active)+len(snap.retired)),
+		Exporters: make([]ExporterStatus, 0, len(names)),
 	}
 
-	for _, m := range snap.active {
-		out.Exporters = append(out.Exporters, m.status())
-	}
+	all := slices.Concat(snap.active, snap.retired)
 
-	for _, m := range snap.retired {
-		out.Exporters = append(out.Exporters, m.status())
+	for _, name := range slices.Sorted(maps.Keys(names)) {
+		out.Exporters = append(out.Exporters, names[name].status(all))
 	}
 
 	return out
+}
+
+// status returns the cumulative state of the name; running are the instances that may still hold events.
+func (e *nameEntry) status(running []*managed) ExporterStatus {
+	stats := &e.stats
+
+	stats.mu.Lock()
+	overflow := stats.mgrDropped + stats.handoff.Load()
+
+	for _, inst := range running {
+		if inst.name == e && !inst.finalized.Load() {
+			overflow += inst.managerDropped()
+		}
+	}
+
+	handed, exported, drain := stats.handed.Load(), stats.exported.Load(), stats.drain.Load()
+	stats.mu.Unlock()
+
+	status := ExporterStatus{
+		Name:          e.name,
+		LastError:     stats.last.get(),
+		Dropped:       Drops{Overflow: overflow, Drain: drain},
+		Handed:        handed,
+		Exported:      exported,
+		FlushFailures: stats.failures.Load(),
+		Flushes:       stats.flushes.Load(),
+		FlushSeconds:  float64(stats.flushNanos.Load()) / 1e9, //nolint:mnd // nanoseconds per second
+	}
+
+	if gone := exported + overflow + drain; handed > gone {
+		status.Queued = int64(handed - gone) //nolint:gosec // event counts do not reach 2^63
+	}
+
+	if latest := e.latest.Load(); latest != nil {
+		status.Kind = latest.def.Kind
+		status.State = stateName(latest.state.Load())
+	}
+
+	return status
 }
 
 func (d *Dispatcher) worker() {
@@ -268,7 +348,8 @@ func (d *Dispatcher) fill(batch []Event) []Event {
 	return batch
 }
 
-// deliver hands the batch to every exporter of the current set.
+// deliver offers the batch to every exporter of the current set, without waiting for any of them. A batch taken
+// while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter.
 func (d *Dispatcher) deliver(batch []Event) {
 	if d.aborted.Load() {
 		d.dropDrain.Add(uint64(len(batch)))
@@ -279,10 +360,14 @@ func (d *Dispatcher) deliver(batch []Event) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	for _, m := range d.state.Load().active {
-		m.deliver(batch)
+	active := d.state.Load().active
+	if len(active) == 0 {
+		d.dropNoExporter.Add(uint64(len(batch)))
+
+		return
+	}
+
+	for _, inst := range active {
+		inst.offer(batch)
 	}
 }
-
-// queueLen is the number of events in the channel.
-func (d *Dispatcher) queueLen() int { return len(d.queue) }

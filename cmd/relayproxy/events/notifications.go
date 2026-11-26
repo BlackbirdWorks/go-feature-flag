@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,7 +30,8 @@ type NotificationsConfig struct {
 	// QueueSize is the number of changes that wait for one notifier. When it is full the change is dropped for
 	// that notifier and counted.
 	QueueSize int
-	// DrainTimeout is the deadline of the drain of a notifier that a reload replaces or removes.
+	// DrainTimeout is the deadline of the drain of a notifier that a reload replaces or removes. It does not
+	// depend on the context of the reload.
 	DrainTimeout time.Duration
 }
 
@@ -36,16 +39,27 @@ type NotificationsConfig struct {
 // each of them to the bounded queue of every notifier. Each notifier has one goroutine that calls it, one change
 // at a time and in the order of the queue, so the changes of a flag set reach a notifier in order. A slow or
 // failing notifier fills its own queue and loses its own changes; it never delays the consumer or the other
-// notifiers. There is no per-call timeout: the notifiers of the engine bound their own HTTP calls, and a call
-// that never returns holds only its own goroutine.
+// notifiers.
+//
+// There is no per-call timeout: the notifiers bound their own HTTP calls (the Teams notifier 5 seconds, the
+// others the timeout of the HTTP client of the engine), and a call that never returns holds only the goroutine
+// of its notifier.
+//
+// A reload that replaces a notifier keeps the order: the new instance accepts changes at once, but calls its
+// notifier only after the old instance delivered what its queue held (or the drain deadline passed).
 type Notifications struct {
-	state    atomic.Pointer[notifyState]
-	stop     chan struct{}
-	done     chan struct{}
+	state atomic.Pointer[notifyState]
+	// names is the table of the notifier names ever used; its entries keep the counters across reloads.
+	names atomic.Pointer[map[string]*notifierName]
+	stop  chan struct{}
+	done  chan struct{}
+	// unwatch removes the shutdown that the end of the context of Start would run.
+	unwatch  func() bool
 	cfg      NotificationsConfig
 	consumer sync.WaitGroup
 	// mu guards the offer of a change (read) against the swap of the set (write).
-	mu        sync.RWMutex
+	mu sync.RWMutex
+	// lifecycle serialises Start, the swap of Apply and Shutdown. It is not held while waiting for a drain.
 	lifecycle sync.Mutex
 	started   bool
 	closed    bool
@@ -69,13 +83,16 @@ func NewNotifications(config *NotificationsConfig) *Notifications {
 		cfg.DrainTimeout = DefaultDrainTimeout
 	}
 
-	n := &Notifications{cfg: cfg, stop: make(chan struct{}), done: make(chan struct{})}
-	n.state.Store(&notifyState{})
+	notes := &Notifications{cfg: cfg, stop: make(chan struct{}), done: make(chan struct{})}
+	notes.state.Store(&notifyState{})
+	notes.names.Store(&map[string]*notifierName{})
 
-	return n
+	return notes
 }
 
-// Start starts the consumer of changes. It stops when changes is closed, when ctx ends or at Shutdown.
+// Start starts the consumer of changes (a nil channel is allowed: nothing is consumed). The consumer stops when
+// the channel is closed or at Shutdown. The end of the context shuts the notifications down like
+// [Notifications.Shutdown], with the drain timeout of the configuration as its deadline.
 func (n *Notifications) Start(ctx context.Context, changes <-chan flagruntime.Change) error {
 	n.lifecycle.Lock()
 	defer n.lifecycle.Unlock()
@@ -94,6 +111,13 @@ func (n *Notifications) Start(ctx context.Context, changes <-chan flagruntime.Ch
 
 	go n.consume(ctx, changes)
 
+	n.unwatch = context.AfterFunc(ctx, func() {
+		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), n.cfg.DrainTimeout)
+		defer cancel()
+
+		_ = n.Shutdown(drain)
+	})
+
 	return nil
 }
 
@@ -109,77 +133,25 @@ func (n *Notifications) Reload(ctx context.Context, specs Specs) (ReloadSet, err
 
 // Apply replaces the set of notifiers in place. A notifier whose identity did not change keeps its goroutine
 // and its queue. A new or changed one gets its own; the old one of a changed or removed notifier gets no more
-// changes, delivers what its queue holds within the drain timeout and stops.
+// changes, delivers what its queue holds within the drain timeout (which does not depend on ctx) and stops.
+// The lifecycle lock is not held while waiting.
 func (n *Notifications) Apply(ctx context.Context, defs []NotifierDef) (ReloadSet, error) {
-	n.lifecycle.Lock()
-	defer n.lifecycle.Unlock()
-
-	if n.closed {
-		return ReloadSet{}, ErrClosed
+	set, leaving, err := n.swapSet(ctx, defs)
+	if err != nil {
+		return ReloadSet{}, err
 	}
 
-	old := n.state.Load()
-	current := make(map[string]*notifierRun, len(old.active))
-
-	for _, run := range old.active {
-		current[run.def.Name] = run
-	}
-
-	var (
-		set     ReloadSet
-		next    = make([]*notifierRun, 0, len(defs))
-		leaving []*notifierRun
-	)
-
-	for _, def := range defs {
-		prev := current[def.Name]
-		delete(current, def.Name)
-
-		if prev != nil && prev.def.Identity == def.Identity {
-			next = append(next, prev)
-			set.Kept = append(set.Kept, def.Name)
-
-			continue
-		}
-
-		next = append(next, newNotifierRun(ctx, def, &n.cfg))
-
-		if prev == nil {
-			set.Added = append(set.Added, def.Name)
-
-			continue
-		}
-
-		set.Replaced = append(set.Replaced, def.Name)
-		leaving = append(leaving, prev)
-	}
-
-	for _, run := range old.active {
-		if _, gone := current[run.def.Name]; gone {
-			set.Removed = append(set.Removed, run.def.Name)
-			leaving = append(leaving, run)
-		}
-	}
-
-	n.swap(&notifyState{active: next, retired: leaving})
-
-	drainCtx, cancel := context.WithTimeout(ctx, n.cfg.DrainTimeout)
+	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), n.cfg.DrainTimeout)
 	defer cancel()
 
 	set.Cut = closeRuns(drainCtx, leaving)
 
-	n.swap(&notifyState{active: next, retired: leaving})
-
 	return set, nil
 }
 
-// closeRuns closes the queues of the runs and waits for their goroutines until the deadline of ctx. It returns
-// the names of the runs that were cut.
+// closeRuns waits for the runs (already closed) until the deadline of ctx. It returns the names of the runs that
+// were cut.
 func closeRuns(ctx context.Context, runs []*notifierRun) []string {
-	for _, run := range runs {
-		run.close()
-	}
-
 	var cut []string
 
 	for _, run := range runs {
@@ -207,27 +179,32 @@ func (n *Notifications) Shutdown(ctx context.Context) error {
 	n.closed = true
 	defer close(n.done)
 
+	if n.unwatch != nil {
+		n.unwatch()
+	}
+
 	close(n.stop)
 	n.consumer.Wait()
 
-	st := n.state.Load()
-	closeRuns(ctx, st.active)
-	n.swap(&notifyState{retired: append(append([]*notifierRun(nil), st.retired...), st.active...)})
+	snap := n.state.Load()
+
+	for _, run := range snap.active {
+		run.close()
+	}
+
+	closeRuns(ctx, slices.Concat(snap.active, snap.retired))
+	n.swap(&notifyState{retired: slices.Concat(snap.retired, snap.active)})
 
 	return nil
 }
 
-// Status returns a snapshot of the notifiers, without blocking.
+// Status returns a snapshot of the notifiers by name, with their cumulative counters, without blocking.
 func (n *Notifications) Status() Status {
-	snap := n.state.Load()
-	out := Status{Notifiers: make([]NotifierStatus, 0, len(snap.active)+len(snap.retired))}
+	names := *n.names.Load()
+	out := Status{Notifiers: make([]NotifierStatus, 0, len(names))}
 
-	for _, run := range snap.active {
-		out.Notifiers = append(out.Notifiers, run.status())
-	}
-
-	for _, run := range snap.retired {
-		out.Notifiers = append(out.Notifiers, run.status())
+	for _, name := range slices.Sorted(maps.Keys(names)) {
+		out.Notifiers = append(out.Notifiers, names[name].status())
 	}
 
 	return out
@@ -274,11 +251,104 @@ func (n *Notifications) broadcast(ctx context.Context, change flagruntime.Change
 	defer func() {
 		if r := recover(); r != nil {
 			n.cfg.Logger.LogAttrs(ctx, slog.LevelError, "the broadcast hook panicked",
-				slog.String("flagSet", change.FlagSet), slog.String("panic", fmt.Sprint(r)))
+				slog.String("flagSet", change.FlagSet), slog.String("type", fmt.Sprintf("%T", r)))
 		}
 	}()
 
 	n.cfg.Broadcast(change)
+}
+
+// open reports whether the notifications accept a reload.
+func (n *Notifications) open() error {
+	n.lifecycle.Lock()
+	defer n.lifecycle.Unlock()
+
+	if n.closed {
+		return ErrClosed
+	}
+
+	return nil
+}
+
+func (n *Notifications) swapSet(ctx context.Context, defs []NotifierDef) (ReloadSet, []*notifierRun, error) {
+	n.lifecycle.Lock()
+	defer n.lifecycle.Unlock()
+
+	if n.closed {
+		return ReloadSet{}, nil, ErrClosed
+	}
+
+	old := n.state.Load()
+	current := make(map[string]*notifierRun, len(old.active))
+
+	for _, run := range old.active {
+		current[run.def.Name] = run
+	}
+
+	var (
+		set     ReloadSet
+		next    = make([]*notifierRun, 0, len(defs))
+		leaving []*notifierRun
+	)
+
+	for _, def := range defs {
+		prev := current[def.Name]
+		delete(current, def.Name)
+
+		if prev != nil && prev.def.Identity == def.Identity {
+			next = append(next, prev)
+			set.Kept = append(set.Kept, def.Name)
+
+			continue
+		}
+
+		next = append(next, n.launch(ctx, def, prev))
+
+		if prev == nil {
+			set.Added = append(set.Added, def.Name)
+
+			continue
+		}
+
+		set.Replaced = append(set.Replaced, def.Name)
+		leaving = append(leaving, prev)
+	}
+
+	for _, run := range old.active {
+		if _, gone := current[run.def.Name]; gone {
+			set.Removed = append(set.Removed, run.def.Name)
+			leaving = append(leaving, run)
+		}
+	}
+
+	retired := slices.DeleteFunc(slices.Clone(old.retired), (*notifierRun).isFinished)
+
+	n.swap(&notifyState{active: next, retired: slices.Concat(retired, leaving)})
+
+	for _, run := range leaving {
+		run.close()
+	}
+
+	return set, leaving, nil
+}
+
+// launch starts the instance of a notifier, after prev (the instance it replaces) in the order of the calls.
+func (n *Notifications) launch(ctx context.Context, def NotifierDef, prev *notifierRun) *notifierRun {
+	names := *n.names.Load()
+
+	entry := names[def.Name]
+	if entry == nil {
+		entry = &notifierName{name: def.Name}
+
+		updated := maps.Clone(names)
+		updated[def.Name] = entry
+		n.names.Store(&updated)
+	}
+
+	run := newNotifierRun(ctx, def, entry, prev, &n.cfg)
+	entry.latest.Store(run)
+
+	return run
 }
 
 func (n *Notifications) swap(st *notifyState) {

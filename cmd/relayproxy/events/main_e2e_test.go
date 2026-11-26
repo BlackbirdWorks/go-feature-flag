@@ -12,6 +12,6 @@ import (
 
 // TestMain starts the gopherstack emulator shared by the tests of this package, and removes it at the end.
 func TestMain(m *testing.M) {
-	clocktest.Freeze()
+	clocktest.FreezeStepping(clockStep)
 	os.Exit(gopherstack.Main(m))
 }

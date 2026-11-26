@@ -6,6 +6,8 @@ const (
 	ReasonQueueFull = "queue_full"
 	// ReasonShutdown: the component was shutting down or shut down.
 	ReasonShutdown = "shutdown"
+	// ReasonNoExporter: a worker took the event while the set of exporters was empty (a reload to no exporter).
+	ReasonNoExporter = "no_exporter"
 	// ReasonOverflow: the queue of an exporter overflowed (its manager dropped the event).
 	ReasonOverflow = "overflow"
 	// ReasonDrain: the event was not delivered when its exporter closed: the drain deadline passed or the final
@@ -40,14 +42,15 @@ const (
 
 // Drops counts dropped events by reason.
 type Drops struct {
-	QueueFull uint64 `json:"queueFull"`
-	Shutdown  uint64 `json:"shutdown"`
-	Overflow  uint64 `json:"overflow"`
-	Drain     uint64 `json:"drain"`
+	QueueFull  uint64 `json:"queueFull"`
+	Shutdown   uint64 `json:"shutdown"`
+	NoExporter uint64 `json:"noExporter"`
+	Overflow   uint64 `json:"overflow"`
+	Drain      uint64 `json:"drain"`
 }
 
 // Total is the sum of every reason.
-func (d Drops) Total() uint64 { return d.QueueFull + d.Shutdown + d.Overflow + d.Drain }
+func (d Drops) Total() uint64 { return d.QueueFull + d.Shutdown + d.NoExporter + d.Overflow + d.Drain }
 
 // QueueStatus is the state of the event channel.
 type QueueStatus struct {

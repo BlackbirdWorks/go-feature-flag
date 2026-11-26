@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -69,10 +70,12 @@ func keys(list []*exporter.FeatureEvent) []string {
 // fakeManager is a manager that records what it is given. A closed gate lets QueueEvents and Stop through.
 type fakeManager struct {
 	// signal gets one token per recorded event.
-	signal   chan struct{}
-	gate     chan struct{}
-	stopGate chan struct{}
-	entered  chan struct{}
+	signal chan struct{}
+	// stopEntered gets a token when Stop is called.
+	stopEntered chan struct{}
+	gate        chan struct{}
+	stopGate    chan struct{}
+	entered     chan struct{}
 	// exp is the exporter of the manager: Stop flushes the events to it, like the engine manager does.
 	exp     exporter.Exporter
 	name    string
@@ -122,6 +125,13 @@ func (f *fakeManager) Stop() {
 	f.stops++
 	f.mu.Unlock()
 
+	if f.stopEntered != nil {
+		select {
+		case f.stopEntered <- struct{}{}:
+		default:
+		}
+	}
+
 	if f.stopGate != nil {
 		<-f.stopGate
 	}
@@ -167,12 +177,13 @@ func (f *fakeManager) stopCount() int {
 
 // factory builds fake managers and remembers them, by exporter name, in the order they were built.
 type factory struct {
-	gate     chan struct{}
-	stopGate chan struct{}
-	entered  chan struct{}
-	managers map[string][]*fakeManager
-	mu       sync.Mutex
-	built    int
+	stopEntered chan struct{}
+	gate        chan struct{}
+	stopGate    chan struct{}
+	entered     chan struct{}
+	managers    map[string][]*fakeManager
+	mu          sync.Mutex
+	built       int
 }
 
 func newFactory() *factory { return &factory{managers: map[string][]*fakeManager{}} }
@@ -186,12 +197,13 @@ func (f *factory) build( //nolint:ireturn // it implements events.NewManagerFunc
 	exp, _ := cfg.Exporter.(exporter.Exporter)
 
 	mgr := &fakeManager{
-		exp:      exp,
-		name:     name,
-		gate:     f.gate,
-		stopGate: f.stopGate,
-		entered:  f.entered,
-		signal:   make(chan struct{}, 1<<16),
+		exp:         exp,
+		name:        name,
+		gate:        f.gate,
+		stopGate:    f.stopGate,
+		entered:     f.entered,
+		stopEntered: f.stopEntered,
+		signal:      make(chan struct{}, 1<<16),
 	}
 	f.managers[name] = append(f.managers[name], mgr)
 	f.built++
@@ -534,8 +546,120 @@ func inner[T exporter.Exporter]( //nolint:ireturn // a generic helper returns th
 	tb testing.TB, def *events.ExporterDef) T {
 	tb.Helper()
 
-	got, ok := def.Inner.(T)
-	require.True(tb, ok, "the exporter of kind %s is a %T", def.Kind, def.Inner)
+	got, ok := def.Inner.Unseal().(T)
+	require.True(tb, ok, "the exporter of kind %s is a %T", def.Kind, def.Inner.Unseal())
 
 	return got
+}
+
+// assertExporterAccounting checks, for each exporter of the status, that every event handed to it is exported,
+// dropped by one reason or still queued, and that nothing is counted twice: handed = exported + overflow + drain +
+// queued, with no figure above what was handed.
+func assertExporterAccounting(tb testing.TB, status *events.Status, when string) {
+	tb.Helper()
+
+	for i := range status.Exporters {
+		exp := &status.Exporters[i]
+		gone := exp.Exported + exp.Dropped.Overflow + exp.Dropped.Drain
+
+		assert.LessOrEqual(
+			tb,
+			gone,
+			exp.Handed,
+			"%s: %s: exported and dropped events are more than what was handed",
+			when,
+			exp.Name,
+		)
+		assert.Equal(
+			tb,
+			exp.Handed,
+			gone+uint64(exp.Queued),
+			"%s: %s: handed = exported + overflow + drain + queued",
+			when,
+			exp.Name,
+		)
+	}
+}
+
+// assertGlobalAccounting checks the accounting of the shared channel for a set of exporters that did not change:
+// every accepted event was handed to an exporter once (handed of any of them), counted as dropped, or is still in
+// the channel.
+func assertGlobalAccounting(tb testing.TB, status *events.Status, handed uint64, when string) {
+	tb.Helper()
+
+	dropped := status.Queue.Dropped
+
+	assert.Equal(tb, status.Queue.Accepted, handed+dropped.NoExporter+dropped.Drain+uint64(status.Queue.Length),
+		"%s: accepted = handed + no_exporter + drain + in the channel", when)
+}
+
+// statusOf returns the status of the exporter named name.
+func statusOf(tb testing.TB, status *events.Status, name string) events.ExporterStatus {
+	tb.Helper()
+
+	for i := range status.Exporters {
+		if status.Exporters[i].Name == name {
+			return status.Exporters[i]
+		}
+	}
+
+	require.FailNow(tb, "no exporter named "+name)
+
+	return events.ExporterStatus{}
+}
+
+// gatedExporter is an engine exporter that waits for a gate before it exports.
+type gatedExporter struct {
+	gate     chan struct{}
+	exported atomic.Uint64
+}
+
+func (*gatedExporter) IsBulk() bool { return true }
+
+func (g *gatedExporter) Export(_ context.Context, _ *slog.Logger, batch []exporter.ExportableEvent) error {
+	<-g.gate
+	g.exported.Add(uint64(len(batch)))
+
+	return nil
+}
+
+// tapManager wraps an engine manager and signals one token per event it is given, so that a test can wait for the
+// events to reach the manager.
+type tapManager struct {
+	events.FeatureManager
+
+	tap chan struct{}
+}
+
+func (t *tapManager) QueueEvents(batch []*exporter.FeatureEvent) {
+	if async, ok := t.FeatureManager.(exporter.AsyncManager[*exporter.FeatureEvent]); ok {
+		async.QueueEvents(batch)
+	}
+
+	for range batch {
+		select {
+		case t.tap <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (t *tapManager) DroppedEvents() int64 {
+	if counter, ok := t.FeatureManager.(exporter.DroppedEventsCounter); ok {
+		return counter.DroppedEvents()
+	}
+
+	return 0
+}
+
+// tapped returns a manager constructor for the engine manager, and the channel of its tokens.
+func tapped() (events.NewManagerFunc, chan struct{}) {
+	tap := make(chan struct{}, 1<<16)
+
+	return func(_ string, cfg exporter.Config, logger *slog.Logger) events.FeatureManager {
+		return &tapManager{
+			FeatureManager: exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{cfg}, 0, logger),
+			tap:            tap,
+		}
+	}, tap
 }

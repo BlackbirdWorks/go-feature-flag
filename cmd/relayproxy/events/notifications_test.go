@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/notifier"
@@ -21,7 +23,7 @@ import (
 var errRemoteDown = errors.New("remote down")
 
 func ndef(name, identity string, n notifier.Notifier) events.NotifierDef {
-	return events.NotifierDef{Name: name, Kind: kindWebhook, Identity: identity, Notifier: n}
+	return events.NewNotifierDef(name, kindWebhook, identity, n)
 }
 
 // startNotifications returns a started worker that reads the returned channel.
@@ -185,7 +187,8 @@ func TestNotifications_PanicIsRecoveredLoggedOnceAndCounted(t *testing.T) {
 
 	require.Len(t, panics, 1, "logged once")
 	assert.Contains(t, panics[0], "notifier=p")
-	assert.Contains(t, panics[0], "boom")
+	assert.Contains(t, panics[0], "type=string", "the type of the panic value is logged")
+	assert.NotContains(t, panics[0], "boom", "the value of a panic can carry a secret")
 }
 
 func TestNotifications_ErrorsAreCountedAndLoggedWithoutTheMessage(t *testing.T) {
@@ -343,7 +346,7 @@ func TestNotifications_ReloadDrainPastDeadline(t *testing.T) {
 
 	stuck := &recordingNotifier{gate: make(chan struct{}), entered: make(chan struct{}, 1)}
 
-	notes, changes := startNotifications(t, &events.NotificationsConfig{QueueSize: 8})
+	notes, changes := startNotifications(t, &events.NotificationsConfig{QueueSize: 8, DrainTimeout: time.Nanosecond})
 
 	_, err := notes.Apply(context.Background(), []events.NotifierDef{ndef("stuck", "v1", stuck)})
 	require.NoError(t, err)
@@ -354,7 +357,7 @@ func TestNotifications_ReloadDrainPastDeadline(t *testing.T) {
 
 	await(t, stuck.entered, "the notifier to take a change")
 
-	set, err := notes.Apply(canceled(), nil)
+	set, err := notes.Apply(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Equal(t, events.ReloadSet{Removed: []string{"stuck"}, Cut: []string{"stuck"}}, set)
 
@@ -462,4 +465,74 @@ func TestNotifications_ShutdownDeliversWhatIsQueued(t *testing.T) {
 
 	assert.Len(t, rec.received(), 5, "the queued changes were delivered before the notifier stopped")
 	assert.Equal(t, events.StateStopped, notes.Status().Notifiers[0].State)
+}
+
+// TestNotifications_CountersSurviveReloads checks that the totals of a notifier name carry across the instances.
+func TestNotifications_CountersSurviveReloads(t *testing.T) {
+	t.Parallel()
+
+	notes, changes := startNotifications(t, &events.NotificationsConfig{})
+
+	for gen := range 3 {
+		rec := &recordingNotifier{got: make(chan notifier.DiffCache, 4)}
+		_, err := notes.Apply(context.Background(), []events.NotifierDef{ndef("n", "gen-"+strconv.Itoa(gen), rec)})
+		require.NoError(t, err)
+
+		changes <- change("set", gen)
+
+		await(t, rec.got, "the change")
+
+		status := notes.Status().Notifiers
+		require.Len(t, status, 1, "one entry per name")
+		assert.Equal(t, uint64(gen+1), status[0].Delivered, "cumulative over the instances")
+	}
+}
+
+// TestNotifications_ReloadFromSpecs builds the notifiers from the specs.
+func TestNotifications_ReloadFromSpecs(t *testing.T) {
+	t.Parallel()
+
+	cfg, opts := parse(t, "notifiers:\n  n: {kind: slack, webhookUrl: {fromEnv: URL}}\n")
+	notes := events.NewNotifications(&events.NotificationsConfig{Builder: events.Builder{Secrets: opts}})
+
+	require.NoError(t, notes.Start(context.Background(), nil), "a nil channel is allowed")
+	t.Cleanup(func() { _ = notes.Shutdown(canceled()) })
+
+	set, err := notes.Reload(context.Background(), events.SpecsFrom(cfg))
+	require.NoError(t, err)
+	assert.Equal(t, events.ReloadSet{Added: []string{"n"}}, set)
+
+	set, err = notes.Reload(context.Background(), events.SpecsFrom(cfg))
+	require.NoError(t, err)
+	assert.Equal(t, events.ReloadSet{Kept: []string{"n"}}, set)
+
+	_, err = notes.Reload(
+		context.Background(),
+		events.Specs{Notifiers: map[string]bootstrap.Notifier{"n": {Kind: kindNope}}},
+	)
+	require.ErrorIs(t, err, events.ErrUnknownKind)
+}
+
+// TestNotifications_ContextEndShutsDown checks that the end of the context of Start shuts the notifications down.
+func TestNotifications_ContextEndShutsDown(t *testing.T) {
+	t.Parallel()
+
+	rec := &recordingNotifier{got: make(chan notifier.DiffCache, 4)}
+	notes := events.NewNotifications(&events.NotificationsConfig{})
+	changes := make(chan flagruntime.Change)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	require.NoError(t, notes.Start(ctx, changes))
+
+	_, err := notes.Apply(context.Background(), []events.NotifierDef{ndef("n", "v1", rec)})
+	require.NoError(t, err)
+
+	changes <- change("set", 1)
+
+	await(t, rec.got, "the change")
+	cancel()
+	await(t, notes.Done(), "the shutdown that the end of the context starts")
+
+	_, err = notes.Apply(context.Background(), nil)
+	require.ErrorIs(t, err, events.ErrClosed)
 }

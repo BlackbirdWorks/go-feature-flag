@@ -177,7 +177,7 @@ func TestBuilder_ExporterKinds(t *testing.T) {
 
 			assert.Equal(t, "e", built[0].Name)
 			assert.Equal(t, tt.wantKind, built[0].Kind)
-			assert.Equal(t, tt.want, built[0].Inner)
+			assert.Equal(t, tt.want, built[0].Inner.Unseal())
 			assert.Equal(
 				t,
 				defaults.FlushInterval,
@@ -558,7 +558,7 @@ func TestBuilder_NotifierKinds(t *testing.T) {
 			require.Len(t, built, 1)
 			assert.Equal(t, "n", built[0].Name)
 			assert.Equal(t, tt.wantKind, built[0].Kind)
-			assert.Equal(t, tt.want, built[0].Notifier)
+			assert.Equal(t, tt.want, built[0].Notifier.Unseal())
 		})
 	}
 }
@@ -705,7 +705,7 @@ func TestBuilder_DefaultsOfVersion1(t *testing.T) {
 	assert.Equal(t, &fileexporter.Exporter{
 		Format: defaults.Format, OutputDir: "/o", Filename: defaults.FileName, CsvTemplate: defaults.CsvFormat,
 		ParquetCompressionCodec: defaults.ParquetCompressionCodec,
-	}, built[0].Inner)
+	}, built[0].Inner.Unseal())
 	assert.Equal(t, defaults.FlushInterval, built[0].Config.FlushInterval)
 	assert.Equal(t, defaults.MaxEventInMemory, built[0].Config.MaxEventInMemory)
 }
