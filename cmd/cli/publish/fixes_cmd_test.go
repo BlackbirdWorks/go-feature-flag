@@ -411,3 +411,45 @@ func TestVerifyNamesWhatItDidNotCheck(t *testing.T) {
 	assert.Contains(t, stdout, "ok: every checked object matches")
 	assert.NotContains(t, stdout, "every listed object")
 }
+
+// TestADirectoryNamedVerifyNeedsADotSlash pins the sentence of docs/tooling/publish.md: the word verify is the
+// subcommand, ./verify is a directory.
+func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		args       []string
+		wantCode   int
+	}{
+		{
+			name: "the word is the subcommand: it verifies a bucket that holds no manifest", args: withTarget("verify"),
+			wantCode: helper.ExitVerify,
+		},
+		{
+			name: "with ./ it is a directory to publish", args: withTarget("./verify"),
+			wantStdout: "published generation 1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rig := newHarness(t, sourceTree())
+
+			stdout, _, err := rig.run(t, tt.args...)
+
+			if tt.wantCode == 0 {
+				require.NoError(t, err)
+				assert.Contains(t, stdout, tt.wantStdout)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, tt.wantCode, helper.ExitCodeOf(err))
+			assert.Empty(t, rig.fake.Keys(), "nothing is published")
+		})
+	}
+}

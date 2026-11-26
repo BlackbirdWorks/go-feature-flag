@@ -220,7 +220,7 @@ func TestVerifyFailsABadEntryAloneLikeTheReader(t *testing.T) {
 			for _, doc := range []struct {
 				name string
 				body []byte
-			}{{"a-bad", bad}, {"b-good", good1}, {"c-good", good2}} {
+			}{{badEntry, bad}, {"b-good", good1}, {"c-good", good2}} {
 				key := objectKey(t, doc.body)
 				fake.Seed(key, doc.body)
 
@@ -252,7 +252,7 @@ func TestVerifyFailsABadEntryAloneLikeTheReader(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Len(t, rep.Problems, 1, "%v", rep.Problems)
-			assert.Equal(t, "a-bad", rep.Problems[0].Object)
+			assert.Equal(t, badEntry, rep.Problems[0].Object)
 			assert.Equal(t, s3publish.ProblemInvalidEntry, rep.Problems[0].Code)
 			assert.Contains(t, rep.Problems[0].Detail, tt.wantDetail)
 			assert.Equal(t, 2, rep.Checked, "the two good entries are checked")
@@ -302,42 +302,68 @@ func TestAnExistingManifestWithABadEntryIsPublishableOverWithoutTheFlag(t *testi
 func TestVerifyClassificationTable(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		mutate     func(entries []controlplane.ManifestObject)
-		config     func(*s3publish.Config)
-		name       string
-		raw        []byte
-		wholeError bool
-	}{
-		{name: "size 0", mutate: func(e []controlplane.ManifestObject) { e[0].Size = 0 }},
+	const (
+		entryGets = 3 // the manifest and the two good objects
+		wholeGets = 1 // the manifest only
+	)
+
+	wholeRaw := func(name string, raw []byte) classificationRow {
+		return classificationRow{
+			name:       name,
+			raw:        raw,
+			wantCode:   s3publish.ProblemManifestInvalid,
+			wantObject: manifestObject,
+			wantGets:   wholeGets,
+		}
+	}
+	whole := func(name string, mutate func(e []controlplane.ManifestObject)) classificationRow {
+		return classificationRow{
+			name:       name,
+			mutate:     mutate,
+			wantCode:   s3publish.ProblemManifestInvalid,
+			wantObject: manifestObject,
+			wantGets:   wholeGets,
+		}
+	}
+	entry := func(name string, mutate func(e []controlplane.ManifestObject)) classificationRow {
+		return classificationRow{
+			name: name, mutate: mutate, wantCode: s3publish.ProblemInvalidEntry, wantObject: badEntry, wantChecked: 2,
+			wantGets: entryGets,
+		}
+	}
+
+	tests := []classificationRow{
+		entry("size 0", func(e []controlplane.ManifestObject) { e[0].Size = 0 }),
+		entry("size over the object limit", func(e []controlplane.ManifestObject) {
+			e[0].Size = controlplane.DefaultMaxObjectBytes + 1
+		}),
+		entry("key with a leading slash", func(e []controlplane.ManifestObject) { e[0].Key = "/" + e[0].Key }),
+		whole("negative size", func(e []controlplane.ManifestObject) { e[0].Size = -1 }),
+		whole("empty key", func(e []controlplane.ManifestObject) { e[0].Key = "" }),
+		whole("bad checksum", func(e []controlplane.ManifestObject) { e[0].Checksum.Value = "not-hex" }),
+		whole("bad name", func(e []controlplane.ManifestObject) { e[0].Name = badName }),
+		whole("unknown kind", func(e []controlplane.ManifestObject) { e[0].Kind = otherName }),
+		whole("unknown format", func(e []controlplane.ManifestObject) { e[0].Format = "xml" }),
+		wholeRaw("not parseable", []byte("objects: [")),
 		{
-			name:   "size over the object limit",
-			mutate: func(e []controlplane.ManifestObject) { e[0].Size = controlplane.DefaultMaxObjectBytes + 1 },
+			name: "wrong document kind, with fetchable entries", edit: func(b string) string {
+				return strings.Replace(b, "kind: Manifest", "kind: FlagSet", 1)
+			},
+			wantCode: s3publish.ProblemManifestInvalid, wantObject: manifestObject, wantGets: wholeGets,
 		},
-		{name: "key with a leading slash", mutate: func(e []controlplane.ManifestObject) { e[0].Key = "/" + e[0].Key }},
-		{name: "negative size", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Size = -1 }},
-		{name: "empty key", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Key = "" }},
 		{
-			name: "bad checksum", wholeError: true,
-			mutate: func(e []controlplane.ManifestObject) { e[0].Checksum.Value = "not-hex" },
-		},
-		{name: "bad name", wholeError: true, mutate: func(e []controlplane.ManifestObject) { e[0].Name = badName }},
-		{
-			name:       "unknown kind",
-			wholeError: true,
-			mutate:     func(e []controlplane.ManifestObject) { e[0].Kind = otherName },
+			name: "unsupported apiVersion, with fetchable entries", edit: func(b string) string {
+				return strings.Replace(b, "apiVersion: semaphore/v1", "apiVersion: semaphore/v2", 1)
+			},
+			wantCode: s3publish.ProblemManifestInvalid, wantObject: manifestObject, wantGets: wholeGets,
 		},
 		{
-			name:       "unknown format",
-			wholeError: true,
-			mutate:     func(e []controlplane.ManifestObject) { e[0].Format = "xml" },
+			name: "too many entries", config: func(c *s3publish.Config) { c.MaxObjects = 2 },
+			wantCode: s3publish.ProblemManifestInvalid, wantObject: manifestObject, wantGets: wholeGets,
 		},
-		{name: "not parseable", wholeError: true, raw: []byte("objects: [")},
-		{name: "too many entries", wholeError: true, config: func(c *s3publish.Config) { c.MaxObjects = 2 }},
 		{
-			name:       "distinct objects over the total limit",
-			wholeError: true,
-			config:     func(c *s3publish.Config) { c.MaxTotalBytes = 1 },
+			name: "distinct objects over the total limit", config: func(c *s3publish.Config) { c.MaxTotalBytes = 1 },
+			wantCode: s3publish.ProblemManifestInvalid, wantObject: manifestObject, wantGets: wholeGets,
 		},
 	}
 	for _, tt := range tests {
@@ -350,7 +376,7 @@ func TestVerifyClassificationTable(t *testing.T) {
 			for _, doc := range []struct {
 				name string
 				body []byte
-			}{{"a-bad", flagsBody(t, "bad")}, {"b-good", flagsBody(t, "g1")}, {"c-good", flagsBody(t, "g2")}} {
+			}{{badEntry, flagsBody(t, "bad")}, {"b-good", flagsBody(t, "g1")}, {"c-good", flagsBody(t, "g2")}} {
 				key := objectKey(t, doc.body)
 				fake.Seed(key, doc.body)
 
@@ -379,6 +405,10 @@ func TestVerifyClassificationTable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			if tt.edit != nil {
+				body = []byte(tt.edit(string(body)))
+			}
+
 			fake.Seed(manifestKey, body)
 			fake.ResetCalls()
 
@@ -386,17 +416,29 @@ func TestVerifyClassificationTable(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, rep.Problems, 1, "%v", rep.Problems)
 
-			if tt.wholeError {
-				assert.Equal(t, s3publish.ProblemManifestInvalid, rep.Problems[0].Code)
-				assert.Zero(t, rep.Checked)
-				assert.Equal(t, []string{"GET " + manifestKey}, fake.Calls(), "nothing is read")
-
-				return
-			}
-
-			assert.Equal(t, s3publish.ProblemInvalidEntry, rep.Problems[0].Code)
-			assert.Equal(t, "a-bad", rep.Problems[0].Object)
-			assert.Equal(t, 2, rep.Checked, "the other entries are read and checked")
+			assert.Equal(t, tt.wantCode, rep.Problems[0].Code)
+			assert.Equal(t, tt.wantObject, rep.Problems[0].Object)
+			assert.Equal(t, tt.wantChecked, rep.Checked)
+			assert.Equal(t, s3publish.Requests{Get: tt.wantGets}, rep.Requests)
+			assert.Len(
+				t,
+				fake.Calls(),
+				tt.wantGets,
+				"an entry that is read costs one GET, a rejected manifest only the manifest",
+			)
 		})
 	}
+}
+
+// classificationRow is one row of TestVerifyClassificationTable.
+type classificationRow struct {
+	mutate      func(entries []controlplane.ManifestObject)
+	config      func(*s3publish.Config)
+	edit        func(manifest string) string
+	name        string
+	wantCode    string
+	wantObject  string
+	raw         []byte
+	wantChecked int
+	wantGets    int
 }

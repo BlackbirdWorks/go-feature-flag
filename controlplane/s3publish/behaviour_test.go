@@ -239,9 +239,10 @@ func TestMissingBucketIsAnErrorNotAMissingManifestNorAConflict(t *testing.T) {
 	noBucket := &s3fake.StatusError{Code: "NoSuchBucket", Status: 404}
 
 	tests := []struct {
-		run   func(pub *s3publish.Publisher, objects []s3publish.Object) error
-		setup func(fake *s3fake.Fake)
-		name  string
+		run      func(pub *s3publish.Publisher, objects []s3publish.Object) error
+		setup    func(fake *s3fake.Fake)
+		name     string
+		hasOlder bool // an older manifest exists, so the manifest write is If-Match
 	}{
 		{
 			name: "publish",
@@ -268,8 +269,9 @@ func TestMissingBucketIsAnErrorNotAMissingManifestNorAConflict(t *testing.T) {
 			},
 		},
 		{
-			name:  "the bucket vanishes before the manifest write",
-			setup: func(fake *s3fake.Fake) { failOn(fake, "PUT "+manifestKey, noBucket) },
+			name:     "the bucket vanishes before the manifest write",
+			hasOlder: true,
+			setup:    func(fake *s3fake.Fake) { failOn(fake, "PUT "+manifestKey, noBucket) },
 			run: func(pub *s3publish.Publisher, objects []s3publish.Object) error {
 				_, err := pub.Publish(context.Background(), s3publish.Request{Objects: objects})
 
@@ -284,7 +286,7 @@ func TestMissingBucketIsAnErrorNotAMissingManifestNorAConflict(t *testing.T) {
 			fake := s3fake.New(manifestKey)
 			objects := standardObjects(t, "a")
 
-			if strings.Contains(tt.name, "vanishes") {
+			if tt.hasOlder {
 				// An older manifest exists, so the write is If-Match: a 404 there used to mean "deleted".
 				_, err := newPublisher(
 					t,

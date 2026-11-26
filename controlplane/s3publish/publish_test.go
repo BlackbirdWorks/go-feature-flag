@@ -383,18 +383,51 @@ func TestPublishExistingObjectWithOtherContentIsNeverOverwritten(t *testing.T) {
 func TestPublishLostManifestRace(t *testing.T) {
 	t.Parallel()
 
+	rival := []byte("rival manifest")
+	seedRival := func(fake *s3fake.Fake) error {
+		fake.Seed(manifestKey, rival)
+
+		return nil
+	}
+	removeManifest := func(fake *s3fake.Fake) error {
+		fake.Remove(manifestKey)
+
+		return nil
+	}
+
 	tests := []struct {
-		name      string
-		injectErr string
-		hasFirst  bool
-		deleteOld bool
-		rival     bool
+		onManifestPut func(fake *s3fake.Fake) error // what happens when the manifest write arrives
+		name          string
+		wantBody      []byte // the manifest in the bucket afterwards, when it is not the old one
+		hasFirst      bool
+		wantKeepsOld  bool // the manifest in the bucket afterwards is the one that was there before
+		wantPresent   bool
 	}{
-		{name: "first manifest, create-only write loses", rival: true},
-		{name: "etag moved, 412", hasFirst: true, rival: true},
-		{name: "ConditionalRequestConflict 409", hasFirst: true, injectErr: "ConditionalRequestConflict"},
-		{name: "PreconditionFailed code", hasFirst: true, injectErr: "PreconditionFailed"},
-		{name: "manifest deleted meanwhile", hasFirst: true, deleteOld: true},
+		{
+			name:          "first manifest, create-only write loses",
+			onManifestPut: seedRival,
+			wantBody:      rival, wantPresent: true,
+		},
+		{
+			name: "etag moved, 412", hasFirst: true,
+			onManifestPut: seedRival,
+			wantBody:      rival, wantPresent: true,
+		},
+		{
+			name: "ConditionalRequestConflict 409", hasFirst: true,
+			onManifestPut: func(*s3fake.Fake) error { return s3fake.APIError("ConditionalRequestConflict") },
+			wantKeepsOld:  true, wantPresent: true,
+		},
+		{
+			name: "PreconditionFailed code", hasFirst: true,
+			onManifestPut: func(*s3fake.Fake) error { return s3fake.APIError("PreconditionFailed") },
+			wantKeepsOld:  true, wantPresent: true,
+		},
+		{
+			name: "manifest deleted meanwhile", hasFirst: true,
+			onManifestPut: removeManifest,
+			wantPresent:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -416,16 +449,7 @@ func TestPublishLostManifestRace(t *testing.T) {
 					return nil
 				}
 
-				switch {
-				case tt.injectErr != "":
-					return s3fake.APIError(tt.injectErr)
-				case tt.deleteOld:
-					fake.Remove(manifestKey)
-				case tt.rival:
-					fake.Seed(manifestKey, []byte("rival manifest"))
-				}
-
-				return nil
+				return tt.onManifestPut(fake)
 			}
 
 			fake.ResetCalls()
@@ -434,7 +458,6 @@ func TestPublishLostManifestRace(t *testing.T) {
 			require.ErrorIs(t, err, s3publish.ErrConflict)
 
 			calls := fake.Calls()
-			require.NotEmpty(t, calls)
 			require.GreaterOrEqual(t, len(calls), 2)
 			assert.True(
 				t,
@@ -446,15 +469,15 @@ func TestPublishLostManifestRace(t *testing.T) {
 			assert.Equal(t, 1, countPrefix(calls, "PUT "+manifestKey), "no retry of the manifest write")
 
 			got, found := fake.Body(manifestKey)
+			assert.Equal(t, tt.wantPresent, found, "a lost race neither recreates nor removes the manifest")
 
-			switch {
-			case tt.rival:
-				assert.Equal(t, []byte("rival manifest"), got, "the winner's manifest is not clobbered")
-			case tt.deleteOld:
-				assert.False(t, found, "a lost race does not recreate the manifest")
-			default:
+			if tt.wantKeepsOld {
 				assert.Equal(t, oldETag, fake.ETag(manifestKey))
 				assert.Equal(t, oldBody, got, "the manifest is unchanged")
+			}
+
+			if tt.wantBody != nil {
+				assert.Equal(t, tt.wantBody, got, "the winner's manifest is not clobbered")
 			}
 		})
 	}
