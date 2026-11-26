@@ -104,7 +104,11 @@ type Common struct {
 	// Region is the AWS region. It is required: a connection never takes its region from the process
 	// environment or the shared config files.
 	Region string `json:"region"`
-	Retry  Retry  `json:"retry"`
+	// CABundleFile is a PEM file of certificate authorities trusted in addition to the system roots, for TLS
+	// emulators and private S3 compatible stores. Empty means the system roots only. The identity holds the
+	// path, not the content.
+	CABundleFile string `json:"caBundleFile"`
+	Retry        Retry  `json:"retry"`
 	// ConnectTimeout bounds the TCP connect only; zero means 30s. The TLS handshake is bounded by 10s.
 	// It is ignored when the factory has an HTTP client or round tripper override.
 	ConnectTimeout time.Duration `json:"connectTimeout"`
@@ -313,6 +317,7 @@ func (c *Credentials) validate() error {
 func (c *Common) fingerprint(fprint *fingerprint) {
 	fprint.str("endpoint", c.Endpoint)
 	fprint.str("region", c.Region)
+	fprint.str("caBundleFile", c.CABundleFile)
 	fprint.str("connectTimeout", c.ConnectTimeout.String())
 	fprint.str("requestTimeout", c.RequestTimeout.String())
 	fprint.str("retry.maxAttempts", strconv.Itoa(c.Retry.MaxAttempts))

@@ -21,6 +21,10 @@ them by name.
   `AWS_ENDPOINT_URL_S3`, `AWS_DEFAULTS_MODE`, `AWS_PROFILE` and the shared config files are ignored. The only
   exception is the credentials chain (see below).
 - Connection names must not be empty.
+- `AWS_CA_BUNDLE`, the proxy variables and every other process-level AWS setting do not affect a connection, except
+  as the source of `chain` credentials (and of `assumeRole` without source keys): the SDK default chain is used
+  only to obtain a credentials provider. The data-plane HTTP client is built from the spec. It does not use a
+  proxy; use `caBundleFile` for private CAs.
 
 ## Fields
 
@@ -33,6 +37,7 @@ S3 connection:
 | `region` | required | AWS region |
 | `pathStyle` | `false` | Path-style addressing |
 | `credentials` | `chain` | See below |
+| `caBundleFile` | none | PEM file of extra certificate authorities, trusted in addition to the system roots (TLS emulators, private stores). A missing, empty or certificate-less file is refused at `Set`/`Replace`. The identity holds the path, not the content |
 | `connectTimeout` | 30s | TCP connect timeout only (the TLS handshake has a fixed 10s limit) |
 | `requestTimeout` | none | Wait for the response headers of one HTTP attempt. It does not cut the reading of a body: only the caller's context does |
 | `retry.maxAttempts` | SDK default (3) | Attempts per operation, the first one included |
@@ -75,7 +80,12 @@ On a reload the factory compares identities:
 ## Request metric
 
 Every HTTP attempt made through a connection client is reported once (a request retried after a 503 counts twice).
-The clients do not follow redirects, so one observation is one request on the wire.
+The clients do not follow redirects, so a redirect is one observation, not several.
+
+An observation is an attempt made by the SDK, not a write on the wire. The Go HTTP transport may transparently
+replay an idempotent request (`GET`, `HEAD`) on a kept-alive connection that died before any response byte; the
+replay is not observed again. The first send got no response, so the service processed at most one of them. No
+transport setting avoids this without disabling keep-alive, which the clients keep.
 The relay exposes it as `semaphore_s3_requests_total{connection,operation,result}`.
 
 `operation` is `get`, `list`, `head`, `put`, `delete` or `other`.

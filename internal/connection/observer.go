@@ -46,7 +46,10 @@ const (
 )
 
 // RequestObserver is told about every HTTP attempt made by the clients of a [Factory]: once per attempt, so
-// an operation retried after a 503 is observed twice. It is called on the goroutine of the request and must
+// an operation retried after a 503 is observed twice. An observation is an attempt of the SDK, not a write
+// on the wire: the Go transport may replay an idempotent request on a kept-alive connection that died before
+// any response byte, without another observation. The service answered none of the replayed requests, so
+// it processed at most one of them. It is called on the goroutine of the request and must
 // not block. The relay maps it to semaphore_s3_requests_total.
 type RequestObserver interface {
 	// Observe records one attempt of connection, with an operation (an Operation* constant) and a

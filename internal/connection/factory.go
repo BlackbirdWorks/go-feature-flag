@@ -2,12 +2,15 @@ package connection
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -39,6 +42,11 @@ func WithRoundTripper(rt http.RoundTripper) Option {
 	return func(f *Factory) { f.roundTripper = rt }
 }
 
+// WithReadFile sets the function that reads the CA bundle files of the specs (default [os.ReadFile]).
+func WithReadFile(readFile func(string) ([]byte, error)) Option {
+	return func(f *Factory) { f.readFile = readFile }
+}
+
 // WithObserver reports every HTTP attempt of the AWS clients to obs.
 func WithObserver(obs RequestObserver) Option {
 	return func(f *Factory) { f.observer = obs }
@@ -50,7 +58,7 @@ func WithLogger(logger *slog.Logger) Option {
 }
 
 // NoRedirect is the [http.Client.CheckRedirect] of every client the factory builds: a 3xx answer is
-// returned to the SDK instead of followed, so one SDK attempt is one wire request.
+// returned to the SDK instead of followed, so a redirect never turns one SDK attempt into several requests.
 func NoRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 // Factory holds the specs of the connections by name and builds exactly one AWS configuration (and S3
@@ -60,6 +68,7 @@ type Factory struct {
 	roundTripper http.RoundTripper
 	observer     RequestObserver
 	logger       *slog.Logger
+	readFile     func(string) ([]byte, error)
 
 	entries map[string]*entry
 	builds  map[string]int
@@ -90,8 +99,9 @@ func (e *entry) closeIdle() {
 // New returns an empty factory; load its connections with [Factory.Replace] or [Factory.Set].
 func New(opts ...Option) *Factory {
 	fac := &Factory{
-		entries: make(map[string]*entry),
-		builds:  make(map[string]int),
+		entries:  make(map[string]*entry),
+		builds:   make(map[string]int),
+		readFile: os.ReadFile,
 	}
 	for _, opt := range opts {
 		opt(fac)
@@ -104,7 +114,7 @@ func New(opts ...Option) *Factory {
 // the one already held, and rebuilt on next use otherwise (the idle connections of the old one are
 // closed). An invalid spec changes nothing.
 func (f *Factory) Set(name string, spec Spec) error {
-	err := validateNamed(name, spec)
+	err := f.validateNamed(name, spec)
 	if err != nil {
 		return err
 	}
@@ -124,7 +134,7 @@ func (f *Factory) Set(name string, spec Spec) error {
 // changes nothing.
 func (f *Factory) Replace(specs map[string]Spec) error {
 	for name, spec := range specs {
-		err := validateNamed(name, spec)
+		err := f.validateNamed(name, spec)
 		if err != nil {
 			return err
 		}
@@ -170,30 +180,6 @@ func closeAll(entries []*entry) {
 	for _, ent := range entries {
 		ent.closeIdle()
 	}
-}
-
-func validateNamed(name string, spec Spec) error {
-	if name == "" {
-		return &SpecError{Field: "name", Reason: "must not be empty"}
-	}
-
-	if spec == nil {
-		return &SpecError{Connection: name, Field: "spec", Reason: "is nil"}
-	}
-
-	err := spec.Validate()
-	if err != nil {
-		if se, ok := errors.AsType[*SpecError](err); ok {
-			named := *se
-			named.Connection = name
-
-			return &named
-		}
-
-		return fmt.Errorf("connection %q: %w", name, err)
-	}
-
-	return nil
 }
 
 // String implements [fmt.Stringer]: the factory prints its size only, never its specs.
@@ -301,6 +287,37 @@ func (f *Factory) put(name string, spec Spec) []*entry {
 	return nil
 }
 
+func (f *Factory) validateNamed(name string, spec Spec) error {
+	if name == "" {
+		return &SpecError{Field: "name", Reason: "must not be empty"}
+	}
+
+	if spec == nil {
+		return &SpecError{Connection: name, Field: "spec", Reason: "is nil"}
+	}
+
+	err := spec.Validate()
+	if err != nil {
+		if se, ok := errors.AsType[*SpecError](err); ok {
+			named := *se
+			named.Connection = name
+
+			return &named
+		}
+
+		return fmt.Errorf("connection %q: %w", name, err)
+	}
+
+	if backed, ok := spec.(awsBacked); ok {
+		_, err = f.rootPool(backed.common().CABundleFile)
+		if err != nil {
+			return &SpecError{Connection: name, Field: fieldCABundle, Reason: err.Error()}
+		}
+	}
+
+	return nil
+}
+
 func (f *Factory) lookup(name string) (*entry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -344,35 +361,34 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 	return ent.cfg, nil
 }
 
-// build makes the AWS configuration of a connection. Region and endpoint come from the spec only. The
-// configuration never reads the process environment or the shared config files, except for credentials
-// of type chain (and assumeRole without source keys), which use the SDK default chain on purpose.
+// build makes the AWS configuration of a connection. Everything of the data plane (region, endpoint, HTTP
+// transport, retries, checksums, defaults) comes from the spec and the factory, never from the process
+// environment or the shared config files. The SDK default chain is used only to obtain a credentials
+// provider, for credentials of type chain and for assumeRole without source keys.
 func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.Config, *http.Client, error) {
 	com := spec.common()
-	choice := f.newHTTPClient(com)
 
-	var cfg aws.Config
-
-	if usesChain(&com.Credentials) {
-		var err error
-
-		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(com.Region), config.WithHTTPClient(choice.client))
-		if err != nil {
-			return aws.Config{}, nil, fmt.Errorf("connection %q: load AWS config: %w", name, err)
-		}
-	} else {
-		cfg = aws.Config{Region: com.Region, HTTPClient: choice.client}
-		if com.Credentials.Type == CredentialsStatic || com.Credentials.Type == CredentialsAssumeRole {
-			cfg.Credentials = credentials.NewStaticCredentialsProvider(
-				com.Credentials.AccessKeyID.Reveal(), com.Credentials.SecretAccessKey.Reveal(),
-				com.Credentials.SessionToken.Reveal())
-		}
+	choice, err := f.newHTTPClient(com)
+	if err != nil {
+		return aws.Config{}, nil, &SpecError{Connection: name, Field: fieldCABundle, Reason: err.Error()}
 	}
 
-	// Isolation: nothing is read from the environment or the shared files after this point.
-	cfg.ConfigSources = nil
+	cfg := aws.Config{Region: com.Region, HTTPClient: choice.client}
+
+	switch {
+	case usesChain(&com.Credentials):
+		cfg.Credentials, err = chainCredentials(ctx, com.Region)
+		if err != nil {
+			return aws.Config{}, nil, fmt.Errorf("connection %q: %w", name, err)
+		}
+	case com.Credentials.Type == CredentialsStatic || com.Credentials.Type == CredentialsAssumeRole:
+		cfg.Credentials = credentials.NewStaticCredentialsProvider(
+			com.Credentials.AccessKeyID.Reveal(), com.Credentials.SecretAccessKey.Reveal(),
+			com.Credentials.SessionToken.Reveal())
+	case com.Credentials.Type == CredentialsWebIdentity:
+	}
+
 	cfg.DefaultsMode = aws.DefaultsModeLegacy
-	cfg.BaseEndpoint = nil
 
 	if com.Endpoint != "" {
 		cfg.BaseEndpoint = aws.String(com.Endpoint)
@@ -388,6 +404,18 @@ func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.C
 	}
 
 	return cfg, choice.owned, nil
+}
+
+// chainCredentials returns the credentials provider of the SDK default chain. The SDK loads its own HTTP
+// client for it (so AWS_CA_BUNDLE and the proxy variables apply to credential lookups only); nothing else of
+// the loaded configuration is used.
+func chainCredentials(ctx context.Context, region string) (*aws.CredentialsCache, error) {
+	loaded, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("load the AWS credentials chain: %w", err)
+	}
+
+	return aws.NewCredentialsCache(loaded.Credentials), nil
 }
 
 // usesChain reports whether the credentials come from the SDK default chain.
@@ -485,15 +513,20 @@ type httpChoice struct {
 // connection pool and a transport bounding the TCP connect (ConnectTimeout), the TLS handshake and the wait
 // for the response headers (RequestTimeout); the reading of the body is bounded by the context of the caller
 // only. It never follows redirects.
-func (f *Factory) newHTTPClient(com *Common) httpChoice {
+func (f *Factory) newHTTPClient(com *Common) (httpChoice, error) {
 	if f.httpClient != nil {
-		return httpChoice{client: f.httpClient}
+		return httpChoice{client: f.httpClient}, nil
 	}
 
 	if f.roundTripper != nil {
 		client := &http.Client{Transport: f.roundTripper, CheckRedirect: NoRedirect}
 
-		return httpChoice{client: client, owned: client}
+		return httpChoice{client: client, owned: client}, nil
+	}
+
+	roots, err := f.rootPool(com.CABundleFile)
+	if err != nil {
+		return httpChoice{}, err
 	}
 
 	connect := defaultConnectTimeout
@@ -502,7 +535,7 @@ func (f *Factory) newHTTPClient(com *Common) httpChoice {
 	}
 
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		TLSClientConfig:       &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
 		DialContext:           (&net.Dialer{Timeout: connect, KeepAlive: dialKeepAlive}).DialContext,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          maxIdleConns,
@@ -513,8 +546,36 @@ func (f *Factory) newHTTPClient(com *Common) httpChoice {
 	}
 	client := &http.Client{Transport: transport, CheckRedirect: NoRedirect}
 
-	return httpChoice{client: client, owned: client}
+	return httpChoice{client: client, owned: client}, nil
 }
+
+// rootPool returns the root CAs of the transport: nil (the system roots) without a bundle, the system
+// roots plus the bundle with one.
+func (f *Factory) rootPool(bundle string) (*x509.CertPool, error) {
+	if bundle == "" {
+		return nil, nil //nolint:nilnil // nil RootCAs means the system roots
+	}
+
+	data, err := f.readFile(bundle)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the bundle: %w", err)
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+
+	if !pool.AppendCertsFromPEM(data) {
+		return nil, errNoCertificate
+	}
+
+	return pool, nil
+}
+
+const fieldCABundle = "caBundleFile"
+
+var errNoCertificate = errors.New("the bundle holds no PEM certificate")
 
 const (
 	defaultConnectTimeout = 30 * time.Second

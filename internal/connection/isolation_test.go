@@ -133,17 +133,33 @@ func TestFactory_AWSConfigIsACopy(t *testing.T) {
 
 	first, err := fac.AWSConfig(t.Context(), "a")
 	require.NoError(t, err)
+	require.NotEmpty(t, first.APIOptions)
 
 	want := len(first.APIOptions)
-	require.Positive(t, want)
 
-	first.APIOptions = append(first.APIOptions, nil)
+	// both writes go through the shared backing array when the slice is not cloned
 	first.APIOptions[0] = nil
+	first.APIOptions = append(first.APIOptions[:0], nil)
 
 	second, err := fac.AWSConfig(t.Context(), "a")
 	require.NoError(t, err)
-	assert.Len(t, second.APIOptions, want)
-	assert.NotNil(t, second.APIOptions[0])
+	require.Len(t, second.APIOptions, want)
+	assert.NotNil(t, second.APIOptions[0], "the cached configuration was altered through a returned copy")
+
+	// the cached configuration still carries a working observer
+	rec := &recorder{}
+	cached := connection.New(connection.WithObserver(rec), connection.WithRoundTripper(newScripted(step{status: 200})))
+	require.NoError(t, cached.Set("a", testS3()))
+
+	cfg, err := cached.AWSConfig(t.Context(), "a")
+	require.NoError(t, err)
+
+	cfg.APIOptions[0] = nil
+
+	client, err := cached.S3(t.Context(), "a")
+	require.NoError(t, err)
+	require.NoError(t, headObject(t, client))
+	assert.Equal(t, []observation{{"a", opHead, resOK}}, rec.all())
 }
 
 // closeCounter is a transport that counts CloseIdleConnections calls.

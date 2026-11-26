@@ -567,14 +567,14 @@ func TestFactory_Credentials(t *testing.T) {
 				STSEndpoint:     testSTSEndpoint,
 			},
 			stsResponse:  assumeRoleXML,
-			wantAccessID: "ASIAROLE",
+			wantAccessID: roleKeyID,
 			wantSTSForm: map[string]string{
 				formAction:        "AssumeRole",
 				formRoleArn:       testRoleFull,
 				"RoleSessionName": testSession,
 				"ExternalId":      "ext-1",
 			},
-			wantSTSHost:  "sts.test",
+			wantSTSHost:  hostSTS,
 			wantSTSCalls: 1,
 		},
 		{
@@ -584,7 +584,7 @@ func TestFactory_Credentials(t *testing.T) {
 				RoleARN: testRoleFull, SessionName: testSession,
 			},
 			stsResponse:  assumeRoleXML,
-			wantAccessID: "ASIAROLE",
+			wantAccessID: roleKeyID,
 			wantSTSForm:  map[string]string{formAction: "AssumeRole", formRoleArn: testRoleFull},
 			wantSTSHost:  "sts.us-east-1.amazonaws.com",
 			wantSTSCalls: 1,
@@ -601,7 +601,7 @@ func TestFactory_Credentials(t *testing.T) {
 				formAction: "AssumeRoleWithWebIdentity", formRoleArn: "arn:aws:iam::1:role/web",
 				"RoleSessionName": "websess", "WebIdentityToken": "jwt-token",
 			},
-			wantSTSHost:  "sts.test",
+			wantSTSHost:  hostSTS,
 			wantSTSCalls: 1,
 		},
 	}
@@ -634,7 +634,7 @@ func TestFactory_Credentials(t *testing.T) {
 				mu.Unlock()
 
 				return &http.Response{
-					StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/xml"}},
+					StatusCode: http.StatusOK, Header: http.Header{headerType: {"text/xml"}},
 					Body: io.NopCloser(stringsReader(tt.stsResponse)), Request: req,
 				}, nil
 			})

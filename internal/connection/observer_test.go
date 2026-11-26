@@ -211,7 +211,7 @@ func TestObserver_AppliesToOtherAWSClients(t *testing.T) {
 		step{
 			status: 200,
 			body:   `{"QueueUrls":[]}`,
-			header: http.Header{"Content-Type": {"application/x-amz-json-1.0"}},
+			header: http.Header{headerType: {"application/x-amz-json-1.0"}},
 		},
 	)
 	rec := &recorder{}
