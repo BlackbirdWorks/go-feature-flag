@@ -6,15 +6,18 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +55,17 @@ const (
 	receiveDeadline = 30 * time.Second
 	callTimeout     = 10 * time.Second
 )
+
+// deleteAttempts is how many times a delete that failed with an error that may pass is tried.
+const deleteAttempts = 3
+
+// rejected reports an error of the API that the request itself caused (a client fault such as a bad receipt
+// handle) and that the same request will cause again; a throttling is not one.
+func rejected(err error) bool {
+	apiErr, ok := errors.AsType[smithy.APIError](err)
+
+	return ok && apiErr.ErrorFault() == smithy.FaultClient && !strings.Contains(apiErr.ErrorCode(), "Throttl")
+}
 
 // receiveAll polls the queue until want messages were received and deleted. When the deadline passes it fails with
 // what the polling saw: the polls and the last error of the API.
@@ -92,8 +106,9 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 
-			// The same receipt handle is deleted again until it works or the deadline passes.
-			deleteErr = calls.Retry("DeleteMessage", func(ctx context.Context) error {
+			// The same receipt handle is deleted again, a few times, when the error may pass; a rejected handle fails
+			// at once. Either way the test then stops polling and fails with the delete error.
+			deleteErr = calls.Retry("DeleteMessage", deleteAttempts, rejected, func(ctx context.Context) error {
 				_, delErr := client.DeleteMessage(
 					ctx,
 					&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
@@ -102,6 +117,8 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				return delErr
 			})
 			if deleteErr != nil {
+				calls.Stop()
+
 				return false
 			}
 

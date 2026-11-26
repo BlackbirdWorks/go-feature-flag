@@ -11,7 +11,6 @@
 package gopherstack
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net"
@@ -60,9 +59,8 @@ const (
 	EnvImage = "GOPHERSTACK_IMAGE"
 	// logLines is the number of lines of the log of the emulator that Main prints when the tests failed.
 	logLines = 200
-	// logBuffer and logMaxLine are the initial buffer and the longest line read from the log.
-	logBuffer  = 64 << 10
-	logMaxLine = 1 << 20
+	// logMaxLine is the longest line of the log that is kept whole.
+	logMaxLine = 64 << 10
 	// logTimeout bounds the reading of that log.
 	logTimeout = 20 * time.Second
 )
@@ -275,7 +273,7 @@ func Connect(tb testing.TB) *Server {
 	return &Server{Endpoint: endpoint}
 }
 
-// printLog writes the last logLines lines of the log of the container of srv to stderr, or why it cannot.
+// printLog writes the end of the log of the container of srv to stderr, or why it cannot.
 func printLog(ctx context.Context, srv *Server) {
 	ctx, cancel := context.WithTimeout(ctx, logTimeout)
 	defer cancel()
@@ -289,20 +287,7 @@ func printLog(ctx context.Context, srv *Server) {
 
 	defer func() { _ = logs.Close() }()
 
-	ring := make([]string, 0, logLines)
-	scanner := bufio.NewScanner(logs)
-	scanner.Buffer(make([]byte, 0, logBuffer), logMaxLine)
-
-	for scanner.Scan() {
-		if len(ring) == logLines {
-			ring = ring[1:]
-		}
-
-		ring = append(ring, scanner.Text())
-	}
-
-	fmt.Fprintf(os.Stderr, "gopherstack: last %d lines of the log of the emulator:\n%s\n",
-		len(ring), strings.Join(ring, "\n"))
+	fmt.Fprintln(os.Stderr, "gopherstack:", TailLog(logs, logLines, logMaxLine))
 }
 
 var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)

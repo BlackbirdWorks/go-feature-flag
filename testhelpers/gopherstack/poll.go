@@ -87,6 +87,7 @@ type Calls struct {
 	perCall  time.Duration
 	interval time.Duration
 	failed   int
+	stopped  bool
 }
 
 // Do runs fn with its own call context. An error is recorded in the report under name (the operation) and returned.
@@ -103,14 +104,23 @@ func (c *Calls) Do(name string, fn func(ctx context.Context) error) error {
 	return err
 }
 
-// Retry is Do again and again, with the polling interval between two attempts, until fn succeeds or the deadline of the
-// whole wait passes. It returns nil on success, else the error of the last attempt. Every failed attempt is in the
-// report.
-func (c *Calls) Retry(name string, fn func(ctx context.Context) error) error {
-	for {
-		err := c.Do(name, fn)
+// Retry is Do again, at most attempts times, with the polling interval between two attempts (and never past the
+// deadline of the whole wait). An error for which permanent returns true (a rejected request that will be rejected
+// again) ends it at once; permanent may be nil. It returns nil on success, else the error of the last attempt. Every
+// failed attempt is in the report.
+func (c *Calls) Retry(
+	name string, attempts int, permanent func(error) bool, fn func(ctx context.Context) error,
+) error {
+	var err error
+
+	for attempt := 1; attempt <= attempts; attempt++ {
+		err = c.Do(name, fn)
 		if err == nil {
 			return nil
+		}
+
+		if (permanent != nil && permanent(err)) || attempt == attempts {
+			return err
 		}
 
 		timer := time.NewTimer(c.interval)
@@ -123,7 +133,13 @@ func (c *Calls) Retry(name string, fn func(ctx context.Context) error) error {
 		case <-timer.C:
 		}
 	}
+
+	return err
 }
+
+// Stop ends the polling after the current step, without the job being done: for an error that polling again cannot
+// cure. The caller reports it after Poll returns.
+func (c *Calls) Stop() { c.stopped = true }
 
 // Within returns a context for one call that is made outside a step (a setup call): cut at perCall and never later
 // than the deadline of ctx.
@@ -147,6 +163,8 @@ func Poll(ctx context.Context, perCall, interval time.Duration, step func(c *Cal
 		case done:
 			rep.Done = true
 
+			return rep
+		case calls.stopped:
 			return rep
 		case calls.failed == 0:
 			rep.Incomplete++

@@ -1,6 +1,7 @@
 package gopherstack_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -59,7 +60,9 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 		wantMinPolls      int
 		wantExactPolls    int
 		wantDropped       int
+		deadline          time.Duration
 		wantDone          bool
+		wantStopped       bool
 		wantAllIncomplete bool
 	}{
 		{
@@ -147,14 +150,18 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 			wantMinPolls: 3,
 		},
 		{
+			// 15 polls at 100 ms apart take 1.4 s of this row's 10 s deadline: it is never close to it, and the
+			// 15th poll ends the job, so the counts are exact. 15 distinct errors: 10 listed, 5 only counted.
 			name: "the list of distinct errors is bounded",
 			step: func(_ *testing.T, call int, c *gopherstack.Calls) bool {
 				_ = c.Do(opRecv, fail(fmt.Errorf("%w %d", errOther, call)))
 
-				return false
+				return call == 15
 			},
-			wantMinPolls: 11,
-			wantDropped:  1,
+			deadline:       10 * time.Second,
+			wantDone:       true,
+			wantExactPolls: 15,
+			wantDropped:    5,
 		},
 		{
 			name: "a delete that fails twice is retried and then succeeds",
@@ -162,7 +169,7 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 				t.Helper()
 
 				attempts := 0
-				err := c.Retry(opDelete, func(context.Context) error {
+				err := c.Retry(opDelete, 3, nil, func(context.Context) error {
 					attempts++
 					if attempts < 3 {
 						return errBoom
@@ -171,6 +178,7 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 					return nil
 				})
 				require.NoError(t, err)
+				assert.Equal(t, 3, attempts)
 
 				return true
 			},
@@ -179,21 +187,49 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 2}},
 		},
 		{
-			name: "a delete that never succeeds keeps its own error while receives succeed",
+			name: "a transient delete error is retried a bounded number of times, then the polling stops with it",
 			step: func(t *testing.T, _ int, calls *gopherstack.Calls) bool {
 				t.Helper()
 
-				if calls.Do(opRecv, work(time.Millisecond)) != nil {
-					return false
-				}
+				attempts := 0
+				err := calls.Retry(opDelete, 3, nil, func(context.Context) error {
+					attempts++
 
-				err := calls.Retry(opDelete, fail(errBoom))
+					return errBoom
+				})
 				require.ErrorIs(t, err, errBoom, "Retry returns the error of the delete")
+				assert.Equal(t, 3, attempts, "three attempts, not until the deadline")
+
+				calls.Stop()
 
 				return false
 			},
-			wantErrors:   []wantError{{op: opDelete, text: textBoom, minCount: 2}},
-			wantMinPolls: 1,
+			wantStopped:    true,
+			wantExactPolls: 1,
+			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 3}},
+		},
+		{
+			name: "a rejected receipt handle fails at once with the delete error",
+			step: func(t *testing.T, _ int, calls *gopherstack.Calls) bool {
+				t.Helper()
+
+				attempts := 0
+				err := calls.Retry(opDelete, 3, func(err error) bool { return errors.Is(err, errBoom) },
+					func(context.Context) error {
+						attempts++
+
+						return errBoom
+					})
+				require.ErrorIs(t, err, errBoom)
+				assert.Equal(t, 1, attempts, "a permanent error is not retried")
+
+				calls.Stop()
+
+				return false
+			},
+			wantStopped:    true,
+			wantExactPolls: 1,
+			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 1}},
 		},
 	}
 	for _, tt := range tests {
@@ -201,7 +237,9 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				outer, cancel := context.WithTimeout(t.Context(), overall)
+				deadline := cmp.Or(tt.deadline, overall)
+
+				outer, cancel := context.WithTimeout(t.Context(), deadline)
 				defer cancel()
 
 				calls := 0
@@ -234,7 +272,7 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 					assert.GreaterOrEqual(t, rep.Errors[i].Count, want.minCount)
 				}
 
-				if !tt.wantDone {
+				if !tt.wantDone && !tt.wantStopped {
 					require.Error(t, outer.Err(), "it returned because the deadline passed")
 				}
 			})
