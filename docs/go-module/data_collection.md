@@ -1,9 +1,9 @@
 # Export evaluation data
-The module supports different ways of exporting evaluation data.
 
-To retrieve a file you need to provide an [exporter](https://pkg.go.dev/github.com/blackbirdworks/semaphore/exporter/) in your `ffclient.Config{}` during the initialization.
+Provide an [exporter](https://pkg.go.dev/github.com/blackbirdworks/semaphore/exporter/) in `ffclient.Config{}` during initialization to export flag evaluation data.
 
-## Available exporters:
+## Available exporters
+
 - [AWS S3](../integrations/exporters/aws-s3.md)
 - [MinIO](../integrations/exporters/minio.md)
 - [Azure Blob Storage](../integrations/exporters/azure-blob-storage.md)
@@ -20,4 +20,4 @@ To retrieve a file you need to provide an [exporter](https://pkg.go.dev/github.c
 - [OpenTelemetry](../integrations/exporters/opentelemetry.md)
 
 > [!NOTE]
-> In each exporter documentation, you will find the configuration needed to set up the exporter.
+> Each exporter page documents its configuration options.

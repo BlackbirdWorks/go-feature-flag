@@ -1,11 +1,10 @@
 # Microsoft Teams
 
 ## Overview
-The Microsoft Teams notifier sends a message to a Teams channel when Semaphore detects changes in your flag configuration.
 
-## About Microsoft Teams Notifier
-Each notification lists the flags that were created, updated or deleted.
-For an updated flag, every change is described as a short sentence, for example:
+The Microsoft Teams notifier posts a message to a Teams channel whenever Semaphore detects changes in your flag configuration.
+
+Each message lists created, updated, and deleted flags. Updated flags show one sentence per change:
 
 ```text
 ✏️ Flag dark-mode updated
@@ -15,19 +14,17 @@ For an updated flag, every change is described as a short sentence, for example:
   * Default rule now serves disabled 50%, enabled 50% (was disabled 90%, enabled 10%)
 ```
 
-Microsoft Teams cards cannot display inline code, so names and values are shown as plain text.
-A flag shows at most 50 changes, and a last line counts the changes left out.
+- **Plain text formatting**: Teams cards cannot render inline code, so names and values appear as plain text.
+- **Per-flag limit**: Each flag shows at most 50 changes, with a final line counting omitted changes.
 
-## Configure Microsoft Teams Notification
-1. First create a Webhook in the channel you want to send notifications to.  
-   *Need a hand?* [Click here to see how it's done](https://support.microsoft.com/en-us/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498)
-2. Copy the webhook URL
-3. Now you can configure your notifier
+## Create a Microsoft Teams webhook
+
+1. Create an incoming webhook in your target Teams channel (see the [Microsoft Teams webhook guide](https://support.microsoft.com/en-us/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498)).
+2. Copy the webhook URL.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Microsoft Teams notifier, you need to add the following
-configuration to your relay proxy configuration file:
+Add the Microsoft Teams notifier to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -36,28 +33,28 @@ notifiers:
     webhookUrl: "https://xxx.xxx/..."
 # ...
 ```
-| Field name   |   Mandatory   | Type   | Default  | Description                                                                                                     |
-|--------------|:-------------:|--------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `kind`       | Yes | string | **none** | **Value should be `microsoftteams`**.<br/>_This field is mandatory and describes which notifier you are using._ |
-| `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Microsoft Teams.                                        |
 
-## Configure the Go Module
-To configure your Go module to use the Microsoft Teams notifier, you need to add the following
-configuration to your `ffclient.Config{}` object:
+| Field name | Mandatory | Type | Default | Description |
+|---|:---:|---|---|---|
+| `kind` | Yes | string | **none** | Must be `microsoftteams`. Identifies the notifier type. |
+| `webhookUrl` | Yes | string | **none** | Full URL of your Microsoft Teams incoming webhook. |
+
+## Configure the Go module
+
+Add `&microsoftteamsnotifier.Notifier` to `ffclient.Config.Notifiers`:
 
 ```go
-client, err := ffclient.New(ffclient.Config
-{
+client, err := ffclient.New(&ffclient.Config{
     // ...
     Notifiers: []notifier.Notifier{
         &microsoftteamsnotifier.Notifier{
-            MicrosoftTeamsWebhookURL: "https://xxx.xxx/..."
+            MicrosoftTeamsWebhookURL: "https://xxx.xxx/...",
         },
     },
 })
 defer client.Close()
 ```
 
-| **Field**                  | **Mandatory** | **Description**                                   |
-|----------------------------|:-------------:|---------------------------------------------------|
-| `MicrosoftTeamsWebhookURL` | Yes | The complete URL of your Microsoft Teams webhook. |
+| Field | Mandatory | Description |
+|---|:---:|---|
+| `MicrosoftTeamsWebhookURL` | Yes | Full URL of your Microsoft Teams incoming webhook. |

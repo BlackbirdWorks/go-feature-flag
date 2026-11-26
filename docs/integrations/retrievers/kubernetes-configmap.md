@@ -1,23 +1,23 @@
 # Kubernetes ConfigMap
 
 ## Overview
-Loads the configuration from a Kubernetes ConfigMap. This retriever is useful when you are using Kubernetes and want to use ConfigMaps to store your configuration files.
 
-The **Kubernetes Retriever** will access flags in a Kubernetes ConfigMap via the [Kubernetes Go Client](https://github.com/kubernetes/client-go).
+Load flag configurations from a Kubernetes ConfigMap via the [Kubernetes Go Client](https://github.com/kubernetes/client-go).
 
-## Add a flag configuration file as ConfigMap
-If you have a flag configuration file, you can create a ConfigMap with the content of the file.
-The following command will create a ConfigMap with the content of the `flags.yaml` file:
+## Create a ConfigMap from a flag file
+
+Create a ConfigMap from your `flags.yaml` file with `kubectl`:
+
 ```shell
 kubectl create configmap semaphore --from-file=flags.yaml
 ```
+
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Kubernetes ConfigMap retriever, you need to add the following
-configuration to your relay proxy configuration file:
-
 > [!NOTE]
-> Relay proxy is only supporting the configmaps while running inside the kubernetes cluster.
+> The relay proxy only supports ConfigMaps when running inside a Kubernetes cluster.
+
+Add this configuration to your relay proxy config file:
 
 ```yaml
 # ...
@@ -29,39 +29,38 @@ retrievers:
 # ...
 ```
 
-| Field name  |   Mandatory   | Type   | Default  | Description                                                                                                 |
-|-------------|:-------------:|--------|----------|-------------------------------------------------------------------------------------------------------------|
-| `kind`      | Yes | string | **none** | Value should be **`configmap`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `namespace` | Yes | string | **none** | This is the name of the namespace where your **configmap** is located _(ex: `default`)_.                    |
-| `configmap` | Yes | string | **none** | Name of the **configmap** we should read  _(ex: `feature-flag`)_.                                           |
-| `key`       | Yes | string | **none** | Name of the `key` in the **configmap** which contains the flag.                                             |
+| Field name  | Mandatory | Type   | Default  | Description |
+|-------------|:---------:|--------|----------|-------------|
+| `kind`      | Yes       | string | **none** | Value should be **`configmap`**.<br/>_Mandatory field identifying the retriever._ |
+| `namespace` | Yes       | string | **none** | Namespace where your **ConfigMap** is located _(ex: `default`)_. |
+| `configmap` | Yes       | string | **none** | Name of the **ConfigMap** to read _(ex: `feature-flag`)_. |
+| `key`       | Yes       | string | **none** | Key inside the **ConfigMap** holding the flags. |
 
-## Configure the Go Module
-To configure your Go module to use the Kubernetes ConfigMap retriever, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the retriever to `ffclient.Config{}`:
 
 ```go
 import (
     restclient "k8s.io/client-go/rest"
 )
 // ...
-config, _ := restclient.InClusterConfig()
-client, err = ffclient.New(&ffclient.Config{
+k8sConfig, _ := restclient.InClusterConfig()
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &k8sretriever.Retriever{
-        Path: "file-example.yaml",
-        Namespace:      "default"
-        ConfigMapName: "my-configmap"
-        Key:    "my-flags.yml"
-        ClientConfig: &config
+        Namespace:     "default",
+        ConfigMapName: "my-configmap",
+        Key:           "my-flags.yml",
+        ClientConfig:  *k8sConfig,
     },
 })
 defer client.Close()
 ```
 
-| Field               |   Mandatory   | Description                                        |
-|---------------------|:-------------:|----------------------------------------------------|
-| **`Namespace`**     | Yes | The namespace of the ConfigMap.                    |
-| **`ConfigMapName`** | Yes | The name of the ConfigMap.                         |
-| **`Key`**           | Yes | The key within the ConfigMap storing the flags.    |
-| **`ClientConfig`**  | Yes | The configuration object for the Kubernetes client |
+| Field               | Mandatory | Description |
+|---------------------|:---------:|-------------|
+| **`Namespace`**     | Yes       | Namespace of the ConfigMap. |
+| **`ConfigMapName`** | Yes       | Name of the ConfigMap. |
+| **`Key`**           | Yes       | Key within the ConfigMap storing the flags. |
+| **`ClientConfig`**  | Yes       | Configuration object (`restclient.Config`) for the Kubernetes client. |

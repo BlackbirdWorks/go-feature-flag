@@ -1,24 +1,25 @@
 # Experimentation rollout
 
 ## Overview
-In Semaphore, an experimentation rollout is a way to test different versions of a feature within a specific timeframe.
 
-It allows you to test a feature with a subset of users for a limited time before deciding to roll it out to everyone.
+An **experimentation rollout** limits a flag to a specific time window so you can run a time-boxed test before rolling out broadly.
 
 ## Define an experimentation rollout
-To define an experimentation rollout, you need to set the start and end dates of the rollout in the field `experimentation` of your flag configuration.
 
-The flag will be served only between these dates, outside of this timeframe the default value will be served and the flag will be considered as not active.
+Set `experimentation` with `start` and `end` timestamps on the flag.
+
+- Between `start` and `end`, the flag evaluates normally.
+- Outside that window, Semaphore considers the flag inactive and returns the caller's default value.
 
 ## Format
 
 > [!NOTE]
-> The dates are in the format supported natively by your flag file format.
+> Use the native date/time format of your flag file format (such as RFC 3339 timestamps in YAML).
 
-| Field       | Description                                     |
-|-------------|-------------------------------------------------|
-| **`start`** | The date the flag will be started to be served. |
-| **`end`**   | The date the flag will be stopped to be served. |
+| Field | Description |
+|---|---|
+| `start` | Timestamp when the flag becomes active. |
+| `end` | Timestamp when the flag stops being served. |
 
 ## Example
 
@@ -36,18 +37,8 @@ experimentation-flag:
     end: 2021-03-21T00:00:00.1-05:00
 ```
 
-
 ## A/B testing
 
-> [!NOTE]
-> A/B test is the shorthand for a simple controlled experiment.
-> As the name implies, two versions (A and B) of a single variable are compared, which are identical except for one variation that might affect a user's behavior.
-> A/B tests are widely considered the simplest form of controlled experiment.
->
-> _**(source wikipedia)**_
+Combine `experimentation` with [data collection](../../go-module/data_collection.md) (or an exporter in the relay proxy) to track which variation each user received during the test window.
 
-To have a proper A/B testing solution with the module you should use the experimentation rollout combined with the [export of your data](../../go-module/data_collection.md).
-
-This combination will allow to have your experimentation running for a dedicated time, and you will have the data to know exactly which user was on which version of the flag.
-
-To setup the duration of your A/B test you can use a tool [ab-test-duration-calculator](https://vwo.com/tools/ab-test-duration-calculator/) from vwo, that will help you to set up the test duration correctly.
+To estimate how long an experiment should run, you can use VWO's [A/B test duration calculator](https://vwo.com/tools/ab-test-duration-calculator/).

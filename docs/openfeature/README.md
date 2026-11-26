@@ -1,3 +1,3 @@
 # OpenFeature
 
-Applications use the standard OpenFeature SDKs with an OFREP provider, see [OFREP](ofrep.md).
+Applications connect to Semaphore using standard OpenFeature SDKs and an [OFREP](ofrep.md) provider.

@@ -4,7 +4,7 @@
 
 Semaphore loads your `YAML`, `JSON`, or `TOML` flag files from wherever you already store config using **retrievers**.
 
-Every integration page below includes examples for both the **Relay Proxy** and the **Go Module**.
+Every integration page below includes examples for both the **Relay Proxy** and the **Go module**.
 
 ## Available retrievers
 
@@ -35,7 +35,7 @@ type InitializableRetrieverWithFlagset interface {
 }
 ```
 
-Semaphore calls `Retrieve` only when `Status()` returns `RetrieverReady`.
+Semaphore calls `Retrieve` only when `Status()` returns `retriever.RetrieverReady`.
 
 > [!NOTE]
 > Want to contribute a retriever? Open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls).

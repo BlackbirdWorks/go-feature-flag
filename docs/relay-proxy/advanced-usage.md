@@ -1,13 +1,8 @@
 # Advanced usage
 
 ## Manually trigger retrievers and refresh the internal flag cache
-By default, the retrievers are called regularly to refresh the configuration based on the polling interval.
 
-But there are use cases where you want to refresh the configuration explicitly _(for example, during the CI process
-after you have changed your configuration file)_.
-
-To do so you can call the `/admin/v1/retriever/refresh` endpoint with a POST request.
-It will force the retrievers to be called and update the internal cache.
+By default, retrievers refresh configuration on the configured polling interval. You can also force an immediate refresh (for example, in CI after updating a flag file) by sending a `POST` request to `/admin/v1/retriever/refresh`:
 
 ```shell
 curl -X 'POST' \
@@ -18,8 +13,7 @@ curl -X 'POST' \
 ```
 
 > [!NOTE]
-> This endpoint must be called with an **admin token**.
-> Authorized keys should be configured in the relay-proxy configuration file under the key **`authorizedKeys.admin`**.
+> This endpoint requires an **admin token** configured under `authorizedKeys.admin`:
 >
 > ```yaml
 > # ...
@@ -30,17 +24,15 @@ curl -X 'POST' \
 
 ## Validate a flag file
 
-Before deploying a flag file you can ask the relay proxy to validate it with a POST request to
-`/admin/v1/flags/validate`. The validation uses the same rules as the `semaphore-cli lint` command, and it has no side
-effect: the flags served by the relay proxy are never modified.
+Before deploying a flag file, validate it with a `POST` request to `/admin/v1/flags/validate`. This applies the same rules as `semaphore-cli lint` with no side effects—served flags are not modified.
 
-The body of the request is the flag file, and the `Content-Type` header selects its format:
-`application/json`, `application/yaml` (also `application/x-yaml` and `text/yaml`) or `application/toml`.
-The size of the body is limited per format: by default 1 MiB for JSON, 64 KiB for YAML and TOML.
-The limits are configurable with the [`endpoints.validateFlags`](configuration.md#endpoints) options
-(`maxJSONBodySize`, `maxYAMLBodySize` and `maxTOMLBodySize`), as a number of bytes or a string like `1MiB`.
-Raising the YAML and TOML limits makes the parsing more expensive (the cost grows quadratically with the size of the body).
-An empty body, `null` or `{}` is accepted and returns `200` with `valid: true` and no flag _(an empty JSON body is a syntax error and returns `400`)_.
+Send the flag file as the request body and set `Content-Type` to select the format:
+
+- `application/json` (default max body: 1 MiB)
+- `application/yaml`, `application/x-yaml`, or `text/yaml` (default max body: 64 KiB)
+- `application/toml` (default max body: 64 KiB)
+
+Body limits are configurable via [`endpoints.validateFlags`](configuration.md#endpointsvalidateflags) (`maxJSONBodySize`, `maxYAMLBodySize`, and `maxTOMLBodySize`) as bytes or sizes like `1MiB`. Raising YAML or TOML limits makes parsing more expensive because cost grows quadratically with body size. An empty body, `null`, or `{}` returns `200` with `valid: true` and no flags (an empty JSON body is a syntax error and returns `400`).
 
 ```shell
 curl -X 'POST' \
@@ -66,38 +58,27 @@ curl -X 'POST' \
 | `413`  | The body is larger than the limit of its format.                     |
 | `415`  | The `Content-Type` header is missing or unsupported.                 |
 
-The validation behaves like the `semaphore-cli lint` command, so it has the same known gaps:
+The validation matches `semaphore-cli lint` and shares the same known gaps:
 
-- The steps of a `scheduledRollout` are not validated.
+- `scheduledRollout` steps are not validated.
 - Unknown or misspelled fields are ignored.
-- A file that can be read but has wrongly typed fields returns `400` with a parse error, not `422`.
+- Readable files with wrongly typed fields return `400` (parse error), not `422`.
 
-As for the other admin endpoints, an **admin token** is required.
+Like other admin endpoints, this requires an **admin token**.
 
 ## FIPS 140-3 mode
 
-The relay proxy can be built in a **FIPS 140-3** mode so it can be
-deployed inside FedRAMP-authorized boundaries that require FIPS 140 validated cryptography
-(controls **SC-13** / **SC-8**).
+The relay proxy can be built in **FIPS 140-3** mode for FedRAMP-authorized environments requiring FIPS 140 validated cryptography (controls **SC-13** / **SC-8**).
 
-The FIPS builds are produced with Go's native FIPS mode (`GOFIPS140`, available since
-Go 1.24) backed by the [Go Cryptographic Module](https://go.dev/doc/security/fips140),
-which goes through the CMVP validation process. Building with `GOFIPS140=v1.0.0` bakes a
-default `GODEBUG=fips140=on` into the binary, so the FIPS build runs in FIPS mode out of
-the box — no extra runtime configuration is required.
+FIPS builds use Go's native FIPS mode (`GOFIPS140`, Go 1.24+) backed by the [Go Cryptographic Module](https://go.dev/doc/security/fips140) (going through CMVP validation). Building with `GOFIPS140=v1.0.0` sets `GODEBUG=fips140=on` by default, so the binary runs in FIPS mode out of the box without extra runtime configuration.
 
-The exact module version pinned by the project lives in the
-[`.fips-version`](https://github.com/BlackbirdWorks/semaphore/blob/main/.fips-version)
-file at the repo root; the Taskfile target reads from it.
+The pinned module version lives in [`.fips-version`](https://github.com/BlackbirdWorks/semaphore/blob/main/.fips-version) at the repository root, read by the Taskfile target.
 
 > [!NOTE]
 > **Scope**
-> **Inbound TLS is out of scope.** The relay proxy serves plain HTTP and expects TLS to be
-> terminated at the ingress / service mesh, so north-south FIPS-validated TLS is handled by
-> your authorized infrastructure.
+> **Inbound TLS is out of scope.** The relay proxy serves plain HTTP and expects TLS termination at the ingress or service mesh, which handles north-south FIPS-validated TLS.
 >
-> The FIPS build matters for the proxy's **outbound** crypto: pulling flag configuration
-> over HTTPS, webhook notifiers, and OTLP export.
+> The FIPS build governs **outbound** cryptography: pulling flag configuration over HTTPS, webhook notifiers, and OTLP export.
 
 ### Building from source
 

@@ -2,43 +2,38 @@
 
 ## Overview
 
-A percentage rollout refers to a gradual release of a new feature to a subset of users.
-Instead of making the feature available to everyone at once, you want to have only a subset of your customers to see the new feature.
+A **percentage rollout** (also called a **canary release**) serves a feature to a fixed percentage of users instead of everyone at once.
 
 ## Define a percentage rollout
 
-In Semaphore, you can define a percentage rollout by setting the percentage of users that will see the new feature.
-You can define the percentage in the flag configuration, and it works for the default rule or any other targeting rule you define.
-
-The expected format is a map where the **key is the variation name** and the **value is the percentage** of users that will see this variation.
-
-You can have as many variations as you want in the percentages, and you can define the percentage of users that will see each variation.
+Configure `percentage` in `defaultRule` or any `targeting` rule as a map of **variation name** to **percentage weight**:
 
 > [!NOTE]
 > Percentages do not have to sum to 100—Semaphore normalizes them as fractions of the total weight.
 > Each percentage must be a finite, non-negative number (negative, `NaN`, or infinite values are rejected).
 >
-> _Example: `variation1: 10` and `variation2: 50` splits traffic as `10/60` and `50/60`._
+> *Example: `variation1: 10` and `variation2: 50` splits traffic as `10/60` and `50/60`.*
 
-## How percentage rollout works?
+## How percentage rollout works
 
-Semaphore uses a deterministic hashing algorithm to ensure consistent user assignment to variations. Here's how it works:
+Semaphore uses deterministic hashing so the same user consistently gets the same variation across servers and relay proxy restarts.
 
 ### Hash computation
 
-For each evaluation, Semaphore computes a hash based on the **targeting key** (also called bucketing key) and the **flag name**:
+For each evaluation, Semaphore hashes the **targeting key** (or custom `bucketingKey`) and the **flag name**:
 
 ```
 hash = hash(targetingKey + flagName) % maxPercentage
 ```
 
-This hash produces a value between `0` and `maxPercentage` (which is the sum of all percentages). The hash function ensures that the same user (with the same targeting key) will always get the same hash value for a given flag, providing consistent assignment.
+This produces a value between `0` and `maxPercentage` (the sum of all percentage weights).
 
 ### Bucket assignment
 
-All variations that are part of the percentage rollout are sorted by **reverse alphabetical**. This ensures consistent bucket assignment across evaluations.
+Variations in `percentage` are sorted in **reverse alphabetical order** to build contiguous buckets.
 
-For example, if you have the following percentages:
+For example:
+
 ```yaml
 percentage:
   varC: 20
@@ -46,24 +41,19 @@ percentage:
   varA: 50
 ```
 
-After sorting by inverse alphabetical order, the buckets are assigned as follows:
-- **0 to 20**: assigned to `varC`
-- **20 to 50**: assigned to `varB`
-- **50 to 100**: assigned to `varA`
+After sorting in reverse alphabetical order, buckets are assigned as:
 
-The hash value determines which bucket the user falls into, and thus which variation they receive.
-
-Since it is pure hash based, Semaphore will always assign the evaluation context to the same bucket even if your evaluation is done on a different server or if you restart your relay-proxy.
+- **0 to 20:** `varC`
+- **20 to 50:** `varB`
+- **50 to 100:** `varA`
 
 ### Impact of changing percentages
 
-When you have two variations, adjusting the percentages simply increases or decreases the number of users assigned to each variation.  
-This allows you to gradually roll out a feature in a predictable and straightforward way.
+- **Two variations:** Adjusting weights cleanly shifts traffic from one variation to the other.
+- **More than two variations:** Changing weights recalculates all bucket boundaries, which can reassign some users to different variations.
 
-But if you have **more than 2 variations**, this can have an impact on how your bucketing works.  
-When you change the percentage configuration, **all buckets are recalculated**, which means users may be reassigned to different variations. This happens because the bucket boundaries shift based on the new percentages.
+For example, changing the weights above to:
 
-For example, if you change the configuration to:
 ```yaml
 percentage:
   varC: 30
@@ -71,19 +61,20 @@ percentage:
   varA: 40
 ```
 
-The new bucket assignments become:
-- **0 to 30**: assigned to `varC`
-- **30 to 60**: assigned to `varB`
-- **60 to 100**: assigned to `varA`
+Shifts the bucket boundaries to:
 
-As you can see in the diagram below, changing percentages shifts the bucket boundaries, which can move users from one variation to another:
+- **0 to 30:** `varC`
+- **30 to 60:** `varB`
+- **60 to 100:** `varA`
 
 > [!NOTE]
-> The deterministic hashing ensures that the same user will always get the same variation for a given configuration. However, when you change percentages, the bucket boundaries change, which may cause some users to be reassigned to different variations.
+> Deterministic hashing guarantees consistent assignment for a fixed configuration, but editing percentages shifts bucket boundaries and may reassign some users.
 
 ## Examples
-### Define in the default rule
-In this example `99%` of the users will see the `disabled` variation and `1%` will see the `enabled` variation.
+
+### In `defaultRule`
+
+Serves `disabled` to `99%` of users and `enabled` to `1%`:
 
 ```yaml
 percentage-flag-1:
@@ -96,9 +87,10 @@ percentage-flag-1:
       enabled: 1
 ```
 
-### Define in a targeting rule
-In this second example, `50%` of the users that are `admin` will see the `disabled` variation and `50%` will see the `enabled` variation.
-Non admin users will see the `disabled` variation.
+### In a `targeting` rule
+
+Splits `admin` users 50/50 between `disabled` and `enabled`, while non-admin users receive `disabled`:
+
 ```yaml
 percentage-flag-1:
   variations:
@@ -111,8 +103,4 @@ percentage-flag-1:
         enabled: 50
   defaultRule:
     variation: disabled
-
 ```
-
-## Canary releases
-Percentage rollout are also known as **canary releases**, where you release a new feature to a small subset of users before rolling it out to everyone.

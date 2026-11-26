@@ -1,10 +1,8 @@
 # Retrieve your feature flags configuration
 
-The module supports different ways of retrieving the flag file.
+Provide a [retriever](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/#Retriever) in `ffclient.Config{}` during initialization to load your flag file.
 
-To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/#Retriever) in your `ffclient.Config{}` during the initialization.  
-
-**Available retrievers**:
+## Available retrievers
 
 - [HTTP(S)](../integrations/retrievers/http.md)
 - [File System](../integrations/retrievers/file.md)
@@ -18,30 +16,25 @@ To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.c
 - [Bitbucket](../integrations/retrievers/bitbucket.md)
 - [MongoDB](../integrations/retrievers/mongodb.md)
 - [Redis](../integrations/retrievers/redis.md)
-- [Postgresql](../integrations/retrievers/postgresql.md)
+- [PostgreSQL](../integrations/retrievers/postgresql.md)
 
 > [!NOTE]
-> In each retriever documentation, you will find the configuration needed to set up the retriever.
+> Each retriever page documents its configuration options.
 
 ## Explicitly call the retrievers
 
-By default, the retrievers are called regularly to refresh the configuration based on the polling interval.
-
-But there are use cases where you want to refresh the configuration explicitly _(for example, during the CI process
-after you have changed your configuration file)_.
-
-To do that, you can call the `ForceRefresh` method on the client.
+By default, retrievers refresh flags on `PollingInterval`. To force an immediate refresh (for example, in a CI pipeline or after updating a flag file), call `ForceRefresh` on the client:
 
 ```go
 // Init ffclient with a file retriever.
-	client, _ := ffclient.New(&ffclient.Config{
-		PollingInterval: 10 * time.Minute,
-		Retriever: &fileretriever.Retriever{
-			Path: "xxxx.yaml",
-		},
-	})
+client, _ := ffclient.New(&ffclient.Config{
+    PollingInterval: 10 * time.Minute,
+    Retriever: &fileretriever.Retriever{
+        Path: "xxxx.yaml",
+    },
+})
 
-	// ...
-	client.ForceRefresh()
-	// ...
+// ...
+client.ForceRefresh()
+// ...
 ```

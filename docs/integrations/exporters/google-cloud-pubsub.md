@@ -1,15 +1,15 @@
-# Google Cloud PubSub
+# Google Cloud Pub/Sub
 
 ## Overview
-Export evaluation data inside a GCP PubSub topic.
+
+Export evaluation data to a Google Cloud Pub/Sub topic.
 
 > [!NOTE]
-> Google Cloud PubSub is an exporter of type queue, it means that it send events as soon as he receives them it does not work in bulk but in near real time.
+> Google Cloud Pub/Sub is a streaming (queue-style) exporter: it sends events as soon as it receives them instead of batching them in bulk.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Google Cloud PubSub exporter, you need to add the following
-configuration to your relay proxy configuration file:
+Add the following configuration to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -20,43 +20,42 @@ exporters:
 # ...
 ```
 
-| Field name  |   Mandatory   | Type   | Default  | Description                                                                                              |
-|-------------|:-------------:|--------|----------|----------------------------------------------------------------------------------------------------------|
-| `kind`      | Yes | string | **none** | **Value should be `pubsub`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `projectID` | Yes | string | **none** | Value should be ID of GCP project you are using.                                                         |
-| `topic`     | Yes | string | **none** | Topic name on which messages will be published.                                                          |
+| Field name  | Mandatory | Type   | Default  | Description                                                                                         |
+|-------------|:---------:|--------|----------|-----------------------------------------------------------------------------------------------------|
+| `kind`      | Yes       | string | **none** | Value should be `pubsub`.<br/>_This field is mandatory and describes which exporter you are using._ |
+| `projectID` | Yes       | string | **none** | ID of your GCP project.                                                                             |
+| `topic`     | Yes       | string | **none** | Topic name on which messages are published.                                                         |
 
-## Configure the Go Module
-To configure your Go module to use the Google Cloud PubSub exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 > [!NOTE]
-> **Migration from v1**
-> If you are migrating from the legacy `pubsubexporter` (v1), simply change the import and struct name from `pubsubexporter.Exporter` to `pubsubexporterv2.Exporter`. The v2 exporter uses `cloud.google.com/go/pubsub/v2` which provides improved performance and additional features.
+> **Migration from v1**: If you are migrating from the legacy `pubsubexporter` (v1), change the import and struct name from `pubsubexporter.Exporter` to `pubsubexporterv2.Exporter`. The v2 exporter uses `cloud.google.com/go/pubsub/v2` for improved performance and additional features.
 
 ```go
-config := ffclient.Config{
-   // ...
+ffConfig := ffclient.Config{
+    // ...
     DataExporter: ffclient.DataExporter{
         // ...
         Exporter: &pubsubexporterv2.Exporter{
-            ProjectID: "project-id", // required
-            Topic: "topic", // required
-            Options: []option.ClientOption{...},
-            PublishSettings: &pubsub.PublishSettings{...},
+            ProjectID:             "project-id", // required
+            Topic:                 "topic",      // required
+            Options:               []option.ClientOption{...},
+            PublishSettings:       &pubsub.PublishSettings{...},
             EnableMessageOrdering: true,
         },
     },
     // ...
 }
-client, err := ffclient.New(config)
+client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field                   |    Mandatory     | Description                                                                                          |
-|-------------------------|:----------------:|------------------------------------------------------------------------------------------------------|
-| `ProjectID `            |  Yes   | ID of GCP project.<br/>_You can find it in your GCP console_                                         |
-| `Topic `                |  Yes   | Name of topic on which messages will be published                                                    |
-| `Options`               | No | PubSub client options *(see [docs](https://pkg.go.dev/google.golang.org/api/option))*                |
-| `PublishSettings`       | No | Publisher related settings *(see [docs](https://pkg.go.dev/cloud.google.com/go/pubsub/v2#PublishSettings))* |
-| `EnableMessageOrdering` | No | Enables delivery of ordered keys                                                                     |
+| Field                   | Mandatory | Description                                                                                             |
+|-------------------------|:---------:|---------------------------------------------------------------------------------------------------------|
+| `ProjectID`             | Yes       | ID of your GCP project (available in the GCP console).                                                  |
+| `Topic`                 | Yes       | Name of the topic on which messages are published.                                                      |
+| `Options`               | No        | Pub/Sub client options (see [docs](https://pkg.go.dev/google.golang.org/api/option)).                   |
+| `PublishSettings`       | No        | Publisher settings (see [docs](https://pkg.go.dev/cloud.google.com/go/pubsub/v2#PublishSettings)).      |
+| `EnableMessageOrdering` | No        | Enables delivery of ordered keys.                                                                       |

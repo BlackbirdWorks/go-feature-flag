@@ -1,34 +1,28 @@
 # OpenFeature Remote Evaluation Protocol (OFREP)
 
 ## Overview
-Semaphore is used from applications through the standard [OpenFeature](https://openfeature.dev) SDKs
-and the generic OpenFeature Remote Evaluation Protocol (OFREP) providers. This repository does not ship
-language-specific providers.
+
+Applications integrate with Semaphore through standard [OpenFeature](https://openfeature.dev) SDKs and generic OpenFeature Remote Evaluation Protocol (OFREP) providers. This repository does not ship language-specific providers.
 
 ## What is OFREP?
-OFREP is an API specification that allows you to connect your applications to any feature flag management system that supports the protocol using generic providers.
-This means more flexibility and choice when it comes to managing your features, and no vendor lock-in.
 
-For the full technical details, see the OpenFeature protocol repository: `https://github.com/open-feature/protocol/`.
+OFREP is a vendor-neutral API specification that lets OpenFeature SDKs evaluate flags against any compatible backend without custom providers or vendor lock-in. See the [OpenFeature protocol repository](https://github.com/open-feature/protocol/) for the full specification.
 
-## How to use OFREP with Semaphore?
-You need to have the [relay proxy](../relay-proxy/README.md) running in your infrastructure.
-It exposes the OFREP endpoints:
+## Use OFREP with Semaphore
 
-| Endpoint                                  | Usage                                                          |
-|-------------------------------------------|----------------------------------------------------------------|
-| `POST /ofrep/v1/evaluate/flags/{key}`     | Evaluate a single flag (server-side SDKs).                     |
-| `POST /ofrep/v1/evaluate/flags`           | Bulk evaluation of all flags (client-side SDKs).               |
+Run the [relay proxy](../relay-proxy/README.md) in your infrastructure. It exposes these OFREP endpoints:
 
-See the [endpoints page](../relay-proxy/endpoints.md) and the OpenAPI documentation in
-`cmd/relayproxy/api/testdata/openapi.golden.json` for the details.
+| Endpoint | Usage |
+|---|---|
+| `POST /ofrep/v1/evaluate/flags/{key}` | Evaluate a single flag (server-side SDKs). |
+| `POST /ofrep/v1/evaluate/flags` | Bulk-evaluate all flags (client-side SDKs). |
 
-Point the OFREP provider of your language at the base URL of the relay proxy (for example `http://localhost:1031`).
-If you configured [API keys](../relay-proxy/configuration.md), pass the key to the provider as the `X-API-Key` header or as
-an `Authorization: Bearer <key>` header (see the `headers` option of the example below).
-The relay proxy does not implement `GET /ofrep/v1/configuration`.
+- See the [endpoints reference](../relay-proxy/endpoints.md) and `cmd/relayproxy/api/testdata/openapi.golden.json` for full request and response schemas.
+- Point your language's OFREP provider at the relay proxy base URL (for example, `http://localhost:1031`).
+- If [API keys](../relay-proxy/configuration.md) are configured, pass the key via `X-API-Key` or `Authorization: Bearer <key>`.
+- The relay proxy does not implement `GET /ofrep/v1/configuration`.
 
-### Example with the JavaScript SDK
+### JavaScript SDK examples
 
 Server side (Node.js, `npm install @openfeature/server-sdk @openfeature/ofrep-provider`):
 
@@ -46,8 +40,7 @@ const client = OpenFeature.getClient();
 const enabled = await client.getBooleanValue('my-flag', false, { targetingKey: 'user-123' });
 ```
 
-Browser (`npm install @openfeature/web-sdk @openfeature/ofrep-web-provider`) uses the bulk endpoint and
-`OpenFeature.setContext(...)` for the evaluation context:
+Browser (`npm install @openfeature/web-sdk @openfeature/ofrep-web-provider`) uses the bulk endpoint and `OpenFeature.setContext(...)`:
 
 ```javascript
 import { OpenFeature } from '@openfeature/web-sdk';
@@ -58,10 +51,9 @@ await OpenFeature.setProviderAndWait(new OFREPWebProvider({ baseUrl: 'http://loc
 const enabled = OpenFeature.getClient().getBooleanValue('my-flag', false);
 ```
 
-Other languages work the same way, with the OFREP provider published by the OpenFeature project for your language
-(see the [OpenFeature ecosystem](https://openfeature.dev/ecosystem)).
+For other languages, use the official OFREP provider in the [OpenFeature ecosystem](https://openfeature.dev/ecosystem).
 
-### Example with curl
+### curl example
 
 ```shell
 curl 'http://localhost:1031/ofrep/v1/evaluate/flags/my-flag' -X POST \
@@ -70,9 +62,10 @@ curl 'http://localhost:1031/ofrep/v1/evaluate/flags/my-flag' -X POST \
 ```
 
 ## Evaluation context
-The OFREP context is the OpenFeature evaluation context, see [evaluation context](../concepts/evaluation-context.md)
-for the reserved keys (such as `semaphore`, and its legacy name `gofeatureflag`) understood by the relay proxy.
+
+The OFREP context maps directly to the OpenFeature evaluation context. See [evaluation context](../concepts/evaluation-context.md) for reserved keys understood by the relay proxy (such as `semaphore`, and its legacy name `gofeatureflag`).
 
 ## Not available through OFREP
-In-process evaluation inside the application (as done by language-specific providers) is not available, apart from the Go module.
-Flag-usage events are produced by the relay proxy at evaluation time; see [flag usage tracking](../tracking/flag-usage-tracking.md).
+
+- **In-process evaluation**: Language-specific in-process providers are not supported; only the Go module evaluates flags in-process.
+- **Flag usage events**: The relay proxy generates flag-usage events at evaluation time; see [flag usage tracking](../tracking/flag-usage-tracking.md).

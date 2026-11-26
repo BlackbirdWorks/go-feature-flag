@@ -1,12 +1,12 @@
 # HTTP(S)
 
 ## Overview
-Fetches the configuration from a remote URL over HTTP(S). This retriever is useful when you want to fetch the configuration from a remote server endpoint.
+
+Fetch flag configurations from a remote URL over HTTP(S).
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the HTTP(S) retriever, you need to add the following
-configuration to your relay proxy configuration file:
+Add this configuration to your relay proxy config file:
 
 ```yaml
 # ...
@@ -16,40 +16,40 @@ retrievers:
 # ...
 ```
 
-| Field name       |    Mandatory     | Type   | Default  | Description                                                                                            |
-|------------------|:----------------:|--------|----------|--------------------------------------------------------------------------------------------------------|
-| `kind`           |  Yes   | String | **none** | **Value should be `http`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `url`            |  Yes   | String | **none** | Location to retrieve the file.                                                                         |
-| `method`         |  Yes   | String | `GET`    | The HTTP Method you are using to call the HTTP endpoint.                                               |
-| `body`           | No | String | **none** | The HTTP Body you are using to call the HTTP endpoint.                                                 |
-| `headers`        | No | Object | **none** | The HTTP headers used when calling the HTTP endpoint (useful for authorization).                       |
-| `clientCertPath` | No | String | **none** | Path to the client certificate file used for mTLS. Must be configured with `clientKeyPath`.            |
-| `clientKeyPath`  | No | String | **none** | Path to the client certificate key file used for mTLS. Must be configured with `clientCertPath`.       |
-| `caCertPath`     | No | String | **none** | Path to the CA certificate file used to verify the server certificate.                                 |
-| `timeout`        | No | String | `10000`  | Timeout in millisecond when calling the HTTP endpoint.                                                 |
+| Field name       | Mandatory | Type   | Default  | Description |
+|------------------|:---------:|--------|----------|-------------|
+| `kind`           | Yes       | string | **none** | **Value should be `http`.**<br/>_Mandatory field identifying the retriever._ |
+| `url`            | Yes       | string | **none** | Location to retrieve the file. |
+| `method`         | No        | string | `GET`    | HTTP method used to call the endpoint. |
+| `body`           | No        | string | **none** | HTTP request body sent when calling the endpoint. |
+| `headers`        | No        | object | **none** | HTTP headers sent when calling the endpoint (useful for authorization). |
+| `clientCertPath` | No        | string | **none** | Path to the client certificate file used for mTLS. Must be set with `clientKeyPath`. |
+| `clientKeyPath`  | No        | string | **none** | Path to the client certificate key file used for mTLS. Must be set with `clientCertPath`. |
+| `caCertPath`     | No        | string | **none** | Path to the CA certificate file used to verify the server certificate. |
+| `timeout`        | No        | int    | `10000`  | Timeout in milliseconds when calling the HTTP endpoint. |
 
-## Configure the Go Module
-To configure your Go module to use the HTTP(S) retriever, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the retriever to `ffclient.Config{}`:
 
 ```go
 client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &httpretriever.Retriever{
-        URL:    "http://example.com/flag-config.yaml",
+        URL:     "http://example.com/flag-config.yaml",
         Timeout: 2 * time.Second,
     },
 })
 defer client.Close()
 ```
 
-| Field              |    Mandatory     | Description                                                                                               |
-|--------------------|:----------------:|-----------------------------------------------------------------------------------------------------------|
-| __URL__            |  Yes   | Location to retrieve the file <br/> _(ex: [http://mydomain.io/flag.yaml](http://mydomain.io/flag.yaml))_. |
-| __Method__         | No | the HTTP method you want to use <br/>_(default is `GET`)_.                                                |
-| __Body__           | No | If you need a body to get the flags.                                                                      |
-| __Header__         | No | Header you should pass while calling the endpoint _(useful for authorization)_.                           |
-| __ClientCertPath__ | No | Path to the client certificate file used for mTLS. Must be configured with `ClientKeyPath`.              |
-| __ClientKeyPath__  | No | Path to the client certificate key file used for mTLS. Must be configured with `ClientCertPath`.         |
-| __CACertPath__     | No | Path to the CA certificate file used to verify the server certificate.                                   |
-| __Timeout__        | No | Timeout for the HTTP call <br/>(default is 10 seconds).                                                   |
+| Field                | Mandatory | Description |
+|----------------------|:---------:|-------------|
+| **`URL`**            | Yes       | Location to retrieve the file _(ex: `http://mydomain.io/flag.yaml`)_. |
+| **`Method`**         | No        | HTTP method to use.<br/>Default: `GET` |
+| **`Body`**           | No        | Request body to send when fetching flags. |
+| **`Header`**         | No        | HTTP headers (`http.Header`) passed when calling the endpoint _(useful for authorization)_. |
+| **`ClientCertPath`** | No        | Path to the client certificate file used for mTLS. Must be set with `ClientKeyPath`. |
+| **`ClientKeyPath`**  | No        | Path to the client certificate key file used for mTLS. Must be set with `ClientCertPath`. |
+| **`CACertPath`**     | No        | Path to the CA certificate file used to verify the server certificate. |
+| **`Timeout`**        | No        | Timeout for the HTTP call.<br/>Default: `10 seconds` |

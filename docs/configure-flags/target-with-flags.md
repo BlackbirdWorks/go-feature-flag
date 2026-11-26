@@ -1,24 +1,15 @@
 # Target with Flags
 
 ## Overview
-This category explains how to use flag targeting to control which of your customers receive which variation of a feature flag.
 
-Targeting is done based on the [evaluation context](../concepts/evaluation-context.md) associated to the evaluation request.
-Semaphore evaluation context are data objects representing users, devices, organizations, and other entities that interact with your app.
-
-Each feature flag can have a set of targeting rules that define the conditions under which a variation should be served.
-When a flag is evaluated, the targeting rules are evaluated against the evaluation context to determine which variation to serve.
+Flag targeting controls which users receive which variation based on the [evaluation context](../concepts/evaluation-context.md). Each flag can define a `targeting` list of rules evaluated against the context.
 
 > [!NOTE]
-> The targeting rules are evaluated in the order they are defined in the flag configuration.  
-> The first rule that matches the evaluation context will determine the variation to serve.
+> Targeting rules are evaluated in the order they are defined. The first matching rule determines the variation served.
 
 ## Define a targeting rule
 
-A targeting rule is a configuration that allows you to serve a variation based on some conditions.  
-You can have as many rules as you want in your flag configuration.
-
-To create your first rule you need to add a `targeting` field in your flag configuration.
+Add a `targeting` list to your flag configuration. Each rule requires at least a `query` and one outcome (`variation`, `percentage`, or `progressiveRollout`):
 
 ```yaml
 scream-level-feature:
@@ -35,63 +26,56 @@ scream-level-feature:
     variation: low
 ```
 
-A minimum rule configuration requires a `query` field and a `variation` field to define the condition and the variation to serve.
-
-If you have more advanced needs you can also have a percentage repartition or have a progressive rollout for this, check the [rule format details](#rule-format-details) section for more information.
-
-## Rule Format Details
+## Rule format details
 
 | Field | Required | Description |
 |---|---|---|
-| `query` | Yes | Rule condition in either `rules` format or `JsonLogic` format. See [Query formats](#query-formats). |
+| `query` | Yes | Rule condition in `rules` or `JsonLogic` format. See [Query formats](#query-formats). |
 | `disabled` | No | Set to `true` to disable the rule. Default: `false`. |
-| `name` | No | Optional rule name (required when updating a rule with a [scheduled rollout](rollout-strategies/scheduled.md)). |
+| `name` | No | Optional rule name (required when updating a rule via [scheduled rollout](rollout-strategies/scheduled.md)). |
 | `variation` | No* | Name of the variation to serve. |
-| `percentage` | No* | Map of variation names to percentage weights (e.g. `variationA: 10.59`, `variationB: 9.41`, `variationC: 80`). |
+| `percentage` | No* | Map of variation names to percentage weights (e.g., `variationA: 10.59`, `variationB: 9.41`, `variationC: 80`). |
 | `progressiveRollout` | No* | Ramp traffic percentage over time. See [Progressive rollout](rollout-strategies/progressive.md). |
 
 > [!WARNING]
-> **Don't forget to return a variation.**
-> `variation`, `percentage` and `progressiveRollout` are optional but you **must have at least one of the three**.
+> **Outcome required**
+> `variation`, `percentage`, and `progressiveRollout` are individually optional, but **at least one of the three must be set**.
 >
-> If you have more than one field we will use the first one in the order
-> `progressiveRollout` > `percentage` > `variation`.
+> If multiple are present, Semaphore uses the first in this order: `progressiveRollout` > `percentage` > `variation`.
 
 ## Query formats
 
 ### Rules format
 
-Semaphore supports a rule query format whose engine lives in the `rules/` directory of the repository. It is derived from the Go library [`nikunjy/rules`](https://github.com/nikunjy/rules) (see `NOTICE`).
+Semaphore's native query engine lives in `rules/` and is derived from [`nikunjy/rules`](https://github.com/nikunjy/rules) (see `NOTICE`).
 
-All the operations can be written in capitalized or lowercase characters (ex: `eq` or `EQ` can be used).
-Logical Operations supported are `AND` & `OR`.
+- Operators are case-insensitive (for example, `eq` or `EQ`).
+- Combine expressions with logical `AND` and `OR`.
 
-Compare Expression and their definitions (`a|b` means you can use one of either `a` or `b`):
+Comparison operators (`a`, `b` denote equivalent aliases):
 
-|  Operator  | Description                 |
-|:----------:|-----------------------------|
-| `eq`, `==` | equals to                   |
-| `ne`, `!=` | not equals to               |
-| `lt`, `<`  | less than                   |
-| `gt`, `>`  | greater than                |
-| `le`, `<=` | less than equal to          |
-| `ge`, `>=` | greater than equal to       |
-|    `co`    | contains                    |
-|    `sw`    | starts with                 |
-|    `ew`    | ends with                   |
-|    `in`    | in a list                   |
-|    `pr`    | present                     |
-|   `not`    | not of a logical expression |
+| Operator | Description |
+|:---:|---|
+| `eq`, `==` | equals |
+| `ne`, `!=` | not equals |
+| `lt`, `<` | less than |
+| `gt`, `>` | greater than |
+| `le`, `<=` | less than or equal to |
+| `ge`, `>=` | greater than or equal to |
+| `co` | contains |
+| `sw` | starts with |
+| `ew` | ends with |
+| `in` | in a list |
+| `pr` | present |
+| `not` | logical negation |
 
 #### Examples
 
 - Select a specific user: `key eq "example@example.com"`
 - Select all identified users: `anonymous ne true`
-- Select a user with a custom property: `userId eq "12345"`
-- Select by version: `version gt 0.4.0-beta.1`
-- Select on multiple criteria:
-  *All users with ids finishing by `@test.com` that have the role `backend engineer` in the `pro` environment for the
-  company `semaphore`*
+- Select a user by custom property: `userId eq "12345"`
+- Select by semver version: `version gt 0.4.0-beta.1`
+- Combine multiple criteria (users with `key` ending in `@test.com`, `role` `"backend engineer"`, `env` `"pro"`, and `company` `"semaphore"`):
 
   ```bash
   (key ew "@test.com") and (role eq "backend engineer") and (env eq "pro") and (company eq "semaphore")
@@ -99,57 +83,48 @@ Compare Expression and their definitions (`a|b` means you can use one of either 
 
 ### JsonLogic format
 
-Semaphore also supports the [`JsonLogic`](http://jsonlogic.com/) format, based on the GO library [`diegoholiveira/jsonlogic`](https://github.com/diegoholiveira/jsonlogic) library.
+Semaphore also supports [`JsonLogic`](http://jsonlogic.com/) queries via [`diegoholiveira/jsonlogic`](https://github.com/diegoholiveira/jsonlogic).
 
-To use a JsonLogic query, you need to write your query in a JSON format as a JSON string in the `query` field.  
-The query must be a valid JSON string that represents a `JsonLogic` expression.
-
-The rule should return `true` if the user matches the rule, anything else will be considered as `false`.
+Write the `query` field as a valid JSON string representing a `JsonLogic` expression. The rule matches when the expression evaluates to `true`; any other result is treated as `false`.
 
 > [!NOTE]
-> **JsonLogic Operations**
-> Check all the supported operations in the [JsonLogic documentation](http://jsonlogic.com/operations.html).
+> See the [JsonLogic operations reference](http://jsonlogic.com/operations.html) for all supported operators.
 
 #### Examples
+
 - Select a specific user: `{ "==" : [ { "var" : "key" }, "example@example.com"]}`
 - Select all identified users: `{ "!=" : [ { "var" : "anonymous" }, true]}`
-- Select a user with a custom property: `{ "==" : [ { "var" : "userId" }, "12345"]}`
-- Select on multiple criteria:
-  *All users with ids finishing by `@test.com` that have the role `backend engineer` in the `pro` environment for the
-  company `semaphore`*
-  
+- Select a user by custom property: `{ "==" : [ { "var" : "userId" }, "12345"]}`
+- Combine multiple criteria:
+
   ```json
   {"and": [{"endsWith": [{"var": "ids"}, "@test.com"]}, {"==": [{"var": "role"}, "backend engineer"]}, {"==": [{"var": "environment"}, "pro"]}, {"==": [{"var": "company"}, "semaphore"]}]}
   ```
 
 ## Environments
 
-When you initialise `semaphore` you can set an **environment** for this Semaphore instance.
+You can configure an environment when initializing Semaphore so every evaluation context automatically includes an `env` field.
 
 ### Relay Proxy
 
-    ```yaml
-    # ...
-    evaluationContextEnrichment:
-      env: prod
-    # ...
-    ```
+```yaml
+# ...
+evaluationContextEnrichment:
+  env: prod
+# ...
+```
 
 ### Go Module
 
-    ```go
-    client, err := ffclient.New(&ffclient.Config{
-      // ...
-      // highlight-next-line
-      Environment:    "prod",
-      // ...
-    })
-    ```
+```go
+client, err := ffclient.New(&ffclient.Config{
+  // ...
+  Environment: "prod",
+  // ...
+})
+```
 
-When an environment is set, it adds a new field in your evaluation context called **`env`** that you can use in your queries.
-It means that you can decide to activate a flag only for some **environment**.
-
-**Example of flag configuration based on the environment:**
+You can then target specific environments in your rules:
 
 ```yaml
 my-flag:
@@ -168,9 +143,6 @@ my-flag:
     variation: C
 ```
 
-## Get the rule name in the metadata
+## Rule name in evaluation metadata
 
-When you use a rule in your targeting, you can get the name of the rule in the metadata of the variation.  
-The information on what rule has been used to serve the variation is available in the metadata of the variation in the field called `evaluatedRuleName`.
-
-If you are interested about this information, you have to name your rules by adding the field `name` in your rule. This name will be extract and added in the `evaluatedRuleName` field of the metadata.
+If you add a `name` field to a targeting rule, Semaphore returns the matching rule's name in the `evaluatedRuleName` field of the evaluation metadata.

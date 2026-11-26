@@ -4,7 +4,7 @@
 
 An **exporter** records flag evaluation and tracking events and sends them to external analytics, logging, or storage systems. Events are buffered in memory and flushed either on a timer or when the buffer fills.
 
-Every integration page below includes examples for both the **Relay Proxy** and the **Go Module**.
+Every integration page below includes examples for both the **Relay Proxy** and the **Go module**.
 
 ## Available exporters
 

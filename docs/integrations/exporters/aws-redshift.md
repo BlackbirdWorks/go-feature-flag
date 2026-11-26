@@ -1,15 +1,15 @@
 # AWS Redshift
 
 ## Overview
+
 The AWS Redshift exporter inserts feature flag evaluation and tracking events directly into Redshift tables using the Redshift Data API.
 
 > [!NOTE]
-> AWS Redshift is a bulk exporter. Events are collected in memory and inserted in Redshift when `FlushInterval` or `MaxEventInMemory` is reached.
+> AWS Redshift is a bulk exporter. Events are collected in memory and inserted into Redshift when `FlushInterval` or `MaxEventInMemory` is reached.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the AWS Redshift exporter, you need to add the following
-configuration to your relay proxy configuration file:
+Add the following configuration to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -26,9 +26,7 @@ exporters:
 ```
 
 > [!NOTE]
-> In the relay proxy each exporter is wired to a single `eventType` (defaulting to
-> `feature`). To export **both** evaluation and tracking events, declare two
-> Redshift exporters, one per `eventType`:
+> Each relay proxy exporter targets a single `eventType` (defaulting to `feature`). To export **both** evaluation and tracking events, declare two Redshift exporters:
 >
 > ```yaml
 > # ...
@@ -48,24 +46,24 @@ exporters:
 > # ...
 > ```
 
-| Field name          |    Mandatory     | Type    | Default                                                       | Description                                                                                                         |
-|---------------------|:----------------:|---------|---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `kind`              |  Yes   | string  | **none**                                                      | **Value should be `redshift`**.<br/>_This field is mandatory and describes which exporter you are using._            |
-| `database`          |  Yes   | string  | **none**                                                      | Name of the Redshift database receiving the events.                                                                 |
-| `clusterIdentifier` | No | string  | **none**                                                      | Identifier of a provisioned Redshift cluster. Set either `clusterIdentifier` or `workgroupName`.                    |
-| `workgroupName`     | No | string  | **none**                                                      | Name or ARN of a Redshift Serverless workgroup. Set either `clusterIdentifier` or `workgroupName`.                  |
-| `dbUser`            | No | string  | **none**                                                      | Database user used with `clusterIdentifier` to get temporary credentials. It cannot be used with `workgroupName` or `secretArn`. |
-| `secretArn`         | No | string  | **none**                                                      | ARN of an AWS Secrets Manager secret containing the database credentials. It cannot be used with `dbUser`.          |
-| `tableName`         | No | string  | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Table used by this exporter instance, it can be prefixed by a schema (`my_schema.my_table`).                    |
-| `awsRegion`         | No | string  | **none**                                                      | AWS region of your Redshift cluster or workgroup. If empty, the default AWS configuration is used.                  |
-| `autoMigrate`       | No | boolean | `false`                                                       | When `true`, the exporter creates the table if it does not exist.                                                   |
-| `eventType`         | No | string  | `feature`                                                     | Event type to export. Use `feature` for evaluation events or `tracking` for tracking events.                        |
-| `flushInterval`     | No | int     | `60000`                                                       | The interval in millisecond between 2 calls to the exporter _(if the `maxEventInMemory` is reached before the flushInterval we will call the exporter before)_. |
-| `maxEventInMemory`  | No | int     | `100000`                                                      | If we hit that limit we will call the exporter.                                                                     |
+| Field name          | Mandatory | Type    | Default                                                            | Description                                                                                                                   |
+|---------------------|:---------:|---------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `kind`              | Yes       | string  | **none**                                                           | Value should be `redshift`.<br/>_This field is mandatory and describes which exporter you are using._                         |
+| `database`          | Yes       | string  | **none**                                                           | Name of the Redshift database receiving the events.                                                                           |
+| `clusterIdentifier` | No        | string  | **none**                                                           | Identifier of a provisioned Redshift cluster. Set either `clusterIdentifier` or `workgroupName`.                              |
+| `workgroupName`     | No        | string  | **none**                                                           | Name or ARN of a Redshift Serverless workgroup. Set either `clusterIdentifier` or `workgroupName`.                            |
+| `dbUser`            | No        | string  | **none**                                                           | Database user used with `clusterIdentifier` for temporary credentials. Cannot be used with `workgroupName` or `secretArn`.    |
+| `secretArn`         | No        | string  | **none**                                                           | ARN of an AWS Secrets Manager secret containing database credentials. Cannot be used with `dbUser`.                           |
+| `tableName`         | No        | string  | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Target table name. Can be schema-qualified (`my_schema.my_table`).                                                            |
+| `awsRegion`         | No        | string  | **none**                                                           | AWS region of your Redshift cluster or workgroup. If empty, the default AWS configuration is used.                            |
+| `autoMigrate`       | No        | boolean | `false`                                                            | When `true`, creates the target table if it does not exist.                                                                   |
+| `eventType`         | No        | string  | `feature`                                                          | Event type to export: `feature` for evaluation events or `tracking` for tracking events.                                      |
+| `flushInterval`     | No        | int     | `60000`                                                            | Interval in milliseconds before flushing events (flushes earlier if `maxEventInMemory` is reached first).                     |
+| `maxEventInMemory`  | No        | int     | `100000`                                                           | Maximum number of events buffered in memory before flushing.                                                                  |
 
-## Configure the Go Module
-To configure your Go module to use the AWS Redshift exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 ```go
 awsConfig, _ := config.LoadDefaultConfig(context.Background())
@@ -102,72 +100,58 @@ client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field               |    Mandatory     | Default                                                            | Description                                                                                       |
-|---------------------|:----------------:|--------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| `Database`          |  Yes   | **none**                                                           | Name of the Redshift database receiving the events.                                               |
-| `ClusterIdentifier` | No | **none**                                                           | Identifier of a provisioned Redshift cluster. Set either `ClusterIdentifier` or `WorkgroupName`.  |
-| `WorkgroupName`     | No | **none**                                                           | Name or ARN of a Redshift Serverless workgroup. Set either `ClusterIdentifier` or `WorkgroupName`.|
-| `DBUser`            | No | **none**                                                           | Database user used with `ClusterIdentifier` to get temporary credentials. It cannot be used with `WorkgroupName` or `SecretArn`. |
-| `SecretArn`         | No | **none**                                                           | ARN of an AWS Secrets Manager secret containing the database credentials. It cannot be used with `DBUser`. |
-| `TableName`         | No | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Table used by this exporter instance, it can be prefixed by a schema.                             |
-| `AwsConfig`         | No | **none**                                                           | AWS SDK configuration. If empty, the default AWS configuration is loaded.                         |
-| `AutoMigrate`       | No | `false`                                                            | When `true`, the exporter creates the table if it does not exist.                                 |
+| Field               | Mandatory | Default                                                            | Description                                                                                                                |
+|---------------------|:---------:|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `Database`          | Yes       | **none**                                                           | Name of the Redshift database receiving the events.                                                                        |
+| `ClusterIdentifier` | No        | **none**                                                           | Identifier of a provisioned Redshift cluster. Set either `ClusterIdentifier` or `WorkgroupName`.                           |
+| `WorkgroupName`     | No        | **none**                                                           | Name or ARN of a Redshift Serverless workgroup. Set either `ClusterIdentifier` or `WorkgroupName`.                         |
+| `DBUser`            | No        | **none**                                                           | Database user used with `ClusterIdentifier` for temporary credentials. Cannot be used with `WorkgroupName` or `SecretArn`. |
+| `SecretArn`         | No        | **none**                                                           | ARN of an AWS Secrets Manager secret containing database credentials. Cannot be used with `DBUser`.                        |
+| `TableName`         | No        | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Target table name. Can be schema-qualified (`my_schema.my_table`).                                                         |
+| `AwsConfig`         | No        | **none**                                                           | AWS SDK configuration. If empty, the default AWS configuration is loaded.                                                  |
+| `AutoMigrate`       | No        | `false`                                                            | When `true`, creates the target table if it does not exist.                                                                |
 
-`FlushInterval` and `MaxEventInMemory` are fields of `ffclient.DataExporter` (next to `Exporter`), not of `redshiftexporter.Exporter`:
+`FlushInterval` and `MaxEventInMemory` are fields on `ffclient.DataExporter` (alongside `Exporter`), not on `redshiftexporter.Exporter`:
 
-| Field              |    Mandatory     | Default    | Description                                                                                                                                            |
-|--------------------|:----------------:|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `FlushInterval`    | No | `1 minute` | The interval (`time.Duration`) between 2 calls to the exporter _(if the `MaxEventInMemory` is reached before the FlushInterval we will call the exporter before)_. |
-| `MaxEventInMemory` | No | `100000`   | If we hit that limit we will call the exporter.                                                                                                        |
+| Field              | Mandatory | Default    | Description                                                                                                     |
+|--------------------|:---------:|------------|-----------------------------------------------------------------------------------------------------------------|
+| `FlushInterval`    | No        | `1 minute` | Interval (`time.Duration`) before flushing events (flushes earlier if `MaxEventInMemory` is reached first).     |
+| `MaxEventInMemory` | No        | `100000`   | Maximum number of events buffered in memory before flushing.                                                    |
 
 ## Authentication
 
-The exporter uses the [Redshift Data API](https://docs.aws.amazon.com/redshift/latest/mgmt/data-api.html),
-so no JDBC connection or database password is needed. Depending on the fields you set, it authenticates with:
+The exporter uses the [Redshift Data API](https://docs.aws.amazon.com/redshift/latest/mgmt/data-api.html), so no JDBC connection or database password is needed. Depending on the fields set, it authenticates with:
 
-| Authentication method                       | Fields                                                      | Permission required by the method                                                                              |
-|---------------------------------------------|-------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| **IAM identity**                            | `clusterIdentifier` (or `workgroupName`) and `database`     | `redshift:GetClusterCredentialsWithIAM` for a provisioned cluster, `redshift-serverless:GetCredentials` for Serverless. The database user is derived from the IAM identity. |
-| **Temporary credentials for a database user** | `clusterIdentifier`, `database` and `dbUser` (provisioned clusters only) | `redshift:GetClusterCredentials`                                                                |
-| **AWS Secrets Manager**                     | `clusterIdentifier` (or `workgroupName`), `database` and `secretArn` | `secretsmanager:GetSecretValue` on the secret                                                          |
+| Authentication method                       | Fields                                                                   | Required permission                                                                                                                                                |
+|---------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **IAM identity**                            | `clusterIdentifier` (or `workgroupName`) and `database`                  | `redshift:GetClusterCredentialsWithIAM` for a provisioned cluster; `redshift-serverless:GetCredentials` for Serverless. The database user is derived from the IAM identity. |
+| **Temporary credentials for a database user** | `clusterIdentifier`, `database`, and `dbUser` (provisioned clusters only) | `redshift:GetClusterCredentials`                                                                                                                                   |
+| **AWS Secrets Manager**                     | `clusterIdentifier` (or `workgroupName`), `database`, and `secretArn`    | `secretsmanager:GetSecretValue` on the secret                                                                                                                      |
 
-In addition to the permission of the authentication method, the IAM identity used by Semaphore needs these Redshift Data API permissions:
+The IAM identity used by Semaphore also needs these Redshift Data API permissions:
 
-- `redshift-data:BatchExecuteStatement` to run the `INSERT` (and `CREATE TABLE`) statements.
-- `redshift-data:DescribeStatement` to wait for the result of the statements. It is **required**: without it the `INSERT` still runs,
-  but the exporter cannot know it succeeded, so the export fails and the events are inserted again on the next flush.
-- `redshift-data:CancelStatement` to cancel a transaction that takes too long.
+- `redshift-data:BatchExecuteStatement`: run `INSERT` and `CREATE TABLE` statements.
+- `redshift-data:DescribeStatement`: wait for statement completion. **Required**: without it, `INSERT` still runs, but the exporter cannot confirm success and retries on the next flush.
+- `redshift-data:CancelStatement`: cancel transactions that exceed the timeout.
 
 ## How events are inserted
 
-Each flush is inserted with multi-rows `INSERT` statements. Every value is sent as a named parameter of the statement,
-and large flushes are split into several statements to stay under the Redshift Data API limits
-(at most 500 rows and about 100KB per statement).
-
-The statements of a flush are sent with `BatchExecuteStatement` and run in a **single transaction**: if one of them fails,
-nothing from that transaction is inserted and the events are retried on the next flush.
-A transaction contains up to 40 statements and about 1MB; a bigger flush is split in several transactions and if one of them fails,
-the events are retried and the rows of the transactions already committed are inserted again (at-least-once delivery).
-
-The Redshift Data API is asynchronous, the exporter waits for the transaction to complete before returning.
-A transaction that takes more than 5 minutes is cancelled and the events are retried on the next flush.
+- Each flush uses multi-row `INSERT` statements with named parameters, split to stay under Redshift Data API limits (at most 500 rows and ~100KB per statement).
+- Statements run via `BatchExecuteStatement` in a **single transaction** (up to 40 statements and ~1MB). If any statement fails, that transaction rolls back and events are retried on the next flush.
+- Larger flushes split across multiple transactions; if a later transaction fails, retrying re-inserts already committed rows (at-least-once delivery).
+- Because the Redshift Data API is asynchronous, the exporter waits up to 5 minutes per transaction before cancelling and retrying on the next flush.
 
 ### Values that do not fit in the table
 
-A flush that fails is retried with the same events, so the exporter avoids sending rows that Redshift would reject because of their size:
-
-- Text values longer than their column (see the schemas below, sizes are in bytes) are truncated, without splitting a multibyte character.
-- Events with a JSON value (`value`, `metadata`, `tracking_details`, `evaluation_context`) larger than 65,535 bytes,
-  or too large to fit in a single statement, are skipped. A warning with the number of skipped events and their flag keys is logged.
+- Text values exceeding their column byte limit are truncated without splitting multibyte characters.
+- Events with a JSON value (`value`, `metadata`, `tracking_details`, `evaluation_context`) larger than 65,535 bytes, or too large for a single statement, are skipped and logged as a warning with the skipped count and flag keys.
 
 ## AutoMigrate
 
-When `autoMigrate` / `AutoMigrate` is enabled, the exporter runs a `CREATE TABLE IF NOT EXISTS` for the table it is about to write,
-using the schemas below. It is done once per exporter instance.
+When `autoMigrate` / `AutoMigrate` is `true`, the exporter runs `CREATE TABLE IF NOT EXISTS` once per exporter instance using the schemas below.
 
 > [!WARNING]
-> AutoMigrate only creates the **table**, not the schema. If you use a schema-qualified `tableName` (e.g. `my_schema.my_table`),
-> create the schema first (`CREATE SCHEMA IF NOT EXISTS my_schema`), otherwise the `CREATE TABLE` fails.
+> AutoMigrate only creates the **table**, not the schema. If you use a schema-qualified `tableName` (e.g. `my_schema.my_table`), create the schema first (`CREATE SCHEMA IF NOT EXISTS my_schema`), otherwise `CREATE TABLE` fails.
 
 ## Table schemas
 

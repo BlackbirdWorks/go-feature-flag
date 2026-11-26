@@ -1,134 +1,123 @@
 # Performing flag evaluations
 
 ## Users
-Feature flag targeting and rollouts are all determined by the user you pass to your **Variation** calls.
-The `ffcontext` package provides `NewEvaluationContext` and `NewEvaluationContextBuilder` to make this easy.
 
-Here's an example:
+Feature flag targeting and rollouts depend on the evaluation context passed to your **Variation** calls. Use `ffcontext.NewEvaluationContext` or `ffcontext.NewEvaluationContextBuilder` to build it:
 
-```go showLineNumbers
+```go
 // User with only a key
 user1 := ffcontext.NewEvaluationContext("user1-key")
 
-// User with a key plus other attributes
-user2 = ffcontext.NewEvaluationContextBuilder("user2-key").
- AddCustom("firstname", "John").
- AddCustom("lastname", "Doe").
- AddCustom("email", "john.doe@example.com").
- Build()
+// User with a key plus custom attributes
+user2 := ffcontext.NewEvaluationContextBuilder("user2-key").
+    AddCustom("firstname", "John").
+    AddCustom("lastname", "Doe").
+    AddCustom("email", "john.doe@example.com").
+    Build()
 ```
 
-The user's key provides a stable identifier for bucketing.
-It is required for flags using percentage or progressive rollouts, including scheduled rollout steps that introduce them, unless a [custom bucketing key](../configure-flags/custom-bucketing.md) supplies the value.
-Static flags and targeting based only on attributes can be evaluated without a user key.
-
-The key should also uniquely identify each user. You can use a primary key, an e-mail address, or a hash, as long as the same user always has the same key.  
-**We recommend using a hash if possible.**  
-Other attributes are optional unless required by your targeting rules or custom bucketing configuration.
+- The user's key provides a stable identifier for bucketing.
+- It is required for percentage or progressive rollouts (including scheduled steps that introduce them), unless a [custom bucketing key](../configure-flags/custom-bucketing.md) supplies the value.
+- Static flags and attribute-only targeting rules can be evaluated without a user key.
+- Use a unique, consistent key per user (such as a primary key, email address, or hash—**a hash is recommended**).
+- Other attributes are optional unless referenced by targeting rules or custom bucketing.
 
 > [!NOTE]
-> Custom attributes are one of the most powerful features.  
-> They let you have rules on these attributes and target users according to any data that you want.
+> Custom attributes let you target users in rules using any data you attach to the context.
 
 ## Anonymous users
-You can also distinguish logged-in users from anonymous users in the SDK, as follows:
 
-```go showLineNumbers
-// User with only a key
+Mark anonymous users with `NewAnonymousEvaluationContext` or `.Anonymous(true)`:
+
+```go
+// Anonymous user with only a key
 user1 := ffcontext.NewAnonymousEvaluationContext("user1-key")
 
-// User with a key plus other attributes
-user2 = ffcontext.NewEvaluationContextBuilder("user2-key").
-  Anonymous(true).
-  AddCustom("firstname", "John").
-  AddCustom("lastname", "Doe").
-  AddCustom("email", "john.doe@example.com").
-  Build()
+// Anonymous user with custom attributes
+user2 := ffcontext.NewEvaluationContextBuilder("user2-key").
+    Anonymous(true).
+    AddCustom("firstname", "John").
+    AddCustom("lastname", "Doe").
+    AddCustom("email", "john.doe@example.com").
+    Build()
 ```
-You will still need to generate a unique key for anonymous users. Session IDs or UUIDs work best for this.
 
-Anonymous users work just like regular users, this information just helps you to add a rule to target a specific population.
+Generate a unique key for anonymous users (session IDs or UUIDs work well). Anonymous users behave like regular users and allow rules to target anonymous traffic specifically.
 
 ## Variation
-The Variation methods determine whether a flag is enabled or not for a specific user.
-There is a Variation method for each type:   
-[`BoolVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariation) , [`IntVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariation)
-, [`Float64Variation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64Variation)
-, [`StringVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariation)
-, [`JSONArrayVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariation)
-, [`JSONVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariation)
 
-```go showLineNumbers
+Call the typed variation method matching your flag's return type:
+
+- [`BoolVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariation)
+- [`IntVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariation)
+- [`Float64Variation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64Variation)
+- [`StringVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariation)
+- [`JSONArrayVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariation)
+- [`JSONVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariation)
+
+```go
 result, _ := client.BoolVariation("your.feature.key", user, false)
-
-// result is now true or false depending on the setting of
-// this boolean feature flag
+// result is true or false depending on the flag evaluation
 ```
-Variation methods take the feature **flag key**, a **user**, and a **default value**.
 
-The default value is returned when an error is encountered _(`ffclient` not initialized, variation with wrong type, flag does not exist ...)._
-
-In the example, if the flag `your.feature.key` does not exist, result will be `false`.  
-Not that you will always have a usable value in the result. 
+Variation methods take the **flag key**, **user**, and **default value**. The default value is returned if an error occurs (`ffclient` not initialized, wrong variation type, missing flag, etc.). In the example above, if `your.feature.key` does not exist, `result` is `false`—so you always get a usable value.
 
 ## Variation details
-If you want more information about your flag evaluation, you can use the variation details functions.
-There is a Variation method for each type:   
-[`BoolVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariationDetails) 
-, [`IntVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariationDetails)
-, [`Float64VariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64VariationDetails)
-, [`StringVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariationDetails)
-, [`JSONArrayVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariationDetails)
-, [`JSONVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariationDetails)
 
-You can use these functions the same way as the other variation functions BUT it will return a generic object `model.VariationResult[<type>]` containing your result.  
-This object will contain these fields:
+Use the `*VariationDetails` methods to inspect evaluation metadata alongside the value:
 
-| field           | type                    | description                                                                    |
-|-----------------|-------------------------|--------------------------------------------------------------------------------|
-| `TrackEvents`   | `bool`                  | `true` if this evaluation was tracked.                                         |
-| `VariationType` | `string`                | The name of the variation used to get this value.                              |
-| `Failed`        | `bool`                  | `true` if an error occurred during the evaluation.                             |
-| `Version`       | `string`                | The **version** of the flag used to do the evaluation.                         |
-| `Reason`        | `flag.ResolutionReason` | The reason used for this evaluation.                                           |
-| `ErrorCode`     | `flag.ErrorCode`        | Error code in case we have an error.                                           |
-| `ErrorDetails`  | `string`                | A string providing more detail about the error.                                |
-| `Value`         | `<type T>`              | Value of the flag in the expected type.                                        |
-| `Cacheable`     | `bool`                  | `true` if it can be cached (by user or for everyone depending on the reason).  |
+- [`BoolVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariationDetails)
+- [`IntVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariationDetails)
+- [`Float64VariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64VariationDetails)
+- [`StringVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariationDetails)
+- [`JSONArrayVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariationDetails)
+- [`JSONVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariationDetails)
+
+These methods take the same arguments and return `model.VariationResult[<type>]`:
+
+| Field | Type | Description |
+|---|---|---|
+| `TrackEvents` | `bool` | `true` if this evaluation was tracked. |
+| `VariationType` | `string` | Name of the variation used for this value. |
+| `Failed` | `bool` | `true` if an error occurred during evaluation. |
+| `Version` | `string` | Version of the flag used for evaluation. |
+| `Reason` | `flag.ResolutionReason` | Resolution reason for this evaluation. |
+| `ErrorCode` | `flag.ErrorCode` | Error code when an error occurred. |
+| `ErrorDetails` | `string` | Additional detail about the error. |
+| `Value` | `<type T>` | Resolved flag value in the expected type. |
+| `Cacheable` | `bool` | `true` if the result can be cached (per user or globally depending on the reason). |
 
 ### Reason
-Semaphore can furnish you with diverse reasons in the variation details, giving you insight into the evaluation process of your feature flag.
-Here is the full list of reason available:
 
-| Reason                  | description                                                                                                                                                                                           |
-|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `TARGETING_MATCH`       | The resolved value was the result of a dynamic evaluation, such as a rule or specific user-targeting. _(ex: serve variation A if username is Thomas)_                                                 |
-| `TARGETING_MATCH_SPLIT` | The resolved value was the result of a dynamic evaluation, that is serving a percentage. _(ex: serve variation A to 10% of users with the username Thomas)_                                           |
-| `SPLIT`                 | The resolved value was the result of pseudorandom assignment. _(ex: serve variation A to 10% of all the users.)_                                                                                      |
-| `DISABLED`              | Indicates that the feature flag is disabled                                                                                                                                                           |
-| `DEFAULT`               | The resolved value was the result of the flag being disabled in the management system.                                                                                                                |
-| `STATIC`                | Indicates that the feature flag evaluated to a static value, for example, the default value for the flag. _(Note: Typically means that no dynamic evaluation has been executed for the feature flag)_ |
-| `UNKNOWN`               | Indicates that an unknown issue occurred during evaluation                                                                                                                                                 |
-| `ERROR`                 | Indicates that an error occurred during evaluation *(Note: The `errorCode` field contains the details of this error)*                                                                                 |
-| `OFFLINE`               | Indicates that Semaphore is currently evaluating in offline mode.                                                                                                                               |
+`Reason` describes how the flag value was resolved:
+
+| Reason | Description |
+|---|---|
+| `TARGETING_MATCH` | Resolved via a dynamic rule or user-targeting match (e.g., serve variation A when `username == "Thomas"`). |
+| `TARGETING_MATCH_SPLIT` | Resolved via a dynamic rule serving a percentage split (e.g., serve variation A to 10% of users with `username == "Thomas"`). |
+| `SPLIT` | Resolved via pseudorandom percentage assignment (e.g., serve variation A to 10% of all users). |
+| `DISABLED` | The feature flag is disabled. |
+| `DEFAULT` | Resolved to the flag's fallback/default because the flag is disabled in the management system. |
+| `STATIC` | Evaluated to a static value with no dynamic evaluation (for example, the flag's default value). |
+| `UNKNOWN` | An unknown issue occurred during evaluation. |
+| `ERROR` | An error occurred during evaluation (`ErrorCode` contains details). |
+| `OFFLINE` | Semaphore is evaluating in offline mode. |
 
 ## Get all flags for a specific user
-If you want to send the information about a specific user to the front-end, you will need a snapshot of all the flags of this user at a specific time.
 
-The method `AllFlagsState` of the client returns a snapshot of flag values and metadata.  
-The function is evaluating all available flags for the user and returns a `flagstate.AllFlagsState` object containing the information you need.
+To pass a snapshot of all flag values for a user to a front-end application, call `AllFlagsState`. It evaluates every flag for the user and returns a `flagstate.AllFlagsState` object:
 
-```go showLineNumbers
+```go
 user := ffcontext.NewEvaluationContext("example")
-// AllFlagsState will give you the value for all the flags available.
 allFlagsState := client.AllFlagsState(user)
 
-// If you want to send it to the front-end you can Marshal it by calling MarshalJSON()
+// Serialize to JSON for a front-end application
 forFE, err := allFlagsState.MarshalJSON()
 ```
 
-The `MarshalJSON()` function will return something like below, that can be directly used by your front-end application. 
-```json showLineNumbers
+`MarshalJSON()` produces output like:
+
+```json
 {
     "flags": {
         "test-flag0": {
@@ -178,4 +167,4 @@ The `MarshalJSON()` function will return something like below, that can be direc
 ```
 
 > [!CAUTION]
-> There is no tracking done when evaluating all the flag at once.
+> Evaluating all flags at once does not emit tracking events.

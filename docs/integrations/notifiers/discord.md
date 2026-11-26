@@ -1,13 +1,10 @@
 # Discord
 
 ## Overview
-Send notifications to a Discord channel.
 
-## About Discord Notifier
-The Discord notifier sends a message to a Discord channel when Semaphore detects changes in your flag configuration.
+The Discord notifier posts a message to a Discord channel whenever Semaphore detects changes in your flag configuration.
 
-Each notification lists the flags that were created, updated or deleted.
-For an updated flag, every change is described as a short sentence, for example:
+Each message lists created, updated, and deleted flags. Updated flags show one sentence per change:
 
 ```text
 ✏️ Flag "dark-mode" updated
@@ -17,45 +14,40 @@ For an updated flag, every change is described as a short sentence, for example:
 • Default rule now serves `disabled` 50%, `enabled` 50% (was `disabled` 90%, `enabled` 10%)
 ```
 
-A flag shows at most 50 changes, and a last line counts the changes left out.
-Discord limits the size of a message, so when many flags change at once the longest lists are shortened first.
-If more than 10 flags change, the message shows the first 9 and asks you to check the logs for the rest.
+- **Per-flag limit**: Each flag shows at most 50 changes, with a final line counting omitted changes.
+- **Message size limit**: Because Discord limits message size, the longest change lists are shortened first when many flags change at once.
+- **Flag count limit**: If more than 10 flags change, the message shows the first 9 and asks you to check the logs for the rest.
 
-## Configure Discord Notifications
+## Create a Discord webhook
 
-1. Connect to your discord account and go on the channel where you want to send the notifications.
-2. Go on the settings menu of your channel.
-
-3. Under your channel’s settings, go to the "Integrations" section and create a new webhook. To create it, please follow
-the [official documentation](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks).
-4. Copy the webhook URL
-
-5. Now you can configure your notifier
+1. Open Discord and go to the target channel.
+2. Open the channel's **Settings** menu and go to **Integrations**.
+3. Create an incoming webhook (see the [Discord webhook documentation](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)).
+4. Copy the webhook URL.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Discord notifier, you need to add the following
-configuration to your relay proxy configuration file:
+Add the Discord notifier to your relay proxy configuration file:
 
 ```yaml
 # ...
-notifier:
+notifiers:
   - kind: discord
     webhookUrl: "https://discord.com/api/webhooks/yyyy/xxxxxxx"
 # ...
 ```
-| Field name   |   Mandatory   | Type   | Default  | Description                                                                                              |
-|--------------|:-------------:|--------|----------|----------------------------------------------------------------------------------------------------------|
-| `kind`       | Yes | string | **none** | **Value should be `discord`**.<br/>_This field is mandatory and describe which retriever you are using._ |
-| `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Discord.                                         |
 
-## Configure the Go Module
-To configure your Go module to use the Discord notifier, you need to add the following
-configuration to your `ffclient.Config{}` object:
+| Field name | Mandatory | Type | Default | Description |
+|---|:---:|---|---|---|
+| `kind` | Yes | string | **none** | Must be `discord`. Identifies the notifier type. |
+| `webhookUrl` | Yes | string | **none** | Full URL of your Discord incoming webhook. |
+
+## Configure the Go module
+
+Add `&discordnotifier.Notifier` to `ffclient.Config.Notifiers`:
 
 ```go
-client, err := ffclient.New(ffclient.Config
-{
+client, err := ffclient.New(&ffclient.Config{
     // ...
     Notifiers: []notifier.Notifier{
         &discordnotifier.Notifier{
@@ -66,6 +58,6 @@ client, err := ffclient.New(ffclient.Config
 defer client.Close()
 ```
 
-| **Field**           | **Mandatory** | **Description**                           |
-|---------------------|:-------------:|-------------------------------------------|
-| `DiscordWebhookURL` | Yes | The complete URL of your discord webhook. |
+| Field | Mandatory | Description |
+|---|:---:|---|
+| `DiscordWebhookURL` | Yes | Full URL of your Discord incoming webhook. |

@@ -117,7 +117,7 @@ example-types:
 
 Suppose we want to roll out a new `scream-level-feature` starting from `"whisper"`:
 
-#### 1. Create the flag
+### 1. Create the flag
 
 ```yaml
 scream-level-feature:
@@ -129,11 +129,11 @@ scream-level-feature:
     variation: low
 ```
 
-#### 2. Deploy code
+### 2. Deploy code
 
 Deploy code that evaluates `scream-level-feature`. Behavior stays identical (`"whisper"`).
 
-#### 3. Target internal testers
+### 3. Target internal testers
 
 Target a specific `targetingKey` with `high` while everyone else keeps `low`:
 
@@ -150,7 +150,7 @@ scream-level-feature:
     variation: low
 ```
 
-#### 4. Run a percentage split
+### 4. Run a percentage split
 
 Split traffic across all variations to compare results:
 
@@ -167,7 +167,7 @@ scream-level-feature:
       high: 33
 ```
 
-#### 5. Promote the winner
+### 5. Promote the winner
 
 Set `high` as the default once it wins:
 
@@ -181,6 +181,6 @@ scream-level-feature:
     variation: high
 ```
 
-#### 6. Clean up
+### 6. Clean up
 
 Once the feature is permanent, remove the flag check from code and delete the entry from the flag file.

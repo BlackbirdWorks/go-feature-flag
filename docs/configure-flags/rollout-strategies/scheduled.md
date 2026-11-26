@@ -1,32 +1,28 @@
 # Scheduled rollout
 
 ## Overview
-Scheduled rollout offer a structured, multi-stage approach to flag deployment, automating the rollout to specific environments and audiences.
 
-At each stage happening on a specific date, you can modify your feature flags as you want, allowing to change the target audience of your flag.    
-While this sounds deceptively straightforward, it unlocks the potential for users to create complex release strategies by scheduling the incremental steps in advance.
-
-_For example, you may want to turn a feature ON for internal testing tomorrow and then enable it for your ‘beta’ user segment four days later._
+A **scheduled rollout** applies staged updates to a flag configuration automatically at specified timestamps—for example, enabling a feature for internal users tomorrow and for beta users four days later.
 
 ## Define a scheduled rollout
-To use a scheduled rollout, you need to set the `scheduledRollout` field in your flag configuration.
 
-This field is an array of **steps**, each step is a map with a `date` field and the other fields are the fields you want to update in your flag.
+Add `scheduledRollout` as an array of **steps**. Each step includes a `date` and any flag fields to update when that timestamp is reached.
 
 ## Format
 
 > [!NOTE]
-> You can change any fields that are available on your flag.
-> Since your configuration has not been changed manually, it does not trigger any notifier.
+> Scheduled steps can modify any field supported by the flag format. Because the flag file itself is not edited, scheduled transitions do not trigger notifiers.
 
-| Field       | Description                                                                                                                                                                                                                                                                                                                 |
-|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`steps`** | The only mandatory field in a **step** is the `date`.<br/>**If no date is provided the step will be skipped.**<br/><br/>The other attributes of your `step` are what you want to update your flag, so every field available in the flag format can be updated.<br/>The new value in a field will override the existing one. |
+| Field | Description |
+|---|---|
+| `steps` | Each step requires `date` (**steps without `date` are skipped**). Any other fields in the step override the corresponding fields on the flag when `date` is reached. |
 
 ## Example
-In this example, the flag will be update multiple times:
-1. We will add a targeting rule to target beta users at `2020-04-10T00:00:00.1+02:00`.
-2. We will update the query of this rule later to target non-beta users at `2022-05-12T15:36:00.1+02:00`.
+
+This flag updates twice automatically:
+
+1. On `2020-04-10T00:00:00.1+02:00`, adds targeting rule `rule1` to serve `variationB` to `beta` users.
+2. On `2022-05-12T15:36:00.1+02:00`, updates `rule1`'s `query` to target non-beta users (`beta eq "false"`).
 
 ```yaml
 scheduled-flag:

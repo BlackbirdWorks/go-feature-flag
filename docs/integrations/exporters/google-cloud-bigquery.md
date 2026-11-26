@@ -1,6 +1,7 @@
 # Google Cloud BigQuery
 
 ## Overview
+
 The Google Cloud BigQuery exporter streams feature flag evaluation and tracking events directly to BigQuery using the official streaming-insert API.
 
 > [!NOTE]
@@ -8,8 +9,7 @@ The Google Cloud BigQuery exporter streams feature flag evaluation and tracking 
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Google Cloud BigQuery exporter, you need to add the following
-configuration to your relay proxy configuration file:
+Add the following configuration to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -26,9 +26,7 @@ exporters:
 ```
 
 > [!NOTE]
-> In the relay proxy each exporter is wired to a single `eventType` (defaulting to
-> `feature`). To export **both** evaluation and tracking events, declare two
-> BigQuery exporters, one per `eventType`:
+> Each relay proxy exporter targets a single `eventType` (defaulting to `feature`). To export **both** evaluation and tracking events, declare two BigQuery exporters:
 >
 > ```yaml
 > # ...
@@ -48,24 +46,24 @@ exporters:
 > # ...
 > ```
 
-| Field name          |    Mandatory     | Type    | Default                      | Description                                                                                              |
-|---------------------|:----------------:|---------|------------------------------|----------------------------------------------------------------------------------------------------------|
-| `kind`              |  Yes   | string  | **none**                     | **Value should be `bigquery`**.<br/>_This field is mandatory and describes which exporter you are using._ |
-| `projectID`         |  Yes   | string  | **none**                     | ID of the GCP project containing the BigQuery dataset.                                                    |
-| `datasetID`         |  Yes   | string  | **none**                     | BigQuery dataset where events will be inserted.                                                           |
-| `tableName`         | No | string  | `feature_flag_evaluations`   | BigQuery table used by this exporter instance. Set it to your tracking table for `eventType: "tracking"`. |
-| `googleCredentials` | No | string  | **none**                     | Google credentials JSON. If empty, Application Default Credentials are used.                              |
-| `autoMigrate`       | No | boolean | `false`                      | When `true`, the exporter creates the dataset and the table being written if they do not exist.            |
-| `eventType`         | No | string  | `feature`                    | Event type to export. Use `feature` for evaluation events or `tracking` for tracking events.              |
+| Field name          | Mandatory | Type    | Default                    | Description                                                                                               |
+|---------------------|:---------:|---------|----------------------------|-----------------------------------------------------------------------------------------------------------|
+| `kind`              | Yes       | string  | **none**                   | Value should be `bigquery`.<br/>_This field is mandatory and describes which exporter you are using._       |
+| `projectID`         | Yes       | string  | **none**                   | ID of the GCP project containing the BigQuery dataset.                                                    |
+| `datasetID`         | Yes       | string  | **none**                   | BigQuery dataset where events are inserted.                                                               |
+| `tableName`         | No        | string  | `feature_flag_evaluations` | BigQuery table used by this exporter instance. Set to your tracking table for `eventType: "tracking"`.    |
+| `googleCredentials` | No        | string  | **none**                   | Google credentials JSON. If empty, Application Default Credentials are used.                              |
+| `autoMigrate`       | No        | boolean | `false`                    | When `true`, creates the dataset and target table if they do not exist.                                   |
+| `eventType`         | No        | string  | `feature`                  | Event type to export: `feature` for evaluation events or `tracking` for tracking events.                  |
 
-## Configure the Go Module
-To configure your Go module to use the Google Cloud BigQuery exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 ```go
 googleCredentials := []byte(`{...}`)
 
-config := ffclient.Config{
+ffConfig := ffclient.Config{
     // ...
     DataExporters: []ffclient.DataExporter{
         {
@@ -91,50 +89,46 @@ config := ffclient.Config{
     },
     // ...
 }
-client, err := ffclient.New(config)
+client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field               |    Mandatory     | Default                    | Description                                                                                   |
-|---------------------|:----------------:|----------------------------|-----------------------------------------------------------------------------------------------|
-| `ProjectID`         |  Yes   | **none**                   | ID of the GCP project containing the BigQuery dataset.                                         |
-| `DatasetID`         |  Yes   | **none**                   | BigQuery dataset where events will be inserted.                                                |
-| `TableName`         | No | `feature_flag_evaluations` | BigQuery table used by this exporter instance.                                                 |
-| `AutoMigrate`       | No | `false`                    | When `true`, the exporter creates the dataset and the table being written if they do not exist. |
-| `GoogleCredentials` | No | **none**                   | Google credentials JSON. If empty, Application Default Credentials are used.                   |
+| Field               | Mandatory | Default                    | Description                                                                |
+|---------------------|:---------:|----------------------------|----------------------------------------------------------------------------|
+| `ProjectID`         | Yes       | **none**                   | ID of the GCP project containing the BigQuery dataset.                     |
+| `DatasetID`         | Yes       | **none**                   | BigQuery dataset where events are inserted.                                |
+| `TableName`         | No        | `feature_flag_evaluations` | BigQuery table used by this exporter instance.                             |
+| `AutoMigrate`       | No        | `false`                    | When `true`, creates the dataset and target table if they do not exist.    |
+| `GoogleCredentials` | No        | **none**                   | Google credentials JSON. If empty, Application Default Credentials are used.|
 
 ## Authentication
 
-When `GoogleCredentials` is empty, the exporter relies on
-[Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
-
-For the relay proxy, set `googleCredentials` to explicit credentials JSON when ADC is not available.
-For the Go module, pass explicit credentials JSON in `GoogleCredentials`.
+- When `GoogleCredentials` / `googleCredentials` is empty, the exporter uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
+- Provide explicit credentials JSON in `googleCredentials` (relay proxy) or `GoogleCredentials` (Go module) when ADC is unavailable.
 
 ## AutoMigrate
 
-When `autoMigrate` / `AutoMigrate` is enabled, the exporter tries to create the configured dataset and the table it is about to write.
-Existing datasets and tables are treated as success.
-
-The exporter checks the table configured for the current flush. For example, a tracking exporter with `tableName: "tracking_events"` ensures `tracking_events`.
+- When `autoMigrate` / `AutoMigrate` is `true`, the exporter creates the configured dataset and target table if missing.
+- Existing datasets and tables are treated as success.
+- Only the table configured for that exporter instance is checked (for example, a tracking exporter with `tableName: "tracking_events"` ensures `tracking_events`).
 
 ## Table schemas
 
 ### `feature_flag_evaluations`
 
-| Column          | BigQuery type | Source field    |
-|-----------------|---------------|-----------------|
-| `kind`          | STRING        | `Kind`          |
-| `context_kind`  | STRING        | `ContextKind`   |
-| `user_key`      | STRING        | `UserKey`       |
-| `creation_date` | INTEGER       | `CreationDate`  |
-| `key`           | STRING        | `Key`           |
-| `variation`     | STRING        | `Variation`     |
-| `value`         | JSON          | `Value`         |
-| `default`       | BOOL          | `Default`       |
-| `version`       | STRING        | `Version`       |
-| `source`        | STRING        | `Source`        |
-| `metadata`      | JSON          | `Metadata`      |
+| Column          | BigQuery type | Source field   |
+|-----------------|---------------|----------------|
+| `kind`          | STRING        | `Kind`         |
+| `context_kind`  | STRING        | `ContextKind`  |
+| `user_key`      | STRING        | `UserKey`      |
+| `creation_date` | INTEGER       | `CreationDate` |
+| `key`           | STRING        | `Key`          |
+| `variation`     | STRING        | `Variation`    |
+| `value`         | JSON          | `Value`        |
+| `default`       | BOOL          | `Default`      |
+| `version`       | STRING        | `Version`      |
+| `source`        | STRING        | `Source`       |
+| `metadata`      | JSON          | `Metadata`     |
 
 ### `tracking_events`
 
@@ -148,4 +142,4 @@ The exporter checks the table configured for the current flush. For example, a t
 | `tracking_details`   | JSON          | `TrackingDetails`   |
 | `evaluation_context` | JSON          | `EvaluationContext` |
 
-JSON columns are inserted as JSON-marshaled strings.
+`JSON` columns are inserted as JSON-marshaled strings.
