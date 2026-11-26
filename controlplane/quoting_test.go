@@ -84,6 +84,12 @@ func TestScalarQuoting(t *testing.T) {
 			b, err := controlplane.MarshalFlags(flags)
 			require.NoError(t, err)
 
+			// Reading the output back gives every flag as it was: names, variation names and values.
+			got, info, err := controlplane.UnmarshalFlags(b, controlplane.FormatYAML)
+			require.NoError(t, err)
+			assert.Empty(t, info.UnknownFields)
+			assert.Equal(t, flags, got, "%s", b)
+
 			// YAML 1.2 reading (yaml.v3): decoded into any, every value and key is the original string.
 			var decoded map[string]map[string]any
 
@@ -92,6 +98,7 @@ func TestScalarQuoting(t *testing.T) {
 			variations, ok := decoded[tt.value]["variations"].(map[string]any)
 			require.True(t, ok)
 			assert.Equal(t, tt.value, variations["v"])
+			assert.Len(t, decoded, 2, "both flags are written")
 
 			// Both readings agree on every scalar that holds the string: the node is either quoted (a
 			// string in both) or a plain scalar that is a string under 1.2 and under 1.1.
@@ -100,6 +107,9 @@ func TestScalarQuoting(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal(b, &doc))
 
 			quotedStyles := yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
+
+			// Two flag names, one variation key and three variation values hold the string or the string plus "x".
+			const wantScalars = 6
 
 			matched := 0
 
@@ -117,7 +127,7 @@ func TestScalarQuoting(t *testing.T) {
 				}
 			}
 
-			assert.Positive(t, matched, "the string must appear in the output")
+			assert.Equal(t, wantScalars, matched, "every scalar that holds the string was checked")
 			assert.NotContains(t, string(b), "&", "no anchors")
 		})
 	}

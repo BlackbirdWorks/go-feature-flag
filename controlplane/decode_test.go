@@ -225,53 +225,93 @@ func TestJSONIsReadLikeYAML(t *testing.T) {
 
 // TestErrorsNeverQuoteValues feeds malformed documents whose values are canaries and asserts that no canary
 // appears in any error.
+// decoderUnderTest names the decoder that a malformed document is aimed at.
+type decoderUnderTest int
+
+const (
+	decodeFlagSet decoderUnderTest = iota
+	decodeManifest
+	decodeFlags
+)
+
+// decodeWith runs one decoder and returns its error.
+func decodeWith(which decoderUnderTest, data string) error {
+	var err error
+
+	switch which {
+	case decodeFlagSet:
+		_, _, err = controlplane.UnmarshalFlagSet([]byte(data))
+	case decodeManifest:
+		_, _, err = controlplane.UnmarshalManifest([]byte(data))
+	case decodeFlags:
+		_, _, err = controlplane.UnmarshalFlags([]byte(data), controlplane.FormatYAML)
+	}
+
+	return err
+}
+
+// TestErrorsNeverQuoteValues feeds malformed documents whose values are canaries to the decoder each one is aimed
+// at. That decoder must refuse the document with a decode error, and the error must not contain the canary.
 func TestErrorsNeverQuoteValues(t *testing.T) {
 	t.Parallel()
 
 	const canary = "sekret-1234"
 
 	setHead := "apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n  - name: checkout\n    sources: [a]\n"
+	manifestHead := "apiVersion: semaphore/v1\nkind: Manifest\n"
 
 	tests := []struct {
-		name string
-		data string
+		name        string
+		data        string
+		wantDecoder decoderUnderTest
 	}{
-		{"keys as a scalar", setHead + "    apiKeys: " + canary + "\n"},
-		{"keys as a number", setHead + "    apiKeys: 12345678\n"},
-		{"keys as a mapping", setHead + "    apiKeys: {" + canary + ": 1}\n"},
-		{"keys with a nested list", setHead + "    apiKeys: [[" + canary + "]]\n"},
-		{"name as a list", "apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n  - name: [" + canary + "]\n"},
-		{"duplicate key holding the canary", setHead + "    apiKeys: [x]\n    apiKeys: [" + canary + "]\n"},
-		{"syntax error around the canary", setHead + "    apiKeys: [" + canary + ", {\n"},
-		{"bad anchor use", setHead + "    apiKeys: *" + canary + "\n"},
-		{"tab indentation", setHead + "\tapiKeys: [" + canary + "]\n"},
-		{"unterminated quote", setHead + "    apiKeys: [\"" + canary + "]\n"},
-		{"second document", setHead + "    apiKeys: [" + canary + "]\n---\n" + canary + ": 1\n"},
+		{"keys as a scalar", setHead + "    apiKeys: " + canary + "\n", decodeFlagSet},
+		{"keys as a number", setHead + "    apiKeys: 12345678\n", decodeFlagSet},
+		{"keys as a nested map", setHead + "    apiKeys: {" + canary + ": 1}\n", decodeFlagSet},
+		{"keys with a nested list", setHead + "    apiKeys: [[" + canary + "]]\n", decodeFlagSet},
+		{"keys as a block map", setHead + "    apiKeys:\n      " + canary + ": 12345678\n", decodeFlagSet},
+		{
+			"name as a list",
+			"apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n  - name: [" + canary + "]\n",
+			decodeFlagSet,
+		},
+		{
+			"duplicate key holding the canary",
+			setHead + "    apiKeys: [x]\n    apiKeys: [" + canary + "]\n",
+			decodeFlagSet,
+		},
+		{"syntax error around the canary", setHead + "    apiKeys: [" + canary + ", {\n", decodeFlagSet},
+		{"bad anchor use", setHead + "    apiKeys: *" + canary + "\n", decodeFlagSet},
+		{"tab indentation", setHead + "\tapiKeys: [" + canary + "]\n", decodeFlagSet},
+		{"unterminated quote", setHead + "    apiKeys: [\"" + canary + "]\n", decodeFlagSet},
+		{"second document", setHead + "    apiKeys: [" + canary + "]\n---\n" + canary + ": 1\n", decodeFlagSet},
 		{
 			"json keys as a string",
 			`{"apiVersion":"semaphore/v1","kind":"FlagSet",` +
 				`"flagSets":[{"name":"c","sources":["a"],"apiKeys":"` + canary + `"}]}`,
+			decodeFlagSet,
 		},
-		{"json trailing data", `{"apiVersion":"semaphore/v1","kind":"FlagSet"} ` + canary},
-		{"unsupported tag", setHead + "    apiKeys: [!!binary " + canary + "]\n"},
+		{"json trailing data", `{"apiVersion":"semaphore/v1","kind":"FlagSet"} ` + canary, decodeFlagSet},
+		{"unsupported tag", setHead + "    apiKeys: [!!binary " + canary + "]\n", decodeFlagSet},
+		{"manifest generation as text", manifestHead + "generation: " + canary + "\n", decodeManifest},
+		{"manifest objects as text", manifestHead + "objects: " + canary + "\n", decodeManifest},
+		{"manifest checksum as a list", manifestHead + "objects:\n  - checksum: [" + canary + "]\n", decodeManifest},
+		{"manifest duplicate key", manifestHead + "channel: x\nchannel: " + canary + "\n", decodeManifest},
+		{"flag as text", "f: " + canary + "\n", decodeFlags},
+		{"flag variations as text", "f:\n  variations: " + canary + "\n", decodeFlags},
+		{"flag rule as a list", "f:\n  defaultRule: [" + canary + "]\n", decodeFlags},
+		{"flags syntax error", "f: [" + canary + ", {\n", decodeFlags},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, setErr := controlplane.UnmarshalFlagSet([]byte(tt.data))
-			_, _, manifestErr := controlplane.UnmarshalManifest([]byte(tt.data))
-			_, _, flagsErr := controlplane.UnmarshalFlags([]byte(tt.data), controlplane.FormatYAML)
+			err := decodeWith(tt.wantDecoder, tt.data)
 
-			require.True(t, setErr != nil || manifestErr != nil || flagsErr != nil, "the document must be refused")
-
-			for _, err := range []error{setErr, manifestErr, flagsErr} {
-				if err != nil {
-					assert.NotContains(t, err.Error(), canary)
-					assert.NotContains(t, err.Error(), "12345678")
-				}
-			}
+			require.ErrorIs(t, err, controlplane.ErrDecode, "the aimed decoder must refuse the document")
+			assert.NotContains(t, err.Error(), canary)
+			assert.NotContains(t, err.Error(), "12345678")
 		})
 	}
 }

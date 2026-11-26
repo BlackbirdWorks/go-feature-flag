@@ -270,6 +270,16 @@ func TestConformanceVectorsAreAllExercised(t *testing.T) {
 
 					if tt.sidecar != "" {
 						assert.True(t, names[name+tt.sidecar], "%s has no %s sidecar", name, tt.sidecar)
+
+						side, sideErr := os.ReadFile(filepath.Join(vectors, tt.dir, name+tt.sidecar))
+						require.NoError(t, sideErr)
+						assert.NotEmpty(
+							t,
+							strings.TrimSpace(string(side)),
+							"%s has an empty %s sidecar",
+							name,
+							tt.sidecar,
+						)
 					}
 				case tt.sidecar != "" && ext == tt.sidecar:
 					assert.True(t, names[strings.TrimSuffix(name, tt.sidecar)], "%s has no vector", name)
