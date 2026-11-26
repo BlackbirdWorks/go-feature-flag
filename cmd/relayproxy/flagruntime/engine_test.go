@@ -43,6 +43,7 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 	assert.Equal(
 		t,
 		flagruntime.Reload{
+			Events:     1, // the new flag set announces its flags
 			Outcome:    flagruntime.OutcomeApplied,
 			Code:       flagruntime.CodeApplied,
 			Generation: 7,
@@ -57,7 +58,11 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 	assert.Equal(t, uint64(1), current.Snapshot)
 	assert.Equal(t, uint64(1), current.Status.Snapshot)
 	assert.Equal(t, uint64(7), current.Status.Generation)
-	assert.Equal(t, res, current.Status.LastReload)
+	// the number of events is a property of the round, not of the stored runtime
+	stored := res
+	stored.Events = 0
+
+	assert.Equal(t, stored, current.Status.LastReload)
 	assert.Equal(t, res, r.eng.Result())
 
 	fs, ok := current.FlagSetByKey(keyA)

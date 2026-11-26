@@ -293,7 +293,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		return
 	}
 
-	veto := e.swap(&plan, &boot)
+	veto, events := e.swap(&plan, &boot)
 	if veto != nil {
 		e.finish(ctx, append(results, *veto), nil)
 
@@ -302,7 +302,10 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	e.adoptBaseline(&boot, cfg)
 
-	e.finish(ctx, results, &e.cur.Status.LastReload)
+	applied := e.cur.Status.LastReload
+	applied.Events = events
+
+	e.finish(ctx, results, &applied)
 }
 
 // adoptBaseline makes the first accepted configuration the baseline of pendingRestart: a configuration that was
@@ -315,7 +318,7 @@ func (e *Engine) adoptBaseline(boot *bootPlan, cfg *bootstrap.Config) {
 
 // swap assembles the candidate and stores it with one atomic store. It returns the rejection when the
 // BeforeSwap hook refused the candidate; nothing is stored then and the builder is not committed.
-func (e *Engine) swap(plan *contentPlan, boot *bootPlan) *Reload {
+func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	candidate := e.assemble(plan.built, boot)
 
 	if e.hooks.BeforeSwap != nil {
@@ -327,7 +330,7 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) *Reload {
 			}
 			e.noteRejected(rej)
 
-			return &rej
+			return &rej, 0
 		}
 	}
 
@@ -336,13 +339,15 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) *Reload {
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
 
+	events := 0
+
 	if plan.built != nil {
 		e.builder.Commit(plan.built)
 		e.running = plan.running
-		e.enqueue(plan.built, candidate)
+		events = e.enqueue(plan.built, candidate)
 	}
 
-	return nil
+	return nil, events
 }
 
 // assemble builds the candidate Runtime: the built content (or the running one) plus the admin keys and the
@@ -593,8 +598,10 @@ func validateObject(name string, obj *Object) error {
 //     none, so churn of empty flag sets queues nothing.
 //   - A flag set that is created and withdrawn while its event waits nets to no event.
 //
-// Every step is O(1) besides the diff of the flag set.
-func (e *Engine) enqueue(built *Built, next *Runtime) {
+// Every step is O(1) besides the diff of the flag set. It returns the number of changes it queued or merged.
+func (e *Engine) enqueue(built *Built, next *Runtime) int {
+	queuedEvents := 0
+
 	for idx := range built.Rebuilt {
 		item := &built.Rebuilt[idx]
 
@@ -616,11 +623,14 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 		if queued == nil {
 			e.queue.push(&pendingChange{change: change, fromNothing: !known})
 			e.announced[item.Name] = struct{}{}
+			queuedEvents++
 
 			continue
 		}
 
 		compose(&queued.change, &change)
+
+		queuedEvents++
 
 		switch {
 		case queued.fromNothing && queued.change.Removed,
@@ -633,6 +643,8 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 			e.queue.remove(queued) // the consumer knows the flag set: it stays known
 		}
 	}
+
+	return queuedEvents
 }
 
 // finish records and logs the results of a round and calls the hook once.

@@ -621,7 +621,11 @@ func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
 			harness.nextChange() // the end flag set is new
 
 			for idx, step := range tt.steps {
-				harness.feed(generation(idx+2, step.tmp, 1))
+				res := harness.feed(generation(idx+2, step.tmp, 1))
+
+				// the round queued exactly the events of the step: a silent step queued none, so nothing can merge
+				// into the next generation
+				assert.Equal(t, len(step.want), res.Events, "events queued by step %d", idx)
 
 				for _, want := range step.want {
 					change := harness.nextChange()

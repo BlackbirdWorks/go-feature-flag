@@ -46,6 +46,9 @@ type Reload struct {
 	Detail string `json:"detail"`
 	// Generation is the generation the round was about (the attempted one for a rejection).
 	Generation uint64 `json:"generation"`
+	// Events is the number of change events that an applied round queued for the consumer (a change merged into a
+	// waiting one counts); it is not part of the status of the stored runtime.
+	Events int `json:"events"`
 	// Snapshot is the snapshot number stored by an applied round.
 	Snapshot uint64 `json:"snapshot"`
 }

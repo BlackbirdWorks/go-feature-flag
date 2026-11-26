@@ -48,12 +48,11 @@ type parseKey struct {
 	fresh    bool
 }
 
-// flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so,
-// with the same reason.
+// flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so:
+// the reason of an invalid state is the decoder error of its own key, so the same key gives the same reason.
 func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, attempt parseKey) *objState {
 	if parsed.err != nil {
-		if prev != nil && prev.state == ObjectInvalid && prev.attempted == attempt.key &&
-			prev.reason == parsed.err.Error() {
+		if prev != nil && prev.state == ObjectInvalid && prev.attempted == attempt.key {
 			return prev
 		}
 
@@ -171,7 +170,7 @@ func (st *stage) parsedDoc(name string, obj *Object, sum string) *parsedDoc {
 // docNext is the state of a document whose bytes changed.
 func docNext(name string, prev *docState, parsed *parsedDoc, sum string) *docState {
 	if parsed.err != nil {
-		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum && prev.reason == parsed.err.Error() {
+		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
 			return prev
 		}
 
