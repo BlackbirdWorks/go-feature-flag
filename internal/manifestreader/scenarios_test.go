@@ -176,7 +176,7 @@ func TestReader_SteadyStateCountersAndSync(t *testing.T) {
 
 	const rounds = 4
 	for range rounds {
-		rdr.round()
+		assert.Equal(t, []call{manifestCall(manifestETag(store))}, rdr.round())
 	}
 
 	status := rdr.reader.Status()

@@ -82,7 +82,7 @@ func TestReader_WaitsAreSpreadAndBounded(t *testing.T) {
 			rdr.settle()
 
 			for range len(tt.want) - 1 {
-				rdr.round()
+				rdr.round() // the requests are not under test here: the waits are
 			}
 
 			waits := rdr.sched.waited()
@@ -108,7 +108,9 @@ func TestReader_StartPhaseDelaysTheFirstRound(t *testing.T) {
 	assert.Empty(t, store.takeCalls(), "nothing was requested during the start phase")
 	assert.Nil(t, rdr.snapshot())
 
-	rdr.round()
+	assert.Equal(t, sortCalls([]call{
+		manifestCall(""), objCall(t, threeObjects()[0]), objCall(t, threeObjects()[1]), objCall(t, threeObjects()[2]),
+	}), rdr.round())
 
 	assert.NotNil(t, rdr.snapshot(), "the first round ran after the phase")
 }

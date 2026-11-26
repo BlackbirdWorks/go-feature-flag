@@ -37,7 +37,8 @@ func TestReader_SnapshotDeliveryIsLatestWins(t *testing.T) {
 			threeObjects()[1],
 			threeObjects()[2],
 		)
-		rdr.round()
+
+		assert.Len(t, rdr.round(), 2, "the manifest and the one changed object")
 	}
 
 	snap := rdr.snapshot()
@@ -228,6 +229,7 @@ func TestReader_LogsStateChangesOnceAndLeaksNothing(t *testing.T) {
 		&manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonError, Retryable: true},
 		&manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonError, Retryable: true})
 
+	// the requests of these rounds are not under test here: the log lines are
 	rdr.round()
 	rdr.round()
 	rdr.round()

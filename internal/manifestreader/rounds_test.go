@@ -222,7 +222,9 @@ func TestReader_ManifestRequestTimeout(t *testing.T) {
 
 	// the next round runs
 	store.setHang(manifestKey, false)
-	rdr.round()
+	assert.Equal(t, sortCalls([]call{
+		manifestCall(""), objCall(t, threeObjects()[0]), objCall(t, threeObjects()[1]), objCall(t, threeObjects()[2]),
+	}), rdr.round(), "nothing was read yet: the manifest unconditionally, then the three objects")
 
 	assert.NotNil(t, rdr.snapshot())
 	assert.Empty(t, rdr.reader.Status().Poll.Reason)
@@ -615,6 +617,7 @@ func TestReader_HookPanicsAreRecoveredAndReported(t *testing.T) {
 	// extra rounds panic again in OnRound: polling still goes on
 	alpha2 := obj{name: nameAlpha, content: contentAlphaChanged}
 	publish(t, store, 2, alpha2, threeObjects()[1], threeObjects()[2])
+	// the requests of these rounds are not under test here: hooks and polling are
 	rdr.round()
 	require.NotNil(t, rdr.snapshot())
 	rdr.round()
@@ -1252,10 +1255,9 @@ func TestReader_CacheKeepsOnlyWhatIsServedOrWaited(t *testing.T) {
 	big := obj{name: "big", content: alpha.content} // the content of alpha, under a name whose size is too large
 
 	tests := []struct {
-		name string
-		// next builds generation 2 and writes the objects it needs.
-		next func(t *testing.T, store *fakeStore) *controlplane.Manifest
-		// want is the state of the name checked after generation 2, and the cache before and after it.
+		next           func(t *testing.T, store *fakeStore) *controlplane.Manifest
+		wantCalls      func(t *testing.T) []call
+		name           string
 		wantName       string
 		wantState      manifestreader.State
 		wantReason     string
@@ -1274,6 +1276,8 @@ func TestReader_CacheKeepsOnlyWhatIsServedOrWaited(t *testing.T) {
 			},
 			wantName: "big", wantState: manifestreader.StateMissing, wantReason: manifestreader.ReasonTooLarge,
 			wantCacheAfter: manifestreader.CacheStatus{Objects: 2, Bytes: 21},
+			// the oversized entry is not requested, and beta and gamma are held: the manifest GET only
+			wantCalls: func(*testing.T) []call { return nil },
 		},
 		{
 			name: "a stale name keeps its last verified bytes while its new content fails",
@@ -1285,6 +1289,12 @@ func TestReader_CacheKeepsOnlyWhatIsServedOrWaited(t *testing.T) {
 			wantName: nameAlpha, wantState: manifestreader.StateStale, wantReason: manifestreader.ReasonMissing,
 			wantBytesAfter: alpha.content,
 			wantCacheAfter: manifestreader.CacheStatus{Objects: 3, Bytes: 32},
+			// the new content of alpha is requested (and is not there)
+			wantCalls: func(t *testing.T) []call {
+				t.Helper()
+
+				return []call{objCall(t, alpha2)}
+			},
 		},
 	}
 
@@ -1304,8 +1314,10 @@ func TestReader_CacheKeepsOnlyWhatIsServedOrWaited(t *testing.T) {
 				"generation 1",
 			)
 
+			held := manifestETag(store)
 			putManifest(t, store, tt.next(t, store))
-			rdr.round()
+
+			assert.Equal(t, sortCalls(append([]call{manifestCall(held)}, tt.wantCalls(t)...)), rdr.round())
 
 			snap := rdr.snapshot()
 			require.NotNil(t, snap)

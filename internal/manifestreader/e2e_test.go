@@ -229,7 +229,11 @@ func TestE2E_CorruptObjectIsStaleAndTheOthersUpdate(t *testing.T) {
 	rdr.srv.PutObject(t, rdr.bucket, keyOf(t, alpha2), []byte(`{"alpha":"SECOND"}`))
 
 	rdr.round()
-	rdr.wire.take()
+	assert.Equal(t, []wireRequest{
+		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, beta2)},
+	}, rdr.wire.take(), "the manifest and the two changed objects; the corrupt one is read and rejected")
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)
@@ -285,7 +289,12 @@ func TestE2E_DeletedManifestKeepsThePreviousSnapshot(t *testing.T) {
 	// the manifest comes back with a new generation and is picked up
 	alpha2 := obj{name: nameAlpha, content: `{"alpha":"back"}`}
 	rdr.publishE2E(t, 2, alpha2, threeObjects()[1], threeObjects()[2])
+	rdr.wire.take()
 	rdr.round()
+	assert.Equal(t, []wireRequest{
+		{Method: http.MethodGet, Path: rdr.manifestPath()},
+		{Method: http.MethodGet, Path: rdr.objectPath(t, alpha2)},
+	}, rdr.wire.take(), "the manifest again, then the one changed object")
 
 	snap := rdr.snapshot()
 	require.NotNil(t, snap)

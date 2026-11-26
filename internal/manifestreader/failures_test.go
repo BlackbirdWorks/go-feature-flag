@@ -221,7 +221,7 @@ func TestReader_StaleContentSurvivesLaterGenerations(t *testing.T) {
 	store.put(keyOf(t, beta), []byte(beta.content))
 	store.put(keyOf(t, gamma), []byte(gamma.content))
 	putManifest(t, store, manifestOf(t, 2, alpha2, beta, gamma))
-	rdr.round()
+	rdr.round() // setup: the requests of a failing object are asserted in TestReader_ObjectFailureAndRecovery
 	require.NotNil(t, rdr.snapshot())
 
 	// generation 3 changes beta only: alpha is still stale with the bytes of generation 1
@@ -241,8 +241,10 @@ func TestReader_StaleContentSurvivesLaterGenerations(t *testing.T) {
 	}), rdr.snapshot())
 
 	// the manifest drops alpha: removal is not a failure
+	held := manifestETag(store)
 	publish(t, store, 4, beta2, gamma)
-	rdr.round()
+
+	assert.Equal(t, []call{manifestCall(held)}, rdr.round(), "the removed name is not requested again")
 	assert.Equal(t, snapOf(4, map[string]manifestreader.ObjectState{
 		nameBeta: okState(t, beta2), nameGamma: okState(t, gamma),
 	}), rdr.snapshot())

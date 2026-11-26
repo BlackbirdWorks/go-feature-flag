@@ -35,7 +35,7 @@ func BenchmarkRound_NoChange(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		rdr.round()
+		rdr.round() // the requests are not under test here: the cost is; the count is checked below
 	}
 
 	b.StopTimer()
@@ -87,7 +87,7 @@ func BenchmarkRound_NotModifiedWithAFailingObject(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		rdr.round()
+		rdr.round() // the requests are not under test here: the cost is; the failure is checked below
 	}
 
 	b.StopTimer()
