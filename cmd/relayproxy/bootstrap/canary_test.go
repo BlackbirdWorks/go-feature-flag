@@ -112,51 +112,83 @@ func TestCanaryInErrorPaths(t *testing.T) {
 	const canary = "CANARY-error-path-7d41"
 
 	tests := []struct {
-		name string
-		doc  string
+		name     string
+		doc      string
+		wantPath string
 	}{
 		{
 			name: "string where a mapping is expected",
-			doc:  "connections:\n  a: {type: s3, credentials: " + canary + "}\n",
+			doc:  "connections:\n  a: {type: s3, credentials: " + canary + "}\n", wantPath: "connections.a.credentials",
 		},
 		{
 			name: "mapping where a string is expected",
-			doc:  "connections:\n  a: {type: s3, bucket: {k: " + canary + "}}\n",
+			doc:  "connections:\n  a: {type: s3, bucket: {k: " + canary + "}}\n", wantPath: tcConnectionsABucket,
 		},
 		{
-			name: "text where an integer is expected",
-			doc:  "connections:\n  a: {type: s3, retry: {maxAttempts: " + canary + "}}\n",
+			name:     "text where an integer is expected",
+			doc:      "connections:\n  a: {type: s3, retry: {maxAttempts: " + canary + "}}\n",
+			wantPath: tcConnectionsARetryMaxattempts,
 		},
 		{
-			name: "text where a duration is expected",
-			doc:  "connections:\n  a: {type: s3, timeouts: {connect: " + canary + "}}\n",
-		},
-		{name: "text as credentials type", doc: "connections:\n  a: {type: s3, credentials: {type: " + canary + "}}\n"},
-		{name: "text as a secret reference key", doc: "auth: {adminKeys: [{" + canary + ": x}]}\n"},
-		{name: "text as an environment variable name", doc: "auth: {adminKeys: [{fromEnv: \"" + canary + " x\"}]}\n"},
-		{name: "number as an admin key", doc: "auth: {adminKeys: [12345, " + canary + ", " + canary + "]}\n"},
-		{
-			name: "userinfo in the endpoint",
-			doc:  "connections:\n  a: {type: s3, endpoint: \"http://u:" + canary + "@h:1\"}\n",
+			name:     "text where a duration is expected",
+			doc:      "connections:\n  a: {type: s3, timeouts: {connect: " + canary + "}}\n",
+			wantPath: "connections.a.timeouts.connect",
 		},
 		{
-			name: "userinfo in the queue URL",
-			doc:  "connections:\n  a: {type: sqs, queueUrl: \"https://u:" + canary + "@h/q\"}\n",
+			name:     "text as credentials type",
+			doc:      "connections:\n  a: {type: s3, credentials: {type: " + canary + "}}\n",
+			wantPath: "connections.a.credentials.type",
 		},
 		{
-			name: "userinfo in the tracing endpoint",
-			doc:  "observability: {tracing: {otlpEndpoint: \"u:" + canary + "@h:1\"}}\n",
+			name:     "text as a secret reference key",
+			doc:      "auth: {adminKeys: [{" + canary + ": x}]}\n",
+			wantPath: tcAuthAdminkeys0,
 		},
 		{
-			name: "userinfo in a kafka address",
-			doc:  "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"u:" + canary + "@h:1\"]}}\n",
+			name:     "text as an environment variable name",
+			doc:      "auth: {adminKeys: [{fromEnv: \"" + canary + " x\"}]}\n",
+			wantPath: "auth.adminKeys[0].fromEnv",
 		},
-		{name: "text as the log level", doc: "observability: {logging: {level: " + canary + "}}\n"},
-		{name: "text as a listener address", doc: "server: {listeners: [{name: api, address: " + canary + "}]}\n"},
-		{name: "unknown key under auth", doc: "auth:\n  " + canary + ": x\n"},
 		{
-			name: "inline secret in a header",
-			doc:  "notifiers:\n  n: {kind: webhook, endpointUrl: {fromEnv: U}, headers: {A: " + canary + "}}\n",
+			name:     "number as an admin key",
+			doc:      "auth: {adminKeys: [12345, " + canary + ", " + canary + "]}\n",
+			wantPath: tcAuthAdminkeys0,
+		},
+		{
+			name:     "userinfo in the endpoint",
+			doc:      "connections:\n  a: {type: s3, endpoint: \"http://u:" + canary + "@h:1\"}\n",
+			wantPath: tcConnectionsAEndpoint,
+		},
+		{
+			name:     "userinfo in the queue URL",
+			doc:      "connections:\n  a: {type: sqs, queueUrl: \"https://u:" + canary + "@h/q\"}\n",
+			wantPath: "connections.a.queueUrl",
+		},
+		{
+			name:     "userinfo in the tracing endpoint",
+			doc:      "observability: {tracing: {otlpEndpoint: \"u:" + canary + "@h:1\"}}\n",
+			wantPath: tcObservabilityTracingOtlpendpoint,
+		},
+		{
+			name:     "userinfo in a kafka address",
+			doc:      "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"u:" + canary + "@h:1\"]}}\n",
+			wantPath: tcExportersEKafkaAddresses0,
+		},
+		{
+			name:     "text as the log level",
+			doc:      "observability: {logging: {level: " + canary + "}}\n",
+			wantPath: "observability.logging.level",
+		},
+		{
+			name:     "text as a listener address",
+			doc:      "server: {listeners: [{name: api, address: " + canary + "}]}\n",
+			wantPath: tcServerListeners0Address,
+		},
+		{name: "unknown key under auth", doc: "auth:\n  " + canary + ": x\n", wantPath: "auth"},
+		{
+			name:     "inline secret in a header",
+			doc:      "notifiers:\n  n: {kind: webhook, endpointUrl: {fromEnv: U}, headers: {A: " + canary + "}}\n",
+			wantPath: "notifiers.n.headers.A",
 		},
 	}
 
@@ -167,6 +199,11 @@ func TestCanaryInErrorPaths(t *testing.T) {
 			_, err := bootstrap.Parse([]byte("version: 2\n"+tcase.doc), nil, options(nil, nil, false))
 			require.Error(t, err)
 			assert.NotContains(t, err.Error(), canary)
+
+			// the document is rejected for the reason the case is about, not for an unrelated one
+			reasons := pathErrors(err)
+			require.Len(t, reasons, 1, err.Error())
+			assert.Equal(t, tcase.wantPath, reasons[0].Path)
 
 			for _, e := range pathErrors(err) {
 				assert.NotContains(t, e.Path, canary)
@@ -227,6 +264,10 @@ func TestCanaryThroughResolvedSecret(t *testing.T) {
 	for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%T", "%10.3s", "%-20v"} {
 		t.Run(verb, func(t *testing.T) {
 			t.Parallel()
+
+			if verb != "%T" {
+				assert.Contains(t, fmt.Sprintf(verb, resolved), bootstrap.RedactedValue[:3])
+			}
 
 			assert.NotContains(t, fmt.Sprintf(verb, resolved), canary)
 			assert.NotContains(t, fmt.Sprintf(verb, &resolved), canary)

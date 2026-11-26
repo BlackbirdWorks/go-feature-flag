@@ -878,6 +878,92 @@
                             "endpointUrl"
                         ]
                     }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "redshift"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "allOf": [
+                            {
+                                "not": {
+                                    "properties": {
+                                        "clusterIdentifier": {
+                                            "minLength": 1
+                                        },
+                                        "workgroupName": {
+                                            "minLength": 1
+                                        }
+                                    },
+                                    "required": [
+                                        "clusterIdentifier",
+                                        "workgroupName"
+                                    ]
+                                }
+                            },
+                            {
+                                "not": {
+                                    "properties": {
+                                        "dbUser": {
+                                            "minLength": 1
+                                        },
+                                        "workgroupName": {
+                                            "minLength": 1
+                                        }
+                                    },
+                                    "required": [
+                                        "dbUser",
+                                        "workgroupName"
+                                    ]
+                                }
+                            },
+                            {
+                                "not": {
+                                    "properties": {
+                                        "dbUser": {
+                                            "minLength": 1
+                                        },
+                                        "secretArn": {
+                                            "minLength": 1
+                                        }
+                                    },
+                                    "required": [
+                                        "dbUser",
+                                        "secretArn"
+                                    ]
+                                }
+                            }
+                        ],
+                        "anyOf": [
+                            {
+                                "properties": {
+                                    "clusterIdentifier": {
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": [
+                                    "clusterIdentifier"
+                                ]
+                            },
+                            {
+                                "properties": {
+                                    "workgroupName": {
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": [
+                                    "workgroupName"
+                                ]
+                            }
+                        ]
+                    }
                 }
             ],
             "properties": {

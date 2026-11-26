@@ -3,6 +3,7 @@ package bootstrap_test
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -236,10 +237,10 @@ func TestSchemaDefaults(t *testing.T) {
 		def      string
 		property string
 	}{
-		{def: "Poll", property: "interval", want: "60s"},
+		{def: "Poll", property: "interval", want: tc60S},
 		{def: "Poll", property: "jitter", want: 0.1},
 		{def: defMaxManifest, property: "maxObjects", want: float64(20000)},
-		{def: defMaxManifest, property: "pollInterval", want: "60s"},
+		{def: defMaxManifest, property: "pollInterval", want: tc60S},
 		{def: "Retry", property: "maxAttempts", want: float64(3)},
 		{def: "Timeouts", property: "connect", want: "10s"},
 		{def: "Logging", property: "level", want: "info"},
@@ -269,61 +270,35 @@ func TestSchemaDurationPattern(t *testing.T) {
 	}
 
 	require.NoError(t, json.Unmarshal(raw, &doc))
-	assert.Contains(t, doc.Defs["Duration"].Pattern, "[1-9]", "a zero duration is excluded like the loader does")
-}
 
-// TestSchemaAndLoaderAgree feeds the same files to the schema checker and to the loader.
-func TestSchemaAndLoaderAgree(t *testing.T) {
-	t.Parallel()
+	// the pattern is written with a lookahead for "at least one non-zero digit", which the regexp package does
+	// not run: split it into the lookahead and the rest
+	pattern := doc.Defs["Duration"].Pattern
+	require.Contains(t, pattern, "(?=.*[1-9])")
 
-	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
-	require.NoError(t, err)
-
-	checker, root, err := newSchemaChecker(raw)
-	require.NoError(t, err)
+	rest := regexp.MustCompile(strings.Replace(pattern, "(?=.*[1-9])", "", 1))
+	nonZero := regexp.MustCompile("[1-9]")
 
 	tests := []struct {
-		name string
-		doc  string
-		want bool
+		value      string
+		wantAccept bool
 	}{
-		{name: "empty exporter format", doc: "exporters: {a: {kind: file, outputDir: /tmp, format: \"\"}}", want: true},
-		{
-			name: "empty listener role",
-			doc:  "server: {listeners: [{name: api, address: \":1\", role: \"\"}]}",
-			want: true,
-		},
-		{name: "empty log level and format", doc: "observability: {logging: {level: \"\", format: \"\"}}", want: true},
-		{name: "empty sampler", doc: "observability: {tracing: {sampler: \"\"}}", want: true},
-		{name: "empty credentials type", doc: "connections: {a: {type: s3, credentials: {type: \"\"}}}", want: true},
-		{
-			name: "empty checksum settings",
-			doc:  "connections: {a: {type: s3, requestChecksumCalculation: \"\", responseChecksumValidation: \"\"}}",
-			want: true,
-		},
-		{
-			name: "unknown exporter format",
-			doc:  "exporters: {a: {kind: file, outputDir: /tmp, format: xml}}",
-			want: false,
-		},
-		{name: "empty exporter kind", doc: "exporters: {a: {kind: \"\"}}", want: false},
-		{name: "empty connection type", doc: "connections: {a: {type: \"\"}}", want: false},
+		{tc60S, true}, {"1m30s", true}, {"1.5s", true}, {".5s", true}, {"1h0m", true}, {"0s10s", true}, {"+5s", true},
+		{"0s", false}, {"0.0s", false}, {"00s", false}, {"-5s", false}, {"5", false}, {"", false}, {"10x", false},
+		{"1d", false},
 	}
 
 	for _, tcase := range tests {
-		t.Run(tcase.name, func(t *testing.T) {
+		t.Run(tcase.value, func(t *testing.T) {
 			t.Parallel()
 
-			doc := "version: 2\n" + tcase.doc
+			inSchema := rest.MatchString(tcase.value) && nonZero.MatchString(tcase.value)
 
-			var value any
-
-			require.NoError(t, yaml.Unmarshal([]byte(doc), &value))
-
+			doc := "version: 2\nconnections:\n  a: {type: s3, poll: {interval: \"" + tcase.value + "\"}}\n"
 			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 
-			assert.Equal(t, tcase.want, parseErr == nil, "the loader")
-			assert.Equal(t, tcase.want, len(checker.check("", root, value)) == 0, "the schema")
+			assert.Equal(t, tcase.wantAccept, inSchema, "the schema pattern")
+			assert.Equal(t, tcase.wantAccept, parseErr == nil, "the loader")
 		})
 	}
 }

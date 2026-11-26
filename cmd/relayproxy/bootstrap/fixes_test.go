@@ -19,7 +19,7 @@ func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 		{name: "second document is malformed", doc: "version: 2\n---\n[\n", wantErr: bootstrap.ErrSyntax},
 		{
 			name: "integer for a string", doc: s3Pre + "    bucket: 123\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.bucket", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 5,
 		},
 		{
 			name: "boolean for a string", doc: s3Pre + "    region: true\n",
@@ -27,15 +27,15 @@ func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 		},
 		{
 			name: "binary for a string", doc: s3Pre + "    bucket: !!binary aGVsbG8=\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.bucket", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 5,
 		},
 		{
 			name: "float for an integer", doc: s3Pre + "    retry: {maxAttempts: 3.0}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.retry.maxAttempts", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 5,
 		},
 		{
 			name: "fraction truncated to an integer", doc: s3Pre + "    retry: {maxAttempts: 20.9}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.retry.maxAttempts", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 5,
 		},
 		{
 			name: "string for a boolean", doc: s3Pre + "    pathStyle: \"yes\"\n",
@@ -43,11 +43,11 @@ func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 		},
 		{
 			name: "number for a secret", doc: "version: 2\nauth:\n  adminKeys: [12345]\n",
-			wantErr: bootstrap.ErrInvalidSecret, wantPath: "auth.adminKeys[0]", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidSecret, wantPath: tcAuthAdminkeys0, wantLine: 3,
 		},
 		{
 			name: "null secret reference", doc: "version: 2\nauth:\n  adminKeys: [{fromFile: null}]\n",
-			wantErr: bootstrap.ErrInvalidSecret, wantPath: "auth.adminKeys[0]", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidSecret, wantPath: tcAuthAdminkeys0, wantLine: 3,
 		},
 		{
 			name: "NaN jitter", doc: s3Pre + "    poll: {jitter: .nan}\n",
@@ -77,7 +77,7 @@ func TestParseErrorsValidationGaps(t *testing.T) {
 	runParseErrors(t, []parseErrorCase{
 		{
 			name: "userinfo in the endpoint", doc: s3Pre + "    endpoint: http://user:PASSW0RD@host:1\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.endpoint", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsAEndpoint, wantLine: 5,
 		},
 		{
 			name:    "userinfo in the queue URL of a connection",
@@ -93,24 +93,24 @@ func TestParseErrorsValidationGaps(t *testing.T) {
 		{
 			name:    "userinfo in the tracing endpoint",
 			doc:     "version: 2\nobservability:\n  tracing: {otlpEndpoint: \"http://u:p@otel:4318\"}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "observability.tracing.otlpEndpoint", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcObservabilityTracingOtlpendpoint, wantLine: 3,
 		},
 		{
 			name:    "tracing endpoint without a port",
 			doc:     "version: 2\nobservability:\n  tracing: {otlpEndpoint: otel}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "observability.tracing.otlpEndpoint", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcObservabilityTracingOtlpendpoint, wantLine: 3,
 		},
 		{
 			name:     "userinfo in a kafka address",
 			doc:      "version: 2\nexporters:\n  e:\n    kind: kafka\n    kafka: {topic: t, addresses: [\"u:p@kafka:9092\"]}\n",
 			wantErr:  bootstrap.ErrInvalidValue,
-			wantPath: "exporters.e.kafka.addresses[0]",
+			wantPath: tcExportersEKafkaAddresses0,
 			wantLine: 5,
 		},
 		{
 			name:    "empty kafka address",
 			doc:     "version: 2\nexporters:\n  e:\n    kind: kafka\n    kafka: {topic: t, addresses: [\"\"]}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.kafka.addresses[0]", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcExportersEKafkaAddresses0, wantLine: 5,
 		},
 		{
 			name:    "maxEventInMemory below one",
@@ -252,7 +252,7 @@ func TestOverrideErrorsNameTheirSource(t *testing.T) {
 		},
 		{
 			name: "listener address", env: envMap{bootstrap.EnvListen: "nope"},
-			wantPath: "server.listeners[0].address", wantFrom: "environment variable " + bootstrap.EnvListen,
+			wantPath: tcServerListeners0Address, wantFrom: "environment variable " + bootstrap.EnvListen,
 		},
 		{
 			name: "ops listener address", flags: bootstrap.Overrides{OpsListen: "nope"},

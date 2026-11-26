@@ -102,6 +102,8 @@ func requireByKind(root *jsonschema.Schema) {
 		addKindCondition(exporterDef, keyKind, kind, exporters[kind], spec.allowed, commonExporterKeys())
 	}
 
+	addRedshiftExclusions(exporterDef)
+
 	notifierDef := root.Definitions["Notifier"]
 
 	for _, kind := range []string{NotifierSlack, NotifierMicrosoftTeams, NotifierDiscord, NotifierWebhook} {
@@ -185,4 +187,35 @@ func allowEmptyEnums(root *jsonschema.Schema) {
 			prop.Enum = append(prop.Enum, "")
 		}
 	}
+}
+
+// setNonEmpty is a schema that requires the properties to be present and not empty. The loader treats an empty
+// string as unset, so "set" means present and not empty.
+func setNonEmpty(names ...string) *jsonschema.Schema {
+	props := jsonschema.NewProperties()
+
+	for _, name := range names {
+		props.Set(name, &jsonschema.Schema{MinLength: new(uint64(1))})
+	}
+
+	return &jsonschema.Schema{Properties: props, Required: names}
+}
+
+// addRedshiftExclusions adds the loader rules of the redshift exporter that tie keys together: exactly one of
+// clusterIdentifier and workgroupName, dbUser not with workgroupName, dbUser not with secretArn.
+func addRedshiftExclusions(def *jsonschema.Schema) {
+	props := jsonschema.NewProperties()
+	props.Set(keyKind, &jsonschema.Schema{Const: ExporterRedshift})
+
+	def.AllOf = append(def.AllOf, &jsonschema.Schema{
+		If: &jsonschema.Schema{Properties: props, Required: []string{keyKind}},
+		Then: &jsonschema.Schema{
+			AnyOf: []*jsonschema.Schema{setNonEmpty("clusterIdentifier"), setNonEmpty("workgroupName")},
+			AllOf: []*jsonschema.Schema{
+				{Not: setNonEmpty("clusterIdentifier", "workgroupName")},
+				{Not: setNonEmpty("dbUser", "workgroupName")},
+				{Not: setNonEmpty("dbUser", "secretArn")},
+			},
+		},
+	})
 }

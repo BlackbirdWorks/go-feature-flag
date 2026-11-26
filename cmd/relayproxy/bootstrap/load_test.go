@@ -31,6 +31,9 @@ func runParseErrors(t *testing.T, tests []parseErrorCase) {
 			require.ErrorIs(t, err, tcase.wantErr)
 
 			if tcase.wantPath == "" {
+				// no path to look for: the error is still a path-addressed error of the library
+				assert.NotEmpty(t, pathErrors(err))
+
 				return
 			}
 
@@ -142,7 +145,7 @@ func TestParseErrors(t *testing.T) {
 		{
 			name:    "bad endpoint",
 			doc:     "version: 2\nconnections:\n  a: {type: s3, endpoint: localhost}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.endpoint", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsAEndpoint, wantLine: 3,
 		},
 		{
 			name:    "uppercase name",
@@ -288,7 +291,7 @@ func TestParseErrorsReferences(t *testing.T) {
 		{
 			name:    "bad listener address",
 			doc:     "version: 2\nserver:\n  listeners:\n    - {name: api, address: nope}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "server.listeners[0].address", wantLine: 4,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcServerListeners0Address, wantLine: 4,
 		},
 		{
 			name:    "no api listener",
@@ -397,7 +400,7 @@ func TestDefaults(t *testing.T) {
 	s3Conn := cfg.Connections["control"].S3
 	require.NotNil(t, s3Conn)
 
-	assert.Equal(t, "60s", s3Conn.Poll.Interval.String())
+	assert.Equal(t, tc60S, s3Conn.Poll.Interval.String())
 	assert.InDelta(t, 0.1, *s3Conn.Poll.Jitter, 0)
 	assert.Equal(t, bootstrap.CredentialsChain, s3Conn.Credentials.Type)
 	assert.Equal(t, "10s", s3Conn.Timeouts.Connect.String())
@@ -409,7 +412,7 @@ func TestDefaults(t *testing.T) {
 
 	m := cfg.ControlPlane.Manifest
 	assert.Equal(t, "stable", m.Channel)
-	assert.Equal(t, "60s", m.PollInterval.String())
+	assert.Equal(t, tc60S, m.PollInterval.String())
 	assert.InDelta(t, 0.1, *m.Jitter, 0)
 	assert.Equal(t, 20000, *m.MaxObjects)
 

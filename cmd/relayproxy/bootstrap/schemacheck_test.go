@@ -58,7 +58,7 @@ func (c *schemaChecker) check(path string, schema schemaObject, value any) []str
 	schema = c.resolve(schema)
 
 	rules := []func(string, schemaObject, any) []string{
-		checkType, checkValue, c.checkNot, c.checkAllOf, c.checkOneOf, c.checkObject, c.checkItems,
+		checkType, checkValue, c.checkNot, c.checkAllOf, c.checkAnyOf, c.checkOneOf, c.checkObject, c.checkItems,
 	}
 
 	out := make([]string, 0, len(rules))
@@ -88,12 +88,32 @@ func (c *schemaChecker) checkAllOf(path string, schema schemaObject, value any) 
 		ifSchema, hasIf := condition["if"].(schemaObject)
 		thenSchema, hasThen := condition["then"].(schemaObject)
 
-		if hasIf && hasThen && len(c.check(path, ifSchema, value)) == 0 {
+		switch {
+		case !hasIf:
+			// a plain allOf member
+			out = append(out, c.check(path, condition, value)...)
+		case hasThen && len(c.check(path, ifSchema, value)) == 0:
 			out = append(out, c.check(path, thenSchema, value)...)
 		}
 	}
 
 	return out
+}
+
+func (c *schemaChecker) checkAnyOf(path string, schema schemaObject, value any) []string {
+	alternatives, found := schema["anyOf"].([]any)
+	if !found {
+		return nil
+	}
+
+	for _, item := range alternatives {
+		alternative, _ := item.(schemaObject)
+		if len(c.check(path, alternative, value)) == 0 {
+			return nil
+		}
+	}
+
+	return []string{path + ": matches none of the anyOf alternatives"}
 }
 
 func (c *schemaChecker) checkOneOf(path string, schema schemaObject, value any) []string {
@@ -201,13 +221,17 @@ func checkValue(path string, schema schemaObject, value any) []string {
 		out = append(out, path+": not in the enum")
 	}
 
+	text, isText := value.(string)
+	if minLength, found := schema["minLength"].(float64); found && isText && float64(len(text)) < minLength {
+		out = append(out, path+": shorter than the minimum length")
+	}
+
 	if want, hasConst := schema["const"]; hasConst && !sameValue(want, value) {
 		out = append(out, path+": not the const")
 	}
 
 	out = append(out, checkRange(path, schema, value)...)
 
-	text, isText := value.(string)
 	pattern, hasPattern := schema["pattern"].(string)
 
 	if isText && hasPattern && !strings.Contains(pattern, "(?=") && !regexp.MustCompile(pattern).MatchString(text) {

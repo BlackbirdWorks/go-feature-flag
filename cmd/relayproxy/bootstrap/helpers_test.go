@@ -128,3 +128,14 @@ const (
 )
 
 const tcSessiontoken = "sessionToken"
+
+const (
+	tcConnectionsABucket               = "connections.a.bucket"
+	tcConnectionsARetryMaxattempts     = "connections.a.retry.maxAttempts"
+	tcAuthAdminkeys0                   = "auth.adminKeys[0]"
+	tcConnectionsAEndpoint             = "connections.a.endpoint"
+	tcObservabilityTracingOtlpendpoint = "observability.tracing.otlpEndpoint"
+	tcExportersEKafkaAddresses0        = "exporters.e.kafka.addresses[0]"
+	tcServerListeners0Address          = "server.listeners[0].address"
+	tc60S                              = "60s"
+)

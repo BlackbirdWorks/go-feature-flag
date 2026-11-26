@@ -179,7 +179,7 @@ func TestExporterKinds(t *testing.T) {
 				got := cfg.Exporters["e"]
 				assert.Equal(t, bodyValue(tcase.body, tcKind), got.Kind)
 				assert.Equal(t, bodyValue(tcase.body, tcConnection), got.Connection)
-				assert.Equal(t, cmp.Or(bodyValue(tcase.body, "flushInterval"), "60s"), got.FlushInterval.String())
+				assert.Equal(t, cmp.Or(bodyValue(tcase.body, "flushInterval"), tc60S), got.FlushInterval.String())
 
 				wantEvents := bootstrap.DefaultMaxEvents
 				if explicit := bodyValue(tcase.body, "maxEventInMemory"); explicit != "" {
@@ -358,12 +358,12 @@ func TestDurationString(t *testing.T) {
 	}
 
 	require.NoError(t, yaml.Unmarshal([]byte("a: 1m\nb: 1500ms\n"), &durations))
-	assert.Equal(t, "60s", durations.A.String())
+	assert.Equal(t, tc60S, durations.A.String())
 	assert.Equal(t, "1.5s", durations.B.String())
 
 	text, err := durations.A.MarshalText()
 	require.NoError(t, err)
-	assert.Equal(t, "60s", string(text))
+	assert.Equal(t, tc60S, string(text))
 }
 
 func TestSecretRedaction(t *testing.T) {

@@ -2,7 +2,9 @@ package bootstrap_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -153,35 +155,81 @@ func hasValue(node *yaml.Node, depth int) bool {
 	return slices.ContainsFunc(node.Content, func(child *yaml.Node) bool { return hasValue(child, depth+1) })
 }
 
-// checkCanaryDoc parses the document (the marker stands for the canary) and checks that the canary, when it is
-// only a secret value, is in no error, no print and no formatting of the configuration. It returns false when
-// the document was skipped because the canary is also somewhere it may be printed. The canary that the injected
-// environment and reader return must never appear at all.
-func checkCanaryDoc(tb testing.TB, data []byte, inline bool) bool {
+// decodeDocuments decodes every document of the input, and returns the first one. It reports malformed when any
+// of them is not valid YAML.
+func decodeDocuments(doc []byte) (*yaml.Node, bool) {
+	decoder := yaml.NewDecoder(bytes.NewReader(doc))
+	first := &yaml.Node{}
+
+	for index := 0; ; index++ {
+		var node yaml.Node
+
+		err := decoder.Decode(&node)
+		if errors.Is(err, io.EOF) {
+			return first, false
+		}
+
+		if err != nil {
+			return first, true
+		}
+
+		if index == 0 {
+			first = &node
+		}
+	}
+}
+
+// canaryResult is what checkCanaryDoc saw.
+type canaryResult struct {
+	err       error
+	exercised bool
+	loaded    bool
+	malformed bool
+}
+
+// canaryOptions injects an environment and a reader that return the resolved canary for every name, except the
+// names of the overrides: those are validated values (the log level, an address), not secrets.
+func canaryOptions(inline bool) bootstrap.LoadOptions {
+	return bootstrap.LoadOptions{
+		LookupEnv: func(name string) (string, bool) {
+			if strings.HasPrefix(name, "SEMAPHORE_") {
+				return "", false
+			}
+
+			return fuzzResolved, true
+		},
+		ReadFile:           func(string) ([]byte, error) { return []byte(fuzzResolved), nil },
+		AllowInlineSecrets: inline,
+	}
+}
+
+// checkCanaryDoc parses the document (the marker stands for the canary) and checks:
+//   - a document that is not valid YAML never echoes the canary, wherever it is: a syntax error is not allowed to
+//     quote the input
+//   - when the canary is only a secret value, it is in no error, no print and no formatting of the configuration
+//   - the canary that the injected environment and reader return is never in an error, a print or the formatting
+//     of a resolved admin key
+//
+// The result tells whether the document was exercised (the canary is a secret value, or the document is
+// malformed) and whether it loaded.
+func checkCanaryDoc(tb testing.TB, data []byte, inline bool) canaryResult {
 	tb.Helper()
 
 	doc := []byte(strings.ReplaceAll(string(data), fuzzMarker, fuzzCanary))
 
-	var tree yaml.Node
-
-	parsed := yaml.Unmarshal(doc, &tree) == nil
-	valueOnly := parsed && hasValue(&tree, 0) && canaryOnlyInValues(&tree, nil, 0)
-
-	opts := bootstrap.LoadOptions{
-		LookupEnv:          func(string) (string, bool) { return fuzzResolved, true },
-		ReadFile:           func(string) ([]byte, error) { return []byte(fuzzResolved), nil },
-		AllowInlineSecrets: inline,
-	}
+	tree, malformed := decodeDocuments(doc)
+	valueOnly := !malformed && hasValue(tree, 0) && canaryOnlyInValues(tree, nil, 0)
+	opts := canaryOptions(inline)
 
 	cfg, err := bootstrap.Parse(doc, nil, opts)
 	if err != nil {
-		if valueOnly {
+		if valueOnly || malformed {
 			require.NotContains(tb, err.Error(), fuzzCanary)
 		}
 
 		require.NotContains(tb, err.Error(), fuzzResolved)
 
-		return valueOnly
+		return canaryResult{err: err, exercised: valueOnly || malformed, malformed: malformed}
 	}
 
 	var printed bytes.Buffer
@@ -202,13 +250,13 @@ func checkCanaryDoc(tb testing.TB, data []byte, inline bool) bool {
 		require.NotContains(tb, fmt.Sprintf("%+v", cfg), fuzzCanary)
 	}
 
-	return valueOnly
+	return canaryResult{exercised: valueOnly, loaded: true}
 }
 
 // canaryValueSeeds are documents where the canary is only a secret value, one per kind of place.
 func canaryValueSeeds() []string {
 	return []string{
-		"version: 2\nauth: {adminKeys: [@@, @@]}\n",
+		"version: 2\nauth: {adminKeys: [@@, second-plain-key]}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: static, accessKeyId: @@, secretAccessKey: @@}}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: assumeRole, roleArn: r, externalId: @@}}\n",
 		"version: 2\nconnections:\n  a: {type: s3, " +
@@ -242,26 +290,103 @@ func canaryReferenceSeeds() []string {
 	}
 }
 
+// canaryMalformedSeeds are documents that are not valid YAML and carry the canary where a syntax error could
+// quote it.
+func canaryMalformedSeeds() []string {
+	return []string{
+		"version: 2\nauth: {adminKeys: [*@@]}\n",
+		"version: 2\nauth: {adminKeys: [@@\n",
+		"version: 2\nauth: {adminKeys: [@@, *@@, &@@ x]}\n",
+		"version: 2\nconnections:\n  a: {type: s3, bucket: \"@@}\n",
+		"version: 2\n\t@@: x\n",
+		"version: 2\nauth: {adminKeys: [@@]}\n---\n[@@\n",
+	}
+}
+
+// canaryLoadSeeds load, carry no canary, and have references that the injected environment and reader resolve.
+func canaryLoadSeeds() []string {
+	return []string{
+		"version: 2\nauth: {adminKeys: [{fromEnv: ADMIN_KEY}, {fromFile: /run/admin}]}\n",
+		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: static, " +
+			"accessKeyId: {fromEnv: AK}, secretAccessKey: {fromFile: /run/sk}}}\n",
+	}
+}
+
 func TestCanarySeedsAreExercised(t *testing.T) {
 	t.Parallel()
 
-	for _, seed := range canaryValueSeeds() {
-		t.Run(seed, func(t *testing.T) {
-			t.Parallel()
+	var loadedPlain, loadedInline int
 
-			assert.Contains(t, seed, fuzzMarker)
-			assert.True(t, checkCanaryDoc(t, []byte(seed), false), "exercised without inline secrets")
-			assert.True(t, checkCanaryDoc(t, []byte(seed), true), "exercised with inline secrets")
-		})
+	for _, seed := range canaryValueSeeds() {
+		assert.Contains(t, seed, fuzzMarker)
+
+		plain := checkCanaryDoc(t, []byte(seed), false)
+		inline := checkCanaryDoc(t, []byte(seed), true)
+
+		assert.True(t, plain.exercised, "exercised without inline secrets: %s", seed)
+		assert.True(t, inline.exercised, "exercised with inline secrets: %s", seed)
+		assert.True(
+			t,
+			inline.loaded,
+			"loads with inline secrets, so the print and the formatting are checked: %s",
+			seed,
+		)
+		require.NoError(t, inline.err, seed)
+
+		if plain.loaded {
+			loadedPlain++
+		} else {
+			require.ErrorIs(t, plain.err, bootstrap.ErrInlineSecret, seed)
+		}
+
+		loadedInline++
+	}
+
+	for _, seed := range canaryLoadSeeds() {
+		for _, inline := range []bool{false, true} {
+			result := checkCanaryDoc(t, []byte(seed), inline)
+			assert.True(t, result.loaded, seed)
+			require.NoError(t, result.err, seed)
+
+			if inline {
+				loadedInline++
+			} else {
+				loadedPlain++
+			}
+		}
+	}
+
+	assert.Equal(
+		t,
+		len(canaryValueSeeds())+len(canaryLoadSeeds()),
+		loadedInline,
+		"every seed loads with inline secrets",
+	)
+	assert.GreaterOrEqual(
+		t,
+		loadedPlain,
+		1+len(canaryLoadSeeds()),
+		"the admin key seed and the load seeds load without them",
+	)
+
+	for _, seed := range canaryMalformedSeeds() {
+		for _, inline := range []bool{false, true} {
+			result := checkCanaryDoc(t, []byte(seed), inline)
+			assert.True(t, result.malformed, "the seed is not valid YAML: %s", seed)
+			assert.True(t, result.exercised, seed)
+			require.ErrorIs(t, result.err, bootstrap.ErrSyntax, seed)
+		}
 	}
 
 	for _, seed := range canaryReferenceSeeds() {
-		t.Run(seed, func(t *testing.T) {
-			t.Parallel()
-
-			assert.False(t, checkCanaryDoc(t, []byte(seed), false), "the canary is not a secret value there")
-			assert.False(t, checkCanaryDoc(t, []byte(seed), true), "the canary is not a secret value there")
-		})
+		for _, inline := range []bool{false, true} {
+			assert.False(
+				t,
+				checkCanaryDoc(t, []byte(seed), inline).exercised,
+				"the canary is not a secret value: %s",
+				seed,
+			)
+		}
 	}
 }
 

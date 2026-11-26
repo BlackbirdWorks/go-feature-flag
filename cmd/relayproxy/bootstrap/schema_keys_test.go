@@ -104,6 +104,8 @@ func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe
 	loader, schema := verdicts(t, checker, root, spec.build(""))
 	require.True(t, loader && schema, "the base document is valid for both")
 
+	var accepted, rejected int
+
 	for _, key := range universe {
 		if slices.Contains(spec.skip, key.name) {
 			continue
@@ -127,7 +129,20 @@ func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe
 
 			assert.Equal(t, variant.want, gotLoader, "the loader on:\n%s", doc)
 			assert.Equal(t, variant.want, gotSchema, "the schema on:\n%s", doc)
+
+			if variant.want {
+				accepted++
+			} else {
+				rejected++
+			}
 		}
+	}
+
+	// the loop must have tested something on both sides: a skipped universe would pass without checking
+	assert.Positive(t, rejected, "keys that are not allowed were tested")
+
+	if len(spec.allowed) > len(spec.skip) {
+		assert.Positive(t, accepted, "keys that are allowed were tested")
 	}
 }
 
@@ -309,6 +324,51 @@ func TestKeysOfEveryCredentialsType(t *testing.T) {
 				skip:    append([]string{"type"}, tcase.skip...),
 				allowed: tcase.allowed,
 			})
+		})
+	}
+}
+
+// TestRedshiftExclusions covers the rules that tie the keys of the redshift exporter together. The expected
+// verdict is written out from the documentation: exactly one of clusterIdentifier and workgroupName, dbUser not
+// with workgroupName, dbUser not with secretArn, and an empty value is the same as an absent key.
+func TestRedshiftExclusions(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
+	require.NoError(t, err)
+
+	checker, root, err := newSchemaChecker(raw)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		keys       string
+		wantAccept bool
+	}{
+		{"cluster only", "clusterIdentifier: c", true},
+		{"workgroup only", "workgroupName: g", true},
+		{"both", "clusterIdentifier: c\n    workgroupName: g", false},
+		{"neither", "tableName: t", false},
+		{"empty cluster and a workgroup", "clusterIdentifier: \"\"\n    workgroupName: g", true},
+		{"a cluster and an empty workgroup", "clusterIdentifier: c\n    workgroupName: \"\"", true},
+		{"both empty", "clusterIdentifier: \"\"\n    workgroupName: \"\"", false},
+		{"cluster with a user", "clusterIdentifier: c\n    dbUser: u", true},
+		{"workgroup with a user", "workgroupName: g\n    dbUser: u", false},
+		{"workgroup with an empty user", "workgroupName: g\n    dbUser: \"\"", true},
+		{"user and secret ARN", "clusterIdentifier: c\n    dbUser: u\n    secretArn: a", false},
+		{"secret ARN with a workgroup", "workgroupName: g\n    secretArn: a", true},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := kindConns + "exporters:\n  e:\n    kind: redshift\n    connection: w\n    database: d\n    " +
+				tcase.keys + "\n"
+
+			loader, schema := verdicts(t, checker, root, doc)
+			assert.Equal(t, tcase.wantAccept, loader, "the loader on:\n%s", doc)
+			assert.Equal(t, tcase.wantAccept, schema, "the schema on:\n%s", doc)
 		})
 	}
 }
