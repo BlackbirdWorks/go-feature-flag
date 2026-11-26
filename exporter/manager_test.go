@@ -510,12 +510,12 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 
 	assert.Empty(t, mockExporter2.GetExportedEvents())
 	assert.Empty(t, mockExporter1.GetExportedEvents())
-	time.Sleep(70 * time.Millisecond)
-	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
-	assert.Empty(t, mockExporter2.GetExportedEvents())
-	time.Sleep(200 * time.Millisecond)
-	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
-	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
+	// The time based exporter flushes after its interval, the count based one after 100 events. Wait for
+	// each on its own signal instead of fixed sleeps, which a loaded machine can overrun.
+	require.Eventually(t, func() bool { return len(mockExporter1.GetExportedEvents()) > 0 },
+		5*time.Second, 5*time.Millisecond, "the flush interval exporter never flushed")
+	require.Eventually(t, func() bool { return len(mockExporter2.GetExportedEvents()) > 0 },
+		5*time.Second, 5*time.Millisecond, "the max events exporter never flushed")
 }
 
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
