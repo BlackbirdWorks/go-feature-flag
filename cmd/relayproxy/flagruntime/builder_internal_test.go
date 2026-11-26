@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	setsKey  = "sets"
-	keyStay  = "key-stay"
-	stayName = "stay"
+	setsKey    = "sets"
+	keyStay    = "key-stay"
+	stayName   = "stay"
+	tmpName    = "tmp"
+	anchorName = "anchor"
 )
 
 const internalFlags = "x:\n  variations:\n    v: 1\n  defaultRule:\n    variation: v\n"

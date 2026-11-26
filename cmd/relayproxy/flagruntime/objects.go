@@ -41,7 +41,6 @@ func (st *stage) parsedFlags(name string, obj *Object, sum, key string) (*parsed
 	return parsed, !cached
 }
 
-// flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so.
 // parseKey identifies one parse: the checksum of the bytes, the cache key (format plus checksum), and whether the
 // parse was made for this object just now.
 type parseKey struct {
@@ -49,9 +48,12 @@ type parseKey struct {
 	fresh    bool
 }
 
+// flagNext is the state of an object whose bytes changed. It returns prev when an undecodable object stays so,
+// with the same reason.
 func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, attempt parseKey) *objState {
 	if parsed.err != nil {
-		if prev != nil && prev.state == ObjectInvalid && prev.attempted == attempt.key {
+		if prev != nil && prev.state == ObjectInvalid && prev.attempted == attempt.key &&
+			prev.reason == parsed.err.Error() {
 			return prev
 		}
 
@@ -169,7 +171,7 @@ func (st *stage) parsedDoc(name string, obj *Object, sum string) *parsedDoc {
 // docNext is the state of a document whose bytes changed.
 func docNext(name string, prev *docState, parsed *parsedDoc, sum string) *docState {
 	if parsed.err != nil {
-		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
+		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum && prev.reason == parsed.err.Error() {
 			return prev
 		}
 

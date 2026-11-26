@@ -9,9 +9,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
-const nullText = "null"
+const (
+	nullText    = "null"
+	commentOnly = "# nothing\n"
+)
 
 // flagJSON writes a one-flag JSON file with the given variations.
 func flagJSON(variations string) string {
@@ -45,10 +49,10 @@ func TestFlagsObjectsAreParsedLikeTheEngineParser(t *testing.T) {
 		{name: "yaml null", format: controlplane.FormatYAML, bytes: nullText},
 		{name: "yaml empty object", format: controlplane.FormatYAML, bytes: "{}"},
 		{name: "yaml empty list", format: controlplane.FormatYAML, bytes: "[]"},
-		{name: "yaml that is only a comment", format: controlplane.FormatYAML, bytes: "# nothing\n"},
+		{name: "yaml that is only a comment", format: controlplane.FormatYAML, bytes: commentOnly},
 		{name: "toml blank", format: controlplane.FormatTOML, bytes: ""},
 		{name: "toml whitespace", format: controlplane.FormatTOML, bytes: "  \n"},
-		{name: "toml that is only a comment", format: controlplane.FormatTOML, bytes: "# nothing\n"},
+		{name: "toml that is only a comment", format: controlplane.FormatTOML, bytes: commentOnly},
 		{name: "toml null", format: controlplane.FormatTOML, bytes: nullText},
 		{name: "toml empty object", format: controlplane.FormatTOML, bytes: "{}"},
 		{name: "json integers above 2^53", format: controlplane.FormatJSON, bytes: flagJSON(`"a": 9007199254740993`)},
@@ -142,40 +146,132 @@ func TestFlagsObjectsAreParsedLikeTheEngineParser(t *testing.T) {
 	}
 }
 
-// The behaviours of the engine parser that a publisher can meet, observed and pinned: they are the "known limits"
-// of the docs page.
+// knownLimit is one outcome of the engine parser that the docs page states. The expectations are fixed values, so
+// a change of the parser that contradicts the docs fails here even when the runtime follows the parser.
+type knownLimit struct {
+	wantValue      any
+	name           string
+	format         string
+	bytes          string
+	wantState      flagruntime.ObjectState
+	wantFlags      []string
+	wantVariations []string
+}
+
+func knownLimits() []knownLimit {
+	const (
+		valid   = flagruntime.ObjectOK
+		invalid = flagruntime.ObjectInvalid
+	)
+
+	jsonFmt, yamlFmt, tomlFmt := controlplane.FormatJSON, controlplane.FormatYAML, controlplane.FormatTOML
+	one := []string{"x"}
+
+	return []knownLimit{
+		{name: "json blank", format: jsonFmt, bytes: "", wantState: invalid},
+		{name: "json whitespace", format: jsonFmt, bytes: " \n\t ", wantState: invalid},
+		{name: "json comment only", format: jsonFmt, bytes: "# nothing", wantState: invalid},
+		{name: "json null", format: jsonFmt, bytes: nullText, wantState: valid},
+		{name: "json empty object", format: jsonFmt, bytes: "{}", wantState: valid},
+		{name: "json empty list", format: jsonFmt, bytes: "[]", wantState: invalid},
+		{name: "yaml blank", format: yamlFmt, bytes: "", wantState: valid},
+		{name: "yaml whitespace", format: yamlFmt, bytes: " \n ", wantState: valid},
+		{name: "yaml comment only", format: yamlFmt, bytes: commentOnly, wantState: valid},
+		{name: "yaml null", format: yamlFmt, bytes: nullText, wantState: valid},
+		{name: "yaml empty object", format: yamlFmt, bytes: "{}", wantState: valid},
+		{name: "yaml empty list", format: yamlFmt, bytes: "[]", wantState: invalid},
+		{name: "toml blank", format: tomlFmt, bytes: "", wantState: valid},
+		{name: "toml whitespace", format: tomlFmt, bytes: "  \n", wantState: valid},
+		{name: "toml comment only", format: tomlFmt, bytes: commentOnly, wantState: valid},
+		{name: "toml null", format: tomlFmt, bytes: nullText, wantState: invalid},
+		{name: "toml empty object", format: tomlFmt, bytes: "{}", wantState: invalid},
+		{name: "toml empty list", format: tomlFmt, bytes: "[]", wantState: invalid},
+		{
+			name:           "json rounds an integer above 2^53 to a float",
+			format:         jsonFmt,
+			bytes:          flagJSON(`"a": 9007199254740993`),
+			wantState:      valid,
+			wantFlags:      one,
+			wantVariations: []string{"a"},
+			wantValue:      float64(9007199254740992),
+		},
+		{
+			name:           "yaml keeps an integer above 2^53 exactly",
+			format:         yamlFmt,
+			bytes:          flagYAML("    a: 9007199254740993\n"),
+			wantState:      valid,
+			wantFlags:      one,
+			wantVariations: []string{"a"},
+			wantValue:      9007199254740993,
+		},
+		{
+			name: "json reads small and large numbers of one flag as floats", format: jsonFmt,
+			bytes:     flagJSON(`"a": 1, "b": 9007199254740993, "c": 1.5`),
+			wantState: valid, wantFlags: one, wantVariations: []string{"a", "b", "c"}, wantValue: float64(1),
+		},
+		{
+			name:           "json reads a surrogate pair as the character",
+			format:         jsonFmt,
+			bytes:          flagJSON(`"a": "\uD83D\uDE00"`),
+			wantState:      valid,
+			wantFlags:      one,
+			wantVariations: []string{"a"},
+			wantValue:      "\U0001F600",
+		},
+		{
+			name: "yaml rejects a surrogate pair escape", format: yamlFmt,
+			bytes:     flagYAML("    a: \"\\uD83D\\uDE00\"\n"),
+			wantState: invalid,
+		},
+		{
+			name: "json turns a lone surrogate into the replacement character", format: jsonFmt,
+			bytes:     flagJSON(`"a": "\uD83D"`),
+			wantState: valid, wantFlags: one, wantVariations: []string{"a"}, wantValue: "\uFFFD",
+		},
+		{
+			name:           "json takes the later of two variations of the same name",
+			format:         jsonFmt,
+			bytes:          flagJSON(`"a": 1, "a": 2`),
+			wantState:      valid,
+			wantFlags:      one,
+			wantVariations: []string{"a"},
+			wantValue:      float64(2),
+		},
+		{
+			name: "json merges the entries of a repeated variations member", format: jsonFmt,
+			bytes:     `{"x": {"variations": {"a": 1}, "variations": {"b": 2}, "defaultRule": {"variation": "a"}}}`,
+			wantState: valid, wantFlags: one, wantVariations: []string{"a", "b"}, wantValue: float64(1),
+		},
+		{
+			name: "json takes the later of two flags of the same name whole", format: jsonFmt,
+			bytes: `{"x": {"variations": {"a": 1}, "defaultRule": {"variation": "a"}}, ` +
+				`"x": {"variations": {"b": 2}, "defaultRule": {"variation": "b"}}}`,
+			wantState: valid, wantFlags: one, wantVariations: []string{"b"},
+		},
+		{
+			name:      "yaml rejects a repeated variation name",
+			format:    yamlFmt,
+			bytes:     flagYAML("    a: 1\n    a: 2\n"),
+			wantState: invalid,
+		},
+		{
+			name: "yaml rejects a repeated variations member", format: yamlFmt,
+			bytes:     "x:\n  variations:\n    a: 1\n  variations:\n    b: 2\n  defaultRule:\n    variation: a\n",
+			wantState: invalid,
+		},
+		{
+			name: "yaml rejects a repeated flag name", format: yamlFmt,
+			bytes: "x:\n  variations:\n    a: 1\n  defaultRule:\n    variation: a\n" +
+				"x:\n  variations:\n    b: 2\n  defaultRule:\n    variation: b\n",
+			wantState: invalid,
+		},
+	}
+}
+
 func TestKnownLimitsOfTheEngineParser(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		wantValue any
-		name      string
-		format    string
-		bytes     string
-	}{
-		{
-			name: "json rounds an integer above 2^53 to a float", format: controlplane.FormatJSON,
-			bytes: flagJSON(`"a": 9007199254740993`), wantValue: float64(9007199254740992),
-		},
-		{
-			name: "yaml keeps an integer above 2^53 exactly", format: controlplane.FormatYAML,
-			bytes: flagYAML("    a: 9007199254740993\n"), wantValue: 9007199254740993,
-		},
-		{
-			name: "json reads a surrogate pair as the character", format: controlplane.FormatJSON,
-			bytes: flagJSON(`"a": "\uD83D\uDE00"`), wantValue: "\U0001F600",
-		},
-		{
-			name: "json turns a lone surrogate into the replacement character", format: controlplane.FormatJSON,
-			bytes: flagJSON(`"a": "\uD83D"`), wantValue: "\uFFFD",
-		},
-		{
-			name: "json takes the later of two variations of the same name", format: controlplane.FormatJSON,
-			bytes: flagJSON(`"a": 1, "a": 2`), wantValue: float64(2),
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range knownLimits() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -194,10 +290,28 @@ func TestKnownLimitsOfTheEngineParser(t *testing.T) {
 				}),
 			)
 
+			assert.Equal(t, tt.wantState, built.Runtime.Status.Objects["f1"].State)
+			assert.ElementsMatch(t, tt.wantFlags, flagNames(built.Runtime.FlagSets["a"]))
+
 			served, ok := built.Runtime.FlagSets["a"].Flag("x")
+			if tt.wantFlags == nil {
+				assert.False(t, ok)
+
+				return
+			}
 
 			require.True(t, ok)
+			assert.ElementsMatch(t, tt.wantVariations, variationNames(served))
 			assert.Equal(t, tt.wantValue, served.GetVariationValue("a"))
 		})
 	}
+}
+
+func variationNames(flag *flagdef.InternalFlag) []string {
+	names := make([]string, 0, len(flag.GetVariations()))
+	for name := range flag.GetVariations() {
+		names = append(names, name)
+	}
+
+	return names
 }

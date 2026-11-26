@@ -69,7 +69,12 @@ These are the behaviours of the engine parser, kept for parity:
 - JSON integers above 2^53 are read as floats and rounded (`9007199254740993` is served as `9007199254740992`). YAML keeps such an integer exact: publish those flags as YAML.
 - In a JSON flag, a mix of small and large numbers is read as floats, so it validates.
 - A JSON escape of a surrogate pair is read as the character; a lone surrogate escape is read as the replacement character (U+FFFD) without an error.
-- A repeated member name in a JSON object is accepted and the later one wins. Rejecting repeated names is the job of the publisher side: `controlplane.UnmarshalFlags` rejects them, so check a flags file there before it is published.
+- Repeated names, in JSON (YAML rejects every repeated name: the object keeps its last good table):
+  - a repeated flag name: the later flag replaces the earlier one whole;
+  - a repeated variation name: the later value wins;
+  - a repeated `variations` member of one flag: the entries of both members are merged.
+  Rejecting repeated names is the job of the publisher side: `controlplane.UnmarshalFlags` rejects them, so check a flags file there before it is published.
+- A YAML double-quoted string with a `\uD83D\uDE00` surrogate pair escape is rejected by the parser (the object is `invalid`); publish the character itself, or use JSON.
 
 ### Flag-set states
 

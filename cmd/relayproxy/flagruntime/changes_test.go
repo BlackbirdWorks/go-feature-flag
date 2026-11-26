@@ -388,6 +388,10 @@ func TestEngineSetLevelComposition(t *testing.T) {
 			steps: []setStep{here(1, "p"), gone}, wantNone: true,
 		},
 		{
+			name: "created with a flag, losing it, then withdrawn nets to no event", base: gone,
+			steps: []setStep{here(1, "p"), here(1), gone}, wantNone: true,
+		},
+		{
 			name: "created empty, gaining flags, then withdrawn nets to no event", base: gone,
 			steps: []setStep{here(1), here(1, "p"), gone}, wantNone: true,
 		},
@@ -536,7 +540,8 @@ func TestEmptyFlagSetChurnDoesNotGrowTheEventQueue(t *testing.T) {
 }
 
 // A flag set that the consumer knows always gets a Removed event, whatever its flags were before; one that the
-// consumer never heard of gets none.
+// consumer never heard of gets none. Every step waits for the events it expects before the next generation is
+// fed, so nothing coalesces: the consumer reads each event as it is sent.
 func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
 	t.Parallel()
 
@@ -546,43 +551,44 @@ func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
 		removed bool
 	}
 
+	type step struct {
+		want []event
+		tmp  setStep
+	}
+
 	here := func(value int, flags ...string) setStep { return setStep{exists: true, value: value, flags: flags} }
 	gone := setStep{}
 
 	tests := []struct {
-		name       string
-		steps      []setStep
-		wantEvents []event
+		name  string
+		steps []step
 	}{
 		{
-			name:  "created with flags, emptied, then withdrawn: the set is announced and its removal is told",
-			steps: []setStep{here(1, "p"), here(1), gone},
-			wantEvents: []event{
-				{added: []string{"p"}},
-				{deleted: []string{"p"}},
-				{removed: true},
+			name: "created with flags, emptied, then withdrawn: the set is announced and its removal is told",
+			steps: []step{
+				{tmp: here(1, "p"), want: []event{{added: []string{"p"}}}},
+				{tmp: here(1), want: []event{{deleted: []string{"p"}}}},
+				{tmp: gone, want: []event{{removed: true}}},
 			},
 		},
 		{
-			name:       "never had a flag: nothing before and nothing at the removal",
-			steps:      []setStep{here(1), gone},
-			wantEvents: nil,
+			name:  "never had a flag: nothing before and nothing at the removal",
+			steps: []step{{tmp: here(1)}, {tmp: gone}},
 		},
 		{
-			name:  "created empty, gains flags, then withdrawn",
-			steps: []setStep{here(1), here(1, "p"), gone},
-			wantEvents: []event{
-				{added: []string{"p"}},
-				{deleted: []string{"p"}, removed: true},
+			name: "created empty, gains flags, then withdrawn",
+			steps: []step{
+				{tmp: here(1)},
+				{tmp: here(1, "p"), want: []event{{added: []string{"p"}}}},
+				{tmp: gone, want: []event{{deleted: []string{"p"}, removed: true}}},
 			},
 		},
 		{
-			name:  "withdrawn and created again: told twice, each time in full",
-			steps: []setStep{here(1, "p"), gone, here(1, "q")},
-			wantEvents: []event{
-				{added: []string{"p"}},
-				{deleted: []string{"p"}, removed: true},
-				{added: []string{"q"}},
+			name: "withdrawn and created again: told twice, each time in full",
+			steps: []step{
+				{tmp: here(1, "p"), want: []event{{added: []string{"p"}}}},
+				{tmp: gone, want: []event{{deleted: []string{"p"}, removed: true}}},
+				{tmp: here(1, "q"), want: []event{{added: []string{"q"}}}},
 			},
 		},
 	}
@@ -615,29 +621,27 @@ func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
 			harness.nextChange() // the end flag set is new
 
 			for idx, step := range tt.steps {
-				harness.feed(generation(idx+2, step, 1))
-			}
+				harness.feed(generation(idx+2, step.tmp, 1))
 
-			harness.feed(generation(len(tt.steps)+2, tt.steps[len(tt.steps)-1], 2))
+				for _, want := range step.want {
+					change := harness.nextChange()
 
-			var got []event
-
-			for {
-				change := harness.nextChange()
-				if change.FlagSet == endSet {
-					break
+					assert.Equal(t, "tmp", change.FlagSet, "step %d", idx)
+					assert.Equal(t, event{
+						added: nilIfEmpty(
+							sortedKeys(change.Diff.Added),
+						),
+						deleted: nilIfEmpty(sortedKeys(change.Diff.Deleted)),
+						removed: change.Removed,
+					}, want, "step %d", idx)
 				}
-
-				got = append(got, event{
-					added: nilIfEmpty(
-						sortedKeys(change.Diff.Added),
-					),
-					deleted: nilIfEmpty(sortedKeys(change.Diff.Deleted)),
-					removed: change.Removed,
-				})
 			}
 
-			assert.Equal(t, tt.wantEvents, got)
+			// nothing else was sent for tmp: the next event is the one of the end flag set
+			harness.feed(generation(len(tt.steps)+2, tt.steps[len(tt.steps)-1].tmp, 2))
+
+			assert.Equal(t, endSet, harness.nextChange().FlagSet)
+			assert.Empty(t, harness.eng.Changes())
 		})
 	}
 }

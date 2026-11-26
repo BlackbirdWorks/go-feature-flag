@@ -93,9 +93,10 @@ type Engine struct {
 	boot    chan *bootstrap.Config
 	changes chan Change
 	queue   *pendingQueue
-	// announced holds the flag sets that the consumer knows: an event for them was delivered or waits in the queue.
-	// An entry is dropped when the Removed event of its flag set is delivered or cancelled, so the map is bounded
-	// by the flag sets that are live or whose removal waits.
+	// announced holds exactly the flag set names for which an event was delivered, or waits in the queue with
+	// content, and that no delivered Removed event followed. A pending change that cancels out for a flag set
+	// that the consumer never heard of drops the name as well. The map is bounded by the live flag sets and the
+	// removals that wait.
 	announced map[string]struct{}
 	baseline  *bootstrap.Config
 	cur       *Runtime
@@ -621,12 +622,15 @@ func (e *Engine) enqueue(built *Built, next *Runtime) {
 
 		compose(&queued.change, &change)
 
-		if queued.fromNothing && queued.change.Removed {
-			// created and withdrawn before the consumer read anything: it never heard of the flag set
+		switch {
+		case queued.fromNothing && queued.change.Removed,
+			queued.fromNothing && !queued.change.Diff.HasDiff():
+			// the consumer never heard of the flag set and the pending change cancels out (created and withdrawn,
+			// or flags gained and lost): nothing is told, and the flag set is not known
 			e.queue.remove(queued)
 			delete(e.announced, item.Name)
-		} else if !queued.change.Removed && !queued.change.Diff.HasDiff() {
-			e.queue.remove(queued)
+		case !queued.change.Removed && !queued.change.Diff.HasDiff():
+			e.queue.remove(queued) // the consumer knows the flag set: it stays known
 		}
 	}
 }
