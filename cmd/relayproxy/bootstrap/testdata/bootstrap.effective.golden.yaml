@@ -1,0 +1,187 @@
+connections:
+  control:
+    credentials:
+      type: chain
+    timeouts:
+      connect: 10s
+      request: 30s
+    retry:
+      maxAttempts: 3
+      maxBackoff: 20s
+    region: us-east-1
+    poll:
+      interval: 60s
+      jitter: 0.1
+    type: s3
+    bucket: acme-control
+    requestChecksumCalculation: whenSupported
+    responseChecksumValidation: whenSupported
+  dev-s3:
+    credentials:
+      type: static
+      accessKeyId:
+        fromEnv: DEV_S3_ACCESS_KEY
+      secretAccessKey:
+        fromFile: /run/secrets/dev-s3-secret
+    timeouts:
+      connect: 10s
+      request: 30s
+    retry:
+      maxAttempts: 3
+      maxBackoff: 20s
+    endpoint: http://localhost:4566
+    region: us-east-1
+    poll:
+      interval: 60s
+      jitter: 0.1
+    type: s3
+    bucket: dev-flags
+    requestChecksumCalculation: whenRequired
+    responseChecksumValidation: whenRequired
+    pathStyle: true
+  events-kinesis:
+    credentials:
+      type: chain
+    timeouts:
+      connect: 10s
+      request: 30s
+    retry:
+      maxAttempts: 3
+      maxBackoff: 20s
+    region: us-east-1
+    type: kinesis
+    stream: acme-flag-evals
+  events-queue:
+    credentials:
+      type: chain
+    timeouts:
+      connect: 10s
+      request: 30s
+    retry:
+      maxAttempts: 3
+      maxBackoff: 20s
+    region: us-east-1
+    type: sqs
+    queueUrl: https://sqs.us-east-1.amazonaws.com/123456789012/evals
+  flags-eu:
+    credentials:
+      type: assumeRole
+      roleArn: arn:aws:iam::123456789012:role/semaphore-reader
+      sessionName: semaphore
+    timeouts:
+      connect: 5s
+      request: 20s
+    retry:
+      maxAttempts: 5
+      maxBackoff: 30s
+    region: eu-west-1
+    poll:
+      interval: 60s
+      jitter: 0.1
+    type: s3
+    bucket: acme-flags-eu
+    requestChecksumCalculation: whenSupported
+    responseChecksumValidation: whenSupported
+  warehouse:
+    credentials:
+      type: chain
+    timeouts:
+      connect: 10s
+      request: 30s
+    retry:
+      maxAttempts: 3
+      maxBackoff: 20s
+    region: us-east-1
+    type: redshift
+exporters:
+  evals-archive:
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    format: parquet
+    parquetCompressionCodec: SNAPPY
+    path: evaluations/
+    connection: flags-eu
+    kind: s3
+  evals-kafka:
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    kafka:
+      topic: flag-evaluations
+      addresses:
+        - kafka-1:9092
+    kind: kafka
+  evals-kinesis:
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    connection: events-kinesis
+    kind: kinesis
+  evals-log:
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    kind: log
+  evals-warehouse:
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    connection: warehouse
+    tableName: flag_evaluations
+    database: analytics
+    kind: redshift
+    workgroupName: semaphore
+  evals-webhook:
+    headers:
+      Authorization:
+        fromEnv: EVALS_WEBHOOK_TOKEN
+    flushInterval: 60s
+    maxEventInMemory: 100000
+    kind: webhook
+    endpointUrl:
+      fromEnv: EVALS_WEBHOOK_URL
+notifiers:
+  audit-hook:
+    kind: webhook
+    endpointUrl:
+      fromFile: /run/secrets/audit-url
+    secret:
+      fromFile: /run/secrets/audit-signing
+  team-slack:
+    kind: slack
+    webhookUrl:
+      fromEnv: SLACK_WEBHOOK_URL
+controlPlane:
+  manifest:
+    pollInterval: 60s
+    jitter: 0.1
+    maxObjects: 20000
+    key: manifests/prod-us-east-1/stable.json
+    channel: stable
+  connection: control
+  stateDir: /var/lib/semaphore
+server:
+  unixSocketPath: /run/semaphore/api.sock
+  listeners:
+    - name: api
+      address: :1031
+      role: api
+      protocols:
+        - http1
+        - h2c
+    - name: ops
+      address: 127.0.0.1:1032
+      role: ops
+      protocols:
+        - http1
+observability:
+  logging:
+    level: info
+    format: json
+  metrics:
+    enabled: true
+  tracing:
+    otlpEndpoint: otel-collector:4317
+    serviceName: semaphore
+    sampler: parentbased_always_off
+auth:
+  adminKeys:
+    - '[REDACTED]'
+    - fromEnv: SEMAPHORE_ADMIN_KEY
+version: 2

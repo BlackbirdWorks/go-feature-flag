@@ -1,0 +1,669 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap/config",
+    "$ref": "#/$defs/Config",
+    "$defs": {
+        "AdminKey": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "minLength": 1
+                },
+                {
+                    "properties": {
+                        "fromEnv": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "fromFile": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false,
+                    "type": "object",
+                    "maxProperties": 1,
+                    "minProperties": 1
+                }
+            ]
+        },
+        "Auth": {
+            "properties": {
+                "adminKeys": {
+                    "items": {
+                        "$ref": "#/$defs/AdminKey"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Config": {
+            "properties": {
+                "connections": {
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Connection"
+                    },
+                    "type": "object"
+                },
+                "exporters": {
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Exporter"
+                    },
+                    "type": "object"
+                },
+                "notifiers": {
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Notifier"
+                    },
+                    "type": "object"
+                },
+                "controlPlane": {
+                    "$ref": "#/$defs/ControlPlane"
+                },
+                "server": {
+                    "$ref": "#/$defs/Server"
+                },
+                "observability": {
+                    "$ref": "#/$defs/Observability"
+                },
+                "auth": {
+                    "$ref": "#/$defs/Auth"
+                },
+                "version": {
+                    "type": "integer",
+                    "enum": [
+                        2
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "version"
+            ]
+        },
+        "Connection": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/S3Connection"
+                },
+                {
+                    "$ref": "#/$defs/KinesisConnection"
+                },
+                {
+                    "$ref": "#/$defs/SQSConnection"
+                },
+                {
+                    "$ref": "#/$defs/RedshiftConnection"
+                }
+            ]
+        },
+        "ControlPlane": {
+            "properties": {
+                "manifest": {
+                    "$ref": "#/$defs/Manifest"
+                },
+                "connection": {
+                    "type": "string"
+                },
+                "stateDir": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "manifest",
+                "connection"
+            ]
+        },
+        "Credentials": {
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "roleArn": {
+                    "type": "string"
+                },
+                "sessionName": {
+                    "type": "string"
+                },
+                "externalId": {
+                    "type": "string"
+                },
+                "tokenFile": {
+                    "type": "string"
+                },
+                "accessKeyId": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "secretAccessKey": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "sessionToken": {
+                    "$ref": "#/$defs/Secret"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Duration": {
+            "type": "string",
+            "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+            "description": "Positive duration string, for example 60s or 1m30s."
+        },
+        "Exporter": {
+            "properties": {
+                "meta": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object"
+                },
+                "headers": {
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Secret"
+                    },
+                    "type": "object"
+                },
+                "flushInterval": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "maxEventInMemory": {
+                    "type": "integer"
+                },
+                "kafka": {
+                    "$ref": "#/$defs/KafkaSettings"
+                },
+                "clusterIdentifier": {
+                    "type": "string"
+                },
+                "streamName": {
+                    "type": "string"
+                },
+                "eventType": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "csvTemplate": {
+                    "type": "string"
+                },
+                "parquetCompressionCodec": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "outputDir": {
+                    "type": "string"
+                },
+                "logFormat": {
+                    "type": "string"
+                },
+                "tracerName": {
+                    "type": "string"
+                },
+                "container": {
+                    "type": "string"
+                },
+                "bucket": {
+                    "type": "string"
+                },
+                "accountName": {
+                    "type": "string"
+                },
+                "streamArn": {
+                    "type": "string"
+                },
+                "connection": {
+                    "type": "string"
+                },
+                "queueUrl": {
+                    "type": "string"
+                },
+                "projectId": {
+                    "type": "string"
+                },
+                "datasetId": {
+                    "type": "string"
+                },
+                "topic": {
+                    "type": "string"
+                },
+                "tableName": {
+                    "type": "string"
+                },
+                "database": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "file",
+                        "webhook",
+                        "log",
+                        "s3",
+                        "kinesis",
+                        "googleStorage",
+                        "sqs",
+                        "kafka",
+                        "pubsub",
+                        "bigquery",
+                        "redshift",
+                        "azureBlobStorage",
+                        "opentelemetry"
+                    ]
+                },
+                "workgroupName": {
+                    "type": "string"
+                },
+                "dbUser": {
+                    "type": "string"
+                },
+                "secretArn": {
+                    "type": "string"
+                },
+                "googleCredentials": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "accountKey": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "secret": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "endpointUrl": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "autoMigrate": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "kind"
+            ]
+        },
+        "KafkaSettings": {
+            "properties": {
+                "topic": {
+                    "type": "string"
+                },
+                "addresses": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "topic",
+                "addresses"
+            ]
+        },
+        "KinesisConnection": {
+            "properties": {
+                "credentials": {
+                    "$ref": "#/$defs/Credentials"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/Timeouts"
+                },
+                "retry": {
+                    "$ref": "#/$defs/Retry"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "kinesis"
+                    ]
+                },
+                "stream": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "Listener": {
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "protocols": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "address"
+            ]
+        },
+        "Logging": {
+            "properties": {
+                "level": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Manifest": {
+            "properties": {
+                "pollInterval": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "jitter": {
+                    "type": "number"
+                },
+                "maxObjects": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "channel": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "key"
+            ]
+        },
+        "Metrics": {
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "legacyNames": {
+                    "type": "boolean"
+                },
+                "perFlagLabels": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Notifier": {
+            "properties": {
+                "meta": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object"
+                },
+                "headers": {
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Secret"
+                    },
+                    "type": "object"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "slack",
+                        "microsoftteams",
+                        "webhook",
+                        "discord"
+                    ]
+                },
+                "webhookUrl": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "endpointUrl": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "secret": {
+                    "$ref": "#/$defs/Secret"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "kind"
+            ]
+        },
+        "Observability": {
+            "properties": {
+                "logging": {
+                    "$ref": "#/$defs/Logging"
+                },
+                "metrics": {
+                    "$ref": "#/$defs/Metrics"
+                },
+                "tracing": {
+                    "$ref": "#/$defs/Tracing"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Poll": {
+            "properties": {
+                "interval": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "jitter": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "RedshiftConnection": {
+            "properties": {
+                "credentials": {
+                    "$ref": "#/$defs/Credentials"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/Timeouts"
+                },
+                "retry": {
+                    "$ref": "#/$defs/Retry"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "redshift"
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "Retry": {
+            "properties": {
+                "maxAttempts": {
+                    "type": "integer"
+                },
+                "maxBackoff": {
+                    "$ref": "#/$defs/Duration"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "S3Connection": {
+            "properties": {
+                "credentials": {
+                    "$ref": "#/$defs/Credentials"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/Timeouts"
+                },
+                "retry": {
+                    "$ref": "#/$defs/Retry"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "poll": {
+                    "$ref": "#/$defs/Poll"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "s3"
+                    ]
+                },
+                "bucket": {
+                    "type": "string"
+                },
+                "requestChecksumCalculation": {
+                    "type": "string"
+                },
+                "responseChecksumValidation": {
+                    "type": "string"
+                },
+                "pathStyle": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "SQSConnection": {
+            "properties": {
+                "credentials": {
+                    "$ref": "#/$defs/Credentials"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/Timeouts"
+                },
+                "retry": {
+                    "$ref": "#/$defs/Retry"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "sqs"
+                    ]
+                },
+                "queueUrl": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "Secret": {
+            "properties": {
+                "fromEnv": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "fromFile": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "maxProperties": 1,
+            "minProperties": 1
+        },
+        "Server": {
+            "properties": {
+                "unixSocketPath": {
+                    "type": "string"
+                },
+                "listeners": {
+                    "items": {
+                        "$ref": "#/$defs/Listener"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Timeouts": {
+            "properties": {
+                "connect": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "request": {
+                    "$ref": "#/$defs/Duration"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Tracing": {
+            "properties": {
+                "otlpEndpoint": {
+                    "type": "string"
+                },
+                "serviceName": {
+                    "type": "string"
+                },
+                "sampler": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        }
+    },
+    "title": "Semaphore relay proxy bootstrap file, version 2"
+}

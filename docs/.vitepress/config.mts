@@ -173,6 +173,7 @@ export default withMermaid({
         items: [
           { text: 'Overview', link: '/relay-proxy/' },
           { text: 'Configuration Reference', link: '/relay-proxy/configuration' },
+          { text: 'Bootstrap File v2', link: '/relay-proxy/bootstrap-config' },
           { text: 'API Endpoints', link: '/relay-proxy/endpoints' },
           { text: 'Observability', link: '/relay-proxy/observability' },
           { text: 'Profiling', link: '/relay-proxy/profiling' },
