@@ -295,6 +295,17 @@ linters:
           deny:
             - pkg: math/rand$
               desc: Use math/rand/v2 instead, see https://go.dev/blog/randv2
+        "controlplane is dependency-light":
+          # The public document format package: its production files import only the standard library and
+          # gopkg.in/yaml.v3, so an external control plane can import it cheaply (see issue #11). Only the files
+          # of the root package: the optional subpackages (flagcheck, s3publish) may import the engine and the
+          # AWS SDK.
+          files:
+            - "${base-path}/controlplane/*.go"
+            - "!$test"
+          allow:
+            - $gostd
+            - gopkg.in/yaml.v3
         "non-main files":
           files:
             - "!**/main.go"

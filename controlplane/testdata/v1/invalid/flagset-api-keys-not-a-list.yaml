@@ -1,0 +1,7 @@
+apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: checkout
+    sources:
+      - checkout-flags
+    apiKeys: sekret-1234
