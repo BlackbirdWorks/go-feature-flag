@@ -1,0 +1,10 @@
+s:
+  variations:
+    a: "line one\nline two"
+    b: "\ta\n\tb"
+    c: "  padded  "
+  defaultRule:
+    variation: a
+  metadata:
+    newline: "\n"
+    leading: "\n\nx"

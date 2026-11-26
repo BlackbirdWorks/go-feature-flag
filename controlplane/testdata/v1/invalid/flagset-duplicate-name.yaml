@@ -1,0 +1,11 @@
+apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: checkout
+    sources:
+      - checkout-flags
+    apiKeys:
+      - 6f1f1b7e-6a0e-4d4c-9d8e-2f6f3f1a0b11
+  - name: checkout
+    sources:
+      - checkout-flags

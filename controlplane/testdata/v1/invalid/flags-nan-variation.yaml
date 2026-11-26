@@ -1,0 +1,6 @@
+f:
+  variations:
+    a: .nan
+    b: 1.0
+  defaultRule:
+    variation: a

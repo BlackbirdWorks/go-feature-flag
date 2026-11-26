@@ -43,6 +43,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Getting started](go-module/getting-started.md)
 - [Configuration](go-module/configuration.md)
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
+- [Control plane document format](go-module/controlplane.md) (manifest, flag-set documents and flag objects for publishers)
 
 ## Migration
 - [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)

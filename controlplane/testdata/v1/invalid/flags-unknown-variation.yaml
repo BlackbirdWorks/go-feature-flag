@@ -1,0 +1,6 @@
+f:
+  variations:
+    a: 1
+    b: 2
+  defaultRule:
+    variation: c

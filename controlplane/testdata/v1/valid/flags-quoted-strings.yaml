@@ -1,0 +1,10 @@
+quoted:
+  variations:
+    a: "yes"
+    b: "no"
+    c: "007"
+    d: "1e3"
+    e: "2026-01-01"
+    f: "null"
+  defaultRule:
+    variation: a

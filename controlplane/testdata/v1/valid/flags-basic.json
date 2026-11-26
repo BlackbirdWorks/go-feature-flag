@@ -1,0 +1,21 @@
+{
+  "new-checkout": {
+    "variations": {
+      "off": false,
+      "on": true
+    },
+    "targeting": [
+      {
+        "name": "beta",
+        "query": "beta eq true",
+        "percentage": {
+          "off": 0,
+          "on": 100
+        }
+      }
+    ],
+    "defaultRule": {
+      "variation": "off"
+    }
+  }
+}

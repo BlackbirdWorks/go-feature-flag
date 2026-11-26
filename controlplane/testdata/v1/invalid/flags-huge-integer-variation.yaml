@@ -1,0 +1,6 @@
+f:
+  variations:
+    a: 1
+    b: 12345678901234567890
+  defaultRule:
+    variation: a

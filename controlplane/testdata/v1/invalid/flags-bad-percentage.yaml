@@ -1,0 +1,8 @@
+f:
+  variations:
+    a: 1
+    b: 2
+  defaultRule:
+    percentage:
+      a: -5
+      b: 10
