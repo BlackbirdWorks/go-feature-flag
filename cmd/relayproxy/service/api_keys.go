@@ -6,6 +6,8 @@ import "github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 // in place (flag set rotation, configuration file change) and APIKeys reads it on every call, so the HTTP layer
 // observes the change without owning a configuration.
 // It is a value that wraps the pointer of the configuration, copying it shares the same live keys.
+// Without a configuration (the zero value, or NewAPIKeys(nil)) it behaves like an empty configuration: no key is
+// accepted and the authentication is disabled.
 type APIKeys struct {
 	cfg *config.Config
 }
@@ -14,10 +16,14 @@ type APIKeys struct {
 func NewAPIKeys(cfg *config.Config) APIKeys { return APIKeys{cfg: cfg} }
 
 // AuthenticationEnabled reports whether the evaluation requests must carry an accepted key.
-func (k APIKeys) AuthenticationEnabled() bool { return k.cfg.IsAuthenticationEnabled() }
+func (k APIKeys) AuthenticationEnabled() bool {
+	return k.cfg != nil && k.cfg.IsAuthenticationEnabled()
+}
 
 // KeyExists reports whether the key is accepted by the relay proxy, whatever its kind.
-func (k APIKeys) KeyExists(apiKey string) bool { return k.cfg.APIKeyExists(apiKey) }
+func (k APIKeys) KeyExists(apiKey string) bool { return k.cfg != nil && k.cfg.APIKeyExists(apiKey) }
 
 // AdminKeyExists reports whether the key is an admin key.
-func (k APIKeys) AdminKeyExists(apiKey string) bool { return k.cfg.APIKeysAdminExists(apiKey) }
+func (k APIKeys) AdminKeyExists(apiKey string) bool {
+	return k.cfg != nil && k.cfg.APIKeysAdminExists(apiKey)
+}

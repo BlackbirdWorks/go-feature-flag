@@ -13,20 +13,35 @@ import (
 )
 
 // Settings copies what the HTTP layer reads of the configuration. The defaults and the deprecated aliases are
-// resolved here, once: the logger receives the deprecation warnings of the options that are set with a deprecated
-// name (nil logs nothing).
+// resolved here, once. The logger receives the deprecation warning of an option that is set with a deprecated name
+// (nil logs nothing), and only when the relay proxy uses the option: the server mode and the monitoring port always,
+// the port in the http mode, the Lambda adapter and the base path in the lambda mode. The values of the other modes
+// are resolved silently.
 func Settings(cfg *config.Config, logger *slog.Logger) api.Settings {
+	mode := cfg.ServerMode(logger)
+
+	var httpLogger, lambdaLogger *slog.Logger
+
+	switch mode {
+	case config.ServerModeLambda:
+		lambdaLogger = logger
+	case config.ServerModeUnixSocket:
+		// no mode specific option has a deprecated name
+	default:
+		httpLogger = logger
+	}
+
 	return api.Settings{
 		Telemetry:                Telemetry(cfg),
 		OfrepEventStream:         eventStream(cfg.OfrepEventStream),
 		ValidateFlags:            validateFlagsLimits(cfg.Endpoints.ValidateFlags),
 		Version:                  cfg.Version,
-		Mode:                     cfg.ServerMode(logger),
+		Mode:                     mode,
 		Host:                     cfg.ServerHost(),
 		UnixSocketPath:           cfg.UnixSocketPath(),
-		LambdaAdapter:            cfg.LambdaAdapter(logger),
-		AwsAPIGatewayBasePath:    cfg.EffectiveAwsAPIGatewayBasePath(logger),
-		Port:                     cfg.ServerPort(logger),
+		LambdaAdapter:            cfg.LambdaAdapter(lambdaLogger),
+		AwsAPIGatewayBasePath:    cfg.EffectiveAwsAPIGatewayBasePath(lambdaLogger),
+		Port:                     cfg.ServerPort(httpLogger),
 		MonitoringPort:           cfg.EffectiveMonitoringPort(logger),
 		EnableH2C:                cfg.Server.EnableH2C,
 		Debug:                    cfg.IsDebugEnabled(),

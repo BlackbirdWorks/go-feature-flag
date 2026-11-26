@@ -1,10 +1,14 @@
 package apiwire_test
 
 import (
+	"context"
 	"log/slog"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -16,6 +20,7 @@ import (
 )
 
 const (
+	basePath    = "/api"
 	testVersion = "v1.2.3"
 	anyHost     = "0.0.0.0"
 )
@@ -72,7 +77,7 @@ func TestSettings(t *testing.T) {
 				Server: config.Server{
 					Mode: config.ServerModeUnixSocket, Host: "127.0.0.1", Port: 9, MonitoringPort: 10,
 					UnixSocketPath: "/tmp/s.sock", LambdaAdapter: config.LambdaAdapterAPIGatewayV1,
-					AwsAPIGatewayBasePath: "/api", EnableH2C: true,
+					AwsAPIGatewayBasePath: basePath, EnableH2C: true,
 				},
 				OfrepEventStream: config.OfrepEventStream{BaseURL: "https://example.com", InactivityDelaySec: 5},
 				Endpoints: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{
@@ -82,7 +87,7 @@ func TestSettings(t *testing.T) {
 			want: api.Settings{
 				Version: "v2", Mode: api.ServerModeUnixSocket, Host: "127.0.0.1", Port: 9, MonitoringPort: 10,
 				UnixSocketPath: "/tmp/s.sock", LambdaAdapter: api.LambdaAdapterAPIGatewayV1,
-				AwsAPIGatewayBasePath: "/api", EnableH2C: true,
+				AwsAPIGatewayBasePath: basePath, EnableH2C: true,
 				Pprof: true, ExposeLegacyMetrics: true, DisableVersionHeader: true, DisableSemaphoreMetadata: true,
 				OfrepEventStream: ofrep.EventStream{BaseURL: "https://example.com", InactivityDelaySec: 5},
 				ValidateFlags: controller.ValidateFlagsLimits{
@@ -138,6 +143,13 @@ func TestTelemetry(t *testing.T) {
 		SDKDisabled:                  true,
 	}, got)
 
+	// every field is set by the fixture: a field added to the settings without a mapping fails here, and the
+	// internal tests of the opentelemetry package pin the same mapping with the same fixture (settingsOf).
+	for i := range reflect.TypeFor[opentelemetry.Settings]().NumField() {
+		field := reflect.TypeFor[opentelemetry.Settings]().Field(i)
+		assert.False(t, reflect.ValueOf(got).Field(i).IsZero(), "the fixture sets %s", field.Name)
+	}
+
 	// the settings do not share the attributes of the configuration, a later change of the configuration is not seen.
 	conf.OtelConfig.Resource.Attributes["k"] = "changed"
 
@@ -169,4 +181,108 @@ func TestNew(t *testing.T) {
 	srv := apiwire.New(conf, &service.Services{}, slog.New(slog.DiscardHandler))
 
 	assert.NotNil(t, srv.Handler())
+}
+
+// recordingHandler records the message of every record it handles.
+type recordingHandler struct {
+	messages *[]string
+}
+
+func (recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+//nolint:gocritic // hugeParam: the signature is the one of slog.Handler
+func (h recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	*h.messages = append(*h.messages, r.Message)
+
+	return nil
+}
+
+func (h recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h recordingHandler) WithGroup(string) slog.Handler      { return h }
+
+// TestSettings_DeprecationWarnings checks which deprecated options warn in which server mode, and that each warns
+// once: the relay proxy only warned about the options that its mode used.
+func TestSettings_DeprecationWarnings(t *testing.T) {
+	t.Parallel()
+
+	const (
+		warnMode      = "The server mode is set using `startAsAwsLambda`"
+		warnPort      = "The server port is set using `port`"
+		warnMonitor   = "The monitoring port is set using `monitoringPort`"
+		warnAdapter   = "The lambda adapter is set using `awsLambdaAdapter`"
+		warnBasePath  = "The AWS API Gateway base path is set using `awsApiGatewayBasePath`"
+		deprecatedFmt = "%s: the message starts with %q"
+	)
+
+	// every option that has a deprecated name is set with it.
+	deprecated := func(server config.Server, startAsLambda bool) *config.Config {
+		return &config.Config{
+			Server:                server,
+			StartAsAwsLambda:      startAsLambda, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			ListenPort:            8080,          //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			MonitoringPort:        8081,          //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			AwsLambdaAdapter:      "ALB",         //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			AwsAPIGatewayBasePath: basePath,      //nolint:staticcheck // SA1019: the test covers the deprecated setting
+		}
+	}
+
+	tests := []struct {
+		conf         *config.Config
+		name         string
+		wantWarnings []string
+	}{
+		{
+			name:         "http mode: the port and the monitoring port",
+			conf:         deprecated(config.Server{Mode: config.ServerModeHTTP}, false),
+			wantWarnings: []string{warnPort, warnMonitor},
+		},
+		{
+			name:         "the default mode is http",
+			conf:         deprecated(config.Server{}, false),
+			wantWarnings: []string{warnPort, warnMonitor},
+		},
+		{
+			name:         "lambda mode: the adapter, the base path and the monitoring port",
+			conf:         deprecated(config.Server{Mode: config.ServerModeLambda}, false),
+			wantWarnings: []string{warnAdapter, warnBasePath, warnMonitor},
+		},
+		{
+			name:         "unix socket mode: the monitoring port",
+			conf:         deprecated(config.Server{Mode: config.ServerModeUnixSocket}, false),
+			wantWarnings: []string{warnMonitor},
+		},
+		{
+			name:         "the deprecated mode is lambda: the mode, the adapter, the base path and the monitoring port",
+			conf:         deprecated(config.Server{}, true),
+			wantWarnings: []string{warnMode, warnAdapter, warnBasePath, warnMonitor},
+		},
+		{
+			name:         "nothing deprecated, nothing logged",
+			conf:         &config.Config{Server: config.Server{Port: 1, MonitoringPort: 2}},
+			wantWarnings: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var messages []string
+
+			apiwire.Settings(tt.conf, slog.New(recordingHandler{messages: &messages}))
+
+			require.Len(t, messages, len(tt.wantWarnings))
+
+			for _, want := range tt.wantWarnings {
+				count := 0
+
+				for _, got := range messages {
+					if strings.HasPrefix(got, want) {
+						count++
+					}
+				}
+
+				assert.Equal(t, 1, count, deprecatedFmt, tt.name, want)
+			}
+		})
+	}
 }

@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	jaegerRemote             = "jaeger_remote"
 	httpsExampleCom4318      = "https://example.com:4318"
 	httpsOtlpExampleCom      = "https://otlp.example.com:4318"
 	otelExporterOtlpEndpoint = "OTEL_EXPORTER_OTLP_ENDPOINT"
@@ -60,7 +61,7 @@ func TestInitSampler(t *testing.T) {
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
-		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
+		t.Setenv("OTEL_TRACES_SAMPLER", jaegerRemote)
 
 		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
@@ -570,7 +571,7 @@ func TestInit_Errors(t *testing.T) {
 		{
 			name: "a refresh interval of the jaeger sampler that is not a duration",
 			settings: Settings{
-				OTLPEndpoint: httpsExampleCom4318, Sampler: "jaeger_remote", JaegerSamplerRefreshInterval: "soon",
+				OTLPEndpoint: httpsExampleCom4318, Sampler: jaegerRemote, JaegerSamplerRefreshInterval: "soon",
 			},
 			wantErr: "initializing OTel sampler: parsing JAEGER_SAMPLER_REFRESH_INTERVAL",
 		},
@@ -598,4 +599,34 @@ func TestInitMetrics_UnknownExporter(t *testing.T) {
 
 	require.ErrorContains(t, err, "initializing OTel metric exporter")
 	assert.Nil(t, svc.MeterProvider())
+}
+
+// TestSettingsOf pins the mapping of settingsOf with the fixture of the apiwire test of the production mapping
+// (TestTelemetry): the two mappings can not be compared in one package, the apiwire package imports this one, so
+// both are compared with the same expected settings and drift fails one of the tests.
+func TestSettingsOf(t *testing.T) {
+	t.Parallel()
+
+	conf := &config.Config{Version: "v3", OpenTelemetryOtlpEndpoint: "http://legacy:4318"}
+	conf.OtelConfig.Exporter.Otlp.Endpoint = "http://exporter:4318"
+	conf.OtelConfig.Service.Name = "svc"
+	conf.OtelConfig.Traces.Sampler = jaegerRemote
+	conf.OtelConfig.SDK.Disabled = true
+	conf.OtelConfig.Resource.Attributes = map[string]string{"k": "v"}
+	conf.JaegerConfig.Sampler.Manager.Host.Port = "host:5778"
+	conf.JaegerConfig.Sampler.Refresh.Interval = "30s"
+	conf.JaegerConfig.Sampler.Max.Operations = 7
+
+	assert.Equal(t, &Settings{
+		ResourceAttributes:           map[string]string{"k": "v"},
+		Version:                      "v3",
+		OTLPEndpoint:                 "http://legacy:4318",
+		ExporterOTLPEndpoint:         "http://exporter:4318",
+		ServiceName:                  "svc",
+		Sampler:                      jaegerRemote,
+		JaegerSamplerManagerHostPort: "host:5778",
+		JaegerSamplerRefreshInterval: "30s",
+		JaegerSamplerMaxOperations:   7,
+		SDKDisabled:                  true,
+	}, settingsOf(conf))
 }

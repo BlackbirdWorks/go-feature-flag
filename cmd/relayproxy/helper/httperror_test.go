@@ -169,6 +169,12 @@ func TestBindBody(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 
+				// the same document, read before
+				var raw payload
+
+				require.NoError(t, helper.BindRawBody(tt.contentType, []byte(tt.body), &raw))
+				assert.Equal(t, tt.want, raw)
+
 				return
 			}
 
@@ -185,6 +191,7 @@ func TestBindBody(t *testing.T) {
 			var rawHE *helper.HTTPError
 			require.ErrorAs(t, rawErr, &rawHE)
 			assert.Equal(t, tt.wantCode, rawHE.Code)
+			assert.Equal(t, tt.wantMessage, rawHE.Message)
 		})
 	}
 }

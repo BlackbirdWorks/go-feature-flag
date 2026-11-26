@@ -37,3 +37,27 @@ func TestAPIKeys(t *testing.T) {
 		assert.False(t, k.AdminKeyExists("admin"))
 	}
 }
+
+// TestAPIKeys_WithoutConfiguration checks that an accessor without configuration behaves like the empty
+// configuration of v1: nothing is accepted and the authentication is off.
+func TestAPIKeys_WithoutConfiguration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		keys service.APIKeys
+		name string
+	}{
+		{name: "zero value", keys: service.APIKeys{}},
+		{name: "nil configuration", keys: service.NewAPIKeys(nil)},
+		{name: "empty configuration", keys: service.NewAPIKeys(&config.Config{})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.False(t, tt.keys.AuthenticationEnabled())
+			assert.False(t, tt.keys.KeyExists("key"))
+			assert.False(t, tt.keys.AdminKeyExists("key"))
+		})
+	}
+}
