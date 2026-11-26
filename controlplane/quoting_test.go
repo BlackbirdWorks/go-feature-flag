@@ -101,10 +101,14 @@ func TestScalarQuoting(t *testing.T) {
 
 			quotedStyles := yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle | yaml.LiteralStyle | yaml.FoldedStyle
 
+			matched := 0
+
 			for _, scalar := range scalars(&doc) {
 				if scalar.Value != tt.value && scalar.Value != tt.value+"x" {
 					continue
 				}
+
+				matched++
 
 				assert.Equal(t, "!!str", scalar.Tag, "1.2 reading of %q in\n%s", scalar.Value, b)
 
@@ -113,6 +117,7 @@ func TestScalarQuoting(t *testing.T) {
 				}
 			}
 
+			assert.Positive(t, matched, "the string must appear in the output")
 			assert.NotContains(t, string(b), "&", "no anchors")
 		})
 	}

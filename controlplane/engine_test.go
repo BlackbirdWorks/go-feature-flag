@@ -221,7 +221,7 @@ func TestEngineFlagFilesRoundTrip(t *testing.T) {
 		}
 
 		switch filepath.Ext(path) {
-		case ".yaml", ".yml", extJSON, ".toml":
+		case extYAML, ".yml", extJSON, ".toml":
 			files = append(files, path)
 		}
 

@@ -19,6 +19,7 @@ const (
 	textNull          = "null"
 	algoMD5           = "md5"
 	extJSON           = ".json"
+	extYAML           = ".yaml"
 	pathObject0Name   = "objects[0].name"
 	connFlagsEU       = "flags-eu"
 	connControl       = "control"

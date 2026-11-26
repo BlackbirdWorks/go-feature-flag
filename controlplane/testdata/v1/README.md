@@ -43,6 +43,8 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `flagset-api-keys-not-a-list.yaml`: `apiKeys` as a scalar (the error must not repeat the value).
 - `flags-nan-variation.yaml`: NaN.
 - `flags-zero-percentages.yaml`, `flags-mixed-variation-types.yaml`, `flags-null-variation.yaml`, `flags-progressive-without-dates.yaml`, `flags-missing-default-rule.yaml`: flags that the engine would drop.
+- `flags-huge-integer-variation.yaml`: a variation above the int64 range (the engine does not know its type).
+- `manifest-recursive-merge.yaml`: a merge key that refers to itself.
 - `manifest-unknown-object-kind.yaml`: object kind other than `flags` or `flagSets`.
 - `manifest-zero-generation.yaml`: generation below 1.
 - `manifest-syntax-error.yaml`: not parseable.
@@ -58,3 +60,7 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 Documents with fields this version does not know (a later publisher added them). They decode and validate; each
 file has a `<file>.unknown` sidecar listing the expected unknown-field paths, one per line, sorted as the decoder
 reports them. An older reader must accept them and may only count them.
+
+- `manifest-extra-fields.yaml`, `manifest-extra-fields.json`: unknown fields at the top level and in an object.
+- `flagset-extra-fields.yaml`: unknown fields in a flag set and at the top level.
+- `flags-extra-fields.yaml`: unknown fields in a flag and in its default rule.

@@ -84,7 +84,12 @@ func TestDecodeRulesOfBothFormats(t *testing.T) {
 		},
 		{"non-string key", manifestHead + "generation: 1\nobjects: []\n1: x\n", "keys must be strings", true},
 		{"null key", manifestHead + "generation: 1\nobjects: []\n~: x\n", "keys must be strings", true},
-		{"data after the json value", `{"apiVersion":"semaphore/v1","kind":"Manifest"} {}`, "", false},
+		{
+			"data after the json value",
+			`{"apiVersion":"semaphore/v1","kind":"Manifest"} {}`,
+			"only one YAML document",
+			false,
+		},
 		{"syntax problem", manifestHead + "generation: [\n", "syntax error", true},
 	}
 
@@ -258,6 +263,8 @@ func TestErrorsNeverQuoteValues(t *testing.T) {
 			_, _, setErr := controlplane.UnmarshalFlagSet([]byte(tt.data))
 			_, _, manifestErr := controlplane.UnmarshalManifest([]byte(tt.data))
 			_, _, flagsErr := controlplane.UnmarshalFlags([]byte(tt.data), controlplane.FormatYAML)
+
+			require.True(t, setErr != nil || manifestErr != nil || flagsErr != nil, "the document must be refused")
 
 			for _, err := range []error{setErr, manifestErr, flagsErr} {
 				if err != nil {

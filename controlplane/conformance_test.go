@@ -113,7 +113,7 @@ func vectorFiles(t *testing.T, dir string) []string {
 	var files []string
 
 	for _, file := range all {
-		if ext := filepath.Ext(file); ext == ".yaml" || ext == extJSON {
+		if ext := filepath.Ext(file); ext == extYAML || ext == extJSON {
 			files = append(files, file)
 		}
 	}
@@ -157,7 +157,7 @@ func TestConformanceValidRoundTrip(t *testing.T) {
 				if asJSON {
 					path = strings.TrimSuffix(path, filepath.Ext(path)) + extJSON
 				} else {
-					path = strings.TrimSuffix(path, filepath.Ext(path)) + ".yaml"
+					path = strings.TrimSuffix(path, filepath.Ext(path)) + extYAML
 				}
 
 				require.NoError(t, os.WriteFile(path, written, 0o600))
@@ -220,6 +220,66 @@ func TestConformanceForwardCompatible(t *testing.T) {
 			unknown, err := check(t, file)
 			require.NoError(t, err)
 			assert.Equal(t, strings.Fields(string(side)), unknown)
+		})
+	}
+}
+
+// TestConformanceVectorsAreAllExercised fails when a vector directory is empty or thin, when a file is neither a
+// vector nor the sidecar of one (a misspelled extension would otherwise never run), when a vector has no
+// expectation sidecar or a sidecar has no vector, when a name has no known type prefix, and when the README
+// does not mention a vector.
+func TestConformanceVectorsAreAllExercised(t *testing.T) {
+	t.Parallel()
+
+	readme, err := os.ReadFile(filepath.Join(vectors, "README.md"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		dir     string
+		sidecar string
+		min     int
+	}{
+		{"valid", "", 15},
+		{"invalid", ".error", 20},
+		{"forward-compatible", ".unknown", 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dir, func(t *testing.T) {
+			t.Parallel()
+
+			entries, readErr := os.ReadDir(filepath.Join(vectors, tt.dir))
+			require.NoError(t, readErr)
+
+			names := map[string]bool{}
+			for _, entry := range entries {
+				names[entry.Name()] = true
+			}
+
+			loaded := 0
+
+			for name := range names {
+				ext := filepath.Ext(name)
+
+				switch {
+				case ext == extYAML || ext == extJSON:
+					loaded++
+
+					assert.Regexp(t, `^(manifest|flagset|flags)-`, name, "a vector needs a type prefix")
+					assert.Contains(t, string(readme), name, "the README must describe every vector")
+
+					if tt.sidecar != "" {
+						assert.True(t, names[name+tt.sidecar], "%s has no %s sidecar", name, tt.sidecar)
+					}
+				case tt.sidecar != "" && ext == tt.sidecar:
+					assert.True(t, names[strings.TrimSuffix(name, tt.sidecar)], "%s has no vector", name)
+				default:
+					assert.Fail(t, "not a vector and not a sidecar", name)
+				}
+			}
+
+			assert.Len(t, vectorFiles(t, tt.dir), loaded, "every vector is loaded by the conformance tests")
+			assert.GreaterOrEqual(t, loaded, tt.min)
 		})
 	}
 }
