@@ -190,7 +190,7 @@ func TestStore_ASaveThatAddsNoChecksumStillRebuildsWhatVanished(t *testing.T) {
 			restored, status, err := restoreOf(t, fsys)
 			require.NoError(t, err)
 			assert.Zero(t, status.DiscardedObjects)
-			assert.Equal(t, tt.wantRestored, summaryOf(restored))
+			assertRestore(t, tt.wantRestored, nil, restored, err)
 		})
 	}
 }
@@ -273,4 +273,47 @@ func TestStore_AnyFailedWriteMakesTheNextWriteOpenTheDirectoryAgain(t *testing.T
 			assert.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
 		})
 	}
+}
+
+// TestStore_AFailedWriteMakesTheStoreWriteEverythingAgain: after a write that failed, nothing that is only believed
+// about the disk is trusted. An object file that was damaged without changing its name or type (so that a listing
+// finds nothing wrong) is written again by the retry, though the store had written it before and would otherwise
+// skip it.
+func TestStore_AFailedWriteMakesTheStoreWriteEverythingAgain(t *testing.T) {
+	t.Parallel()
+
+	first := persistOf(etagOne, manifestOne, contentAlpha, contentBeta)
+	second := persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta)
+
+	probe := &faults{}
+	probing := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedirConfig())
+	probing.saveAndFlush(first)
+	probe.reset()
+	probing.saveAndFlush(second)
+	probing.close()
+
+	disk := newMemDisk()
+	fault := &faults{}
+	fsys := &memFS{disk: disk, faults: fault}
+	run := openStore(t, fsys, statedirConfig())
+	run.saveAndFlush(first)
+
+	// the object file is damaged in place, and the next write fails before it is done
+	disk.write(objectFile(contentBeta), []byte("damaged"))
+
+	fault.reset()
+	fault.failAt, fault.err = stepOf(t, probe.ops, opRenameMan, 1), syscall.EIO
+
+	run.saveAndFlush(second)
+	require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+
+	run.saveAndFlush(second)
+	assert.Empty(t, run.store.Hooks().StateStatus().LastSaveError)
+	run.close()
+
+	restored, status, err := restoreOf(t, fsys)
+	assertRestore(t, wantRestored{
+		etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+	}, nil, restored, err)
+	assert.Zero(t, status.DiscardedObjects, "the damaged object was written again")
 }

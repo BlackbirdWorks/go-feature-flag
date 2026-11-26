@@ -79,20 +79,22 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 			},
 		},
 		{
-			name:        "a FIFO as the manifest copy",
-			victim:      manifestVictim,
-			wantErr:     manifestreader.ErrNothingRestored,
-			wantRestore: manifestreader.RestoreEmpty,
+			name:         "a FIFO as the manifest copy",
+			victim:       manifestVictim,
+			wantErr:      manifestreader.ErrNothingRestored,
+			wantRestored: nothingRestored(),
+			wantRestore:  manifestreader.RestoreEmpty,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, syscall.Mkfifo(name, 0o600))
 			},
 		},
 		{
-			name:        "a sparse file of a terabyte as the manifest copy",
-			victim:      manifestVictim,
-			wantErr:     manifestreader.ErrNothingRestored,
-			wantRestore: manifestreader.RestoreEmpty,
+			name:         "a sparse file of a terabyte as the manifest copy",
+			victim:       manifestVictim,
+			wantErr:      manifestreader.ErrNothingRestored,
+			wantRestored: nothingRestored(),
+			wantRestore:  manifestreader.RestoreEmpty,
 			replace: func(t *testing.T, name string) {
 				t.Helper()
 				require.NoError(t, os.WriteFile(name, nil, 0o600))
@@ -136,8 +138,7 @@ func TestOS_RestoreDiscardsIrregularFilesWithoutBlocking(t *testing.T) {
 				require.NoError(t, store.Close())
 				assert.Equal(t, tt.wantRestore, store.Hooks().StateStatus().Restore)
 
-				require.ErrorIs(t, got.err, tt.wantErr)
-				assert.Equal(t, tt.wantRestored, summaryOf(got.restored))
+				assertRestore(t, tt.wantRestored, tt.wantErr, got.restored, got.err)
 			case <-time.After(wait):
 				require.FailNow(t, "the restore blocked on an irregular file")
 			}
@@ -329,15 +330,16 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		replace      func(t *testing.T, name, outside string)
-		name         string
-		wantOutside  string
-		wantOnDisk   []string
-		wantInVictim []string
-		wantPartial  bool
+		replace     func(t *testing.T, name, outside string)
+		wantVictim  victimCheck
+		name        string
+		wantOutside string
+		wantOnDisk  []string
+		wantPartial bool
 	}{
 		{
 			name: "an empty directory", wantOnDisk: []string{contentAlpha, contentBeta}, wantOutside: outsideContent,
+			wantVictim: fileVictim(contentBeta),
 			replace: func(t *testing.T, name, _ string) {
 				t.Helper()
 				require.NoError(t, os.Mkdir(name, 0o700))
@@ -345,7 +347,7 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 		},
 		{
 			name: "a directory with content", wantOnDisk: []string{contentAlpha}, wantPartial: true,
-			wantOutside: outsideContent, wantInVictim: []string{keepName},
+			wantOutside: outsideContent, wantVictim: untouchedVictim,
 			replace: func(t *testing.T, name, _ string) {
 				t.Helper()
 				require.NoError(t, os.Mkdir(name, 0o700))
@@ -356,6 +358,7 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 			name:        "a symbolic link to a file outside",
 			wantOnDisk:  []string{contentAlpha, contentBeta},
 			wantOutside: outsideContent,
+			wantVictim:  fileVictim(contentBeta),
 			replace: func(t *testing.T, name, outside string) {
 				t.Helper()
 				require.NoError(t, os.Symlink(outside, name))
@@ -379,6 +382,8 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 			require.NoError(t, os.Remove(victim))
 			tt.replace(t, victim, outside)
 
+			before := treeImage(t, victim)
+
 			// the same store, the same objects, a new manifest: nothing is reopened
 			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
 
@@ -392,7 +397,7 @@ func TestOS_ALiveWriterNoticesANameThatChangedType(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantOutside, string(untouched), "what a link points to is never written")
 
-			assert.Equal(t, tt.wantInVictim, entriesIn(t, victim), "a directory with content is never removed")
+			tt.wantVictim(t, victim, before)
 		})
 	}
 }
@@ -446,6 +451,7 @@ func TestOS_AnyWriteThatDoesNotCompleteOpensTheDirectoryAgainByPath(t *testing.T
 			wantLastSaveError: statedir.ReasonUnsafe,
 			wantSaveErrors:    4,
 			wantNewErr:        statedir.ErrForeignVersion,
+			wantRestored:      nothingRestored(),
 		},
 	}
 
@@ -486,7 +492,7 @@ func TestOS_AnyWriteThatDoesNotCompleteOpensTheDirectoryAgainByPath(t *testing.T
 			store, err := statedir.New(statedir.Config{Dir: dir})
 			require.ErrorIs(t, err, tt.wantNewErr)
 
-			var got wantRestored
+			got := nothingRestored()
 
 			if store != nil {
 				restored, restoreErr := store.Hooks().Restore()

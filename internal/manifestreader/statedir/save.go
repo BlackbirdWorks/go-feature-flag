@@ -126,9 +126,6 @@ func (s *Store) write(ctx context.Context, job *job) outcome {
 	// budget is applied, so it never takes the place of an object that could be kept
 	s.reconcile()
 
-	// what cannot be written is left out before the budget is applied, so it never takes the place of an object
-	// that could be kept is left out before the budget is applied, so it never takes the place of an object
-	// that could be kept
 	usable, blocked := s.withoutBlocked(job)
 	keep, staleKept, partial := s.fit(usable)
 	partial = partial || blocked

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 )
 
 // firstStep finds the first operation that starts with prefix.
@@ -86,17 +87,29 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 		{name: "process death/old state", survive: keep, newFrom: deathNewFrom, old: &stateA, wantOld: wantA},
 		{
 			name: "process death/no old state", survive: keep, newFrom: deathNewFrom,
-			wantOldErr: manifestreader.ErrNothingRestored,
+			wantOldErr: manifestreader.ErrNothingRestored, wantOld: nothingRestored(),
 		},
 		{name: "power loss/old state", survive: lose, newFrom: lossNewFrom, old: &stateA, wantOld: wantA},
 		{
 			name: "power loss/no old state", survive: lose, newFrom: lossNewFrom,
-			wantOldErr: manifestreader.ErrNothingRestored,
+			wantOldErr: manifestreader.ErrNothingRestored, wantOld: nothingRestored(),
 		},
 	}
 
 	for i := range tests {
 		runCrashTable(t, &tests[i], stateB, wantB)
+	}
+}
+
+// restoreStatusOf is the status a restore of what the expectation describes leaves: nothing restored is an empty
+// restore, and nothing was discarded (every file that is found is whole).
+func restoreStatusOf(want wantRestored) manifestreader.StateStatus {
+	if want.nothing {
+		return manifestreader.StateStatus{Enabled: true, Restore: manifestreader.RestoreEmpty}
+	}
+
+	return manifestreader.StateStatus{
+		Enabled: true, Restore: manifestreader.RestoreRestored, RestoredObjects: len(want.objects),
 	}
 }
 
@@ -160,21 +173,26 @@ func runCrashTable(
 			status := run.store.Hooks().StateStatus()
 			run.close()
 
-			// the save reports the failure of every step up to the durable manifest; the garbage collection
-			// after it is best effort
-			assert.Equal(t, step <= lastFatal, status.SaveErrors == 1, "reported failure")
+			// the save reports the failure of every step up to the durable manifest, with the reason io; the
+			// garbage collection after it is best effort, and a save that got through it reports nothing
+			wantSave := manifestreader.StateStatus{Enabled: true, Saves: 1, LastSave: fixedNow()}
+			if step <= lastFatal {
+				wantSave.SaveErrors, wantSave.LastSaveError = 1, statedir.ReasonIO
+			}
+
+			assert.Equal(t, wantSave, status, "the status of the save at this step")
 
 			disk = mode.survive(disk)
 
-			restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
+			restored, restoreStatus, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
 
 			wantErr, want := mode.wantOldErr, mode.wantOld
 			if step > newFrom {
 				wantErr, want = nil, wantB
 			}
 
-			require.ErrorIs(t, err, wantErr)
-			assert.Equal(t, want.sorted(), summaryOf(restored))
+			assertRestore(t, want, wantErr, restored, err)
+			assert.Equal(t, restoreStatusOf(want), restoreStatus, "the status of the restore")
 
 			// after the crash the next save cleans up: exactly the files of the new state are left
 			again := openStore(t, &memFS{disk: disk, faults: &faults{}}, statedirConfig())

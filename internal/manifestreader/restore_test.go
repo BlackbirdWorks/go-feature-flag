@@ -224,7 +224,13 @@ func TestRestart_ARestoredObjectIsCheckedLikeAFetchedOne(t *testing.T) {
 			snap := rdr.snapshot()
 			require.NotNil(t, snap)
 			assert.Equal(t, tt.wantAlphaState, snap.Objects[nameAlpha].State)
-			assert.Equal(t, tt.wantAlphaBytes, snap.Objects[nameAlpha].Bytes, "a failed object serves no bytes")
+			assert.Equal(t, tt.wantAlphaBytes, snap.Objects[nameAlpha].Bytes, "the bytes a name serves")
+			assert.Equal(
+				t,
+				tt.wantAlphaBytes == nil,
+				snap.Objects[nameAlpha].Bytes == nil,
+				"a failed object serves no bytes at all",
+			)
 
 			assert.Equal(t, tt.wantFailures, rdr.reader.Status().Failures)
 		})

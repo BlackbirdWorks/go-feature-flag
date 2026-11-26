@@ -178,7 +178,12 @@ type wantRestored struct {
 	etag     string
 	manifest string
 	objects  []string
+	// nothing tells that no result at all (nil) is expected: an empty result is not nothing
+	nothing bool
 }
+
+// nothingRestored is the expectation of a restore that returns no result.
+func nothingRestored() wantRestored { return wantRestored{nothing: true} }
 
 func assertRestored(tb testing.TB, want wantRestored, got *manifestreader.Restored) {
 	tb.Helper()
@@ -204,7 +209,7 @@ func fixedNow() time.Time { return clocktest.Instant() }
 // object contents are sorted.
 func summaryOf(restored *manifestreader.Restored) wantRestored {
 	if restored == nil {
-		return wantRestored{}
+		return nothingRestored()
 	}
 
 	var contents []string
@@ -216,6 +221,16 @@ func summaryOf(restored *manifestreader.Restored) wantRestored {
 	slices.Sort(contents)
 
 	return wantRestored{etag: restored.ETag, manifest: string(restored.Manifest), objects: contents}
+}
+
+// assertRestore checks what a restore returned: the error, that a result and an error never come together, and
+// the result itself, with nil and empty told apart.
+func assertRestore(t *testing.T, want wantRestored, wantErr error, restored *manifestreader.Restored, err error) {
+	t.Helper()
+
+	require.ErrorIs(t, err, wantErr)
+	assert.Equal(t, err != nil, restored == nil, "a result and an error never come together")
+	assert.Equal(t, want.sorted(), summaryOf(restored))
 }
 
 // sorted returns the expectation with its object contents in order, as summaryOf gives them.

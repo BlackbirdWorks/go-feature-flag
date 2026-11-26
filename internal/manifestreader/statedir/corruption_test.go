@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
@@ -111,6 +110,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			name:        "manifest copy with a flipped byte",
 			wantRestore: manifestreader.RestoreEmpty,
 			wantErr:     manifestreader.ErrNothingRestored,
+			wantObjects: nothingRestored(),
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, flipByte(data))
@@ -120,6 +120,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			name:        "manifest copy truncated",
 			wantRestore: manifestreader.RestoreEmpty,
 			wantErr:     manifestreader.ErrNothingRestored,
+			wantObjects: nothingRestored(),
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, data[:len(data)/2])
@@ -129,12 +130,14 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			name:        "manifest copy that is not json",
 			wantRestore: manifestreader.RestoreEmpty,
 			wantErr:     manifestreader.ErrNothingRestored,
+			wantObjects: nothingRestored(),
 			mutate:      func(d *memDisk) { d.write(manifestFile, []byte("not json")) },
 		},
 		{
 			name:        "manifest copy with another etag but the old digest",
 			wantRestore: manifestreader.RestoreEmpty,
 			wantErr:     manifestreader.ErrNothingRestored,
+			wantObjects: nothingRestored(),
 			mutate: func(d *memDisk) {
 				data, _ := d.read(manifestFile)
 				d.write(manifestFile, []byte(strings.Replace(string(data), `\"e1\"`, `\"e2\"`, 1)))
@@ -144,6 +147,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			name:        "manifest copy missing",
 			wantRestore: manifestreader.RestoreEmpty,
 			wantErr:     manifestreader.ErrNothingRestored,
+			wantObjects: nothingRestored(),
 			mutate:      func(d *memDisk) { d.remove(manifestFile) },
 		},
 	}
@@ -166,8 +170,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			assert.Equal(t, tt.wantRestore, status.Restore)
 			assert.Equal(t, tt.wantDiscarded, status.DiscardedObjects)
 
-			require.ErrorIs(t, err, tt.wantErr)
-			assert.Equal(t, tt.wantObjects.sorted(), summaryOf(restored))
+			assertRestore(t, tt.wantObjects, tt.wantErr, restored, err)
 		})
 	}
 }
@@ -186,7 +189,7 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 	}{
 		{
 			name: "the manifest copy cannot be read", failRead: map[string]error{manifestName: fs.ErrPermission},
-			wantRestore: manifestreader.RestoreFailed, wantErr: fs.ErrPermission,
+			wantRestore: manifestreader.RestoreFailed, wantErr: fs.ErrPermission, wantRestored: nothingRestored(),
 		},
 		{
 			name:         "one object cannot be read: it is fetched again",
@@ -212,8 +215,7 @@ func TestStore_RestoreOfAnUnreadableDirectory(t *testing.T) {
 
 			assert.Equal(t, tt.wantRestore, status.Restore)
 
-			require.ErrorIs(t, err, tt.wantErr)
-			assert.Equal(t, tt.wantRestored, summaryOf(restored))
+			assertRestore(t, tt.wantRestored, tt.wantErr, restored, err)
 		})
 	}
 }

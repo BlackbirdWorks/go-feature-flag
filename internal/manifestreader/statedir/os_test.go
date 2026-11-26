@@ -84,14 +84,15 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 		wantRestoreErr error
 		name           string
 		wantSaveError  string
-		wantInVictim   []string
+		wantVictim     victimCheck
 		wantRestored   wantRestored
 		wantPartial    bool
 	}{
 		{
-			name:   "an empty directory at an object",
-			victim: objectOf,
-			fill:   nothing,
+			name:       "an empty directory at an object",
+			victim:     objectOf,
+			fill:       nothing,
+			wantVictim: fileVictim(contentBeta),
 			wantRestored: wantRestored{
 				etag:     etagOne,
 				manifest: manifestOne,
@@ -100,13 +101,14 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 		},
 		{
 			name: "a directory with content at an object", victim: objectOf, fill: content,
-			wantInVictim: []string{keepName}, wantPartial: true,
+			wantVictim: untouchedVictim, wantPartial: true,
 			wantRestored: wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}},
 		},
 		{
-			name:   "an empty directory at the manifest copy",
-			victim: manifestOf,
-			fill:   nothing,
+			name:       "an empty directory at the manifest copy",
+			victim:     manifestOf,
+			fill:       nothing,
+			wantVictim: regularFileVictim,
 			wantRestored: wantRestored{
 				etag:     etagOne,
 				manifest: manifestOne,
@@ -115,8 +117,9 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 		},
 		{
 			name: "a directory with content at the manifest copy", victim: manifestOf, fill: content,
-			wantInVictim: []string{keepName}, wantSaveError: statedir.ReasonUnsafe,
+			wantVictim: untouchedVictim, wantSaveError: statedir.ReasonUnsafe,
 			wantRestoreErr: manifestreader.ErrNothingRestored,
+			wantRestored:   nothingRestored(),
 		},
 	}
 
@@ -137,6 +140,8 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			require.NoError(t, os.Mkdir(victim, 0o700))
 			tt.fill(t, victim)
 
+			before := treeImage(t, victim)
+
 			second := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
 
 			_, _ = second.store.Hooks().Restore()
@@ -147,7 +152,7 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			assert.Equal(t, tt.wantPartial, status.LastSavePartial)
 			second.close()
 
-			assert.Equal(t, tt.wantInVictim, entriesIn(t, victim), "a directory with content is never removed")
+			tt.wantVictim(t, victim, before)
 
 			third, err := statedir.New(statedir.Config{Dir: dir})
 			require.NoError(t, err)
@@ -155,26 +160,36 @@ func TestOS_ADirectoryWhereAFileBelongsDoesNotBlockTheSaves(t *testing.T) {
 			defer func() { require.NoError(t, third.Close()) }()
 
 			restored, err := third.Hooks().Restore()
-			require.ErrorIs(t, err, tt.wantRestoreErr)
-			assert.Equal(t, tt.wantRestored, summaryOf(restored))
+			assertRestore(t, tt.wantRestored, tt.wantRestoreErr, restored, err)
 		})
 	}
 }
 
-// entriesIn is the sorted names in a directory, and nil for anything else (a regular file, a missing name).
-func entriesIn(tb testing.TB, name string) []string {
-	tb.Helper()
+// victimCheck says what must be under a name after a save: the tree under it as it was before the save, or a file.
+type victimCheck func(t *testing.T, victim string, before map[string]string)
 
-	entries, err := os.ReadDir(name)
-	if err != nil {
-		return nil
+// untouchedVictim: what was there is byte-identical: the same names, types, modes, contents and link targets.
+func untouchedVictim(t *testing.T, victim string, before map[string]string) {
+	t.Helper()
+
+	assert.Equal(t, before, treeImage(t, victim), "a directory with content is never changed or removed")
+}
+
+// fileVictim: the name is a regular file with this content (the object written in place of the directory or link).
+func fileVictim(content string) victimCheck {
+	return func(t *testing.T, victim string, _ map[string]string) {
+		t.Helper()
+
+		assert.Equal(t, map[string]string{victim: content}, treeImage(t, victim))
 	}
+}
 
-	var names []string
+// regularFileVictim: the name is a regular file that is not empty (the manifest copy written in place).
+func regularFileVictim(t *testing.T, victim string, _ map[string]string) {
+	t.Helper()
 
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-
-	return names
+	info, err := os.Lstat(victim)
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular())
+	assert.Positive(t, info.Size())
 }
