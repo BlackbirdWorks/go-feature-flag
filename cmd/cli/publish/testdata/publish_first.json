@@ -1,7 +1,7 @@
 {
   "channel": "stable",
   "manifestKey": "manifests/stable.yaml",
-  "manifestETag": "\"c9d96062-3\"",
+  "manifestETag": "\"c9d96062ed3a80e427c1bbc0f8b70f18\"",
   "generation": 1,
   "previousGeneration": 0,
   "changed": true,

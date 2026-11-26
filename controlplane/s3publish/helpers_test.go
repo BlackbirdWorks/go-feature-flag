@@ -54,7 +54,7 @@ func standardObjects(t *testing.T, label string) []s3publish.Object {
 }
 
 func testConfig() s3publish.Config {
-	return s3publish.Config{Bucket: testBucket, Channel: testChannel, Connection: testConnection}
+	return s3publish.Config{Bucket: testBucket, Channel: testChannel, Connection: testConnection, Concurrency: 1}
 }
 
 func newPublisher(t *testing.T, api s3publish.API, mutate func(*s3publish.Config)) *s3publish.Publisher {
@@ -82,6 +82,11 @@ func objectKey(t *testing.T, body []byte) string {
 }
 
 const (
+	nameNope       = "nope"
+	nameRival      = "rival"
+	nameOne        = "one"
+	nameTwo        = "two"
+	msgTooMany     = "too many objects"
 	nameFlags      = "checkout-flags"
 	nameSets       = "flagsets"
 	testBucket     = "bkt"

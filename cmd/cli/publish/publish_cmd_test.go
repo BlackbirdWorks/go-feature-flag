@@ -114,7 +114,7 @@ func TestPublishExitCodes(t *testing.T) {
 		},
 		{
 			name: "invalid flag file", args: withTarget(srcDir), wantCode: helper.ExitInvalid, wantNoWrite: true,
-			tree:      func() map[string]string { return map[string]string{"flags/bad.yaml": badFlags} },
+			tree:      func() map[string]string { return map[string]string{badFile: badFlags} },
 			wantInErr: "bad (src/flags/bad.yaml)",
 		},
 		{

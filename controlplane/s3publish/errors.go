@@ -20,12 +20,16 @@ var (
 	ErrGeneration = errors.New("s3publish: generation does not increase")
 	// ErrChannelMismatch is returned when the manifest in the bucket belongs to another channel.
 	ErrChannelMismatch = errors.New("s3publish: the manifest in the bucket has another channel")
-	// ErrPreviousManifest is returned when the manifest in the bucket cannot be read or is invalid, so its
-	// generation is unknown. The publisher never overwrites it.
+	// ErrPreviousManifest is returned when the manifest in the bucket cannot be read, is invalid or is over the
+	// current limits, so its generation is unknown. The publisher does not overwrite it unless
+	// Request.ReplaceInvalidManifest is set with an explicit generation.
 	ErrPreviousManifest = errors.New("s3publish: the manifest in the bucket is not readable")
 	// ErrObjectMismatch is returned when an object exists under its content-addressed key with another size or
 	// checksum. The publisher never overwrites an object.
 	ErrObjectMismatch = errors.New("s3publish: an object exists with other content")
+	// ErrLimit is wrapped by the errors for what the relay reader would reject: an empty object, an object, a total
+	// or a manifest over its limit. A publication refused for it also matches ErrInvalid.
+	ErrLimit = errors.New("s3publish: over a limit of the reader")
 	// ErrNoManifest is returned by Verify when the bucket holds no manifest.
 	ErrNoManifest = errors.New("s3publish: no manifest in the bucket")
 )

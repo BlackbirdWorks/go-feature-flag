@@ -11,8 +11,6 @@ const (
 	StatusPresent Status = "present"
 	// StatusWouldUpload: dry run, the object is absent and would be created.
 	StatusWouldUpload Status = "would-upload"
-	// StatusUnchanged: the manifest in the bucket already lists the object; nothing was checked or written.
-	StatusUnchanged Status = "unchanged"
 )
 
 // ObjectResult is the outcome for one manifest entry.
@@ -52,7 +50,8 @@ type Result struct {
 	// UploadedBytes is the number of object bytes written (manifest excluded).
 	UploadedBytes int64
 	// Uploaded and Present count the distinct objects created and found; with DryRun Uploaded counts those that
-	// would be created.
+	// would be created. When the manifest is unchanged, Uploaded counts the listed objects that were missing and
+	// were uploaded again.
 	Uploaded int
 	Present  int
 	// Changed reports that the manifest differs from the one in the bucket (a new generation is due).

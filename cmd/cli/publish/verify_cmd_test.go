@@ -140,7 +140,12 @@ func TestOutputNeverContainsSecrets(t *testing.T) {
 	_, _, err := hb.run(t, withTarget(srcDir)...)
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitInvalid, helper.ExitCodeOf(err))
-	assert.Contains(t, err.Error(), "duplicate of flagSets[0].apiKeys[0]", "the problem is reported by position")
+	assert.Contains(
+		t,
+		err.Error(),
+		"duplicate of documents[0].flagSets[0].apiKeys[0]",
+		"the problem is reported by position",
+	)
 
 	all.WriteString(err.Error())
 

@@ -1,6 +1,11 @@
 package helper
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+)
 
 // The exit codes of the commands that report more than success or failure. A command returns an [ExitError] to
 // choose one; every other error exits with [ExitFailure].
@@ -48,4 +53,50 @@ func ExitCodeOf(err error) int {
 	}
 
 	return ExitFailure
+}
+
+// JSONErrorName is the stable name of an exit code in the JSON error object.
+func JSONErrorName(code int) string {
+	switch code {
+	case ExitInvalid:
+		return "invalid"
+	case ExitConflict:
+		return "conflict"
+	case ExitTransport:
+		return "transport"
+	case ExitVerify:
+		return "bad-state"
+	}
+
+	return "failure"
+}
+
+type jsonErrorBody struct {
+	Code    string   `json:"code"`
+	Message string   `json:"message"`
+	Details []string `json:"details"`
+}
+
+// WriteJSONError writes the error of a failed command as one JSON object on w:
+//
+//	{"error": {"code": "invalid", "message": "...", "details": ["..."]}}
+//
+// code is one of invalid, conflict, transport, bad-state, usage or failure. details is never null. The message
+// and the details come from the error text, which never holds a secret.
+func WriteJSONError(w io.Writer, code string, err error, details []string) error {
+	if details == nil {
+		details = []string{}
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+
+	writeErr := enc.Encode(struct {
+		Error jsonErrorBody `json:"error"`
+	}{Error: jsonErrorBody{Code: code, Message: err.Error(), Details: details}})
+	if writeErr != nil {
+		return fmt.Errorf("write output: %w", writeErr)
+	}
+
+	return nil
 }

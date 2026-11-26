@@ -220,3 +220,115 @@ func TestManifestInvariant(t *testing.T) {
 		assert.Contains(t, violations[1], "unreadable manifest")
 	})
 }
+
+func TestETagIsTheQuotedHexMD5LikeS3(t *testing.T) {
+	t.Parallel()
+
+	fake := s3fake.New(manifestKey)
+	etag := fake.Seed("k", []byte("hello"))
+
+	assert.Equal(t, `"5d41402abc4b2a76b9719d911017c592"`, etag, "md5 of hello, no part count")
+	assert.Equal(t, etag, fake.Seed("same", []byte("hello")), "the same bytes have the same ETag")
+	assert.NotEqual(t, etag, fake.Seed("other", []byte("hellO")))
+}
+
+func TestIfNoneMatchOtherThanStarIsNotImplemented(t *testing.T) {
+	t.Parallel()
+
+	fake := s3fake.New(manifestKey)
+
+	err := put(t, fake, "k", []byte("x"), func(in *s3.PutObjectInput) { in.IfNoneMatch = aws.String(`"abc"`) })
+	require.Error(t, err)
+	assert.Equal(t, "NotImplemented", code(t, err))
+	assert.Empty(t, fake.Keys(), "nothing is stored")
+}
+
+func TestOmitChecksumsHidesTheSHA256OfHead(t *testing.T) {
+	t.Parallel()
+
+	fake := s3fake.New(manifestKey)
+	fake.OmitChecksums = true
+	fake.Seed("k", []byte("x"))
+
+	head, err := fake.HeadObject(t.Context(), &s3.HeadObjectInput{Key: aws.String("k")})
+	require.NoError(t, err)
+	assert.Nil(t, head.ChecksumSHA256)
+	assert.Equal(t, int64(1), aws.ToInt64(head.ContentLength))
+}
+
+func TestStatusErrorIsAnAPIErrorWithAnHTTPStatus(t *testing.T) {
+	t.Parallel()
+
+	err := error(&s3fake.StatusError{Code: "NoSuchBucket", Status: 404})
+
+	assert.Equal(t, "NoSuchBucket", code(t, err))
+	assert.Equal(t, "404 NoSuchBucket", err.Error())
+
+	statusErr, ok := errors.AsType[*s3fake.StatusError](err)
+	require.True(t, ok)
+	assert.Equal(t, 404, statusErr.HTTPStatusCode())
+	assert.Equal(t, "NoSuchBucket", statusErr.ErrorMessage())
+	assert.Equal(t, smithy.FaultClient, statusErr.ErrorFault())
+}
+
+func TestInvariantChecksSizeAndChecksumOfListedObjects(t *testing.T) {
+	t.Parallel()
+
+	body := []byte("object")
+	listed := func(size int64, sum controlplane.Checksum) []byte {
+		manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
+			Channel: "stable", Generation: 1,
+			Objects: []controlplane.ManifestObject{
+				{
+					Name:       "a",
+					Kind:       controlplane.KindFlags,
+					Connection: "c",
+					Key:        "objects/a",
+					Format:     controlplane.FormatYAML,
+					Checksum:   sum,
+					Size:       size,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		return manifest
+	}
+
+	tests := []struct {
+		name string
+		want string
+		body []byte
+	}{
+		{
+			name: "wrong size",
+			body: listed(int64(len(body))+1, controlplane.ChecksumOf(body)),
+			want: "with size 7, stored 6",
+		},
+		{
+			name: "wrong checksum",
+			body: listed(int64(len(body)), controlplane.ChecksumOf([]byte("other!"))),
+			want: "another checksum",
+		},
+		{name: "consistent", body: listed(int64(len(body)), controlplane.ChecksumOf(body))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			fake.Seed("objects/a", body)
+			require.NoError(t, put(t, fake, manifestKey, tt.body, nil))
+
+			violations := fake.Violations()
+			if tt.want == "" {
+				assert.Empty(t, violations)
+
+				return
+			}
+
+			require.Len(t, violations, 1)
+			assert.Contains(t, violations[0], tt.want)
+		})
+	}
+}

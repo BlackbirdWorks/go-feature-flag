@@ -1,31 +1,31 @@
 {
   "channel": "stable",
   "manifestKey": "manifests/stable.yaml",
-  "manifestETag": "\"c9d96062-3\"",
+  "manifestETag": "\"c9d96062ed3a80e427c1bbc0f8b70f18\"",
   "generation": 1,
   "previousGeneration": 1,
   "changed": false,
   "written": false,
   "dryRun": false,
   "uploaded": 0,
-  "present": 0,
+  "present": 2,
   "uploadedBytes": 0,
   "requests": {
     "get": 1,
-    "head": 0,
+    "head": 2,
     "put": 0,
-    "total": 1
+    "total": 3
   },
   "objects": [
     {
       "name": "checkout",
-      "status": "unchanged",
+      "status": "present",
       "key": "objects/sha256/85/8500b7b202c6d6ba249f43494e2f7ef51a0bad128c2e20a4e0a4ce0265f5c9f7.yaml",
       "size": 96
     },
     {
       "name": "checkout-sets",
-      "status": "unchanged",
+      "status": "present",
       "key": "objects/sha256/c4/c4ef26315e1f35c8e7e5059bd9ef09dcae019d4ae3cf0d12172c0e0b5147eb5a.yaml",
       "size": 129
     }

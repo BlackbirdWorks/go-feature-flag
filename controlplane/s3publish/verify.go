@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
@@ -64,19 +66,35 @@ func (p *Publisher) Verify(ctx context.Context) (*Report, error) {
 
 	rep, err := (&Publisher{api: counted, cfg: p.cfg}).check(ctx)
 	if rep != nil {
-		rep.Requests = counted.n
+		rep.Requests = counted.requests()
 	}
 
 	return rep, err
 }
 
-func (p *Publisher) check(ctx context.Context) (*Report, error) {
-	body, etag, err := p.read(ctx, p.cfg.ManifestKey, maxManifestBytes)
-	if isNotFound(err) {
-		return nil, fmt.Errorf("%w: %s", ErrNoManifest, p.cfg.ManifestKey)
-	}
+// owned is a decoded flag-set document and the object it came from.
+type owned struct {
+	doc  *controlplane.FlagSetDocument
+	name string
+	key  string
+}
 
-	if err != nil {
+func (p *Publisher) check(ctx context.Context) (*Report, error) {
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
+
+	switch {
+	case isNotFound(err):
+		return nil, fmt.Errorf("%w: %s", ErrNoManifest, p.cfg.ManifestKey)
+	case errors.Is(err, errTooLarge):
+		return &Report{
+			Channel:      p.cfg.Channel,
+			ManifestKey:  p.cfg.ManifestKey,
+			ManifestETag: etag,
+			Problems: []Problem{
+				p.manifestProblem(fmt.Sprintf("the manifest is over the limit of %d bytes", p.cfg.MaxManifestBytes)),
+			},
+		}, nil
+	case err != nil:
 		return nil, err
 	}
 
@@ -96,6 +114,8 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 			fmt.Sprintf("channel %q, want %q", manifest.Channel, p.cfg.Channel)))
 	}
 
+	var docs []owned
+
 	for i := range manifest.Objects {
 		obj := &manifest.Objects[i]
 
@@ -106,8 +126,16 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 		}
 
 		rep.Checked++
-		rep.Problems = append(rep.Problems, p.verifyObject(ctx, obj, manifest)...)
+
+		problems, doc := p.verifyObject(ctx, obj)
+		rep.Problems = append(rep.Problems, problems...)
+
+		if doc != nil {
+			docs = append(docs, owned{doc: doc, name: obj.Name, key: obj.Key})
+		}
 	}
+
+	rep.Problems = append(rep.Problems, crossProblems(docs, manifest)...)
 
 	return rep, nil
 }
@@ -116,12 +144,65 @@ func (p *Publisher) manifestProblem(detail string) Problem {
 	return Problem{Object: "manifest", Key: p.cfg.ManifestKey, Code: ProblemManifestInvalid, Detail: detail}
 }
 
-// verifyObject checks one object and returns its problems.
+// crossProblems validates the flag-set documents together: duplicate flag-set names and API keys across
+// documents, and sources that do not resolve. A problem is attributed to its document by position.
+func crossProblems(docs []owned, manifest *controlplane.Manifest) []Problem {
+	list := make([]*controlplane.FlagSetDocument, len(docs))
+	for i := range docs {
+		list[i] = docs[i].doc
+	}
+
+	err := controlplane.ValidateFlagSetDocuments(list, manifest)
+	if err == nil {
+		return nil
+	}
+
+	verr, ok := errors.AsType[*controlplane.ValidationError](err)
+	if !ok {
+		return []Problem{{Object: "flag-set documents", Code: ProblemInvalidContent, Detail: err.Error()}}
+	}
+
+	problems := make([]Problem, 0, len(verr.Problems))
+
+	for i := range verr.Problems {
+		fieldErr := &verr.Problems[i]
+		owner := owned{name: "flag-set documents"}
+
+		if idx, found := documentIndex(fieldErr.Path); found && idx < len(docs) {
+			owner = docs[idx]
+		}
+
+		problems = append(problems, Problem{
+			Object: owner.name, Key: owner.key, Code: string(fieldErr.Code), Detail: fieldErr.Error(),
+		})
+	}
+
+	return problems
+}
+
+// documentIndex reads N from a path that starts with "documents[N].".
+func documentIndex(path string) (int, bool) {
+	rest, ok := strings.CutPrefix(path, "documents[")
+	if !ok {
+		return 0, false
+	}
+
+	number, _, ok := strings.Cut(rest, "]")
+	if !ok {
+		return 0, false
+	}
+
+	idx, err := strconv.Atoi(number)
+
+	return idx, err == nil
+}
+
+// verifyObject checks one object and returns its problems and, for a readable flag-set document, the document.
 func (p *Publisher) verifyObject(
-	ctx context.Context, obj *controlplane.ManifestObject, manifest *controlplane.Manifest,
-) []Problem {
-	problem := func(code, detail string) []Problem {
-		return []Problem{{Object: obj.Name, Key: obj.Key, Code: code, Detail: detail}}
+	ctx context.Context, obj *controlplane.ManifestObject,
+) ([]Problem, *controlplane.FlagSetDocument) {
+	problem := func(code, detail string) ([]Problem, *controlplane.FlagSetDocument) {
+		return []Problem{{Object: obj.Name, Key: obj.Key, Code: code, Detail: detail}}, nil
 	}
 
 	body, _, err := p.read(ctx, obj.Key, max(obj.Size, 0))
@@ -146,12 +227,12 @@ func (p *Publisher) verifyObject(
 		return problem(ProblemChecksumMismatch, err.Error())
 	}
 
-	_, err = validateContent(obj, body, manifest)
+	_, doc, err := validateContent(obj, body)
 	if err != nil {
-		return contentProblems(obj, err)
+		return contentProblems(obj, err), nil
 	}
 
-	return nil
+	return nil, doc
 }
 
 // contentProblems turns a validation error into problems, with the stable code of each field error.

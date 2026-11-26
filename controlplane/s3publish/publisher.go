@@ -3,23 +3,19 @@ package s3publish
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
-
-// maxManifestBytes bounds the manifest read into memory (a manifest of DefaultMaxObjects entries is a few MiB).
-const maxManifestBytes = 64 << 20
 
 // anyETag is the value of If-None-Match that makes a write create-only.
 const anyETag = "*"
@@ -39,17 +35,18 @@ type API interface {
 	PutObject(ctx context.Context, in *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
 
-// counter counts the calls that pass through it. It serves one sequential Publish or Verify.
+// counter counts the calls that pass through it. It serves one Publish or Verify, whose object calls may run
+// concurrently.
 type counter struct {
 	API
 
-	n Requests
+	get, head, put atomic.Int64
 }
 
 func (c *counter) GetObject(
 	ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.Options),
 ) (*s3.GetObjectOutput, error) {
-	c.n.Get++
+	c.get.Add(1)
 
 	return c.API.GetObject(ctx, in, opts...) //nolint:wrapcheck // the caller classifies and wraps the client error
 }
@@ -57,7 +54,7 @@ func (c *counter) GetObject(
 func (c *counter) HeadObject(
 	ctx context.Context, in *s3.HeadObjectInput, opts ...func(*s3.Options),
 ) (*s3.HeadObjectOutput, error) {
-	c.n.Head++
+	c.head.Add(1)
 
 	return c.API.HeadObject(ctx, in, opts...) //nolint:wrapcheck // the caller classifies and wraps the client error
 }
@@ -65,9 +62,13 @@ func (c *counter) HeadObject(
 func (c *counter) PutObject(
 	ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options),
 ) (*s3.PutObjectOutput, error) {
-	c.n.Put++
+	c.put.Add(1)
 
 	return c.API.PutObject(ctx, in, opts...) //nolint:wrapcheck // the caller classifies and wraps the client error
+}
+
+func (c *counter) requests() Requests {
+	return Requests{Get: int(c.get.Load()), Head: int(c.head.Load()), Put: int(c.put.Load())}
 }
 
 // Publisher publishes to one bucket and channel. It holds no mutable state: it is safe for concurrent use and
@@ -77,7 +78,7 @@ type Publisher struct {
 	cfg Config
 }
 
-// New returns a Publisher. It makes no S3 call. cfg is copied.
+// New returns a Publisher. It makes no S3 call. cfg is copied and its zero limits get their defaults.
 func New(api API, cfg *Config) (*Publisher, error) {
 	if api == nil || cfg == nil {
 		return nil, fmt.Errorf("%w: no client or no configuration", ErrConfig)
@@ -85,12 +86,9 @@ func New(api API, cfg *Config) (*Publisher, error) {
 
 	conf := *cfg
 
-	if conf.Bucket == "" || conf.Channel == "" || conf.Connection == "" {
-		return nil, fmt.Errorf("%w: bucket, channel and connection are required", ErrConfig)
-	}
-
-	if strings.HasPrefix(conf.Prefix, "/") {
-		return nil, fmt.Errorf("%w: prefix must not start with a slash", ErrConfig)
+	err := conf.validate()
+	if err != nil {
+		return nil, err
 	}
 
 	if conf.Prefix != "" && !strings.HasSuffix(conf.Prefix, "/") {
@@ -101,7 +99,46 @@ func New(api API, cfg *Config) (*Publisher, error) {
 		conf.ManifestKey = conf.Prefix + "manifests/" + conf.Channel + ".yaml"
 	}
 
+	conf.MaxObjects = defaultInt(conf.MaxObjects, controlplane.DefaultMaxObjects)
+	conf.Concurrency = defaultInt(conf.Concurrency, DefaultConcurrency)
+	conf.MaxObjectBytes = defaultBytes(conf.MaxObjectBytes, controlplane.DefaultMaxObjectBytes)
+	conf.MaxTotalBytes = defaultBytes(conf.MaxTotalBytes, controlplane.DefaultMaxTotalBytes)
+	conf.MaxManifestBytes = defaultBytes(conf.MaxManifestBytes, controlplane.DefaultMaxManifestBytes)
+
 	return &Publisher{api: api, cfg: conf}, nil
+}
+
+// validate checks what New cannot repair.
+func (c *Config) validate() error {
+	if c.Bucket == "" || c.Channel == "" || c.Connection == "" {
+		return fmt.Errorf("%w: bucket, channel and connection are required", ErrConfig)
+	}
+
+	if strings.HasPrefix(c.Prefix, "/") {
+		return fmt.Errorf("%w: prefix must not start with a slash", ErrConfig)
+	}
+
+	if c.MaxObjects < 0 || c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.MaxManifestBytes < 0 || c.Concurrency < 0 {
+		return fmt.Errorf("%w: limits must not be negative", ErrConfig)
+	}
+
+	return nil
+}
+
+func defaultInt(value, def int) int {
+	if value == 0 {
+		return def
+	}
+
+	return value
+}
+
+func defaultBytes(value, def int64) int64 {
+	if value == 0 {
+		return def
+	}
+
+	return value
 }
 
 // ManifestKey returns the key of the manifest.
@@ -123,21 +160,24 @@ type plan struct {
 	warnings []string
 }
 
-// current is the manifest found in the bucket.
+// current is the manifest found in the bucket. manifest is nil when it could not be used and the caller asked to
+// replace it (invalid says why).
 type current struct {
 	manifest *controlplane.Manifest
+	invalid  error
 	etag     string
 }
 
 // Publish uploads the objects that are absent, then writes the manifest, as described in the package comment.
-// Nothing is written when validation fails, when the bucket already holds this exact content, or with DryRun.
-// Repeating a failed Publish is safe: objects are immutable and unreferenced until the manifest is written.
+// Nothing is written when validation fails, when the bucket already holds this exact content (a listed object
+// that is missing is uploaded again), or with DryRun. Repeating a failed Publish is safe: objects are immutable
+// and unreferenced until the manifest is written.
 func (p *Publisher) Publish(ctx context.Context, req Request) (*Result, error) {
 	counted := &counter{API: p.api}
 
 	res, err := (&Publisher{api: counted, cfg: p.cfg}).run(ctx, &req)
 	if res != nil {
-		res.Requests = counted.n
+		res.Requests = counted.requests()
 	}
 
 	return res, err
@@ -149,7 +189,7 @@ func (p *Publisher) run(ctx context.Context, req *Request) (*Result, error) {
 		return nil, err
 	}
 
-	cur, err := p.readManifest(ctx)
+	cur, err := p.readManifest(ctx, req.ReplaceInvalidManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -166,13 +206,19 @@ func (p *Publisher) run(ctx context.Context, req *Request) (*Result, error) {
 
 	res.Generation = generation
 
-	if cur != nil {
+	if cur != nil && cur.manifest != nil {
 		res.Previous = cur.manifest.Generation
 	}
 
 	if same {
+		// The manifest is current: write nothing, but make sure that what it lists is there, and heal a
+		// missing object.
 		res.ManifestETag = cur.etag
-		res.Objects = unchanged(cur.manifest.Objects)
+
+		err = p.ensureObjects(ctx, prep.items, req.DryRun, res)
+		if err != nil {
+			return nil, err
+		}
 
 		return res, nil
 	}
@@ -200,22 +246,18 @@ func (p *Publisher) run(ctx context.Context, req *Request) (*Result, error) {
 	return res, nil
 }
 
-// unchanged lists the entries of a manifest that is already in the bucket.
-func unchanged(objects []controlplane.ManifestObject) []ObjectResult {
-	out := make([]ObjectResult, 0, len(objects))
-	for i := range objects {
-		out = append(out, ObjectResult{
-			Name: objects[i].Name, Key: objects[i].Key, Size: objects[i].Size, Status: StatusUnchanged,
-		})
-	}
-
-	return out
-}
-
 // nextGeneration decides the generation to write and whether the bucket already holds the content.
 func nextGeneration(cur *current, objects []controlplane.ManifestObject, requested uint64) (uint64, bool, error) {
 	if cur == nil {
 		return max(requested, 1), false, nil
+	}
+
+	if cur.manifest == nil {
+		if requested == 0 {
+			return 0, false, fmt.Errorf("%w: replacing an invalid manifest needs an explicit generation", ErrGeneration)
+		}
+
+		return requested, false, nil
 	}
 
 	prev := cur.manifest.Generation
@@ -235,138 +277,7 @@ func nextGeneration(cur *current, objects []controlplane.ManifestObject, request
 	return requested, false, nil
 }
 
-// plan validates the request and builds the manifest. It makes no S3 call.
-func (p *Publisher) plan(req *Request) (*plan, error) {
-	items := make([]planned, 0, len(req.Objects))
-
-	for i := range req.Objects {
-		item, err := p.plannedObject(&req.Objects[i])
-		if err != nil {
-			return nil, err
-		}
-
-		items = append(items, item)
-	}
-
-	slices.SortStableFunc(items, func(a, b planned) int { return strings.Compare(a.entry.Name, b.entry.Name) })
-
-	manifest := &controlplane.Manifest{
-		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindManifest, Channel: p.cfg.Channel,
-		Generation: 1, CreatedAt: req.CreatedAt, Objects: make([]controlplane.ManifestObject, len(items)),
-	}
-	for i := range items {
-		manifest.Objects[i] = *items[i].entry
-	}
-
-	err := controlplane.ValidateManifest(manifest, controlplane.WithMaxObjects(p.cfg.MaxObjects))
-	if err != nil {
-		return nil, invalid("manifest", err)
-	}
-
-	warnings, err := validateContents(items, manifest)
-	if err != nil {
-		return nil, err
-	}
-
-	return &plan{manifest: manifest, items: items, warnings: warnings}, nil
-}
-
-// plannedObject computes the checksum, key and manifest entry of one object.
-func (p *Publisher) plannedObject(obj *Object) (planned, error) {
-	name := label(obj.Name, obj.Source)
-
-	if obj.Format != controlplane.FormatYAML && obj.Format != controlplane.FormatJSON {
-		return planned{}, invalid(
-			name,
-			fmt.Errorf("%w: %q (use yaml or json)", controlplane.ErrUnsupportedFormat, obj.Format),
-		)
-	}
-
-	sum := controlplane.ChecksumOf(obj.Body)
-
-	key, err := controlplane.ObjectKey(sum, obj.Format)
-	if err != nil {
-		return planned{}, invalid(name, err)
-	}
-
-	raw := sha256.Sum256(obj.Body)
-
-	return planned{
-		source: obj.Source, body: obj.Body, format: obj.Format, sha64: base64.StdEncoding.EncodeToString(raw[:]),
-		entry: &controlplane.ManifestObject{
-			Name: obj.Name, Kind: obj.Kind, Connection: p.cfg.Connection, Key: p.cfg.Prefix + key,
-			Format: obj.Format, Checksum: sum, Size: int64(len(obj.Body)),
-		},
-	}, nil
-}
-
-// validateContents decodes every document and runs the Validate functions of the controlplane package.
-func validateContents(items []planned, manifest *controlplane.Manifest) ([]string, error) {
-	var warnings []string
-
-	for i := range items {
-		info, err := validateContent(items[i].entry, items[i].body, manifest)
-		if err != nil {
-			return nil, invalid(label(items[i].entry.Name, items[i].source), err)
-		}
-
-		for _, field := range info.UnknownFields {
-			warnings = append(warnings, fmt.Sprintf("object %s: unknown field %s", items[i].entry.Name, field))
-		}
-	}
-
-	return warnings, nil
-}
-
-// validateContent validates the bytes of one object by its kind. manifest may be nil: source references are
-// then not resolved. The errors are the ones of the controlplane package.
-func validateContent(
-	entry *controlplane.ManifestObject, body []byte, manifest *controlplane.Manifest,
-) (controlplane.DecodeInfo, error) {
-	switch entry.Kind {
-	case controlplane.KindFlags:
-		flags, info, err := controlplane.UnmarshalFlags(body, entry.Format)
-		if err != nil {
-			return info, fmt.Errorf("decode flags: %w", err)
-		}
-
-		err = controlplane.ValidateFlags(flags)
-		if err != nil {
-			return info, fmt.Errorf("validate flags: %w", err)
-		}
-
-		return info, nil
-	case controlplane.KindFlagSets:
-		doc, info, err := controlplane.UnmarshalFlagSet(body)
-		if err != nil {
-			return info, fmt.Errorf("decode flag sets: %w", err)
-		}
-
-		err = controlplane.ValidateFlagSet(doc, manifest)
-		if err != nil {
-			return info, fmt.Errorf("validate flag sets: %w", err)
-		}
-
-		return info, nil
-	}
-
-	return controlplane.DecodeInfo{}, fmt.Errorf("%w: kind %q", controlplane.ErrInvalid, entry.Kind)
-}
-
-// label names an object in an error: its name and, when known, where it came from.
-func label(name, source string) string {
-	if source == "" {
-		return name
-	}
-
-	return name + " (" + source + ")"
-}
-
-func invalid(name string, err error) error {
-	return fmt.Errorf("%w: %s: %w", ErrInvalid, name, err)
-}
-
-// decodeManifest reads and validates the bytes of a manifest.
+// decodeManifest reads and validates the bytes of a manifest, and checks it against the current limits.
 func (p *Publisher) decodeManifest(body []byte) (*controlplane.Manifest, error) {
 	manifest, _, err := controlplane.UnmarshalManifest(body)
 	if err != nil {
@@ -378,6 +289,11 @@ func (p *Publisher) decodeManifest(body []byte) (*controlplane.Manifest, error) 
 		return nil, fmt.Errorf("validate manifest: %w", err)
 	}
 
+	err = p.checkLimits(manifest.Objects, func(i int) string { return manifest.Objects[i].Name })
+	if err != nil {
+		return nil, err
+	}
+
 	slices.SortStableFunc(manifest.Objects, func(a, b controlplane.ManifestObject) int {
 		return strings.Compare(a.Name, b.Name)
 	})
@@ -385,20 +301,93 @@ func (p *Publisher) decodeManifest(body []byte) (*controlplane.Manifest, error) 
 	return manifest, nil
 }
 
-// readManifest reads the manifest in the bucket: nil when there is none.
-func (p *Publisher) readManifest(ctx context.Context) (*current, error) {
-	body, etag, err := p.read(ctx, p.cfg.ManifestKey, maxManifestBytes)
+// checkLimits applies the limits of the reader to the entries of a manifest: every size between 1 and
+// MaxObjectBytes, and the sum over the distinct checksums at most MaxTotalBytes. label names entry i.
+func (p *Publisher) checkLimits(objects []controlplane.ManifestObject, label func(i int) string) error {
+	var total int64
+
+	seen := make(map[string]struct{}, len(objects))
+
+	for i := range objects {
+		size := objects[i].Size
+
+		switch {
+		case size < 1:
+			return fmt.Errorf("%w: %s: size %d, an object must not be empty", ErrLimit, label(i), size)
+		case size > p.cfg.MaxObjectBytes:
+			return fmt.Errorf("%w: %s: size %d bytes is over the limit of %d bytes",
+				ErrLimit, label(i), size, p.cfg.MaxObjectBytes)
+		}
+
+		if _, dup := seen[objects[i].Checksum.Value]; dup {
+			continue
+		}
+
+		seen[objects[i].Checksum.Value] = struct{}{}
+
+		if total > math.MaxInt64-size {
+			total = math.MaxInt64
+		} else {
+			total += size
+		}
+	}
+
+	if total > p.cfg.MaxTotalBytes {
+		return fmt.Errorf(
+			"%w: objects total %d bytes, over the limit of %d bytes",
+			ErrLimit,
+			total,
+			p.cfg.MaxTotalBytes,
+		)
+	}
+
+	return nil
+}
+
+// marshalManifest writes the manifest as YAML, or as JSON when the manifest key ends in ".json".
+func (p *Publisher) marshalManifest(manifest *controlplane.Manifest) ([]byte, string, error) {
+	if strings.HasSuffix(p.cfg.ManifestKey, ".json") {
+		body, err := controlplane.MarshalManifestJSON(manifest)
+
+		return body, controlplane.FormatJSON, err //nolint:wrapcheck // wrapped by the callers
+	}
+
+	body, err := controlplane.MarshalManifest(manifest)
+
+	return body, controlplane.FormatYAML, err //nolint:wrapcheck // wrapped by the callers
+}
+
+// readManifest reads the manifest in the bucket: nil when there is none. A manifest that cannot be used is
+// ErrPreviousManifest, or with replace a current without manifest that carries only the ETag.
+func (p *Publisher) readManifest(ctx context.Context, replace bool) (*current, error) {
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
 	if isNotFound(err) {
 		return nil, nil //nolint:nilnil // no manifest is a state, not an error
 	}
 
-	if err != nil {
+	var decodeErr error
+
+	switch {
+	case errors.Is(err, errTooLarge):
+		decodeErr = fmt.Errorf("%w: the manifest is over the limit of %d bytes", ErrLimit, p.cfg.MaxManifestBytes)
+	case err != nil:
 		return nil, err
 	}
 
-	manifest, err := p.decodeManifest(body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrPreviousManifest, p.cfg.ManifestKey, err)
+	var manifest *controlplane.Manifest
+
+	if decodeErr == nil {
+		manifest, decodeErr = p.decodeManifest(body)
+	}
+
+	if decodeErr != nil {
+		if replace {
+			return &current{etag: etag, invalid: decodeErr}, nil
+		}
+
+		return nil, fmt.Errorf("%w: %s: %w; to replace it set Request.ReplaceInvalidManifest "+
+			"(CLI: --replace-invalid-manifest) together with an explicit generation",
+			ErrPreviousManifest, p.cfg.ManifestKey, decodeErr)
 	}
 
 	if manifest.Channel != p.cfg.Channel {
@@ -411,7 +400,8 @@ func (p *Publisher) readManifest(ctx context.Context) (*current, error) {
 var errTooLarge = errors.New("object is larger than the limit")
 
 // read gets an object and returns its bytes (at most limit) and ETag. A missing key is an error that
-// isNotFound recognises; any other failure is an *OperationError.
+// isNotFound recognises; any other failure is an *OperationError. An object over the limit is an
+// *OperationError that wraps errTooLarge, with the ETag still returned.
 func (p *Publisher) read(ctx context.Context, key string, limit int64) ([]byte, string, error) {
 	out, err := p.api.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(p.cfg.Bucket), Key: aws.String(key)})
 	if err != nil {
@@ -424,139 +414,25 @@ func (p *Publisher) read(ctx context.Context, key string, limit int64) ([]byte, 
 
 	defer func() { _ = out.Body.Close() }()
 
+	etag := aws.ToString(out.ETag)
+
 	body, err := io.ReadAll(io.LimitReader(out.Body, limit+1))
 	if err != nil {
-		return nil, "", &OperationError{Operation: opGet, Key: key, Err: err}
+		return nil, etag, &OperationError{Operation: opGet, Key: key, Err: err}
 	}
 
 	if int64(len(body)) > limit {
-		return nil, "", &OperationError{Operation: opGet, Key: key, Err: errTooLarge}
+		return nil, etag, &OperationError{Operation: opGet, Key: key, Err: errTooLarge}
 	}
 
-	return body, aws.ToString(out.ETag), nil
-}
-
-// ensureObjects creates the objects that are absent, each key once.
-func (p *Publisher) ensureObjects(ctx context.Context, items []planned, dryRun bool, res *Result) error {
-	done := make(map[string]Status, len(items))
-
-	for i := range items {
-		item := &items[i]
-
-		status, seen := done[item.entry.Key]
-		if !seen {
-			var err error
-
-			status, err = p.ensure(ctx, item, dryRun)
-			if err != nil {
-				return err
-			}
-
-			done[item.entry.Key] = status
-
-			if status == StatusPresent {
-				res.Present++
-			} else {
-				res.Uploaded++
-				res.UploadedBytes += item.entry.Size
-			}
-		}
-
-		res.Objects = append(res.Objects, ObjectResult{
-			Name: item.entry.Name, Key: item.entry.Key, Size: item.entry.Size, Status: status,
-		})
-	}
-
-	return nil
-}
-
-// ensure makes the object exist under its key: HeadObject, then a create-only PutObject when it is absent.
-func (p *Publisher) ensure(ctx context.Context, item *planned, dryRun bool) (Status, error) {
-	found, err := p.exists(ctx, item)
-	if err != nil {
-		return "", err
-	}
-
-	if found {
-		return StatusPresent, nil
-	}
-
-	if dryRun {
-		return StatusWouldUpload, nil
-	}
-
-	_, err = p.api.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(p.cfg.Bucket), Key: aws.String(item.entry.Key), Body: bytes.NewReader(item.body),
-		ContentType: aws.String(contentType(item.format)), IfNoneMatch: aws.String(anyETag),
-		ChecksumSHA256: aws.String(item.sha64),
-	})
-	if isPrecondition(err) {
-		// Created by someone else after our HeadObject: the key is content addressed, so check and accept.
-		found, err = p.exists(ctx, item)
-		if err == nil && !found {
-			err = fmt.Errorf("%w: %s", ErrConflict, item.entry.Key)
-		}
-
-		if err != nil {
-			return "", err
-		}
-
-		return StatusPresent, nil
-	}
-
-	if err != nil {
-		return "", &OperationError{Operation: opPut, Key: item.entry.Key, Err: err}
-	}
-
-	return StatusUploaded, nil
-}
-
-// exists runs HeadObject and checks that an existing object has the expected size and, when the store reports
-// it, the expected sha256.
-func (p *Publisher) exists(ctx context.Context, item *planned) (bool, error) {
-	out, err := p.api.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: aws.String(p.cfg.Bucket), Key: aws.String(item.entry.Key), ChecksumMode: types.ChecksumModeEnabled,
-	})
-	if isNotFound(err) {
-		return false, nil
-	}
-
-	if err != nil {
-		return false, &OperationError{Operation: opHead, Key: item.entry.Key, Err: err}
-	}
-
-	if size := aws.ToInt64(out.ContentLength); size != item.entry.Size {
-		return false, fmt.Errorf(
-			"%w: %s has %d bytes, want %d",
-			ErrObjectMismatch,
-			item.entry.Key,
-			size,
-			item.entry.Size,
-		)
-	}
-
-	if sum := aws.ToString(out.ChecksumSHA256); sum != "" && sum != item.sha64 {
-		return false, fmt.Errorf("%w: %s has another sha256", ErrObjectMismatch, item.entry.Key)
-	}
-
-	return true, nil
+	return body, etag, nil
 }
 
 // writeManifest writes the manifest last, create-only when there was none and If-Match the ETag read otherwise.
+// A failed condition is resolved by one read: when the manifest in the bucket is the one we tried to write, an
+// earlier attempt of ours committed (the SDK retried a request whose answer was lost) and that is success.
 func (p *Publisher) writeManifest(ctx context.Context, manifest *controlplane.Manifest, cur *current) (string, error) {
-	var (
-		body   []byte
-		err    error
-		format = controlplane.FormatYAML
-	)
-
-	if strings.HasSuffix(p.cfg.ManifestKey, ".json") {
-		format = controlplane.FormatJSON
-		body, err = controlplane.MarshalManifestJSON(manifest)
-	} else {
-		body, err = controlplane.MarshalManifest(manifest)
-	}
-
+	body, format, err := p.marshalManifest(manifest)
 	if err != nil {
 		return "", invalid("manifest", err)
 	}
@@ -573,7 +449,7 @@ func (p *Publisher) writeManifest(ctx context.Context, manifest *controlplane.Ma
 
 	out, err := p.api.PutObject(ctx, input)
 	if isPrecondition(err) || (cur != nil && isNotFound(err)) {
-		return "", fmt.Errorf("%w: %s", ErrConflict, p.cfg.ManifestKey)
+		return p.resolveConflict(ctx, manifest)
 	}
 
 	if err != nil {
@@ -581,6 +457,32 @@ func (p *Publisher) writeManifest(ctx context.Context, manifest *controlplane.Ma
 	}
 
 	return aws.ToString(out.ETag), nil
+}
+
+// resolveConflict reads the manifest after a failed write and returns its ETag when it is ours, else ErrConflict.
+func (p *Publisher) resolveConflict(ctx context.Context, written *controlplane.Manifest) (string, error) {
+	conflict := fmt.Errorf("%w: %s", ErrConflict, p.cfg.ManifestKey)
+
+	body, etag, err := p.read(ctx, p.cfg.ManifestKey, p.cfg.MaxManifestBytes)
+
+	switch {
+	case isNotFound(err), errors.Is(err, errTooLarge):
+		return "", conflict
+	case err != nil:
+		return "", err
+	}
+
+	found, err := p.decodeManifest(body)
+	if err != nil {
+		return "", conflict
+	}
+
+	if found.Channel == written.Channel && found.Generation == written.Generation &&
+		slices.Equal(found.Objects, written.Objects) {
+		return etag, nil
+	}
+
+	return "", conflict
 }
 
 func contentType(format string) string {

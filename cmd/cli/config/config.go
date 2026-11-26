@@ -206,6 +206,15 @@ func runPrint(w io.Writer, file, output string, deps *Deps) error {
 
 	cfg, err := load(file, deps)
 	if err != nil {
+		if output == outputJSON {
+			name := helper.JSONErrorName(helper.ExitCodeOf(err))
+
+			writeErr := helper.WriteJSONError(w, name, err, nil)
+			if writeErr != nil {
+				return fmt.Errorf("report error: %w", writeErr)
+			}
+		}
+
 		return err
 	}
 

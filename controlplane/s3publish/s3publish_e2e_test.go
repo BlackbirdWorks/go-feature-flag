@@ -7,7 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -392,6 +394,11 @@ func TestE2EManyPublishersLeaveAConsistentBucket(t *testing.T) {
 	require.NotEmpty(t, wins)
 	assert.Len(t, uniq(wins), len(wins), "a generation is won once")
 
+	raw, _ := env.get(t, manifestKey)
+	manifest, _, err := controlplane.UnmarshalManifest(raw)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(len(wins)), manifest.Generation, "one generation per winner, none skipped")
+
 	rep, err := env.publisher(t).Verify(t.Context())
 	require.NoError(t, err)
 	assert.True(t, rep.OK(), "%v", rep.Problems)
@@ -426,11 +433,12 @@ func TestE2EVerifyFindsCorruptionAndMissingObjects(t *testing.T) {
 	assert.Equal(t, s3publish.ProblemChecksumMismatch, rep.Problems[0].Code)
 	assert.Equal(t, flagsKey, rep.Problems[0].Key)
 
-	// Republishing the same content never overwrites the corrupted object: the manifest is unchanged, so
-	// nothing is written, and Verify keeps reporting it.
-	res, err := pub.Publish(t.Context(), s3publish.Request{Objects: objects})
-	require.NoError(t, err)
-	assert.False(t, res.Written)
+	// Republishing the same content checks the listed objects: the corrupted one is refused, never overwritten.
+	_, err = pub.Publish(t.Context(), s3publish.Request{Objects: objects})
+	require.ErrorIs(t, err, s3publish.ErrObjectMismatch)
+
+	stored, _ := env.get(t, flagsKey)
+	assert.Equal(t, corrupted, stored)
 
 	_, err = env.client.DeleteObject(
 		t.Context(),
@@ -475,6 +483,107 @@ func TestE2EPrefixAndJSONManifest(t *testing.T) {
 	for _, obj := range manifest.Objects {
 		assert.Contains(t, obj.Key, "tenant-a/objects/sha256/")
 	}
+
+	rep, err := pub.Verify(t.Context())
+	require.NoError(t, err)
+	assert.True(t, rep.OK(), "%v", rep.Problems)
+}
+
+func TestE2EMissingBucketIsAnOperationError(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	missing := gopherstack.UniqueName(t, "nobucket")
+
+	pub, err := s3publish.New(
+		env.client,
+		&s3publish.Config{Bucket: missing, Channel: testChannel, Connection: testConnection},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		run  func() error
+		name string
+	}{
+		{name: "publish", run: func() error {
+			_, runErr := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
+
+			return runErr
+		}},
+		{name: "dry run", run: func() error {
+			_, runErr := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a"), DryRun: true})
+
+			return runErr
+		}},
+		{name: "verify", run: func() error {
+			_, runErr := pub.Verify(t.Context())
+
+			return runErr
+		}},
+	}
+	for _, tt := range tests {
+		runErr := tt.run()
+
+		var op *s3publish.OperationError
+
+		require.ErrorAs(t, runErr, &op, tt.name)
+		require.ErrorContains(t, runErr, "NoSuchBucket", tt.name)
+		require.NotErrorIs(t, runErr, s3publish.ErrNoManifest, tt.name)
+		require.NotErrorIs(t, runErr, s3publish.ErrConflict, tt.name)
+	}
+}
+
+// lossyManifestWrite forwards the first write of the manifest to the emulator, which commits it, and answers 503
+// to the caller, so that the SDK sends the write again and the second one fails its condition.
+type lossyManifestWrite struct {
+	next    http.RoundTripper
+	key     string
+	dropped atomic.Int32
+}
+
+func (l *lossyManifestWrite) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := l.next.RoundTrip(req)
+	if err != nil || req.Method != http.MethodPut || !strings.HasSuffix(req.URL.Path, "/"+l.key) ||
+		!l.dropped.CompareAndSwap(0, 1) {
+		return resp, err
+	}
+
+	_ = resp.Body.Close()
+
+	return &http.Response{
+		StatusCode: http.StatusServiceUnavailable, Status: "503 Service Unavailable", Proto: "HTTP/1.1",
+		ProtoMajor: 1, ProtoMinor: 1, Request: req,
+		Header: http.Header{"Content-Type": []string{"application/xml"}},
+		Body: io.NopCloser(strings.NewReader(
+			`<?xml version="1.0"?><Error><Code>ServiceUnavailable</Code><Message>try again</Message></Error>`)),
+	}, nil
+}
+
+func TestE2EManifestWriteRetriedByTheSDKIsSuccess(t *testing.T) {
+	t.Parallel()
+
+	srv := gopherstack.Connect(t)
+	lossy := &lossyManifestWrite{next: http.DefaultTransport, key: manifestKey}
+
+	cfg := srv.MustAwsConfig(t)
+	cfg.HTTPClient = &http.Client{Transport: lossy}
+
+	client := s3.NewFromConfig(cfg)
+	bucket := gopherstack.UniqueName(t, "retry")
+	_, err := client.CreateBucket(t.Context(), &s3.CreateBucketInput{Bucket: aws.String(bucket)})
+	require.NoError(t, err)
+
+	pub, err := s3publish.New(
+		client,
+		&s3publish.Config{Bucket: bucket, Channel: testChannel, Connection: testConnection},
+	)
+	require.NoError(t, err)
+
+	res, err := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
+	require.NoError(t, err, "the first write committed; the retry hit its own manifest")
+	assert.Equal(t, int32(1), lossy.dropped.Load())
+	assert.True(t, res.Written)
+	assert.Equal(t, uint64(1), res.Generation)
 
 	rep, err := pub.Verify(t.Context())
 	require.NoError(t, err)

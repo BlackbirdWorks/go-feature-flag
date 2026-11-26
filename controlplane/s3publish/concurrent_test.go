@@ -197,6 +197,13 @@ func TestManyPublishersNeverBreakTheBucket(t *testing.T) {
 
 	require.NotEmpty(t, generations, "at least one publisher wins")
 	assert.Len(t, generations, len(uniq(generations)), "a generation is won once")
+
+	stored, ok := fake.Body(manifestKey)
+	require.True(t, ok)
+
+	manifest, _, err := controlplane.UnmarshalManifest(stored)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(len(generations)), manifest.Generation, "one generation per winner, none skipped")
 	fake.AssertConsistent(t)
 }
 

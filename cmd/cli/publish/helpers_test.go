@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	badFile      = "flags/bad.yaml"
 	regionUSEast = "us-east-1"
 	srcDir       = "src"
 	flagsA       = "flags/a.yaml"

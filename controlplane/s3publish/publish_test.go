@@ -224,14 +224,18 @@ func TestPublishNothingChanged(t *testing.T) {
 		wantWritten    bool
 	}{
 		{
-			name:           "same content writes nothing",
-			wantCalls:      func(_, _, _ string) []string { return []string{"GET " + manifestKey} },
+			name: "same content writes nothing, objects are checked",
+			wantCalls: func(flagsKey, setsKey, _ string) []string {
+				return []string{"GET " + manifestKey, "HEAD " + flagsKey, "HEAD " + setsKey}
+			},
 			wantGeneration: 1,
 		},
 		{
-			name:           "same content and the same explicit generation writes nothing",
-			generation:     1,
-			wantCalls:      func(_, _, _ string) []string { return []string{"GET " + manifestKey} },
+			name:       "same content and the same explicit generation writes nothing",
+			generation: 1,
+			wantCalls: func(flagsKey, setsKey, _ string) []string {
+				return []string{"GET " + manifestKey, "HEAD " + flagsKey, "HEAD " + setsKey}
+			},
 			wantGeneration: 1,
 		},
 		{
@@ -280,8 +284,10 @@ func TestPublishNothingChanged(t *testing.T) {
 				assert.Equal(t, etag, res.ManifestETag)
 				assert.Zero(t, res.Uploaded)
 
+				assert.Equal(t, 2, res.Present, "the listed objects are confirmed present")
+
 				for _, o := range res.Objects {
-					assert.Equal(t, s3publish.StatusUnchanged, o.Status)
+					assert.Equal(t, s3publish.StatusPresent, o.Status)
 				}
 			}
 		})
@@ -318,8 +324,8 @@ func TestPublishSameContentTwiceUploadsOnce(t *testing.T) {
 	body := flagsBody(t, "a")
 	key := objectKey(t, body)
 	objects := []s3publish.Object{
-		{Name: "one", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
-		{Name: "two", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
+		{Name: nameOne, Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
+		{Name: nameTwo, Kind: controlplane.KindFlags, Format: controlplane.FormatYAML, Body: body},
 	}
 
 	res, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: objects})
@@ -429,12 +435,14 @@ func TestPublishLostManifestRace(t *testing.T) {
 
 			calls := fake.Calls()
 			require.NotEmpty(t, calls)
+			require.GreaterOrEqual(t, len(calls), 2)
 			assert.True(
 				t,
-				strings.HasPrefix(calls[len(calls)-1], "PUT "+manifestKey),
-				"the manifest write is the last call: %v",
+				strings.HasPrefix(calls[len(calls)-2], "PUT "+manifestKey),
+				"the manifest write is the last write: %v",
 				calls,
 			)
+			assert.Equal(t, "GET "+manifestKey, calls[len(calls)-1], "one read resolves the failed condition")
 			assert.Equal(t, 1, countPrefix(calls, "PUT "+manifestKey), "no retry of the manifest write")
 
 			got, found := fake.Body(manifestKey)
@@ -503,10 +511,10 @@ func TestPublishValidationFailureWritesNothing(t *testing.T) {
 	t.Parallel()
 
 	good := standardObjects(t, "a")
-	unresolved := flagSetBody(t, controlplane.FlagSet{Name: "x", Sources: []string{"nope"}})
+	unresolved := flagSetBody(t, controlplane.FlagSet{Name: "x", Sources: []string{nameNope}})
 	dupKey := flagSetBody(t,
-		controlplane.FlagSet{Name: "one", Sources: []string{nameFlags}, APIKeys: []string{"same-key-canary"}},
-		controlplane.FlagSet{Name: "two", Sources: []string{nameFlags}, APIKeys: []string{"same-key-canary"}},
+		controlplane.FlagSet{Name: nameOne, Sources: []string{nameFlags}, APIKeys: []string{"same-key-canary"}},
+		controlplane.FlagSet{Name: nameTwo, Sources: []string{nameFlags}, APIKeys: []string{"same-key-canary"}},
 	)
 
 	tests := []struct {
@@ -564,7 +572,7 @@ func TestPublishValidationFailureWritesNothing(t *testing.T) {
 				{Name: "sets", Kind: controlplane.KindFlagSets, Format: controlplane.FormatYAML, Body: dupKey},
 			},
 		},
-		{name: "too many objects", maxObjects: 1, objects: good},
+		{name: msgTooMany, maxObjects: 1, objects: good},
 		{
 			name: "flag-set document as flags",
 			objects: []s3publish.Object{

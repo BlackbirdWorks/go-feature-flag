@@ -66,3 +66,54 @@ func TestPrintFatalUsesTheExitCodeOfTheError(t *testing.T) {
 	assert.Equal(t, helper.ExitConflict, code)
 	assert.Contains(t, buf.String(), "boom")
 }
+
+func TestJSONErrorName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		want string
+		code int
+	}{
+		{code: helper.ExitFailure, want: "failure"},
+		{code: helper.ExitInvalid, want: "invalid"},
+		{code: helper.ExitConflict, want: "conflict"},
+		{code: helper.ExitTransport, want: "transport"},
+		{code: helper.ExitVerify, want: "bad-state"},
+		{code: 99, want: "failure"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, helper.JSONErrorName(tt.code), "exit code %d", tt.code)
+	}
+}
+
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) { return 0, errBoom }
+
+func TestWriteJSONError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("details are never null", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+
+		require.NoError(t, helper.WriteJSONError(&buf, "invalid", errBoom, nil))
+		assert.JSONEq(t, `{"error":{"code":"invalid","message":"boom","details":[]}}`, buf.String())
+	})
+
+	t.Run("details are kept in order", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+
+		require.NoError(t, helper.WriteJSONError(&buf, "conflict", errBoom, []string{"b", "a"}))
+		assert.JSONEq(t, `{"error":{"code":"conflict","message":"boom","details":["b","a"]}}`, buf.String())
+	})
+
+	t.Run("a failed write is an error", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, helper.WriteJSONError(brokenWriter{}, "invalid", errBoom, nil), errBoom)
+	})
+}

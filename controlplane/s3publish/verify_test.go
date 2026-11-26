@@ -126,7 +126,7 @@ func TestVerifyUnresolvedSourceAndInvalidContent(t *testing.T) {
 	flags := flagsBody(t, "a")
 	sets := flagSetBody(
 		t,
-		controlplane.FlagSet{Name: "x", Sources: []string{"nope"}, APIKeys: []string{"canary-api-key-0002"}},
+		controlplane.FlagSet{Name: "x", Sources: []string{nameNope}, APIKeys: []string{"canary-api-key-0002"}},
 	)
 	garbage := []byte("flag: [unterminated")
 

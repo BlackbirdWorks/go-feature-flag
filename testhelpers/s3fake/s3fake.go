@@ -2,6 +2,9 @@
 // write semantics of S3 (If-None-Match: * and If-Match answer 412 PreconditionFailed, If-Match on a missing key
 // answers NoSuchKey), a verified ChecksumSHA256, a log of every call in order, and a hook to inject failures or
 // play another writer. It implements the API of controlplane/s3publish.
+//
+// Where S3 documents a behaviour the fake follows it: a single-part ETag is the quoted hex md5 of the body, and
+// If-None-Match accepts only "*" (any other value answers 501 NotImplemented, so a test cannot rely on it).
 package s3fake
 
 import (
@@ -44,8 +47,10 @@ type Fake struct {
 	// violations lists the moments when the manifest listed an object that did not exist.
 	violations []string
 	calls      []string
-	seq        int
 	mu         sync.Mutex
+	// OmitChecksums makes HeadObject report no ChecksumSHA256, as a store does for an object uploaded without
+	// one. Set it before the fake is used.
+	OmitChecksums bool
 }
 
 // New returns an empty bucket. The manifest at manifestKey is checked after every write: each object it lists must
@@ -177,13 +182,12 @@ func (f *Fake) HeadObject(
 		return nil, &types.NotFound{}
 	}
 
-	return &s3.HeadObjectOutput{
-		ETag: aws.String(
-			obj.etag,
-		),
-		ContentLength:  aws.Int64(int64(len(obj.body))),
-		ChecksumSHA256: aws.String(obj.sha256),
-	}, nil
+	out := &s3.HeadObjectOutput{ETag: aws.String(obj.etag), ContentLength: aws.Int64(int64(len(obj.body)))}
+	if !f.OmitChecksums {
+		out.ChecksumSHA256 = aws.String(obj.sha256)
+	}
+
+	return out, nil
 }
 
 // PutObject implements s3publish.API.
@@ -247,6 +251,27 @@ func (f *Fake) AssertConsistent(t *testing.T) {
 	assert.Empty(t, f.Violations(), "a manifest listed an object that was not in the bucket")
 }
 
+// StatusError is an S3 error with a code and an HTTP status, as the SDK returns for a response error.
+type StatusError struct {
+	Code   string
+	Status int
+}
+
+// Error implements error.
+func (e *StatusError) Error() string { return fmt.Sprintf("%d %s", e.Status, e.Code) }
+
+// ErrorCode implements smithy.APIError.
+func (e *StatusError) ErrorCode() string { return e.Code }
+
+// ErrorMessage implements smithy.APIError.
+func (e *StatusError) ErrorMessage() string { return e.Code }
+
+// ErrorFault implements smithy.APIError.
+func (*StatusError) ErrorFault() smithy.ErrorFault { return smithy.FaultClient }
+
+// HTTPStatusCode returns the HTTP status of the response.
+func (e *StatusError) HTTPStatusCode() int { return e.Status }
+
 // APIError is an S3 error with a code, as the SDK returns it: use it in a Before hook.
 func APIError(code string) error { return &smithy.GenericAPIError{Code: code, Message: code} }
 
@@ -264,11 +289,10 @@ func (f *Fake) record(call string) error {
 }
 
 func (f *Fake) storeLocked(key string, body []byte) string {
-	f.seq++
 	sum := md5.Sum(body) //nolint:gosec // see import
 	raw := sha256.Sum256(body)
 	obj := &fakeObject{
-		etag: fmt.Sprintf("\"%s-%d\"", hex.EncodeToString(sum[:4]), f.seq), body: bytes.Clone(body),
+		etag: `"` + hex.EncodeToString(sum[:]) + `"`, body: bytes.Clone(body),
 		sha256: base64.StdEncoding.EncodeToString(raw[:]),
 	}
 	f.objects[key] = obj
@@ -284,6 +308,10 @@ func (f *Fake) checkPut(input *s3.PutObjectInput, key string, body []byte) error
 		if aws.ToString(input.ChecksumSHA256) != base64.StdEncoding.EncodeToString(raw[:]) {
 			return &smithy.GenericAPIError{Code: "BadDigest", Message: "sha256 mismatch"}
 		}
+	}
+
+	if input.IfNoneMatch != nil && aws.ToString(input.IfNoneMatch) != "*" {
+		return &smithy.GenericAPIError{Code: "NotImplemented", Message: "If-None-Match supports only *"}
 	}
 
 	if input.IfNoneMatch != nil && exists {
@@ -313,9 +341,21 @@ func (f *Fake) checkInvariantLocked(key string) {
 	}
 
 	for i := range manifest.Objects {
-		if _, ok := f.objects[manifest.Objects[i].Key]; !ok {
+		listed := &manifest.Objects[i]
+
+		stored, ok := f.objects[listed.Key]
+
+		switch {
+		case !ok:
 			f.violations = append(f.violations,
-				fmt.Sprintf("generation %d lists missing %s", manifest.Generation, manifest.Objects[i].Key))
+				fmt.Sprintf("generation %d lists missing %s", manifest.Generation, listed.Key))
+		case int64(len(stored.body)) != listed.Size:
+			f.violations = append(f.violations,
+				fmt.Sprintf("generation %d lists %s with size %d, stored %d",
+					manifest.Generation, listed.Key, listed.Size, len(stored.body)))
+		case controlplane.VerifyChecksum(stored.body, listed.Checksum) != nil:
+			f.violations = append(f.violations,
+				fmt.Sprintf("generation %d lists %s with another checksum", manifest.Generation, listed.Key))
 		}
 	}
 }

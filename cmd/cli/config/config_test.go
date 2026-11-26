@@ -3,6 +3,7 @@ package config_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -280,4 +281,55 @@ func TestConfigWithoutSubcommandShowsHelp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, cmdValidate)
 	assert.Contains(t, out, cmdPrint)
+}
+
+var errWrite = errors.New("disk full")
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
+
+func TestWriteFailuresAreReported(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "validate, text", args: []string{cmdValidate, validName}},
+		{name: "validate, json", args: []string{cmdValidate, validName, "-o", fmtJSON}},
+		{name: "validate of an invalid file, json", args: []string{cmdValidate, v1Name, "-o", fmtJSON}},
+		{name: "print, text", args: []string{cmdPrint, optEffective, validName}},
+		{name: "print, json", args: []string{cmdPrint, optEffective, validName, "-o", fmtJSON}},
+		{name: "print of an invalid file, json", args: []string{cmdPrint, optEffective, v1Name, "-o", fmtJSON}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := config.NewConfigCmdWith(testDeps())
+			cmd.SetOut(failingWriter{})
+			cmd.SetErr(failingWriter{})
+			cmd.SetArgs(tt.args)
+
+			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), errWrite.Error())
+		})
+	}
+}
+
+func TestNewConfigCmdIsWiredToTheRealEnvironment(t *testing.T) {
+	t.Parallel()
+
+	cmd := config.NewConfigCmd()
+	names := make([]string, 0, len(cmd.Commands()))
+
+	for _, sub := range cmd.Commands() {
+		names = append(names, sub.Name())
+	}
+
+	assert.ElementsMatch(t, []string{cmdValidate, cmdPrint}, names)
+
+	deps := config.DefaultDeps()
+	assert.NotNil(t, deps.LookupEnv)
+	assert.NotNil(t, deps.ReadFile)
 }

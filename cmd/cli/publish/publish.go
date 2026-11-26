@@ -9,6 +9,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/controlplane/flagcheck"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
@@ -19,6 +21,7 @@ type options struct {
 	output     string
 	generation uint64
 	dryRun     bool
+	replace    bool
 }
 
 // NewPublishCmd returns the publish command with its verify subcommand, wired to the real environment.
@@ -42,7 +45,7 @@ publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPublish(cmd, args[0], opts, &deps)
+			return reportError(cmd, opts, runPublish(cmd, args[0], opts, &deps))
 		},
 	}
 
@@ -50,6 +53,8 @@ publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "plan the publication: the same reads, no write")
 	cmd.Flags().
 		Uint64Var(&opts.generation, "generation", 0, "generation to write (default: the one in the bucket plus one)")
+	cmd.Flags().BoolVar(&opts.replace, "replace-invalid-manifest", false,
+		"replace a manifest in the bucket that is invalid or over the limits (needs --generation)")
 
 	cmd.AddCommand(newVerifyCmd(opts, &deps))
 
@@ -110,10 +115,12 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 		return withCode(err)
 	}
 
-	objects, err := LoadSource(deps.OpenDir(dir), dir)
+	objects, err := LoadSource(deps.OpenDir(dir), dir, tgt.cfg.MaxObjectBytes)
 	if err != nil {
 		return withCode(err)
 	}
+
+	tgt.cfg.Check = checkFlags
 
 	pub, err := newPublisher(cmd, tgt, deps)
 	if err != nil {
@@ -124,12 +131,70 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 
 	res, err := pub.Publish(cmd.Context(), s3publish.Request{
 		Objects: objects, Generation: opts.generation, CreatedAt: &created, DryRun: opts.dryRun,
+		ReplaceInvalidManifest: opts.replace,
 	})
 	if err != nil {
 		return withCode(err)
 	}
 
 	return printResult(cmd.OutOrStdout(), opts.output, res)
+}
+
+// checkFlags validates a flag file with the engine of the relay (the flagcheck package).
+func checkFlags(obj *s3publish.Object) error {
+	if obj.Kind != controlplane.KindFlags {
+		return nil
+	}
+
+	err := flagcheck.Check(obj.Body, obj.Format)
+	if err != nil {
+		return fmt.Errorf("engine check: %w", err)
+	}
+
+	return nil
+}
+
+// reportError writes the JSON error object of a failed command when --output is json, and returns the error. The
+// report of a failed verification is already the output of the command, so it gets no second document.
+func reportError(cmd *cobra.Command, opts *options, err error) error {
+	if err == nil || opts.output != outputJSON || errors.Is(err, errVerify) {
+		return err
+	}
+
+	err = withCode(err)
+	code := helper.ExitCodeOf(err)
+	name := helper.JSONErrorName(code)
+
+	if errors.Is(err, ErrUsage) {
+		name = "usage"
+	}
+
+	writeErr := helper.WriteJSONError(cmd.OutOrStdout(), name, err, errorDetails(err))
+	if writeErr != nil {
+		return fmt.Errorf("report error: %w", writeErr)
+	}
+
+	return err
+}
+
+// errorDetails lists the individual problems behind an error: the field errors of a validation and the flags
+// that the engine rejects, in the order reported.
+func errorDetails(err error) []string {
+	var details []string
+
+	if verr, ok := errors.AsType[*controlplane.ValidationError](err); ok {
+		for i := range verr.Problems {
+			details = append(details, verr.Problems[i].Error())
+		}
+	}
+
+	if ferr, ok := errors.AsType[*flagcheck.Error](err); ok {
+		for i := range ferr.Problems {
+			details = append(details, fmt.Sprintf("flag %s: %v", ferr.Problems[i].Flag, ferr.Problems[i].Err))
+		}
+	}
+
+	return details
 }
 
 func newPublisher(cmd *cobra.Command, tgt *target, deps *Deps) (*s3publish.Publisher, error) {
@@ -169,7 +234,7 @@ each document, and that every flag-set source resolves. It never writes. Exit co
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runVerify(cmd, opts, deps)
+			return reportError(cmd, opts, runVerify(cmd, opts, deps))
 		},
 	}
 }
@@ -244,7 +309,8 @@ func codeOf(err error) int {
 func isInvalidInput(err error) bool {
 	for _, target := range []error{
 		s3publish.ErrInvalid, s3publish.ErrConfig, s3publish.ErrGeneration, s3publish.ErrChannelMismatch,
-		ErrUnknownFile, ErrDuplicateObject, ErrNoDocuments, ErrNoControlPlane, ErrNotS3, bootstrap.ErrSecretUnresolved,
+		ErrUnknownFile, ErrDuplicateObject, ErrNoDocuments, ErrNotRegular, ErrFileTooLarge,
+		ErrNoControlPlane, ErrNotS3, bootstrap.ErrSecretUnresolved,
 	} {
 		if errors.Is(err, target) {
 			return true

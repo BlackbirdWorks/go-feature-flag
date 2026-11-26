@@ -118,6 +118,14 @@ func printResultText(w io.Writer, res *s3publish.Result) error {
 	line := out.printf
 
 	switch {
+	case !res.Changed && res.Uploaded > 0:
+		again := "uploaded again"
+		if res.DryRun {
+			again = "would be uploaded again"
+		}
+
+		line("no change: %s already lists these documents at generation %d; %d missing object(s) %s",
+			res.ManifestKey, res.Generation, res.Uploaded, again)
 	case !res.Changed:
 		line(
 			"no change: %s already lists these documents at generation %d; nothing written",

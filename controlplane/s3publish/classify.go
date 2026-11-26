@@ -26,7 +26,8 @@ func errorCode(err error) string {
 	return ""
 }
 
-// isNotFound reports a missing key (404 NoSuchKey or NotFound).
+// isNotFound reports a missing key: the S3 code NoSuchKey or NotFound. Any other 404, such as NoSuchBucket, is not
+// a missing key and must stay an error.
 func isNotFound(err error) bool {
 	if err == nil {
 		return false
@@ -37,7 +38,7 @@ func isNotFound(err error) bool {
 		return true
 	}
 
-	return httpStatus(err) == http.StatusNotFound
+	return false
 }
 
 // isPrecondition reports a failed condition: 412 PreconditionFailed, or 409 ConditionalRequestConflict that AWS
@@ -50,6 +51,9 @@ func isPrecondition(err error) bool {
 	switch errorCode(err) {
 	case "PreconditionFailed", "ConditionalRequestConflict":
 		return true
+	case "":
+	default:
+		return false
 	}
 
 	switch httpStatus(err) {
