@@ -7,6 +7,8 @@ Supported commands:
 - [`evaluate`](evaluate.md): Evaluate feature flags directly in your terminal.
 - [`lint`](linter.md): Validate a flag configuration file format.
 - [`generate`](generate.md): Generate an OpenFeature flag manifest for the OpenFeature CLI **(experimental)**.
+- [`publish`](publish.md): Publish flag files and flag-set documents to S3 behind a manifest, and verify the bucket.
+- [`config`](config.md): Validate and print the effective version 2 bootstrap file of the relay.
 
 ## Install the Command Line
 

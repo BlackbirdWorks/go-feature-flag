@@ -5,10 +5,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/config"
 	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
+	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
 )
 
@@ -39,6 +41,8 @@ func initRootCmd() *cobra.Command {
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())
 	rootCmd.AddCommand(generate.NewGenerateCmd())
+	rootCmd.AddCommand(publish.NewPublishCmd())
+	rootCmd.AddCommand(config.NewConfigCmd())
 
 	return rootCmd
 }

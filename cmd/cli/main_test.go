@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/pterm/pterm"
@@ -102,6 +104,49 @@ func TestVersionFlag(t *testing.T) {
 			require.NoError(t, cmd.Execute())
 			assert.Contains(t, out.String(), "semaphore-cli localdev\ncommit: ")
 			assert.Contains(t, out.String(), "\nfips140: false\n")
+		})
+	}
+}
+
+func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	file := filepath.Join(t.TempDir(), "bootstrap.yaml")
+	require.NoError(
+		t,
+		os.WriteFile(file, []byte("version: 2\nconnections:\n  c: {type: s3, region: us-east-1, bucket: b}\n"), 0o600),
+	)
+
+	tests := []struct {
+		name    string
+		wantOut string
+		args    []string
+	}{
+		{name: "config validate", args: []string{"config", "validate", file}, wantOut: file + ": valid\n"},
+		{
+			name:    "config print",
+			args:    []string{"config", "print", "--effective", file, "-o", "json"},
+			wantOut: `"bucket": "b"`,
+		},
+		{
+			name:    "publish verify exists",
+			args:    []string{"publish", "verify", "--help"},
+			wantOut: "Reads the manifest and every listed object",
+		},
+		{name: "publish exists", args: []string{"publish", "--help"}, wantOut: "--dry-run"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := initRootCmd()
+
+			var out bytes.Buffer
+
+			cmd.SetOut(&out)
+			cmd.SetArgs(tt.args)
+			require.NoError(t, cmd.Execute())
+			assert.Contains(t, pterm.RemoveColorFromString(out.String()), tt.wantOut)
 		})
 	}
 }

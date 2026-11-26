@@ -1,0 +1,4 @@
+manifest manifests/stable.yaml, channel stable, generation 1, etag "c9d96062-3"
+checked 2 objects, skipped 0 (other connections)
+requests: 3 get
+problem: checkout checksum-mismatch objects/sha256/85/8500b7b202c6d6ba249f43494e2f7ef51a0bad128c2e20a4e0a4ce0265f5c9f7.yaml: controlplane: checksum mismatch: want 8500b7b202c6d6ba249f43494e2f7ef51a0bad128c2e20a4e0a4ce0265f5c9f7, got ec32521f1ae1d966fa651cfd7a331a878366c41d990e9d9e5bd577ba4d3827d6

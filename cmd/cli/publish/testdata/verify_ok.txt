@@ -1,0 +1,4 @@
+manifest manifests/stable.yaml, channel stable, generation 1, etag "c9d96062-3"
+checked 2 objects, skipped 0 (other connections)
+requests: 3 get
+ok: every listed object matches its size and checksum

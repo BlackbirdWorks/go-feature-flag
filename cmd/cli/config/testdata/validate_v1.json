@@ -1,0 +1,9 @@
+{
+  "file": "v1.yaml",
+  "valid": false,
+  "error": {
+    "path": "version",
+    "line": 1,
+    "message": "v1.yaml: version (line 1): bootstrap config: version 2 required"
+  }
+}

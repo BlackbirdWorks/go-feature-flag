@@ -1,0 +1,16 @@
+{
+  "channel": "stable",
+  "manifestKey": "manifests/stable.yaml",
+  "manifestETag": "\"c9d96062-3\"",
+  "generation": 1,
+  "ok": true,
+  "checked": 2,
+  "skipped": [],
+  "requests": {
+    "get": 3,
+    "head": 0,
+    "put": 0,
+    "total": 3
+  },
+  "problems": []
+}

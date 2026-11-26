@@ -69,16 +69,17 @@ func (o *Output) PrintLines(cmd *cobra.Command) {
 	}
 }
 
-// PrintFatalAndExit prints err as an error and exits the process with the code 1.
+// PrintFatalAndExit prints err as an error and exits the process with the code of the error ([ExitCodeOf]), 1 for
+// an error that asks for none.
 func PrintFatalAndExit(err error) {
 	PrintFatal(&pterm.Error, os.Exit, err)
 }
 
-// PrintFatal prints err with printer, then calls exit with the code 1. The printer and the exit
-// function are parameters so that the callers that must not stop the process (tests) can pass their own.
+// PrintFatal prints err with printer, then calls exit with the code of the error ([ExitCodeOf]). The printer and
+// the exit function are parameters so that the callers that must not stop the process (tests) can pass their own.
 func PrintFatal(printer *pterm.PrefixPrinter, exit func(int), err error) {
 	printer.Printf("error executing command: %v\n", err)
-	exit(1)
+	exit(ExitCodeOf(err))
 }
 
 // LegacyWarner returns the Warner of a CLI command: the use of a legacy name is logged once, through
