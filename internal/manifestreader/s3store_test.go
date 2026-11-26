@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,10 +53,10 @@ type scriptedTransport struct {
 }
 
 type seenRequest struct {
+	Query       url.Values
 	Method      string
 	Path        string
 	IfNoneMatch string
-	RawQuery    string
 }
 
 func (s *scriptedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -66,7 +67,7 @@ func (s *scriptedTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		Method:      req.Method,
 		Path:        req.URL.Path,
 		IfNoneMatch: req.Header.Get("If-None-Match"),
-		RawQuery:    req.URL.RawQuery,
+		Query:       parsedQuery(req.URL.RawQuery),
 	})
 
 	idx := len(s.seen) - 1
@@ -134,12 +135,12 @@ func TestS3Store_Get(t *testing.T) {
 			steps:        []httpStep{okAnswer("hello")},
 			limit:        100,
 			wantObject:   manifestreader.Object{Bytes: []byte("hello"), ETag: s3ETag},
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name: "200 exactly at the limit", steps: []httpStep{okAnswer("hello")}, limit: 5,
 			wantObject:   manifestreader.Object{Bytes: []byte("hello"), ETag: s3ETag},
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name:      "304 is not modified, the request carries If-None-Match",
@@ -148,7 +149,7 @@ func TestS3Store_Get(t *testing.T) {
 			limit:     100,
 			wantErrIs: manifestreader.ErrNotModified,
 			wantRequests: []seenRequest{
-				{Method: http.MethodGet, Path: wantPath, IfNoneMatch: s3ETag, RawQuery: rawGet},
+				{Method: http.MethodGet, Path: wantPath, IfNoneMatch: s3ETag, Query: getQuery()},
 			},
 		},
 		{
@@ -156,25 +157,25 @@ func TestS3Store_Get(t *testing.T) {
 			steps:        []httpStep{{status: http.StatusNotFound, body: noSuchKeyXML}},
 			limit:        100,
 			wantErrIs:    manifestreader.ErrNotFound,
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name: "404 without a body is not found", steps: []httpStep{{status: http.StatusNotFound}},
 			limit: 100, wantErrIs: manifestreader.ErrNotFound,
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name:  "404 NoSuchBucket is a configuration problem, not a missing object",
 			steps: []httpStep{{status: http.StatusNotFound, body: noSuchBucketXML}}, limit: 100,
 			wantFetchErr: &manifestreader.FetchError{Reason: manifestreader.ReasonDenied},
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name:         "403 is denied, not retryable, not retried",
 			steps:        []httpStep{{status: http.StatusForbidden, body: deniedXML}},
 			limit:        100,
 			wantFetchErr: &manifestreader.FetchError{Reason: manifestreader.ReasonDenied},
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name: "500 then 200: the SDK retries once",
@@ -185,8 +186,8 @@ func TestS3Store_Get(t *testing.T) {
 			limit:      100,
 			wantObject: manifestreader.Object{Bytes: []byte("hello"), ETag: s3ETag},
 			wantRequests: []seenRequest{
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
 			},
 		},
 		{
@@ -201,9 +202,9 @@ func TestS3Store_Get(t *testing.T) {
 			}, limit: 100,
 			wantFetchErr: &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true},
 			wantRequests: []seenRequest{
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
 			},
 		},
 		{
@@ -218,9 +219,9 @@ func TestS3Store_Get(t *testing.T) {
 			}, limit: 100,
 			wantFetchErr: &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true},
 			wantRequests: []seenRequest{
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
 			},
 		},
 		{
@@ -231,20 +232,20 @@ func TestS3Store_Get(t *testing.T) {
 			}, limit: 100,
 			wantFetchErr: &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true},
 			wantRequests: []seenRequest{
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
-				{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
+				{Method: http.MethodGet, Path: wantPath, Query: getQuery()},
 			},
 		},
 		{
 			name: "a body over the limit is rejected", steps: []httpStep{okAnswer("hello world")}, limit: 5,
 			wantErrIs:    manifestreader.ErrTooLarge,
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 		{
 			name: "a zero limit accepts an empty body only", steps: []httpStep{okAnswer("")}, limit: 0,
 			wantObject:   manifestreader.Object{Bytes: []byte{}, ETag: s3ETag},
-			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, RawQuery: rawGet}},
+			wantRequests: []seenRequest{{Method: http.MethodGet, Path: wantPath, Query: getQuery()}},
 		},
 	}
 
@@ -289,8 +290,7 @@ func TestS3Store_Get(t *testing.T) {
 			for _, req := range reqs {
 				assert.Equal(t, http.MethodGet, req.Method)
 				assert.Equal(t, wantPath, req.Path, "the key and nothing that lists a prefix")
-				assert.NotContains(t, req.RawQuery, "list-type")
-				assert.NotContains(t, req.RawQuery, "prefix")
+				assert.Equal(t, getQuery(), req.Query, "a plain GetObject: no list parameters")
 			}
 		})
 	}
@@ -323,7 +323,7 @@ func TestS3Store_IfNoneMatchOnlyWithAnETag(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, []seenRequest{{
-				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", IfNoneMatch: tt.wantSent, RawQuery: rawGet,
+				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", IfNoneMatch: tt.wantSent, Query: getQuery(),
 			}}, transport.requests(), "one GET of exactly the key, conditional only with an ETag")
 		})
 	}
@@ -386,21 +386,25 @@ func TestS3Store_VersionID(t *testing.T) {
 	tests := []struct {
 		want  error
 		name  string
-		wantQ string
+		wantQ url.Values
 		step  httpStep
 	}{
-		{name: "the version id is sent as the versionId query parameter", step: okAnswer("hi"), wantQ: queryVersion},
+		{
+			name:  "the version id is sent as the versionId query parameter",
+			step:  okAnswer("hi"),
+			wantQ: getQuery("versionId", "v-1"),
+		},
 		{
 			name:  "404 NoSuchKey for a version is not found",
 			step:  httpStep{status: http.StatusNotFound, body: noSuchKeyXML},
 			want:  manifestreader.ErrNotFound,
-			wantQ: queryVersion,
+			wantQ: getQuery("versionId", "v-1"),
 		},
 		{
 			name:  "400 InvalidArgument for a version is also not found",
 			step:  httpStep{status: http.StatusBadRequest, body: invalidArgumentXML},
 			want:  manifestreader.ErrNotFound,
-			wantQ: queryVersion,
+			wantQ: getQuery("versionId", "v-1"),
 		},
 	}
 
@@ -422,7 +426,7 @@ func TestS3Store_VersionID(t *testing.T) {
 			}
 
 			assert.Equal(t, []seenRequest{{
-				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", RawQuery: tt.wantQ + "&" + rawGet,
+				Method: http.MethodGet, Path: "/" + s3Bucket + "/k", Query: tt.wantQ,
 			}}, transport.requests())
 		})
 	}
@@ -498,4 +502,15 @@ func TestS3Store_ContentLengthSizesTheBuffer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// parsedQuery parses a raw query; a query that does not parse is returned as one odd parameter, so that no
+// comparison passes by accident.
+func parsedQuery(raw string) url.Values {
+	query, err := url.ParseQuery(raw)
+	if err != nil {
+		return url.Values{"unparsable": {raw}}
+	}
+
+	return query
 }

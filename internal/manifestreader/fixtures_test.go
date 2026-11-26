@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -19,12 +20,10 @@ const (
 	nameBeta  = "beta"
 	nameGamma = "gamma"
 	nameTwin  = "twin"
-	rawGet    = "x-id=GetObject"
 	// anyChannel makes the rig leave the expected channel empty.
 	anyChannel    = "*"
 	otherChannel  = "canary"
 	connElsewhere = "elsewhere"
-	queryVersion  = "versionId=v-1"
 
 	contentAlphaChanged = `{"alpha":"changed"}`
 	contentAlphaSecond  = `{"alpha":"second"}`
@@ -176,3 +175,16 @@ var (
 	errDenied       = errors.New("nope")
 	errUnclassified = errors.New("unclassified")
 )
+
+// getQuery is the query of a GetObject request: x-id=GetObject, and the extra parameters given as name, value
+// pairs. A test compares parsed values, so the order of the parameters does not matter and a missing, extra or
+// duplicate one fails.
+func getQuery(extra ...string) url.Values {
+	query := url.Values{"x-id": {"GetObject"}}
+
+	for i := 0; i+1 < len(extra); i += 2 {
+		query.Add(extra[i], extra[i+1])
+	}
+
+	return query
+}
