@@ -83,6 +83,18 @@ func TestEvaluationAllocations(t *testing.T) {
 			wantExtra:   1,
 		},
 		{
+			name:        "decided by a plain term: nothing is looked up",
+			query:       `plan eq "pro" and targetingKey in segment("beta")`,
+			plainQuery:  `plan eq "pro" and targetingKey eq "alice"`,
+			key:         keyAlice,
+			wantVariant: variantOff,
+			wantExtra:   0,
+		},
+		{
+			name: "decided by a plain term, or", query: `plan eq "free" or targetingKey in segment("beta")`,
+			plainQuery: `plan eq "free" or targetingKey eq "zed"`, key: keyAlice, wantVariant: variantOn, wantExtra: 0,
+		},
+		{
 			name:        "missing key: nothing is looked up",
 			query:       nikunjyInclude,
 			plainQuery:  queryEqAlice,

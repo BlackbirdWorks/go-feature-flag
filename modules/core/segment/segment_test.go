@@ -3,6 +3,7 @@ package segment_test
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -10,9 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 const (
+	segBeta  = "beta"
 	errName  = "invalid name"
 	segEmpty = "empty"
 )
@@ -250,38 +253,153 @@ var errRead = errors.New("read failed")
 
 func (errReader) Read([]byte) (int, error) { return 0, errRead }
 
-func TestReadMembers(t *testing.T) {
+func TestReadMemberSet(t *testing.T) {
 	t.Parallel()
 
+	bom := "\ufeff"
+
 	tests := []struct {
+		wantErr     error
 		name        string
 		in          string
-		wantErr     error
 		wantMembers []string
+		wantAbsent  []string
+		limits      segment.Limits
 	}{
 		{name: "lines", in: "a\nb\nc\n", wantMembers: []string{"a", "b", "c"}},
-		{name: "blanks and empty lines", in: "  a \r\n\n\t\nb", wantMembers: []string{"a", "b"}},
-		{name: "no members", in: "", wantMembers: nil},
+		{name: "crlf", in: "a\r\nb\r\n", wantMembers: []string{"a", "b"}, wantAbsent: []string{"a\r"}},
+		{name: "blank lines", in: "\n\na\n\t\n \nb", wantMembers: []string{"a", "b"}},
+		{
+			name:        "trailing and leading spaces",
+			in:          "  a \n\tb\t\n",
+			wantMembers: []string{"a", "b"},
+			wantAbsent:  []string{"  a "},
+		},
+		{name: "repeated rows are one member", in: "p\nq\np\nr\np\n", wantMembers: []string{"p", "q", "r"}},
+		{name: "byte order mark", in: bom + "a\nb\n", wantMembers: []string{"a", "b"}, wantAbsent: []string{bom + "a"}},
+		{
+			name:        "byte order mark only on the first line",
+			in:          "a\n" + bom + "b\n",
+			wantMembers: []string{"a", bom + "b"},
+		},
+		{name: "inner spaces are kept", in: "a b\n", wantMembers: []string{"a b"}},
+		{name: "no rows", in: "", wantMembers: nil},
 		{name: "unicode", in: "é\n\u65e5\u672c\n", wantMembers: []string{"é", "\u65e5\u672c"}},
 		{name: "line too long", in: strings.Repeat("a", 5000), wantErr: segment.ErrMemberTooLong},
+		{
+			name: "too many rows", in: "a\nb\nc\n", limits: segment.Limits{MaxMembers: 2},
+			wantErr: segment.ErrTooManyMembers,
+		},
+		{
+			name: "repeated rows count as rows", in: "p\nq\np\n", limits: segment.Limits{MaxMembers: 2},
+			wantErr: segment.ErrTooManyMembers,
+		},
+		{
+			name:        "the limit is inclusive",
+			in:          "a\nb\n",
+			limits:      segment.Limits{MaxMembers: 2},
+			wantMembers: []string{"a", "b"},
+		},
+		{
+			name: "too many bytes", in: strings.Repeat("abcd\n", 10), limits: segment.Limits{MaxBytes: 20},
+			wantErr: segment.ErrMembersTooLarge,
+		},
+		{
+			name:        "bytes within the limit",
+			in:          "ab\ncd\n",
+			limits:      segment.Limits{MaxBytes: 6},
+			wantMembers: []string{"ab", "cd"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := segment.ReadMembers(strings.NewReader(tt.in))
+			set, err := segment.ReadMemberSet(strings.NewReader(tt.in), tt.limits)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, set)
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantMembers, got)
+			assert.Equal(t, len(distinct(tt.wantMembers)), set.Len())
+
+			for _, member := range tt.wantMembers {
+				assert.True(t, set.Contains(member), "member %q", member)
+			}
+
+			for _, absent := range tt.wantAbsent {
+				assert.False(t, set.Contains(absent), "%q is not a member", absent)
+			}
 		})
 	}
 
-	_, err := segment.ReadMembers(errReader{})
+	_, err := segment.ReadMemberSet(errReader{}, segment.Limits{})
 	require.ErrorIs(t, err, errRead)
+}
+
+func distinct(in []string) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, item := range in {
+		out[item] = struct{}{}
+	}
+
+	return out
+}
+
+func TestMemoryProviderFromReadSets(t *testing.T) {
+	t.Parallel()
+
+	beta, err := segment.ReadMemberSet(strings.NewReader("\ufeffalice\r\nbob\r\n"), segment.Limits{})
+	require.NoError(t, err)
+
+	provider := segment.NewMemoryProviderFromSets(map[string]*segment.MemberSet{segBeta: beta})
+	lookups := []segment.Lookup{{Segment: segBeta, ID: "alice"}, {Segment: segBeta, ID: "carol"}}
+
+	require.NoError(t, provider.Contains(context.Background(), lookups))
+	assert.Equal(t, segment.Member, lookups[0].State)
+	assert.Equal(t, segment.NotMember, lookups[1].State)
+}
+
+func TestStateAndName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "unknown", segment.Unknown.String())
+	assert.Equal(t, "notMember", segment.NotMember.String())
+	assert.Equal(t, "member", segment.Member.String())
+	assert.Equal(t, "State(7)", segment.State(7).String())
+	assert.True(t, segment.Member.Valid())
+	assert.False(t, segment.State(3).Valid())
+
+	names := []string{"a", "a-b_9", strings.Repeat("a", 64), "", "A", "a b", "\u00e9", strings.Repeat("a", 65)}
+	for _, name := range names {
+		assert.Equal(t, parser.ValidSegmentName(name), segment.ValidName(name), "name %q", name)
+	}
+}
+
+// TestSegmentDoesNotPullTheParser pins the layering: a provider imports this package, and must not get the rules
+// parser and its ANTLR runtime with it.
+func TestSegmentDoesNotPullTheParser(t *testing.T) {
+	t.Parallel()
+
+	out, err := exec.CommandContext(context.Background(), "go", "list", "-deps", ".").Output()
+	require.NoError(t, err)
+
+	for dep := range strings.FieldsSeq(string(out)) {
+		assert.NotContains(t, dep, "semaphore/rules", "the segment package must not depend on the rules engine")
+		assert.NotContains(t, dep, "antlr")
+	}
+}
+
+func TestResolveLeavesAnInvalidStateAlone(t *testing.T) {
+	t.Parallel()
+
+	def := segment.Definition{Name: "a", Type: segment.TypeFile, OnError: segment.OnErrorMember}
+	assert.Equal(t, segment.State(9), def.Resolve(segment.State(9)), "only Unknown is resolved")
+
+	unknownPolicy := segment.Definition{Name: "a", Type: segment.TypeFile, OnError: segment.OnError("other")}
+	assert.Equal(t, segment.Unknown, unknownPolicy.Resolve(segment.Unknown), "an unrecognised policy keeps it unknown")
 }

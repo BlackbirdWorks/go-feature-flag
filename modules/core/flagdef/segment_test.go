@@ -203,18 +203,20 @@ func healthyEvalCases(_ context.Context, t *testing.T) []evalCase {
 		{name: "json or: none", query: jsonOr, key: "dave", wantVariant: variantOff, wantStatus: segment.StatusHealthy},
 		// missing targeting key: not a member, nothing is looked up
 		{
-			name:        "nikunjy missing key",
-			query:       nikunjyInclude,
-			key:         "",
-			wantVariant: variantOff,
-			wantStatus:  segment.StatusHealthy,
+			name:          "nikunjy missing key",
+			query:         nikunjyInclude,
+			key:           "",
+			wantVariant:   variantOff,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
-			name:        "json missing key",
-			query:       jsonInclude,
-			key:         "",
-			wantVariant: variantOff,
-			wantStatus:  segment.StatusHealthy,
+			name:          "json missing key",
+			query:         jsonInclude,
+			key:           "",
+			wantVariant:   variantOff,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 	}
 }
@@ -330,42 +332,46 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 	return []evalCase{
 		// outcome independent of the unknown terms
 		{
-			name:        "or: true attribute decides, store down",
-			query:       nikunjyPlan,
-			key:         keyAlice,
-			plan:        planPro,
-			provider:    failingProvider{},
-			wantVariant: variantOn,
-			wantStatus:  segment.StatusStoreError,
+			name:          "or: true attribute decides, store down",
+			query:         nikunjyPlan,
+			key:           keyAlice,
+			plan:          planPro,
+			provider:      failingProvider{},
+			wantVariant:   variantOn,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
-			name:        "json or: true attribute decides, store down",
-			query:       jsonPlan,
-			key:         keyAlice,
-			plan:        planPro,
-			provider:    failingProvider{},
-			wantVariant: variantOn,
-			wantStatus:  segment.StatusStoreError,
+			name:          "json or: true attribute decides, store down",
+			query:         jsonPlan,
+			key:           keyAlice,
+			plan:          planPro,
+			provider:      failingProvider{},
+			wantVariant:   variantOn,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
-			name:        "and: false attribute decides, store down, onError match",
-			query:       nikunjyPlanAnd,
-			key:         keyAlice,
-			plan:        "free",
-			provider:    failingProvider{},
-			onError:     new("match"),
-			wantVariant: variantOff,
-			wantStatus:  segment.StatusStoreError,
+			name:          "and: false attribute decides, store down, onError match",
+			query:         nikunjyPlanAnd,
+			key:           keyAlice,
+			plan:          "free",
+			provider:      failingProvider{},
+			onError:       new("match"),
+			wantVariant:   variantOff,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
-			name:        "json and: false attribute decides, store down, onError match",
-			query:       jsonPlanAnd,
-			key:         keyAlice,
-			plan:        "free",
-			provider:    failingProvider{},
-			onError:     new("match"),
-			wantVariant: variantOff,
-			wantStatus:  segment.StatusStoreError,
+			name:          "json and: false attribute decides, store down, onError match",
+			query:         jsonPlanAnd,
+			key:           keyAlice,
+			plan:          "free",
+			provider:      failingProvider{},
+			onError:       new("match"),
+			wantVariant:   variantOff,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
 			name:        "and: true attribute depends on the store, onError match",
@@ -422,15 +428,17 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 		{
 			name: "undefined segment matches nobody", query: nikunjyInclude, key: keyAlice,
 			catalog:     mustCatalog(t, segment.Definition{Name: segOther, Type: segment.TypeFile}),
-			wantVariant: variantOff, wantStatus: segment.StatusHealthy,
+			wantVariant: variantOff, wantStatus: segment.StatusNone,
+			wantCacheable: true,
 		},
 		{
-			name:        "undefined segment under not matches everybody",
-			query:       `not (targetingKey in segment("beta"))`,
-			key:         keyAlice,
-			catalog:     mustCatalog(t, segment.Definition{Name: segOther, Type: segment.TypeFile}),
-			wantVariant: variantOn,
-			wantStatus:  segment.StatusHealthy,
+			name:          "undefined segment under not matches everybody",
+			query:         `not (targetingKey in segment("beta"))`,
+			key:           keyAlice,
+			catalog:       mustCatalog(t, segment.Definition{Name: segOther, Type: segment.TypeFile}),
+			wantVariant:   variantOn,
+			wantStatus:    segment.StatusNone,
+			wantCacheable: true,
 		},
 	}
 }
@@ -590,7 +598,7 @@ func TestSegmentAttributeTypes(t *testing.T) {
 		name        string
 		wantVariant string
 	}{
-		{name: "string", attr: "x", wantVariant: variantOn},
+		{name: "string value", attr: "x", wantVariant: variantOn},
 		{name: "int", attr: 42, wantVariant: variantOn},
 		{name: "int64", attr: int64(42), wantVariant: variantOn},
 		{name: "another int", attr: 7, wantVariant: variantOff},
@@ -641,8 +649,8 @@ func TestSegmentRuleOnErrorValidation(t *testing.T) {
 		name    string
 		wantErr string
 	}{
-		{name: "skip", onError: "skip"},
-		{name: "match", onError: "match"},
+		{name: "skip", onError: ruleOnErrorSkip},
+		{name: "match", onError: ruleOnErrorMatch},
 		{name: "unknown value", onError: "ignore", wantErr: "invalid onError"},
 		{name: "no value", onError: "", wantErr: "invalid onError"},
 	}
@@ -976,4 +984,35 @@ func TestSegmentEvaluationWithConcurrentReloads(t *testing.T) {
 	})
 
 	wg.Wait()
+}
+
+func TestSegmentTermsOfAFlag(t *testing.T) {
+	t.Parallel()
+
+	step := flagdef.ScheduledStep{Rules: &[]flagdef.Rule{queryRule("late", `key in segment("later")`)}}
+	flag := onOffFlag(
+		queryRule("a", `key in segment("zeta") or user.email in segment("alpha")`),
+		queryRule("b", `{"inSegment": [{"var": "user.email"}, "alpha"]}`),
+		queryRule("c", `key in segment("zeta")`),
+	)
+	flag.Scheduled = &[]flagdef.ScheduledStep{step}
+
+	assert.Equal(t, []segment.Term{
+		{Name: "alpha", Path: []string{"user", "email"}},
+		{Name: "later", Path: []string{"key"}},
+		{Name: "zeta", Path: []string{"key"}},
+	}, flag.SegmentTerms(flagdef.NewService()))
+	assert.Empty(t, onOffFlag(queryRule("p", `age gt 1`)).SegmentTerms(flagdef.NewService()))
+}
+
+func TestSegmentDefaultRuleWithTheTextOfTheOperationIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	flag := onOffFlag()
+	flag.DefaultRule = &flagdef.Rule{
+		Query:           new(`{"==": [{"var": "k"}, "inSegment"]}`),
+		VariationResult: new(variantOff),
+	}
+
+	require.NoError(t, flag.IsValid(flagdef.NewService()))
 }

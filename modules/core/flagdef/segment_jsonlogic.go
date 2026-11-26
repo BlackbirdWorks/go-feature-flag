@@ -291,9 +291,8 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 	}
 
 	states = states[:len(seg.terms)]
-	queryCtx.resolveSegments(seg.terms, states)
 
-	match, err := seg.root.match(queryCtx, states)
+	match, err := queryCtx.resolveSegments(seg.terms, states, nil, seg.root)
 	if err != nil {
 		queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
 			slog.String(queryName, query), slog.Any(errorLiteral, err.Error()))
@@ -304,26 +303,33 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 	return r.matches(match)
 }
 
-// match evaluates the node three-valued, like the nikunjy evaluation: the operands of "and" and "or" after the one
-// that decides the result are not evaluated.
-func (n *jlNode) match(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, error) {
+// matchDemand evaluates the node three-valued, like the nikunjy evaluation, and reports the terms that an unknown
+// result depends on (see parser.Evaluator.ProcessSegmentsDemand): the operands of "and" and "or" after the one that
+// decides the result are not evaluated.
+func (n *jlNode) matchDemand(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, uint32, error) {
 	switch n.kind {
 	case jlTerm:
-		return states[n.term].Match(), nil
+		if states[n.term] == parser.SegmentUnknown {
+			return parser.MatchUnknown, 1 << n.term, nil
+		}
+
+		return states[n.term].Match(), 0, nil
 	case jlAnd, jlOr:
 		return n.matchLogical(queryCtx, states)
 	case jlNot, jlTruthy:
-		child, err := n.children[0].match(queryCtx, states)
+		child, demand, err := n.children[0].matchDemand(queryCtx, states)
 		if err != nil || n.kind == jlTruthy {
-			return child, err
+			return child, demand, err
 		}
 
-		return child.Not(), nil
+		return child.Not(), demand, nil
 	case jlLeaf:
-		return n.matchLeaf(queryCtx)
+		match, err := n.matchLeaf(queryCtx)
+
+		return match, 0, err
 	}
 
-	return parser.MatchUnknown, nil
+	return parser.MatchUnknown, 0, nil
 }
 
 // matchLeaf evaluates a part of the query that has no segment term with the JsonLogic library.
@@ -345,7 +351,7 @@ func (n *jlNode) matchLeaf(queryCtx *queryContext) (parser.Match, error) {
 	return parser.MatchNo, nil
 }
 
-func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, error) {
+func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, uint32, error) {
 	decisive, neutral := parser.MatchNo, parser.MatchYes // and
 	if n.kind == jlOr {
 		decisive, neutral = parser.MatchYes, parser.MatchNo
@@ -353,20 +359,23 @@ func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentSta
 
 	result := neutral
 
+	var demand uint32
+
 	for _, child := range n.children {
-		match, err := child.match(queryCtx, states)
+		match, childDemand, err := child.matchDemand(queryCtx, states)
 		if err != nil {
-			return parser.MatchUnknown, err
+			return parser.MatchUnknown, 0, err
 		}
 
 		if match == decisive {
-			return decisive, nil
+			return decisive, 0, nil
 		}
 
 		if match == parser.MatchUnknown {
 			result = parser.MatchUnknown
+			demand |= childDemand
 		}
 	}
 
-	return result, nil
+	return result, demand, nil
 }

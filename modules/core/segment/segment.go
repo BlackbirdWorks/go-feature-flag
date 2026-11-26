@@ -5,21 +5,67 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-
-	"github.com/blackbirdworks/semaphore/rules/parser"
+	"strconv"
 )
 
-// State is what a Provider knows of one lookup. The zero value is Unknown.
-type State = parser.SegmentState
+// State is what a Provider knows of one lookup. The zero value is Unknown. A provider must only set one of the
+// three constants; the engine treats any other value as Unknown.
+type State uint8
 
 const (
 	// Unknown means the provider could not tell: the store is down, the lookup timed out, the segment is not loaded.
-	Unknown = parser.SegmentUnknown
+	Unknown State = iota
 	// NotMember means the value is not in the segment.
-	NotMember = parser.SegmentNotMember
+	NotMember
 	// Member means the value is in the segment.
-	Member = parser.SegmentMember
+	Member
 )
+
+// String implements [fmt.Stringer].
+func (s State) String() string {
+	switch s {
+	case Unknown:
+		return "unknown"
+	case NotMember:
+		return "notMember"
+	case Member:
+		return "member"
+	}
+
+	return "State(" + strconv.Itoa(int(s)) + ")"
+}
+
+// Valid reports whether the state is one of the three constants.
+func (s State) Valid() bool { return s <= Member }
+
+const (
+	// MaxNameLen is the longest name of a segment.
+	MaxNameLen = 64
+)
+
+// ValidName reports whether name is a segment name: 1 to 64 characters of a-z, 0-9, "_" and "-".
+func ValidName(name string) bool {
+	if name == "" || len(name) > MaxNameLen {
+		return false
+	}
+
+	for i := range len(name) {
+		c := name[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' && c != '-' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Term is a segment term of a flag: the attribute whose value is looked up, in the segment Name.
+type Term struct {
+	// Name is the segment.
+	Name string
+	// Path is the attribute, one element for each level of a nested attribute ("user.email" is {"user", "email"}).
+	Path []string
+}
 
 // Lookup is one membership question: is ID a member of Segment. The provider writes the answer in State.
 type Lookup struct {
@@ -88,7 +134,7 @@ type Definition struct {
 
 // Validate returns an error that wraps ErrInvalidDefinition when the definition is not valid.
 func (d Definition) Validate() error {
-	if !parser.ValidSegmentName(d.Name) {
+	if !ValidName(d.Name) {
 		return fmt.Errorf("%w: %q: %w", ErrInvalidDefinition, d.Name, errInvalidName)
 	}
 

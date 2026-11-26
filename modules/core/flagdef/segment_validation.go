@@ -1,12 +1,14 @@
 package flagdef
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
@@ -38,22 +40,15 @@ func (r *Rule) validateOnError() error {
 	return fmt.Errorf("%w, got %q", errInvalidOnError, *r.OnError)
 }
 
-// hasSegmentTerm reports whether the query uses a segment term, valid or not.
+// hasSegmentTerm reports whether the query uses a segment term, valid or not. A JsonLogic query uses one when the
+// operation inSegment is a key of its document, not when the text appears in a string; a Rules query when it calls
+// segment().
 func hasSegmentTerm(svc *Service, trimmed string) bool {
 	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		return strings.Contains(trimmed, opInSegment)
+		return hasInSegment(svc.compiledQuery(trimmed).jsonLogic)
 	}
 
-	if !strings.Contains(trimmed, "segment") {
-		return false
-	}
-
-	ev, err := svc.nikunjy.get(trimmed)
-	if err != nil {
-		return errors.Is(err, ErrInvalidSegment)
-	}
-
-	return ev.HasSegments()
+	return strings.Contains(trimmed, "segment") && parser.HasSegmentCall(trimmed)
 }
 
 // queryTerms returns the segment terms of a rule, nil if it has none or if the query is not valid.
@@ -69,10 +64,6 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 	trimmed := rule.GetTrimmedQuery()
 
 	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		if !strings.Contains(trimmed, opInSegment) {
-			return nil
-		}
-
 		if compiled := s.compiledQuery(rule.GetQuery()); compiled.jlSeg != nil {
 			return compiled.jlSeg.terms
 		}
@@ -107,15 +98,17 @@ func (s *Service) warnUndefinedSegments(rule *Rule, label string, ev *parser.Eva
 	}
 }
 
-// SegmentNames returns the sorted names of the segments that the targeting rules of the flag use, including the
-// rules that its scheduled steps add. It parses the queries: call it when a flag is loaded, not for each evaluation.
-func (f *InternalFlag) SegmentNames(svc *Service) []string {
-	var names []string
+// SegmentTerms returns the distinct segment terms (segment name and attribute path) that the targeting rules of the
+// flag use, including the rules that its scheduled steps add, sorted by segment then attribute. A relay can look
+// them up for a request before it evaluates the flag. It parses the queries: call it when a flag is loaded, not for
+// each evaluation.
+func (f *InternalFlag) SegmentTerms(svc *Service) []segment.Term {
+	var terms []segment.Term
 
 	collect := func(rules []Rule) {
 		for i := range rules {
 			for _, term := range svc.queryTerms(&rules[i], nil) {
-				names = append(names, term.Name)
+				terms = append(terms, segment.Term{Name: term.Name, Path: term.Path})
 			}
 		}
 	}
@@ -128,12 +121,29 @@ func (f *InternalFlag) SegmentNames(svc *Service) []string {
 		}
 	}
 
-	slices.Sort(names)
+	compare := func(a, b segment.Term) int {
+		return cmp.Or(strings.Compare(a.Name, b.Name), slices.Compare(a.Path, b.Path))
+	}
+
+	slices.SortFunc(terms, compare)
+
+	return slices.CompactFunc(terms, func(a, b segment.Term) bool { return compare(a, b) == 0 })
+}
+
+// SegmentNames returns the sorted names of the segments that the targeting rules of the flag use, including the
+// rules that its scheduled steps add. It parses the queries: call it when a flag is loaded, not for each evaluation.
+func (f *InternalFlag) SegmentNames(svc *Service) []string {
+	terms := f.SegmentTerms(svc)
+	names := make([]string, 0, len(terms))
+
+	for _, term := range terms {
+		names = append(names, term.Name)
+	}
 
 	return slices.Compact(names)
 }
 
 // UsesSegments reports whether a targeting rule of the flag uses a segment.
 func (f *InternalFlag) UsesSegments(svc *Service) bool {
-	return len(f.SegmentNames(svc)) > 0
+	return len(f.SegmentTerms(svc)) > 0
 }

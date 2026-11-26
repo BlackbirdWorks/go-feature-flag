@@ -61,7 +61,8 @@ plan eq "pro" or user.id in segment("employees")
 
 - A rule has at most 32 different segment terms. The same segment tested on the same attribute counts once.
 - A segment term is not allowed in the `defaultRule`.
-- The attribute value is used as it is when it is a string or an integer. An attribute that is missing, empty, or of another type is not a member of any segment, and no lookup is done for it.
+- The attribute value is the identifier that is looked up. A string is used as it is. An integer of any kind is written in decimal. A float or a JSON number that holds a whole number is written in decimal too (`42`, never `4.2e+01` or `42.0`; a JSON document decodes its numbers as floats). A float is exact only up to 2^53: above that the identifier is the number that the float holds, which can differ from the number that was written, so use strings for large ids.
+- An attribute that is missing, empty, or not one of these (a boolean, a number with a fraction, `NaN`, infinity, a list, an object) is not a member of any segment, and no lookup is done for it.
 
 ## Load-time validation
 
@@ -81,7 +82,7 @@ targeting rule (index 2): invalid segment() term at $.and[1]: inSegment is only 
 | `inSegment` in an iterator, or under another operation | not allowed inside the operation |
 | A segment term in the `defaultRule` | segment terms are not allowed in the defaultRule |
 
-In the Rules format the offset is the position in the query, counted in bytes from 0. In the JsonLogic format the place is a path such as `$.and[1]`.
+In the Rules format the offset is the position in the query as written, counted in bytes (not characters) from 0: a multibyte character before the term counts for all its bytes. The syntax errors of the parser itself count in characters.  In the JsonLogic format the place is a path such as `$.and[1]`.
 
 A segment that is not defined (see below) is not an error: the flag loads, a warning is logged, and the segment matches nobody.
 
@@ -116,6 +117,10 @@ When the result of a rule is unknown, **the rule is skipped**: it does not match
 `onError` is `skip` (the default) or `match`. It only matters for rules with segment terms.
 
 The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. A value that depended on a segment lookup is not cacheable.
+
+### What is looked up
+
+Segment lookups are lazy. The rule is first evaluated with the plain parts (attributes and comparisons) and every segment term unknown. When that already decides the result, the provider is not called, the evaluation has no segment status and the value stays cacheable: with `plan eq "free" and k in segment("x")` and `plan` set to `pro`, nothing is looked up. Otherwise only the terms that the unknown result still depends on are sent, in one call: with `(plan eq "pro" or k in segment("a")) and k in segment("b")` and `plan` set to `pro`, only `b` is looked up. A rule never makes more than one call to the provider. The provider is not called either when the request context has ended (see below); the lookups are then unknown.
 
 ### Failure policy of a segment
 
@@ -155,10 +160,17 @@ client, err := ffclient.New(&ffclient.Config{
 
 - `segment.Definition` has a `Name`, a `Type` (`file` or `valkey`) and an `OnError`. It never holds members.
 - A `segment.Provider` answers `Contains(ctx, []segment.Lookup) error`. All the lookups of a rule are sent in one call, so a store can answer them in one round trip. A lookup the provider cannot answer stays unknown; a returned error makes all the lookups of the call unknown.
-- `segment.NewMemoryProvider` holds the members in memory as hash sets. It serves the `file` type and tests; `segment.ReadMembers` reads a member file (one value per line).
+- A provider can fail in four ways, and all are the same to the engine: it returns an error, it panics (only the type of the panic value is logged), it leaves a lookup untouched, or it sets a state that is not one of the three constants. Every lookup of the call is then unknown and the evaluation reports `STORE_ERROR`. A request context that has ended is the same, without a call.
+- `segment.NewMemoryProvider` holds the members in memory as hash sets. It serves the `file` type and tests. `segment.ReadMemberSet` reads a member file (one value per line; a UTF-8 byte order mark, blanks, carriage returns and blank lines are ignored, duplicates are one member) straight into a set, bounded by `segment.Limits` (rows and bytes, with defaults), and `segment.NewMemoryProviderFromSets` builds a provider from the sets.
+- The segment package does not depend on the rules engine, so a provider package does not pull the parser in.
+
+### For the relay proxy
+
+- `flagdef.Context.RequestContext` is the context of the request: the lookups honour its end. The variation functions of the Go client do not carry a request context, so they use `context.Background()`; the relay proxy will set it for each request.
+- `InternalFlag.SegmentTerms(svc)` returns the distinct (segment, attribute path) terms of a flag, scheduled rules included, so the relay can prefetch the lookups of a request. `SegmentNames` and `UsesSegments` are built on it. They parse the queries: call them when a flag is loaded.
 
 ## What is not available yet
 
-- Loading `file` segments from an S3 object, and the `valkey` provider with its cache, circuit breaker and per-request deadline.
+- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the `valkey` provider with its cache, circuit breaker and per-request deadline.
 - The `segments` setting of the relay proxy, the segment lookups on the relay proxy evaluation endpoints, the `semaphore_segmentStatus` metadata, the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
 - Tools to import and swap members.

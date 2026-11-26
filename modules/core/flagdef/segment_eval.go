@@ -2,7 +2,12 @@ package flagdef
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
+	"math"
+	"math/bits"
 	"strconv"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -53,9 +58,8 @@ func (r *Rule) evaluateNikunjySegments(
 	}
 
 	states = states[:len(terms)]
-	queryCtx.resolveSegments(terms, states)
 
-	match, err := evaluator.ProcessSegments(queryCtx.mapOnce(), states)
+	match, err := queryCtx.resolveSegments(terms, states, evaluator, nil)
 	if err != nil {
 		queryCtx.svc.logger.Error("error while evaluating the nikunjy query",
 			slog.String(queryName, query), slog.Any(errorLiteral, err))
@@ -90,76 +94,104 @@ func (r *Rule) evaluateSegments(compiled *compiledQuery, queryCtx *queryContext)
 	return r.evaluateNikunjySegments(evaluator, compiled.trimmed, queryCtx)
 }
 
-// resolveSegments sets states[i] to the membership for terms[i] of the evaluation context and records the health
-// of the lookups in the queryContext.
-//
-// An attribute that is missing, empty or not a string or an integer is not a member of anything: it is not looked
-// up. A segment that the Service does not define matches nobody. A term whose lookup cannot be answered (no
-// provider, a failing provider, a cancelled context) is Unknown, then the failure policy of its segment applies.
-// The lookups of the rule are sent to the provider in one call, which is the only allocation: the slice that the
-// provider fills.
-func (q *queryContext) resolveSegments(terms []parser.SegmentTerm, states []parser.SegmentState) {
-	items := q.mapOnce()
-	status := segment.StatusHealthy
+// demandOf evaluates the rule, three-valued, with the given states: by the Rules format evaluator or by the
+// compiled JsonLogic skeleton, whichever is not nil.
+func (q *queryContext) demandOf(
+	evaluator *parser.Evaluator,
+	skeleton *jlNode,
+	states []parser.SegmentState,
+) (parser.Match, uint32, error) {
+	if evaluator != nil {
+		match, demand, err := evaluator.ProcessSegmentsDemand(q.mapOnce(), states)
+		if err != nil {
+			return match, demand, fmt.Errorf("evaluating the rule: %w", err)
+		}
 
-	var (
-		lookups []segment.Lookup
-		sent    uint32
-	)
+		return match, demand, nil
+	}
+
+	return skeleton.matchDemand(q, states)
+}
+
+// resolveSegments evaluates a rule that has segment terms and returns its three-valued result. states has one
+// entry for each term, in the order of terms.
+//
+// The terms that a lookup cannot change are not looked up. The rule is first evaluated with every term that needs
+// the provider unknown: a term whose attribute is missing, empty or not an identifier is not a member of anything,
+// and a segment that the Service does not define matches nobody. When the result is known (the plain parts decide
+// it, "false and unknown" is false, "true or unknown" is true) the provider is not called and the evaluation reports
+// no segment status. Otherwise only the terms that the unknown result depends on are sent to the provider, in one
+// call, which is the only allocation: the slice that the provider fills. A term whose lookup cannot be answered (no
+// provider, a failing or panicking provider, an ended context, an invalid state) is unknown, then the failure policy
+// of its segment applies, and the rule decides what an unknown result does (Rule.OnError).
+func (q *queryContext) resolveSegments(
+	terms []parser.SegmentTerm,
+	states []parser.SegmentState,
+	evaluator *parser.Evaluator,
+	skeleton *jlNode,
+) (parser.Match, error) {
+	items := q.mapOnce()
 
 	for i := range terms {
 		states[i] = parser.SegmentUnknown
 
-		id, ok := attributeID(items, terms[i].Path)
-		if !ok {
+		if _, ok := attributeID(items, terms[i].Path); !ok || !q.svc.definesSegment(terms[i].Name) {
 			states[i] = parser.SegmentNotMember
-
-			continue
 		}
-
-		if !q.svc.definesSegment(terms[i].Name) {
-			states[i] = parser.SegmentNotMember
-
-			continue
-		}
-
-		if q.segments == nil {
-			status = status.Worse(segment.StatusNotConfigured)
-
-			continue
-		}
-
-		if lookups == nil {
-			lookups = make([]segment.Lookup, 0, len(terms))
-		}
-
-		lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: id, State: segment.Unknown})
-		sent |= 1 << i
 	}
 
-	if len(lookups) > 0 {
-		status = status.Worse(q.lookupSegments(lookups))
-		spreadAnswers(states, lookups, sent)
+	match, demand, err := q.demandOf(evaluator, skeleton, states)
+	if err != nil || match != parser.MatchUnknown || demand == 0 {
+		return match, err
+	}
+
+	q.lookup(terms, states, demand, items)
+
+	match, _, err = q.demandOf(evaluator, skeleton, states)
+
+	return match, err
+}
+
+// lookup answers the demanded terms: it sets their states and records the health of the lookups.
+func (q *queryContext) lookup(
+	terms []parser.SegmentTerm,
+	states []parser.SegmentState,
+	demand uint32,
+	items map[string]any,
+) {
+	var status segment.Status
+
+	if q.segments == nil {
+		status = segment.StatusNotConfigured
+	} else {
+		lookups := make([]segment.Lookup, 0, bits.OnesCount32(demand))
+
+		for i := range terms {
+			if demand&(1<<i) != 0 {
+				id, _ := attributeID(items, terms[i].Path)
+				lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: id, State: segment.Unknown})
+			}
+		}
+
+		status = q.lookupSegments(lookups)
+
+		next := 0
+
+		for i := range terms {
+			if demand&(1<<i) != 0 {
+				states[i] = parser.SegmentState(lookups[next].State)
+				next++
+			}
+		}
 	}
 
 	for i := range terms {
-		states[i] = q.svc.failurePolicy(terms[i].Name, states[i])
+		if demand&(1<<i) != 0 && states[i] == parser.SegmentUnknown {
+			states[i] = q.svc.failurePolicy(terms[i].Name, states[i])
+		}
 	}
 
 	q.segmentStatus = q.segmentStatus.Worse(status)
-}
-
-// spreadAnswers copies the answers of the lookups to the states of the terms that were sent, bit i of sent being
-// the term i. The lookups are in the order of the terms.
-func spreadAnswers(states []parser.SegmentState, lookups []segment.Lookup, sent uint32) {
-	next := 0
-
-	for i := range states {
-		if sent&(1<<i) != 0 {
-			states[i] = lookups[next].State
-			next++
-		}
-	}
 }
 
 // definesSegment reports whether the Service defines the segment. A Service without definitions defines every
@@ -174,15 +206,21 @@ func (s *Service) definesSegment(name string) bool {
 	return ok
 }
 
-// lookupSegments sends the lookups to the provider. It returns StatusHealthy when every lookup was answered, and
-// resets the states of the lookups when the call failed: a failed call has no answer.
+// lookupSegments sends the lookups to the provider and returns the health of the call: StatusHealthy when every
+// lookup was answered. A call that fails as a whole (an error, a panic, an ended context) has no answer: every
+// state is reset to Unknown. A state that is not one of the three constants is Unknown too. The provider is not
+// called when the context of the request has ended.
 func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	ctx := q.requestContext
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	err := q.segments.Contains(ctx, lookups)
+	err := ctx.Err()
+	if err == nil {
+		err = q.callProvider(ctx, lookups)
+	}
+
 	if err != nil {
 		q.svc.logger.LogAttrs(ctx, slog.LevelWarn, "segment lookup failed", slog.Any(errorLiteral, err))
 
@@ -193,13 +231,39 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 		return segment.StatusStoreError
 	}
 
+	status := segment.StatusHealthy
+
 	for i := range lookups {
+		if !lookups[i].State.Valid() {
+			lookups[i].State = segment.Unknown
+		}
+
 		if lookups[i].State == segment.Unknown {
-			return segment.StatusStoreError
+			status = segment.StatusStoreError
 		}
 	}
 
-	return segment.StatusHealthy
+	return status
+}
+
+// errProviderPanic is the error of a provider that panicked.
+var errProviderPanic = errors.New("the segment provider panicked")
+
+// callProvider calls the provider, a panic being an error. Only the type of the panic value is reported: it can
+// hold identifiers.
+func (q *queryContext) callProvider(ctx context.Context, lookups []segment.Lookup) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("%w: %T", errProviderPanic, rec)
+		}
+	}()
+
+	err = q.segments.Contains(ctx, lookups)
+	if err != nil {
+		return fmt.Errorf("the segment provider failed: %w", err)
+	}
+
+	return nil
 }
 
 // failurePolicy applies the failure policy of the segment name to an unanswered lookup.
@@ -209,11 +273,15 @@ func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.S
 		return state
 	}
 
-	return def.Resolve(state)
+	return parser.SegmentState(def.Resolve(segment.State(state)))
 }
 
 // attributeID returns the value of the attribute at path as the identifier to look up. Strings are used as they
-// are, integers are formatted; anything else (missing, empty, boolean, float, list, object) is not an identifier.
+// are. Integers of every kind are formatted in decimal, and so are the floats and the [json.Number] that hold a
+// whole number (the number of a JSON document is a float64): "42", never "4.2e+01" or "42.0". A float is an exact
+// integer only up to 2^53, a larger one is the identifier of the number that the float holds, which can differ from
+// the number that was written. Everything else (missing, empty, boolean, a number with a fraction, NaN, infinity,
+// list, object) is not an identifier.
 func attributeID(items map[string]any, path []string) (string, bool) {
 	var current any = items
 
@@ -226,14 +294,78 @@ func attributeID(items map[string]any, path []string) (string, bool) {
 		current = m[name]
 	}
 
+	if str, ok := current.(string); ok {
+		return str, str != ""
+	}
+
+	if id, ok := integerID(current); ok {
+		return id, true
+	}
+
 	switch val := current.(type) {
-	case string:
-		return val, val != ""
-	case int:
-		return strconv.Itoa(val), true
-	case int64:
-		return strconv.FormatInt(val, 10), true
+	case float32:
+		return wholeFloatID(float64(val))
+	case float64:
+		return wholeFloatID(val)
+	case json.Number:
+		return numberID(val)
 	}
 
 	return "", false
+}
+
+// integerID formats an integer of any kind.
+func integerID(value any) (string, bool) {
+	switch val := value.(type) {
+	case int:
+		return strconv.FormatInt(int64(val), 10), true
+	case int8:
+		return strconv.FormatInt(int64(val), 10), true
+	case int16:
+		return strconv.FormatInt(int64(val), 10), true
+	case int32:
+		return strconv.FormatInt(int64(val), 10), true
+	case int64:
+		return strconv.FormatInt(val, 10), true
+	case uint:
+		return strconv.FormatUint(uint64(val), 10), true
+	case uint8:
+		return strconv.FormatUint(uint64(val), 10), true
+	case uint16:
+		return strconv.FormatUint(uint64(val), 10), true
+	case uint32:
+		return strconv.FormatUint(uint64(val), 10), true
+	case uint64:
+		return strconv.FormatUint(val, 10), true
+	}
+
+	return "", false
+}
+
+// wholeFloatID formats a float that holds a whole number.
+func wholeFloatID(val float64) (string, bool) {
+	if math.IsNaN(val) || math.IsInf(val, 0) || val != math.Trunc(val) {
+		return "", false
+	}
+
+	if val == 0 {
+		return "0", true // not "-0"
+	}
+
+	return strconv.FormatFloat(val, 'f', 0, 64), true
+}
+
+// numberID is the identifier of a [json.Number]: an integer as written, a float that holds a whole number as such.
+func numberID(num json.Number) (string, bool) {
+	integer, err := num.Int64()
+	if err == nil {
+		return strconv.FormatInt(integer, 10), true
+	}
+
+	float, err := num.Float64()
+	if err != nil {
+		return "", false
+	}
+
+	return wholeFloatID(float)
 }

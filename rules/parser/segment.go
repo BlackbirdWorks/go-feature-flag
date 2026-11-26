@@ -179,6 +179,14 @@ type SegmentTerm struct {
 	Path []string
 }
 
+// HasSegmentCall reports whether the rule calls segment(), validly or not. It is the test that the evaluator
+// applies to decide that a rule has segment terms, so a word segment that is only an attribute does not count.
+func HasSegmentCall(rule string) bool {
+	_, has, err := scanSegments(rule)
+
+	return has || err != nil
+}
+
 // scanSegments replaces the segment() calls of rule. It returns rule itself when it has none.
 func scanSegments(rule string) (string, bool, error) {
 	if !strings.Contains(rule, segmentKeyword) {

@@ -217,65 +217,68 @@ func (n *node) eval(state *evalState) bool {
 	}
 }
 
-// evalMatch is eval for a rule with segment terms: three-valued, the unknown membership of a term can make the
-// result unknown. A term is known (and so is a node) when the outcome does not depend on the unknown ones:
-// "false and unknown" is false, "true or unknown" is true.
-func (n *node) evalMatch(state *evalState, states []SegmentState) Match {
+// demandLogical is evalDemand for a logical node.
+func (n *node) demandLogical(state *evalState, states []SegmentState) (Match, uint32) {
+	decisive, neutral := MatchNo, MatchYes // and
+	if n.isOr {
+		decisive, neutral = MatchYes, MatchNo
+	}
+
+	left, leftDemand := n.left.evalDemand(state, states)
+	if left == decisive {
+		return decisive, 0
+	}
+
+	right, rightDemand := n.right.evalDemand(state, states)
+	if right == decisive {
+		return decisive, 0
+	}
+
+	if left == neutral && right == neutral {
+		return neutral, 0
+	}
+
+	var demand uint32
+	if left == MatchUnknown {
+		demand |= leftDemand
+	}
+
+	if right == MatchUnknown {
+		demand |= rightDemand
+	}
+
+	return MatchUnknown, demand
+}
+
+// evalDemand is eval for a rule with segment terms: three-valued, the unknown membership of a term can make the
+// result unknown. A node whose result does not depend on the unknown terms is known. It also reports which terms
+// the result still depends on: the bits (term index) of the
+// terms whose state is unknown and whose answer could change an unknown result. A node whose result is known
+// demands nothing: "false and unknown" is false, "true or unknown" is true. Like eval, the right side of "and" and
+// "or" is not evaluated when the left side decides the result.
+func (n *node) evalDemand(state *evalState, states []SegmentState) (Match, uint32) {
 	switch n.kind {
 	case nodeParen:
-		result := n.left.evalMatch(state, states)
+		result, demand := n.left.evalDemand(state, states)
 		if n.not {
-			return result.Not()
+			return result.Not(), demand
 		}
 
-		return result
+		return result, demand
 	case nodeLogical:
-		left := n.left.evalMatch(state, states)
-		// like eval, the right side is not evaluated when the left side decides the result
-		if n.isOr {
-			if left == MatchYes {
-				return left
-			}
-
-			return orMatch(left, n.right.evalMatch(state, states))
-		}
-
-		if left == MatchNo {
-			return left
-		}
-
-		return andMatch(left, n.right.evalMatch(state, states))
+		return n.demandLogical(state, states)
 	case nodeSegment:
-		return states[n.cmp.term].Match()
+		term := states[n.cmp.term]
+		if term == SegmentUnknown {
+			return MatchUnknown, 1 << n.cmp.term
+		}
+
+		return term.Match(), 0
 	case nodePresent, nodeCompare:
-		return matchOf(n.eval(state))
+		return matchOf(n.eval(state)), 0
 	}
 
-	return MatchUnknown
-}
-
-func andMatch(left, right Match) Match {
-	if left == MatchNo || right == MatchNo {
-		return MatchNo
-	}
-
-	if left == MatchYes && right == MatchYes {
-		return MatchYes
-	}
-
-	return MatchUnknown
-}
-
-func orMatch(left, right Match) Match {
-	if left == MatchYes || right == MatchYes {
-		return MatchYes
-	}
-
-	if left == MatchNo && right == MatchNo {
-		return MatchNo
-	}
-
-	return MatchUnknown
+	return MatchUnknown, 0
 }
 
 func (n *compareNode) setRight(state *evalState) {

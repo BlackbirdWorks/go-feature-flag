@@ -1,6 +1,7 @@
 package parser_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,6 +17,8 @@ const (
 	attrEmail        = "email"
 	attrAge          = "age"
 	attrSegment      = "segment"
+	attrPlan         = "plan"
+	planPro          = "pro"
 	errBadName       = "invalid segment name"
 	errNotLiteral    = "must be a string literal"
 	errNotAfterIn    = `only valid as the right side of "in"`
@@ -203,7 +206,7 @@ func TestProcessSegmentsThreeValued(t *testing.T) {
 		unknown   = parser.SegmentUnknown
 	)
 
-	items := map[string]any{attrTargetingKey: "k", attrEmail: "e@x", attrAge: 30, "plan": "pro"}
+	items := map[string]any{attrTargetingKey: "k", attrEmail: "e@x", attrAge: 30, attrPlan: planPro}
 
 	tests := []struct {
 		name   string
@@ -497,4 +500,179 @@ func TestMatchHelpers(t *testing.T) {
 	assert.Equal(t, parser.MatchNo, parser.SegmentNotMember.Match())
 	assert.Equal(t, parser.MatchUnknown, parser.SegmentUnknown.Match())
 	assert.Equal(t, parser.MatchUnknown, parser.SegmentState(9).Match())
+}
+
+// The rows were recorded on the engine before the segments existed: a rule that does not call segment() parses and
+// evaluates as it did, multi-line rules included (a line end without a blank before it is a syntax error there).
+func TestRulesWithoutSegmentsParseAsBefore(t *testing.T) {
+	t.Parallel()
+
+	items := map[string]any{"a": 1, "b": 2, "segment": "x"}
+
+	tests := []struct {
+		name      string
+		rule      string
+		wantErr   bool
+		wantMatch bool
+	}{
+		{name: "crlf before and", rule: "a eq 1\r\nand b eq 2", wantErr: true},
+		{name: "lf before and", rule: "a eq 1\nand b eq 2", wantErr: true},
+		{name: "crlf lines", rule: "a eq 1\r\n  and\r\n  b eq 2\r\n", wantErr: true},
+		{name: "crlf in parenthesis", rule: "(a eq 1\r\n and b eq 2)", wantErr: true},
+		{name: "crlf in a string", rule: "a eq \"x\r\ny\""},
+		{name: "tab between terms", rule: "a eq 1 and\tb eq 2", wantMatch: true},
+		{name: "crlf with an attribute named segment", rule: "segment eq \"x\"\r\nand b eq 1", wantErr: true},
+		{name: "crlf in a list", rule: "a in [\"x\",\r\n\"y\"]", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evaluator, err := parser.NewEvaluator(tt.rule)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.False(t, evaluator.HasSegments())
+
+			got, err := evaluator.Process(items)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMatch, got)
+		})
+	}
+}
+
+func TestSegmentErrorOffsetsAreBytes(t *testing.T) {
+	t.Parallel()
+
+	// "é" is 2 bytes and 1 rune, "\u65e5" 3 bytes and 1 rune: the offset counts bytes of the rule as written
+	rule := "name eq \"é\u65e5\" and key in segment(\"Bad\")"
+
+	_, err := parser.NewEvaluator(rule)
+	require.ErrorIs(t, err, parser.ErrSegmentSyntax)
+
+	var segErr *parser.SegmentError
+
+	require.ErrorAs(t, err, &segErr)
+	assert.Equal(t, strings.Index(rule, "Bad"), segErr.Offset)
+	assert.NotEqual(t, len([]rune(rule[:segErr.Offset])), segErr.Offset, "the offset is not a count of runes")
+	assert.Contains(t, err.Error(), "offset "+strconv.Itoa(segErr.Offset))
+}
+
+func TestProcessSegmentsDemand(t *testing.T) {
+	t.Parallel()
+
+	const (
+		member    = parser.SegmentMember
+		notMember = parser.SegmentNotMember
+		unknown   = parser.SegmentUnknown
+	)
+
+	items := map[string]any{"plan": "pro"}
+
+	tests := []struct {
+		name       string
+		rule       string
+		states     []parser.SegmentState
+		wantMatch  parser.Match
+		wantDemand uint32 // bit i: SegmentTerms()[i]
+	}{
+		{
+			name:       "one unknown term",
+			rule:       `a in segment("x")`,
+			states:     []parser.SegmentState{unknown},
+			wantMatch:  parser.MatchUnknown,
+			wantDemand: 0b1,
+		},
+		{
+			name:      "a known term demands nothing",
+			rule:      `a in segment("x")`,
+			states:    []parser.SegmentState{member},
+			wantMatch: parser.MatchYes,
+		},
+		{
+			name: "false and unknown", rule: `plan eq "free" and a in segment("x")`,
+			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchNo,
+		},
+		{
+			name: "true or unknown", rule: `plan eq "pro" or a in segment("x")`,
+			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchYes,
+		},
+		{
+			name: "true and unknown", rule: `plan eq "pro" and a in segment("x")`,
+			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b1,
+		},
+		{
+			name: "the decided side of an and is not demanded", rule: `a in segment("x") and b in segment("y")`,
+			states: []parser.SegmentState{notMember, unknown}, wantMatch: parser.MatchNo,
+		},
+		{
+			name: "the decided side of an or is not demanded", rule: `a in segment("x") or b in segment("y")`,
+			states: []parser.SegmentState{member, unknown}, wantMatch: parser.MatchYes,
+		},
+		{
+			name: "an or of two unknown terms demands both", rule: `a in segment("x") or b in segment("y")`,
+			states: []parser.SegmentState{unknown, unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b11,
+		},
+		{
+			name: "a known side does not demand", rule: `(plan eq "pro" or a in segment("x")) and b in segment("y")`,
+			states: []parser.SegmentState{unknown, unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b10,
+		},
+		{
+			name: "not keeps the demand", rule: `not (a in segment("x") or plan eq "free")`,
+			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b1,
+		},
+		{
+			name: "a decided term inside a not is not demanded", rule: `not (plan eq "pro" or a in segment("x"))`,
+			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchNo,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evaluator, err := parser.NewEvaluator(tt.rule)
+			require.NoError(t, err)
+
+			gotMatch, gotDemand, err := evaluator.ProcessSegmentsDemand(items, tt.states)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMatch, gotMatch)
+			assert.Equal(t, tt.wantDemand, gotDemand)
+		})
+	}
+
+	evaluator, err := parser.NewEvaluator(`a in segment("x")`)
+	require.NoError(t, err)
+
+	_, _, err = evaluator.ProcessSegmentsDemand(items, nil)
+	require.ErrorIs(t, err, parser.ErrSegmentStates)
+}
+
+func TestHasSegmentCall(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rule string
+		want bool
+	}{
+		{name: "a call", rule: `k in segment("a")`, want: true},
+		{name: "an invalid call", rule: `k in segment(a)`, want: true},
+		{name: "an attribute", rule: `segment eq "a"`},
+		{name: "in a string", rule: `k eq "in segment(\"a\")"`},
+		{name: "no word", rule: `age gt 1`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, parser.HasSegmentCall(tt.rule))
+		})
+	}
 }

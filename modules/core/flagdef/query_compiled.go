@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 // compiledQuery is the trimmed form, the format and the decoded JsonLogic rule of a raw query.
@@ -38,7 +39,7 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 			compiled.segments = compiled.jlSeg != nil
 		}
 	} else {
-		compiled.segments = strings.Contains(trimmed, "segment")
+		compiled.segments = strings.Contains(trimmed, "segment") && parser.HasSegmentCall(trimmed)
 	}
 
 	actual, _ := s.compiled.LoadOrStore(raw, compiled)

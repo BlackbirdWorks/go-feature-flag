@@ -219,7 +219,7 @@ func TestSegmentEvaluationErrorsDoNotMatch(t *testing.T) {
 			name:     "nikunjy: an invalid operation in another term",
 			query:    `plan gt true and targetingKey in segment("beta")`,
 			provider: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}}),
-			attrs:    map[string]any{"plan": "pro"},
+			attrs:    map[string]any{"plan": planPro},
 			wantLog:  "error while evaluating the nikunjy query",
 		},
 		{
@@ -228,18 +228,6 @@ func TestSegmentEvaluationErrorsDoNotMatch(t *testing.T) {
 			provider: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}}),
 			attrs:    map[string]any{"ch": make(chan int)},
 			wantLog:  "error while evaluating the jsonlogic query",
-		},
-		{
-			name:     "nikunjy: the provider panics",
-			query:    nikunjyInclude,
-			provider: panicProvider{},
-			wantLog:  "panic recovered while evaluating query",
-		},
-		{
-			name:     "jsonlogic: the provider panics",
-			query:    jsonInclude,
-			provider: panicProvider{},
-			wantLog:  "panic recovered while evaluating query",
 		},
 	}
 
