@@ -302,7 +302,8 @@ func nonEmpty(lines []string) []string {
 	return out
 }
 
-// treeImage is every entry of a real directory, with the content of the files: two images are equal when nothing was
+// treeImage is every entry of a real directory: the type, the permissions (where the system has them), the content of
+// each file and the target of each link: two images are equal when nothing was
 // added, removed, changed or made into something else, a directory included.
 func treeImage(tb testing.TB, dir string) map[string]string {
 	tb.Helper()
@@ -322,13 +323,18 @@ func treeImage(tb testing.TB, dir string) map[string]string {
 			return linkErr
 		case entry.IsDir():
 			info, infoErr := entry.Info()
-			out[name] = "<dir " + info.Mode().String() + ">"
+			out[name] = "<dir " + modeNote(info.Mode()) + ">"
 
 			return infoErr
 		}
 
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			return infoErr
+		}
+
 		data, readErr := os.ReadFile(name)
-		out[name] = string(data)
+		out[name] = modeNote(info.Mode()) + string(data)
 
 		return readErr
 	}))

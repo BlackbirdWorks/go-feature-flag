@@ -285,35 +285,64 @@ func TestStore_AFailedWriteMakesTheStoreWriteEverythingAgain(t *testing.T) {
 	first := persistOf(etagOne, manifestOne, contentAlpha, contentBeta)
 	second := persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta)
 
-	probe := &faults{}
-	probing := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedirConfig())
-	probing.saveAndFlush(first)
-	probe.reset()
-	probing.saveAndFlush(second)
-	probing.close()
+	damageOf := func(change func([]byte) []byte) func(*memDisk) {
+		return func(d *memDisk) {
+			data, _ := d.read(objectFile(contentBeta))
+			d.write(objectFile(contentBeta), change(data))
+		}
+	}
 
-	disk := newMemDisk()
-	fault := &faults{}
-	fsys := &memFS{disk: disk, faults: fault}
-	run := openStore(t, fsys, statedirConfig())
-	run.saveAndFlush(first)
+	newState := wantRestored{etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta}}
 
-	// the object file is damaged in place, and the next write fails before it is done
-	disk.write(objectFile(contentBeta), []byte("damaged"))
+	tests := []struct {
+		damage            func(*memDisk)
+		name              string
+		wantLastSaveError string
+		wantRestored      wantRestored
+		wantDiscarded     int
+	}{
+		{
+			name:         "an object truncated",
+			damage:       damageOf(func(data []byte) []byte { return data[:len(data)/2] }),
+			wantRestored: newState,
+		},
+		{name: "an object emptied", damage: damageOf(func([]byte) []byte { return nil }), wantRestored: newState},
+		{name: "an object with a flipped byte", damage: damageOf(flipByte), wantRestored: newState},
+	}
 
-	fault.reset()
-	fault.failAt, fault.err = stepOf(t, probe.ops, opRenameMan, 1), syscall.EIO
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	run.saveAndFlush(second)
-	require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+			probe := &faults{}
+			probing := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedirConfig())
+			probing.saveAndFlush(first)
+			probe.reset()
+			probing.saveAndFlush(second)
+			probing.close()
 
-	run.saveAndFlush(second)
-	assert.Empty(t, run.store.Hooks().StateStatus().LastSaveError)
-	run.close()
+			disk := newMemDisk()
+			fault := &faults{}
+			fsys := &memFS{disk: disk, faults: fault}
+			run := openStore(t, fsys, statedirConfig())
+			run.saveAndFlush(first)
 
-	restored, status, err := restoreOf(t, fsys)
-	assertRestore(t, wantRestored{
-		etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
-	}, nil, restored, err)
-	assert.Zero(t, status.DiscardedObjects, "the damaged object was written again")
+			// the object file is damaged in place, and the next write fails before it is done
+			tt.damage(disk)
+
+			fault.reset()
+			fault.failAt, fault.err = stepOf(t, probe.ops, opRenameMan, 1), syscall.EIO
+
+			run.saveAndFlush(second)
+			require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+
+			run.saveAndFlush(second)
+			assert.Equal(t, tt.wantLastSaveError, run.store.Hooks().StateStatus().LastSaveError)
+			run.close()
+
+			restored, status, err := restoreOf(t, fsys)
+			assertRestore(t, tt.wantRestored, nil, restored, err)
+			assert.Equal(t, tt.wantDiscarded, status.DiscardedObjects, "the damaged object was written again")
+		})
+	}
 }

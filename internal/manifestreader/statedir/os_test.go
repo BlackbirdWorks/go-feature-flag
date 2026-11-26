@@ -180,7 +180,7 @@ func fileVictim(content string) victimCheck {
 	return func(t *testing.T, victim string, _ map[string]string) {
 		t.Helper()
 
-		assert.Equal(t, map[string]string{victim: content}, treeImage(t, victim))
+		assert.Equal(t, map[string]string{victim: modeNote(0o600) + content}, treeImage(t, victim))
 	}
 }
 
