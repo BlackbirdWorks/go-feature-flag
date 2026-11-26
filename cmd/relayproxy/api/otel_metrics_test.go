@@ -13,6 +13,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
@@ -36,7 +37,7 @@ func Test_OTelMetrics(t *testing.T) {
 			reader := sdkmetric.NewManualReader()
 			meters := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 			traces := sdktrace.NewTracerProvider()
-			srv := api.New(
+			srv := apiwire.New(
 				testConfig(t),
 				&service.Services{MonitoringService: failingMonitoring()},
 				newTestLogger(t).Slog,

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
@@ -118,7 +119,7 @@ func Test_Listener(t *testing.T) {
 			}))
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			srv := api.New(conf, &service.Services{
+			srv := apiwire.New(conf, &service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				FlagsetManager:    flagsetManager,
 			}, logger, opts...)

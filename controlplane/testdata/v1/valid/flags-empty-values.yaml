@@ -1,0 +1,12 @@
+f:
+  version: ""
+  variations:
+    "": one
+    other: two
+  targeting:
+    - name: ""
+      query: ""
+      variation: ""
+  defaultRule:
+    variation: ""
+  metadata: {}

@@ -1,0 +1,6 @@
+<<: &header
+  apiVersion: semaphore/v1
+  kind: Manifest
+channel: stable
+generation: 3
+objects: []

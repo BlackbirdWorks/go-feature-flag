@@ -273,6 +273,7 @@ export default withMermaid({
           { text: 'Target a User', link: '/go-module/target_user' },
           { text: 'Data Collection', link: '/go-module/data_collection' },
           { text: 'Notifiers', link: '/go-module/notifier' },
+          { text: 'Control Plane Documents', link: '/go-module/controlplane' },
         ],
       },
       {

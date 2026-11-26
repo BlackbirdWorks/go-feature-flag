@@ -1,0 +1,4 @@
+apiVersion: semaphore/v1
+kind: Manifest
+<<: &a
+  <<: *a

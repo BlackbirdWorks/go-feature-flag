@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
@@ -59,7 +58,7 @@ func BenchmarkHandlers(b *testing.B) {
 	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
 	semEval := controller.NewFlagEval(fm, metrics)
 	semAll := controller.NewAllFlags(fm, metrics)
-	ofrepCtrl := ofrep.NewOFREPEvaluate(fm, metrics, config.OfrepEventStream{})
+	ofrepCtrl := ofrep.NewOFREPEvaluate(fm, metrics, ofrep.EventStream{})
 	handlers := map[relay.Endpoint]func(http.ResponseWriter, *http.Request) error{
 		relay.SemaphoreEval:     semEval.Handler,
 		relay.SemaphoreAllFlags: semAll.Handler,

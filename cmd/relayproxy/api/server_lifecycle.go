@@ -15,7 +15,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
@@ -44,7 +43,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	}
 
 	// start the OpenTelemetry tracing service
-	err := s.otelService.Init(ctx, s.config)
+	err := s.otelService.Init(ctx, &s.settings.Telemetry)
 	if err != nil {
 		s.logger.LogAttrs(ctx, slog.LevelError,
 			"error while initializing OTel, continuing without tracing enabled",
@@ -68,10 +67,10 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		}
 	}()
 
-	switch s.config.ServerMode(s.logger) {
-	case config.ServerModeLambda:
+	switch s.settings.Mode {
+	case ServerModeLambda:
 		s.startAwsLambda()
-	case config.ServerModeUnixSocket:
+	case ServerModeUnixSocket:
 		s.startUnixSocketServer(ctx)
 	default:
 		s.startAsHTTPServer(ctx)
@@ -80,7 +79,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 
 // startUnixSocketServer launch the API server as a unix socket.
 func (s *Server) startUnixSocketServer(ctx context.Context) {
-	socketPath := s.config.UnixSocketPath()
+	socketPath := s.settings.UnixSocketPath
 
 	// Clean up the old socket file if it exists (important for graceful restarts)
 	_, err := os.Stat(socketPath)
@@ -125,7 +124,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy as unix socket...",
 		slog.String("socket", socketPath),
-		slog.String("version", s.config.Version))
+		slog.String("version", s.settings.Version))
 
 	err = s.serve(ctx, s.apiHandler, listener, false, "api")
 	if err != nil {
@@ -143,16 +142,16 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		defer wg.Wait()
 	}
 
-	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.logger))
+	address := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.Port)
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy ...",
 		slog.String("address", address),
-		slog.String("version", s.config.Version))
+		slog.String("version", s.settings.Version))
 
 	// serve blocks until ctx is cancelled and the graceful shutdown has drained the connections.
 	listener, err := s.listenOn(ctx, address, s.listener)
 	if err == nil {
-		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "api")
+		err = s.serve(ctx, s.apiHandler, listener, s.settings.EnableH2C, "api")
 	}
 
 	if err != nil {
@@ -227,7 +226,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
-	addressMonitoring := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.EffectiveMonitoringPort(s.logger))
+	addressMonitoring := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.MonitoringPort)
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
@@ -252,9 +251,9 @@ func (s *Server) startAwsLambda() {
 // We need a dedicated function because it is called from tests as well, this is the
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
-	handlerMngr := newAwsLambdaHandlerManager(s.apiHandler, s.config.EffectiveAwsAPIGatewayBasePath(s.logger))
+	handlerMngr := newAwsLambdaHandlerManager(s.apiHandler, s.settings.AwsAPIGatewayBasePath)
 
-	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.logger))
+	return handlerMngr.SelectAdapter(s.settings.LambdaAdapter)
 }
 
 // Stop shutdown the API server.
@@ -277,5 +276,5 @@ func (s *Server) Stop(ctx context.Context) {
 
 // isMonitoringPortConfigured checks if the monitoring port is configured.
 func (s *Server) isMonitoringPortConfigured() bool {
-	return s.monitoringHandler != nil && s.config.EffectiveMonitoringPort(s.logger) > 0
+	return s.monitoringHandler != nil && s.settings.MonitoringPort > 0
 }
