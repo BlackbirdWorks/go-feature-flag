@@ -1,0 +1,29 @@
+rollout-flag:
+  trackEvents: false
+  version: "1.2"
+  variations:
+    blue: blue
+    green: green
+  targeting:
+    - name: ramp
+      query: country eq "FR"
+      progressiveRollout:
+        initial:
+          variation: blue
+          percentage: 0
+          date: 2026-01-01T00:00:00Z
+        end:
+          variation: green
+          percentage: 100
+          date: 2026-02-01T00:00:00Z
+  defaultRule:
+    variation: blue
+  scheduledRollout:
+    - date: 2026-03-01T00:00:00Z
+      defaultRule:
+        variation: green
+  experimentation:
+    start: 2026-01-01T00:00:00Z
+    end: 2026-04-01T00:00:00Z
+  metadata:
+    owner: payments
