@@ -36,6 +36,16 @@ func refusalCauses() []refusalCause {
 			},
 		},
 		{
+			name: "a foreign .tmp-abc alone", wantErr: statedir.ErrUnsafe, wantReason: statedir.DisabledUnsafe,
+			prepare: func(t *testing.T, path string) []string {
+				t.Helper()
+				require.NoError(t, os.Mkdir(path, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(path, foreignTmp), []byte("another tool"), 0o600))
+
+				return []string{path}
+			},
+		},
+		{
 			name: "a foreign VERSION", wantErr: statedir.ErrForeignVersion, wantReason: statedir.DisabledForeignVersion,
 			prepare: func(t *testing.T, path string) []string {
 				t.Helper()

@@ -1,8 +1,10 @@
 package statedir
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -75,10 +77,29 @@ func isSum(name string) bool {
 	return true
 }
 
-// isOurTmp reports whether name is a temporary file of this package: ".tmp-" and lower case hex (the name is random).
+// tmpRandomBytes is the number of random bytes in a temporary name: twice as many hex digits.
+const tmpRandomBytes = 8
+
+// newTmpName returns a new temporary name: ".tmp-" and exactly 2 x tmpRandomBytes lower case hex digits. It is the one
+// definition of the names this package creates, and [isOurTmp] is the one definition of the names it recognises, so
+// they cannot drift: anything else that starts with ".tmp-" (".tmp-abc", a decimal name, other lengths) belongs to
+// somebody else.
+func newTmpName() (string, error) {
+	var random [tmpRandomBytes]byte
+
+	_, err := rand.Read(random[:])
+	if err != nil {
+		return "", fmt.Errorf("statedir: random name: %w", err)
+	}
+
+	return tmpPrefix + hex.EncodeToString(random[:]), nil
+}
+
+// isOurTmp reports whether name is a temporary name that [newTmpName] makes. A name from before the random names
+// (".tmp-" and a decimal number) was never in a release: it is somebody else's file.
 func isOurTmp(name string) bool {
 	suffix, ok := strings.CutPrefix(name, tmpPrefix)
-	if !ok || suffix == "" {
+	if !ok || len(suffix) != 2*tmpRandomBytes {
 		return false
 	}
 

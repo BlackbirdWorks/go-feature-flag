@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -511,14 +509,12 @@ func (s *Store) createTemp(dir string) (File, string, error) { //nolint:ireturn 
 	var lastErr error
 
 	for range tmpAttempts {
-		var random [8]byte
-
-		_, err := rand.Read(random[:])
+		name, err := newTmpName()
 		if err != nil {
-			return nil, "", fmt.Errorf("statedir: random name: %w", err)
+			return nil, "", err
 		}
 
-		tmp := path.Join(dir, tmpPrefix+hex.EncodeToString(random[:]))
+		tmp := path.Join(dir, name)
 
 		file, err := s.root.Create(tmp)
 		if err == nil {

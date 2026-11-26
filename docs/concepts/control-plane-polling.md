@@ -267,7 +267,9 @@ restored object is checked like a fetched one (the listed size, the object limit
   rename), fsync of the directory, and only then the garbage collection. A manifest on disk never names an object
   that was not durable. A crash or a power loss at any step leaves the old state or the new one, never a mix: the
   tests cut the power after every file operation against a model that drops whatever was not fsynced.
-- Temporary files. Every temporary file has a random name (`.tmp-` and 16 hex digits) and is created exclusively,
+- Temporary files. Every temporary file has a random name (`.tmp-` and exactly 16 lower case hex digits, one
+  definition used both to create and to recognise them: `.tmp-abc`, a name of another length or a decimal name such as
+  `.tmp-1`, which never shipped, belong to somebody else and are never removed or accepted as ours) and is created exclusively,
   with up to 8 tries for a free name: two writers on one directory never share a temporary name, and a file is never
   removed to make room for another. The leftovers of a crashed writer are removed by that pattern, after a save,
   only where the lock gives this store the directory; without a lock another writer may be in the middle of a write,
@@ -338,9 +340,14 @@ restored object is checked like a fetched one (the listed size, the object limit
 - The owner of the directory does not matter: a Kubernetes `fsGroup` volume is owned by root and group-writable, and
   is accepted. A directory that is not world-writable and that the process can read, write and lock is accepted;
   its mode is never changed. A directory that does not exist is created with mode `0700`.
-- A refused directory is left as it was found: the lock is released first, then a lock file that this open created is
-  removed (one that was there stays), then the directory is closed. A lock file that cannot be removed is logged at
-  warn level and never replaces the reason of the refusal.
+- Nothing is created in a directory before it is known to be ours. The open inspects the directory read-only first
+  (no lock file, nothing written): a directory that is foreign from the start is refused there, and there is nothing to
+  clean up. Only a directory that is ours or empty gets its lock file opened and locked, and it is inspected again
+  under the lock. When that second inspection refuses, a lock file that this open created is removed (one that was
+  there stays): on Unix while it is still locked and then released, and an opener that had the same file open
+  checks that the file it locked is still the file at the path (same inode) and retries if it is not; on Windows,
+  which cannot remove an open file and has no lock, it is closed first. A lock file that cannot be removed is logged
+  at warn level and never replaces the reason of the refusal.
 - Garbage collection removes only names this package writes (a checksum in lower case hex, `.tmp-` and hex), under a
   `VERSION` it wrote or recognised.
 - Two processes on one directory by mistake: the second fails with `ErrLocked`. Where the system has no `flock`

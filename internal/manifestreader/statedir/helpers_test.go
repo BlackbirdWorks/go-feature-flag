@@ -35,6 +35,8 @@ const (
 	keepName      = "keep"
 	notesName     = "notes.txt"
 	foreignLayout = "semaphore-manifest-state 2\n"
+	foreignTmp    = ".tmp-abc"
+	tmpLeftover   = ".tmp-0123456789abcdef"
 	tmpUserObject = "objects/.tmp-user"
 	notesObject   = "objects/notes.txt"
 	opClose       = "close"

@@ -96,8 +96,8 @@ func TestStore_GarbageCollection(t *testing.T) {
 			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha, contentBeta, "gamma"))
 
 			// leftovers of a crashed process, and a file that is not ours
-			disk.write(".tmp-9", []byte("half"))
-			disk.write("objects/.tmp-9", []byte("half"))
+			disk.write(tmpLeftover, []byte("half"))
+			disk.write("objects/"+tmpLeftover, []byte("half"))
 			disk.write("objects/README", []byte("not ours"))
 
 			run.saveAndFlush(tt.second)

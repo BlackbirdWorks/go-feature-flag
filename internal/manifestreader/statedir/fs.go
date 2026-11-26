@@ -101,6 +101,10 @@ type OSFS struct {
 	pending *pendingFlushes
 	// flushDir flushes an open directory; nil is the one of the platform. A test replaces it.
 	flushDir func(*os.File) error
+	// beforeFlock, afterLock and afterRelease are hooks of tests (nil in production) for the lock of the roots.
+	beforeFlock  func()
+	afterLock    func()
+	afterRelease func()
 }
 
 // pendingFlushes are the parent directories that a failed flush left to flush, by the state directory they lead to.
@@ -208,7 +212,10 @@ func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements th
 		flush = flushDir
 	}
 
-	return &osRoot{root: root, parentSync: parentSync, flush: flush}, nil
+	return &osRoot{
+		root: root, parentSync: parentSync, flush: flush,
+		beforeFlock: o.beforeFlock, afterLock: o.afterLock, afterRelease: o.afterRelease,
+	}, nil
 }
 
 // create makes the directory and the missing directories above it, and returns the parents to flush, top down.
@@ -289,6 +296,11 @@ const (
 )
 
 type osRoot struct {
+	// beforeFlock, afterLock and afterRelease are hooks of tests, nil in production: they run after the lock file is
+	// opened and before it is locked, after the lock is taken, and after it is released.
+	beforeFlock  func()
+	afterLock    func()
+	afterRelease func()
 	// flush flushes an open directory: flushDir of the platform, or the one of a test.
 	flush      func(*os.File) error
 	root       *os.Root
@@ -305,22 +317,43 @@ func (r *osRoot) Lock() (func() error, error) {
 		return r.unlock, nil
 	}
 
-	file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, fileMode)
-	if err != nil {
-		return nil, wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
-	}
+	for range lockAttempts {
+		file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, fileMode)
+		if err != nil {
+			return nil, wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
+		}
 
-	err = lockFileExclusive(file)
-	if err != nil {
+		if r.beforeFlock != nil {
+			r.beforeFlock()
+		}
+
+		err = lockFileExclusive(file)
+		if err != nil {
+			_ = file.Close()
+
+			return nil, err
+		}
+
+		if r.atPath(file) {
+			r.lock = file
+
+			if r.afterLock != nil {
+				r.afterLock()
+			}
+
+			return r.unlock, nil
+		}
+
+		// the opener that held this file before us removed it (it was refused): what we locked is not at the path
+		// any more, and a later opener would lock another file. Take the one that is there.
 		_ = file.Close()
-
-		return nil, err
 	}
 
-	r.lock = file
-
-	return r.unlock, nil
+	return nil, fmt.Errorf("%w: the lock file keeps being replaced", ErrLocked)
 }
+
+// lockAttempts bounds the tries to lock the file that is at the path.
+const lockAttempts = 5
 
 func (r *osRoot) ReadFile(name string, limit int64) ([]byte, error) {
 	info, err := r.root.Lstat(name)
@@ -431,6 +464,9 @@ func (r *osRoot) SyncDir(name string) error {
 	return nil
 }
 
+// UnlinkWhileLocked tells how a lock file is removed on this system (see unlinkWhileLocked).
+func (*osRoot) UnlinkWhileLocked() bool { return unlinkWhileLocked }
+
 // Exclusive tells that the lock is really held: not on a system without a lock, and not after it was released.
 func (r *osRoot) Exclusive() bool { return hasFileLock && r.lock != nil }
 
@@ -452,6 +488,23 @@ func (r *osRoot) Close() error {
 	return nil
 }
 
+// atPath tells that the locked file is the file at the path of the lock (the same file, not one that was unlinked
+// and made again). Where there is no lock it is always true.
+func (r *osRoot) atPath(file *os.File) bool {
+	if !hasFileLock {
+		return true
+	}
+
+	held, err := file.Stat()
+	if err != nil {
+		return false
+	}
+
+	named, err := r.root.Lstat(lockFile)
+
+	return err == nil && os.SameFile(held, named)
+}
+
 func (r *osRoot) unlock() error {
 	if r.lock == nil {
 		return nil
@@ -459,6 +512,10 @@ func (r *osRoot) unlock() error {
 
 	err := r.lock.Close()
 	r.lock = nil
+
+	if r.afterRelease != nil {
+		r.afterRelease()
+	}
 
 	if err != nil {
 		return fmt.Errorf("statedir: close lock: %w", err)

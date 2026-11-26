@@ -174,86 +174,107 @@ func orDefault(value, fallback int64) int64 {
 	return value
 }
 
-// openedDir is a directory that was opened and locked.
-type openedDir struct {
-	root Root
-	// release releases the lock and closes its file
-	release func() error
-	// created tells that the lock file did not exist before this open
-	created bool
+// openRoot opens the path (with one more try when the flush of a parent failed: the opener remembers it) and
+// refuses a layout name that is a symbolic link. It creates nothing in the directory.
+func openRoot(fsys FS, dir string) (Root, error) { //nolint:ireturn // the FS seam returns an interface
+	root, err := fsys.Open(dir)
+	if errors.Is(err, ErrParentSync) {
+		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
+		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
+		root, err = fsys.Open(dir)
+	}
+
+	if err != nil {
+		return nil, wrapPermission(fmt.Errorf("statedir: %w", err))
+	}
+
+	for _, name := range []string{versionFile, lockFile, manifestFile, objectsDir} {
+		info, statErr := root.Lstat(name)
+		if statErr == nil && info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			_ = root.Close()
+
+			return nil, fmt.Errorf("%w: %s is a symbolic link", ErrUnsafe, name)
+		}
+	}
+
+	return root, nil
 }
 
-// openLocked opens and locks the directory, and refuses a layout name that is a symbolic link.
-func openLocked(fsys FS, dir string) (openedDir, error) {
-	root, err := fsys.Open(dir)
+// unlinkHeldRoot is implemented by a root that tells how a lock file is removed: while the lock is still held
+// (Unix: the standard way, with the check of the opener that the file it locked is still at the path), or after it
+// was released and closed (Windows, which cannot remove an open file, and has no lock to protect).
+type unlinkHeldRoot interface{ UnlinkWhileLocked() bool }
+
+// openOwned is the one way to open a state directory, for [New] and for a reopen by the writer. Nothing is created in
+// a directory before it is known to be ours:
+//
+//  1. the directory is inspected read-only (no lock file, nothing written): a directory that is not ours is refused
+//     here, and there is nothing to clean up;
+//  2. only then the lock file is opened and the lock taken, and the directory is inspected again under the lock (it
+//     may have changed between the two);
+//  3. when that refuses, a lock file that this call created is removed (a lock file that was there stays), in the
+//     order the system needs: where a file can be removed while it is locked (Unix) the file is removed first and
+//     the lock released after, so no other opener can lock a file that is about to disappear; where it cannot
+//     (Windows, which has no lock either) the lock file is closed first. A failure to remove it is logged at warn
+//     level and never replaces the reason of the refusal.
+func openOwned( //nolint:ireturn // the FS seam returns an interface
+	ctx context.Context, fsys FS, dir string, log *slog.Logger,
+) (Root, error) {
+	root, err := openRoot(fsys, dir)
 	if err != nil {
-		return openedDir{}, wrapPermission(fmt.Errorf("statedir: %w", err))
+		return nil, err
+	}
+
+	_, err = inspect(root)
+	if err != nil {
+		_ = root.Close()
+
+		return nil, err
 	}
 
 	_, lockErr := root.Lstat(lockFile)
 	created := errors.Is(lockErr, fs.ErrNotExist)
 
-	for _, name := range []string{versionFile, lockFile, manifestFile, objectsDir} {
-		info, statErr := root.Lstat(name)
-		if statErr == nil && info.Mode()&fs.ModeSymlink != 0 {
-			_ = root.Close()
-
-			return openedDir{}, fmt.Errorf("%w: %s is a symbolic link", ErrUnsafe, name)
-		}
-	}
-
 	release, err := root.Lock()
 	if err != nil {
 		_ = root.Close()
 
-		return openedDir{}, fmt.Errorf("statedir: lock: %w", err)
+		return nil, fmt.Errorf("statedir: lock: %w", err)
 	}
 
-	return openedDir{root: root, release: release, created: created}, nil
+	_, err = inspect(root)
+	if err != nil {
+		refuseLocked(ctx, root, release, created, log)
+
+		return nil, err
+	}
+
+	return root, nil
 }
 
-// openOwned is the one way to open a state directory, for [New] and for a reopen by the writer: it opens the path,
-// takes the lock, and validates that the directory is ours. On refusal it undoes what this call created, in this
-// order: the lock is released (its file is closed, which some systems require before the file can be removed), the
-// lock file is removed when it did not exist before, and the directory is closed. A directory that is not ours is
-// left exactly as it was found. A failure to remove the lock file is logged at warn level and never replaces the
-// reason of the refusal.
-func openOwned( //nolint:ireturn // the FS seam returns an interface
-	ctx context.Context, fsys FS, dir string, log *slog.Logger,
-) (Root, error) {
-	opened, err := openLocked(fsys, dir)
-	if errors.Is(err, ErrParentSync) {
-		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
-		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
-		opened, err = openLocked(fsys, dir)
+// refuseLocked undoes a lock that was taken in a directory that turned out not to be ours.
+func refuseLocked(ctx context.Context, root Root, release func() error, created bool, log *slog.Logger) {
+	held, ok := root.(unlinkHeldRoot)
+	unlinkHeld := ok && held.UnlinkWhileLocked()
+
+	var removeErr error
+
+	if created && unlinkHeld {
+		removeErr = root.Remove(lockFile)
 	}
 
-	if err != nil {
-		return nil, err
+	_ = release()
+
+	if created && !unlinkHeld {
+		removeErr = root.Remove(lockFile)
 	}
 
-	_, err = inspect(opened.root)
-	if err != nil {
-		_ = opened.release()
-
-		if opened.created {
-			removeErr := opened.root.Remove(lockFile)
-			if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-				log.LogAttrs(
-					ctx,
-					slog.LevelWarn,
-					"state directory: the lock file of a refused directory could not be removed",
-					slog.String("reason", "lock-file"),
-				)
-			}
-		}
-
-		_ = opened.root.Close()
-
-		return nil, err
+	if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+		log.LogAttrs(ctx, slog.LevelWarn, "state directory: the lock file of a refused directory could not be removed",
+			slog.String("reason", "lock-file"))
 	}
 
-	return opened.root, nil
+	_ = root.Close()
 }
 
 // inspect tells whether the directory is ours. It reports whether VERSION is there (and ours); without VERSION the

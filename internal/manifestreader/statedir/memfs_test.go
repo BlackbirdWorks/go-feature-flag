@@ -203,13 +203,18 @@ type memFS struct {
 	disk          *memDisk
 	faults        *faults
 	beforeList    func()
-	parentSync    string
-	lockOps       []string
-	lockMu        sync.Mutex
-	failOpens     atomic.Int32
-	opens         atomic.Int32
-	existFirst    atomic.Int32
-	noLock        bool
+	// afterLock runs once, right after a lock was taken: a change between the two inspections of the directory.
+	afterLock  func()
+	parentSync string
+	lockOps    []string
+	lockMu     sync.Mutex
+	failOpens  atomic.Int32
+	opens      atomic.Int32
+	existFirst atomic.Int32
+	// unlinkHeld is the variant of the system: a lock file is removed while it is locked (true, Unix) or after the
+	// lock was released (false, Windows).
+	unlinkHeld bool
+	noLock     bool
 }
 
 func (m *memFS) Open(string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
@@ -235,15 +240,19 @@ func (r *memRoot) Lock() (func() error, error) {
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
-	if r.fsys.noLock {
-		return r.unlock, nil
+	if !r.fsys.noLock {
+		if dsk.locked {
+			return nil, statedir.ErrLocked
+		}
+
+		dsk.locked, r.locked = true, true
 	}
 
-	if dsk.locked {
-		return nil, statedir.ErrLocked
+	if hook := r.fsys.takeAfterLock(); hook != nil {
+		dsk.mu.Unlock()
+		hook()
+		dsk.mu.Lock()
 	}
-
-	dsk.locked, r.locked = true, true
 
 	return r.unlock, nil
 }
@@ -554,8 +563,21 @@ func (r *memRoot) SyncDir(name string) error {
 	return nil
 }
 
+// UnlinkWhileLocked is the variant of the system that the test plays.
+func (r *memRoot) UnlinkWhileLocked() bool { return r.fsys.unlinkHeld }
+
 // Exclusive tells that the lock is really held: not when the file system has none.
 func (r *memRoot) Exclusive() bool { return !r.fsys.noLock && r.locked }
+
+func (m *memFS) takeAfterLock() func() {
+	m.lockMu.Lock()
+	defer m.lockMu.Unlock()
+
+	hook := m.afterLock
+	m.afterLock = nil
+
+	return hook
+}
 
 func (m *memFS) takeBeforeList() func() {
 	m.lockMu.Lock()

@@ -64,7 +64,16 @@ func TestNew_NeverTouchesADirectoryThatIsNotOurs(t *testing.T) {
 			files:   map[string]string{versionName: "hello"},
 			wantErr: statedir.ErrForeignVersion,
 		},
-		{name: "our own leftovers are fine", files: map[string]string{".tmp-12": "half"}},
+		{name: "our own leftovers are fine", files: map[string]string{tmpLeftover: "half"}},
+		{
+			name: "a foreign .tmp-abc alone is not ours", files: map[string]string{foreignTmp: "another tool"},
+			wantErr: statedir.ErrUnsafe,
+		},
+		{
+			name:    "a legacy decimal name is foreign too",
+			files:   map[string]string{".tmp-1": "x"},
+			wantErr: statedir.ErrUnsafe,
+		},
 		{name: "an empty directory is fine"},
 		{
 			name:  "a directory that is ours",
@@ -132,7 +141,7 @@ func TestStore_GarbageCollectionRemovesOnlyNamesItWrote(t *testing.T) {
 	disk.write(notesObject, []byte(keepName))
 	disk.write(tmpUserObject, []byte(keepName))
 	disk.write("objects/"+strings.Repeat("A", 64), []byte("keep: not lower case hex"))
-	disk.write("objects/.tmp-7", []byte("ours"))
+	disk.write("objects/"+tmpLeftover, []byte("ours"))
 
 	run.saveAndFlush(persistOf(`"e2"`, "manifest-2", contentBeta))
 
@@ -435,39 +444,81 @@ func TestStore_OwnershipIsCheckedAfterAReopenToo(t *testing.T) {
 	assert.Equal(t, before, image(disk), "nothing was added, changed or removed")
 }
 
-// TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile: when a directory is refused, the lock is released first (its
-// file is closed, which some systems need before the file can be removed), then the lock file is removed if this call
-// created it, then the directory is closed. A lock file that was there before stays. A lock file that cannot be
-// removed is logged and never replaces the reason of the refusal.
-func TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile(t *testing.T) {
+// TestNew_ARefusalIsHandledInTheOrderOfTheSystem: nothing is created in a directory before it is known to be ours. A
+// directory that is foreign from the start is refused by the read-only inspection: no lock, no lock file, nothing to
+// remove. A directory that turns foreign between the two inspections (the second one is under the lock) is refused
+// after the lock was taken, and the lock file this open created is removed in the order of the system: while it is
+// still locked where that is possible (Unix), after the lock was released where it is not (Windows). A lock file
+// that was there before stays. A lock file that cannot be removed is logged and never replaces the refusal.
+func TestNew_ARefusalIsHandledInTheOrderOfTheSystem(t *testing.T) {
 	t.Parallel()
+
+	foreignFile := func(d *memDisk) { d.write(notesName, []byte("x")) }
+	foreignVersion := func(d *memDisk) { d.write(versionName, []byte(foreignLayout)) }
 
 	tests := []struct {
 		files         map[string]string
+		change        func(*memDisk)
 		removeLockErr error
 		wantErr       error
 		name          string
 		wantLog       []string
 		wantOps       []string
+		unlinkHeld    bool
 	}{
 		{
-			name: "foreign files, no lock file before", files: map[string]string{notesName: "x"},
+			name: "foreign from the start (Unix)", files: map[string]string{notesName: "x"}, unlinkHeld: true,
+			wantErr: statedir.ErrUnsafe, wantOps: []string{opClose},
+		},
+		{
+			name: "foreign from the start (Windows)", files: map[string]string{notesName: "x"},
+			wantErr: statedir.ErrUnsafe, wantOps: []string{opClose},
+		},
+		{
+			name: "a foreign version from the start", files: map[string]string{versionName: foreignLayout},
+			wantErr: statedir.ErrForeignVersion, wantOps: []string{opClose},
+		},
+		{
+			name: "foreign under the lock (Unix): removed while locked", change: foreignFile, unlinkHeld: true,
+			wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opRemoveLock, opUnlock, opClose},
+		},
+		{
+			name: "foreign under the lock (Windows): closed first", change: foreignFile,
 			wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
 		},
 		{
-			name:    "a foreign version, no lock file before",
-			files:   map[string]string{versionName: foreignLayout},
-			wantErr: statedir.ErrForeignVersion,
-			wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
+			name: "a foreign version under the lock (Unix)", change: foreignVersion, unlinkHeld: true,
+			wantErr: statedir.ErrForeignVersion, wantOps: []string{opLock, opRemoveLock, opUnlock, opClose},
 		},
 		{
-			name: "a lock file that was there before stays", files: map[string]string{notesName: "x", "LOCK": ""},
-			wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opUnlock, opClose},
+			name: "a lock file that was there before stays", files: map[string]string{"LOCK": ""}, change: foreignFile,
+			unlinkHeld: true, wantErr: statedir.ErrUnsafe, wantOps: []string{opLock, opUnlock, opClose},
 		},
 		{
-			name: "a lock file that cannot be removed", files: map[string]string{notesName: "x"},
-			removeLockErr: syscall.EBUSY, wantErr: statedir.ErrUnsafe,
-			wantOps: []string{opLock, opUnlock, opRemoveLock, opClose},
+			name:          "a lock file that cannot be removed (Unix)",
+			change:        foreignFile,
+			unlinkHeld:    true,
+			removeLockErr: syscall.EBUSY,
+			wantErr:       statedir.ErrUnsafe,
+			wantOps: []string{
+				opLock,
+				opRemoveLock,
+				opUnlock,
+				opClose,
+			},
+			wantLog: []string{"level=WARN", "reason=lock-file"},
+		},
+		{
+			name:          "a lock file that cannot be removed (Windows)",
+			change:        foreignFile,
+			removeLockErr: syscall.EBUSY,
+			wantErr:       statedir.ErrUnsafe,
+			wantOps: []string{
+				opLock,
+				opUnlock,
+				opRemoveLock,
+				opClose,
+			},
 			wantLog: []string{"level=WARN", "reason=lock-file"},
 		},
 	}
@@ -482,7 +533,12 @@ func TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile(t *testing.T) {
 			}
 
 			logs := &logBuffer{}
-			fsys := &memFS{disk: disk, faults: &faults{}, removeLockErr: tt.removeLockErr}
+			fsys := &memFS{disk: disk, faults: &faults{}, removeLockErr: tt.removeLockErr, unlinkHeld: tt.unlinkHeld}
+
+			if tt.change != nil {
+				fsys.afterLock = func() { tt.change(disk) }
+			}
+
 			store, err := statedir.New(statedir.Config{
 				FS: fsys, Dir: stateDirName, Logger: slog.New(slog.NewTextHandler(logs, nil)),
 			})
@@ -490,6 +546,7 @@ func TestNew_ARefusalReleasesTheLockBeforeItRemovesTheFile(t *testing.T) {
 			require.ErrorIs(t, err, tt.wantErr, "the reason of the refusal is never masked")
 			assert.Nil(t, store)
 			assert.Equal(t, tt.wantOps, fsys.takeLockOps(), "the order of the lock operations")
+			assert.Zero(t, fsys.faults.count("create"), "nothing was created")
 
 			lines := nonEmpty(logs.lines())
 			assert.Len(t, lines, min(len(tt.wantLog), 1))
@@ -554,13 +611,15 @@ func TestStore_LeftoverTemporaryFilesAreRemovedOnlyWhereTheLockIsHeld(t *testing
 				objectFile(contentAlpha),
 				tmpUserObject,
 				notesObject,
+				foreignTmp, "objects/" + foreignTmp, "objects/.tmp-1",
 			},
 		},
 		{
 			name: "without a lock", noLock: true,
 			wantNames: []string{
 				versionName, manifestName, objectFile(contentAlpha), tmpUserObject, notesObject,
-				"objects/.tmp-0badc0ffee", ".tmp-0badc0ffee",
+				foreignTmp, "objects/" + foreignTmp, "objects/.tmp-1",
+				"objects/" + tmpLeftover, tmpLeftover,
 			},
 		},
 	}
@@ -574,8 +633,11 @@ func TestStore_LeftoverTemporaryFilesAreRemovedOnlyWhereTheLockIsHeld(t *testing
 			run := openStore(t, fsys, statedirConfig())
 			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
 
-			disk.write("objects/.tmp-0badc0ffee", []byte("half"))
-			disk.write(".tmp-0badc0ffee", []byte("half"))
+			disk.write("objects/"+tmpLeftover, []byte("half"))
+			disk.write(tmpLeftover, []byte("half"))
+			disk.write(foreignTmp, []byte("another tool"))
+			disk.write("objects/"+foreignTmp, []byte("another tool"))
+			disk.write("objects/.tmp-1", []byte("legacy, foreign"))
 			disk.write(tmpUserObject, []byte("mine"))
 			disk.write(notesObject, []byte("mine"))
 

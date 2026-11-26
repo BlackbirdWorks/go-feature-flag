@@ -103,7 +103,7 @@ func TestStore_RestoreIgnoresWhatDoesNotVerify(t *testing.T) {
 			mutate: func(d *memDisk) {
 				d.write("objects/README", []byte("hello"))
 				d.write(objectFile("orphan"), []byte("orphan"))
-				d.write(".tmp-7", []byte("half"))
+				d.write(tmpLeftover, []byte("half"))
 			},
 		},
 		{
