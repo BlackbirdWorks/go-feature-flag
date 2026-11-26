@@ -65,8 +65,14 @@ func TestJSONNumbersAreWrittenAsNumbers(t *testing.T) {
 	}
 
 	for _, bad := range []string{"abc", "", "1e999", "123456789012345678901234567890", "+1", "01", "[1]", "true", "1 "} {
-		_, err := controlplane.MarshalFlags(controlplane.Flags{"f": {Metadata: map[string]any{"k": json.Number(bad)}}})
-		require.ErrorIs(t, err, controlplane.ErrUnsupportedValue, bad)
+		t.Run("refuses "+bad, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := controlplane.MarshalFlags(
+				controlplane.Flags{"f": {Metadata: map[string]any{"k": json.Number(bad)}}},
+			)
+			require.ErrorIs(t, err, controlplane.ErrUnsupportedValue)
+		})
 	}
 }
 

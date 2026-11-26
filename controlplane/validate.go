@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // DefaultMaxObjects is the default bound on the number of objects of a manifest (validation and memory). The
@@ -356,6 +357,26 @@ func (c *flagCheck) variationTypes(path string, variations map[string]any) {
 
 const typeNumber = "number"
 
+// jsonNumberType types a [json.Number] as the writers would write it: a JSON number in range, and an integer
+// within the int64 range (the engine's YAML loader does not type a larger one).
+func jsonNumberType(number json.Number) string {
+	text := number.String()
+
+	_, err := jsonNumber(text)
+	if err != nil || !isJSONNumber(text) {
+		return ""
+	}
+
+	if !strings.ContainsAny(text, ".eE") {
+		_, err = strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			return ""
+		}
+	}
+
+	return typeNumber
+}
+
 // uintType: the engine reads an integer above the int64 range as a type it does not know.
 func uintType(value uint64) string {
 	if value > math.MaxInt64 {
@@ -374,11 +395,7 @@ func variationType(value any) string {
 	case int, int8, int16, int32, int64, uint8, uint16, uint32, float32, float64:
 		return typeNumber
 	case json.Number:
-		if isJSONNumber(typed.String()) {
-			return typeNumber
-		}
-
-		return ""
+		return jsonNumberType(typed)
 	case uint:
 		return uintType(uint64(typed))
 	case uint64:
