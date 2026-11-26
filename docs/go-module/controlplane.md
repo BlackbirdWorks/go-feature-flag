@@ -65,7 +65,7 @@ objects:
 | `objects[].format` | `yaml`, `json` (and `toml` for `flags`) |
 | `objects[].version` | optional integer; 1 (the default) is the headerless flag format; a newer one is an entry problem |
 | `objects[].checksum` | `sha256` and 64 lower-case hex characters |
-| `objects[].size` | bytes, 1 or more (an empty object is rejected, as the reader does) |
+| `objects[].size` | bytes, 0 or more; the reader marks an entry below 1 as `invalid-size` and does not request it, and `s3publish` refuses to write one |
 | `objects[].versionId` | optional version id of the store |
 
 ### Flag-set document

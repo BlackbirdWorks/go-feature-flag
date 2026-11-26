@@ -131,8 +131,8 @@ func validateObject(probs *problems, owner entry, path string, obj *ManifestObje
 		probs.addf(owner, CodeUnsupportedVersion, path+".version", "%d is not supported", obj.Version)
 	}
 
-	if obj.Size < 1 {
-		probs.addf(owner, CodeInvalidValue, path+".size", "must be at least 1")
+	if obj.Size < 0 {
+		probs.addf(owner, CodeInvalidValue, path+".size", "must not be negative")
 	}
 
 	err := validChecksum(obj.Checksum)

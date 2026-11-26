@@ -22,6 +22,7 @@ Decode without error and without unknown fields, then pass validation. Flag-set 
 - `flags-empty-values.yaml`: explicit empty strings, an empty variation name and an empty map are values, not absence.
 - `flags-disabled-rule.yaml`: a disabled targeting rule needs no query or outcome.
 - `flags-flow-style.yaml`, `flags-anchors.yaml`: YAML flow style, anchors and merge keys are read.
+- `manifest-size-zero.yaml`: a size of 0 is valid for the format (the reader marks such an entry invalid-size and never requests it; the publisher refuses to write one).
 - `manifest-merged-header.yaml`: `apiVersion` and `kind` can come from a YAML merge key.
 
 ## invalid/
@@ -35,7 +36,6 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `manifest-duplicate-name.yaml`: two objects with the same name.
 - `manifest-bad-checksum.yaml`, `manifest-upper-case-checksum.yaml`: a checksum that is not 64 lower-case hex characters.
 - `manifest-negative-size.yaml`: a negative size.
-- `manifest-size-zero.yaml`: a size of 0 (the reader rejects an empty object).
 - `manifest-object-unsupported-version.yaml`: an object with a newer content version (an entry problem).
 - `manifest-generation-fraction.yaml`, `manifest-generation-overflow.yaml`: an integer field with a fraction or an overflow.
 - `manifest-multiple-documents.yaml`: a second YAML document.

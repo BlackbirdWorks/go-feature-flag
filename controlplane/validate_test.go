@@ -82,9 +82,8 @@ func TestValidateManifest(t *testing.T) {
 		{name: "valid manifest", mutate: func(*controlplane.Manifest) {}},
 		{name: "empty objects is valid", mutate: func(m *controlplane.Manifest) { m.Objects = nil }},
 		{
-			name:   "size zero is refused: the reader rejects an empty object",
+			name:   "size zero is valid: the reader marks the entry, the publisher refuses to write it",
 			mutate: func(m *controlplane.Manifest) { m.Objects[0].Size = 0 },
-			want:   []problem{obj(controlplane.CodeInvalidValue, nameCheckoutFlags, 0, "objects[0].size")},
 		},
 		{
 			name:   "no channel",
