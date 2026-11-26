@@ -26,6 +26,7 @@ func specs() (map[string]flagSpec, map[string]flagSpec) {
 		{long: "port", short: "p", isValue: true},
 		{long: "dry-run", short: "n"},
 		{long: "verbose", short: "v"},
+		{long: "help", short: "h"},
 	}
 	longs, shorts := map[string]flagSpec{}, map[string]flagSpec{}
 
@@ -111,6 +112,10 @@ func (m *modelState) long(args []string, i int) int {
 	return last
 }
 
+// short follows pflag for a run of shorthands ("vo", "ojson", "o=json"): at each character, a run longer than two
+// characters with "=" second gives the rest after the "=" as the value (for a bool flag too); else a bool flag takes
+// no value and the run goes on; else the rest of the run is the value, and when there is none the next argument is.
+// So "-o=" has the value "=", and "-o==x" the value "=x".
 func (m *modelState) short(args []string, i int) int {
 	_, shorts := specs()
 	run := args[i][1:]
@@ -121,20 +126,24 @@ func (m *modelState) short(args []string, i int) int {
 
 	for run != "" {
 		spec := shorts[run[:1]]
-		if !spec.isValue {
+
+		switch {
+		case len(run) > 2 && run[1] == '=':
+			if spec.short == "o" {
+				m.last, m.found = run[2:], true
+			}
+
+			return i
+		case !spec.isValue:
 			run = run[1:]
+		default:
+			value, ok, last := m.value(args, i, run[1:], len(run) > 1)
+			if ok && spec.short == "o" {
+				m.last, m.found = value, true
+			}
 
-			continue
+			return last
 		}
-
-		rest := strings.TrimPrefix(run[1:], "=")
-
-		value, ok, last := m.value(args, i, rest, run[1:] != "")
-		if ok && spec.short == "o" {
-			m.last, m.found = value, true
-		}
-
-		return last
 	}
 
 	return i
@@ -156,14 +165,15 @@ func randomArgs(rng *rand.Rand) []string {
 		func() []string { return []string{"--output=" + pick([]string{jsonValue, textValue, "-x", "--"})} },
 		func() []string { return []string{"-o", pick(values)} },
 		func() []string { return []string{"-o" + pick([]string{jsonValue, textValue, "-x"})} },
-		func() []string { return []string{"-o=" + pick([]string{jsonValue, textValue})} },
+		func() []string { return []string{"-o=" + pick([]string{jsonValue, textValue, "", "=x"})} },
+		func() []string { return []string{pick([]string{"-ho=json", combinedEq, "-nvo=", "-v=x"})} },
 		func() []string { return []string{flagConfigLong, pick(values)} },
 		func() []string { return []string{"-c", pick(values)} },
 		func() []string { return []string{"--port", pick(append(values, "abc", "8080"))} },
 		func() []string { return []string{pick([]string{"-n", "-v", "--dry-run", "--verbose", "-nv"})} },
 		func() []string { return []string{combinedO, pick(values)} },
 		func() []string { return []string{combinedO + pick([]string{jsonValue, textValue})} },
-		func() []string { return []string{pick([]string{"--zzz", "--zzz=1", "-x"})} },
+		func() []string { return []string{pick([]string{unknownLong, "--zzz=1", "-x"})} },
 		func() []string { return []string{pick([]string{badToken, emptyName})} },
 		func() []string { return []string{"--"} },
 		func() []string { return []string{pick([]string{"pos", "-"})} },
@@ -190,7 +200,7 @@ func TestRawOutputInProperties(t *testing.T) {
 	t.Parallel()
 
 	rng := rand.New(rand.NewPCG(20260101, 7))
-	inserts := []string{badToken, emptyName, "--zzz", "--zzz=1", "-x"}
+	inserts := []string{badToken, emptyName, unknownLong, "--zzz=1", "-x"}
 
 	for range 800 {
 		args := randomArgs(rng)
@@ -238,4 +248,50 @@ func FuzzRawOutput(f *testing.F) {
 		assert.Equal(t, value, prefixed, "a malformed token first changes nothing")
 		assert.Equal(t, found, prefixedFound)
 	})
+}
+
+// Every list of up to three tokens from a small alphabet of shapes is read as the reference model says, so no form is
+// outside what the generator reaches.
+func TestRawOutputInExhaustiveSmallAlphabet(t *testing.T) {
+	t.Parallel()
+
+	alphabet := []string{
+		"-o",
+		"-ojson",
+		shortEqJSON,
+		"-o=",
+		"-o==x",
+		combinedEq,
+		"--output",
+		"--output=json",
+		"--output=",
+		"-n",
+		unknownLong,
+		badToken,
+		"--",
+		"-",
+		jsonValue,
+		"-x",
+		"-c",
+	}
+
+	var check func(prefix []string)
+
+	check = func(prefix []string) {
+		value, found := helper.RawOutputIn(outputFlags(), prefix)
+		wantValue, wantFound, _ := modelOutput(prefix)
+
+		require.Equal(t, wantFound, found, "args %q", prefix)
+		require.Equal(t, wantValue, value, "args %q", prefix)
+
+		if len(prefix) == 3 {
+			return
+		}
+
+		for _, token := range alphabet {
+			check(append(append([]string{}, prefix...), token))
+		}
+	}
+
+	check(nil)
 }

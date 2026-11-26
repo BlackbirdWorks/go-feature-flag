@@ -15,6 +15,9 @@ import (
 )
 
 const (
+	combinedEq     = "-vo=json"
+	unknownLong    = "--zzz"
+	shortEqJSON    = "-o=json"
 	combinedO      = "-nvo"
 	bogusValue     = "bogus"
 	flagOutputJSON = "--output=json"
@@ -192,6 +195,7 @@ func outputFlags() *pflag.FlagSet {
 	flags.String("endpoint", "", "")
 	flags.BoolP("dry-run", "n", false, "")
 	flags.BoolP("verbose", "v", false, "")
+	flags.BoolP("help", "h", false, "")
 	flags.IntP("port", "p", 0, "")
 	flags.StringP("output", "o", textValue, "")
 
@@ -213,7 +217,7 @@ func rawOutputRows() []rawOutputRow {
 		{name: "no output flag", args: []string{pubName, flagEndpoint, "http://x", "-c", "file"}},
 		{name: "short flag", args: []string{pubName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true},
 		{name: "short flag attached", args: []string{shortJSON}, wantValue: jsonValue, wantFound: true},
-		{name: "short flag with equals", args: []string{"-o=json"}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag with equals", args: []string{shortEqJSON}, wantValue: jsonValue, wantFound: true},
 		{name: "long flag", args: []string{flagOutput, jsonValue}, wantValue: jsonValue, wantFound: true},
 		{name: "long flag with equals", args: []string{flagOutputJSON}, wantValue: jsonValue, wantFound: true},
 		{name: "text is a selection too", args: []string{"--output=text"}, wantValue: textValue, wantFound: true},
@@ -346,6 +350,29 @@ func rawOutputRows() []rawOutputRow {
 			wantValue: bogusValue,
 			wantFound: true,
 		},
+		// pflag reads a shorthand run so: "o=json" and "o==x" (more than two characters, "=" second) give "json" and
+		// "=x", but a bare "o=" gives "=" (the rest of the run is the value, the "=" included).
+		{
+			name:      "bare shorthand equals: the value is the equals sign",
+			args:      []string{"-o="},
+			wantValue: "=",
+			wantFound: true,
+		},
+		{name: "shorthand equals twice", args: []string{"-o==x"}, wantValue: "=x", wantFound: true},
+		{name: "shorthand equals with a value", args: []string{shortEqJSON}, wantValue: jsonValue, wantFound: true},
+		{
+			name:      "combined shorthands, equals and a value",
+			args:      []string{"-ho=json"},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name:      "combined shorthands, a bool flag before equals",
+			args:      []string{combinedEq},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{name: "a bool flag with an equals value takes the rest of the token", args: []string{"-v=o=json"}},
 		{name: "another flag that starts with -o", args: []string{"-opt"}, wantValue: "pt", wantFound: true},
 	}
 }
