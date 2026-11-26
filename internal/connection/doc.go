@@ -13,5 +13,6 @@
 // Region and endpoint come from the spec only, never from the process environment or the shared config files,
 // and no state is global: two connections can use two endpoints in one process. The only environment access
 // is the one of the AWS SDK for credentials of type chain (and assumeRole without source keys). The HTTP
-// clients the factory builds do not follow redirects, so one observation is one request on the wire.
+// clients the factory builds do not follow redirects. An observation is one attempt of the SDK: the Go transport
+// may replay an idempotent request, only when the first send got no response, without a new observation.
 package connection

@@ -12,8 +12,13 @@ import (
 
 func assumeBase(spec *connection.S3Spec) {
 	spec.Credentials = connection.Credentials{
-		Type: connection.CredentialsAssumeRole, RoleARN: "arn:base", SessionName: "s", ExternalID: "e",
-		STSEndpoint: "http://sts.base", AccessKeyID: "AKIDBASE", SecretAccessKey: "base-secret",
+		Type:            connection.CredentialsAssumeRole,
+		RoleARN:         "arn:base",
+		SessionName:     "s",
+		ExternalID:      "e",
+		STSEndpoint:     "http://sts.base",
+		AccessKeyID:     connection.NewSecret("AKIDBASE"),
+		SecretAccessKey: connection.NewSecret("base-secret"),
 	}
 }
 
@@ -54,13 +59,18 @@ func TestIdentity_EachFieldChangesIt(t *testing.T) {
 		},
 		{
 			name: "static access key id",
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = "AKIDOTHER" },
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = connection.NewSecret("AKIDOTHER") },
 		},
 		{
 			name: "static secret access key",
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "another-secret" },
+			mut: func(spec *connection.S3Spec) {
+				spec.Credentials.SecretAccessKey = connection.NewSecret("another-secret")
+			},
 		},
-		{name: "static session token", mut: func(spec *connection.S3Spec) { spec.Credentials.SessionToken = "tok" }},
+		{
+			name: "static session token",
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionToken = connection.NewSecret("tok") },
+		},
 		{
 			name: "assume role arn",
 			base: assumeBase,
@@ -83,17 +93,17 @@ func TestIdentity_EachFieldChangesIt(t *testing.T) {
 		{
 			name: "assume source key",
 			base: assumeBase,
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = "AKIDX" },
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = connection.NewSecret("AKIDX") },
 		},
 		{
 			name: "assume source secret",
 			base: assumeBase,
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "x" },
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = connection.NewSecret("x") },
 		},
 		{
 			name: "assume source token",
 			base: assumeBase,
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionToken = "x" },
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionToken = connection.NewSecret("x") },
 		},
 		{
 			name: "web role arn",
@@ -168,9 +178,9 @@ func TestIdentity_Stability(t *testing.T) {
 			b: other(func(spec *connection.S3Spec) {
 				spec.Credentials = connection.Credentials{
 					Type:            connection.CredentialsChain,
-					AccessKeyID:     "AKIDLEFT",
-					SecretAccessKey: "left",
-					SessionToken:    "t",
+					AccessKeyID:     connection.NewSecret("AKIDLEFT"),
+					SecretAccessKey: connection.NewSecret("left"),
+					SessionToken:    connection.NewSecret("t"),
 					RoleARN:         "arn:left",
 					SessionName:     "s",
 					ExternalID:      "e",
@@ -195,7 +205,7 @@ func TestIdentity_Stability(t *testing.T) {
 			a:    other(webBase),
 			b: other(func(spec *connection.S3Spec) {
 				webBase(spec)
-				spec.Credentials.AccessKeyID = "AKIDLEFT"
+				spec.Credentials.AccessKeyID = connection.NewSecret("AKIDLEFT")
 				spec.Credentials.ExternalID = "e"
 			}),
 			want: true,
@@ -242,9 +252,9 @@ func TestIdentity_NeverContainsASecret(t *testing.T) {
 	t.Parallel()
 
 	s := other(func(spec *connection.S3Spec) {
-		spec.Credentials.AccessKeyID = "AKIDCLEARTEXT"
-		spec.Credentials.SecretAccessKey = "SECRETCLEARTEXT"
-		spec.Credentials.SessionToken = "TOKENCLEARTEXT"
+		spec.Credentials.AccessKeyID = connection.NewSecret("AKIDCLEARTEXT")
+		spec.Credentials.SecretAccessKey = connection.NewSecret("SECRETCLEARTEXT")
+		spec.Credentials.SessionToken = connection.NewSecret("TOKENCLEARTEXT")
 	})
 	id := s.Identity()
 

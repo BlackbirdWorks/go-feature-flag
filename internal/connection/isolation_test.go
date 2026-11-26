@@ -148,7 +148,8 @@ func TestFactory_AWSConfigIsACopy(t *testing.T) {
 
 	// the cached configuration still carries a working observer
 	rec := &recorder{}
-	cached := connection.New(connection.WithObserver(rec), connection.WithRoundTripper(newScripted(step{status: 200})))
+	cachedTransport := newScripted(step{status: 200})
+	cached := connection.New(connection.WithObserver(rec), connection.WithRoundTripper(cachedTransport))
 	require.NoError(t, cached.Set("a", testS3()))
 
 	cfg, err := cached.AWSConfig(t.Context(), "a")
@@ -159,6 +160,7 @@ func TestFactory_AWSConfigIsACopy(t *testing.T) {
 	client, err := cached.S3(t.Context(), "a")
 	require.NoError(t, err)
 	require.NoError(t, headObject(t, client))
+	assert.Equal(t, 1, cachedTransport.count())
 	assert.Equal(t, []observation{{"a", opHead, resOK}}, rec.all())
 }
 
@@ -275,9 +277,14 @@ func TestFactory_IgnoresTheProcessEnvironment(t *testing.T) {
 		name  string
 		creds connection.Credentials
 	}{
-		{"static", connection.Credentials{
-			Type: connection.CredentialsStatic, AccessKeyID: "AKIDSPEC", SecretAccessKey: "spec",
-		}},
+		{
+			"static",
+			connection.Credentials{
+				Type:            connection.CredentialsStatic,
+				AccessKeyID:     connection.NewSecret("AKIDSPEC"),
+				SecretAccessKey: connection.NewSecret("spec"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -441,8 +448,9 @@ func TestClassify_ThrottleAndClientErrors(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
+			transport := newScripted(step{status: tt.status, body: tt.body})
 			fac := connection.New(
-				connection.WithRoundTripper(newScripted(step{status: tt.status, body: tt.body})),
+				connection.WithRoundTripper(transport),
 				connection.WithObserver(rec),
 			)
 			require.NoError(t, fac.Set(connC, other(func(spec *connection.S3Spec) { spec.Retry.MaxAttempts = 1 })))
@@ -451,6 +459,7 @@ func TestClassify_ThrottleAndClientErrors(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Error(t, headObject(t, client))
+			assert.Equal(t, 1, transport.count())
 			assert.Equal(t, []observation{{connC, opHead, tt.wantResult}}, rec.all())
 		})
 	}

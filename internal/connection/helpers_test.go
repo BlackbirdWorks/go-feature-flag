@@ -109,6 +109,12 @@ const (
 	testSTSEndpoint = "http://sts.test"
 	testRoleARN     = "arn:r"
 	fieldRegion     = "region"
+	nameStatic      = "static"
+	nameWebIdentity = "webIdentity"
+	valBogus        = "bogus"
+	verbPlusV       = "%+v"
+	verbGoV         = "%#v"
+	pemCertificate  = "CERTIFICATE"
 	roleKeyID       = "ASIAROLE"
 	hostSTS         = "sts.test"
 	headerType      = "Content-Type"
@@ -163,8 +169,8 @@ func testS3() *connection.S3Spec {
 		Region:   "us-east-1",
 		Credentials: connection.Credentials{
 			Type:            connection.CredentialsStatic,
-			AccessKeyID:     "AKIDTEST",
-			SecretAccessKey: "secret-test",
+			AccessKeyID:     connection.NewSecret("AKIDTEST"),
+			SecretAccessKey: connection.NewSecret("secret-test"),
 		},
 		Retry:     connection.Retry{MaxAttempts: 3, MaxBackoff: time.Millisecond},
 		Bucket:    "bucket",

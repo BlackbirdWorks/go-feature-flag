@@ -37,7 +37,7 @@ S3 connection:
 | `region` | required | AWS region |
 | `pathStyle` | `false` | Path-style addressing |
 | `credentials` | `chain` | See below |
-| `caBundleFile` | none | PEM file of extra certificate authorities, trusted in addition to the system roots (TLS emulators, private stores). A missing, empty or certificate-less file is refused at `Set`/`Replace`. The identity holds the path, not the content |
+| `caBundleFile` | none | PEM file of extra certificate authorities, trusted in addition to the system roots (TLS emulators, private stores). It is read and parsed once, when the spec is accepted: a missing, empty or certificate-less file refuses the `Set`/`Replace`, and a file that changes or disappears later has no effect until the next reload. The factory identity includes a digest of the content, so a changed bundle rebuilds the client on the next reload |
 | `connectTimeout` | 30s | TCP connect timeout only (the TLS handshake has a fixed 10s limit) |
 | `requestTimeout` | none | Wait for the response headers of one HTTP attempt. It does not cut the reading of a body: only the caller's context does |
 | `retry.maxAttempts` | SDK default (3) | Attempts per operation, the first one included |
@@ -58,7 +58,9 @@ Kinesis, SQS and Redshift connections take the same fields except `bucket`, `pat
 | `assumeRole` | `roleArn`, `sessionName`, `externalId`, `stsEndpoint`, optional static source keys | Assumes the role; the source is the static keys when given (`accessKeyId` and `secretAccessKey` together), the chain otherwise |
 | `webIdentity` | `roleArn`, `tokenFile`, `sessionName`, `stsEndpoint` | Assumes the role with a web identity token file |
 
-- Secret values arrive already resolved. They print as `[REDACTED]` in logs, JSON, errors and `%v`, `%+v`, `%#v`.
+- Secret values arrive already resolved, as `connection.Secret` (`NewSecret`, `Reveal`). Every fmt verb, JSON (also as a map key), YAML and slog print `[REDACTED]`. `%p`, reflection and `unsafe` cannot be covered.
+- The credentials provider in the returned AWS config prints `[REDACTED]` too.
+- Limit of the `chain` type: the SDK validates every `AWS_*` variable and the shared files when it loads the chain, and no option skips that. An invalid variable (even an unrelated one such as `AWS_DEFAULTS_MODE`) makes the chain connection fail to build, with an error naming the connection. Static, `webIdentity` and `assumeRole` with source keys never load the chain.
 - The STS endpoint is separate from the connection endpoint.
 - STS calls are not counted in the request metric.
 

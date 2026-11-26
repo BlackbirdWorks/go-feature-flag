@@ -9,8 +9,10 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -463,59 +465,77 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	assert.Equal(t, want[:100], mockExporter2.GetExportedEvents())
 }
 
+// batchRecorder is a bulk exporter that records the size of every batch it receives.
+type batchRecorder struct {
+	batches []int
+	mu      sync.Mutex
+}
+
+func (r *batchRecorder) Export(_ context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.batches = append(r.batches, len(events))
+
+	return nil
+}
+
+func (*batchRecorder) IsBulk() bool { return true }
+
+func (r *batchRecorder) sizes() []int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.batches)
+}
+
+func (r *batchRecorder) total() int {
+	return sum(r.sizes())
+}
+
+func sum(values []int) int {
+	total := 0
+	for _, v := range values {
+		total += v
+	}
+
+	return total
+}
+
+// TestDataExporterManagerMultipleExportersWithDifferentFlushInterval checks the two flush triggers on their
+// own, without sleeps: the exporter with an interval flushes without reaching a count, and the exporter with
+// a threshold flushes exactly once, with all of its 100 events, when the 100th arrives (a threshold of 50
+// would give two batches of 50, a threshold above 100 would never flush).
 func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
-			"AddEvent/flush-interval assumptions this test relies on")
-	}
-
-	mockExporter1 := mock.Exporter{Bulk: true}
-	mockExporter2 := mock.Exporter{Bulk: true}
-	dataExporterMock := []exporter.Config{
-		{
-			FlushInterval:    50 * time.Millisecond,
-			MaxEventInMemory: 0,
-			Exporter:         &mockExporter1,
-		},
-		{
-			FlushInterval:    0 * time.Millisecond,
-			MaxEventInMemory: 100,
-			Exporter:         &mockExporter2,
-		},
-	}
-
+	timed := &batchRecorder{}
+	counted := &batchRecorder{}
 	mgr := exporter.NewManager[*exporter.FeatureEvent](
-		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
+		[]exporter.Config{
+			{FlushInterval: 50 * time.Millisecond, MaxEventInMemory: 0, Exporter: timed},
+			{FlushInterval: 0, MaxEventInMemory: 100, Exporter: counted},
+		}, exporter.DefaultExporterCleanQueueInterval, nil)
 
 	go mgr.Start()
 	defer mgr.Stop()
 
-	// Initialize inputEvents slice
-	inputEvents := make([]*exporter.FeatureEvent, 0, 100)
+	assert.Empty(t, timed.sizes())
+	assert.Empty(t, counted.sizes())
+
 	for range 100 {
-		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
+		mgr.AddEvent(exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
 			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
-	go func(mgr exporter.Manager[*exporter.FeatureEvent]) {
-		for _, event := range inputEvents {
-			mgr.AddEvent(event)
-			// we have to wait because we are opening a new thread to slow down the flag evaluation.
-			time.Sleep(1 * time.Millisecond)
-		}
-	}(mgr)
+	require.Eventually(t, func() bool { return timed.total() == 100 },
+		10*time.Second, 5*time.Millisecond, "the interval exporter did not flush all its events")
+	require.Eventually(t, func() bool { return counted.total() == 100 },
+		10*time.Second, 5*time.Millisecond, "the threshold exporter did not flush all its events")
 
-	assert.Empty(t, mockExporter2.GetExportedEvents())
-	assert.Empty(t, mockExporter1.GetExportedEvents())
-	// The time based exporter flushes after its interval, the count based one after 100 events. Wait for
-	// each on its own signal instead of fixed sleeps, which a loaded machine can overrun.
-	require.Eventually(t, func() bool { return len(mockExporter1.GetExportedEvents()) > 0 },
-		5*time.Second, 5*time.Millisecond, "the flush interval exporter never flushed")
-	require.Eventually(t, func() bool { return len(mockExporter2.GetExportedEvents()) > 0 },
-		5*time.Second, 5*time.Millisecond, "the max events exporter never flushed")
+	assert.Equal(t, []int{100}, counted.sizes(), "the threshold exporter must flush once, at 100 events")
+	assert.NotContains(t, timed.sizes(), 0)
 }
 
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {

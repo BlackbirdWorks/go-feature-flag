@@ -1,6 +1,7 @@
 package connection_test
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -170,7 +171,9 @@ func TestFactory_Reload(t *testing.T) {
 			name:   "changed secret is rebuilt",
 			before: map[string]connection.Spec{"a": testS3()},
 			after: map[string]connection.Spec{
-				"a": other(func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "rotated" }),
+				"a": other(
+					func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = connection.NewSecret("rotated") },
+				),
 			},
 			wantReused: map[string]bool{"a": false},
 			wantBuilds: map[string]int{"a": 2},
@@ -329,7 +332,10 @@ func TestSpec_Validate(t *testing.T) {
 		{"aws region is required", &connection.AWSSpec{Type: connection.KindSQS}, fieldRegion},
 		{"assumeRole with source key pair", other(func(spec *connection.S3Spec) {
 			spec.Credentials = connection.Credentials{
-				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: "a", SecretAccessKey: "b",
+				Type:            connection.CredentialsAssumeRole,
+				RoleARN:         testRoleARN,
+				AccessKeyID:     connection.NewSecret("a"),
+				SecretAccessKey: connection.NewSecret("b"),
 			}
 		}), ""},
 		{"assumeRole on the chain", other(func(spec *connection.S3Spec) {
@@ -337,17 +343,19 @@ func TestSpec_Validate(t *testing.T) {
 		}), ""},
 		{"assumeRole with only an access key", other(func(spec *connection.S3Spec) {
 			spec.Credentials = connection.Credentials{
-				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: "a",
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: connection.NewSecret("a"),
 			}
 		}), fieldCreds},
 		{"assumeRole with only a secret key", other(func(spec *connection.S3Spec) {
 			spec.Credentials = connection.Credentials{
-				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, SecretAccessKey: "b",
+				Type:            connection.CredentialsAssumeRole,
+				RoleARN:         testRoleARN,
+				SecretAccessKey: connection.NewSecret("b"),
 			}
 		}), fieldCreds},
 		{"assumeRole with only a session token", other(func(spec *connection.S3Spec) {
 			spec.Credentials = connection.Credentials{
-				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, SessionToken: "t",
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, SessionToken: connection.NewSecret("t"),
 			}
 		}), fieldCreds},
 		{"kind is required", &connection.AWSSpec{}, "type"},
@@ -546,12 +554,12 @@ func TestFactory_Credentials(t *testing.T) {
 		wantSTSCalls int
 	}{
 		{
-			name: "static",
+			name: nameStatic,
 			creds: connection.Credentials{
 				Type:            connection.CredentialsStatic,
-				AccessKeyID:     "AKIDSTATIC",
-				SecretAccessKey: "s",
-				SessionToken:    "t",
+				AccessKeyID:     connection.NewSecret("AKIDSTATIC"),
+				SecretAccessKey: connection.NewSecret("s"),
+				SessionToken:    connection.NewSecret("t"),
 			},
 			wantAccessID: "AKIDSTATIC",
 		},
@@ -559,8 +567,8 @@ func TestFactory_Credentials(t *testing.T) {
 			name: "assumeRole with static source",
 			creds: connection.Credentials{
 				Type:            connection.CredentialsAssumeRole,
-				AccessKeyID:     "AKIDSRC",
-				SecretAccessKey: "s",
+				AccessKeyID:     connection.NewSecret("AKIDSRC"),
+				SecretAccessKey: connection.NewSecret("s"),
 				RoleARN:         testRoleFull,
 				SessionName:     testSession,
 				ExternalID:      "ext-1",
@@ -580,8 +588,11 @@ func TestFactory_Credentials(t *testing.T) {
 		{
 			name: "assumeRole without an STS endpoint does not use the connection endpoint",
 			creds: connection.Credentials{
-				Type: connection.CredentialsAssumeRole, AccessKeyID: "AKIDSRC", SecretAccessKey: "s",
-				RoleARN: testRoleFull, SessionName: testSession,
+				Type:            connection.CredentialsAssumeRole,
+				AccessKeyID:     connection.NewSecret("AKIDSRC"),
+				SecretAccessKey: connection.NewSecret("s"),
+				RoleARN:         testRoleFull,
+				SessionName:     testSession,
 			},
 			stsResponse:  assumeRoleXML,
 			wantAccessID: roleKeyID,
@@ -590,7 +601,7 @@ func TestFactory_Credentials(t *testing.T) {
 			wantSTSCalls: 1,
 		},
 		{
-			name: "webIdentity",
+			name: nameWebIdentity,
 			creds: connection.Credentials{
 				Type: connection.CredentialsWebIdentity, RoleARN: "arn:aws:iam::1:role/web", SessionName: "websess",
 				TokenFile: tokenFile, STSEndpoint: testSTSEndpoint,
@@ -665,21 +676,46 @@ func TestFactory_Credentials(t *testing.T) {
 	}
 }
 
-func TestFactory_ChainCredentialsAreTheSDKChain(t *testing.T) {
+func TestFactory_CredentialsProviderNeverPrints(t *testing.T) {
 	t.Parallel()
 
-	fac := connection.New()
-	require.NoError(
-		t,
-		fac.Set("a", other(func(spec *connection.S3Spec) { spec.Credentials = connection.Credentials{} })),
-	)
+	const sentinel = "SENTINEL-KEY-MATERIAL"
 
-	cfg, err := fac.AWSConfig(t.Context(), "a")
-	require.NoError(t, err)
-	require.NotNil(t, cfg.Credentials)
+	tests := []struct {
+		name  string
+		creds connection.Credentials
+	}{
+		{name: "chain", creds: connection.Credentials{}},
+		{name: nameStatic, creds: connection.Credentials{
+			Type: connection.CredentialsStatic, AccessKeyID: connection.NewSecret(sentinel),
+			SecretAccessKey: connection.NewSecret(sentinel), SessionToken: connection.NewSecret(sentinel),
+		}},
+		{name: "assumeRole", creds: connection.Credentials{
+			Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: connection.NewSecret(sentinel),
+			SecretAccessKey: connection.NewSecret(sentinel),
+		}},
+		{name: nameWebIdentity, creds: connection.Credentials{
+			Type: connection.CredentialsWebIdentity, RoleARN: testRoleARN, TokenFile: "/token",
+		}},
+	}
 
-	_, isCache := cfg.Credentials.(*aws.CredentialsCache)
-	assert.True(t, isCache)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fac := connection.New()
+			require.NoError(t, fac.Set("a", other(func(spec *connection.S3Spec) { spec.Credentials = tt.creds })))
+
+			cfg, err := fac.AWSConfig(t.Context(), "a")
+			require.NoError(t, err)
+			require.NotNil(t, cfg.Credentials)
+
+			for _, format := range []string{"%v", verbPlusV, verbGoV, "%s", "%d", "%x"} {
+				assert.Equal(t, connection.RedactedValue, fmt.Sprintf(format, cfg.Credentials), format)
+				assert.NotContains(t, fmt.Sprintf(format, cfg), sentinel, format)
+			}
+		})
+	}
 }
 
 func TestFactory_HTTPClientOverride(t *testing.T) {

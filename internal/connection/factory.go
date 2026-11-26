@@ -2,8 +2,10 @@ package connection
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,7 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -63,12 +64,17 @@ func NoRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastRe
 
 // Factory holds the specs of the connections by name and builds exactly one AWS configuration (and S3
 // client) per connection and identity. It is safe for concurrent use.
+//
+// No lock is held while a callback runs (logger, observer, ReadFile, Spec methods); a build holds only the lock
+// of its own entry, and a reload waits for a build in progress on a replaced entry before closing it.
 type Factory struct {
 	httpClient   aws.HTTPClient
 	roundTripper http.RoundTripper
 	observer     RequestObserver
 	logger       *slog.Logger
 	readFile     func(string) ([]byte, error)
+	// afterLookup is a test hook: it runs between the lookup of an entry and the lock of its build.
+	afterLookup func(name string)
 
 	entries map[string]*entry
 	builds  map[string]int
@@ -80,20 +86,36 @@ type entry struct {
 	cfg *aws.Config
 	s3  *s3.Client
 	// owned is the HTTP client the factory built for this entry; nil when the caller supplied it.
-	owned    *http.Client
+	owned *http.Client
+	// roots are the root CAs parsed when the spec was accepted; nil means the system roots.
+	roots    *x509.CertPool
 	spec     Spec
+	kind     string
 	identity string
 	mu       sync.Mutex
+	// retired is set under mu when the entry left the factory: nothing is built on it any more.
+	retired bool
 }
 
-// closeIdle closes the idle connections of the HTTP client the factory built for the entry.
-func (e *entry) closeIdle() {
+// retire marks the entry as gone and closes the idle connections of the HTTP client the factory built for
+// it. It waits for a build in progress, whose result is then closed too.
+func (e *entry) retire() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	e.retired = true
 
 	if e.owned != nil {
 		e.owned.CloseIdleConnections()
 	}
+}
+
+// prepared is a spec that passed validation, with what was read once to accept it.
+type prepared struct {
+	spec     Spec
+	roots    *x509.CertPool
+	kind     string
+	identity string
 }
 
 // New returns an empty factory; load its connections with [Factory.Replace] or [Factory.Set].
@@ -112,15 +134,15 @@ func New(opts ...Option) *Factory {
 
 // Set adds or updates the connection name. The client built for it is kept when the identity of spec is
 // the one already held, and rebuilt on next use otherwise (the idle connections of the old one are
-// closed). An invalid spec changes nothing.
+// closed). The CA bundle of the spec, if any, is read and parsed here, once. An invalid spec changes nothing.
 func (f *Factory) Set(name string, spec Spec) error {
-	err := f.validateNamed(name, spec)
+	prep, err := f.prepare(name, spec)
 	if err != nil {
 		return err
 	}
 
 	f.mu.Lock()
-	stale := f.put(name, spec)
+	stale := f.put(name, prep)
 	f.mu.Unlock()
 
 	closeAll(stale)
@@ -133,11 +155,15 @@ func (f *Factory) Set(name string, spec Spec) error {
 // specs is dropped. The idle connections of every dropped or replaced client are closed. An invalid spec
 // changes nothing.
 func (f *Factory) Replace(specs map[string]Spec) error {
+	preps := make(map[string]prepared, len(specs))
+
 	for name, spec := range specs {
-		err := f.validateNamed(name, spec)
+		prep, err := f.prepare(name, spec)
 		if err != nil {
 			return err
 		}
+
+		preps[name] = prep
 	}
 
 	var stale []*entry
@@ -145,15 +171,15 @@ func (f *Factory) Replace(specs map[string]Spec) error {
 	f.mu.Lock()
 
 	for name, ent := range f.entries {
-		if _, ok := specs[name]; !ok {
+		if _, ok := preps[name]; !ok {
 			delete(f.entries, name)
 
 			stale = append(stale, ent)
 		}
 	}
 
-	for name, spec := range specs {
-		stale = append(stale, f.put(name, spec)...)
+	for name, prep := range preps {
+		stale = append(stale, f.put(name, prep)...)
 	}
 
 	f.mu.Unlock()
@@ -164,7 +190,8 @@ func (f *Factory) Replace(specs map[string]Spec) error {
 }
 
 // Remove drops the connection name and closes the idle connections of its client; it is a no-op for an
-// unknown name.
+// unknown name. A caller that was about to build the client of the removed connection gets
+// [ErrUnknownConnection] (or the client of the connection if the name was added again meanwhile).
 func (f *Factory) Remove(name string) {
 	f.mu.Lock()
 	ent := f.entries[name]
@@ -172,13 +199,13 @@ func (f *Factory) Remove(name string) {
 	f.mu.Unlock()
 
 	if ent != nil {
-		ent.closeIdle()
+		ent.retire()
 	}
 }
 
 func closeAll(entries []*entry) {
 	for _, ent := range entries {
-		ent.closeIdle()
+		ent.retire()
 	}
 }
 
@@ -213,72 +240,128 @@ func (f *Factory) Builds() map[string]int {
 // serves any AWS backed connection (S3, Kinesis, SQS, Redshift). The configuration carries the endpoint
 // and region of the spec and ignores the process environment and shared config files for them (and for
 // service endpoints), but a service client built from it must not be given another endpoint.
+//
+// The copy shares nothing mutable with the cached configuration, except what is shared on purpose: the HTTP
+// client (the one connection pool of the connection) and the credentials provider (the one credentials
+// cache). The provider prints as [RedactedValue].
 func (f *Factory) AWSConfig(ctx context.Context, name string) (aws.Config, error) {
-	ent, err := f.lookup(name)
+	var out aws.Config
+
+	err := f.withEntry(ctx, name, false, func(_ *entry, cfg *aws.Config) {
+		out = copyConfig(cfg)
+	})
 	if err != nil {
 		return aws.Config{}, err
 	}
 
-	ent.mu.Lock()
-	defer ent.mu.Unlock()
+	return out, nil
+}
 
-	cfg, err := f.config(ctx, name, ent)
-	if err != nil {
-		return aws.Config{}, err
+// copyConfig copies cfg and clones the pointers and slices the factory set in it.
+func copyConfig(cfg *aws.Config) aws.Config {
+	copied := cfg.Copy()
+	copied.APIOptions = slices.Clone(cfg.APIOptions)
+
+	if cfg.BaseEndpoint != nil {
+		copied.BaseEndpoint = aws.String(*cfg.BaseEndpoint)
 	}
 
-	cp := cfg.Copy()
-	cp.APIOptions = slices.Clone(cfg.APIOptions)
-
-	return cp, nil
+	return copied
 }
 
 // S3 returns the S3 client of the connection name: the same client for every caller until the identity of
 // the connection changes.
 func (f *Factory) S3(ctx context.Context, name string) (*s3.Client, error) {
-	ent, err := f.lookup(name)
+	var client *s3.Client
+
+	err := f.withEntry(ctx, name, true, func(ent *entry, cfg *aws.Config) {
+		if ent.s3 == nil {
+			spec := ent.spec.(*S3Spec) //nolint:forcetypeassert,errcheck // checked by withEntry (wantS3)
+
+			ent.s3 = s3.NewFromConfig(*cfg, func(opts *s3.Options) {
+				opts.UsePathStyle = spec.PathStyle
+				// the spec endpoint wins over any service endpoint the SDK would resolve by itself
+				if spec.Endpoint != "" {
+					opts.BaseEndpoint = aws.String(spec.Endpoint)
+				}
+			})
+		}
+
+		client = ent.s3
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	spec, ok := ent.spec.(*S3Spec)
-	if !ok {
-		return nil, &KindError{Name: name, Want: KindS3, Got: ent.spec.Kind()}
-	}
+	return client, nil
+}
 
+// withEntry runs use on the current entry of name with its configuration built, under the lock of the entry.
+// An entry retired between the lookup and the lock is skipped: the lookup then finds the entry that replaced
+// it, or fails with [ErrUnknownConnection]. The build is logged after the lock is released.
+func (f *Factory) withEntry(ctx context.Context, name string, wantS3 bool, use func(*entry, *aws.Config)) error {
+	for {
+		ent, err := f.lookup(name)
+		if err != nil {
+			return err
+		}
+
+		if f.afterLookup != nil {
+			f.afterLookup(name)
+		}
+
+		built, err := f.useEntry(ctx, name, ent, wantS3, use)
+		if errors.Is(err, errRetired) {
+			continue
+		}
+
+		if built && f.logger != nil {
+			f.logger.LogAttrs(ctx, slog.LevelDebug, "connection client built",
+				slog.String("connection", name), slog.String("kind", ent.kind))
+		}
+
+		return err
+	}
+}
+
+// errRetired is the internal signal that the entry left the factory before the build started.
+var errRetired = errors.New("entry retired")
+
+// useEntry is the locked part of [Factory.withEntry]; built reports that this call built the configuration.
+func (f *Factory) useEntry(
+	ctx context.Context, name string, ent *entry, wantS3 bool, use func(*entry, *aws.Config),
+) (bool, error) {
 	ent.mu.Lock()
 	defer ent.mu.Unlock()
 
-	if ent.s3 != nil {
-		return ent.s3, nil
+	if ent.retired {
+		return false, errRetired
 	}
+
+	if _, isS3 := ent.spec.(*S3Spec); wantS3 && !isS3 {
+		return false, &KindError{Name: name, Want: KindS3, Got: ent.kind}
+	}
+
+	built := ent.cfg == nil
 
 	cfg, err := f.config(ctx, name, ent)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	ent.s3 = s3.NewFromConfig(*cfg, func(opts *s3.Options) {
-		opts.UsePathStyle = spec.PathStyle
-		// the spec endpoint wins over any service endpoint the SDK would resolve by itself
-		if spec.Endpoint != "" {
-			opts.BaseEndpoint = aws.String(spec.Endpoint)
-		}
-	})
+	use(ent, cfg)
 
-	return ent.s3, nil
+	return built, nil
 }
 
 // put must be called with f.mu held. It returns the entry it replaced, if any.
-func (f *Factory) put(name string, spec Spec) []*entry {
-	identity := spec.Identity()
-
+func (f *Factory) put(name string, prep prepared) []*entry {
 	cur, ok := f.entries[name]
-	if ok && cur.identity == identity {
+	if ok && cur.identity == prep.identity {
 		return nil
 	}
 
-	f.entries[name] = &entry{spec: spec, identity: identity}
+	f.entries[name] = &entry{spec: prep.spec, kind: prep.kind, identity: prep.identity, roots: prep.roots}
 
 	if ok {
 		return []*entry{cur}
@@ -287,13 +370,16 @@ func (f *Factory) put(name string, spec Spec) []*entry {
 	return nil
 }
 
-func (f *Factory) validateNamed(name string, spec Spec) error {
+// prepare validates spec and reads its CA bundle, once. No lock is held: Validate, Identity and ReadFile
+// are callbacks. The identity of the entry is the one of the spec plus a digest of the bundle content, so a
+// bundle changed under the same path rebuilds the client on the next reload.
+func (f *Factory) prepare(name string, spec Spec) (prepared, error) {
 	if name == "" {
-		return &SpecError{Field: "name", Reason: "must not be empty"}
+		return prepared{}, &SpecError{Field: "name", Reason: "must not be empty"}
 	}
 
 	if spec == nil {
-		return &SpecError{Connection: name, Field: "spec", Reason: "is nil"}
+		return prepared{}, &SpecError{Connection: name, Field: "spec", Reason: "is nil"}
 	}
 
 	err := spec.Validate()
@@ -302,20 +388,35 @@ func (f *Factory) validateNamed(name string, spec Spec) error {
 			named := *se
 			named.Connection = name
 
-			return &named
+			return prepared{}, &named
 		}
 
-		return fmt.Errorf("connection %q: %w", name, err)
+		return prepared{}, fmt.Errorf("connection %q: %w", name, err)
 	}
 
-	if backed, ok := spec.(awsBacked); ok {
-		_, err = f.rootPool(backed.common().CABundleFile)
-		if err != nil {
-			return &SpecError{Connection: name, Field: fieldCABundle, Reason: err.Error()}
+	prep := prepared{spec: spec, kind: spec.Kind(), identity: spec.Identity()}
+
+	backed, ok := spec.(awsBacked)
+	if !ok || backed.common().CABundleFile == "" {
+		return prep, nil
+	}
+
+	data, err := f.readFile(backed.common().CABundleFile)
+	if err != nil {
+		return prepared{}, &SpecError{
+			Connection: name, Field: fieldCABundle, Reason: fmt.Sprintf("cannot read the bundle: %v", err),
 		}
 	}
 
-	return nil
+	prep.roots, err = parseRoots(data)
+	if err != nil {
+		return prepared{}, &SpecError{Connection: name, Field: fieldCABundle, Reason: err.Error()}
+	}
+
+	sum := sha256.Sum256(data)
+	prep.identity += ":ca:" + hex.EncodeToString(sum[:])
+
+	return prep, nil
 }
 
 func (f *Factory) lookup(name string) (*entry, error) {
@@ -338,10 +439,10 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 
 	backed, ok := ent.spec.(awsBacked)
 	if !ok {
-		return nil, &KindError{Name: name, Want: "an AWS backed kind", Got: ent.spec.Kind()}
+		return nil, &KindError{Name: name, Want: "an AWS backed kind", Got: ent.kind}
 	}
 
-	cfg, owned, err := f.build(ctx, name, backed)
+	cfg, owned, err := f.build(ctx, name, backed, ent.roots)
 	if err != nil {
 		return nil, err
 	}
@@ -353,11 +454,6 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 	f.builds[name]++
 	f.mu.Unlock()
 
-	if f.logger != nil {
-		f.logger.LogAttrs(ctx, slog.LevelDebug, "connection client built",
-			slog.String("connection", name), slog.String("kind", ent.spec.Kind()))
-	}
-
 	return ent.cfg, nil
 }
 
@@ -365,26 +461,24 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 // transport, retries, checksums, defaults) comes from the spec and the factory, never from the process
 // environment or the shared config files. The SDK default chain is used only to obtain a credentials
 // provider, for credentials of type chain and for assumeRole without source keys.
-func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.Config, *http.Client, error) {
+func (f *Factory) build(
+	ctx context.Context, name string, spec awsBacked, roots *x509.CertPool,
+) (aws.Config, *http.Client, error) {
 	com := spec.common()
+	choice := f.newHTTPClient(com, roots)
 
-	choice, err := f.newHTTPClient(com)
-	if err != nil {
-		return aws.Config{}, nil, &SpecError{Connection: name, Field: fieldCABundle, Reason: err.Error()}
-	}
+	var err error
 
 	cfg := aws.Config{Region: com.Region, HTTPClient: choice.client}
 
 	switch {
 	case usesChain(&com.Credentials):
-		cfg.Credentials, err = chainCredentials(ctx, com.Region)
+		cfg.Credentials, err = chainCredentials(ctx, name, com.Region)
 		if err != nil {
-			return aws.Config{}, nil, fmt.Errorf("connection %q: %w", name, err)
+			return aws.Config{}, nil, err
 		}
 	case com.Credentials.Type == CredentialsStatic || com.Credentials.Type == CredentialsAssumeRole:
-		cfg.Credentials = credentials.NewStaticCredentialsProvider(
-			com.Credentials.AccessKeyID.Reveal(), com.Credentials.SecretAccessKey.Reveal(),
-			com.Credentials.SessionToken.Reveal())
+		cfg.Credentials = staticCredentials(&com.Credentials)
 	case com.Credentials.Type == CredentialsWebIdentity:
 	}
 
@@ -406,16 +500,24 @@ func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.C
 	return cfg, choice.owned, nil
 }
 
-// chainCredentials returns the credentials provider of the SDK default chain. The SDK loads its own HTTP
-// client for it (so AWS_CA_BUNDLE and the proxy variables apply to credential lookups only); nothing else of
-// the loaded configuration is used.
-func chainCredentials(ctx context.Context, region string) (*aws.CredentialsCache, error) {
-	loaded, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+// chainCredentials returns the credentials provider of the SDK default chain, wrapped so it never prints.
+// The SDK loads its own HTTP client for it (so AWS_CA_BUNDLE applies to credential lookups only); nothing else
+// of the loaded configuration is used.
+//
+// Limit: the SDK parses and validates every AWS_* variable (checksum, defaults mode, retry, ...) and the shared
+// files when it loads the chain, and no load option skips that. A chain connection therefore fails to build
+// when the process AWS environment is invalid, even for a variable unrelated to credentials; the error names
+// the connection and says so. Static, webIdentity and assumeRole-with-keys connections never load it.
+func chainCredentials(ctx context.Context, name, region string) (redactedProvider, error) {
+	loaded, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(region))
 	if err != nil {
-		return nil, fmt.Errorf("load the AWS credentials chain: %w", err)
+		return redactedProvider{}, fmt.Errorf(
+			"connection %q: the AWS credentials chain cannot be loaded, the process AWS environment or shared "+
+				"config is invalid: %w", name, err)
 	}
 
-	return aws.NewCredentialsCache(loaded.Credentials), nil
+	return newRedacted(loaded.Credentials), nil
 }
 
 // usesChain reports whether the credentials come from the SDK default chain.
@@ -424,7 +526,7 @@ func usesChain(creds *Credentials) bool {
 	case "", CredentialsChain:
 		return true
 	case CredentialsAssumeRole:
-		return creds.AccessKeyID == ""
+		return creds.AccessKeyID.IsZero()
 	case CredentialsStatic, CredentialsWebIdentity:
 	}
 
@@ -472,21 +574,21 @@ func assumeRole(cfg *aws.Config, creds *Credentials) {
 	switch creds.Type {
 	case CredentialsAssumeRole:
 		client := sts.NewFromConfig(*cfg, stsEndpoint(creds))
-		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(client, creds.RoleARN,
+		cfg.Credentials = newRedacted(aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(client, creds.RoleARN,
 			func(o *stscreds.AssumeRoleOptions) {
 				o.RoleSessionName = creds.SessionName
 				if creds.ExternalID != "" {
 					o.ExternalID = aws.String(creds.ExternalID)
 				}
-			}))
+			})))
 	case CredentialsWebIdentity:
 		anonymous := cfg.Copy()
 		anonymous.Credentials = aws.AnonymousCredentials{}
 		client := sts.NewFromConfig(anonymous, stsEndpoint(creds))
-		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(client, creds.RoleARN,
+		cfg.Credentials = newRedacted(aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(client, creds.RoleARN,
 			stscreds.IdentityTokenFile(creds.TokenFile), func(o *stscreds.WebIdentityRoleOptions) {
 				o.RoleSessionName = creds.SessionName
-			}))
+			})))
 	case "", CredentialsChain, CredentialsStatic:
 	}
 }
@@ -513,20 +615,15 @@ type httpChoice struct {
 // connection pool and a transport bounding the TCP connect (ConnectTimeout), the TLS handshake and the wait
 // for the response headers (RequestTimeout); the reading of the body is bounded by the context of the caller
 // only. It never follows redirects.
-func (f *Factory) newHTTPClient(com *Common) (httpChoice, error) {
+func (f *Factory) newHTTPClient(com *Common, roots *x509.CertPool) httpChoice {
 	if f.httpClient != nil {
-		return httpChoice{client: f.httpClient}, nil
+		return httpChoice{client: f.httpClient}
 	}
 
 	if f.roundTripper != nil {
 		client := &http.Client{Transport: f.roundTripper, CheckRedirect: NoRedirect}
 
-		return httpChoice{client: client, owned: client}, nil
-	}
-
-	roots, err := f.rootPool(com.CABundleFile)
-	if err != nil {
-		return httpChoice{}, err
+		return httpChoice{client: client, owned: client}
 	}
 
 	connect := defaultConnectTimeout
@@ -546,21 +643,11 @@ func (f *Factory) newHTTPClient(com *Common) (httpChoice, error) {
 	}
 	client := &http.Client{Transport: transport, CheckRedirect: NoRedirect}
 
-	return httpChoice{client: client, owned: client}, nil
+	return httpChoice{client: client, owned: client}
 }
 
-// rootPool returns the root CAs of the transport: nil (the system roots) without a bundle, the system
-// roots plus the bundle with one.
-func (f *Factory) rootPool(bundle string) (*x509.CertPool, error) {
-	if bundle == "" {
-		return nil, nil //nolint:nilnil // nil RootCAs means the system roots
-	}
-
-	data, err := f.readFile(bundle)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read the bundle: %w", err)
-	}
-
+// parseRoots returns the system roots plus the PEM certificates of data.
+func parseRoots(data []byte) (*x509.CertPool, error) {
 	pool, err := x509.SystemCertPool()
 	if err != nil || pool == nil {
 		pool = x509.NewCertPool()

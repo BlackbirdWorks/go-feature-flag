@@ -182,6 +182,7 @@ func TestObserver_OperationLabels(t *testing.T) {
 
 			_ = tt.call(t.Context(), client)
 
+			assert.Equal(t, 1, transport.count())
 			require.NotEmpty(t, rec.all())
 			assert.Equal(t, observation{connC, tt.want, resOK}, rec.all()[0])
 		})
@@ -201,6 +202,7 @@ func TestObserver_PutObjectIsPut(t *testing.T) {
 
 	_, err = client.PutObject(t.Context(), &s3.PutObjectInput{Bucket: aws.String("b"), Key: aws.String("k")})
 	require.NoError(t, err)
+	assert.Equal(t, 1, transport.count())
 	assert.Equal(t, []observation{{connC, opPut, resOK}}, rec.all())
 }
 
@@ -223,6 +225,7 @@ func TestObserver_AppliesToOtherAWSClients(t *testing.T) {
 
 	_, err = sqs.NewFromConfig(cfg).ListQueues(t.Context(), &sqs.ListQueuesInput{})
 	require.NoError(t, err)
+	assert.Equal(t, 1, transport.count())
 	assert.Equal(t, []observation{{"queue", opList, resOK}}, rec.all())
 }
 
@@ -242,6 +245,7 @@ func TestObserver_ConnectionNameIsPerConnection(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	assert.Equal(t, 2, transport.count())
 	assert.Equal(t, []observation{{connOne, opHead, resOK}, {connTwo, opHead, resOK}}, rec.all())
 }
 

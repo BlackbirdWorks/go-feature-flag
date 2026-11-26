@@ -74,8 +74,8 @@ func s3Conn(endpoint, bucket, keyID string) *connection.S3Spec {
 		Endpoint: endpoint,
 		Region:   gopherstack.Region,
 		Credentials: connection.Credentials{
-			Type: connection.CredentialsStatic, AccessKeyID: connection.Secret(keyID),
-			SecretAccessKey: gopherstack.SecretKey,
+			Type: connection.CredentialsStatic, AccessKeyID: connection.NewSecret(keyID),
+			SecretAccessKey: connection.NewSecret(gopherstack.SecretKey),
 		},
 		Bucket:    bucket,
 		PathStyle: true,

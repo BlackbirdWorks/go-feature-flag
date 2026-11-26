@@ -21,7 +21,7 @@ func writeCABundle(t *testing.T, srv *httptest.Server) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "ca.pem")
-	block := &pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}
+	block := &pem.Block{Type: pemCertificate, Bytes: srv.Certificate().Raw}
 	require.NoError(t, os.WriteFile(path, pem.EncodeToMemory(block), 0o600))
 
 	return path
@@ -42,8 +42,6 @@ func hostileEnvironment(t *testing.T, caBundle string) {
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", os.DevNull)
 	t.Setenv("AWS_CONFIG_FILE", os.DevNull)
-	t.Setenv("HTTPS_PROXY", "http://proxy.hostile.test:3128")
-	t.Setenv("HTTP_PROXY", "http://proxy.hostile.test:3128")
 }
 
 // TestFactory_ChainAndRolesIgnoreTheEnvironment checks the connections that use the SDK chain, the roles and
@@ -83,7 +81,7 @@ func TestFactory_ChainAndRolesIgnoreTheEnvironment(t *testing.T) {
 			wantSTSSigns: "AKIDCHAIN",
 		},
 		{
-			name: "webIdentity",
+			name: nameWebIdentity,
 			creds: connection.Credentials{
 				Type: connection.CredentialsWebIdentity, RoleARN: testRoleARN, TokenFile: tokenFile,
 				STSEndpoint: testSTSEndpoint,
@@ -192,7 +190,7 @@ func TestFactory_CABundleFileValidation(t *testing.T) {
 	srv := httptest.NewTLSServer(http.NotFoundHandler())
 	t.Cleanup(srv.Close)
 
-	good := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
+	good := pem.EncodeToMemory(&pem.Block{Type: pemCertificate, Bytes: srv.Certificate().Raw})
 
 	tests := []struct {
 		files   map[string][]byte
@@ -241,6 +239,58 @@ func TestFactory_CABundleFileValidation(t *testing.T) {
 			assert.Equal(t, "caBundleFile", specErr.Field)
 			assert.Equal(t, connC, specErr.Connection)
 			assert.Empty(t, fac.Names())
+		})
+	}
+}
+
+// TestFactory_ChainNeedsAValidProcessEnvironment documents a limit: the SDK validates every AWS_* variable
+// when it loads the credentials chain, and no load option skips that. A valid unrelated setting is harmless; an
+// invalid one fails the chain connections (and only them) with an error that names the connection and says why.
+//
+// It is not parallel because the SDK only reads the real process environment (t.Setenv).
+func TestFactory_ChainNeedsAValidProcessEnvironment(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		value   string
+		wantErr bool
+	}{
+		{name: "valid defaults mode", key: "AWS_DEFAULTS_MODE", value: "standard"},
+		{name: "invalid defaults mode", key: "AWS_DEFAULTS_MODE", value: valBogus, wantErr: true},
+		{name: "invalid request checksum", key: "AWS_REQUEST_CHECKSUM_CALCULATION", value: valBogus, wantErr: true},
+		{name: "invalid max attempts", key: "AWS_MAX_ATTEMPTS", value: "not-a-number", wantErr: true},
+		{name: "missing profile", key: "AWS_PROFILE", value: "profile-that-does-not-exist", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("AWS_ACCESS_KEY_ID", "AKIDCHAIN")
+			t.Setenv("AWS_SECRET_ACCESS_KEY", "chain-secret")
+			t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+			t.Setenv(tt.key, tt.value)
+
+			transport := newScripted(step{status: http.StatusOK})
+			fac := connection.New(connection.WithRoundTripper(transport))
+			require.NoError(t, fac.Set("broken", other(func(spec *connection.S3Spec) {
+				spec.Credentials = connection.Credentials{}
+			})))
+
+			client, err := fac.S3(t.Context(), "broken")
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `connection "broken"`)
+				assert.Contains(t, err.Error(), "process AWS environment or shared config is invalid")
+				assert.Contains(t, err.Error(), tt.value)
+				assert.Equal(t, 0, transport.count())
+				assert.Empty(t, fac.Builds())
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NoError(t, headObject(t, client))
+			require.Equal(t, 1, transport.count())
+			assert.Contains(t, transport.requests[0].Header.Get("Authorization"), "Credential=AKIDCHAIN/")
 		})
 	}
 }

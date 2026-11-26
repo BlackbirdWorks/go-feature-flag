@@ -278,7 +278,7 @@ func (c *Credentials) validateAssumeRole() error {
 		return &SpecError{Field: fieldCredentials, Reason: "assumeRole needs roleArn"}
 	}
 
-	if (c.AccessKeyID == "") != (c.SecretAccessKey == "") || (c.AccessKeyID == "" && c.SessionToken != "") {
+	if c.AccessKeyID.IsZero() != c.SecretAccessKey.IsZero() || (c.AccessKeyID.IsZero() && !c.SessionToken.IsZero()) {
 		return &SpecError{
 			Field:  fieldCredentials,
 			Reason: "assumeRole source credentials need accessKeyId and secretAccessKey together",
@@ -292,7 +292,7 @@ func (c *Credentials) validate() error {
 	switch c.Type {
 	case "", CredentialsChain:
 	case CredentialsStatic:
-		if c.AccessKeyID == "" || c.SecretAccessKey == "" {
+		if c.AccessKeyID.IsZero() || c.SecretAccessKey.IsZero() {
 			return &SpecError{
 				Field:  fieldCredentials,
 				Reason: "static credentials need accessKeyId and secretAccessKey",
@@ -376,13 +376,13 @@ func (f *fingerprint) str(key, value string) {
 }
 
 func (f *fingerprint) secret(key string, value Secret) {
-	if value == "" {
+	if value.IsZero() {
 		f.str(key, "")
 
 		return
 	}
 
-	sum := sha256.Sum256([]byte(value))
+	sum := sha256.Sum256([]byte(value.Reveal()))
 	f.str(key, "sha256:"+hex.EncodeToString(sum[:]))
 }
 
