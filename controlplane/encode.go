@@ -67,8 +67,14 @@ func (e encoder) encodeStruct(path string, value reflect.Value) (*yaml.Node, err
 		field := value.Type().Field(i)
 		name, opts, _ := strings.Cut(field.Tag.Get("yaml"), ",")
 
-		if !field.IsExported() || name == "-" || name == "" {
+		if !field.IsExported() || name == "-" {
 			continue
+		}
+
+		if name == "" {
+			// A field without a yaml name would be dropped silently from the published document.
+			return nil, fmt.Errorf("%w: %s: field %s of %s has no yaml name", ErrUnsupportedValue, pathOrRoot(path),
+				field.Name, value.Type())
 		}
 
 		fieldValue := value.Field(i)
@@ -160,6 +166,17 @@ func (e encoder) encodeSeq(path string, value reflect.Value) (*yaml.Node, error)
 }
 
 func (encoder) encodeScalar(path string, value reflect.Value) (*yaml.Node, error) {
+	if number, ok := reflect.TypeAssert[json.Number](value); ok {
+		// A number read with json.Decoder.UseNumber stays a number, spelled as it is.
+		node, err := jsonNumber(number.String())
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s: %q is not a JSON number in range", ErrUnsupportedValue, pathOrRoot(path),
+				shorten(number.String()))
+		}
+
+		return node, nil
+	}
+
 	switch value.Kind() { //nolint:exhaustive // other kinds are rejected below
 	case reflect.String:
 		text := value.String()

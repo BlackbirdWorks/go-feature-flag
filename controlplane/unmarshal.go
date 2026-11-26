@@ -98,7 +98,10 @@ func decodeDocument(data []byte, wantKind string, out any) (DecodeInfo, error) {
 		return DecodeInfo{}, err
 	}
 
-	apiVersion, kind := headerOf(root)
+	apiVersion, kind, readable := headerOf(root)
+	if !readable {
+		return decodeNode(root, out) // reports what is wrong with the mapping
+	}
 
 	err = checkHeader(apiVersion, kind, wantKind)
 	if err != nil {
@@ -200,22 +203,31 @@ func errorLine(err error) int {
 	return line
 }
 
-// headerOf reads the apiVersion and kind scalars of the top-level mapping.
-func headerOf(root *yaml.Node) (string, string) {
+// headerOf reads the apiVersion and kind scalars of the top-level mapping. readable is false when the mapping
+// itself is malformed (duplicate or non-string keys, a bad merge).
+func headerOf(root *yaml.Node) (string, string, bool) {
 	node := resolve(root)
 	if node == nil || node.Kind != yaml.MappingNode {
-		return "", ""
+		return "", "", true
+	}
+
+	// The entries include the ones that a merge key brings in.
+	walk := walker{}
+
+	list, err := walk.entries("", node)
+	if err != nil {
+		return "", "", false
 	}
 
 	var apiVersion, kind string
 
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		value := resolve(node.Content[i+1])
+	for _, item := range list {
+		value := resolve(item.value)
 		if value == nil || value.Kind != yaml.ScalarNode {
 			continue
 		}
 
-		switch node.Content[i].Value {
+		switch item.key {
 		case "apiVersion":
 			apiVersion = value.Value
 		case "kind":
@@ -223,7 +235,7 @@ func headerOf(root *yaml.Node) (string, string) {
 		}
 	}
 
-	return apiVersion, kind
+	return apiVersion, kind, true
 }
 
 // resolve follows documents and aliases to the node they stand for.
@@ -247,6 +259,7 @@ func resolve(node *yaml.Node) *yaml.Node {
 
 const (
 	reasonInvalidJSON = "invalid JSON"
+	reasonTooDeep     = "the document is too deep or too large"
 
 	maxDepth = 200
 	maxSteps = 1_000_000
@@ -257,6 +270,7 @@ const (
 type walker struct {
 	unknown []string
 	steps   int
+	merging int
 }
 
 func (*walker) fail(path string, node *yaml.Node, reason string) error {
@@ -266,7 +280,7 @@ func (*walker) fail(path string, node *yaml.Node, reason string) error {
 func (w *walker) walk(path string, node *yaml.Node, typ reflect.Type, depth int) error {
 	w.steps++
 	if w.steps > maxSteps || depth > maxDepth {
-		return &DecodeError{Path: path, Reason: "the document is too deep or too large"}
+		return &DecodeError{Path: path, Reason: reasonTooDeep}
 	}
 
 	node = resolve(node)
@@ -301,7 +315,9 @@ func (w *walker) walkTime(path string, node *yaml.Node) error {
 
 	if node.Tag == tagStr {
 		_, err := time.Parse(time.RFC3339Nano, node.Value)
-		if err != nil {
+
+		// A node with an anchor is shared with its aliases: it is not turned into a timestamp for all of them.
+		if err != nil || node.Anchor != "" {
 			return w.fail(path, node, "expected a timestamp")
 		}
 
@@ -388,6 +404,13 @@ func (w *walker) mergeEntries(path string, value *yaml.Node) ([]mapEntry, error)
 	target := resolve(value)
 	if target == nil {
 		return nil, nil
+	}
+
+	w.merging++
+	defer func() { w.merging-- }()
+
+	if w.merging > maxDepth || w.steps > maxSteps {
+		return nil, &DecodeError{Path: path, Reason: reasonTooDeep, Line: target.Line}
 	}
 
 	switch target.Kind { //nolint:exhaustive // only mappings and lists of mappings can be merged
@@ -605,7 +628,7 @@ func jsonTree(data []byte) (*yaml.Node, error) {
 
 func buildJSON(dec *json.Decoder, depth int) (*yaml.Node, error) {
 	if depth > maxDepth {
-		return nil, &DecodeError{Reason: "the document is too deep or too large"}
+		return nil, &DecodeError{Reason: reasonTooDeep}
 	}
 
 	tok, err := dec.Token()

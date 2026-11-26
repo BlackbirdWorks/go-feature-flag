@@ -105,7 +105,7 @@ func stringsFlags(text string) controlplane.Flags {
 			Targeting:    []controlplane.Rule{{Name: new(text), Query: new(text), Variation: new(text)}},
 			BucketingKey: new(text),
 			DefaultRule:  &controlplane.Rule{Variation: new(text)},
-			Metadata:     map[string]any{text: text, "list": []any{text, map[string]any{text: text}}},
+			Metadata:     map[string]any{text: text, keyList: []any{text, map[string]any{text: text}}},
 		},
 	}
 }

@@ -29,6 +29,9 @@ const (
 	keyFloat          = "float"
 	resultOK          = "ok 2"
 	reasonSyntax      = "syntax error"
+	keyInt            = "int"
+	keyHuge           = "huge"
+	keyList           = "list"
 )
 
 // fixtureTime is a fixed instant: the tests never read the wall clock.

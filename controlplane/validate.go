@@ -353,14 +353,27 @@ func (c *flagCheck) variationTypes(path string, variations map[string]any) {
 	}
 }
 
+// uintType: the engine reads an integer above the int64 range as a type it does not know.
+func uintType(value uint64) string {
+	if value > math.MaxInt64 {
+		return ""
+	}
+
+	return "number"
+}
+
 func variationType(value any) string {
-	switch value.(type) {
+	switch typed := value.(type) {
 	case string:
 		return "string"
 	case bool:
 		return "bool"
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case int, int8, int16, int32, int64, uint8, uint16, uint32, float32, float64:
 		return "number"
+	case uint:
+		return uintType(uint64(typed))
+	case uint64:
+		return uintType(typed)
 	case []any:
 		return "list"
 	case map[string]any:

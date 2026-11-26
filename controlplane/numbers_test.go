@@ -20,10 +20,10 @@ func numbersFlags() controlplane.Flags {
 	return controlplane.Flags{"n": {
 		Variations: map[string]any{
 			keyFloat:   2.0,
-			"int":      2,
+			keyInt:     2,
 			"negative": -5,
 			"big":      9007199254740993,
-			"huge":     hugeUnsigned,
+			keyHuge:    hugeUnsigned,
 			"exp":      1.5e30,
 			"fraction": 0.1,
 			"zero":     0.0,
@@ -85,9 +85,9 @@ func TestNumberTypesSurviveBothFormats(t *testing.T) {
 			variations := got["n"].Variations
 			assert.IsType(t, float64(0), variations[keyFloat])
 			assert.InDelta(t, 2.0, variations[keyFloat], 0)
-			assert.Equal(t, 2, variations["int"])
+			assert.Equal(t, 2, variations[keyInt])
 			assert.Equal(t, 9007199254740993, variations["big"])
-			assert.Equal(t, hugeUnsigned, variations["huge"])
+			assert.Equal(t, hugeUnsigned, variations[keyHuge])
 			assert.IsType(t, float64(0), variations["exp"])
 			assert.InEpsilon(t, 1.5e30, variations["exp"], 0)
 			assert.Equal(t, numbersFlags(), got)

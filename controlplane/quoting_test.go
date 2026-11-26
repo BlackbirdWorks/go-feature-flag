@@ -18,7 +18,7 @@ func yaml11Type(text string) string {
 			`^(y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$`,
 		),
 		textNull: regexp.MustCompile(`^(~|null|Null|NULL|)$`),
-		"int": regexp.MustCompile(
+		keyInt: regexp.MustCompile(
 			`^[-+]?(0b[0-1_]+|0[0-7_]+|0x[0-9a-fA-F_]+|[0-9][0-9_]*|[1-9][0-9_]*(:[0-5]?[0-9])+)$`,
 		),
 		"decimal": regexp.MustCompile(
@@ -64,7 +64,7 @@ func TestScalarQuoting(t *testing.T) {
 		{"on", "on"}, {"On", "On"}, {variationOff, variationOff}, {"Off", "Off"},
 		{"y", "y"}, {"Y", "Y"}, {"n", "n"}, {"N", "N"},
 		{"true", textTrue}, {"False", "False"},
-		{"leading zeros", "007"}, {"exponent", textExp}, {"integer", "42"}, {"float", "1.5"},
+		{"leading zeros", "007"}, {"exponent", textExp}, {"integer", "42"}, {keyFloat, "1.5"},
 		{"hex", "0x1F"}, {"octal", "0o17"}, {"sexagesimal", "1:30"}, {"underscore", "1_000"},
 		{"date", textDate}, {"datetime", "2026-01-01T10:00:00Z"},
 		{textNull, textNull}, {"Null", "Null"}, {"tilde", "~"}, {"empty string", ""},

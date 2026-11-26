@@ -23,6 +23,7 @@ Decode without error and without unknown fields, then pass validation. Flag-set 
 - `flags-disabled-rule.yaml`: a disabled targeting rule needs no query or outcome.
 - `flags-flow-style.yaml`, `flags-anchors.yaml`: YAML flow style, anchors and merge keys are read.
 - `manifest-size-zero.yaml`: a size of 0 is valid.
+- `manifest-merged-header.yaml`: `apiVersion` and `kind` can come from a YAML merge key.
 
 ## invalid/
 
