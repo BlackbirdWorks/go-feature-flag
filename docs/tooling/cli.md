@@ -10,6 +10,12 @@ Supported commands:
 - [`publish`](publish.md): Publish flag files and flag-set documents to S3 behind a manifest, and verify the bucket.
 - [`config`](config.md): Validate and print the effective version 2 bootstrap file of the relay.
 
+## Output streams and exit codes
+
+stdout carries results only; stderr carries every diagnostic, including the final `error executing command` line of every command.
+With `--output json` (where a command has it) stdout is exactly one JSON value. Every failure exits with 1, except the commands
+that define more: `publish` and `config` use 2, 3, 4 and 5 (see [publish](publish.md#streams)).
+
 ## Install the Command Line
 
 After the first release (see [Releasing](../RELEASING.md)), download `semaphore-cli_<version>_<Os>_<arch>.tar.gz` (`.zip` on Windows)

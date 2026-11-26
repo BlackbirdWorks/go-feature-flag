@@ -26,9 +26,9 @@ func main() {
 	os.Exit(execute(os.Args[1:]))
 }
 
-// execute runs the command line and returns the exit code of the process. Cobra keeps its default routing (its
-// usage and its own errors go to stderr). Only the final error line is routed here: to stderr for a command that
-// reports through an exit code (it writes its JSON result on stdout), to stdout for the others, as before.
+// execute runs the command line and returns the exit code of the process. One stream rule holds for every command:
+// stdout carries results only, stderr carries every diagnostic (Cobra's usage and errors, and the final error line).
+// The exit code is 1 unless the command defines another one (2, 3, 4 or 5, see helper.ExitError).
 func execute(args []string) int {
 	cmd := initRootCmd()
 	cmd.SetArgs(args)
@@ -39,7 +39,7 @@ func execute(args []string) int {
 	}
 
 	code := helper.ExitCodeOf(err)
-	helper.PrintFatal(helper.FatalPrinter(err, os.Stdout, os.Stderr), func(int) {}, err)
+	helper.PrintFatal(helper.FatalPrinter(os.Stderr), func(int) {}, err)
 
 	return code
 }

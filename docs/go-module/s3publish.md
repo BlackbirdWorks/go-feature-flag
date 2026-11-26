@@ -133,7 +133,7 @@ The manifest is YAML, or JSON when the manifest key ends in `.json`.
 - The IAM identity needs `s3:GetObject` (also for `HeadObject`) and `s3:PutObject`; `Verify` of a manifest that pins a
   `versionId` also needs `s3:GetObjectVersion`. Without `s3:ListBucket` S3 answers a missing key with 403 instead of 404
   (documented S3 behaviour): the publisher cannot tell it from a real denial, so it returns an `*OperationError` whose text
-  names the cause, and never takes the object for present or the manifest for absent. `Verify` reports it as `unreadable`.
+  names the cause, and never takes the object for present or the manifest for absent. A manifest that `Verify` cannot read (denied or failed) is that `*OperationError` (CLI exit code 4), not a report; only an object that it cannot read is a `unreadable` problem in the report.
 
 ## Verify
 

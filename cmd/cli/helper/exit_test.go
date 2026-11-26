@@ -118,34 +118,11 @@ func TestWriteJSONError(t *testing.T) {
 	})
 }
 
-func TestFatalPrinterWritesTheLineOfAnExitErrorToStderr(t *testing.T) {
+func TestFatalPrinterWritesToStderr(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		err        error
-		name       string
-		wantStdout bool
-	}{
-		{name: "a command with exit codes", err: helper.WithExitCode(errBoom, helper.ExitInvalid)},
-		{name: "any other command", err: errBoom, wantStdout: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	var stderr bytes.Buffer
 
-			var stdout, stderr bytes.Buffer
-
-			helper.PrintFatal(helper.FatalPrinter(tt.err, &stdout, &stderr), func(int) {}, tt.err)
-
-			if tt.wantStdout {
-				assert.Contains(t, stdout.String(), "boom")
-				assert.Empty(t, stderr.String())
-
-				return
-			}
-
-			assert.Empty(t, stdout.String())
-			assert.Contains(t, stderr.String(), "boom")
-		})
-	}
+	helper.PrintFatal(helper.FatalPrinter(&stderr), func(int) {}, errBoom)
+	assert.Contains(t, stderr.String(), "boom")
 }

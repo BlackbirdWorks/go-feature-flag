@@ -148,7 +148,8 @@ names the file and the flag. (The engine accepts percentages that do not sum to 
   does not exist: with it S3 answers `404`, without it `403 AccessDenied` (documented S3 behaviour). The tool cannot tell that
   403 from a real access error, so it never guesses: a missing manifest or a new object without `s3:ListBucket` stops the
   publish with exit code 4 and a message that says `S3 also answers 403 for a key that does not exist when the identity lacks
-  s3:ListBucket`, and `verify` reports a missing object as `unreadable` with the same note. Nothing is written and nothing is
+  s3:ListBucket`. `verify` fails the same way (exit code 4, no report) when it cannot read the manifest, and reports an object that
+  it cannot read as `unreadable` with the same note. Nothing is written and nothing is
   taken for "present". Grant `s3:ListBucket` for the first publish of a channel and for new objects.
 - `caBundleFile` of a connection is not available in `--config` mode yet (the bootstrap file has no such setting): the system
   roots are used.
@@ -187,23 +188,30 @@ flags as `publish`.
 
 ## Streams
 
-| Mode | stdout | stderr |
-|---|---|---|
-| Success, text | the result | nothing |
-| Success, `-o json` | the result: one JSON document | nothing |
-| Failure, text | nothing | the final `error executing command` line |
-| Failure, `-o json` | one JSON error object (`verify` with problems: its report) | the final `error executing command` line |
-| Usage error of Cobra (unknown root flag) | nothing | its message and the usage text |
+One rule holds for every `semaphore-cli` command:
 
-Cobra's own messages and usage always go to stderr. The `error executing command` line of `publish` and `config` goes to stderr
-too, so stdout is only ever the result. (The other commands keep that line on stdout.)
+- **stdout carries results only.** That is the command output and the reports, including a `publish verify` text report that
+  lists problems. With `--output json` it is exactly one JSON value: the result, the `verify` report, or the error object.
+- **stderr carries every diagnostic.** That is Cobra's usage and its own errors, and the final `error executing command` line of
+  every command (an unknown flag or subcommand, a bad argument count, `lint`, `evaluate`, `config`, `publish`). With
+  `--output json` the error object is on stdout and the final line is still on stderr, so no other text reaches stdout.
+
+| Case | stdout | stderr | Exit code |
+|---|---|---|---|
+| Success, text | the result | nothing | 0 |
+| Success, `-o json` | one JSON document | nothing | 0 |
+| Failure, text | nothing | the diagnostics and the final line | see below |
+| Failure, `-o json` | one JSON error object | the final line | see below |
+| `publish verify` with problems, text | the report | the final line (`verification failed`) | 5 |
+| `publish verify` with problems, `-o json` | the report (one JSON document, `ok: false`) | the final line | 5 |
+| Unknown root flag or subcommand | nothing | Cobra's message, usage and the final line | 1 |
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success (also `no change` and a dry run) |
-| 1 | Failure with no more specific code, bad usage, unreadable file |
+| 1 | Every other failure: bad usage (an unknown flag or subcommand, a bad argument count), an unreadable file, any command that defines no other code |
 | 2 | Invalid input: a document, a file that is not regular or is too large, a limit, the source layout, the bootstrap file, or a generation that does not increase |
 | 3 | Conflict: another publisher changed the manifest first. Nothing visible changed; run again |
 | 4 | A call to the store failed (network, access, throttling). Safe to repeat |

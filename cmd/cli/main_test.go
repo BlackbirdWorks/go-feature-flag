@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,8 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 func TestCmdExist(t *testing.T) {
@@ -113,6 +117,9 @@ func TestVersionFlag(t *testing.T) {
 }
 
 const (
+	cmdValidate = "validate"
+	cmdVerify   = "verify"
+	codeUsage   = "usage"
 	fatalLine   = "error executing command"
 	unknownFlag = "--not-a-flag"
 	usageText   = "Usage:"
@@ -137,7 +144,7 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 		wantOut string
 		args    []string
 	}{
-		{name: "config validate", args: []string{cmdConfig, "validate", file}, wantOut: file + ": valid\n"},
+		{name: "config validate", args: []string{cmdConfig, cmdValidate, file}, wantOut: file + ": valid\n"},
 		{
 			name:    "config print",
 			args:    []string{cmdConfig, "print", "--effective", file, "-o", fmtJSON},
@@ -145,7 +152,7 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 		},
 		{
 			name:    "publish verify exists",
-			args:    []string{cmdPublish, "verify", "--help"},
+			args:    []string{cmdPublish, cmdVerify, "--help"},
 			wantOut: "Reads the manifest and every listed object",
 		},
 		{name: "publish exists", args: []string{cmdPublish, "--help"}, wantOut: "--dry-run"},
@@ -197,7 +204,10 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 		t.Context(),
 		os.Args[0],
 		append([]string{"-test.run=^TestHelperProcess$", "--"}, args...)...)
-	cmd.Env = append(os.Environ(), helperEnv+"=1")
+	cmd.Env = append(os.Environ(), helperEnv+"=1",
+		// static credentials for the explicit-target commands: nothing reaches a real AWS endpoint
+		"AWS_ACCESS_KEY_ID=test", "AWS_SECRET_ACCESS_KEY=test", "AWS_EC2_METADATA_DISABLED=true",
+		"AWS_CONFIG_FILE="+os.DevNull, "AWS_SHARED_CREDENTIALS_FILE="+os.DevNull)
 
 	var stdout, stderr bytes.Buffer
 
@@ -215,56 +225,117 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 	return stdout.String(), stderr.String(), code
 }
 
+// verifyServer is a minimal S3 that holds a manifest listing one object that does not exist, so that "publish
+// verify" has a problem to report.
+func verifyServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	sum := controlplane.ChecksumOf([]byte("x"))
+	key, err := controlplane.ObjectKey(sum, controlplane.FormatYAML)
+	require.NoError(t, err)
+
+	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
+		Channel: "stable", Generation: 1,
+		Objects: []controlplane.ManifestObject{{
+			Name: "gone", Kind: controlplane.KindFlags, Connection: "control", Key: key,
+			Format: controlplane.FormatYAML, Checksum: sum, Size: 1,
+		}},
+	})
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bucket/manifests/stable.yaml" {
+			w.Header().Set("ETag", `"abc"`)
+			_, _ = w.Write(manifest)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><Error><Code>NoSuchKey</Code><Message>no</Message></Error>`))
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
 func TestWholeProcessStreams(t *testing.T) {
 	t.Parallel()
 
 	v1File := filepath.Join(t.TempDir(), "v1.yaml")
 	require.NoError(t, os.WriteFile(v1File, []byte("port: 1031\n"), 0o600))
 
+	missing := filepath.Join(t.TempDir(), "missing.yaml")
+	srv := verifyServer(t)
+	target := []string{"--bucket", "bucket", "--region", "us-east-1", "--endpoint", srv.URL}
+
+	// One rule for every command: stdout carries results only (and in JSON mode exactly one JSON value), stderr
+	// carries every diagnostic, including the final error line. An empty want is checked as exactly empty.
 	tests := []struct {
-		name          string
-		wantStdout    string // a text that stdout holds (empty: stdout must be empty)
-		wantStderr    string
-		notInStdout   string
-		wantJSONError string // the code of the one JSON value that stdout holds
-		args          []string
-		wantExit      int
+		name       string
+		wantStdout string
+		wantStderr string
+		jsonStdout string // the "error.code" of the one JSON error value, or "report" for a report
+		args       []string
+		wantExit   int
 	}{
+		{name: "version", args: []string{"--version"}, wantStdout: "semaphore-cli"},
+		{name: "unknown root flag", args: []string{unknownFlag}, wantStderr: usageText, wantExit: 1},
+		{name: "unknown subcommand", args: []string{"bogus"}, wantStderr: "unknown command", wantExit: 1},
 		{
-			name: "invalid root flag: usage and Cobra's error on stderr", args: []string{unknownFlag},
-			wantStderr: usageText, notInStdout: usageText, wantStdout: fatalLine, wantExit: 1,
-		},
-		{
-			name: "invalid flag of a command in text mode", args: []string{cmdPublish, "verify", unknownFlag},
-			wantStderr: "unknown flag: --not-a-flag", notInStdout: usageText, wantExit: 1,
-		},
-		{
-			name: "invalid flag of a command in JSON mode", args: []string{cmdPublish, "-o", fmtJSON, unknownFlag},
-			wantStderr: fatalLine, notInStdout: usageText, wantJSONError: "usage", wantExit: 1,
-		},
-		{
-			name: "missing argument in JSON mode", args: []string{cmdPublish, "-o", fmtJSON},
-			wantStderr: fatalLine, notInStdout: usageText, wantJSONError: "usage", wantExit: 1,
-		},
-		{
-			name:          "invalid bootstrap file in JSON mode",
-			args:          []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
-			wantStderr:    fatalLine,
-			notInStdout:   fatalLine,
-			wantJSONError: "invalid",
-			wantExit:      2,
-		},
-		{
-			name: "invalid bootstrap file in text mode", args: []string{cmdConfig, "validate", v1File},
-			wantStderr: "version 2 required", wantExit: 2,
-		},
-		{
-			name:       "another command keeps its error line on stdout",
-			args:       []string{"lint", filepath.Join(t.TempDir(), "missing.yaml"), flagFormat, formatYAML},
-			wantStdout: fatalLine,
+			name:       "lint failure",
+			args:       []string{"lint", missing, flagFormat, formatYAML},
+			wantStderr: "impossible to find",
 			wantExit:   1,
 		},
-		{name: "success", args: []string{"--version"}, wantStdout: "semaphore-cli"},
+		{
+			name:       "evaluate failure",
+			args:       []string{"evaluate", "--path", missing, "--ctx", "{}", flagFormat, formatYAML},
+			wantStderr: "no such file",
+			wantExit:   1,
+		},
+		{
+			name:       "config failure, argument count",
+			args:       []string{cmdConfig, cmdValidate},
+			wantStderr: "accepts 1 arg(s)",
+			wantExit:   1,
+		},
+		{
+			name:       "config failure, invalid file",
+			args:       []string{cmdConfig, cmdValidate, v1File},
+			wantStderr: "version 2 required",
+			wantExit:   2,
+		},
+		{
+			name: "config failure, JSON", args: []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
+			wantStderr: "version 2 required", jsonStdout: "invalid", wantExit: 2,
+		},
+		{
+			name:       "publish failure, text",
+			args:       []string{cmdPublish, t.TempDir()},
+			wantStderr: "give --config, or --bucket",
+			wantExit:   1,
+		},
+		{
+			name: "publish failure, JSON", args: []string{cmdPublish, t.TempDir(), "-o", fmtJSON},
+			wantStderr: "give --config, or --bucket", jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name: "publish usage error, JSON", args: []string{cmdPublish, "-o", fmtJSON},
+			wantStderr: "accepts 1 arg(s)", jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name: "publish flag error, JSON", args: []string{cmdPublish, "-o", fmtJSON, unknownFlag},
+			wantStderr: "unknown flag", jsonStdout: codeUsage, wantExit: 1,
+		},
+		{
+			name: "verify with problems, text", args: append([]string{cmdPublish, cmdVerify}, target...),
+			wantStdout: "problem: gone missing", wantStderr: "verification failed", wantExit: 5,
+		},
+		{
+			name: "verify with problems, JSON", args: append([]string{cmdPublish, cmdVerify, "-o", fmtJSON}, target...),
+			wantStderr: "verification failed", jsonStdout: "report", wantExit: 5,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,34 +345,57 @@ func TestWholeProcessStreams(t *testing.T) {
 			stdout, stderr = pterm.RemoveColorFromString(stdout), pterm.RemoveColorFromString(stderr)
 
 			assert.Equal(t, tt.wantExit, code, "stdout %q stderr %q", stdout, stderr)
+			assert.NotContains(t, stdout, fatalLine, "the final error line is never on stdout")
+			assert.NotContains(t, stdout, usageText, "usage is never on stdout")
 
-			if tt.wantStdout == "" && tt.wantJSONError == "" {
-				assert.Empty(t, stdout)
+			if tt.wantStderr == "" {
+				assert.Empty(t, stderr)
 			} else {
+				assert.Contains(t, stderr, tt.wantStderr)
+			}
+
+			if tt.wantExit != 0 {
+				assert.Contains(t, stderr, fatalLine, "every failure ends with the final error line on stderr")
+			} else {
+				assert.NotContains(t, stderr, fatalLine)
+			}
+
+			switch {
+			case tt.jsonStdout != "":
+				assertOneJSON(t, stdout, tt.jsonStdout)
+			case tt.wantStdout == "":
+				assert.Empty(t, stdout)
+			default:
 				assert.Contains(t, stdout, tt.wantStdout)
 			}
-
-			assert.Contains(t, stderr, tt.wantStderr)
-
-			if tt.notInStdout != "" {
-				assert.NotContains(t, stdout, tt.notInStdout)
-			}
-
-			if tt.wantJSONError == "" {
-				return
-			}
-
-			dec := json.NewDecoder(strings.NewReader(stdout))
-
-			var doc struct {
-				Error struct {
-					Code string `json:"code"`
-				} `json:"error"`
-			}
-
-			require.NoError(t, dec.Decode(&doc), "stdout: %q", stdout)
-			assert.False(t, dec.More(), "stdout holds exactly one JSON value")
-			assert.Equal(t, tt.wantJSONError, doc.Error.Code)
 		})
 	}
+}
+
+// assertOneJSON checks that stdout is exactly one JSON value: an error object with the given code, or a report.
+func assertOneJSON(t *testing.T, stdout, want string) {
+	t.Helper()
+
+	dec := json.NewDecoder(strings.NewReader(stdout))
+
+	var doc struct {
+		Error *struct {
+			Code string `json:"code"`
+		} `json:"error"`
+		OK *bool `json:"ok"`
+	}
+
+	require.NoError(t, dec.Decode(&doc), "stdout: %q", stdout)
+	assert.False(t, dec.More(), "stdout holds exactly one JSON value")
+
+	if want == "report" {
+		require.NotNil(t, doc.OK)
+		assert.False(t, *doc.OK)
+		assert.Nil(t, doc.Error, "a failed verification is its report, not an error object")
+
+		return
+	}
+
+	require.NotNil(t, doc.Error)
+	assert.Equal(t, want, doc.Error.Code)
 }
