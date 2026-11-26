@@ -255,7 +255,7 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 		envBundle    string // "a", "b" or bundleGarbage: the content of AWS_CA_BUNDLE
 		wantErr      string // on the request, empty: it succeeds
 		wantBuildErr string // on the build of the client
-		specBundle   bool   // the spec trusts CA A
+		specBundle   string // the CA of the spec bundle: "a", "b" or empty for none
 	}{
 		{
 			name:      "static, environment bundle A is not trusted",
@@ -267,9 +267,13 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			name:       "static, spec bundle A, environment garbage",
 			creds:      staticCreds,
 			envBundle:  bundleGarbage,
-			specBundle: true,
+			specBundle: "a",
 		},
-		{name: "static, spec bundle A, environment bundle B", creds: staticCreds, envBundle: "b", specBundle: true},
+		{name: "static, spec bundle A, environment bundle B", creds: staticCreds, envBundle: "b", specBundle: "a"},
+		{
+			name:  "static, spec bundle B, environment bundle A: the environment is not merged or substituted",
+			creds: staticCreds, envBundle: "a", specBundle: "b", wantErr: unknownAuthority,
+		},
 		{
 			name: "chain, environment bundle A is not trusted", creds: connection.Credentials{}, envBundle: "a",
 			wantErr: unknownAuthority,
@@ -278,11 +282,11 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			name:       "chain, spec bundle A, environment bundle B",
 			creds:      connection.Credentials{},
 			envBundle:  "b",
-			specBundle: true,
+			specBundle: "a",
 		},
 		{
 			name: "chain, the SDK refuses a garbage environment bundle", creds: connection.Credentials{},
-			envBundle: bundleGarbage, specBundle: true, wantBuildErr: "credentials chain cannot be loaded",
+			envBundle: bundleGarbage, specBundle: "a", wantBuildErr: "credentials chain cannot be loaded",
 		},
 	}
 
@@ -297,7 +301,7 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			bundles := map[string][]byte{"a": caA.pem, "b": caB.pem, bundleGarbage: []byte("not a certificate")}
 			envFile, specFile := filepath.Join(dir, "env.pem"), filepath.Join(dir, "spec.pem")
 			require.NoError(t, os.WriteFile(envFile, bundles[tt.envBundle], 0o600))
-			require.NoError(t, os.WriteFile(specFile, caA.pem, 0o600))
+			require.NoError(t, os.WriteFile(specFile, bundles[tt.specBundle], 0o600))
 
 			t.Setenv("AWS_CA_BUNDLE", envFile)
 			t.Setenv("AWS_ACCESS_KEY_ID", keyChain)
@@ -309,7 +313,7 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 				spec.Credentials = tt.creds
 				spec.Retry.MaxAttempts = 1
 
-				if tt.specBundle {
+				if tt.specBundle != "" {
 					spec.CABundleFile = specFile
 				}
 			})))
@@ -363,6 +367,16 @@ func TestFactory_AssumeRoleHops(t *testing.T) {
 			wantFailingHop: hopSTS, wantSTSRequest: 0, wantS3Requests: 0, wantSTSRefused: true,
 		},
 		{
+			name:   "bundle of S3 only, environment CA of STS: the environment is not merged",
+			bundle: hopS3, envBundle: hopSTS, wantFailingHop: hopSTS, wantSTSRequest: 0, wantS3Requests: 0,
+			wantSTSRefused: true,
+		},
+		{
+			name:   "bundle of STS only, environment CA of S3: the environment is not merged",
+			bundle: hopSTS, envBundle: hopS3, wantFailingHop: hopS3, wantSTSRequest: 1, wantS3Requests: 0,
+			wantS3Refused: true,
+		},
+		{
 			name: "bundle of both: both hops succeed", bundle: "both", envBundle: bundleGarbage,
 			wantFailingHop: "", wantSTSRequest: 1, wantS3Requests: 1,
 		},
@@ -388,8 +402,12 @@ func TestFactory_AssumeRoleHops(t *testing.T) {
 			require.NoError(t, os.WriteFile(specFile, bundles[tt.bundle], 0o600))
 
 			envContent := []byte("not a certificate")
-			if tt.envBundle == hopSTS {
+
+			switch tt.envBundle {
+			case hopSTS:
 				envContent = caSTS.pem
+			case hopS3:
+				envContent = caS3.pem
 			}
 
 			require.NoError(t, os.WriteFile(envFile, envContent, 0o600))
