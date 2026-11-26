@@ -9,6 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // Service owns the state that evaluating and validating flags needs, so that no package-level
@@ -27,6 +28,8 @@ type Service struct {
 	nikunjy   *nikunjyEvaluatorCache
 	// logger receives the errors of the evaluation (a query that does not parse or panics, ...).
 	logger *slog.Logger
+	// segments defines the segments that the rules can use, nil when none is configured.
+	segments *segment.Catalog
 	// legacy reports, once, the use of a legacy name that the evaluation reads (the legacy
 	// evaluation context attribute).
 	legacy    *legacy.Warner
@@ -45,6 +48,12 @@ func WithLogger(logger *slog.Logger) ServiceOption {
 			s.logger = logger
 		}
 	}
+}
+
+// WithSegments sets the definitions of the segments that the rules of the flags can use. A rule that uses another
+// segment is accepted, with a warning in the log, and the segment matches nobody.
+func WithSegments(catalog *segment.Catalog) ServiceOption {
+	return func(s *Service) { s.segments = catalog }
 }
 
 // errNoService is reported by the evaluations that were not given a Service.

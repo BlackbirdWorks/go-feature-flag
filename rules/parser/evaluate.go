@@ -34,6 +34,7 @@ type Evaluator struct {
 	root          *node
 	testHookPanic func()
 	rule          string
+	terms         []SegmentTerm
 	once          sync.Once
 }
 
@@ -48,15 +49,79 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 		}
 	}()
 
-	parsed, err := parseRule(rule)
+	text, hasSegments, err := scanSegments(rule)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Evaluator{
+	parsed, err := parseRuleText(rule, text)
+	if err != nil {
+		return nil, err
+	}
+
+	evaluator := &Evaluator{
 		rule: rule,
 		tree: parsed.tree,
-	}, nil
+	}
+	if hasSegments {
+		root, terms, compileErr := compileSegmentQuery(parsed.tree)
+		if compileErr != nil {
+			return nil, compileErr
+		}
+
+		evaluator.root, evaluator.terms, evaluator.tree = root, terms, nil
+		evaluator.once.Do(func() {}) // compiled
+	}
+
+	return evaluator, nil
+}
+
+// HasSegments reports whether the rule has segment() terms. Such a rule is evaluated by ProcessSegments.
+func (e *Evaluator) HasSegments() bool {
+	return e.terms != nil
+}
+
+// SegmentTerms returns the segment terms of the rule, in the order of the states ProcessSegments reads. The
+// result is shared: it must not be modified. It is nil when the rule has no segment term.
+func (e *Evaluator) SegmentTerms() []SegmentTerm {
+	return e.terms
+}
+
+// ProcessSegments evaluates a rule that has segment() terms: states[i] is the membership for SegmentTerms()[i].
+// The result is MatchUnknown when it depends on a term whose state is SegmentUnknown. Like Process, it is safe for
+// concurrent use and it never modifies items or states.
+//
+//nolint:nonamedreturns // recover sets the result
+func (e *Evaluator) ProcessSegments(items map[string]any, states []SegmentState) (ret Match, retErr error) {
+	e.setDebugErr(nil)
+
+	defer func() {
+		info := recover()
+		if info != nil {
+			retErr = recoveredPanicError{info: info}
+			ret = MatchUnknown
+
+			e.setDebugErr(nil)
+		}
+	}()
+
+	if len(states) != len(e.terms) {
+		return MatchUnknown, fmt.Errorf("%w: got %d, want %d", ErrSegmentStates, len(states), len(e.terms))
+	}
+
+	if e.root == nil {
+		return MatchUnknown, errInvalidRule2
+	}
+
+	st := evalState{item: items}
+	result := e.root.evalMatch(&st, states)
+	e.setDebugErr(st.debugErr)
+
+	if st.err != nil {
+		return MatchUnknown, st.err
+	}
+
+	return result, nil
 }
 
 type parsedRule struct {
@@ -64,7 +129,12 @@ type parsedRule struct {
 }
 
 func parseRule(rule string) (parsedRule, error) {
-	input := antlr.NewInputStream(normalizeRuleInput(rule))
+	return parseRuleText(rule, rule)
+}
+
+// parseRuleText parses text, the rule once its segment() calls are replaced, and names rule in the errors.
+func parseRuleText(rule, text string) (parsedRule, error) {
+	input := antlr.NewInputStream(normalizeRuleInput(text))
 	lex := NewJsonQueryLexer(input)
 	errListener := &collectingErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
 
@@ -120,6 +190,10 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 			e.setDebugErr(nil)
 		}
 	}()
+
+	if e.terms != nil {
+		return false, ErrSegmentsNotResolved
+	}
 
 	e.once.Do(e.compile)
 

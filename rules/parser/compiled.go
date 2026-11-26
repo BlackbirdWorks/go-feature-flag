@@ -31,6 +31,8 @@ const (
 	nodeLogical
 	nodePresent
 	nodeCompare
+	// nodeSegment is a segment() term, see segment.go: it is only evaluated by evalMatch.
+	nodeSegment
 )
 
 type valueKind int
@@ -73,7 +75,9 @@ type compareNode struct {
 	attrPath string
 	path     []string
 	opType   int
-	valKind  valueKind
+	// term is the index of the segment term of a nodeSegment node, in Evaluator.terms.
+	term    int
+	valKind valueKind
 }
 
 func newCompareNode(kind nodeKind, path []string) *compareNode {
@@ -205,9 +209,73 @@ func (n *node) eval(state *evalState) bool {
 		return state.leftOp != nil
 	case nodeCompare:
 		return n.cmp.evalCompare(state)
+	case nodeSegment:
+		// unreachable: the rules with segment terms are evaluated by evalMatch, Process refuses them
+		return false
 	default:
 		panic(fmt.Sprintf("unexpected node kind %d", n.kind))
 	}
+}
+
+// evalMatch is eval for a rule with segment terms: three-valued, the unknown membership of a term can make the
+// result unknown. A term is known (and so is a node) when the outcome does not depend on the unknown ones:
+// "false and unknown" is false, "true or unknown" is true.
+func (n *node) evalMatch(state *evalState, states []SegmentState) Match {
+	switch n.kind {
+	case nodeParen:
+		result := n.left.evalMatch(state, states)
+		if n.not {
+			return result.Not()
+		}
+
+		return result
+	case nodeLogical:
+		left := n.left.evalMatch(state, states)
+		// like eval, the right side is not evaluated when the left side decides the result
+		if n.isOr {
+			if left == MatchYes {
+				return left
+			}
+
+			return orMatch(left, n.right.evalMatch(state, states))
+		}
+
+		if left == MatchNo {
+			return left
+		}
+
+		return andMatch(left, n.right.evalMatch(state, states))
+	case nodeSegment:
+		return states[n.cmp.term].Match()
+	case nodePresent, nodeCompare:
+		return matchOf(n.eval(state))
+	}
+
+	return MatchUnknown
+}
+
+func andMatch(left, right Match) Match {
+	if left == MatchNo || right == MatchNo {
+		return MatchNo
+	}
+
+	if left == MatchYes && right == MatchYes {
+		return MatchYes
+	}
+
+	return MatchUnknown
+}
+
+func orMatch(left, right Match) Match {
+	if left == MatchYes || right == MatchYes {
+		return MatchYes
+	}
+
+	if left == MatchNo && right == MatchNo {
+		return MatchNo
+	}
+
+	return MatchUnknown
 }
 
 func (n *compareNode) setRight(state *evalState) {
@@ -408,6 +476,55 @@ func compileQuery(tree antlr.ParseTree) *node {
 	return compileTree(tree, &sourceText{})
 }
 
+// compileSegmentQuery is compileQuery for a rule that has segment() terms: it also returns the terms.
+func compileSegmentQuery(
+	tree antlr.ParseTree,
+) (root *node, terms []SegmentTerm, err error) { //nolint:nonamedreturns // recover sets the error
+	seg := &segmentCompiler{}
+
+	defer func() {
+		if info := recover(); info != nil {
+			root, terms, err = nil, nil, fmt.Errorf("%w: %v", errNotCompiled, info)
+		}
+	}()
+
+	root = compileTree(tree, &sourceText{seg: seg})
+	if seg.err != nil {
+		return nil, nil, seg.err
+	}
+
+	return root, seg.terms, nil
+}
+
+// compileSegmentTerm returns the node of a "<attribute> in <marker literal>" comparison, see scanSegments.
+func compileSegmentTerm(seg *segmentCompiler, ctx *CompareExpContext) (*node, bool) {
+	if ctx.op.GetTokenType() != JsonQueryParserIN {
+		return nil, false
+	}
+
+	literal, ok := ctx.Value().(*StringContext)
+	if !ok {
+		return nil, false
+	}
+
+	name, ok := segmentName(getString(literal.GetText()))
+	if !ok {
+		return nil, false
+	}
+
+	path := compileAttrPath(ctx.AttrPath())
+
+	term, err := seg.termFor(name, path)
+	if err != nil {
+		seg.err = err
+	}
+
+	cmpNode := newCompareNode(nodeSegment, path)
+	cmpNode.term = term
+
+	return &cmpNode.node, true
+}
+
 func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 	switch val := tree.(type) {
 	case *ParenExpContext:
@@ -422,6 +539,12 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 	case *PresentExpContext:
 		return &newCompareNode(nodePresent, compileAttrPath(val.AttrPath())).node
 	case *CompareExpContext:
+		if src.seg != nil {
+			if segNode, ok := compileSegmentTerm(src.seg, val); ok {
+				return segNode
+			}
+		}
+
 		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
 		cmpNode.attrPath = val.AttrPath().GetText()
 		cmpNode.opType = val.op.GetTokenType()

@@ -43,7 +43,9 @@ func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bo
 func runRuleEvaluateTests(t *testing.T, tests []ruleEvaluateCase) {
 	t.Helper()
 
-	for _, tt := range tests {
+	for i := range tests {
+		tt := &tests[i]
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

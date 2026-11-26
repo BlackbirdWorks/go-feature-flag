@@ -2,6 +2,7 @@ package flagdef
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
@@ -9,8 +10,14 @@ import (
 // compiledQuery is the trimmed form, the format and the decoded JsonLogic rule of a raw query.
 type compiledQuery struct {
 	jsonLogic any
-	trimmed   string
-	format    QueryFormat
+	// jlSeg is the compiled form of a JsonLogic query that has inSegment operations, nil otherwise.
+	jlSeg *jlSegments
+	// segErr is why the segment terms of the query are not valid, nil when they are (or there is none).
+	segErr  error
+	trimmed string
+	format  QueryFormat
+	// segments is true when the query may have segment terms: evaluating it takes the segment path.
+	segments bool
 }
 
 // compiledQuery returns the compiled form of raw. It is memoized per raw query by the Service: only
@@ -27,7 +34,11 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 		var rule any
 		if json.Unmarshal([]byte(compiled.trimmed), &rule) == nil {
 			compiled.jsonLogic = rule
+			compiled.jlSeg, compiled.segErr = compileJSONLogicSegments(rule)
+			compiled.segments = compiled.jlSeg != nil
 		}
+	} else {
+		compiled.segments = strings.Contains(trimmed, "segment")
 	}
 
 	actual, _ := s.compiled.LoadOrStore(raw, compiled)

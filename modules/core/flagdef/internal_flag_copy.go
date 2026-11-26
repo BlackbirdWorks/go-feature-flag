@@ -111,6 +111,7 @@ func (r *Rule) deepCopy() *Rule {
 	copied.Name = copyPtr(r.Name)
 	copied.Query = copyPtr(r.Query)
 	copied.VariationResult = copyPtr(r.VariationResult)
+	copied.OnError = copyPtr(r.OnError)
 
 	copied.Disable = copyPtr(r.Disable)
 	if r.Percentages != nil {
