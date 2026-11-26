@@ -118,6 +118,8 @@ const (
 	nameWebIdentity = "webIdentity"
 	valBogus        = "bogus"
 	bundleGarbage   = "garbage"
+	hopSTS          = "sts"
+	hopS3           = "s3"
 	verbPlusV       = "%+v"
 	verbGoV         = "%#v"
 	pemCertificate  = "CERTIFICATE"

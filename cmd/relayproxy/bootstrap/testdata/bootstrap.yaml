@@ -1,0 +1,92 @@
+# Complete example of the version 2 bootstrap file: every section, with the secrets as references.
+version: 2
+server:
+  listeners:
+    - {name: api, address: ":1031", protocols: [http1, h2c]}
+    - {name: ops, address: "127.0.0.1:1032", role: ops}
+  unixSocketPath: /run/semaphore/api.sock
+observability:
+  logging: {level: info, format: json}
+  metrics: {enabled: true, legacyNames: false, perFlagLabels: false}
+  tracing:
+    otlpEndpoint: "otel-collector:4317"
+    serviceName: semaphore
+    sampler: parentbased_always_off
+connections:
+  control:
+    type: s3
+    region: us-east-1
+    bucket: acme-control
+    poll: {interval: 60s, jitter: 0.1}
+  flags-eu:
+    type: s3
+    region: eu-west-1
+    bucket: acme-flags-eu
+    credentials:
+      type: assumeRole
+      roleArn: arn:aws:iam::123456789012:role/semaphore-reader
+      sessionName: semaphore
+    timeouts: {connect: 5s, request: 20s}
+    retry: {maxAttempts: 5, maxBackoff: 30s}
+  dev-s3:
+    type: s3
+    endpoint: http://localhost:4566
+    region: us-east-1
+    bucket: dev-flags
+    pathStyle: true
+    requestChecksumCalculation: whenRequired
+    responseChecksumValidation: whenRequired
+    credentials:
+      type: static
+      accessKeyId: {fromEnv: DEV_S3_ACCESS_KEY}
+      secretAccessKey: {fromFile: /run/secrets/dev-s3-secret}
+  events-kinesis: {type: kinesis, region: us-east-1, stream: acme-flag-evals}
+  events-queue: {type: sqs, region: us-east-1, queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/evals"}
+  warehouse: {type: redshift, region: us-east-1}
+exporters:
+  evals-kinesis:
+    kind: kinesis
+    connection: events-kinesis
+  evals-archive:
+    kind: s3
+    connection: flags-eu
+    path: evaluations/
+    format: parquet
+    parquetCompressionCodec: SNAPPY
+  evals-log:
+    kind: log
+  evals-webhook:
+    kind: webhook
+    endpointUrl: {fromEnv: EVALS_WEBHOOK_URL}
+    headers:
+      Authorization: {fromEnv: EVALS_WEBHOOK_TOKEN}
+  evals-warehouse:
+    kind: redshift
+    connection: warehouse
+    database: analytics
+    workgroupName: semaphore
+    tableName: flag_evaluations
+  evals-kafka:
+    kind: kafka
+    kafka: {topic: flag-evaluations, addresses: ["kafka-1:9092"]}
+notifiers:
+  team-slack:
+    kind: slack
+    webhookUrl: {fromEnv: SLACK_WEBHOOK_URL}
+  audit-hook:
+    kind: webhook
+    endpointUrl: {fromFile: /run/secrets/audit-url}
+    secret: {fromFile: /run/secrets/audit-signing}
+auth:
+  adminKeys:
+    - 7d9f1e0c-6a43-4c2e-9d57-0f6b3f0f1a11
+    - {fromEnv: SEMAPHORE_ADMIN_KEY}
+controlPlane:
+  connection: control
+  manifest:
+    key: manifests/prod-us-east-1/stable.json
+    channel: stable
+    pollInterval: 60s
+    jitter: 0.1
+    maxObjects: 20000
+  stateDir: /var/lib/semaphore
