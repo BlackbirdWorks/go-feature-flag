@@ -282,6 +282,7 @@ export default withMermaid({
           { text: 'Flag Evaluation', link: '/concepts/flag-evaluation' },
           { text: 'Evaluation Context', link: '/concepts/evaluation-context' },
           { text: 'Flag Sets', link: '/concepts/flagset' },
+          { text: 'Connections', link: '/concepts/connections' },
           { text: 'Retrievers', link: '/concepts/retriever' },
           { text: 'Exporters', link: '/concepts/exporter' },
           { text: 'Notifiers', link: '/concepts/notifier' },
