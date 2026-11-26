@@ -109,6 +109,11 @@ const (
 	testSTSEndpoint = "http://sts.test"
 	testRoleARN     = "arn:r"
 	fieldRegion     = "region"
+	testEndpoint    = "http://s3.test"
+	envDefaultsMode = "AWS_DEFAULTS_MODE"
+	envProfile      = "AWS_PROFILE"
+	keyChain        = "AKIDCHAIN"
+	missingProfile  = "profile-that-does-not-exist"
 	nameStatic      = "static"
 	nameWebIdentity = "webIdentity"
 	valBogus        = "bogus"
@@ -165,7 +170,7 @@ const (
 // testS3 is a valid S3 spec whose retries do not wait.
 func testS3() *connection.S3Spec {
 	return &connection.S3Spec{
-		Endpoint: "http://s3.test",
+		Endpoint: testEndpoint,
 		Region:   "us-east-1",
 		Credentials: connection.Credentials{
 			Type:            connection.CredentialsStatic,

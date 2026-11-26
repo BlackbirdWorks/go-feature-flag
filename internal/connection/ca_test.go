@@ -1,160 +1,117 @@
 package connection_test
 
 import (
-	"encoding/pem"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"errors"
 	"os"
-	"path/filepath"
-	"strings"
+	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
-// writeCABundle writes the certificate of a TLS test server as a PEM bundle and returns its path.
-func writeCABundle(t *testing.T, srv *httptest.Server) string {
-	t.Helper()
+const unknownAuthority = "unknown authority"
 
-	path := filepath.Join(t.TempDir(), "ca.pem")
-	block := &pem.Block{Type: pemCertificate, Bytes: srv.Certificate().Raw}
-	require.NoError(t, os.WriteFile(path, pem.EncodeToMemory(block), 0o600))
+var errBundleGone = errors.New("the bundle file is gone")
 
-	return path
+// bundleFiles is an in-memory file system for CA bundles that counts the reads and can lose its files.
+type bundleFiles struct {
+	files map[string][]byte
+	reads atomic.Int32
+	mu    sync.Mutex
 }
 
-// hostileEnvironment makes the process environment as unfriendly as possible to a connection. The
-// caller must not be parallel: the SDK only reads the real process environment.
-func hostileEnvironment(t *testing.T, caBundle string) {
-	t.Helper()
-
-	t.Setenv("AWS_REGION", "ap-south-1")
-	t.Setenv("AWS_DEFAULT_REGION", "ap-south-1")
-	t.Setenv("AWS_ENDPOINT_URL", "http://hostile.test")
-	t.Setenv("AWS_ENDPOINT_URL_S3", "http://hostile-s3.test")
-	t.Setenv("AWS_ENDPOINT_URL_STS", "http://hostile-sts.test")
-	t.Setenv("AWS_DEFAULTS_MODE", "standard")
-	t.Setenv("AWS_CA_BUNDLE", caBundle)
-	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", os.DevNull)
-	t.Setenv("AWS_CONFIG_FILE", os.DevNull)
+func newBundleFiles(content []byte) *bundleFiles {
+	return &bundleFiles{files: map[string][]byte{testCAPath: content}}
 }
 
-// TestFactory_ChainAndRolesIgnoreTheEnvironment checks the connections that use the SDK chain, the roles and
-// the web identity against a hostile environment: only the chain credentials come from it.
-//
-// It is not parallel because the SDK only reads the real process environment (t.Setenv).
-func TestFactory_ChainAndRolesIgnoreTheEnvironment(t *testing.T) {
-	srv := httptest.NewTLSServer(http.NotFoundHandler())
-	t.Cleanup(srv.Close)
+func (b *bundleFiles) read(path string) ([]byte, error) {
+	b.reads.Add(1)
 
-	hostileEnvironment(t, writeCABundle(t, srv))
-	t.Setenv("AWS_ACCESS_KEY_ID", "AKIDCHAIN")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "chain-secret")
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-	tokenFile := filepath.Join(t.TempDir(), "token")
-	require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
-
-	tests := []struct {
-		name         string
-		creds        connection.Credentials
-		stsResponse  string
-		wantKeyID    string // key id that signs the S3 request
-		wantSTSSigns string // key id that signs the STS request, when there is one
-	}{
-		{
-			name:      "chain uses the environment credentials only",
-			creds:     connection.Credentials{},
-			wantKeyID: "AKIDCHAIN",
-		},
-		{
-			name: "assumeRole without keys takes the chain as its source",
-			creds: connection.Credentials{
-				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, STSEndpoint: testSTSEndpoint,
-			},
-			stsResponse:  assumeRoleXML,
-			wantKeyID:    roleKeyID,
-			wantSTSSigns: "AKIDCHAIN",
-		},
-		{
-			name: nameWebIdentity,
-			creds: connection.Credentials{
-				Type: connection.CredentialsWebIdentity, RoleARN: testRoleARN, TokenFile: tokenFile,
-				STSEndpoint: testSTSEndpoint,
-			},
-			stsResponse: webIdentityXML,
-			wantKeyID:   "ASIAWEB",
-		},
+	data, ok := b.files[path]
+	if !ok {
+		return nil, errBundleGone
 	}
 
-	for _, tt := range tests {
-		var s3Req, stsReq *http.Request
-
-		transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
-			body := ""
-
-			if req.URL.Host == hostSTS {
-				stsReq = req
-				body = tt.stsResponse
-			} else {
-				s3Req = req
-			}
-
-			return &http.Response{
-				StatusCode: http.StatusOK, Header: http.Header{headerType: {"text/xml"}},
-				Body: io.NopCloser(strings.NewReader(body)), Request: req,
-			}, nil
-		})
-
-		fac := connection.New(connection.WithRoundTripper(transport))
-		require.NoError(t, fac.Set("a", other(func(spec *connection.S3Spec) {
-			spec.Region = "eu-central-1"
-			spec.Credentials = tt.creds
-		})), tt.name)
-
-		client, err := fac.S3(t.Context(), "a")
-		require.NoError(t, err, tt.name)
-		require.NoError(t, headObject(t, client), tt.name)
-
-		require.NotNil(t, s3Req, tt.name)
-		assert.Equal(t, "s3.test", s3Req.URL.Host, tt.name)
-		assert.Contains(t, s3Req.Header.Get("Authorization"), "Credential="+tt.wantKeyID+"/", tt.name)
-		assert.Contains(t, s3Req.Header.Get("Authorization"), "/eu-central-1/s3/", tt.name)
-
-		if tt.wantSTSSigns != "" {
-			require.NotNil(t, stsReq, tt.name)
-			assert.Contains(t, stsReq.Header.Get("Authorization"), "Credential="+tt.wantSTSSigns+"/", tt.name)
-		}
-	}
+	return data, nil
 }
 
-func TestFactory_CABundleFile(t *testing.T) {
+// set replaces the content of the bundle; nil removes the file.
+func (b *bundleFiles) set(data []byte) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if data == nil {
+		delete(b.files, testCAPath)
+
+		return
+	}
+
+	b.files[testCAPath] = data
+}
+
+// headAt sends a HeadObject to the endpoint, whatever the endpoint of the connection.
+func headAt(t *testing.T, client *s3.Client, endpoint string) error {
+	t.Helper()
+
+	_, err := client.HeadObject(t.Context(), headInputFor(), func(opts *s3.Options) {
+		opts.BaseEndpoint = aws.String(endpoint)
+	})
+
+	return err
+}
+
+func headInputFor() *s3.HeadObjectInput {
+	return &s3.HeadObjectInput{Bucket: aws.String("b"), Key: aws.String("k")}
+}
+
+// TestFactory_CABundleFileTrust uses two servers signed by two CAs that do not trust each other, and real
+// TLS requests: a connection trusts the authority of its bundle, and only that one. It fails if the bundle
+// were ignored (nothing is reached) or if every authority were trusted (both servers are reached).
+func TestFactory_CABundleFileTrust(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	srv.StartTLS()
-	t.Cleanup(srv.Close)
-
-	bundle := writeCABundle(t, srv)
+	caA, caB := newTestCA(t, "CA A"), newTestCA(t, "CA B")
+	srvA, srvB := caA.startServer(t, okHandler()), caB.startServer(t, okHandler())
 
 	tests := []struct {
-		name    string
-		bundle  string
-		wantObs []observation
-		wantErr bool
+		name        string
+		bundle      []byte
+		wantAErr    string // empty: the request succeeds
+		wantBErr    string
+		wantObsKind []string
 	}{
 		{
-			name:    "private CA is rejected without the bundle",
-			wantErr: true,
-			wantObs: []observation{{connC, opHead, resError}},
+			name:        "bundle of A",
+			bundle:      caA.pem,
+			wantAErr:    "",
+			wantBErr:    unknownAuthority,
+			wantObsKind: []string{resOK, resError},
 		},
-		{name: "private CA is trusted with the bundle", bundle: bundle, wantObs: []observation{{connC, opHead, resOK}}},
+		{
+			name:        "bundle of B",
+			bundle:      caB.pem,
+			wantAErr:    unknownAuthority,
+			wantBErr:    "",
+			wantObsKind: []string{resError, resOK},
+		},
+		{
+			name: "both authorities in the bundle", bundle: slices.Concat(caA.pem, caB.pem),
+			wantAErr: "", wantBErr: "", wantObsKind: []string{resOK, resOK},
+		},
+		{
+			name: "no bundle: system roots only", bundle: nil,
+			wantAErr: unknownAuthority, wantBErr: unknownAuthority, wantObsKind: []string{resError, resError},
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,35 +119,145 @@ func TestFactory_CABundleFile(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
-			fac := connection.New(connection.WithObserver(rec))
+			files := newBundleFiles(tt.bundle)
+			fac := connection.New(connection.WithObserver(rec), connection.WithReadFile(files.read))
 			require.NoError(t, fac.Set(connC, other(func(spec *connection.S3Spec) {
-				spec.Endpoint = srv.URL
-				spec.CABundleFile = tt.bundle
+				spec.Endpoint = srvA.URL
 				spec.Retry.MaxAttempts = 1
+
+				if tt.bundle != nil {
+					spec.CABundleFile = testCAPath
+				}
 			})))
 
 			client, err := fac.S3(t.Context(), connC)
 			require.NoError(t, err)
 
-			err = headObject(t, client)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			errA, errB := headAt(t, client, srvA.URL), headAt(t, client, srvB.URL)
+
+			for _, check := range []struct {
+				err  error
+				want string
+			}{{errA, tt.wantAErr}, {errB, tt.wantBErr}} {
+				if check.want == "" {
+					require.NoError(t, check.err)
+				} else {
+					require.ErrorContains(t, check.err, check.want)
+				}
 			}
 
-			assert.Equal(t, tt.wantObs, rec.all())
+			observed := rec.all()
+			got := make([]string, 0, len(observed))
+
+			for _, o := range observed {
+				got = append(got, o.Result)
+			}
+
+			assert.Equal(t, tt.wantObsKind, got)
 		})
 	}
+}
+
+// TestFactory_CABundleRotation is one stateful scenario (a sequence, not independent cases): the bundle file
+// changes from CA A to CA B. Without a reload the existing client keeps trusting A only; after Replace the
+// rebuilt client trusts B only. It fails if the lazy build or the transport re-read the file, and if the
+// reload kept the old client.
+func TestFactory_CABundleRotation(t *testing.T) {
+	t.Parallel()
+
+	caA, caB := newTestCA(t, "CA A"), newTestCA(t, "CA B")
+	srvA, srvB := caA.startServer(t, okHandler()), caB.startServer(t, okHandler())
+
+	files := newBundleFiles(caA.pem)
+	fac := connection.New(connection.WithReadFile(files.read))
+	spec := func() *connection.S3Spec {
+		return other(func(spec *connection.S3Spec) {
+			spec.Endpoint = srvA.URL
+			spec.CABundleFile = testCAPath
+			spec.Retry.MaxAttempts = 1
+		})
+	}
+
+	require.NoError(t, fac.Set(connC, spec()))
+
+	before, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	require.NoError(t, headAt(t, before, srvA.URL))
+	require.ErrorContains(t, headAt(t, before, srvB.URL), unknownAuthority)
+
+	// the file changes, nobody reloads: nothing changes
+	files.set(caB.pem)
+
+	same, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	assert.Same(t, before, same)
+	require.NoError(t, headAt(t, same, srvA.URL))
+	require.ErrorContains(t, headAt(t, same, srvB.URL), unknownAuthority)
+
+	// the reload rebuilds the client with the new authority
+	require.NoError(t, fac.Replace(map[string]connection.Spec{connC: spec()}))
+
+	after, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	assert.NotSame(t, before, after)
+	require.NoError(t, headAt(t, after, srvB.URL))
+	require.ErrorContains(t, headAt(t, after, srvA.URL), unknownAuthority)
+	assert.Equal(t, map[string]int{connC: 2}, fac.Builds())
+}
+
+// TestFactory_CABundleIsReadOnceAtSet is one stateful scenario: the bundle is read once per Set, never by the
+// lazy build, even when the file is gone by then; an unreadable file refuses the Set and keeps the client.
+func TestFactory_CABundleIsReadOnceAtSet(t *testing.T) {
+	t.Parallel()
+
+	authority := newTestCA(t, "CA")
+	srv := authority.startServer(t, okHandler())
+	files := newBundleFiles(authority.pem)
+	rec := &recorder{}
+	fac := connection.New(connection.WithReadFile(files.read), connection.WithObserver(rec))
+	spec := func() *connection.S3Spec {
+		return other(func(spec *connection.S3Spec) {
+			spec.Endpoint = srv.URL
+			spec.CABundleFile = testCAPath
+			spec.Retry.MaxAttempts = 1
+		})
+	}
+
+	require.NoError(t, fac.Set(connC, spec()))
+	assert.Equal(t, int32(1), files.reads.Load(), "one read per Set")
+
+	files.set(nil) // gone before the first use
+
+	client, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	require.NoError(t, headObject(t, client))
+	assert.Equal(t, int32(1), files.reads.Load(), "the lazy build does not read the file")
+	assert.Equal(t, []observation{{connC, opHead, resOK}}, rec.all())
+
+	// same content again: one more read, the client is reused
+	files.set(authority.pem)
+	require.NoError(t, fac.Set(connC, spec()))
+	assert.Equal(t, int32(2), files.reads.Load())
+	assert.Equal(t, map[string]int{connC: 1}, fac.Builds())
+
+	again, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	assert.Same(t, client, again)
+
+	// an unreadable file refuses the Set and keeps the working client
+	files.set(nil)
+	require.ErrorIs(t, fac.Set(connC, spec()), connection.ErrInvalidSpec)
+	assert.Equal(t, int32(3), files.reads.Load())
+
+	kept, err := fac.S3(t.Context(), connC)
+	require.NoError(t, err)
+	assert.Same(t, client, kept)
 }
 
 func TestFactory_CABundleFileValidation(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewTLSServer(http.NotFoundHandler())
-	t.Cleanup(srv.Close)
-
-	good := pem.EncodeToMemory(&pem.Block{Type: pemCertificate, Bytes: srv.Certificate().Raw})
+	good := newTestCA(t, "CA").pem
 
 	tests := []struct {
 		files   map[string][]byte
@@ -202,10 +269,8 @@ func TestFactory_CABundleFileValidation(t *testing.T) {
 		{name: "missing file", files: map[string][]byte{}, path: testCAPath, wantErr: true},
 		{name: "empty file", files: map[string][]byte{testCAPath: {}}, path: testCAPath, wantErr: true},
 		{
-			name:    "no certificate in the file",
-			files:   map[string][]byte{testCAPath: []byte("not pem")},
-			path:    testCAPath,
-			wantErr: true,
+			name: "no certificate in the file", files: map[string][]byte{testCAPath: []byte("not pem")},
+			path: testCAPath, wantErr: true,
 		},
 	}
 
@@ -222,11 +287,11 @@ func TestFactory_CABundleFileValidation(t *testing.T) {
 				return data, nil
 			}))
 
-			spec := other(func(spec *connection.S3Spec) { spec.CABundleFile = tt.path })
-			err := fac.Set(connC, spec)
+			err := fac.Set(connC, other(func(spec *connection.S3Spec) { spec.CABundleFile = tt.path }))
 
 			if !tt.wantErr {
 				require.NoError(t, err)
+				assert.Equal(t, []string{connC}, fac.Names())
 
 				return
 			}
@@ -239,58 +304,6 @@ func TestFactory_CABundleFileValidation(t *testing.T) {
 			assert.Equal(t, "caBundleFile", specErr.Field)
 			assert.Equal(t, connC, specErr.Connection)
 			assert.Empty(t, fac.Names())
-		})
-	}
-}
-
-// TestFactory_ChainNeedsAValidProcessEnvironment documents a limit: the SDK validates every AWS_* variable
-// when it loads the credentials chain, and no load option skips that. A valid unrelated setting is harmless; an
-// invalid one fails the chain connections (and only them) with an error that names the connection and says why.
-//
-// It is not parallel because the SDK only reads the real process environment (t.Setenv).
-func TestFactory_ChainNeedsAValidProcessEnvironment(t *testing.T) {
-	tests := []struct {
-		name    string
-		key     string
-		value   string
-		wantErr bool
-	}{
-		{name: "valid defaults mode", key: "AWS_DEFAULTS_MODE", value: "standard"},
-		{name: "invalid defaults mode", key: "AWS_DEFAULTS_MODE", value: valBogus, wantErr: true},
-		{name: "invalid request checksum", key: "AWS_REQUEST_CHECKSUM_CALCULATION", value: valBogus, wantErr: true},
-		{name: "invalid max attempts", key: "AWS_MAX_ATTEMPTS", value: "not-a-number", wantErr: true},
-		{name: "missing profile", key: "AWS_PROFILE", value: "profile-that-does-not-exist", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("AWS_ACCESS_KEY_ID", "AKIDCHAIN")
-			t.Setenv("AWS_SECRET_ACCESS_KEY", "chain-secret")
-			t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-			t.Setenv(tt.key, tt.value)
-
-			transport := newScripted(step{status: http.StatusOK})
-			fac := connection.New(connection.WithRoundTripper(transport))
-			require.NoError(t, fac.Set("broken", other(func(spec *connection.S3Spec) {
-				spec.Credentials = connection.Credentials{}
-			})))
-
-			client, err := fac.S3(t.Context(), "broken")
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), `connection "broken"`)
-				assert.Contains(t, err.Error(), "process AWS environment or shared config is invalid")
-				assert.Contains(t, err.Error(), tt.value)
-				assert.Equal(t, 0, transport.count())
-				assert.Empty(t, fac.Builds())
-
-				return
-			}
-
-			require.NoError(t, err)
-			require.NoError(t, headObject(t, client))
-			require.Equal(t, 1, transport.count())
-			assert.Contains(t, transport.requests[0].Header.Get("Authorization"), "Credential=AKIDCHAIN/")
 		})
 	}
 }

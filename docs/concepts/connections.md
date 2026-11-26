@@ -58,7 +58,7 @@ Kinesis, SQS and Redshift connections take the same fields except `bucket`, `pat
 | `assumeRole` | `roleArn`, `sessionName`, `externalId`, `stsEndpoint`, optional static source keys | Assumes the role; the source is the static keys when given (`accessKeyId` and `secretAccessKey` together), the chain otherwise |
 | `webIdentity` | `roleArn`, `tokenFile`, `sessionName`, `stsEndpoint` | Assumes the role with a web identity token file |
 
-- Secret values arrive already resolved, as `connection.Secret` (`NewSecret`, `Reveal`). Every fmt verb, JSON (also as a map key), YAML and slog print `[REDACTED]`. `%p`, reflection and `unsafe` cannot be covered.
+- Secret values arrive already resolved, as `connection.Secret` (`NewSecret`, `Reveal`). Every fmt verb, JSON (also as a map key), YAML and slog print `[REDACTED]`. A `Secret` is not meant to be a map key: as a key it encodes to the same marker, so entries collide (deliberate, the value is never emitted). `%p`, reflection and `unsafe` cannot be covered.
 - The credentials provider in the returned AWS config prints `[REDACTED]` too.
 - Limit of the `chain` type: the SDK validates every `AWS_*` variable and the shared files when it loads the chain, and no option skips that. An invalid variable (even an unrelated one such as `AWS_DEFAULTS_MODE`) makes the chain connection fail to build, with an error naming the connection. Static, `webIdentity` and `assumeRole` with source keys never load the chain.
 - The STS endpoint is separate from the connection endpoint.

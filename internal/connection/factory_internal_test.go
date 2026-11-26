@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -134,44 +135,67 @@ type idleCloser struct {
 func (*idleCloser) RoundTrip(*http.Request) (*http.Response, error) { return nil, errRetired }
 func (c *idleCloser) CloseIdleConnections()                         { c.closed.Add(1) }
 
-// TestTransport_HasNoProxy checks the transport the factory builds. It does not read HTTP_PROXY: the
-// standard library resolves the proxy environment once per process, so a test that sets it passes or fails
-// depending on which test ran first. The property is that the transport has no proxy function at all, so no
-// process setting can route a connection through one; the second server below would only be reached by a proxy.
+// TestTransport_HasNoProxy checks the transport the factory builds, for several settings of the spec. It does
+// not read HTTP_PROXY: the standard library resolves the proxy environment once per process, so a test that sets
+// it passes or fails depending on which test ran first. The property is that the transport has no proxy
+// function at all, so no process setting can route a connection through one; the second server below would
+// only be reached by a proxy, and a request through the production transport reaches the target.
 func TestTransport_HasNoProxy(t *testing.T) {
 	t.Parallel()
 
-	var targetHits, proxyHits atomic.Int32
+	tests := []struct {
+		mutate          func(*S3Spec)
+		name            string
+		wantHeaderLimit time.Duration
+	}{
+		{name: "defaults", mutate: func(*S3Spec) {}},
+		{
+			name:            "request timeout",
+			mutate:          func(s *S3Spec) { s.RequestTimeout = 3 * time.Second },
+			wantHeaderLimit: 3 * time.Second,
+		},
+		{name: "connect timeout", mutate: func(s *S3Spec) { s.ConnectTimeout = time.Second }},
+	}
 
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		targetHits.Add(1)
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(target.Close)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	proxy := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { proxyHits.Add(1) }))
-	t.Cleanup(proxy.Close)
+			var targetHits, proxyHits atomic.Int32
 
-	fac := New()
-	spec := internalSpec()
-	spec.Endpoint = target.URL
-	spec.PathStyle = true
-	require.NoError(t, fac.Set("a", spec))
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(target.Close)
 
-	choice := fac.newHTTPClient(&spec.Common, nil)
-	require.NotNil(t, choice.owned)
+			proxy := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { proxyHits.Add(1) }))
+			t.Cleanup(proxy.Close)
 
-	transport, ok := choice.owned.Transport.(*http.Transport)
-	require.True(t, ok)
-	assert.Nil(t, transport.Proxy)
+			fac := New()
+			spec := internalSpec()
+			spec.Endpoint = target.URL
+			spec.PathStyle = true
+			tt.mutate(spec)
+			require.NoError(t, fac.Set("a", spec))
 
-	client, err := fac.S3(t.Context(), "a")
-	require.NoError(t, err)
+			choice := fac.newHTTPClient(&spec.Common, nil)
+			require.NotNil(t, choice.owned)
 
-	_, err = client.HeadObject(t.Context(), headInput())
-	require.NoError(t, err)
-	assert.Equal(t, int32(1), targetHits.Load())
-	assert.Equal(t, int32(0), proxyHits.Load())
+			transport, ok := choice.owned.Transport.(*http.Transport)
+			require.True(t, ok)
+			assert.Nil(t, transport.Proxy)
+			assert.Equal(t, tt.wantHeaderLimit, transport.ResponseHeaderTimeout)
+
+			client, err := fac.S3(t.Context(), "a")
+			require.NoError(t, err)
+
+			_, err = client.HeadObject(t.Context(), headInput())
+			require.NoError(t, err)
+			assert.Equal(t, int32(1), targetHits.Load())
+			assert.Equal(t, int32(0), proxyHits.Load())
+		})
+	}
 }
 
 func headInput() *s3.HeadObjectInput {

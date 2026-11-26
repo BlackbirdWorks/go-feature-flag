@@ -16,6 +16,10 @@ const RedactedValue = "[REDACTED]"
 // It is a struct with one unexported field, so the content cannot be reached by a conversion, and a Secret
 // cannot be a JSON map key without going through [Secret.MarshalText].
 //
+// A Secret is not meant to be a map key. As a key it encodes to the redaction marker like everywhere else, so
+// several secret keys give several JSON members with the same name, and a decoder keeps only one of them. That
+// is deliberate: the value is never emitted, whatever it costs in entries.
+//
 // What cannot be covered: %p, reflection (including fmt's own printing of an unexported field holding a
 // Secret), unsafe, and a debugger or a core dump.
 type Secret struct {
@@ -48,7 +52,8 @@ func (Secret) LogValue() slog.Value { return slog.StringValue(RedactedValue) }
 //nolint:unparam // json.Marshaler requires the error result
 func (Secret) MarshalJSON() ([]byte, error) { return []byte(`"` + RedactedValue + `"`), nil }
 
-// MarshalText implements [encoding.TextMarshaler], also used by JSON for map keys.
+// MarshalText implements [encoding.TextMarshaler], also used by JSON for map keys. Every secret key gets the
+// same name, so a map keyed by secrets loses entries when decoded: a Secret is not meant to be a map key.
 //
 //nolint:unparam // encoding.TextMarshaler requires the error result
 func (Secret) MarshalText() ([]byte, error) { return []byte(RedactedValue), nil }

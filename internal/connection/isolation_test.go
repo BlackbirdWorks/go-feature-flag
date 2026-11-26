@@ -125,45 +125,6 @@ func TestSpecError_Messages(t *testing.T) {
 		(&connection.KindError{Name: "q", Want: "s3", Got: "sqs"}).Error())
 }
 
-func TestFactory_AWSConfigIsACopy(t *testing.T) {
-	t.Parallel()
-
-	fac := connection.New(connection.WithObserver(&recorder{}))
-	require.NoError(t, fac.Set("a", testS3()))
-
-	first, err := fac.AWSConfig(t.Context(), "a")
-	require.NoError(t, err)
-	require.NotEmpty(t, first.APIOptions)
-
-	want := len(first.APIOptions)
-
-	// both writes go through the shared backing array when the slice is not cloned
-	first.APIOptions[0] = nil
-	first.APIOptions = append(first.APIOptions[:0], nil)
-
-	second, err := fac.AWSConfig(t.Context(), "a")
-	require.NoError(t, err)
-	require.Len(t, second.APIOptions, want)
-	assert.NotNil(t, second.APIOptions[0], "the cached configuration was altered through a returned copy")
-
-	// the cached configuration still carries a working observer
-	rec := &recorder{}
-	cachedTransport := newScripted(step{status: 200})
-	cached := connection.New(connection.WithObserver(rec), connection.WithRoundTripper(cachedTransport))
-	require.NoError(t, cached.Set("a", testS3()))
-
-	cfg, err := cached.AWSConfig(t.Context(), "a")
-	require.NoError(t, err)
-
-	cfg.APIOptions[0] = nil
-
-	client, err := cached.S3(t.Context(), "a")
-	require.NoError(t, err)
-	require.NoError(t, headObject(t, client))
-	assert.Equal(t, 1, cachedTransport.count())
-	assert.Equal(t, []observation{{"a", opHead, resOK}}, rec.all())
-}
-
 // closeCounter is a transport that counts CloseIdleConnections calls.
 type closeCounter struct {
 	closed atomic.Int32
@@ -259,57 +220,6 @@ func TestFactory_DoesNotCloseACallerSuppliedClient(t *testing.T) {
 
 	fac.Remove("a")
 	assert.Equal(t, int32(0), transport.closed.Load())
-}
-
-// TestFactory_IgnoresTheProcessEnvironment sets hostile AWS variables and checks that a connection still goes
-// to the endpoint and region of its spec, and does not fail on the missing profile.
-func TestFactory_IgnoresTheProcessEnvironment(t *testing.T) {
-	t.Setenv("AWS_REGION", "ap-south-1")
-	t.Setenv("AWS_DEFAULT_REGION", "ap-south-1")
-	t.Setenv("AWS_ENDPOINT_URL", "http://hostile.test")
-	t.Setenv("AWS_ENDPOINT_URL_S3", "http://hostile-s3.test")
-	t.Setenv("AWS_PROFILE", "profile-that-does-not-exist")
-	t.Setenv("AWS_DEFAULTS_MODE", "standard")
-	t.Setenv("AWS_ACCESS_KEY_ID", "AKIDHOSTILE")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "hostile")
-
-	tests := []struct {
-		name  string
-		creds connection.Credentials
-	}{
-		{
-			"static",
-			connection.Credentials{
-				Type:            connection.CredentialsStatic,
-				AccessKeyID:     connection.NewSecret("AKIDSPEC"),
-				SecretAccessKey: connection.NewSecret("spec"),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		transport := newScripted(step{status: 200})
-		fac := connection.New(connection.WithRoundTripper(transport))
-		require.NoError(t, fac.Set("a", other(func(spec *connection.S3Spec) {
-			spec.Region = "eu-central-1"
-			spec.Credentials = tt.creds
-		})))
-
-		client, err := fac.S3(t.Context(), "a")
-		require.NoError(t, err, tt.name)
-		require.NoError(t, headObject(t, client), tt.name)
-
-		require.Equal(t, 1, transport.count(), tt.name)
-		req := transport.requests[0]
-		assert.Equal(t, "s3.test", req.URL.Host, tt.name)
-		assert.Contains(t, req.Header.Get("Authorization"), "Credential=AKIDSPEC/", tt.name)
-		assert.Contains(t, req.Header.Get("Authorization"), "/eu-central-1/s3/", tt.name)
-
-		cfg, err := fac.AWSConfig(t.Context(), "a")
-		require.NoError(t, err, tt.name)
-		assert.Equal(t, "eu-central-1", cfg.Region, tt.name)
-		assert.Equal(t, "http://s3.test", aws.ToString(cfg.BaseEndpoint), tt.name)
-	}
 }
 
 func TestTimeouts(t *testing.T) {

@@ -30,65 +30,50 @@ func canarySpec() *connection.S3Spec {
 	})
 }
 
-func TestSecret_Redacts(t *testing.T) {
+// TestSecret_FormatVerbs checks every fmt verb, on the value, a pointer, a slice, a map value and a struct
+// field: each prints the marker and nothing else. It fails if a verb reached the value (%d and %x do for a
+// plain string type).
+func TestSecret_FormatVerbs(t *testing.T) {
 	t.Parallel()
 
 	secret := connection.NewSecret(canary)
+	nested := nestedSecrets{Plain: secret}
 
-	var logs bytes.Buffer
-
-	slog.New(slog.NewJSONHandler(&logs, nil)).LogAttrs(context.Background(), slog.LevelInfo, "m", slog.Any("s", secret))
-
-	var logText bytes.Buffer
-
-	slog.New(slog.NewTextHandler(&logText, nil)).
-		LogAttrs(context.Background(), slog.LevelInfo, "m", slog.Any("s", secret))
-
-	encoded, err := json.Marshal(struct {
-		Secret connection.Secret `json:"secret"`
-	}{secret})
-	require.NoError(t, err)
-
-	text, err := secret.MarshalText()
-	require.NoError(t, err)
-
-	tests := []struct {
-		name   string
-		format string // when set, got is the secret formatted with it
-		got    string
-	}{
-		{name: "%s", format: "%s"},
-		{name: "%v", format: "%v"},
-		{name: verbPlusV, format: verbPlusV},
-		{name: verbGoV, format: verbGoV},
-		{name: "%q", format: "%q"},
-		{name: "%x", format: "%x"},
-		{name: "String", got: secret.String()},
-		{name: "GoString", got: secret.GoString()},
-		{name: "MarshalText", got: string(text)},
-		{name: "json", got: string(encoded)},
-		{name: "slog json", got: logs.String()},
-		{name: "slog text", got: logText.String()},
-		{name: "LogValue", got: secret.LogValue().String()},
+	verbs := []string{
+		"%v", verbPlusV, verbGoV, "%s", "%q", "%d", "%x", "%X", "%c", "%U", "%t", "%e", "%08.3f", "%10s", "%-10v",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	for _, verb := range verbs {
+		tests := []struct {
+			got       string
+			name      string
+			wantExact string // the whole output, when it does not depend on the verb
+		}{
+			{name: "value", got: fmt.Sprintf(verb, secret), wantExact: connection.RedactedValue},
+			{name: "pointer", got: fmt.Sprintf(verb, &secret), wantExact: connection.RedactedValue},
+			{name: "slice", got: fmt.Sprintf(verb, []connection.Secret{secret})},
+			{name: "struct", got: fmt.Sprintf(verb, nested)},
+		}
 
-			got := tt.got
-			if tt.format != "" {
-				got = fmt.Sprintf(tt.format, secret)
-			}
+		for _, tt := range tests {
+			t.Run(verb+" "+tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			assert.NotContains(t, got, canary)
-			assert.NotEmpty(t, got)
-		})
+				assert.NotContains(t, tt.got, canary)
+				assert.Contains(t, tt.got, connection.RedactedValue)
+
+				if tt.wantExact != "" {
+					assert.Equal(t, tt.wantExact, tt.got)
+				}
+			})
+		}
 	}
 
-	assert.Contains(t, logs.String(), connection.RedactedValue)
-	assert.JSONEq(t, `{"secret":"[REDACTED]"}`, string(encoded))
+	assert.Equal(t, connection.RedactedValue, fmt.Sprintf("%d", secret))
+	assert.Equal(t, connection.RedactedValue, fmt.Sprintf("%x", secret))
 	assert.Equal(t, canary, secret.Reveal())
+	assert.True(t, connection.NewSecret("").IsZero())
+	assert.False(t, secret.IsZero())
 }
 
 // TestCanary_NoSecretLeaks runs the whole life of a connection with canary secrets and checks that no
@@ -193,10 +178,13 @@ type nestedSecrets struct {
 	Plain connection.Secret `json:"plain"`
 }
 
-func TestSecret_EveryVerbAndEncoder(t *testing.T) {
+// TestSecret_Encoders checks what each encoder and log handler prints for a Secret and for structures that
+// hold one. Each case compares the whole output with the expected one.
+func TestSecret_Encoders(t *testing.T) {
 	t.Parallel()
 
 	secret := connection.NewSecret(canary)
+	other := connection.NewSecret(canary + "-other")
 	nested := nestedSecrets{
 		Pointer: &secret,
 		ByKey:   map[connection.Secret]int{secret: 1},
@@ -205,72 +193,150 @@ func TestSecret_EveryVerbAndEncoder(t *testing.T) {
 	}
 	nested.Inner.Secret = secret
 
-	encoded, err := json.Marshal(nested)
-	require.NoError(t, err)
+	marshalled, yamlErr := secret.MarshalYAML()
+	require.NoError(t, yamlErr)
 
-	var jsonLogs, textLogs bytes.Buffer
+	tests := []struct {
+		got       func() (string, error)
+		name      string
+		want      string // exact output
+		wantInLog string // the log line must contain it
+		wantJSON  bool   // compare as JSON
+	}{
+		{
+			name: "json value", wantJSON: true, want: `"[REDACTED]"`,
+			got: func() (string, error) { return marshalString(secret) },
+		},
+		{
+			name: "json nested structure", wantJSON: true,
+			want: `{"pointer":"[REDACTED]","byKey":{"[REDACTED]":1},"byValue":{"k":"[REDACTED]"},` +
+				`"inner":{"secret":"[REDACTED]"},"plain":"[REDACTED]"}`,
+			got: func() (string, error) { return marshalString(nested) },
+		},
+		{
+			name: "json slice", wantJSON: true, want: `["[REDACTED]","[REDACTED]"]`,
+			got: func() (string, error) { return marshalString([]connection.Secret{secret, other}) },
+		},
+		{
+			name: "text", want: connection.RedactedValue,
+			got: func() (string, error) { return textString(secret) },
+		},
+		{
+			name: "yaml", want: connection.RedactedValue,
+			got: func() (string, error) { return fmt.Sprint(marshalled), nil },
+		},
+		{name: "String", want: connection.RedactedValue, got: func() (string, error) { return secret.String(), nil }},
+		{
+			name: "GoString",
+			want: connection.RedactedValue,
+			got:  func() (string, error) { return secret.GoString(), nil },
+		},
+		{
+			name: "LogValue", want: connection.RedactedValue,
+			got: func() (string, error) { return secret.LogValue().String(), nil },
+		},
+		{
+			name: "wrapped error", want: "failed with [REDACTED]: " + errScriptExhausted.Error(),
+			got: func() (string, error) {
+				return fmt.Errorf("failed with %v: %w", secret, errScriptExhausted).Error(), nil
+			},
+		},
+		{
+			name: "slog json", wantInLog: `"secret":"[REDACTED]"`,
+			got: func() (string, error) {
+				var buf bytes.Buffer
 
-	slog.New(slog.NewJSONHandler(&jsonLogs, nil)).LogAttrs(t.Context(), slog.LevelInfo, "m",
-		slog.Any("secret", secret), slog.Any("nested", nested), slog.Any("pointer", &secret))
-	slog.New(slog.NewTextHandler(&textLogs, nil)).LogAttrs(t.Context(), slog.LevelInfo, "m",
-		slog.Any("secret", secret), slog.Any("nested", nested), slog.Any("pointer", &secret))
+				slog.New(slog.NewJSONHandler(&buf, nil)).LogAttrs(context.Background(), slog.LevelInfo, "m",
+					slog.Any("secret", secret), slog.Any("nested", nested), slog.Any("pointer", &secret))
 
-	outputs := map[string]string{
-		"json nested":    string(encoded),
-		"slog json":      jsonLogs.String(),
-		"slog text":      textLogs.String(),
-		"%v nested":      fmt.Sprintf("%v", nested),
-		"%+v nested":     fmt.Sprintf(verbPlusV, nested),
-		"%#v nested":     fmt.Sprintf(verbGoV, nested),
-		"%v slice":       fmt.Sprintf("%v", []connection.Secret{secret}),
-		"%v map":         fmt.Sprintf("%v", map[string]connection.Secret{"k": secret}),
-		"%v map key":     fmt.Sprintf("%v", map[connection.Secret]int{secret: 1}),
-		"%v error wrap":  fmt.Errorf("failed with %v: %w", secret, errScriptExhausted).Error(),
-		"String":         secret.String(),
-		"GoString":       secret.GoString(),
-		"LogValue":       secret.LogValue().String(),
-		"LogValue group": slog.GroupValue(slog.Any("s", secret)).String(),
+				return buf.String(), nil
+			},
+		},
+		{
+			name: "slog text", wantInLog: "secret=[REDACTED]",
+			got: func() (string, error) {
+				var buf bytes.Buffer
+
+				slog.New(slog.NewTextHandler(&buf, nil)).LogAttrs(context.Background(), slog.LevelInfo, "m",
+					slog.Any("secret", secret), slog.Any("nested", nested), slog.Any("pointer", &secret))
+
+				return buf.String(), nil
+			},
+		},
 	}
 
-	verbs := []string{
-		"%v",
-		verbPlusV,
-		verbGoV,
-		"%s",
-		"%q",
-		"%d",
-		"%x",
-		"%X",
-		"%c",
-		"%U",
-		"%t",
-		"%e",
-		"%08.3f",
-		"%10s",
-		"%-10v",
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, gotErr := tt.got()
+			require.NoError(t, gotErr)
+			assert.NotContains(t, got, canary)
+
+			switch {
+			case tt.wantInLog != "":
+				assert.Contains(t, got, tt.wantInLog)
+			case tt.wantJSON:
+				assert.JSONEq(t, tt.want, got)
+			default:
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// TestSecret_AsMapKeyCollides pins a deliberate behaviour: a Secret is not meant to be a map key. As a key it
+// encodes to the redaction marker, so several secret keys give several members of the same name (and a
+// decoder keeps one of them): the value is never emitted, whatever the cost in entries.
+func TestSecret_AsMapKeyCollides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		keys        []string
+		wantMembers int // members of the JSON object, all named [REDACTED]
+		wantDecoded int // entries left after decoding into a map
+	}{
+		{name: "one key", keys: []string{canary + "-1"}, wantMembers: 1, wantDecoded: 1},
+		{name: "two keys", keys: []string{canary + "-1", canary + "-2"}, wantMembers: 2, wantDecoded: 1},
+		{
+			name:        "three keys",
+			keys:        []string{canary + "-1", canary + "-2", canary + "-3"},
+			wantMembers: 3,
+			wantDecoded: 1,
+		},
 	}
 
-	for _, verb := range verbs {
-		outputs[verb] = fmt.Sprintf(verb, secret)
-		outputs[verb+" pointer"] = fmt.Sprintf(verb, &secret)
-		outputs[verb+" nested"] = fmt.Sprintf(verb, nested)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			byKey := map[connection.Secret]int{}
+			for i, key := range tt.keys {
+				byKey[connection.NewSecret(key)] = i
+			}
+
+			encoded, err := json.Marshal(byKey)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), canary)
+			assert.Equal(t, tt.wantMembers, strings.Count(string(encoded), `"`+connection.RedactedValue+`":`))
+
+			var decoded map[string]int
+
+			require.NoError(t, json.Unmarshal(encoded, &decoded))
+			assert.Len(t, decoded, tt.wantDecoded)
+		})
 	}
+}
 
-	marshalled, err := secret.MarshalYAML()
-	require.NoError(t, err)
+func marshalString(value any) (string, error) {
+	out, err := json.Marshal(value)
 
-	outputs["yaml"] = fmt.Sprint(marshalled)
+	return string(out), err
+}
 
-	for name, out := range outputs {
-		assert.NotContains(t, out, canary, name)
-		assert.NotEmpty(t, out, name)
-	}
+func textString(secret connection.Secret) (string, error) {
+	out, err := secret.MarshalText()
 
-	assert.JSONEq(t, `{"pointer":"[REDACTED]","byKey":{"[REDACTED]":1},"byValue":{"k":"[REDACTED]"},`+
-		`"inner":{"secret":"[REDACTED]"},"plain":"[REDACTED]"}`, string(encoded))
-	assert.Equal(t, "[REDACTED]", fmt.Sprintf("%d", secret))
-	assert.Equal(t, "[REDACTED]", fmt.Sprintf("%x", secret))
-	assert.Equal(t, "[REDACTED]", marshalled)
-	assert.True(t, connection.NewSecret("").IsZero())
-	assert.False(t, secret.IsZero())
+	return string(out), err
 }
