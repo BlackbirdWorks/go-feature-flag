@@ -98,13 +98,55 @@ type keysSpec struct {
 // checkKeys writes every key of the universe, with a value and with an empty value, and asserts the verdict of
 // the loader and of the schema against the documented rule: a key is accepted when it is allowed, and an empty
 // value only when it is not a secret.
+// documentedKeys splits the keys of the struct by the documented lists: the allowed ones that the loop must write
+// as accepted, the others that it must write as rejected, and the names of all of them.
+func documentedKeys(universe []keyCase, spec keysSpec) ([]string, []string, []string) {
+	var accepted, rejected []string
+
+	names := make([]string, 0, len(universe))
+
+	for _, key := range universe {
+		names = append(names, key.name)
+
+		switch {
+		case slices.Contains(spec.skip, key.name):
+		case slices.Contains(spec.allowed, key.name):
+			accepted = append(accepted, key.name)
+		default:
+			rejected = append(rejected, key.name)
+		}
+	}
+
+	return accepted, rejected, names
+}
+
+// skippedNotInUniverse counts the skipped names that are not keys of the struct (for example a key of the base
+// that the struct does not have).
+func skippedNotInUniverse(universe []keyCase, spec keysSpec) int {
+	count := 0
+
+	for _, name := range spec.skip {
+		if !slices.ContainsFunc(universe, func(key keyCase) bool { return key.name == name }) {
+			count++
+		}
+	}
+
+	return count
+}
+
 func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe []keyCase, spec keysSpec) {
 	t.Helper()
 
 	loader, schema := verdicts(t, checker, root, spec.build(""))
 	require.True(t, loader && schema, "the base document is valid for both")
 
-	var accepted, rejected int
+	wantAccepted, wantRejected, names := documentedKeys(universe, spec)
+
+	for _, name := range spec.allowed {
+		require.Contains(t, names, name, "an allowed key of the list is a key of the struct")
+	}
+
+	var acceptedValues, rejectedValues []string
 
 	for _, key := range universe {
 		if slices.Contains(spec.skip, key.name) {
@@ -112,14 +154,13 @@ func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe
 		}
 
 		allowed := slices.Contains(spec.allowed, key.name)
-
-		wantValue := allowed
 		wantEmpty := allowed && !slices.Contains(secretFields(), key.name)
 
 		for _, variant := range []struct {
-			value string
-			want  bool
-		}{{key.value, wantValue}, {key.empty, wantEmpty}} {
+			value   string
+			want    bool
+			isEmpty bool
+		}{{key.value, allowed, false}, {key.empty, wantEmpty, true}} {
 			if variant.value == "" {
 				continue
 			}
@@ -130,20 +171,22 @@ func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe
 			assert.Equal(t, variant.want, gotLoader, "the loader on:\n%s", doc)
 			assert.Equal(t, variant.want, gotSchema, "the schema on:\n%s", doc)
 
-			if variant.want {
-				accepted++
-			} else {
-				rejected++
+			switch {
+			case variant.isEmpty:
+			case variant.want:
+				acceptedValues = append(acceptedValues, key.name)
+			default:
+				rejectedValues = append(rejectedValues, key.name)
 			}
 		}
 	}
 
-	// the loop must have tested something on both sides: a skipped universe would pass without checking
-	assert.Positive(t, rejected, "keys that are not allowed were tested")
+	// every allowed key was written as accepted and every other key as rejected, and none was left out
+	assert.ElementsMatch(t, wantAccepted, acceptedValues, "the allowed keys that were tested")
+	assert.ElementsMatch(t, wantRejected, rejectedValues, "the disallowed keys that were tested")
 
-	if len(spec.allowed) > len(spec.skip) {
-		assert.Positive(t, accepted, "keys that are allowed were tested")
-	}
+	assert.Len(t, universe, len(spec.skip)-skippedNotInUniverse(universe, spec)+len(acceptedValues)+len(rejectedValues),
+		"no key of the struct was left out")
 }
 
 func TestKeysOfEveryExporterKind(t *testing.T) {

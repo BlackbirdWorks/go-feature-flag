@@ -155,21 +155,26 @@ func TestParseValidFixes(t *testing.T) {
 	tests := []struct {
 		name         string
 		doc          string
-		wantControl  bool
+		wantEndpoint string
 		wantExporter int
+		wantControl  bool
+		wantExternal bool
 	}{
 		{name: "null controlPlane", doc: "version: 2\ncontrolPlane: null\n"},
 		{
-			name: "externalId by reference",
-			doc:  s3Pre + "    credentials: {type: assumeRole, roleArn: arn, externalId: {fromEnv: X}}\n",
+			name:         "externalId by reference",
+			doc:          s3Pre + "    credentials: {type: assumeRole, roleArn: arn, externalId: {fromEnv: X}}\n",
+			wantExternal: true,
 		},
 		{
-			name: "tracing endpoint as host:port",
-			doc:  "version: 2\nobservability:\n  tracing: {otlpEndpoint: \"otel:4317\"}\n",
+			name:         "tracing endpoint as host:port",
+			doc:          "version: 2\nobservability:\n  tracing: {otlpEndpoint: \"otel:4317\"}\n",
+			wantEndpoint: "otel:4317",
 		},
 		{
-			name: "tracing endpoint as URL",
-			doc:  "version: 2\nobservability:\n  tracing: {otlpEndpoint: \"https://otel:4318\"}\n",
+			name:         "tracing endpoint as URL",
+			doc:          "version: 2\nobservability:\n  tracing: {otlpEndpoint: \"https://otel:4318\"}\n",
+			wantEndpoint: "https://otel:4318",
 		},
 		{name: "anchored exporter", doc: "version: 2\nexporters:\n  a: &x {kind: log}\n  b: *x\n", wantExporter: 2},
 	}
@@ -182,6 +187,10 @@ func TestParseValidFixes(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tcase.wantControl, cfg.ControlPlane != nil)
 			assert.Len(t, cfg.Exporters, tcase.wantExporter)
+			assert.Equal(t, tcase.wantEndpoint, cfg.Observability.Tracing.OTLPEndpoint)
+
+			external := cfg.Connections["a"].S3 != nil && cfg.Connections["a"].S3.Credentials.ExternalID.IsSet()
+			assert.Equal(t, tcase.wantExternal, external)
 		})
 	}
 }

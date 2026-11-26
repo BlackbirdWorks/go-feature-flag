@@ -402,7 +402,7 @@ func TestClassifyPositions(t *testing.T) {
 		{name: "admin key reference", path: []string{tcAuth, tcAdminkeys, "[]", envReference}, want: positionReference},
 		{
 			name: "admin key file reference",
-			path: []string{tcAuth, tcAdminkeys, "[]", "fromFile"},
+			path: []string{tcAuth, tcAdminkeys, "[]", fileReference},
 			want: positionReference,
 		},
 		{name: "a key under auth", path: []string{tcAuth, "other"}, want: positionPlain},
@@ -411,7 +411,7 @@ func TestClassifyPositions(t *testing.T) {
 		{name: "external id", path: []string{tcConnections, "a", tcCredentials, tcExternalid}, want: positionValue},
 		{
 			name: "credentials reference",
-			path: []string{tcConnections, "a", tcCredentials, tcAccesskeyid, "fromFile"},
+			path: []string{tcConnections, "a", tcCredentials, tcAccesskeyid, fileReference},
 			want: positionReference,
 		},
 		{name: tcBucket, path: []string{tcConnections, "a", tcBucket}, want: positionPlain},
