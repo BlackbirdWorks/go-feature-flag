@@ -181,7 +181,7 @@ func checkOneGeneration(t *testing.T, current *flagruntime.Runtime, sets int) {
 
 // While the candidate waits for its swap the builder holds the running and the candidate version of every flag set
 // that changed, and one version of the others. Older versions stay reachable only while a reader or an event that
-// nobody consumed still holds them.
+// the engine has not yet handed to the consumer still holds them.
 func TestSwapBuildsOnlyTheChangedFlagSetsAndSharesTheRest(t *testing.T) {
 	t.Parallel()
 

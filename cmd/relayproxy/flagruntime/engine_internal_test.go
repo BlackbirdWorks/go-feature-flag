@@ -247,14 +247,14 @@ func TestRoundResultCountsTheEventsLeftWaiting(t *testing.T) {
 			},
 		},
 		{
-			name: "created and withdrawn before the consumer reads: it cancels out and counts zero",
+			name: "created and withdrawn while still pending: it cancels out and counts zero",
 			steps: []step{
 				{tmp: withFlag, wantEvents: 1},
 				{wantEvents: 0},
 			},
 		},
 		{
-			name: "a flag gained and lost before the consumer reads: it cancels out and counts zero",
+			name: "a flag gained and lost while still pending: it cancels out and counts zero",
 			steps: []step{
 				{tmp: withNothing, wantEvents: 0},
 				{tmp: withFlag, wantEvents: 1},

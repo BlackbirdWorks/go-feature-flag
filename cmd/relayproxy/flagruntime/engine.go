@@ -80,11 +80,13 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // flag set and queue it for the consumer. A rejected candidate stores nothing.
 //
 // Change events: the consumer reads [Engine.Changes], a channel of bounded size. The engine never blocks on
-// it: an event that does not fit is kept per flag set in a pending table and merged with later changes of the
-// same flag set (the diff goes from the state the consumer last saw to the newest one), and it is sent when the
-// consumer reads again. The table holds at most one entry per flag set name, so it is bounded by the number of
-// flag sets, and no name is lost. Pending events that the consumer never reads are dropped when Run returns,
-// and the channel is closed.
+// it: an event that does not fit in the channel is kept per flag set in a pending table and merged with later
+// changes of the same flag set (the diff goes from the state the consumer last saw to the newest one), and it is
+// handed to the channel when there is room. An event can be merged or cancelled only while it is in the pending
+// table, before it was handed to the channel; with free room in the channel it is handed over at once, so a
+// creation and a withdrawal can arrive as two events. The table holds at most one entry per flag set name, so it
+// is bounded by the number of flag sets, and no name is lost. Events still in the pending table when Run returns
+// are dropped, and the channel is closed.
 type Engine struct {
 	logger  *slog.Logger
 	holder  *Holder
@@ -175,13 +177,15 @@ func (e *Engine) Reload(cfg *bootstrap.Config) {
 	}
 }
 
-// Changes returns the channel of change events; it is closed when Run returns.
+// Changes returns the channel of change events; it is closed when Run returns. See [Engine] for when an event can
+// still be merged or cancelled: only before the engine hands it to this channel.
 func (e *Engine) Changes() <-chan Change { return e.changes }
 
 // Result returns the result of the last round, applied, ignored or rejected. A rejected round stores nothing, so
 // its reason is not in the status of the running Runtime: it is read here (the wiring of the relay exposes it),
 // and it is carried by the Status of the next Runtime as LastRejected. Result is safe to call from any
-// goroutine; before the first round it returns the zero RoundResult.
+// goroutine; before the first round it returns the zero RoundResult. The result of a rejected or ignored round
+// differs from the Status.LastReload of the stored runtime, which keeps the last applied round.
 func (e *Engine) Result() RoundResult {
 	if res := e.last.Load(); res != nil {
 		return *res

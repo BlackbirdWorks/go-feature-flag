@@ -1,11 +1,11 @@
 package flagruntime
 
-// pendingChange is a change that waits for the consumer.
+// pendingChange is a change that waits in the engine for room in the channel of the consumer.
 type pendingChange struct {
 	prev, next *pendingChange
 	change     Change
 	// fromNothing says that the consumer did not know the flag set before this pending change started: if the
-	// flag set is withdrawn before the consumer reads, the net change is nothing.
+	// flag set is withdrawn while the change is still pending, the net change is nothing.
 	fromNothing bool
 }
 

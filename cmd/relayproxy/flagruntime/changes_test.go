@@ -541,7 +541,7 @@ func TestEmptyFlagSetChurnDoesNotGrowTheEventQueue(t *testing.T) {
 
 // A flag set that the consumer knows always gets a Removed event, whatever its flags were before; one that the
 // consumer never heard of gets none. Every step waits for the events it expects before the next generation is
-// fed, so nothing coalesces: the consumer reads each event as it is sent.
+// fed, so nothing coalesces: each event is handed to the channel and read before the next generation.
 func TestRemovedEventsFollowWhatTheConsumerKnows(t *testing.T) {
 	t.Parallel()
 

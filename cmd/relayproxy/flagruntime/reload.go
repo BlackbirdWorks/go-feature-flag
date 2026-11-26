@@ -51,13 +51,16 @@ type Reload struct {
 }
 
 // RoundResult is the result of one round as the engine reports it ([Engine.Result], [Hooks.AfterRound]): the
-// [Reload] that the status of a stored runtime carries, plus what the round did to the queue of change events.
+// [Reload] of the round itself, plus what the round did to the queue of change events. After an applied round the
+// Reload is the one in Status.LastReload of the stored runtime; after a rejected or ignored round it is not (the
+// running runtime keeps its previous LastReload).
 type RoundResult struct {
 	Reload
 
-	// Events is the number of flag sets for which the round left a change event waiting for the consumer. A new
-	// change counts once, a change merged into a waiting one counts once (per flag set and round), and a change that
-	// cancels out (a flag set created and withdrawn, or flags gained and lost, before the consumer read anything)
-	// counts zero. A round that is not applied has none.
+	// Events is the number of flag sets for which the round left a change event waiting in the pending table of the
+	// engine, not yet handed to the channel of the consumer. A new change counts once, a change merged into a
+	// waiting one counts once (per flag set and round), and a change that cancels out (a flag set created and
+	// withdrawn, or flags gained and lost, while it is still in the pending table) counts zero. A round that is
+	// not applied has none.
 	Events int `json:"events"`
 }

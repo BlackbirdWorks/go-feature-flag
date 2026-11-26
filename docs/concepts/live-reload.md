@@ -29,7 +29,7 @@ The relay changes what it serves while it runs: no restart, no redeploy, no fail
 
 A rejected round stores nothing, so the running runtime does not show it. The last round result (applied, ignored or rejected, with its reason) is read from `Engine.Result()`; the relay wiring exposes it. The next runtime that is stored also carries it as `Status.LastRejected`.
 
-The round result (`RoundResult`) is the stored `Reload` plus `Events`, the number of flag sets for which the round left a change event waiting (a merge into a waiting event counts once; a change that cancels out, such as a flag set created and withdrawn before the consumer read anything, counts zero). The stored status has no such member.
+The round result (`RoundResult`) is the `Reload` of the round itself plus `Events`. After an applied round its `Reload` is the one stored in `Status.LastReload`; after a rejected or ignored round it differs from the stored one (the running runtime keeps its previous `LastReload`). `Events` is the number of flag sets for which the round left a change event waiting in the engine's pending table: a new change counts once, a merge into a waiting change counts once, and a change that cancels out (a flag set created and withdrawn, or flags gained and lost, while the change is still in the pending table) counts zero. The stored status has no such member.
 
 ## Last-known-good, level by level
 
@@ -117,7 +117,7 @@ Costs that remain proportional to the fleet, and nothing else:
 - a round that changes a flag set copies the flag-set table, the status table and the key table once (O(flag sets) and O(keys) map copies, no per-flag work);
 - a round that changes a flag-set document, or adds or removes any object, also walks every entry of the documents (O(entries + keys)) and reuses the unchanged flag sets by pointer. Documents that did not change are not validated again unless a flags object name was added or removed; each document that is validated costs O(objects) for the lookup of its sources, so that walk costs O(validated documents x objects) on top.
 
-The builder holds the running and the candidate version of a changed flag set, and one version of an unchanged one. Older versions stay reachable only while a reader (a request that loaded its runtime) or an event nobody consumed still holds them, so the memory in use depends on how long readers keep a runtime, not on a fixed number of versions.
+The builder holds the running and the candidate version of a changed flag set, and one version of an unchanged one. Older versions stay reachable only while a reader (a request that loaded its runtime) or an event that is still in the pending table or the channel of the consumer still holds them, so the memory in use depends on how long readers keep a runtime, not on a fixed number of versions.
 
 Values of variations are shared between flag sets: treat a returned value as read-only.
 
@@ -127,7 +127,7 @@ Values of variations are shared between flag sets: treat a returned value as rea
 
 ## Change events
 
-After a swap the engine sends one event per rebuilt flag set whose flags changed (added, deleted and updated flags, found by pointer comparison). A withdrawn flag set that the consumer knows (an event for it was delivered or waits) always gets a `Removed` event, even when its flags were all deleted before; a flag set the consumer never heard of (it never had a flag) gets none, so churn of empty flag sets queues nothing. The consumer reads a bounded channel. If it is slow, events wait per flag set and merge with later changes of the same flag set, so no flag-set name is lost and the engine never blocks. A flag set that is created and removed while its event waits produces no event.
+After a swap the engine sends one event per rebuilt flag set whose flags changed (added, deleted and updated flags, found by pointer comparison). A withdrawn flag set that the consumer knows (an event for it was delivered or waits) always gets a `Removed` event, even when its flags were all deleted before; a flag set the consumer never heard of (it never had a flag) gets none, so churn of empty flag sets queues nothing. The consumer reads a bounded channel. An event is merged with a later change of the same flag set, or cancelled, only while it is still in the engine's pending table, that is before the engine has handed it to the channel. When the channel has free space an event is handed over at once, so a creation and a withdrawal can then arrive as two events. When the consumer is slow the channel is full, events wait in the pending table per flag set and merge with later changes of the same flag set, so no flag-set name is lost and the engine never blocks. A flag set that is created and removed while its event is still in the pending table produces no event.
 
 The events of one flag set arrive in order. Events of different flag sets are not ordered by generation: a waiting event keeps the place of the first change it merged.
 
