@@ -1,7 +1,6 @@
 package bootstrap_test
 
 import (
-	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -29,12 +28,12 @@ func keyCases(t *testing.T, typ reflect.Type) []keyCase {
 	t.Helper()
 
 	samples := map[string]string{
-		"format": "csv", "queueUrl": "https://q.example/q", "kafka": "{topic: t, addresses: [\"h:1\"]}",
-		"meta": "{a: b}", "headers": "{A: {fromEnv: X}}", "maxEventInMemory": "5", "flushInterval": "10s",
-		"autoMigrate": "true", endpointURLKey: envRef, "secret": envRef, webhookURLKey: envRef,
-		"googleCredentials": envRef, "accountKey": envRef, "accessKeyId": envRef,
-		"secretAccessKey": envRef, "sessionToken": envRef, "externalId": envRef,
-		"tableName": "tbl",
+		"format": "csv", "queueUrl": "https://q.example/q", tcKafka: "{topic: t, addresses: [\"h:1\"]}",
+		tcMeta: "{a: b}", tcHeaders: "{A: {fromEnv: X}}", "maxEventInMemory": "5", "flushInterval": "10s",
+		"autoMigrate": "true", endpointURLKey: envRef, tcSecret: envRef, webhookURLKey: envRef,
+		tcGooglecredentials: envRef, tcAccountkey: envRef, tcAccesskeyid: envRef,
+		tcSecretaccesskey: envRef, tcSessiontoken: envRef, tcExternalid: envRef,
+		tcTablename: "tbl",
 	}
 
 	var out []keyCase
@@ -67,8 +66,8 @@ func keyCases(t *testing.T, typ reflect.Type) []keyCase {
 	return out
 }
 
-// agreeOn parses the document with the loader and checks it against the schema, and asserts they agree.
-func agreeOn(t *testing.T, checker *schemaChecker, root schemaObject, doc string) bool {
+// verdicts parses the document with the loader and checks it against the schema.
+func verdicts(t *testing.T, checker *schemaChecker, root schemaObject, doc string) (bool, bool) {
 	t.Helper()
 
 	var value any
@@ -76,14 +75,63 @@ func agreeOn(t *testing.T, checker *schemaChecker, root schemaObject, doc string
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &value))
 
 	_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
-	violations := checker.check("", root, value)
 
-	assert.Equal(t, err == nil, len(violations) == 0, "loader error: %v\nschema: %v\n%s", err, violations, doc)
-
-	return err == nil
+	return err == nil, len(checker.check("", root, value)) == 0
 }
 
-func TestSchemaAndLoaderAgreeOnKeysOfEveryKind(t *testing.T) {
+// secretFields are the settings that are secrets: an empty value is not accepted for them.
+func secretFields() []string {
+	return []string{
+		endpointURLKey, tcSecret, webhookURLKey, tcGooglecredentials, tcAccountkey, tcAccesskeyid, tcSecretaccesskey,
+		tcSessiontoken, tcExternalid,
+	}
+}
+
+// keysSpec is one table case: a base document that is valid, the keys documented as allowed for it besides the
+// ones already in the base, and a builder of the document with one more key.
+type keysSpec struct {
+	build   func(extra string) string
+	skip    []string
+	allowed []string
+}
+
+// checkKeys writes every key of the universe, with a value and with an empty value, and asserts the verdict of
+// the loader and of the schema against the documented rule: a key is accepted when it is allowed, and an empty
+// value only when it is not a secret.
+func checkKeys(t *testing.T, checker *schemaChecker, root schemaObject, universe []keyCase, spec keysSpec) {
+	t.Helper()
+
+	loader, schema := verdicts(t, checker, root, spec.build(""))
+	require.True(t, loader && schema, "the base document is valid for both")
+
+	for _, key := range universe {
+		if slices.Contains(spec.skip, key.name) {
+			continue
+		}
+
+		allowed := slices.Contains(spec.allowed, key.name)
+
+		wantValue := allowed
+		wantEmpty := allowed && !slices.Contains(secretFields(), key.name)
+
+		for _, variant := range []struct {
+			value string
+			want  bool
+		}{{key.value, wantValue}, {key.empty, wantEmpty}} {
+			if variant.value == "" {
+				continue
+			}
+
+			doc := spec.build(key.name + ": " + variant.value)
+			gotLoader, gotSchema := verdicts(t, checker, root, doc)
+
+			assert.Equal(t, variant.want, gotLoader, "the loader on:\n%s", doc)
+			assert.Equal(t, variant.want, gotSchema, "the schema on:\n%s", doc)
+		}
+	}
+}
+
+func TestKeysOfEveryExporterKind(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
@@ -92,57 +140,76 @@ func TestSchemaAndLoaderAgreeOnKeysOfEveryKind(t *testing.T) {
 	checker, root, err := newSchemaChecker(raw)
 	require.NoError(t, err)
 
-	exporters := map[string]string{
-		bootstrap.ExporterFile:          "outputDir: /tmp",
-		bootstrap.ExporterWebhook:       "endpointUrl: {fromEnv: U}",
-		bootstrap.ExporterLog:           "logFormat: x",
-		bootstrap.ExporterS3:            "connection: s",
-		bootstrap.ExporterKinesis:       "connection: ks",
-		bootstrap.ExporterGoogleStorage: "bucket: b",
-		bootstrap.ExporterSQS:           "connection: qq",
-		bootstrap.ExporterKafka:         "kafka: {topic: t, addresses: [\"h:1\"]}",
-		bootstrap.ExporterPubSub:        "projectId: p\n    topic: t",
-		bootstrap.ExporterBigQuery:      "projectId: p\n    datasetId: d",
-		bootstrap.ExporterRedshift:      "connection: w\n    database: d\n    clusterIdentifier: c",
-		bootstrap.ExporterAzure:         "container: c\n    accountName: a",
-		bootstrap.ExporterOTel:          "tracerName: t",
+	common := []string{tcKind, tcMeta, "flushInterval", "maxEventInMemory", "eventType"}
+	formats := []string{"filename", "csvTemplate", "format", "parquetCompressionCodec"}
+
+	tests := []struct {
+		kind    string
+		base    string
+		allowed []string
+	}{
+		{bootstrap.ExporterFile, "outputDir: /tmp", append([]string{"outputDir"}, formats...)},
+		{bootstrap.ExporterWebhook, "endpointUrl: {fromEnv: U}", []string{endpointURLKey, tcSecret, tcHeaders}},
+		{bootstrap.ExporterLog, "logFormat: x", []string{"logFormat"}},
+		{bootstrap.ExporterS3, "connection: s", append([]string{tcConnection, tcPath}, formats...)},
+		{bootstrap.ExporterKinesis, "connection: ks", []string{tcConnection, "streamArn", "streamName"}},
+		{
+			bootstrap.ExporterGoogleStorage,
+			"bucket: b",
+			append([]string{tcBucket, tcGooglecredentials, tcPath}, formats...),
+		},
+		{bootstrap.ExporterSQS, "connection: qq", []string{tcConnection, "queueUrl"}},
+		{bootstrap.ExporterKafka, "kafka: {topic: t, addresses: [\"h:1\"]}", []string{tcKafka}},
+		{bootstrap.ExporterPubSub, "projectId: p\n    topic: t", []string{"projectId", "topic", tcGooglecredentials}},
+		{
+			bootstrap.ExporterBigQuery,
+			"projectId: p\n    datasetId: d",
+			[]string{"projectId", "datasetId", tcTablename, tcGooglecredentials},
+		},
+		{
+			bootstrap.ExporterRedshift, "connection: w\n    database: d\n    clusterIdentifier: c",
+			[]string{tcConnection, "database", "clusterIdentifier", "dbUser", "secretArn", tcTablename, "autoMigrate"},
+		},
+		{
+			bootstrap.ExporterAzure,
+			"container: c\n    accountName: a",
+			append([]string{"container", "accountName", tcAccountkey, tcPath}, formats...),
+		},
+		{bootstrap.ExporterOTel, "tracerName: t", []string{"tracerName"}},
 	}
 
-	keys := keyCases(t, reflect.TypeFor[bootstrap.Exporter]())
+	universe := keyCases(t, reflect.TypeFor[bootstrap.Exporter]())
 
-	for _, kind := range slices.Sorted(maps.Keys(exporters)) {
-		t.Run("exporter "+kind, func(t *testing.T) {
+	for _, tcase := range tests {
+		t.Run(tcase.kind, func(t *testing.T) {
 			t.Parallel()
 
-			base := kindConns + "exporters:\n  e:\n    kind: " + kind + "\n    " + exporters[kind] + "\n"
-			require.True(t, agreeOn(t, checker, root, base), "the base document is valid")
+			prefix := kindConns + "exporters:\n  e:\n    kind: " + tcase.kind + "\n    " + tcase.base + "\n"
 
-			rejected := 0
+			// the Redshift cluster and workgroup exclusion is a loader rule that the schema does not have
+			skip := []string{tcKind, "workgroupName"}
 
-			for _, key := range keys {
-				// the exclusive pairs of Redshift (cluster or workgroup) are loader rules, not schema rules
-				if key.name == "kind" || strings.Contains(exporters[kind], key.name+":") ||
-					(kind == bootstrap.ExporterRedshift && key.name == "workgroupName") {
-					continue
-				}
-
-				for _, value := range []string{key.value, key.empty} {
-					if value == "" {
-						continue
-					}
-
-					if !agreeOn(t, checker, root, base+"    "+key.name+": "+value+"\n") {
-						rejected++
-					}
-				}
+			for _, line := range strings.FieldsFunc(tcase.base, func(r rune) bool { return r == '\n' }) {
+				name, _, _ := strings.Cut(strings.TrimSpace(line), ":")
+				skip = append(skip, name)
 			}
 
-			assert.Positive(t, rejected, "some keys are not allowed for the kind")
+			checkKeys(t, checker, root, universe, keysSpec{
+				build: func(extra string) string {
+					if extra == "" {
+						return prefix
+					}
+
+					return prefix + "    " + extra + "\n"
+				},
+				skip:    skip,
+				allowed: append(slices.Clone(common), tcase.allowed...),
+			})
 		})
 	}
 }
 
-func TestSchemaAndLoaderAgreeOnKeysOfEveryNotifier(t *testing.T) {
+func TestKeysOfEveryNotifierKind(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
@@ -151,40 +218,41 @@ func TestSchemaAndLoaderAgreeOnKeysOfEveryNotifier(t *testing.T) {
 	checker, root, err := newSchemaChecker(raw)
 	require.NoError(t, err)
 
-	notifiers := map[string]string{
-		bootstrap.NotifierSlack: webhookURLKey, bootstrap.NotifierMicrosoftTeams: webhookURLKey,
-		bootstrap.NotifierDiscord: webhookURLKey, bootstrap.NotifierWebhook: endpointURLKey,
+	tests := []struct {
+		kind     string
+		required string
+		allowed  []string
+	}{
+		{bootstrap.NotifierSlack, webhookURLKey, []string{webhookURLKey}},
+		{bootstrap.NotifierMicrosoftTeams, webhookURLKey, []string{webhookURLKey}},
+		{bootstrap.NotifierDiscord, webhookURLKey, []string{webhookURLKey}},
+		{bootstrap.NotifierWebhook, endpointURLKey, []string{endpointURLKey, tcSecret, tcHeaders}},
 	}
 
-	keys := keyCases(t, reflect.TypeFor[bootstrap.Notifier]())
+	universe := keyCases(t, reflect.TypeFor[bootstrap.Notifier]())
 
-	for kind, required := range notifiers {
-		t.Run("notifier "+kind, func(t *testing.T) {
+	for _, tcase := range tests {
+		t.Run(tcase.kind, func(t *testing.T) {
 			t.Parallel()
 
-			base := "version: 2\nnotifiers:\n  n:\n    kind: " + kind + "\n    " + required + ": {fromEnv: U}\n"
-			require.True(t, agreeOn(t, checker, root, base))
+			prefix := "version: 2\nnotifiers:\n  n:\n    kind: " + tcase.kind + "\n    " + tcase.required + ": {fromEnv: U}\n"
 
-			rejected := 0
-
-			for _, key := range keys {
-				if key.name == "kind" || key.name == required {
-					continue
-				}
-
-				for _, value := range []string{key.value, key.empty} {
-					if value != "" && !agreeOn(t, checker, root, base+"    "+key.name+": "+value+"\n") {
-						rejected++
+			checkKeys(t, checker, root, universe, keysSpec{
+				build: func(extra string) string {
+					if extra == "" {
+						return prefix
 					}
-				}
-			}
 
-			assert.Positive(t, rejected)
+					return prefix + "    " + extra + "\n"
+				},
+				skip:    []string{tcKind, tcase.required},
+				allowed: append([]string{tcKind, tcMeta}, tcase.allowed...),
+			})
 		})
 	}
 }
 
-func TestSchemaAndLoaderAgreeOnKeysOfEveryCredentialsType(t *testing.T) {
+func TestKeysOfEveryCredentialsType(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile("../../../.schema/bootstrap-schema.json")
@@ -193,50 +261,54 @@ func TestSchemaAndLoaderAgreeOnKeysOfEveryCredentialsType(t *testing.T) {
 	checker, root, err := newSchemaChecker(raw)
 	require.NoError(t, err)
 
-	// the type written (empty text means the key is absent) and the keys that make the base valid
-	types := map[string]struct{ typeLine, base string }{
-		"absent":                         {"", ""},
-		"empty":                          {`type: ""`, ""},
-		bootstrap.CredentialsChain:       {"type: chain", ""},
-		bootstrap.CredentialsStatic:      {"type: static", "accessKeyId: {fromEnv: A}, secretAccessKey: {fromEnv: B}"},
-		bootstrap.CredentialsAssumeRole:  {"type: assumeRole", "roleArn: arn"},
-		bootstrap.CredentialsWebIdentity: {"type: webIdentity", "roleArn: arn, tokenFile: /t"},
+	// typeLine is what is written for the type (nothing when it is absent), base the keys that make it valid
+	tests := []struct {
+		name     string
+		typeLine string
+		base     string
+		skip     []string
+		allowed  []string
+	}{
+		{"absent", "", "", nil, nil},
+		{"empty", `type: ""`, "", nil, nil},
+		{bootstrap.CredentialsChain, "type: chain", "", nil, nil},
+		{
+			bootstrap.CredentialsStatic, "type: static", "accessKeyId: {fromEnv: A}, secretAccessKey: {fromEnv: B}",
+			[]string{tcAccesskeyid, tcSecretaccesskey}, []string{tcAccesskeyid, tcSecretaccesskey, tcSessiontoken},
+		},
+		{
+			bootstrap.CredentialsAssumeRole, "type: assumeRole", "roleArn: arn", []string{tcRolearn},
+			[]string{tcRolearn, "sessionName", tcExternalid},
+		},
+		{
+			bootstrap.CredentialsWebIdentity, "type: webIdentity", "roleArn: arn, tokenFile: /t",
+			[]string{tcRolearn, "tokenFile"}, []string{tcRolearn, "tokenFile", "sessionName"},
+		},
 	}
 
-	keys := keyCases(t, reflect.TypeFor[bootstrap.Credentials]())
+	universe := keyCases(t, reflect.TypeFor[bootstrap.Credentials]())
 
-	for name, spec := range types {
-		t.Run("credentials "+name, func(t *testing.T) {
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
 			t.Parallel()
 
-			entries := slices.DeleteFunc([]string{spec.typeLine, spec.base}, func(s string) bool { return s == "" })
+			entries := slices.DeleteFunc(
+				[]string{tcase.typeLine, tcase.base},
+				func(entry string) bool { return entry == "" },
+			)
 
-			build := func(extra string) string {
-				all := slices.Clone(entries)
-				if extra != "" {
-					all = append(all, extra)
-				}
-
-				return "version: 2\nconnections:\n  a: {type: s3, credentials: {" + strings.Join(all, ", ") + "}}\n"
-			}
-
-			require.True(t, agreeOn(t, checker, root, build("")), "the base document is valid")
-
-			rejected := 0
-
-			for _, key := range keys {
-				if key.name == typeKey || strings.Contains(spec.base, key.name+":") {
-					continue
-				}
-
-				for _, value := range []string{key.value, key.empty} {
-					if value != "" && !agreeOn(t, checker, root, build(key.name+": "+value)) {
-						rejected++
+			checkKeys(t, checker, root, universe, keysSpec{
+				build: func(extra string) string {
+					all := slices.Clone(entries)
+					if extra != "" {
+						all = append(all, extra)
 					}
-				}
-			}
 
-			assert.Positive(t, rejected)
+					return "version: 2\nconnections:\n  a: {type: s3, credentials: {" + strings.Join(all, ", ") + "}}\n"
+				},
+				skip:    append([]string{"type"}, tcase.skip...),
+				allowed: tcase.allowed,
+			})
 		})
 	}
 }

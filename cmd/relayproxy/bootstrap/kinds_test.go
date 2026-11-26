@@ -98,7 +98,7 @@ func TestExporterKinds(t *testing.T) {
 			wantErr:  bootstrap.ErrMissingValue,
 			wantPath: "exporters.e.queueUrl",
 		},
-		{name: "kafka", body: "kind: kafka\n    kafka: {topic: t, addresses: [a:9092]}"},
+		{name: tcKafka, body: "kind: kafka\n    kafka: {topic: t, addresses: [a:9092]}"},
 		{
 			name:     "kafka without topic",
 			body:     "kind: kafka\n    kafka: {addresses: [a:9092]}",
@@ -177,8 +177,8 @@ func TestExporterKinds(t *testing.T) {
 				require.NoError(t, err)
 
 				got := cfg.Exporters["e"]
-				assert.Equal(t, bodyValue(tcase.body, "kind"), got.Kind)
-				assert.Equal(t, bodyValue(tcase.body, "connection"), got.Connection)
+				assert.Equal(t, bodyValue(tcase.body, tcKind), got.Kind)
+				assert.Equal(t, bodyValue(tcase.body, tcConnection), got.Connection)
 				assert.Equal(t, cmp.Or(bodyValue(tcase.body, "flushInterval"), "60s"), got.FlushInterval.String())
 
 				wantEvents := bootstrap.DefaultMaxEvents
@@ -230,7 +230,7 @@ func TestNotifierKinds(t *testing.T) {
 			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 			if tcase.wantErr == nil {
 				require.NoError(t, err)
-				assert.Equal(t, bodyValue(tcase.body, "kind"), cfg.Notifiers["n"].Kind)
+				assert.Equal(t, bodyValue(tcase.body, tcKind), cfg.Notifiers["n"].Kind)
 
 				return
 			}

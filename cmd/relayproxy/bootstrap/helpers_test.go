@@ -99,3 +99,32 @@ func findError(t *testing.T, err, sentinel error, path string) *bootstrap.Error 
 
 	return nil
 }
+
+const (
+	tcKafka       = "kafka"
+	tcConnections = "connections"
+	tcAdminkeys   = "adminKeys"
+	tcAccesskeyid = "accessKeyId"
+	tcExporters   = "exporters"
+	tcAccountkey  = "accountKey"
+	tcHeaders     = "headers"
+	tcRolearn     = "roleArn"
+	tcBucket      = "bucket"
+	tcMeta        = "meta"
+	tcPath        = "path"
+	tcSecret      = "secret"
+	tcExternalid  = "externalId"
+	tcTablename   = "tableName"
+	tcKind        = "kind"
+	tcConnection  = "connection"
+)
+
+const (
+	tcAuth              = "auth"
+	tcSecretaccesskey   = "secretAccessKey"
+	tcCredentials       = "credentials"
+	tcNotifiers         = "notifiers"
+	tcGooglecredentials = "googleCredentials"
+)
+
+const tcSessiontoken = "sessionToken"

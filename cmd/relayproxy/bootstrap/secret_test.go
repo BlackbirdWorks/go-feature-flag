@@ -121,7 +121,7 @@ func TestResolvedSecretNeverPrints(t *testing.T) {
 
 	var logs bytes.Buffer
 
-	slog.New(slog.NewJSONHandler(&logs, nil)).Info("resolved", slog.Any("secret", r))
+	slog.New(slog.NewJSONHandler(&logs, nil)).Info("resolved", slog.Any(tcSecret, r))
 
 	tests := []struct {
 		name string

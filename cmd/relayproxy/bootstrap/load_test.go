@@ -306,7 +306,7 @@ func TestParseErrorsReferences(t *testing.T) {
 		},
 		{
 			name: "wrong shape", doc: "version: 2\nconnections: [a]\n",
-			wantErr: bootstrap.ErrSyntax, wantPath: "connections", wantLine: 2,
+			wantErr: bootstrap.ErrSyntax, wantPath: tcConnections, wantLine: 2,
 		},
 		{
 			name: "root is a list", doc: "- a\n",

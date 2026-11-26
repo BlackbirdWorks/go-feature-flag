@@ -222,7 +222,7 @@ func TestAuthKeysAreNotEchoed(t *testing.T) {
 			require.ErrorIs(t, err, bootstrap.ErrUnknownKey)
 			assert.NotContains(t, err.Error(), canary)
 
-			got := findError(t, err, bootstrap.ErrUnknownKey, "auth")
+			got := findError(t, err, bootstrap.ErrUnknownKey, tcAuth)
 			assert.Equal(t, tcase.line, got.Line)
 		})
 	}
