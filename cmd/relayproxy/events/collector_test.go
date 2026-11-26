@@ -78,7 +78,7 @@ func TestCollector(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	runtime := events.NewRuntime(&events.RuntimeConfig{NewManager: fac.build, QueueSize: 4, Workers: 1, BatchSize: 1})
+	runtime := newRuntime(t, &events.RuntimeConfig{NewManager: fac.build, QueueSize: 4, Workers: 1, BatchSize: 1})
 	changes := make(chan flagruntime.Change)
 
 	require.NoError(t, runtime.Start(context.Background(), changes))

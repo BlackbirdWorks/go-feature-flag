@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"runtime"
 	"runtime/pprof"
 	"slices"
 	"strconv"
@@ -336,11 +335,12 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 	for i, event := range inputEvents {
 		mgr.AddEvent(event)
 		want[i] = event
-		// we have to wait because we are opening a new thread to slow down the flag evaluation.
-		time.Sleep(1 * time.Millisecond)
 	}
 
-	assert.Equal(t, want[:100], mockExporter.GetExportedEvents())
+	// A live exporter receives the events from a goroutine of its own: wait for them, the timeout only bounds a failure.
+	require.Eventually(t, func() bool { return len(mockExporter.GetExportedEvents()) == len(want) },
+		10*time.Second, 5*time.Millisecond, "the live exporter did not receive the events")
+	assert.Equal(t, want, mockExporter.GetExportedEvents())
 }
 
 func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
@@ -414,13 +414,13 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 	}
 }
 
+// TestDataExporterManager_multipleExporters runs a live exporter and a bulk exporter side by side. The bulk
+// exporter flushes on its size only: its interval is an hour, so no ticker can fire during the test and the
+// assertions do not depend on timing.
 func TestDataExporterManager_multipleExporters(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
-			"AddEvent/flush-interval assumptions this test relies on")
-	}
+	const bulkSize = 100
 
 	mockExporter1 := mock.Exporter{Bulk: false}
 	mockExporter2 := mock.Exporter{Bulk: true}
@@ -431,8 +431,8 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 			Exporter:         &mockExporter1,
 		},
 		{
-			FlushInterval:    200 * time.Millisecond,
-			MaxEventInMemory: 200,
+			FlushInterval:    time.Hour, // only the number of events triggers the flush, never the ticker
+			MaxEventInMemory: bulkSize,
 			Exporter:         &mockExporter2,
 		},
 	}
@@ -443,26 +443,38 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	go mgr.Start()
 	defer mgr.Stop()
 
-	// Initialize inputEvents slice
-	inputEvents := make([]*exporter.FeatureEvent, 0, 100)
-	for range 100 {
-		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
+	events := make([]*exporter.FeatureEvent, bulkSize)
+	for i := range events {
+		events[i] = exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
-			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil)
 	}
 
-	want := make([]exporter.ExportableEvent, len(inputEvents))
-	for i, event := range inputEvents {
+	// One event short of the size: the live exporter has everything, the bulk exporter nothing (and nothing can
+	// flush it: the size is not reached and the ticker is an hour away).
+	for _, event := range events[:bulkSize-1] {
 		mgr.AddEvent(event)
-		want[i] = event
-		// we have to wait because we are opening a new thread to slow down the flag evaluation.
-		time.Sleep(1 * time.Millisecond)
 	}
 
-	assert.Equal(t, want[:100], mockExporter1.GetExportedEvents())
-	assert.Empty(t, mockExporter2.GetExportedEvents())
-	time.Sleep(250 * time.Millisecond)
-	assert.Equal(t, want[:100], mockExporter2.GetExportedEvents())
+	require.Eventually(t, func() bool { return len(mockExporter1.GetExportedEvents()) == bulkSize-1 },
+		10*time.Second, 5*time.Millisecond, "the live exporter did not receive the events")
+	assert.Empty(t, mockExporter2.GetExportedEvents(), "the bulk exporter waits for its size")
+
+	// The event that reaches the size flushes the bulk exporter, in order.
+	mgr.AddEvent(events[bulkSize-1])
+
+	require.Eventually(t, func() bool { return len(mockExporter2.GetExportedEvents()) == bulkSize },
+		10*time.Second, 5*time.Millisecond, "the bulk exporter did not flush at its size")
+	require.Eventually(t, func() bool { return len(mockExporter1.GetExportedEvents()) == bulkSize },
+		10*time.Second, 5*time.Millisecond, "the live exporter did not receive the last event")
+
+	want := make([]exporter.ExportableEvent, len(events))
+	for i, event := range events {
+		want[i] = event
+	}
+
+	assert.Equal(t, want, mockExporter2.GetExportedEvents())
+	assert.Equal(t, want, mockExporter1.GetExportedEvents())
 }
 
 // batchRecorder is a bulk exporter that records the size of every batch it receives.

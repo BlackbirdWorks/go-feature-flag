@@ -74,16 +74,26 @@ func (d *Dispatcher) Apply(ctx context.Context, defs []ExporterDef) (ReloadSet, 
 		return ReloadSet{}, err
 	}
 
-	d.finishReload(ctx, &set, leaving)
+	drainCtx, cancel := d.newDrainContext(ctx)
+	defer cancel()
+
+	d.finishReload(drainCtx, &set, leaving)
 
 	return set, nil
 }
 
-// finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
-func (d *Dispatcher) finishReload(ctx context.Context, set *ReloadSet, leaving []*managed) {
-	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.DrainTimeout)
-	defer cancel()
+// newDrainContext returns the context that bounds a drain: the drain timeout, from now, whatever the context of
+// the reload.
+func (d *Dispatcher) newDrainContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if d.cfg.drainContext != nil {
+		return d.cfg.drainContext(parent)
+	}
 
+	return context.WithTimeout(context.WithoutCancel(parent), d.cfg.DrainTimeout)
+}
+
+// finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
+func (d *Dispatcher) finishReload(drainCtx context.Context, set *ReloadSet, leaving []*managed) {
 	for _, res := range d.waitClosed(drainCtx, leaving) {
 		if res.Cut {
 			set.Cut = append(set.Cut, res.Name)
@@ -222,6 +232,13 @@ func (d *Dispatcher) waitClosed(ctx context.Context, list []*managed) []DrainRes
 
 func (d *Dispatcher) awaitInstance(ctx context.Context, inst *managed) DrainResult {
 	res := DrainResult{Name: inst.def.Name, Kind: inst.def.Kind}
+
+	// an instance that finished is not cut, whatever the deadline: with both ready, select would pick at random
+	if inst.isFinished() {
+		res.Undelivered = asInt(inst.undelivered.Load())
+
+		return res
+	}
 
 	select {
 	case <-inst.finished:

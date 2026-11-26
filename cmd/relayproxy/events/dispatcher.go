@@ -40,23 +40,14 @@ type NewManagerFunc func(name string, cfg exporter.Config, logger *slog.Logger) 
 
 // DispatcherConfig configures a [Dispatcher]. Zero values take the defaults.
 type DispatcherConfig struct {
-	// Logger receives the logs of the dispatcher; nil discards them.
-	Logger *slog.Logger
-	// NewManager builds the manager of one exporter; nil uses [exporter.NewManager].
-	NewManager NewManagerFunc
-	// Builder builds the exporters of [Dispatcher.Reload].
-	Builder Builder
-	// QueueSize is the capacity of the shared event channel.
-	QueueSize int
-	// Workers is the size of the fixed worker pool.
-	Workers int
-	// BatchSize is the largest batch a worker or an exporter hands over at once.
-	BatchSize int
-	// HandoffSize is the capacity, in events, of the hand-off of each exporter: the bounded queue between the
-	// workers and the manager of the exporter. When it is full, that exporter drops its events.
-	HandoffSize int
-	// DrainTimeout is the deadline of the drain of an exporter that a reload replaces or removes. It does not
-	// depend on the context of the reload.
+	Logger       *slog.Logger
+	NewManager   NewManagerFunc
+	drainContext func(parent context.Context) (context.Context, context.CancelFunc)
+	Builder      Builder
+	QueueSize    int
+	Workers      int
+	BatchSize    int
+	HandoffSize  int
 	DrainTimeout time.Duration
 }
 

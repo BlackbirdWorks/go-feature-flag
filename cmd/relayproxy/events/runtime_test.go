@@ -37,8 +37,8 @@ func TestRuntime_ReloadFromBootstrapDocument(t *testing.T) {
 	}
 
 	rec, _ := newLogRecorder()
-	runtime := events.NewRuntime(
-		&events.RuntimeConfig{Logger: slog.New(rec), Builder: events.Builder{Secrets: bootstrap.LoadOptions{}}},
+	runtime := newRuntime(
+		t, &events.RuntimeConfig{Logger: slog.New(rec), Builder: events.Builder{Secrets: bootstrap.LoadOptions{}}},
 	)
 
 	changes := make(chan flagruntime.Change)
@@ -107,7 +107,7 @@ func TestRuntime_ReloadErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			runtime := events.NewRuntime(&events.RuntimeConfig{})
+			runtime := newRuntime(t, &events.RuntimeConfig{})
 			require.NoError(t, runtime.Start(context.Background(), nil))
 
 			t.Cleanup(func() { _, _ = runtime.Shutdown(canceled()) })
@@ -187,7 +187,7 @@ func TestExporterStatus(t *testing.T) {
 			sink := &nopExporter{err: tt.err}
 			cfg := exporter.Config{FlushInterval: 0, MaxEventInMemory: 1000}
 
-			disp := events.NewDispatcher(&events.DispatcherConfig{})
+			disp := newDispatcher(t, &events.DispatcherConfig{})
 			require.NoError(t, disp.Start(context.Background()))
 
 			_, err := disp.Apply(

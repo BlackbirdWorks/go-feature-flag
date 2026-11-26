@@ -55,7 +55,7 @@ func TestDispatcher_ReloadKeepsQueuedEventsOfRealManager(t *testing.T) {
 		return []events.ExporterDef{events.NewExporterDef("a", "file", "v1", sink, cfg)}
 	}
 
-	disp := events.NewDispatcher(&events.DispatcherConfig{})
+	disp := newDispatcher(t, &events.DispatcherConfig{})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), build())
@@ -224,7 +224,7 @@ func TestDispatcher_CutDrainReconcilesWhenTheExporterFinishesLate(t *testing.T) 
 			fac := newFactory()
 			fac.stopGate = make(chan struct{})
 
-			disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Nanosecond})
+			disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Nanosecond})
 			require.NoError(t, disp.Start(context.Background()))
 
 			sink := &nopExporter{err: tt.flushErr}
@@ -289,7 +289,7 @@ func TestDispatcher_CutDrainWithTheEngineManager(t *testing.T) {
 	slow := &gatedExporter{gate: gate}
 
 	newManager, tap := tapped()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: newManager, DrainTimeout: time.Nanosecond})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: newManager, DrainTimeout: time.Nanosecond})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), []events.ExporterDef{
@@ -337,7 +337,7 @@ func TestDispatcher_ReloadToNoExporterCountsTheEvents(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 
 	_, err := disp.Apply(context.Background(), defs("a"))
 	require.NoError(t, err)
@@ -401,7 +401,7 @@ func TestDispatcher_ShutdownDoesNotWaitForAReload(t *testing.T) {
 	fac.stopGate = make(chan struct{})
 	fac.stopEntered = make(chan struct{}, 1)
 
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Hour})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Hour})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), defs("a", "b"))
@@ -489,7 +489,7 @@ func TestDispatcher_ReloadBuildErrorChangesNothing(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 	require.NoError(t, disp.Start(context.Background()))
 
 	t.Cleanup(func() { _, _ = disp.Shutdown(canceled()) })
@@ -574,10 +574,9 @@ func TestDispatcher_ShutdownDrainsAndIsIdempotent(t *testing.T) {
 
 	fac := newFactory()
 
-	var disp *events.Dispatcher
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, Workers: 3})
 
 	label := labeledRun(t, func(ctx context.Context) {
-		disp = events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build, Workers: 3})
 		require.NoError(t, disp.Start(ctx))
 
 		_, err := disp.Apply(ctx, defs("a", "b"))
@@ -619,7 +618,7 @@ func TestDispatcher_ShutdownWithoutStartDropsTheQueue(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 
 	_, err := disp.Apply(context.Background(), defs("a"))
 	require.NoError(t, err)
@@ -641,7 +640,7 @@ func TestDispatcher_ShutdownPastDeadlineCutsTheFlushAndReconcilesLater(t *testin
 	fac := newFactory()
 	fac.stopGate = make(chan struct{})
 
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), defs("a"))

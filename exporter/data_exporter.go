@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal"
@@ -60,6 +61,13 @@ type dataExporterImpl[T ExportableEvent] struct {
 	// stopOnce guarantees that we stop the daemon only once: Close() can be called several times
 	// on a Semaphore client, and closing an already closed channel panics.
 	stopOnce sync.Once
+	// worker joins the goroutine that runs Start, so that Stop does not return while a periodic flush is
+	// in flight. stopped (under mu) keeps a Start that runs after Stop from beginning a flush.
+	worker  sync.WaitGroup
+	mu      sync.Mutex
+	stopped bool
+	// running is true while Start runs: Stop logs that it waits for it.
+	running atomic.Bool
 }
 
 // NewDataExporter create a new DataExporter with the given exporter and his consumer information to consume the data
@@ -92,9 +100,33 @@ func (d *dataExporterImpl[T]) Start() {
 		return
 	}
 
+	d.mu.Lock()
+
+	if d.stopped {
+		d.mu.Unlock()
+
+		return
+	}
+
+	d.worker.Add(1)
+	d.running.Store(true)
+	d.mu.Unlock()
+
+	defer func() {
+		d.running.Store(false)
+		d.worker.Done()
+	}()
+
 	for {
 		select {
 		case <-d.ticker.C:
+			// a tick that was buffered before Stop must not start a flush after it
+			select {
+			case <-d.daemonChan:
+				return
+			default:
+			}
+
 			d.Flush()
 		case <-d.daemonChan:
 			// stop the daemon
@@ -103,8 +135,10 @@ func (d *dataExporterImpl[T]) Start() {
 	}
 }
 
-// Stop is flushing the data and stopping the ticker
-// It is safe to call it several times.
+// Stop stops the ticker, waits for the periodic worker (and the flush it has in flight) to end, then flushes the
+// data one last time. When it returns nothing started by the consumer runs any more: no call of the exporter can
+// follow it, so the exporter can be closed. It is safe to call it several times. The wait has no deadline of its
+// own: a caller that needs one runs Stop in a goroutine of its own and gives up waiting for it (the relay does).
 func (d *dataExporterImpl[T]) Stop() {
 	// we don't start the daemon if we are not in bulk mode
 	if !d.IsBulk() {
@@ -114,9 +148,19 @@ func (d *dataExporterImpl[T]) Stop() {
 	}
 
 	d.stopOnce.Do(func() {
+		d.mu.Lock()
+		d.stopped = true
+		d.mu.Unlock()
+
 		d.ticker.Stop()
 		close(d.daemonChan)
 	})
+
+	if d.running.Load() {
+		d.logger.Debug("waiting for the periodic flush to end")
+	}
+
+	d.worker.Wait()
 	d.Flush()
 }
 

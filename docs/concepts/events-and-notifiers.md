@@ -58,6 +58,7 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 - An entry whose **identity** is unchanged keeps its manager and every event it holds. The identity covers the settings, the resolved secrets, the files of the Kafka TLS settings and the build of the connection it uses.
 - A new entry gets a new manager.
 - A changed or removed entry leaves the set: no new event goes to it, its hand-off is delivered, its manager is stopped (which flushes it) and closed. The reload waits for these drains in parallel, for the **drain timeout** (default 10 s), which does not depend on the context of the reload: a cancelled request does not cut the drains.
+- A reload that replaces exporters and notifiers waits for both drains at the same time, each with its deadline measured from the swap: a stuck exporter does not delay the cut of a stuck notifier.
 - A drain that passes the deadline is **cut**: the reload reports its name and returns, and the exporter keeps closing in the background. Its pending events stay `queued` while it runs. When it finishes late they are exported (and counted as such) or, if its flush fails, counted as `drain`: never both.
 - The reload does not hold the lifecycle lock while it waits, so a shutdown starts at once, and honours its own deadline, during a reload that waits for a hung exporter.
 - A batch goes entirely to the old set or entirely to the new one. An event collected before the reload is delivered once to the old exporter or once to the new one, never twice. When a reload leaves **no** exporter, the events a worker takes meanwhile are counted as `no_exporter`.
@@ -103,7 +104,7 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 | `redshift` | `redshift` | the AWS configuration |
 
 - Exporters sharing a connection share one client or configuration: the factory builds it once.
-- When an exporter leaves the set, after its final flush the runtime closes it if it holds resources (the Kafka producer, the Pub/Sub publisher and client, the BigQuery client).
+- When an exporter leaves the set, after its final flush the runtime closes it if it holds resources (the Kafka producer, the Pub/Sub publisher and client, the BigQuery client). The engine manager's `Stop` joins the periodic flush worker first, so no call of the exporter can follow it.
 - An unknown connection, a connection of the wrong type and invalid settings are typed errors that name the entry (`exporters[2] "archive"`).
 
 ## Secrets

@@ -65,7 +65,7 @@ connections:
 	transport := &countingTransport{next: http.DefaultTransport}
 	fac := connectionFactory(t, cfg, opts, connection.WithRoundTripper(transport))
 
-	runtime := events.NewRuntime(&events.RuntimeConfig{Builder: events.Builder{Factory: fac, Secrets: opts}})
+	runtime := newRuntime(t, &events.RuntimeConfig{Builder: events.Builder{Factory: fac, Secrets: opts}})
 	require.NoError(t, runtime.Start(context.Background(), nil))
 
 	report, err := runtime.Reload(context.Background(), events.SpecsFrom(cfg))
@@ -174,7 +174,7 @@ notifiers:
 		"EXPORT_URL": exportServer.URL, "NOTIFY_URL": notifyServer.URL, "SIGN": "signing-key", "RELAY": "relay-1",
 	})
 
-	runtime := events.NewRuntime(&events.RuntimeConfig{Builder: events.Builder{Secrets: opts}})
+	runtime := newRuntime(t, &events.RuntimeConfig{Builder: events.Builder{Secrets: opts}})
 	changes := make(chan flagruntime.Change)
 
 	require.NoError(t, runtime.Start(context.Background(), changes))

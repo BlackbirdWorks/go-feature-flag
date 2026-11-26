@@ -33,7 +33,7 @@ func startNotifications(
 	tb.Helper()
 
 	changes := make(chan flagruntime.Change)
-	notes := events.NewNotifications(cfg)
+	notes := newNotifications(tb, cfg)
 
 	require.NoError(tb, notes.Start(context.Background(), changes))
 	tb.Cleanup(func() { _ = notes.Shutdown(canceled()) })
@@ -381,7 +381,7 @@ func TestNotifications_Lifecycle(t *testing.T) {
 	t.Parallel()
 
 	changes := make(chan flagruntime.Change)
-	notes := events.NewNotifications(&events.NotificationsConfig{})
+	notes := newNotifications(t, &events.NotificationsConfig{})
 
 	rec := &recordingNotifier{got: make(chan notifier.DiffCache, 4)}
 
@@ -430,16 +430,13 @@ func TestNotifications_ClosedChannelAndContextStopTheConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				notes  *events.Notifications
-				cancel context.CancelFunc
-			)
+			var cancel context.CancelFunc
 
+			notes := newNotifications(t, &events.NotificationsConfig{})
 			changes := make(chan flagruntime.Change)
 
 			label := labeledRun(t, func(ctx context.Context) {
 				ctx, cancel = context.WithCancel(ctx)
-				notes = events.NewNotifications(&events.NotificationsConfig{})
 				require.NoError(t, notes.Start(ctx, changes))
 			})
 
@@ -467,8 +464,9 @@ func TestNotifications_ShutdownDeliversWhatIsQueued(t *testing.T) {
 	await(t, rec.entered, "the notifier to take a change")
 
 	done := make(chan error, 1)
+	shutdownCtx := bounded(t) // registered here, on the test goroutine
 
-	go func() { done <- notes.Shutdown(bounded(t)) }()
+	go func() { done <- notes.Shutdown(shutdownCtx) }()
 
 	close(rec.gate)
 	require.NoError(t, await(t, done, "the shutdown"))
@@ -503,7 +501,7 @@ func TestNotifications_ReloadFromSpecs(t *testing.T) {
 	t.Parallel()
 
 	cfg, opts := parse(t, "notifiers:\n  n: {kind: slack, webhookUrl: {fromEnv: URL}}\n")
-	notes := events.NewNotifications(&events.NotificationsConfig{Builder: events.Builder{Secrets: opts}})
+	notes := newNotifications(t, &events.NotificationsConfig{Builder: events.Builder{Secrets: opts}})
 
 	require.NoError(t, notes.Start(context.Background(), nil), "a nil channel is allowed")
 	t.Cleanup(func() { _ = notes.Shutdown(canceled()) })
@@ -528,7 +526,7 @@ func TestNotifications_ContextEndShutsDown(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingNotifier{got: make(chan notifier.DiffCache, 4)}
-	notes := events.NewNotifications(&events.NotificationsConfig{})
+	notes := newNotifications(t, &events.NotificationsConfig{})
 	changes := make(chan flagruntime.Change)
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -545,4 +543,75 @@ func TestNotifications_ContextEndShutsDown(t *testing.T) {
 
 	_, err = notes.Apply(context.Background(), nil)
 	require.ErrorIs(t, err, events.ErrClosed)
+}
+
+// TestNotifications_WaitDrains checks that WaitDrains waits for the instances that left the set, and only for them:
+// the instances that serve the configuration are not draining and are never waited for.
+func TestNotifications_WaitDrains(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		old     *recordingNotifier
+		ctx     func() context.Context
+		after   func(old, keep events.NotifierDef) []events.NotifierDef
+		wantErr error
+		name    string
+	}{
+		{
+			name: "a retired instance that finishes", old: &recordingNotifier{},
+			ctx: context.Background,
+			after: func(_, keep events.NotifierDef) []events.NotifierDef {
+				return []events.NotifierDef{keep}
+			},
+			wantErr: nil,
+		},
+		{
+			name: "no retired instance, only active ones", old: &recordingNotifier{},
+			ctx: context.Background,
+			after: func(old, keep events.NotifierDef) []events.NotifierDef {
+				return []events.NotifierDef{old, keep}
+			},
+			wantErr: nil,
+		},
+		{
+			name: "the context ends before a stuck retired instance",
+			old:  &recordingNotifier{gate: make(chan struct{})},
+			ctx:  canceled,
+			after: func(_, keep events.NotifierDef) []events.NotifierDef {
+				return []events.NotifierDef{keep}
+			},
+			wantErr: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			notes, changes := startNotifications(t, &events.NotificationsConfig{DrainTimeout: time.Nanosecond})
+
+			oldDef, keepDef := ndef("old", "v1", tt.old), ndef("keep", "v1", &recordingNotifier{})
+
+			_, err := notes.Apply(context.Background(), []events.NotifierDef{oldDef, keepDef})
+			require.NoError(t, err)
+
+			if tt.old.gate != nil {
+				tt.old.entered = make(chan struct{}, 1)
+
+				changes <- change("set", 1)
+
+				await(t, tt.old.entered, "the old notifier to take its change")
+			}
+
+			_, err = notes.Apply(context.Background(), tt.after(oldDef, keepDef))
+			require.NoError(t, err)
+
+			require.ErrorIs(t, notes.WaitDrains(tt.ctx()), tt.wantErr)
+
+			if tt.old.gate != nil {
+				close(tt.old.gate)
+				require.NoError(t, notes.WaitDrains(bounded(t)), "the stuck instance ends once it is released")
+			}
+		})
+	}
 }

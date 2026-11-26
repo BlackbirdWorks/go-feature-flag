@@ -60,13 +60,11 @@ func TestDispatcher_GoroutinesDoNotGrowWithFlagSets(t *testing.T) {
 		t.Run(strconv.Itoa(flagSets), func(t *testing.T) {
 			t.Parallel()
 
-			var disp *events.Dispatcher
+			disp := newDispatcher(t, &events.DispatcherConfig{
+				NewManager: newFactory().build, Workers: workers, QueueSize: 16,
+			})
 
 			label := labeledRun(t, func(ctx context.Context) {
-				disp = events.NewDispatcher(&events.DispatcherConfig{
-					NewManager: newFactory().build, Workers: workers, QueueSize: 16,
-				})
-
 				require.NoError(t, disp.Start(ctx))
 
 				_, err := disp.Apply(ctx, defs("a", "b", "c", "d"))
@@ -156,7 +154,7 @@ func TestDispatcher_Overflow(t *testing.T) {
 			t.Parallel()
 
 			fac := newFactory()
-			disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build, QueueSize: tt.capacity})
+			disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, QueueSize: tt.capacity})
 
 			_, err := disp.Apply(context.Background(), defs("a"))
 			require.NoError(t, err)
@@ -255,7 +253,7 @@ func TestDispatcher_SlowExporterDelaysNobody(t *testing.T) {
 				return fast.build(name, cfg, logger)
 			}
 
-			disp := events.NewDispatcher(&events.DispatcherConfig{
+			disp := newDispatcher(t, &events.DispatcherConfig{
 				NewManager: build, HandoffSize: tt.handoff, BatchSize: 1, Workers: 2,
 			})
 			require.NoError(t, disp.Start(context.Background()))
@@ -312,7 +310,7 @@ func TestDispatcher_SlowExporterWithTheEngineManager(t *testing.T) {
 	slow := &gatedExporter{gate: gate}
 	fast := &nopExporter{}
 
-	disp := events.NewDispatcher(&events.DispatcherConfig{HandoffSize: burst, QueueSize: 1 << 16})
+	disp := newDispatcher(t, &events.DispatcherConfig{HandoffSize: burst, QueueSize: 1 << 16})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), []events.ExporterDef{
@@ -432,7 +430,7 @@ func TestDispatcher_LifecycleErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: newFactory().build})
+			disp := newDispatcher(t, &events.DispatcherConfig{NewManager: newFactory().build})
 			tt.prepare(t, disp)
 
 			require.ErrorIs(t, tt.act(disp), tt.wantErr)
@@ -444,7 +442,7 @@ func TestDispatcher_ContextEndShutsDown(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: fac.build})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	require.NoError(t, disp.Start(ctx))

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"runtime"
 	"runtime/pprof"
 	"slices"
 	"strconv"
@@ -688,3 +689,109 @@ func addedKeys(diffs []notifier.DiffCache) []string {
 
 	return out
 }
+
+// newDispatcher returns a dispatcher that is shut down when the test ends.
+func newDispatcher(tb testing.TB, cfg *events.DispatcherConfig) *events.Dispatcher {
+	tb.Helper()
+
+	disp := events.NewDispatcher(cfg)
+
+	tb.Cleanup(func() { _, _ = disp.Shutdown(canceled()) })
+
+	return disp
+}
+
+// newNotifications returns a worker that is shut down when the test ends.
+func newNotifications(tb testing.TB, cfg *events.NotificationsConfig) *events.Notifications {
+	tb.Helper()
+
+	notes := events.NewNotifications(cfg)
+
+	tb.Cleanup(func() { _ = notes.Shutdown(canceled()) })
+
+	return notes
+}
+
+// newRuntime returns a runtime that is shut down when the test ends.
+func newRuntime(tb testing.TB, cfg *events.RuntimeConfig) *events.Runtime {
+	tb.Helper()
+
+	rt := events.NewRuntime(cfg)
+
+	tb.Cleanup(func() { _, _ = rt.Shutdown(canceled()) })
+
+	return rt
+}
+
+// leakedGoroutines returns the stacks of the goroutines of the package (the workers, the goroutines of the
+// exporters and of the notifiers, the consumers) that are still running. The stacks of the tests are not the
+// goroutines of the package, so a goroutine that has a frame of a test is left out. The goroutines of an exporter
+// that was cut end when its gate opens: the caller gives them time.
+func leakedGoroutines() []string {
+	buf := make([]byte, 1<<20)
+
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			buf = buf[:n]
+
+			break
+		}
+
+		buf = make([]byte, 2*len(buf))
+	}
+
+	var leaked []string
+
+	for stack := range strings.SplitSeq(string(buf), "\n\n") {
+		ours := strings.Contains(stack, "semaphore/cmd/relayproxy/events.(*")
+		fromTest := strings.Contains(stack, "events_test.") || strings.Contains(stack, "events.Test") ||
+			strings.Contains(stack, "testing.")
+
+		if ours && !fromTest {
+			leaked = append(leaked, stack)
+		}
+	}
+
+	return leaked
+}
+
+// exitAfterLeakCheck returns the exit code of the test binary: the code of the tests, or 1 when a goroutine of the
+// package is still running once they ended (it waits for them, bounded, as they end by themselves).
+func exitAfterLeakCheck(code int) int {
+	if code != 0 {
+		return code
+	}
+
+	deadline := time.After(30 * time.Second)
+
+	for {
+		leaked := leakedGoroutines()
+		if len(leaked) == 0 {
+			return 0
+		}
+
+		select {
+		case <-deadline:
+			fmt.Fprintf(
+				os.Stderr,
+				"goroutines of the package still running after the tests:\n%s\n",
+				strings.Join(leaked, "\n\n"),
+			)
+
+			return 1
+		default:
+			runtime.Gosched()
+		}
+	}
+}
+
+// plainFactory builds the connection factory of the connections of cfg.
+func plainFactory(tb testing.TB, cfg *bootstrap.Config, opts bootstrap.LoadOptions) *connection.Factory {
+	tb.Helper()
+
+	return connectionFactory(tb, cfg, opts)
+}
+
+// noSecrets is a reader of secrets that reads none: every reference is unresolved.
+func noSecrets(bootstrap.LoadOptions) bootstrap.LoadOptions { return bootstrap.LoadOptions{} }

@@ -27,6 +27,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
 	"github.com/blackbirdworks/semaphore/exporter/sqsexporter"
 	"github.com/blackbirdworks/semaphore/exporter/webhookexporter"
+	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/notifier/discordnotifier"
 	"github.com/blackbirdworks/semaphore/notifier/microsoftteamsnotifier"
@@ -307,13 +308,13 @@ func TestBuilder_ExporterErrors(t *testing.T) {
 	type exps = map[string]bootstrap.Exporter
 
 	tests := []struct {
-		exporters exps
 		wantErr   error
+		exporters exps
+		factory   func(tb testing.TB, cfg *bootstrap.Config, opts bootstrap.LoadOptions) *connection.Factory
+		secrets   func(opts bootstrap.LoadOptions) bootstrap.LoadOptions
 		name      string
 		body      string
 		wantName  string
-		factory   bool
-		noSecrets bool
 		wantIndex int
 	}{
 		{
@@ -340,11 +341,11 @@ func TestBuilder_ExporterErrors(t *testing.T) {
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterWebhook}},
 		},
 		{
-			name:      "secret that does not resolve",
-			wantErr:   events.ErrUnresolvedSecret,
-			wantName:  nameBad,
-			noSecrets: true,
-			body:      "exporters:\n  bad: {kind: webhook, endpointUrl: {fromEnv: URL}}\n",
+			name:     "secret that does not resolve",
+			wantErr:  events.ErrUnresolvedSecret,
+			wantName: nameBad,
+			secrets:  noSecrets,
+			body:     "exporters:\n  bad: {kind: webhook, endpointUrl: {fromEnv: URL}}\n",
 		},
 		{
 			name: "google storage without bucket", wantErr: events.ErrInvalidSettings, wantName: nameBad,
@@ -367,68 +368,77 @@ func TestBuilder_ExporterErrors(t *testing.T) {
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterKafka, Kafka: &bootstrap.KafkaSettings{Topic: "t"}}},
 		},
 		{
-			name: "s3 without a connection", wantErr: events.ErrInvalidSettings, wantName: nameBad, factory: true,
+			name:      "s3 without a connection",
+			wantErr:   events.ErrInvalidSettings,
+			wantName:  nameBad,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterS3}},
 		},
 		{
 			name:      "s3 with an unknown connection",
 			wantErr:   events.ErrUnknownConnection,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterS3, Connection: kindNope}},
 		},
 		{
 			name:      "s3 on a kinesis connection",
 			wantErr:   events.ErrWrongConnectionKind,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterS3, Connection: "kin"}},
 		},
 		{
 			name:      "kinesis on an s3 connection",
 			wantErr:   events.ErrWrongConnectionKind,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterKinesis, Connection: "s3c"}},
 		},
 		{
 			name:      "sqs on a redshift connection",
 			wantErr:   events.ErrWrongConnectionKind,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterSQS, Connection: "rs"}},
 		},
 		{
 			name:      "redshift on an sqs connection",
 			wantErr:   events.ErrWrongConnectionKind,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterRedshift, Connection: connSQS}},
 		},
 		{
 			name:      "s3 connection without a bucket",
 			wantErr:   events.ErrInvalidSettings,
 			wantName:  nameBad,
-			factory:   true,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterS3, Connection: "s3nobucket"}},
 		},
 		{
-			name: "kinesis without a stream", wantErr: events.ErrInvalidSettings, wantName: nameBad, factory: true,
+			name:      "kinesis without a stream",
+			wantErr:   events.ErrInvalidSettings,
+			wantName:  nameBad,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterKinesis, Connection: "kinnostream"}},
 		},
 		{
-			name: "sqs without a queue", wantErr: events.ErrInvalidSettings, wantName: nameBad, factory: true,
+			name: "sqs without a queue", wantErr: events.ErrInvalidSettings, wantName: nameBad, factory: plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterSQS, Connection: "sqsnoqueue"}},
 		},
 		{
-			name: "redshift without a database", wantErr: events.ErrInvalidSettings, wantName: nameBad, factory: true,
+			name:      "redshift without a database",
+			wantErr:   events.ErrInvalidSettings,
+			wantName:  nameBad,
+			factory:   plainFactory,
 			exporters: exps{nameBad: {Kind: bootstrap.ExporterRedshift, Connection: "rs", ClusterIdentifier: "c"}},
 		},
 		{
 			name:     "redshift with cluster and workgroup",
 			wantErr:  events.ErrInvalidSettings,
 			wantName: nameBad,
-			factory:  true,
+			factory:  plainFactory,
 			exporters: exps{nameBad: {
 				Kind:              bootstrap.ExporterRedshift,
 				Connection:        "rs",
@@ -455,12 +465,12 @@ func TestBuilder_ExporterErrors(t *testing.T) {
 			}
 
 			builder := events.Builder{Secrets: opts}
-			if tt.factory {
-				builder.Factory = connectionFactory(t, cfg, opts)
+			if tt.factory != nil {
+				builder.Factory = tt.factory(t, cfg, opts)
 			}
 
-			if tt.noSecrets {
-				builder.Secrets = bootstrap.LoadOptions{}
+			if tt.secrets != nil {
+				builder.Secrets = tt.secrets(opts)
 			}
 
 			built, err := builder.Exporters(context.Background(), specs)
@@ -638,18 +648,18 @@ func TestBuilder_Identity(t *testing.T) {
 	rotated["SECRET"] = "another-signing-key"
 
 	tests := []struct {
-		env      map[string]string
-		name     string
-		body     string
-		wantSame bool
+		env  map[string]string
+		want assert.ComparisonAssertionFunc
+		name string
+		body string
 	}{
-		{name: "the same spec", body: entry, env: buildEnv, wantSame: true},
-		{name: "a rotated secret, though the spec is the same", body: entry, env: rotated, wantSame: false},
+		{name: "the same spec", body: entry, env: buildEnv, want: assert.Equal},
+		{name: "a rotated secret, though the spec is the same", body: entry, env: rotated, want: assert.NotEqual},
 		{
-			name:     "a changed setting",
-			env:      buildEnv,
-			wantSame: false,
-			body:     "exporters:\n  e: {kind: webhook, endpointUrl: {fromEnv: URL}, secret: {fromEnv: SECRET}, meta: {a: b}}\n",
+			name: "a changed setting",
+			env:  buildEnv,
+			want: assert.NotEqual,
+			body: "exporters:\n  e: {kind: webhook, endpointUrl: {fromEnv: URL}, secret: {fromEnv: SECRET}, meta: {a: b}}\n",
 		},
 	}
 
@@ -661,11 +671,7 @@ func TestBuilder_Identity(t *testing.T) {
 
 			got := identityOf(t, tt.body, tt.env)
 
-			if tt.wantSame {
-				assert.Equal(t, base, got)
-			} else {
-				assert.NotEqual(t, base, got)
-			}
+			tt.want(t, base, got)
 		})
 	}
 }

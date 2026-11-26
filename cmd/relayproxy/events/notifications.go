@@ -19,19 +19,11 @@ const DefaultNotifierQueueSize = 64
 
 // NotificationsConfig configures [Notifications]. Zero values take the defaults.
 type NotificationsConfig struct {
-	// Logger receives the logs; nil discards them.
-	Logger *slog.Logger
-	// Broadcast is called with every change that has a diff, from the one goroutine that consumes the channel,
-	// before the notifiers. The relay's SSE and websocket broadcast hooks in here. It must not block: a slow
-	// function delays the consumption of the channel. A panic is recovered and logged.
-	Broadcast func(flagruntime.Change)
-	// Builder builds the notifiers of [Notifications.Reload].
-	Builder Builder
-	// QueueSize is the number of changes that wait for one notifier. When it is full the change is dropped for
-	// that notifier and counted.
-	QueueSize int
-	// DrainTimeout is the deadline of the drain of a notifier that a reload replaces or removes. It does not
-	// depend on the context of the reload.
+	Logger       *slog.Logger
+	Broadcast    func(flagruntime.Change)
+	drainContext func(parent context.Context) (context.Context, context.CancelFunc)
+	Builder      Builder
+	QueueSize    int
 	DrainTimeout time.Duration
 }
 
@@ -57,8 +49,6 @@ type Notifications struct {
 	unwatch  func() bool
 	cfg      NotificationsConfig
 	consumer sync.WaitGroup
-	// background counts the goroutines of the notifier instances.
-	background sync.WaitGroup
 	// mu guards the offer of a change (read) against the swap of the set (write).
 	mu sync.RWMutex
 	// lifecycle serialises Start, the swap of Apply and Shutdown. It is not held while waiting for a drain.
@@ -143,7 +133,10 @@ func (n *Notifications) Apply(ctx context.Context, defs []NotifierDef) (ReloadSe
 		return ReloadSet{}, err
 	}
 
-	n.finishReload(ctx, &set, leaving)
+	drainCtx, cancel := n.newDrainContext(ctx)
+	defer cancel()
+
+	n.finishReload(drainCtx, &set, leaving)
 
 	return set, nil
 }
@@ -163,21 +156,17 @@ func closeRuns(ctx context.Context, runs []*notifierRun) []string {
 }
 
 // WaitDrains waits until every notifier instance that left the set has finished, including the ones whose drain was
-// cut. It returns the error of ctx when that comes first.
+// cut. The instances that are still in the set are not waited for. It returns the error of ctx when that comes first.
 func (n *Notifications) WaitDrains(ctx context.Context) error {
-	finished := make(chan struct{})
-
-	go func() {
-		n.background.Wait()
-		close(finished)
-	}()
-
-	select {
-	case <-finished:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err() //nolint:wrapcheck // the context error says it
+	for _, run := range n.state.Load().retired {
+		select {
+		case <-run.finished:
+		case <-ctx.Done():
+			return ctx.Err() //nolint:wrapcheck // the context error says it
+		}
 	}
+
+	return nil
 }
 
 // Done is closed when [Notifications.Shutdown] finished.
@@ -346,10 +335,7 @@ func (n *Notifications) swapSetLocked(ctx context.Context, defs []NotifierDef) (
 }
 
 // finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
-func (n *Notifications) finishReload(ctx context.Context, set *ReloadSet, leaving []*notifierRun) {
-	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), n.cfg.DrainTimeout)
-	defer cancel()
-
+func (*Notifications) finishReload(drainCtx context.Context, set *ReloadSet, leaving []*notifierRun) {
 	set.Cut = closeRuns(drainCtx, leaving)
 }
 
@@ -366,7 +352,7 @@ func (n *Notifications) launch(ctx context.Context, def NotifierDef, prev *notif
 		n.names.Store(&updated)
 	}
 
-	run := newNotifierRun(ctx, def, entry, prev, &n.cfg, &n.background)
+	run := newNotifierRun(ctx, def, entry, prev, &n.cfg)
 	entry.latest.Store(run)
 
 	return run
@@ -376,4 +362,14 @@ func (n *Notifications) swap(st *notifyState) {
 	n.mu.Lock()
 	n.state.Store(st)
 	n.mu.Unlock()
+}
+
+// newDrainContext returns the context that bounds a drain: the drain timeout, from now, whatever the context of
+// the reload.
+func (n *Notifications) newDrainContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if n.cfg.drainContext != nil {
+		return n.cfg.drainContext(parent)
+	}
+
+	return context.WithTimeout(context.WithoutCancel(parent), n.cfg.DrainTimeout)
 }

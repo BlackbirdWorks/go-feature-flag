@@ -6,12 +6,15 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // stopGateManager is a manager whose Stop signals that it was called and then waits for a gate.
@@ -94,11 +97,12 @@ func TestRuntimeOverlappingReloadsLeaveOneConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	reloadedA := make(chan struct{})
+	specsA := specsOf("1") // built here: the goroutine below must not call require
 
 	go func() {
 		defer close(reloadedA)
 
-		_, reloadErr := runtime.Reload(context.Background(), specsOf("1"))
+		_, reloadErr := runtime.Reload(context.Background(), specsA)
 		assert.NoError(t, reloadErr)
 	}()
 
@@ -194,5 +198,174 @@ func TestInstanceReleasesItsExporterAfterTheFinalFlush(t *testing.T) {
 
 			assert.Equal(t, tt.wantOrder, log.order)
 		})
+	}
+}
+
+// newManagerWithStopGate returns a manager constructor whose first manager has a Stop that waits for the gate.
+func newManagerWithStopGate(gate, entered chan struct{}) NewManagerFunc {
+	var (
+		mu    sync.Mutex
+		built int
+	)
+
+	return func(string, exporter.Config, *slog.Logger) FeatureManager {
+		mu.Lock()
+		defer mu.Unlock()
+
+		built++
+
+		if built == 1 && gate != nil {
+			return &stopGateManager{gate: gate, entered: entered}
+		}
+
+		return &loggingManager{log: &orderLog{}}
+	}
+}
+
+// TestRuntimeReloadDrainsRunAtTheSameTime replaces an exporter and a notifier together. Each side has a deadline of
+// its own context, created when the sets are published, and the two waits run at the same time: the deadline of
+// the notifier cuts the old notifier and frees its replacement while the exporter, whose own deadline has not
+// passed, is still being waited for. A reload that waited for the exporter first could not do this.
+func TestRuntimeReloadDrainsRunAtTheSameTime(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		exporterGate     chan struct{}
+		notifierGate     chan struct{}
+		name             string
+		wantCutExporters []string
+		wantCutNotifiers []string
+	}{
+		{
+			name: "the old exporter and the old notifier are stuck", exporterGate: make(chan struct{}),
+			notifierGate: make(chan struct{}), wantCutExporters: []string{"e"}, wantCutNotifiers: []string{"n"},
+		},
+		{
+			name: "only the old exporter is stuck", exporterGate: make(chan struct{}), notifierGate: nil,
+			wantCutExporters: []string{"e"}, wantCutNotifiers: nil,
+		},
+		{
+			name: "only the old notifier is stuck", exporterGate: nil, notifierGate: make(chan struct{}),
+			wantCutExporters: nil, wantCutNotifiers: []string{"n"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stopEntered := make(chan struct{}, 1)
+			runtime := NewRuntime(&RuntimeConfig{NewManager: newManagerWithStopGate(tt.exporterGate, stopEntered)})
+
+			expCancel, notCancel := make(chan context.CancelFunc, 1), make(chan context.CancelFunc, 1)
+			hook := func(out chan context.CancelFunc) func(context.Context) (context.Context, context.CancelFunc) {
+				return func(parent context.Context) (context.Context, context.CancelFunc) {
+					ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+					out <- cancel
+
+					return ctx, cancel
+				}
+			}
+
+			changes := make(chan flagruntime.Change)
+			require.NoError(t, runtime.Start(context.Background(), changes))
+			t.Cleanup(func() { _, _ = runtime.Shutdown(context.Background()) })
+
+			log := &orderLog{}
+			oldN := &gatedNotifier{gate: tt.notifierGate, entered: make(chan struct{}, 1), label: "old-", log: log}
+			newN := &gatedNotifier{got: make(chan struct{}, 4), label: "new-", log: log}
+
+			exporterDef := func(identity string) []ExporterDef {
+				return []ExporterDef{NewExporterDef("e", "file", identity, echoExporter{}, exporter.Config{})}
+			}
+			notifierDef := func(identity string, notifier notifier.Notifier) []NotifierDef {
+				return []NotifierDef{NewNotifierDef("n", "webhook", identity, notifier)}
+			}
+
+			_, err := runtime.apply(context.Background(), exporterDef("v1"), notifierDef("v1", oldN))
+			require.NoError(t, err)
+
+			if tt.notifierGate != nil {
+				changes <- addedChange("0")
+
+				await(t, oldN.entered, "the old notifier to take its change")
+			}
+
+			runtime.Dispatcher.cfg.drainContext = hook(expCancel)
+			runtime.Notifications.cfg.drainContext = hook(notCancel)
+
+			type result struct {
+				err    error
+				report ReloadReport
+			}
+
+			applied := make(chan result, 1)
+
+			go func() {
+				report, applyErr := runtime.apply(context.Background(), exporterDef("v2"), notifierDef("v2", newN))
+				applied <- result{report: report, err: applyErr}
+			}()
+
+			// both deadlines exist before any wait ends: the waits started together
+			cancelExporter := awaitCancel(t, expCancel)
+			cancelNotifier := awaitCancel(t, notCancel)
+
+			// the deadline of the notifier passes (a notifier that is not stuck ends by itself): the old notifier is
+			// cut, its replacement receives a change
+			if tt.notifierGate != nil {
+				cancelNotifier()
+			}
+
+			changes <- addedChange("1")
+
+			await(t, newN.got, "the replacement notifier to receive a change")
+
+			if tt.exporterGate != nil {
+				await(t, stopEntered, "the old exporter to be stopped")
+
+				select {
+				case <-applied:
+					require.FailNow(t, "the reload returned while the deadline of the exporter had not passed")
+				default:
+				}
+			}
+
+			if tt.exporterGate != nil {
+				cancelExporter()
+			}
+
+			var got result
+
+			select {
+			case got = <-applied:
+			case <-time.After(20 * time.Second):
+				require.FailNow(t, "timed out waiting for the reload")
+			}
+
+			require.NoError(t, got.err)
+			assert.Equal(t, tt.wantCutExporters, got.report.Exporters.Cut)
+			assert.Equal(t, tt.wantCutNotifiers, got.report.Notifiers.Cut)
+
+			if tt.exporterGate != nil {
+				close(tt.exporterGate)
+			}
+
+			if tt.notifierGate != nil {
+				close(tt.notifierGate)
+			}
+		})
+	}
+}
+
+func awaitCancel(t *testing.T, ch <-chan context.CancelFunc) context.CancelFunc {
+	t.Helper()
+
+	select {
+	case cancel := <-ch:
+		return cancel
+	case <-time.After(20 * time.Second):
+		require.FailNow(t, "timed out waiting for the deadline of a drain to be created")
+
+		return nil
 	}
 }

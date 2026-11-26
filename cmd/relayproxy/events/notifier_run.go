@@ -59,7 +59,6 @@ type notifierRun struct {
 
 func newNotifierRun(
 	ctx context.Context, def NotifierDef, name *notifierName, prev *notifierRun, cfg *NotificationsConfig,
-	background *sync.WaitGroup,
 ) *notifierRun {
 	run := &notifierRun{
 		def:      def,
@@ -71,7 +70,7 @@ func newNotifierRun(
 		logger:   cfg.Logger.With(slog.String("notifier", def.Name), slog.String("kind", def.Kind)),
 	}
 
-	background.Go(func() { run.loop(context.WithoutCancel(ctx)) })
+	go run.loop(context.WithoutCancel(ctx))
 
 	return run
 }
@@ -163,6 +162,13 @@ func (r *notifierRun) isFinished() bool {
 // wait waits for the goroutine until the deadline of ctx. On the deadline the goroutine drops (and counts) the
 // changes still queued; a call in progress cannot be cancelled and ends by itself.
 func (r *notifierRun) wait(ctx context.Context) bool {
+	// a run that finished is not cut, whatever the deadline: with both ready, select would pick at random
+	if r.isFinished() {
+		r.state.Store(stateStopped)
+
+		return true
+	}
+
 	select {
 	case <-r.finished:
 		r.state.Store(stateStopped)

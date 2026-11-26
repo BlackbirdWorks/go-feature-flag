@@ -389,9 +389,9 @@ func TestKafkaTLSErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		extra        string
-		withoutFiles bool
+		readFile func(files map[string][]byte) func(string) ([]byte, error)
+		name     string
+		extra    string
 	}{
 		{name: "a missing ca file", extra: "      net: {tls: {enable: true, caFile: /missing.pem}}\n"},
 		{name: "a ca file without a certificate", extra: "      net: {tls: {enable: true, caFile: /bad.pem}}\n"},
@@ -407,7 +407,10 @@ func TestKafkaTLSErrors(t *testing.T) {
 			name:  "a key that is not the key of the certificate",
 			extra: "      net: {tls: {enable: true, certFile: /cert.pem, keyFile: /bad.pem}}\n",
 		},
-		{name: "no file reader", extra: "      net: {tls: {enable: true, caFile: /ca.pem}}\n", withoutFiles: true},
+		{
+			name: "no file reader", extra: "      net: {tls: {enable: true, caFile: /ca.pem}}\n",
+			readFile: func(map[string][]byte) func(string) ([]byte, error) { return nil },
+		},
 	}
 
 	for _, tt := range tests {
@@ -417,16 +420,10 @@ func TestKafkaTLSErrors(t *testing.T) {
 			cfg, opts := parseDoc(t, "version: 2\n"+kafkaBase+tt.extra, nil)
 
 			files := pemFiles(t)
-			opts.ReadFile = func(path string) ([]byte, error) {
-				if content, ok := files[path]; ok {
-					return content, nil
-				}
+			opts.ReadFile = filesReader(files)
 
-				return nil, os.ErrNotExist
-			}
-
-			if tt.withoutFiles {
-				opts.ReadFile = nil
+			if tt.readFile != nil {
+				opts.ReadFile = tt.readFile(files)
 			}
 
 			_, err := events.Builder{Secrets: opts}.Exporters(context.Background(), events.SpecsFrom(cfg))
@@ -496,4 +493,15 @@ func mustSecret(tb testing.TB, ref string) bootstrap.Secret {
 	require.NoError(tb, err)
 
 	return cfg.Exporters["e"].EndpointURL
+}
+
+// filesReader reads the files of a map, and no other.
+func filesReader(files map[string][]byte) func(string) ([]byte, error) {
+	return func(path string) ([]byte, error) {
+		if content, ok := files[path]; ok {
+			return content, nil
+		}
+
+		return nil, os.ErrNotExist
+	}
 }

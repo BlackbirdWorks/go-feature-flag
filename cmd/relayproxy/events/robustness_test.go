@@ -47,7 +47,7 @@ func TestExporterPanicIsRecoveredByTheEngineManager(t *testing.T) {
 	sink := &panicExporter{called: make(chan struct{}, 8)}
 
 	newManager, tap := tapped()
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: newManager, Logger: slog.New(rec)})
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: newManager, Logger: slog.New(rec)})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), []events.ExporterDef{
@@ -152,7 +152,7 @@ func TestRuntimeReloadIsAtomicAcrossBothSides(t *testing.T) {
 	t.Parallel()
 
 	cfg, opts := parse(t, "exporters:\n  e: {kind: log}\nnotifiers:\n  n: {kind: slack, webhookUrl: {fromEnv: URL}}\n")
-	runtime := events.NewRuntime(&events.RuntimeConfig{Builder: events.Builder{Secrets: opts}})
+	runtime := newRuntime(t, &events.RuntimeConfig{Builder: events.Builder{Secrets: opts}})
 
 	require.NoError(t, runtime.Start(context.Background(), nil))
 	t.Cleanup(func() { _, _ = runtime.Shutdown(canceled()) })
@@ -170,7 +170,7 @@ func TestRuntimeReloadIsAtomicAcrossBothSides(t *testing.T) {
 func TestRuntimeContextEndsBothSides(t *testing.T) {
 	t.Parallel()
 
-	runtime := events.NewRuntime(&events.RuntimeConfig{})
+	runtime := newRuntime(t, &events.RuntimeConfig{})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	require.NoError(t, runtime.Start(ctx, nil), "a nil channel: no changes are consumed, the notifications still end")
@@ -215,7 +215,7 @@ func TestFlushDurationIsMeasuredWithTheClock(t *testing.T) {
 	t.Parallel()
 
 	sink := &nopExporter{}
-	disp := events.NewDispatcher(&events.DispatcherConfig{})
+	disp := newDispatcher(t, &events.DispatcherConfig{})
 	require.NoError(t, disp.Start(context.Background()))
 
 	_, err := disp.Apply(context.Background(), []events.ExporterDef{
@@ -252,7 +252,7 @@ func TestRuntimeShutdownClosesHealthyExportersWhileANotifierIsStuck(t *testing.T
 	fac := newFactory()
 	fac.stopEntered = make(chan struct{}, 1)
 
-	runtime := events.NewRuntime(&events.RuntimeConfig{NewManager: fac.build})
+	runtime := newRuntime(t, &events.RuntimeConfig{NewManager: fac.build})
 	changes := make(chan flagruntime.Change)
 
 	require.NoError(t, runtime.Start(context.Background(), changes))

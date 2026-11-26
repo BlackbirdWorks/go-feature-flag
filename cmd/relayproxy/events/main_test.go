@@ -3,6 +3,7 @@
 package events_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
@@ -10,5 +11,5 @@ import (
 
 func TestMain(m *testing.M) {
 	clocktest.FreezeStepping(clockStep)
-	m.Run()
+	os.Exit(exitAfterLeakCheck(m.Run()))
 }

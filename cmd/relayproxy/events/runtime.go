@@ -88,19 +88,13 @@ func (r *Runtime) Reload(
 		return ReloadReport{}, err
 	}
 
-	set, err := r.swapBoth(ctx, expDefs, notDefs)
-	if err != nil {
-		return ReloadReport{}, err
-	}
-
-	r.Dispatcher.finishReload(ctx, &set.report.Exporters, set.leavingExporters)
-	r.Notifications.finishReload(ctx, &set.report.Notifiers, set.leavingNotifiers)
-
-	return set.report, nil
+	return r.apply(ctx, expDefs, notDefs)
 }
 
 // Shutdown shuts down the notification worker and the dispatcher within the deadline of ctx.
-func (r *Runtime) Shutdown(ctx context.Context) (ShutdownReport, error) {
+func (r *Runtime) Shutdown(
+	ctx context.Context,
+) (ShutdownReport, error) { //nolint:unparam // the report is read by the callers outside this package
 	// both sides shut down at the same time, under the same deadline: a notifier that holds its deadline must not
 	// leave the exporters with a deadline that has passed
 	var notErr error
@@ -154,4 +148,30 @@ func (r *Runtime) swapBoth(ctx context.Context, expDefs []ExporterDef, notDefs [
 	out.report.Notifiers, out.leavingNotifiers = r.Notifications.swapSetLocked(ctx, notDefs)
 
 	return out, nil
+}
+
+// apply publishes the two sets and waits for the drains of what left: the part of a reload that comes after the
+// build.
+func (r *Runtime) apply(ctx context.Context, expDefs []ExporterDef, notDefs []NotifierDef) (ReloadReport, error) {
+	set, err := r.swapBoth(ctx, expDefs, notDefs)
+	if err != nil {
+		return ReloadReport{}, err
+	}
+
+	// both drain waits start now, each with its deadline measured from the swap, and run at the same time: neither
+	// side's wait delays the other's cut
+	expCtx, cancelExp := r.Dispatcher.newDrainContext(ctx)
+	defer cancelExp()
+
+	notCtx, cancelNot := r.Notifications.newDrainContext(ctx)
+	defer cancelNot()
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() { r.Dispatcher.finishReload(expCtx, &set.report.Exporters, set.leavingExporters) })
+	wg.Go(func() { r.Notifications.finishReload(notCtx, &set.report.Notifiers, set.leavingNotifiers) })
+
+	wg.Wait()
+
+	return set.report, nil
 }

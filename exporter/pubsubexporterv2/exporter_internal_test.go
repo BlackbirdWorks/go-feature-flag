@@ -322,11 +322,14 @@ func TestExporter_Close(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		exportFirst bool
+		name   string
+		events []exporter.ExportableEvent
 	}{
-		{name: "an exporter that exported releases its publisher and client", exportFirst: true},
-		{name: "an exporter that never exported has nothing to release", exportFirst: false},
+		{
+			name:   "an exporter that exported releases its publisher and client",
+			events: []exporter.ExportableEvent{&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: "k"}},
+		},
+		{name: "an exporter that never exported has nothing to release", events: nil},
 	}
 
 	for _, tt := range tests {
@@ -343,10 +346,8 @@ func TestExporter_Close(t *testing.T) {
 				},
 			}
 
-			if tt.exportFirst {
-				require.NoError(t, exp.Export(ctx, slog.Default(), []exporter.ExportableEvent{
-					&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: "k"},
-				}))
+			if tt.events != nil {
+				require.NoError(t, exp.Export(ctx, slog.Default(), tt.events))
 			}
 
 			require.NoError(t, exp.Close())

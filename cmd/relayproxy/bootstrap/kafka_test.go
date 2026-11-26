@@ -159,6 +159,34 @@ func TestKafkaSettings(t *testing.T) {
 			wantPath: "exporters.e.kafka.producer.flush.maxMessages",
 		},
 		{
+			name:  "the buffer limits under producer.retry",
+			extra: "      producer: {retry: {maxBufferLength: 10, maxBufferBytes: 20}}\n",
+		},
+		{
+			name:     "maxBufferLength under metadata.retry",
+			extra:    "      metadata: {retry: {maxBufferLength: 1}}\n",
+			wantErr:  bootstrap.ErrUnknownKey,
+			wantPath: "exporters.e.kafka.metadata.retry.maxBufferLength",
+		},
+		{
+			name:     "maxBufferBytes under metadata.retry",
+			extra:    "      metadata: {retry: {maxBufferBytes: 1}}\n",
+			wantErr:  bootstrap.ErrUnknownKey,
+			wantPath: "exporters.e.kafka.metadata.retry.maxBufferBytes",
+		},
+		{
+			name:     "maxBufferLength under producer.transaction.retry",
+			extra:    "      producer: {transaction: {retry: {maxBufferLength: 1}}}\n",
+			wantErr:  bootstrap.ErrUnknownKey,
+			wantPath: "exporters.e.kafka.producer.transaction.retry.maxBufferLength",
+		},
+		{
+			name:     "maxBufferBytes under producer.transaction.retry",
+			extra:    "      producer: {transaction: {retry: {maxBufferBytes: 1}}}\n",
+			wantErr:  bootstrap.ErrUnknownKey,
+			wantPath: "exporters.e.kafka.producer.transaction.retry.maxBufferBytes",
+		},
+		{
 			name:     "an unknown key",
 			extra:    "      net: {sasl: {usr: u}}\n",
 			wantErr:  bootstrap.ErrUnknownKey,
