@@ -273,7 +273,10 @@ func launchRig(
 	}
 
 	sched := newFakeSched()
-	opts = append([]manifestreader.Option{manifestreader.WithScheduler(sched)}, opts...)
+	// jitter 0: no backoff draw and no spreading, unless a test sets its own source
+	opts = append([]manifestreader.Option{
+		manifestreader.WithScheduler(sched), manifestreader.WithJitter(func() float64 { return 0 }),
+	}, opts...)
 
 	reader, err := manifestreader.New(store, &own, opts...)
 	require.NoError(tb, err)

@@ -84,8 +84,15 @@ type Status struct {
 	Failures []ObjectFailure
 	// HookPanics lists the hooks that panicked (recovered), with counts; empty when none.
 	HookPanics []HookPanic
-	Manifest   ManifestStatus
-	Counts     Counts
+	// PollResults counts the polls by result (the Poll* constants), sorted by result; results that did not
+	// happen are absent.
+	PollResults []PollCount
+	Manifest    ManifestStatus
+	State       StateStatus
+	// Backoff is the backoff state: the consecutive failures of the manifest poll and the wait planned after
+	// this round.
+	Backoff BackoffStatus
+	Counts  Counts
 	// Cache is what the reader holds in memory: verified objects, by checksum.
 	Cache       CacheStatus
 	Polls       uint64
@@ -95,3 +102,60 @@ type Status struct {
 // ReasonTotalTooLarge is the [ManifestStatus.Reason] of a manifest whose distinct objects add up to more than
 // [Config.MaxTotalBytes]: it is rejected whole, before any object request.
 const ReasonTotalTooLarge = "too-large-total"
+
+// Results of the restore of the saved state, in [StateStatus.Restore]. The set is closed.
+const (
+	// RestoreNone: the restore did not run, or no state hook is installed.
+	RestoreNone = ""
+	// RestoreRestored: a manifest and all its objects were restored.
+	RestoreRestored = "restored"
+	// RestorePartial: the manifest was restored, some objects were discarded (missing or corrupt).
+	RestorePartial = "partial"
+	// RestoreEmpty: there was no usable saved state (empty, other layout version, corrupt manifest).
+	RestoreEmpty = "empty"
+	// RestoreFailed: the saved state could not be read at all (an unreadable directory).
+	RestoreFailed = "failed"
+	// RestoreDisabled: the state directory is not used (it was refused: see [StateStatus.DisabledReason]).
+	RestoreDisabled = "disabled"
+)
+
+// States of the flush of the parent directories of a state directory that was created, in
+// [StateStatus.ParentSync]. The set is closed; the empty value is "nothing to report".
+const (
+	// ParentSyncSkipped: a parent could not be opened for the flush for lack of permission. The state directory is
+	// used all the same (it is a cache); after a power loss the directory entry itself may be missing, and the relay
+	// then starts as on a first run.
+	ParentSyncSkipped = "skipped"
+	// ParentSyncPending: a flush failed and is retried by the next write.
+	ParentSyncPending = "pending"
+)
+
+// StateStatus is what the persistence behind the hooks reports. A hook that is not installed reports the zero value.
+type StateStatus struct {
+	// LastSave is the time of the last write that ended, zero when none did.
+	LastSave time.Time
+	// Restore is a Restore* constant.
+	Restore string
+	// LastSaveError is the closed code of the failure of the last write, empty when it worked.
+	LastSaveError string
+	// ParentSync is a ParentSync* constant, or empty.
+	ParentSync string
+	// DisabledReason is the closed code of the refusal of the state directory (with [RestoreDisabled]).
+	DisabledReason string
+	// Saves and SaveErrors count the writes that ended, and the ones that failed.
+	Saves      uint64
+	SaveErrors uint64
+	// PartialSaves counts the writes that kept only part of the objects because of the byte budget; they are
+	// not errors, and LastSavePartial tells that the last write was one.
+	PartialSaves uint64
+	// RestoredObjects and DiscardedObjects count the saved objects that were restored and the ones that were
+	// discarded as missing or corrupt.
+	RestoredObjects  int
+	DiscardedObjects int
+	// Enabled tells that a state hook is installed.
+	Enabled bool
+	// LastSavePartial tells that the last write kept only part of the objects (the byte budget).
+	LastSavePartial bool
+	// Pending tells that a write is queued or running.
+	Pending bool
+}
