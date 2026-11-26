@@ -111,11 +111,11 @@ export default withMermaid({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg?v=2` }],
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/logo.svg?v=2',
 
     search: {
       provider: 'local',
