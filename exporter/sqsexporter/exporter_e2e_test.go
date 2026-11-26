@@ -25,9 +25,16 @@ import (
 
 func createQueue(t *testing.T, client *sqs.Client) string {
 	t.Helper()
+	// A message that a receive hands out stays invisible for the visibility timeout (30 s by default, as long as the
+	// deadline of receiveAll). When the response of a receive is lost (the SDK retries a request after a connection
+	// error, under load) the messages of the lost response come back only after that timeout, so it is short here:
+	// they are received by a later poll, as a consumer of a real queue would.
 	out, err := client.CreateQueue(
 		t.Context(),
-		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
+		&sqs.CreateQueueInput{
+			QueueName:  aws.String(gopherstack.UniqueName(t, "queue")),
+			Attributes: map[string]string{string(sqstypes.QueueAttributeNameVisibilityTimeout): "2"},
+		},
 	)
 	require.NoError(t, err)
 
@@ -54,15 +61,26 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 	ctx, cancel := context.WithTimeout(t.Context(), receiveDeadline)
 	defer cancel()
 
-	var got []received
+	var (
+		got       []received
+		deleteErr error
+	)
 
-	rep := gopherstack.Poll(ctx, callTimeout, 0, func(ctx context.Context) (bool, error) {
-		out, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-			QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
-			MessageAttributeNames: []string{"All"},
+	rep := gopherstack.Poll(ctx, callTimeout, 50*time.Millisecond, func(calls *gopherstack.Calls) bool {
+		var out *sqs.ReceiveMessageOutput
+
+		err := calls.Do("ReceiveMessage", func(ctx context.Context) error {
+			var receiveErr error
+
+			out, receiveErr = client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+				QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
+				MessageAttributeNames: []string{"All"},
+			})
+
+			return receiveErr
 		})
 		if err != nil {
-			return false, err
+			return false
 		}
 
 		for _, msg := range out.Messages {
@@ -74,21 +92,28 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 
-			_, deleteMessageErr := client.DeleteMessage(
-				ctx,
-				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
-			)
-			if deleteMessageErr != nil {
-				return false, deleteMessageErr
+			// The same receipt handle is deleted again until it works or the deadline passes.
+			deleteErr = calls.Retry("DeleteMessage", func(ctx context.Context) error {
+				_, delErr := client.DeleteMessage(
+					ctx,
+					&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
+				)
+
+				return delErr
+			})
+			if deleteErr != nil {
+				return false
 			}
 
 			got = append(got, r)
 		}
 
-		return len(got) >= want, nil
+		return len(got) >= want
 	})
 
-	// The message is built here, after the polling: it carries the real counts.
+	// The messages are built here, after the polling. A delete that never worked fails with its own error, whatever
+	// the receives did afterwards.
+	require.NoError(t, deleteErr, "a message could not be deleted: %s", rep)
 	require.Len(t, got, want, "%s", rep)
 
 	return got

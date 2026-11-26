@@ -11,13 +11,13 @@
 package gopherstack
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -58,11 +58,11 @@ const (
 	EnvEndpoint = "GOPHERSTACK_ENDPOINT"
 	// EnvImage is the env var to override Image.
 	EnvImage = "GOPHERSTACK_IMAGE"
-	// EnvContainer is set by Main to the id of the container it started, so that Connect can show the end of its log
-	// when a test fails. It is not set for an external instance (GOPHERSTACK_ENDPOINT): there is no container to ask.
-	EnvContainer = "GOPHERSTACK_CONTAINER"
-	// logLines is the number of lines of the log of the container that a failed test shows.
-	logLines = "200"
+	// logLines is the number of lines of the log of the emulator that Main prints when the tests failed.
+	logLines = 200
+	// logBuffer and logMaxLine are the initial buffer and the longest line read from the log.
+	logBuffer  = 64 << 10
+	logMaxLine = 1 << 20
 	// logTimeout bounds the reading of that log.
 	logTimeout = 20 * time.Second
 )
@@ -219,6 +219,10 @@ func (s *Server) SetAwsEnv(t *testing.T) {
 // is available, publishes its endpoint in GOPHERSTACK_ENDPOINT for Connect, runs the tests and removes
 // the container. When Docker is not available the tests that call Connect are skipped.
 //
+// When the tests fail and Main started the container, it prints the last 200 lines of the log of the emulator to
+// stderr, read through the Docker API, before it removes the container. For an external instance
+// (GOPHERSTACK_ENDPOINT) it has no container and prints nothing.
+//
 //	func TestMain(m *testing.M) { os.Exit(gopherstack.Main(m)) }
 func Main(m *testing.M) int {
 	ctx := context.Background()
@@ -247,8 +251,12 @@ func Main(m *testing.M) int {
 			return 1
 		}
 
-		// Best effort: without it a failed test only lacks the log of the emulator.
-		_ = os.Setenv(EnvContainer, srv.container.GetContainerID())
+		code := m.Run()
+		if code != 0 {
+			printLog(ctx, srv)
+		}
+
+		return code
 	}
 
 	return m.Run()
@@ -264,29 +272,37 @@ func Connect(tb testing.TB) *Server {
 		tb.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
 	}
 
-	if id := os.Getenv(EnvContainer); id != "" {
-		tb.Cleanup(func() {
-			if tb.Failed() {
-				tb.Logf("gopherstack container %s, last %s lines of its log:\n%s", id, logLines, containerLog(id))
-			}
-		})
-	}
-
 	return &Server{Endpoint: endpoint}
 }
 
-// containerLog returns the end of the log of the container, or why it could not be read.
-func containerLog(id string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), logTimeout)
+// printLog writes the last logLines lines of the log of the container of srv to stderr, or why it cannot.
+func printLog(ctx context.Context, srv *Server) {
+	ctx, cancel := context.WithTimeout(ctx, logTimeout)
 	defer cancel()
 
-	//nolint:gosec // G204: the id is the one of the container Main started
-	out, err := exec.CommandContext(ctx, "docker", "logs", "--tail", logLines, id).CombinedOutput()
+	logs, err := srv.container.Logs(ctx)
 	if err != nil {
-		return fmt.Sprintf("(cannot read it: %v: %s)", err, out)
+		fmt.Fprintln(os.Stderr, "gopherstack: cannot read the log of the emulator:", err)
+
+		return
 	}
 
-	return string(out)
+	defer func() { _ = logs.Close() }()
+
+	ring := make([]string, 0, logLines)
+	scanner := bufio.NewScanner(logs)
+	scanner.Buffer(make([]byte, 0, logBuffer), logMaxLine)
+
+	for scanner.Scan() {
+		if len(ring) == logLines {
+			ring = ring[1:]
+		}
+
+		ring = append(ring, scanner.Text())
+	}
+
+	fmt.Fprintf(os.Stderr, "gopherstack: last %d lines of the log of the emulator:\n%s\n",
+		len(ring), strings.Join(ring, "\n"))
 }
 
 var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)

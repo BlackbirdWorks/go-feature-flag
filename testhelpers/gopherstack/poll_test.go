@@ -3,6 +3,7 @@ package gopherstack_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -13,64 +14,186 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
-var errBoom = errors.New("boom")
+var (
+	errBoom  = errors.New(textBoom)
+	errOther = errors.New("other")
+)
 
 const (
 	overall  = time.Second
 	perCall  = 300 * time.Millisecond
 	interval = 100 * time.Millisecond
+	textBoom = "boom"
+	opRecv   = "Receive"
+	opDelete = "Delete"
 )
 
-func TestPollReportsWhatItSawWhenTheDeadlinePasses(t *testing.T) {
+// work makes a call that takes d, unless its context ends first.
+func work(d time.Duration) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		select {
+		case <-time.After(d):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func fail(err error) func(context.Context) error { return func(context.Context) error { return err } }
+
+type wantError struct {
+	op       string
+	text     string
+	minCount int
+}
+
+func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		step                func(call int, ctx context.Context) (bool, error)
-		wantLastErrIs       error
-		name                string
-		wantInSummary       string
-		wantAtLeastNPolls   int
-		wantExactlyNPolls   int
-		wantDone            bool
-		wantNoError         bool
-		wantAllIncomplete   bool
-		wantLastErrDeadline bool
+		step              func(t *testing.T, call int, c *gopherstack.Calls) bool
+		name              string
+		wantSummary       string
+		wantErrors        []wantError
+		wantMinPolls      int
+		wantExactPolls    int
+		wantDropped       int
+		wantDone          bool
+		wantAllIncomplete bool
 	}{
 		{
-			name:              "every call fails",
-			step:              func(int, context.Context) (bool, error) { return false, errBoom },
-			wantInSummary:     "last error: boom",
-			wantAtLeastNPolls: 5,
-			wantLastErrIs:     errBoom,
+			name: "every call fails with the same error",
+			step: func(_ *testing.T, _ int, c *gopherstack.Calls) bool {
+				_ = c.Do(opRecv, fail(errBoom))
+
+				return false
+			},
+			wantErrors:   []wantError{{op: opRecv, text: textBoom, minCount: 5}},
+			wantMinPolls: 5,
+			wantSummary:  "[Receive x",
 		},
 		{
 			name:              "every call answers and the job is never finished",
-			step:              func(int, context.Context) (bool, error) { return false, nil },
-			wantInSummary:     "last error: <nil>",
-			wantAtLeastNPolls: 5,
-			wantNoError:       true,
+			step:              func(*testing.T, int, *gopherstack.Calls) bool { return false },
+			wantSummary:       "no error",
+			wantMinPolls:      5,
 			wantAllIncomplete: true,
 		},
 		{
 			name: "every call hangs until its context ends",
-			step: func(_ int, ctx context.Context) (bool, error) {
-				<-ctx.Done()
+			step: func(_ *testing.T, _ int, c *gopherstack.Calls) bool {
+				_ = c.Do(opRecv, func(ctx context.Context) error {
+					<-ctx.Done()
 
-				return false, ctx.Err()
+					return ctx.Err()
+				})
+
+				return false
 			},
-			wantInSummary:       "context deadline exceeded",
-			wantAtLeastNPolls:   3,
-			wantLastErrDeadline: true,
+			wantErrors:   []wantError{{op: opRecv, text: "context deadline exceeded", minCount: 3}},
+			wantMinPolls: 3,
 		},
 		{
 			name: "the job is finished on the third call",
-			step: func(call int, _ context.Context) (bool, error) {
-				return call == 3, nil
+			step: func(_ *testing.T, call int, _ *gopherstack.Calls) bool {
+				return call == 3
 			},
-			wantDone:          true,
-			wantExactlyNPolls: 3,
-			wantNoError:       true,
-			wantInSummary:     "after 3 polls (2 without error that did not finish)",
+			wantDone:       true,
+			wantExactPolls: 3,
+			wantSummary:    "after 3 polls (2 answered without finishing), no error",
+		},
+		{
+			// 250 ms each, the bound of a call is 300 ms: with one context shared by the three the second would fail.
+			name: "three calls of one step each get a full bound",
+			step: func(t *testing.T, call int, c *gopherstack.Calls) bool {
+				t.Helper()
+
+				for range 3 {
+					require.NoError(t, c.Do(opRecv, work(250*time.Millisecond)))
+				}
+
+				return call == 1
+			},
+			wantDone:       true,
+			wantExactPolls: 1,
+			wantSummary:    "no error",
+		},
+		{
+			// the call would take an hour: it is cut at its bound (300 ms) and the polling ends at the overall deadline.
+			name: "a call is cut at the overall deadline, not at its own bound",
+			step: func(_ *testing.T, _ int, c *gopherstack.Calls) bool {
+				_ = c.Do(opRecv, work(time.Hour))
+
+				return false
+			},
+			wantErrors:   []wantError{{op: opRecv, text: "context deadline exceeded", minCount: 1}},
+			wantMinPolls: 1,
+		},
+		{
+			name: "different errors are kept with their operation and count",
+			step: func(_ *testing.T, _ int, c *gopherstack.Calls) bool {
+				_ = c.Do(opRecv, fail(errBoom))
+				_ = c.Do(opDelete, fail(errOther))
+				_ = c.Do(opRecv, fail(errOther))
+
+				return false
+			},
+			wantErrors: []wantError{
+				{op: opRecv, text: textBoom, minCount: 3},
+				{op: opDelete, text: "other", minCount: 3},
+				{op: opRecv, text: "other", minCount: 3},
+			},
+			wantMinPolls: 3,
+		},
+		{
+			name: "the list of distinct errors is bounded",
+			step: func(_ *testing.T, call int, c *gopherstack.Calls) bool {
+				_ = c.Do(opRecv, fail(fmt.Errorf("%w %d", errOther, call)))
+
+				return false
+			},
+			wantMinPolls: 11,
+			wantDropped:  1,
+		},
+		{
+			name: "a delete that fails twice is retried and then succeeds",
+			step: func(t *testing.T, _ int, c *gopherstack.Calls) bool {
+				t.Helper()
+
+				attempts := 0
+				err := c.Retry(opDelete, func(context.Context) error {
+					attempts++
+					if attempts < 3 {
+						return errBoom
+					}
+
+					return nil
+				})
+				require.NoError(t, err)
+
+				return true
+			},
+			wantDone:       true,
+			wantExactPolls: 1,
+			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 2}},
+		},
+		{
+			name: "a delete that never succeeds keeps its own error while receives succeed",
+			step: func(t *testing.T, _ int, calls *gopherstack.Calls) bool {
+				t.Helper()
+
+				if calls.Do(opRecv, work(time.Millisecond)) != nil {
+					return false
+				}
+
+				err := calls.Retry(opDelete, fail(errBoom))
+				require.ErrorIs(t, err, errBoom, "Retry returns the error of the delete")
+
+				return false
+			},
+			wantErrors:   []wantError{{op: opDelete, text: textBoom, minCount: 2}},
+			wantMinPolls: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -81,43 +204,34 @@ func TestPollReportsWhatItSawWhenTheDeadlinePasses(t *testing.T) {
 				outer, cancel := context.WithTimeout(t.Context(), overall)
 				defer cancel()
 
-				outerDeadline, _ := outer.Deadline()
 				calls := 0
 
-				rep := gopherstack.Poll(outer, perCall, interval, func(ctx context.Context) (bool, error) {
+				rep := gopherstack.Poll(outer, perCall, interval, func(c *gopherstack.Calls) bool {
 					calls++
 
-					deadline, ok := ctx.Deadline()
-					require.True(t, ok)
-					assert.False(t, deadline.After(outerDeadline), "no call outlives the overall deadline")
-
-					return tt.step(calls, ctx)
+					return tt.step(t, calls, c)
 				})
 
 				assert.Equal(t, tt.wantDone, rep.Done)
 				assert.Equal(t, calls, rep.Polls)
-				assert.Contains(t, rep.String(), tt.wantInSummary)
+				assert.GreaterOrEqual(t, rep.Polls, tt.wantMinPolls)
+				assert.Equal(t, tt.wantDropped, rep.Dropped)
+				assert.Contains(t, rep.String(), tt.wantSummary)
 
-				if tt.wantExactlyNPolls > 0 {
-					assert.Equal(t, tt.wantExactlyNPolls, rep.Polls)
-				}
-
-				assert.GreaterOrEqual(t, rep.Polls, tt.wantAtLeastNPolls)
-
-				if tt.wantNoError {
-					require.NoError(t, rep.LastErr)
-				}
-
-				if tt.wantLastErrIs != nil {
-					require.ErrorIs(t, rep.LastErr, tt.wantLastErrIs)
-				}
-
-				if tt.wantLastErrDeadline {
-					require.ErrorIs(t, rep.LastErr, context.DeadlineExceeded)
+				if tt.wantExactPolls > 0 {
+					assert.Equal(t, tt.wantExactPolls, rep.Polls)
 				}
 
 				if tt.wantAllIncomplete {
 					assert.Equal(t, rep.Polls, rep.Incomplete)
+				}
+
+				require.Len(t, rep.Errors, max(len(tt.wantErrors), boundedLen(tt.wantDropped)))
+
+				for i, want := range tt.wantErrors {
+					assert.Equal(t, want.op, rep.Errors[i].Op)
+					assert.Contains(t, rep.Errors[i].Err.Error(), want.text)
+					assert.GreaterOrEqual(t, rep.Errors[i].Count, want.minCount)
 				}
 
 				if !tt.wantDone {
@@ -126,4 +240,42 @@ func TestPollReportsWhatItSawWhenTheDeadlinePasses(t *testing.T) {
 			})
 		})
 	}
+}
+
+// boundedLen is the length of a full list of distinct errors when some were dropped, else 0.
+func boundedLen(dropped int) int {
+	if dropped > 0 {
+		return 10
+	}
+
+	return 0
+}
+
+// A call never ends after the deadline of the whole wait, whatever its own bound is.
+func TestNoCallOutlivesTheOverallDeadline(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		outer, cancel := context.WithTimeout(t.Context(), overall)
+		defer cancel()
+
+		outerDeadline, _ := outer.Deadline()
+
+		rep := gopherstack.Poll(outer, time.Hour, interval, func(c *gopherstack.Calls) bool {
+			_ = c.Do(opRecv, func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok)
+				assert.False(t, deadline.After(outerDeadline), "the call is cut at the overall deadline")
+
+				<-ctx.Done()
+
+				return ctx.Err()
+			})
+
+			return false
+		})
+
+		assert.False(t, rep.Done)
+		require.Error(t, outer.Err())
+	})
 }
