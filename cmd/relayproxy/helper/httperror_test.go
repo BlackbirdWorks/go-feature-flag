@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -148,8 +149,8 @@ func TestBindBody(t *testing.T) {
 			body:        `{"a":3}`,
 			want:        payload{A: 3},
 		},
-		{name: "empty body is not bound", contentType: "text/plain", body: ""},
-		{name: "other content type", contentType: "text/plain", body: `{"a":2}`,
+		{name: "empty body is not bound", contentType: textPlain, body: ""},
+		{name: "other content type", contentType: textPlain, body: `{"a":2}`,
 			wantCode: http.StatusUnsupportedMediaType, wantMessage: "Unsupported Media Type"},
 		{name: "invalid json", contentType: "application/json", body: `{`,
 			wantCode: http.StatusBadRequest, wantMessage: "Bad Request"},
@@ -184,6 +185,68 @@ func TestBindBody(t *testing.T) {
 			var rawHE *helper.HTTPError
 			require.ErrorAs(t, rawErr, &rawHE)
 			assert.Equal(t, tt.wantCode, rawHE.Code)
+		})
+	}
+}
+
+func TestHTTPError_Accessors(t *testing.T) {
+	t.Parallel()
+
+	wrapped := helper.WrapHTTPError(http.StatusBadGateway, errBoom)
+
+	assert.Equal(t, http.StatusBadGateway, wrapped.StatusCode())
+	assert.Equal(t, http.StatusBadGateway, wrapped.GetStatus())
+	assert.Equal(t, "application/json", wrapped.ContentType("application/json"))
+	assert.Equal(t, errBoom, wrapped.Unwrap())
+	require.ErrorIs(t, wrapped, errBoom)
+	assert.NoError(t, helper.NewHTTPError(http.StatusNotFound, "nf").Unwrap())
+}
+
+func TestHTTPError_Schema(t *testing.T) {
+	t.Parallel()
+
+	registry := huma.NewMapRegistry("#/components/schemas/", huma.DefaultSchemaNamer)
+	schema := helper.NewHTTPError(http.StatusNotFound, "nf").Schema(registry)
+
+	require.NotNil(t, schema)
+	assert.Equal(t, "#/components/schemas/ErrorBody", schema.Ref)
+	assert.Contains(t, registry.Map(), "ErrorBody")
+}
+
+func TestWriteJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value      any
+		name       string
+		wantBody   string
+		wantErr    string
+		wantStatus int
+	}{
+		{name: "value", value: map[string]int{"a": 1}, wantStatus: http.StatusCreated, wantBody: "{\"a\":1}\n"},
+		{name: "a value that is not JSON", value: make(chan int), wantStatus: http.StatusOK,
+			wantErr: "encoding the JSON response"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := httptest.NewRecorder()
+			code := tt.wantStatus
+
+			err := helper.WriteJSON(rec, code, tt.value)
+
+			assert.Equal(t, code, rec.Code)
+			assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+			assert.Equal(t, tt.wantBody, rec.Body.String())
+
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }

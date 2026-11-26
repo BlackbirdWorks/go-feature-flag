@@ -549,3 +549,53 @@ func TestEnabled(t *testing.T) {
 		})
 	}
 }
+
+// TestInit_Errors checks that a configuration that can not be turned into providers is reported with the step that
+// failed, and that nothing is created. t.Setenv: the OpenTelemetry SDK reads OTEL_* from the process environment.
+func TestInit_Errors(t *testing.T) {
+	const unknownExporter = "unknown-exporter"
+
+	tests := []struct {
+		env      map[string]string
+		name     string
+		wantErr  string
+		settings Settings
+	}{
+		{
+			name:     "an unknown span exporter",
+			env:      map[string]string{"OTEL_TRACES_EXPORTER": unknownExporter},
+			settings: Settings{OTLPEndpoint: httpsExampleCom4318},
+			wantErr:  "initializing OTel exporter",
+		},
+		{
+			name: "a refresh interval of the jaeger sampler that is not a duration",
+			settings: Settings{
+				OTLPEndpoint: httpsExampleCom4318, Sampler: "jaeger_remote", JaegerSamplerRefreshInterval: "soon",
+			},
+			wantErr: "initializing OTel sampler: parsing JAEGER_SAMPLER_REFRESH_INTERVAL",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			svc := NewOtelService()
+			err := svc.Init(t.Context(), &tt.settings)
+
+			require.ErrorContains(t, err, tt.wantErr)
+			assert.Nil(t, svc.otelTraceProvider)
+		})
+	}
+}
+
+func TestInitMetrics_UnknownExporter(t *testing.T) {
+	t.Setenv("OTEL_METRICS_EXPORTER", "unknown-exporter")
+
+	svc := NewOtelService()
+	err := svc.InitMetrics(t.Context(), &Settings{OTLPEndpoint: httpsExampleCom4318})
+
+	require.ErrorContains(t, err, "initializing OTel metric exporter")
+	assert.Nil(t, svc.MeterProvider())
+}
