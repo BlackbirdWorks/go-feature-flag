@@ -40,7 +40,7 @@ const (
 
 const (
 	// Image is the pinned gopherstack image (sha256:3683df48d7ed91df17214e3b6169609420d0d3a59b21a26f808b556be4cd8f78).
-	Image = "ghcr.io/blackbirdworks/gopherstack:1.9.1"
+	Image = "ghcr.io/blackbirdworks/gopherstack:1.10.0"
 	// Port is the port gopherstack listens on in the container.
 	Port = "8000/tcp"
 	// HealthPath is the health check endpoint.
