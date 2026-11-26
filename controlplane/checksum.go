@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"strings"
 )
 
 const (
@@ -20,11 +19,26 @@ func ChecksumOf(data []byte) Checksum {
 	return Checksum{Algorithm: AlgorithmSHA256, Value: hex.EncodeToString(sum[:])}
 }
 
+// validChecksum checks the algorithm and the form of a checksum.
+func validChecksum(sum Checksum) error {
+	if sum.Algorithm != AlgorithmSHA256 {
+		return fmt.Errorf("%w: %q", ErrUnsupportedChecksum, sum.Algorithm)
+	}
+
+	if !isLowerHex(sum.Value, sha256HexLen) {
+		return fmt.Errorf("%w: want %d lower-case hex characters", ErrInvalidChecksum, sha256HexLen)
+	}
+
+	return nil
+}
+
 // VerifyChecksum checks that data has the checksum want. It returns ErrUnsupportedChecksum for an algorithm
-// other than sha256 and a *ChecksumMismatchError (matches ErrChecksumMismatch) when the digest differs.
+// other than sha256, ErrInvalidChecksum for a value that is not 64 lower-case hex characters (upper-case hex is
+// invalid, not a mismatch) and a *ChecksumMismatchError (matches ErrChecksumMismatch) when the digest differs.
 func VerifyChecksum(data []byte, want Checksum) error {
-	if want.Algorithm != AlgorithmSHA256 {
-		return fmt.Errorf("%w: %q", ErrUnsupportedChecksum, want.Algorithm)
+	err := validChecksum(want)
+	if err != nil {
+		return err
 	}
 
 	got := ChecksumOf(data).Value
@@ -36,12 +50,35 @@ func VerifyChecksum(data []byte, want Checksum) error {
 }
 
 // ObjectKey returns the immutable content-addressed key of an object:
-// objects/sha256/<2 hex>/<hex>.<ext>. A leading dot of ext is ignored.
-func ObjectKey(sum Checksum, ext string) string {
-	prefix := sum.Value
-	if len(prefix) > prefixLen {
-		prefix = prefix[:prefixLen]
+// objects/sha256/<2 hex>/<hex>.<ext>. The checksum must be a valid sha256 (ErrUnsupportedChecksum,
+// ErrInvalidChecksum) and ext must match [a-z0-9]+ without a dot (ErrInvalidExtension), so a key can never
+// contain a path separator or a ".." element.
+func ObjectKey(sum Checksum, ext string) (string, error) {
+	err := validChecksum(sum)
+	if err != nil {
+		return "", err
 	}
 
-	return "objects/" + sum.Algorithm + "/" + prefix + "/" + sum.Value + "." + strings.TrimPrefix(ext, ".")
+	if !validExtension(ext) {
+		return "", fmt.Errorf("%w: %q", ErrInvalidExtension, ext)
+	}
+
+	return "objects/" + sum.Algorithm + "/" + sum.Value[:prefixLen] + "/" + sum.Value + "." + ext, nil
+}
+
+func validExtension(ext string) bool {
+	if ext == "" {
+		return false
+	}
+
+	for i := range len(ext) {
+		char := ext[i]
+		if char < 'a' || char > 'z' {
+			if char < '0' || char > '9' {
+				return false
+			}
+		}
+	}
+
+	return true
 }

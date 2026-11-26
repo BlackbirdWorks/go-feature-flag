@@ -12,4 +12,13 @@ objects:
     checksum:
       algorithm: sha256
       value: 75cc434ecfa663c2d1385c5712239ca2f931413c1123fd4eb275a5c6ff3450f6
-    size: 0
+    size: -1
+  - name: flagsets
+    kind: flagSets
+    connection: control
+    key: objects/sha256/30/3066acde9a28a34448d0bd92129db7846192078200c62f27cb14ff5bbd473528.yaml
+    format: yaml
+    checksum:
+      algorithm: sha256
+      value: 3066acde9a28a34448d0bd92129db7846192078200c62f27cb14ff5bbd473528
+    size: 100

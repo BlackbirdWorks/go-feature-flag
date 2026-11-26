@@ -20,6 +20,15 @@ const (
 	algoMD5           = "md5"
 	extJSON           = ".json"
 	pathObject0Name   = "objects[0].name"
+	connFlagsEU       = "flags-eu"
+	connControl       = "control"
+	apiKeyOne         = "6f1f1b7e-6a0e-4d4c-9d8e-2f6f3f1a0b11"
+	textExp           = "1e3"
+	textTrue          = "true"
+	textDate          = "2026-01-01"
+	keyFloat          = "float"
+	resultOK          = "ok 2"
+	reasonSyntax      = "syntax error"
 )
 
 // fixtureTime is a fixed instant: the tests never read the wall clock.
@@ -35,40 +44,40 @@ func fixtureFlags() controlplane.Flags {
 		"new-checkout": {
 			TrackEvents: new(false),
 			Disable:     new(false),
-			Version:     "1.2",
+			Version:     new("1.2"),
 			Variations:  map[string]any{"on": true, variationOff: false},
 			Targeting: []controlplane.Rule{
-				{Name: "beta", Query: queryBeta, Percentage: map[string]float64{"on": 100, variationOff: 0}},
+				{Name: new("beta"), Query: new(queryBeta), Percentage: map[string]float64{"on": 100, variationOff: 0}},
 				{
-					Name:  "ramp",
-					Query: `country eq "FR"`,
+					Name:  new("ramp"),
+					Query: new(`country eq "FR"`),
 					ProgressiveRollout: &controlplane.ProgressiveRollout{
 						Initial: &controlplane.ProgressiveRolloutStep{
-							Variation:  variationOff,
+							Variation:  new(variationOff),
 							Percentage: new(0.0),
 							Date:       fixtureTime(1),
 						},
 						End: &controlplane.ProgressiveRolloutStep{
-							Variation:  "on",
+							Variation:  new("on"),
 							Percentage: new(100.0),
 							Date:       fixtureTime(2),
 						},
 					},
 				},
 			},
-			BucketingKey: "targetingKey",
-			DefaultRule:  &controlplane.Rule{Variation: variationOff},
+			BucketingKey: new("targetingKey"),
+			DefaultRule:  &controlplane.Rule{Variation: new(variationOff)},
 			ScheduledRollout: []controlplane.ScheduledStep{{
 				Date:        fixtureTime(3),
-				DefaultRule: &controlplane.Rule{Variation: "on"},
+				DefaultRule: &controlplane.Rule{Variation: new("on")},
 				Metadata:    map[string]any{"step": "full"},
 			}},
 			Experimentation: &controlplane.Experimentation{Start: fixtureTime(4), End: fixtureTime(5)},
-			Metadata:        map[string]any{keyOwner: "payments", "ratio": 1.5, "tags": []any{"yes", "007"}},
+			Metadata:        map[string]any{keyOwner: "payments", "ratio": 1.5, "tags": []any{textYes, "007"}},
 		},
 		"banner": {
-			Variations:  map[string]any{"a": "yes", "b": "no", "c": 0.5, "d": "2026-01-01"},
-			DefaultRule: &controlplane.Rule{Variation: "a"},
+			Variations:  map[string]any{"a": textYes, "b": "no", "c": 0.5, "d": textDate},
+			DefaultRule: &controlplane.Rule{Variation: new("a")},
 		},
 	}
 }
@@ -85,28 +94,22 @@ func fixtureManifest() *controlplane.Manifest {
 			{
 				Name:       nameCheckoutFlags,
 				Kind:       controlplane.KindFlags,
-				Connection: "flags-eu",
-				Key: controlplane.ObjectKey(
-					flags,
-					controlplane.FormatYAML,
-				),
-				Checksum:  flags,
-				Size:      5,
-				Format:    controlplane.FormatYAML,
-				VersionID: "v1",
+				Connection: connFlagsEU,
+				Key:        keyOf(flags),
+				Checksum:   flags,
+				Size:       5,
+				Format:     controlplane.FormatYAML,
+				VersionID:  "v1",
 			},
 			{
 				Name:       nameFlagSets,
 				Kind:       controlplane.KindFlagSets,
-				Connection: "control",
+				Connection: connControl,
 				Version:    1,
-				Key: controlplane.ObjectKey(
-					sets,
-					controlplane.FormatYAML,
-				),
-				Checksum: sets,
-				Size:     9,
-				Format:   controlplane.FormatYAML,
+				Key:        keyOf(sets),
+				Checksum:   sets,
+				Size:       9,
+				Format:     controlplane.FormatYAML,
 			},
 		},
 	}
@@ -117,8 +120,18 @@ func fixtureFlagSet() *controlplane.FlagSetDocument {
 		{
 			Name:    "checkout",
 			Sources: []string{nameCheckoutFlags},
-			APIKeys: []string{"6f1f1b7e-6a0e-4d4c-9d8e-2f6f3f1a0b11"},
+			APIKeys: []string{apiKeyOne},
 		},
 		{Name: "no-keys-yet", Sources: []string{nameCheckoutFlags}},
 	}}
+}
+
+// keyOf is the object key of a checksum; an error shows in the key, so a test that compares keys fails.
+func keyOf(sum controlplane.Checksum) string {
+	key, err := controlplane.ObjectKey(sum, controlplane.FormatYAML)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+
+	return key
 }

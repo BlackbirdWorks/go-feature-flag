@@ -11,13 +11,13 @@ import (
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
-// checkGolden compares got with testdata/golden/<name>. Set UPDATE_GOLDEN=1 to rewrite the files.
+// checkGolden compares got with testdata/golden/<name>. Set GOLDEN_UPDATE=1 to rewrite the files.
 func checkGolden(t *testing.T, name string, got []byte) {
 	t.Helper()
 
 	path := filepath.Join("testdata", "golden", name)
 
-	if os.Getenv("UPDATE_GOLDEN") == "1" {
+	if os.Getenv("GOLDEN_UPDATE") != "" {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, got, 0o600))
 	}

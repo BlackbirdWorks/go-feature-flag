@@ -17,6 +17,20 @@
 // written and every string that a YAML 1.1 or 1.2 reader could read as another type (yes, no, on, off, y, n,
 // 007, 1e3, 2026-01-01, null, ...) is double quoted.
 //
+// # Reading and validating
+//
+// The Unmarshal functions read YAML and JSON through one reader. Field names are case sensitive; duplicate keys,
+// non-string keys, NaN, infinity, a second YAML document and an integer field with a fraction or an overflow are a
+// *DecodeError, which never contains the text of a value. A float keeps its type (written 2.0) and an integer
+// stays an integer, in both formats. Anchors, aliases and merge keys are accepted on read and never written.
+//
+// The Validate functions return a *ValidationError whose FieldErrors carry a stable Code, the Kind of the entry
+// (object, flag set, flag, document), its Name and Index, so a reader can keep the good entries and drop the bad
+// ones without parsing text. Of two objects or flag sets with one name, and of an API key held by two flag sets,
+// the first in document order keeps it and the later one has the problem. An object with a newer content version
+// is an entry problem (CodeUnsupportedVersion), not a failure of the manifest. A wrong kind or apiVersion rejects
+// the document whole (*KindError, *UnsupportedVersionError; they match ErrInvalid too).
+//
 // # Compatibility
 //
 // Within a version only additive optional fields are allowed. Readers ignore unknown fields of published

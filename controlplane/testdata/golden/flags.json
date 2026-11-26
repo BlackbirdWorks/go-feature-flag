@@ -23,8 +23,8 @@
         "name": "beta",
         "query": "beta eq true",
         "percentage": {
-          "off": 0,
-          "on": 100
+          "off": 0.0,
+          "on": 100.0
         }
       },
       {
@@ -33,12 +33,12 @@
         "progressiveRollout": {
           "initial": {
             "variation": "off",
-            "percentage": 0,
+            "percentage": 0.0,
             "date": "2026-01-01T03:04:05Z"
           },
           "end": {
             "variation": "on",
-            "percentage": 100,
+            "percentage": 100.0,
             "date": "2026-01-02T03:04:05Z"
           }
         }

@@ -1,0 +1,9 @@
+n:
+  variations:
+    small: 2
+    float: 2.0
+    big: 9007199254740993
+    huge: 12345678901234567890
+    exp: 1.5e+30
+  defaultRule:
+    variation: float

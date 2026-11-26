@@ -7,12 +7,13 @@ import (
 )
 
 // DefaultMaxObjects is the default bound on the number of objects of a manifest (validation and memory). The
-// relay makes it a setting; pass WithMaxObjects to change it.
-const DefaultMaxObjects = 1000
+// relay makes it a setting with the same default; pass WithMaxObjects to change it.
+const DefaultMaxObjects = 20000
 
 const (
 	maxNameLen = 63
-	maxPercent = 100
+	// percentageMultiplier is the engine's scale of a percentage; the scaled sum must fit a uint32.
+	percentageMultiplier = 1000
 )
 
 // ValidateOption changes how a Validate function checks.
@@ -32,8 +33,19 @@ func WithMaxObjects(limit int) ValidateOption {
 	}
 }
 
-// ValidateManifest runs the checks the relay runs on a manifest (an empty header means the current one) and
-// returns a *ValidationError listing every problem, an ErrUnsupportedAPIVersion or an ErrWrongKind.
+// docEntry is the entry of a problem of the document as a whole.
+func docEntry() entry {
+	return entry{kind: EntryDocument, name: "", index: NoIndex}
+}
+
+// ValidateManifest runs the checks the relay runs on a manifest (an empty header means the current one).
+//
+// A wrong kind or an unsupported apiVersion rejects the document whole (*KindError, *UnsupportedVersionError,
+// both match ErrInvalid too). Every other problem is a *ValidationError whose FieldErrors name the entry, so a
+// caller can keep the good entries: an object with a problem is one that has a FieldError of Kind EntryObject
+// with its Index. Of two objects with one name the first keeps it and the later one has the problem. An
+// object with a newer content version is an entry problem (CodeUnsupportedVersion), not a failure of the
+// manifest.
 func ValidateManifest(manifest *Manifest, opts ...ValidateOption) error {
 	if manifest == nil {
 		return ErrNilDocument
@@ -53,90 +65,91 @@ func ValidateManifest(manifest *Manifest, opts ...ValidateOption) error {
 	var probs problems
 
 	if manifest.Channel == "" {
-		probs.addf("channel", "is required")
+		probs.addf(docEntry(), CodeMissingValue, "channel", "is required")
 	}
 
 	if manifest.Generation < 1 {
-		probs.addf("generation", "must be at least 1")
+		probs.addf(docEntry(), CodeInvalidValue, "generation", "must be at least 1")
 	}
 
 	if len(manifest.Objects) > cfg.maxObjects {
-		probs.addf("objects", "has %d entries, the limit is %d", len(manifest.Objects), cfg.maxObjects)
+		probs.addf(docEntry(), CodeTooManyObjects, "objects", "has %d entries, the limit is %d",
+			len(manifest.Objects), cfg.maxObjects)
 	}
 
 	seen := make(map[string]struct{}, len(manifest.Objects))
 
 	for i := range manifest.Objects {
-		path := "objects[" + strconv.Itoa(i) + "]"
 		obj := &manifest.Objects[i]
+		owner := entry{kind: EntryObject, name: obj.Name, index: i}
+		path := "objects[" + strconv.Itoa(i) + "]"
 
 		if _, dup := seen[obj.Name]; dup {
-			probs.addf(path+".name", "duplicate name %q", obj.Name)
+			probs.addf(owner, CodeDuplicateName, path+".name", "duplicate name %q", obj.Name)
 		}
 
 		seen[obj.Name] = struct{}{}
 
-		validateObject(&probs, path, obj)
+		validateObject(&probs, owner, path, obj)
 	}
 
 	return probs.err()
 }
 
-func validateObject(probs *problems, path string, obj *ManifestObject) {
+func validateObject(probs *problems, owner entry, path string, obj *ManifestObject) {
 	if !validName(obj.Name) {
-		probs.addf(path+".name", "%q does not match ^[a-z][a-z0-9-]{0,62}$", obj.Name)
+		probs.addf(owner, CodeInvalidName, path+".name", "%q does not match ^[a-z][a-z0-9-]{0,62}$", obj.Name)
 	}
 
-	validateKindFormat(probs, path, obj)
+	validateKindFormat(probs, owner, path, obj)
 
 	if obj.Connection == "" {
-		probs.addf(path+".connection", "is required")
+		probs.addf(owner, CodeMissingValue, path+".connection", "is required")
 	}
 
 	if obj.Key == "" {
-		probs.addf(path+".key", "is required")
+		probs.addf(owner, CodeMissingValue, path+".key", "is required")
 	}
 
-	if obj.Version != 0 && obj.Version != ObjectVersion1 {
-		probs.addf(path+".version", "%d is not supported", obj.Version)
+	switch {
+	case obj.Version < 0:
+		probs.addf(owner, CodeInvalidValue, path+".version", "must not be negative")
+	case obj.Version > ObjectVersion1:
+		probs.addf(owner, CodeUnsupportedVersion, path+".version", "%d is not supported", obj.Version)
 	}
 
-	if obj.Size < 1 {
-		probs.addf(path+".size", "must be at least 1")
+	if obj.Size < 0 {
+		probs.addf(owner, CodeInvalidValue, path+".size", "must not be negative")
 	}
 
-	validateChecksum(probs, path+".checksum", obj.Checksum)
+	err := validChecksum(obj.Checksum)
+	if err != nil {
+		probs.addf(owner, CodeInvalidChecksum, path+".checksum", "%s", err.Error())
+	}
 }
 
-func validateKindFormat(probs *problems, path string, obj *ManifestObject) {
+func validateKindFormat(probs *problems, owner entry, path string, obj *ManifestObject) {
 	switch obj.Kind {
 	case KindFlags:
 		if obj.Format != FormatYAML && obj.Format != FormatJSON && obj.Format != FormatTOML {
-			probs.addf(path+".format", "%q is not yaml, json or toml", obj.Format)
+			probs.addf(owner, CodeInvalidValue, path+".format", "%q is not yaml, json or toml", obj.Format)
 		}
 	case KindFlagSets:
 		if obj.Format != FormatYAML && obj.Format != FormatJSON {
-			probs.addf(path+".format", "%q is not yaml or json", obj.Format)
+			probs.addf(owner, CodeInvalidValue, path+".format", "%q is not yaml or json", obj.Format)
 		}
 	default:
-		probs.addf(path+".kind", "%q is not flags or flagSets", obj.Kind)
-	}
-}
-
-func validateChecksum(probs *problems, path string, sum Checksum) {
-	if sum.Algorithm != AlgorithmSHA256 {
-		probs.addf(path+".algorithm", "%q is not sha256", sum.Algorithm)
-
-		return
-	}
-
-	if !isLowerHex(sum.Value, sha256HexLen) {
-		probs.addf(path+".value", "must be %d lower-case hex characters", sha256HexLen)
+		probs.addf(owner, CodeInvalidValue, path+".kind", "%q is not flags or flagSets", obj.Kind)
 	}
 }
 
 // ValidateFlagSet checks a flag-set document. When manifest is not nil every source must name an object of kind
-// flags of the manifest. Names and API keys must be unique; the error never contains a key value.
+// flags of the manifest. Header failures are returned as for ValidateManifest.
+//
+// Problems name the flag set (Kind EntryFlagSet, Name, Index) so a caller can keep the good flag sets. Of two
+// flag sets with one name, and of an API key held by two flag sets, the first in document order keeps it and
+// the later flag set has the problem (CodeDuplicateName, CodeDuplicateKey). The text of an API key is never
+// printed.
 func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 	if doc == nil {
 		return ErrNilDocument
@@ -164,55 +177,60 @@ func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 	keys := map[string]string{}
 
 	for i := range doc.FlagSets {
-		path := "flagSets[" + strconv.Itoa(i) + "]"
 		set := &doc.FlagSets[i]
+		owner := entry{kind: EntryFlagSet, name: set.Name, index: i}
+		path := "flagSets[" + strconv.Itoa(i) + "]"
 
 		if !validName(set.Name) {
-			probs.addf(path+".name", "%q does not match ^[a-z][a-z0-9-]{0,62}$", set.Name)
+			probs.addf(owner, CodeInvalidName, path+".name", "%q does not match ^[a-z][a-z0-9-]{0,62}$", set.Name)
 		}
 
 		if _, dup := names[set.Name]; dup {
-			probs.addf(path+".name", "duplicate name %q", set.Name)
+			probs.addf(owner, CodeDuplicateName, path+".name", "duplicate name %q", set.Name)
 		}
 
 		names[set.Name] = struct{}{}
 
-		validateSources(&probs, path, set, manifest != nil, flagObjects)
-		validateAPIKeys(&probs, path, set, keys)
+		validateSources(&probs, owner, path, set, manifest != nil, flagObjects)
+		validateAPIKeys(&probs, owner, path, set, keys)
 	}
 
 	return probs.err()
 }
 
-func validateSources(probs *problems, path string, set *FlagSet, resolve bool, flagObjects map[string]struct{}) {
+func validateSources(
+	probs *problems,
+	owner entry,
+	path string,
+	set *FlagSet,
+	resolve bool,
+	flagObjects map[string]struct{},
+) {
 	if len(set.Sources) == 0 {
-		probs.addf(path+".sources", "needs at least one source")
+		probs.addf(owner, CodeMissingValue, path+".sources", "needs at least one source")
 	}
 
 	for i, source := range set.Sources {
 		if _, ok := flagObjects[source]; resolve && !ok {
-			probs.addf(
-				path+".sources["+strconv.Itoa(i)+"]",
-				"%q is not an object of kind flags in the manifest",
-				source,
-			)
+			probs.addf(owner, CodeUnresolvedSource, path+".sources["+strconv.Itoa(i)+"]",
+				"%q is not an object of kind flags in the manifest", source)
 		}
 	}
 }
 
 // validateAPIKeys checks the keys of one flag set; keys maps a key to the path of its first use.
-func validateAPIKeys(probs *problems, path string, set *FlagSet, keys map[string]string) {
+func validateAPIKeys(probs *problems, owner entry, path string, set *FlagSet, keys map[string]string) {
 	for i, key := range set.APIKeys {
 		keyPath := path + ".apiKeys[" + strconv.Itoa(i) + "]"
 
 		if key == "" {
-			probs.addf(keyPath, "is empty")
+			probs.addf(owner, CodeInvalidValue, keyPath, "is empty")
 
 			continue
 		}
 
 		if first, dup := keys[key]; dup {
-			probs.addf(keyPath, "duplicate of %s", first)
+			probs.addf(owner, CodeDuplicateKey, keyPath, "duplicate of %s", first)
 
 			continue
 		}
@@ -221,8 +239,14 @@ func validateAPIKeys(probs *problems, path string, set *FlagSet, keys map[string
 	}
 }
 
-// ValidateFlags checks the structure of a flag file: names, that rules point at declared variations,
-// percentages in [0, 100] and complete progressive rollouts. It does not compile queries; the engine does.
+// ValidateFlags checks a flag file with the structural rules of the engine's own validation, so that a flag
+// accepted here is not dropped when the relay loads it: variations present, not null and all of one type, a
+// default rule, enabled targeting rules with a query and an outcome, declared variations, valid percentages
+// (finite, not negative, a non-zero sum), complete progressive rollouts (both steps, variations, dates in
+// order), and the same checks on scheduled steps (whose rules may be partial updates of a named rule). A
+// disabled targeting rule is not checked. It does not compile queries; the engine does.
+//
+// Problems have Kind EntryFlag and the flag name in Name, so a caller can keep the good flags.
 func ValidateFlags(flags Flags) error {
 	var probs problems
 
@@ -234,85 +258,236 @@ func ValidateFlags(flags Flags) error {
 	slices.Sort(names)
 
 	for _, name := range names {
-		flag := flags[name]
+		check := flagCheck{probs: &probs, owner: entry{kind: EntryFlag, name: name, index: NoIndex}, variations: nil}
 
 		if name == "" {
-			probs.addf("", "flag name is empty")
+			probs.addf(check.owner, CodeInvalidName, "", "flag name is empty")
 		}
 
-		if flag.Converter == "" && len(flag.Variations) == 0 {
-			probs.addf(name+".variations", "is required")
-		}
-
-		if flag.Converter == "" && flag.DefaultRule == nil {
-			probs.addf(name+".defaultRule", "is required")
-		}
-
-		validateRule(&probs, name+".defaultRule", flag.DefaultRule, flag.Variations)
-
-		for i := range flag.Targeting {
-			validateRule(&probs, name+".targeting["+strconv.Itoa(i)+"]", &flag.Targeting[i], flag.Variations)
-		}
+		flag := flags[name]
+		check.flag(name, &flag)
 	}
 
 	return probs.err()
 }
 
-func validateRule(probs *problems, path string, rule *Rule, variations map[string]any) {
-	if rule == nil {
+// flagCheck validates one flag; variations are the ones rules are checked against.
+type flagCheck struct {
+	probs      *problems
+	variations map[string]any
+	owner      entry
+}
+
+func (c *flagCheck) flag(name string, flag *Flag) {
+	c.variations = flag.Variations
+
+	if len(flag.Variations) == 0 {
+		c.probs.addf(c.owner, CodeMissingValue, name+".variations", "is required")
+	}
+
+	c.variationTypes(name+".variations", flag.Variations)
+
+	if flag.DefaultRule == nil {
+		c.probs.addf(c.owner, CodeMissingValue, name+".defaultRule", "is required")
+	}
+
+	c.rule(name+".defaultRule", flag.DefaultRule, true, false)
+
+	for i := range flag.Targeting {
+		c.rule(name+".targeting["+strconv.Itoa(i)+"]", &flag.Targeting[i], false, false)
+	}
+
+	for i := range flag.ScheduledRollout {
+		c.step(name+".scheduledRollout["+strconv.Itoa(i)+"]", flag.Variations, &flag.ScheduledRollout[i])
+	}
+}
+
+// step checks a scheduled step: its rules may update a named rule, so they are checked as partial.
+func (c *flagCheck) step(path string, flagVariations map[string]any, step *ScheduledStep) {
+	if step.Date == nil {
+		c.probs.addf(c.owner, CodeMissingValue, path+".date", "is required: a step without a date never applies")
+	}
+
+	c.variations = flagVariations
+
+	if len(step.Variations) > 0 {
+		c.variations = step.Variations
+		c.variationTypes(path+".variations", step.Variations)
+	}
+
+	c.rule(path+".defaultRule", step.DefaultRule, true, true)
+
+	for i := range step.Targeting {
+		c.rule(path+".targeting["+strconv.Itoa(i)+"]", &step.Targeting[i], false, true)
+	}
+}
+
+// variationTypes checks that no variation is null and that all have the same JSON type.
+func (c *flagCheck) variationTypes(path string, variations map[string]any) {
+	names := make([]string, 0, len(variations))
+	for name := range variations {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	expected := ""
+
+	for _, name := range names {
+		kind := variationType(variations[name])
+		if kind == "" {
+			c.probs.addf(c.owner, CodeInvalidValue, path+"."+name, "must have a value of a supported type, not null")
+
+			continue
+		}
+
+		if expected == "" {
+			expected = kind
+
+			continue
+		}
+
+		if kind != expected {
+			c.probs.addf(c.owner, CodeInvalidValue, path+"."+name, "all variations must have the same type")
+		}
+	}
+}
+
+func variationType(value any) string {
+	switch value.(type) {
+	case string:
+		return "string"
+	case bool:
+		return "bool"
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return "number"
+	case []any:
+		return "list"
+	case map[string]any:
+		return "object"
+	default:
+		return ""
+	}
+}
+
+func (c *flagCheck) declared(path, name string) {
+	if _, ok := c.variations[name]; !ok {
+		c.probs.addf(c.owner, CodeUndeclaredVariation, path, "variation %q is not declared", name)
+	}
+}
+
+// rule checks a rule. partial is set for the rules of a scheduled step: they may leave out what the rule they
+// update already has.
+func (c *flagCheck) rule(path string, rule *Rule, isDefault, partial bool) {
+	if rule == nil || !isDefault && rule.Disable != nil && *rule.Disable {
 		return
 	}
 
-	if rule.Variation != "" {
-		checkVariation(probs, path+".variation", rule.Variation, variations)
+	if !partial {
+		c.outcome(path, rule, isDefault)
 	}
 
-	percentages := make([]string, 0, len(rule.Percentage))
-	for name := range rule.Percentage {
-		percentages = append(percentages, name)
+	c.percentages(path, rule)
+	c.progressive(path+".progressiveRollout", rule.ProgressiveRollout, partial)
+
+	if rule.Percentage == nil && rule.ProgressiveRollout == nil && rule.Variation != nil {
+		c.declared(path+".variation", *rule.Variation)
 	}
-
-	slices.Sort(percentages)
-
-	for _, name := range percentages {
-		checkVariation(probs, path+".percentage."+name, name, variations)
-
-		if value := rule.Percentage[name]; value < 0 || value > maxPercent || math.IsNaN(value) {
-			probs.addf(path+".percentage."+name, "%v is not between 0 and 100", value)
-		}
-	}
-
-	if rule.Variation == "" && len(rule.Percentage) == 0 && rule.ProgressiveRollout == nil {
-		probs.addf(path, "needs a variation, a percentage or a progressiveRollout")
-	}
-
-	validateProgressive(probs, path+".progressiveRollout", rule.ProgressiveRollout, variations)
 }
 
-func validateProgressive(probs *problems, path string, rollout *ProgressiveRollout, variations map[string]any) {
+// outcome checks that an enabled targeting rule has a query and that every rule has a way to pick a variation.
+func (c *flagCheck) outcome(path string, rule *Rule, isDefault bool) {
+	if !isDefault && rule.Query == nil {
+		c.probs.addf(c.owner, CodeMissingValue, path+".query", "is required for a targeting rule")
+	}
+
+	if rule.Percentage == nil && rule.ProgressiveRollout == nil && rule.Variation == nil {
+		c.probs.addf(c.owner, CodeMissingValue, path, "needs a variation, a percentage or a progressiveRollout")
+	}
+}
+
+func (c *flagCheck) percentages(path string, rule *Rule) {
+	if rule.Percentage == nil {
+		return
+	}
+
+	if len(rule.Percentage) == 0 {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".percentage", "must not be empty")
+
+		return
+	}
+
+	names := make([]string, 0, len(rule.Percentage))
+	for name := range rule.Percentage {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	total := 0.0
+
+	for _, name := range names {
+		value := rule.Percentage[name]
+		field := path + ".percentage." + name
+
+		c.declared(field, name)
+
+		if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+			c.probs.addf(c.owner, CodeInvalidValue, field, "must be a finite number, not negative")
+
+			continue
+		}
+
+		total += value
+	}
+
+	switch {
+	case total == 0:
+		c.probs.addf(c.owner, CodeInvalidValue, path+".percentage", "the sum of the percentages must not be zero")
+	case total*percentageMultiplier > math.MaxUint32:
+		c.probs.addf(c.owner, CodeInvalidValue, path+".percentage", "the sum of the percentages is too large")
+	}
+}
+
+func (c *flagCheck) progressive(path string, rollout *ProgressiveRollout, partial bool) {
 	if rollout == nil {
 		return
 	}
 
 	if rollout.Initial == nil || rollout.End == nil {
-		probs.addf(path, "needs initial and end")
+		c.probs.addf(c.owner, CodeMissingValue, path, "needs initial and end")
 
 		return
 	}
 
-	if rollout.Initial.Variation != "" {
-		checkVariation(probs, path+".initial.variation", rollout.Initial.Variation, variations)
+	c.rolloutStep(path+".initial", rollout.Initial, partial)
+	c.rolloutStep(path+".end", rollout.End, partial)
+
+	initial, end := rollout.Initial, rollout.End
+	if initial.Date != nil && end.Date != nil && !end.Date.After(*initial.Date) {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".end.date", "must be after the initial date")
 	}
 
-	if rollout.End.Variation != "" {
-		checkVariation(probs, path+".end.variation", rollout.End.Variation, variations)
+	if initial.Percentage != nil && end.Percentage != nil && *end.Percentage < *initial.Percentage {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".end.percentage", "must not be lower than the initial percentage")
 	}
 }
 
-// checkVariation reports a variation name that the flag does not declare.
-func checkVariation(probs *problems, path, name string, variations map[string]any) {
-	if _, ok := variations[name]; !ok && len(variations) > 0 {
-		probs.addf(path, "variation %q is not declared", name)
+// rolloutStep checks one end of a progressive rollout.
+func (c *flagCheck) rolloutStep(path string, step *ProgressiveRolloutStep, partial bool) {
+	switch {
+	case step.Variation != nil:
+		c.declared(path+".variation", *step.Variation)
+	case !partial:
+		c.probs.addf(c.owner, CodeMissingValue, path+".variation", "is required")
+	}
+
+	if step.Date == nil && !partial {
+		c.probs.addf(c.owner, CodeMissingValue, path+".date", "is required")
+	}
+
+	if value := step.Percentage; value != nil && (*value < 0 || math.IsNaN(*value) || math.IsInf(*value, 0)) {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".percentage", "must be a finite number, not negative")
 	}
 }
 

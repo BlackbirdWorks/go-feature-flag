@@ -4,5 +4,5 @@ f:
     b: 2
   defaultRule:
     percentage:
-      a: 150
-      b: 0
+      a: -5
+      b: 10

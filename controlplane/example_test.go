@@ -11,9 +11,9 @@ import (
 func Example() {
 	flags := controlplane.Flags{"new-cart": {
 		Variations:  map[string]any{"enabled": true, "disabled": false},
-		DefaultRule: &controlplane.Rule{Variation: "disabled"},
+		DefaultRule: &controlplane.Rule{Variation: new("disabled")},
 		Targeting: []controlplane.Rule{
-			{Name: "pilot", Query: `plan eq "pilot"`, Variation: "enabled"},
+			{Name: new("pilot"), Query: new(`plan eq "pilot"`), Variation: new("enabled")},
 		},
 	}}
 
@@ -33,8 +33,15 @@ func Example() {
 
 	sum := controlplane.ChecksumOf(body)
 
+	key, err := controlplane.ObjectKey(sum, "yaml")
+	if err != nil {
+		fmt.Println(err)
+
+		return
+	}
+
 	set := &controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{{
-		Name: "cart", Sources: []string{"cart-flags"}, APIKeys: []string{"6f1f1b7e-6a0e-4d4c-9d8e-2f6f3f1a0b11"},
+		Name: "cart", Sources: []string{"cart-flags"}, APIKeys: []string{"9b2c4f3a-7d1e-4e0b-8a55-3c6d2f1e9a07"},
 	}}}
 
 	setBody, err := controlplane.MarshalFlagSet(set)
@@ -46,6 +53,13 @@ func Example() {
 
 	setSum := controlplane.ChecksumOf(setBody)
 
+	setKey, err := controlplane.ObjectKey(setSum, "yaml")
+	if err != nil {
+		fmt.Println(err)
+
+		return
+	}
+
 	manifest := &controlplane.Manifest{
 		Channel:    "prod",
 		Generation: 1,
@@ -53,26 +67,20 @@ func Example() {
 			{
 				Name:       "cart-flags",
 				Kind:       controlplane.KindFlags,
-				Connection: "flags-eu",
-				Key: controlplane.ObjectKey(
-					sum,
-					"yaml",
-				),
-				Checksum: sum,
-				Size:     int64(len(body)),
-				Format:   controlplane.FormatYAML,
+				Connection: "cart-bucket",
+				Key:        key,
+				Checksum:   sum,
+				Size:       int64(len(body)),
+				Format:     controlplane.FormatYAML,
 			},
 			{
 				Name:       "cart-sets",
 				Kind:       controlplane.KindFlagSets,
-				Connection: "control",
-				Key: controlplane.ObjectKey(
-					setSum,
-					"yaml",
-				),
-				Checksum: setSum,
-				Size:     int64(len(setBody)),
-				Format:   controlplane.FormatYAML,
+				Connection: "cart-control",
+				Key:        setKey,
+				Checksum:   setSum,
+				Size:       int64(len(setBody)),
+				Format:     controlplane.FormatYAML,
 			},
 		},
 	}

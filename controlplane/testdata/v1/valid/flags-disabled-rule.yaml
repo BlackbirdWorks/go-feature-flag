@@ -1,0 +1,9 @@
+f:
+  variations:
+    a: 1
+    b: 2
+  targeting:
+    - name: switched-off
+      disable: true
+  defaultRule:
+    variation: a

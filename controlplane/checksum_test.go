@@ -2,6 +2,7 @@ package controlplane_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,19 +55,19 @@ func TestVerifyChecksum(t *testing.T) {
 			"",
 		},
 		{
-			"upper case is not equal",
+			"upper case is invalid, not a mismatch",
 			textABC,
 			controlplane.Checksum{
 				Algorithm: controlplane.AlgorithmSHA256,
 				Value:     "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
 			},
-			controlplane.ErrChecksumMismatch,
+			controlplane.ErrInvalidChecksum,
 			"",
 		},
 		{
 			"other algorithm",
 			textABC,
-			controlplane.Checksum{Algorithm: algoMD5, Value: "x"},
+			controlplane.Checksum{Algorithm: algoMD5, Value: abcSum},
 			controlplane.ErrUnsupportedChecksum,
 			"",
 		},
@@ -101,36 +102,66 @@ func TestVerifyChecksum(t *testing.T) {
 func TestObjectKey(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		sum  controlplane.Checksum
-		ext  string
-		want string
+	good := controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: abcSum}
+
+	tests := []struct { //nolint:govet // fieldalignment: the columns of the table are in reading order
+		name    string
+		sum     controlplane.Checksum
+		ext     string
+		want    string
+		wantErr error
 	}{
-		{
-			controlplane.FormatYAML,
-			controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: abcSum},
-			controlplane.FormatYAML,
-			"objects/sha256/ba/" + abcSum + ".yaml",
-		},
-		{
-			"dotted ext",
-			controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: abcSum},
-			extJSON,
-			"objects/sha256/ba/" + abcSum + extJSON,
-		},
+		{controlplane.FormatYAML, good, controlplane.FormatYAML, "objects/sha256/ba/" + abcSum + ".yaml", nil},
+		{"digits", good, "7z", "objects/sha256/ba/" + abcSum + ".7z", nil},
+		{"dotted ext", good, ".json", "", controlplane.ErrInvalidExtension},
+		{"traversal", good, "../../x", "", controlplane.ErrInvalidExtension},
+		{"slash", good, "a/b", "", controlplane.ErrInvalidExtension},
+		{"upper case ext", good, "YAML", "", controlplane.ErrInvalidExtension},
+		{"empty ext", good, "", "", controlplane.ErrInvalidExtension},
 		{
 			"short value",
 			controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: "a"},
 			controlplane.FormatYAML,
-			"objects/sha256/a/a.yaml",
+			"",
+			controlplane.ErrInvalidChecksum,
+		},
+		{
+			"traversing value",
+			controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: "../../" + abcSum[6:]},
+			controlplane.FormatYAML,
+			"",
+			controlplane.ErrInvalidChecksum,
+		},
+		{
+			"upper case value",
+			controlplane.Checksum{Algorithm: controlplane.AlgorithmSHA256, Value: strings.ToUpper(abcSum)},
+			controlplane.FormatYAML,
+			"",
+			controlplane.ErrInvalidChecksum,
+		},
+		{
+			"other algorithm",
+			controlplane.Checksum{Algorithm: algoMD5, Value: abcSum},
+			controlplane.FormatYAML,
+			"",
+			controlplane.ErrUnsupportedChecksum,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, controlplane.ObjectKey(tt.sum, tt.ext))
+
+			got, err := controlplane.ObjectKey(tt.sum, tt.ext)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

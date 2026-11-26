@@ -1,6 +1,7 @@
 package controlplane_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -24,163 +25,158 @@ func validFlagSet() *controlplane.FlagSetDocument {
 	return d
 }
 
+// problem is the machine-readable part of a FieldError, as a test expects it.
+type problem struct {
+	code  controlplane.Code
+	kind  controlplane.EntryKind
+	name  string
+	path  string
+	index int
+}
+
+// problemsOf lists the problems of a validation error.
+func problemsOf(t *testing.T, err error) []problem {
+	t.Helper()
+
+	if err == nil {
+		return nil
+	}
+
+	var verr *controlplane.ValidationError
+
+	require.ErrorAs(t, err, &verr)
+
+	out := make([]problem, 0, len(verr.Problems))
+	for _, p := range verr.Problems {
+		out = append(out, problem{code: p.Code, kind: p.Kind, name: p.Name, path: p.Path, index: p.Index})
+	}
+
+	return out
+}
+
+func obj(code controlplane.Code, name string, index int, path string) problem {
+	return problem{code: code, kind: controlplane.EntryObject, name: name, index: index, path: path}
+}
+
+func set(code controlplane.Code, name string, index int, path string) problem {
+	return problem{code: code, kind: controlplane.EntryFlagSet, name: name, index: index, path: path}
+}
+
+func flagProblem(code controlplane.Code, name, path string) problem {
+	return problem{code: code, kind: controlplane.EntryFlag, name: name, index: controlplane.NoIndex, path: path}
+}
+
+func docProblem(code controlplane.Code, path string) problem {
+	return problem{code: code, kind: controlplane.EntryDocument, name: "", index: controlplane.NoIndex, path: path}
+}
+
 func TestValidateManifest(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the columns of the table are in reading order
-		name     string
-		mutate   func(*controlplane.Manifest)
-		opts     []controlplane.ValidateOption
-		wantErr  error
-		wantPath string
+	tests := []struct {
+		mutate func(*controlplane.Manifest)
+		name   string
+		opts   []controlplane.ValidateOption
+		want   []problem
 	}{
-		{"valid manifest", func(*controlplane.Manifest) {}, nil, nil, ""},
-		{"empty objects is valid", func(m *controlplane.Manifest) { m.Objects = nil }, nil, nil, ""},
-		{"wrong kind", func(m *controlplane.Manifest) { m.Kind = "FlagSet" }, nil, controlplane.ErrWrongKind, ""},
+		{name: "valid manifest", mutate: func(*controlplane.Manifest) {}},
+		{name: "empty objects is valid", mutate: func(m *controlplane.Manifest) { m.Objects = nil }},
+		{name: "size zero is valid", mutate: func(m *controlplane.Manifest) { m.Objects[0].Size = 0 }},
 		{
-			"other version",
-			func(m *controlplane.Manifest) { m.APIVersion = "semaphore/v2" },
-			nil,
-			controlplane.ErrUnsupportedAPIVersion,
-			"",
-		},
-		{"no channel", func(m *controlplane.Manifest) { m.Channel = "" }, nil, controlplane.ErrInvalid, "channel"},
-		{
-			"generation zero",
-			func(m *controlplane.Manifest) { m.Generation = 0 },
-			nil,
-			controlplane.ErrInvalid,
-			"generation",
+			name:   "no channel",
+			mutate: func(m *controlplane.Manifest) { m.Channel = "" },
+			want:   []problem{docProblem(controlplane.CodeMissingValue, "channel")},
 		},
 		{
-			"duplicate name",
-			func(m *controlplane.Manifest) { m.Objects[1].Name = m.Objects[0].Name },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[1].name",
+			name:   "generation zero",
+			mutate: func(m *controlplane.Manifest) { m.Generation = 0 },
+			want:   []problem{docProblem(controlplane.CodeInvalidValue, "generation")},
 		},
 		{
-			"bad name",
-			func(m *controlplane.Manifest) { m.Objects[0].Name = "Bad_Name" },
-			nil,
-			controlplane.ErrInvalid,
-			pathObject0Name,
+			name:   "the later object keeps the problem of a duplicate name",
+			mutate: func(m *controlplane.Manifest) { m.Objects[1].Name = m.Objects[0].Name },
+			want:   []problem{obj(controlplane.CodeDuplicateName, nameCheckoutFlags, 1, "objects[1].name")},
 		},
 		{
-			"long name",
-			func(m *controlplane.Manifest) { m.Objects[0].Name = "a" + strings.Repeat("b", 63) },
-			nil,
-			controlplane.ErrInvalid,
-			pathObject0Name,
+			name:   "bad name",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Name = "Bad_Name" },
+			want:   []problem{obj(controlplane.CodeInvalidName, "Bad_Name", 0, pathObject0Name)},
 		},
 		{
-			"digit first",
-			func(m *controlplane.Manifest) { m.Objects[0].Name = "1a" },
-			nil,
-			controlplane.ErrInvalid,
-			pathObject0Name,
+			name:   "long name",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Name = "a" + strings.Repeat("b", 63) },
+			want:   []problem{obj(controlplane.CodeInvalidName, "a"+strings.Repeat("b", 63), 0, pathObject0Name)},
 		},
 		{
-			"max length name",
-			func(m *controlplane.Manifest) { m.Objects[0].Name = "a" + strings.Repeat("9", 62) },
-			nil,
-			nil,
-			"",
+			name:   "digit first",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Name = "1a" },
+			want:   []problem{obj(controlplane.CodeInvalidName, "1a", 0, pathObject0Name)},
 		},
 		{
-			"bad kind",
-			func(m *controlplane.Manifest) { m.Objects[0].Kind = "x" },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].kind",
-		},
-		{"toml flags", func(m *controlplane.Manifest) { m.Objects[0].Format = controlplane.FormatTOML }, nil, nil, ""},
-		{
-			"toml flag sets",
-			func(m *controlplane.Manifest) { m.Objects[1].Format = controlplane.FormatTOML },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[1].format",
+			name:   "max length name",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Name = "a" + strings.Repeat("9", 62) },
 		},
 		{
-			"bad flags format",
-			func(m *controlplane.Manifest) { m.Objects[0].Format = "xml" },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].format",
+			name:   "bad kind",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Kind = "x" },
+			want:   []problem{obj(controlplane.CodeInvalidValue, nameCheckoutFlags, 0, "objects[0].kind")},
+		},
+		{name: "toml flags", mutate: func(m *controlplane.Manifest) { m.Objects[0].Format = controlplane.FormatTOML }},
+		{
+			name:   "toml flag sets",
+			mutate: func(m *controlplane.Manifest) { m.Objects[1].Format = controlplane.FormatTOML },
+			want:   []problem{obj(controlplane.CodeInvalidValue, nameFlagSets, 1, "objects[1].format")},
 		},
 		{
-			"no connection",
-			func(m *controlplane.Manifest) { m.Objects[0].Connection = "" },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].connection",
+			name:   "no connection",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Connection = "" },
+			want:   []problem{obj(controlplane.CodeMissingValue, nameCheckoutFlags, 0, "objects[0].connection")},
 		},
 		{
-			"no key",
-			func(m *controlplane.Manifest) { m.Objects[0].Key = "" },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].key",
+			name:   "no key",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Key = "" },
+			want:   []problem{obj(controlplane.CodeMissingValue, nameCheckoutFlags, 0, "objects[0].key")},
 		},
 		{
-			"object version 2",
-			func(m *controlplane.Manifest) { m.Objects[0].Version = 2 },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].version",
+			name:   "newer object version is an entry problem",
+			mutate: func(m *controlplane.Manifest) { m.Objects[1].Version = 2 },
+			want:   []problem{obj(controlplane.CodeUnsupportedVersion, nameFlagSets, 1, "objects[1].version")},
 		},
 		{
-			"no size",
-			func(m *controlplane.Manifest) { m.Objects[0].Size = 0 },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].size",
+			name:   "negative size",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Size = -1 },
+			want:   []problem{obj(controlplane.CodeInvalidValue, nameCheckoutFlags, 0, "objects[0].size")},
 		},
 		{
-			algoMD5,
-			func(m *controlplane.Manifest) { m.Objects[0].Checksum.Algorithm = algoMD5 },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].checksum.algorithm",
+			name:   "md5",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Checksum.Algorithm = algoMD5 },
+			want:   []problem{obj(controlplane.CodeInvalidChecksum, nameCheckoutFlags, 0, "objects[0].checksum")},
 		},
 		{
-			"short digest",
-			func(m *controlplane.Manifest) { m.Objects[0].Checksum.Value = "ab" },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].checksum.value",
+			name:   "short digest",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Checksum.Value = "ab" },
+			want:   []problem{obj(controlplane.CodeInvalidChecksum, nameCheckoutFlags, 0, "objects[0].checksum")},
 		},
 		{
-			"upper digest",
-			func(m *controlplane.Manifest) { m.Objects[0].Checksum.Value = strings.ToUpper(abcSum) },
-			nil,
-			controlplane.ErrInvalid,
-			"objects[0].checksum.value",
-		},
-		{"over default limit", func(m *controlplane.Manifest) {
-			m.Objects = make([]controlplane.ManifestObject, controlplane.DefaultMaxObjects+1)
-		}, nil, controlplane.ErrInvalid, "objects:"},
-		{
-			"limit option",
-			func(*controlplane.Manifest) {},
-			[]controlplane.ValidateOption{controlplane.WithMaxObjects(1)},
-			controlplane.ErrInvalid,
-			"objects:",
+			name:   "upper digest",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Checksum.Value = strings.ToUpper(abcSum) },
+			want:   []problem{obj(controlplane.CodeInvalidChecksum, nameCheckoutFlags, 0, "objects[0].checksum")},
 		},
 		{
-			"raised limit option",
-			func(*controlplane.Manifest) {},
-			[]controlplane.ValidateOption{controlplane.WithMaxObjects(2)},
-			nil,
-			"",
+			name:   "limit option",
+			mutate: func(*controlplane.Manifest) {},
+			opts:   []controlplane.ValidateOption{controlplane.WithMaxObjects(1)},
+			want:   []problem{docProblem(controlplane.CodeTooManyObjects, "objects")},
 		},
 		{
-			"non positive option keeps default",
-			func(*controlplane.Manifest) {},
-			[]controlplane.ValidateOption{controlplane.WithMaxObjects(0)},
-			nil,
-			"",
+			name:   "raised limit option",
+			mutate: func(*controlplane.Manifest) {},
+			opts:   []controlplane.ValidateOption{controlplane.WithMaxObjects(2)},
+		},
+		{
+			name:   "non positive option keeps the default",
+			mutate: func(*controlplane.Manifest) {},
+			opts:   []controlplane.ValidateOption{controlplane.WithMaxObjects(0)},
 		},
 	}
 
@@ -191,120 +187,140 @@ func TestValidateManifest(t *testing.T) {
 			m := validManifest()
 			tt.mutate(m)
 
-			err := controlplane.ValidateManifest(m, tt.opts...)
-			if tt.wantErr == nil {
-				require.NoError(t, err)
-
-				return
-			}
-
-			require.ErrorIs(t, err, tt.wantErr)
-			assert.Contains(t, err.Error(), tt.wantPath)
+			assert.Equal(t, tt.want, problemsOf(t, controlplane.ValidateManifest(m, tt.opts...)))
 		})
 	}
+}
 
-	t.Run("nil", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(t, controlplane.ValidateManifest(nil), controlplane.ErrNilDocument)
-	})
+func TestDefaultMaxObjects(t *testing.T) {
+	t.Parallel()
 
-	t.Run("lists every problem", func(t *testing.T) {
-		t.Parallel()
+	assert.Equal(t, 20000, controlplane.DefaultMaxObjects)
 
+	manifest := validManifest()
+	manifest.Objects = make([]controlplane.ManifestObject, controlplane.DefaultMaxObjects+1)
+
+	var verr *controlplane.ValidationError
+
+	require.ErrorAs(t, controlplane.ValidateManifest(manifest), &verr)
+	assert.Equal(t, controlplane.CodeTooManyObjects, verr.Problems[0].Code)
+
+	manifest.Objects = manifest.Objects[:controlplane.DefaultMaxObjects]
+	require.ErrorAs(t, controlplane.ValidateManifest(manifest), &verr)
+	assert.NotEqual(t, controlplane.CodeTooManyObjects, verr.Problems[0].Code)
+}
+
+func TestValidateHeaderErrors(t *testing.T) {
+	t.Parallel()
+
+	manifestWith := func(apiVersion, kind string) error {
 		m := validManifest()
-		m.Channel, m.Generation = "", 0
+		m.APIVersion, m.Kind = apiVersion, kind
 
-		var verr *controlplane.ValidationError
+		return controlplane.ValidateManifest(m)
+	}
 
-		require.ErrorAs(t, controlplane.ValidateManifest(m), &verr)
-		assert.Equal(t, []controlplane.FieldError{
-			{Path: "channel", Reason: "is required"},
-			{Path: "generation", Reason: "must be at least 1"},
-		}, verr.Problems)
-	})
+	setWith := func(apiVersion, kind string) error {
+		d := validFlagSet()
+		d.APIVersion, d.Kind = apiVersion, kind
+
+		return controlplane.ValidateFlagSet(d, validManifest())
+	}
+
+	tests := []struct {
+		err         error
+		wantSpecial error
+		name        string
+	}{
+		{manifestWith(controlplane.APIVersion, "FlagSet"), controlplane.ErrWrongKind, "manifest of another kind"},
+		{
+			manifestWith("semaphore/v2", controlplane.DocumentKindManifest),
+			controlplane.ErrUnsupportedAPIVersion,
+			"manifest of another version",
+		},
+		{setWith(controlplane.APIVersion, "Manifest"), controlplane.ErrWrongKind, "flag set of another kind"},
+		{
+			setWith("x", controlplane.DocumentKindFlagSet),
+			controlplane.ErrUnsupportedAPIVersion,
+			"flag set of another version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, tt.err, tt.wantSpecial)
+			require.ErrorIs(t, tt.err, controlplane.ErrInvalid, "a header failure is an invalid document too")
+
+			var version *controlplane.UnsupportedVersionError
+
+			var kind *controlplane.KindError
+
+			switch {
+			case errors.As(tt.err, &version):
+				assert.Equal(t, controlplane.APIVersion, version.Supported)
+				assert.NotEmpty(t, version.Got)
+			case errors.As(tt.err, &kind):
+				assert.NotEmpty(t, kind.Want)
+				assert.NotEqual(t, kind.Want, kind.Got)
+			default:
+				assert.Fail(t, "a typed error is expected")
+			}
+		})
+	}
 }
 
 func TestValidateFlagSet(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the columns of the table are in reading order
-		name     string
-		mutate   func(*controlplane.FlagSetDocument)
-		noMani   bool
-		wantErr  error
-		wantPath string
+	tests := []struct {
+		mutate func(*controlplane.FlagSetDocument)
+		name   string
+		want   []problem
+		noMani bool
 	}{
-		{"valid flag set", func(*controlplane.FlagSetDocument) {}, false, nil, ""},
-		{"empty list is valid", func(d *controlplane.FlagSetDocument) { d.FlagSets = nil }, false, nil, ""},
+		{name: "valid flag set", mutate: func(*controlplane.FlagSetDocument) {}},
+		{name: "empty list is valid", mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets = nil }},
 		{
-			"wrong kind",
-			func(d *controlplane.FlagSetDocument) { d.Kind = "Manifest" },
-			false,
-			controlplane.ErrWrongKind,
-			"",
+			name:   "bad name",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Name = "Up" },
+			want:   []problem{set(controlplane.CodeInvalidName, "Up", 0, "flagSets[0].name")},
 		},
 		{
-			"other version",
-			func(d *controlplane.FlagSetDocument) { d.APIVersion = "x" },
-			false,
-			controlplane.ErrUnsupportedAPIVersion,
-			"",
+			name:   "the later flag set has the duplicate name problem",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[1].Name = d.FlagSets[0].Name },
+			want:   []problem{set(controlplane.CodeDuplicateName, "checkout", 1, "flagSets[1].name")},
 		},
 		{
-			"bad name",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Name = "Up" },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[0].name",
+			name:   "no sources",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = nil },
+			want:   []problem{set(controlplane.CodeMissingValue, "checkout", 0, "flagSets[0].sources")},
 		},
 		{
-			"duplicate name",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[1].Name = d.FlagSets[0].Name },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[1].name",
+			name:   "unresolved source",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
+			want:   []problem{set(controlplane.CodeUnresolvedSource, "checkout", 0, "flagSets[0].sources[0]")},
 		},
 		{
-			"no sources",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = nil },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[0].sources",
+			name:   "source of kind flagSets",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{nameFlagSets} },
+			want:   []problem{set(controlplane.CodeUnresolvedSource, "checkout", 0, "flagSets[0].sources[0]")},
 		},
 		{
-			"unresolved source",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[0].sources[0]",
+			name:   "unresolved without manifest",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
+			noMani: true,
 		},
 		{
-			"source of kind flagSets",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{nameFlagSets} },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[0].sources[0]",
+			name:   "empty key",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[1].APIKeys = []string{""} },
+			want:   []problem{set(controlplane.CodeInvalidValue, "no-keys-yet", 1, "flagSets[1].apiKeys[0]")},
 		},
 		{
-			"unresolved without manifest",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
-			true,
-			nil,
-			"",
-		},
-		{
-			"empty key",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[1].APIKeys = []string{""} },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[1].apiKeys[0]",
-		},
-		{
-			"duplicate key",
-			func(d *controlplane.FlagSetDocument) { d.FlagSets[1].APIKeys = d.FlagSets[0].APIKeys },
-			false,
-			controlplane.ErrInvalid,
-			"flagSets[1].apiKeys[0]: duplicate of flagSets[0].apiKeys[0]",
+			name:   "the first flag set keeps a duplicate key, the later one has the problem",
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[1].APIKeys = d.FlagSets[0].APIKeys },
+			want:   []problem{set(controlplane.CodeDuplicateKey, "no-keys-yet", 1, "flagSets[1].apiKeys[0]")},
 		},
 	}
 
@@ -321,115 +337,323 @@ func TestValidateFlagSet(t *testing.T) {
 			}
 
 			err := controlplane.ValidateFlagSet(doc, manifest)
-			if tt.wantErr == nil {
-				require.NoError(t, err)
+			assert.Equal(t, tt.want, problemsOf(t, err))
 
-				return
+			if err != nil {
+				assert.NotContains(t, err.Error(), "6f1f1b7e", "an API key is never printed")
 			}
-
-			require.ErrorIs(t, err, tt.wantErr)
-			assert.Contains(t, err.Error(), tt.wantPath)
-			assert.NotContains(t, err.Error(), "6f1f1b7e", "an API key is never printed")
 		})
 	}
-
-	t.Run("nil", func(t *testing.T) {
-		t.Parallel()
-		require.ErrorIs(t, controlplane.ValidateFlagSet(nil, nil), controlplane.ErrNilDocument)
-	})
 }
 
-func TestValidateFlags(t *testing.T) {
-	t.Parallel()
+type flagCase struct {
+	mutate func(controlplane.Flags)
+	name   string
+	want   []problem
+}
 
-	good := func() controlplane.Flags {
-		return controlplane.Flags{"f": {
-			Variations:  map[string]any{"a": 1, "b": 2},
-			DefaultRule: &controlplane.Rule{Variation: "a"},
-			Targeting:   []controlplane.Rule{{Query: queryXEq1, Percentage: map[string]float64{"a": 50, "b": 50}}},
-		}}
-	}
+func goodFlags() controlplane.Flags {
+	return controlplane.Flags{"f": {
+		Variations:  map[string]any{"a": 1, "b": 2},
+		DefaultRule: &controlplane.Rule{Variation: new("a")},
+		Targeting: []controlplane.Rule{
+			{Query: new(queryXEq1), Percentage: map[string]float64{"a": 50, "b": 50}},
+		},
+	}}
+}
 
-	tests := []struct {
-		name     string
-		mutate   func(controlplane.Flags)
-		wantPath string
-	}{
-		{"valid flags", func(controlplane.Flags) {}, ""},
-		{"empty name", func(f controlplane.Flags) { f[""] = f["f"] }, ": flag name is empty"},
-		{
-			"no variations",
-			func(f controlplane.Flags) { fl := f["f"]; fl.Variations = nil; f["f"] = fl },
-			"f.variations",
-		},
-		{
-			"no default rule",
-			func(f controlplane.Flags) { fl := f["f"]; fl.DefaultRule = nil; f["f"] = fl },
-			"f.defaultRule",
-		},
-		{
-			"converter needs neither",
-			func(f controlplane.Flags) { f["c"] = controlplane.Flag{Converter: "kayenta"} },
-			"",
-		},
-		{"unknown variation", func(f controlplane.Flags) {
-			fl := f["f"]
-			fl.DefaultRule = &controlplane.Rule{Variation: "z"}
-			f["f"] = fl
-		}, "f.defaultRule.variation"},
-		{"unknown percentage variation", func(f controlplane.Flags) {
-			fl := f["f"]
-			fl.Targeting = []controlplane.Rule{{Percentage: map[string]float64{"z": 1}}}
-			f["f"] = fl
-		}, "f.targeting[0].percentage.z"},
-		{"percentage over 100", func(f controlplane.Flags) {
-			fl := f["f"]
-			fl.Targeting = []controlplane.Rule{{Percentage: map[string]float64{"a": 101}}}
-			f["f"] = fl
-		}, "f.targeting[0].percentage.a"},
-		{"negative percentage", func(f controlplane.Flags) {
-			fl := f["f"]
-			fl.Targeting = []controlplane.Rule{{Percentage: map[string]float64{"a": -1}}}
-			f["f"] = fl
-		}, "f.targeting[0].percentage.a"},
-		{"empty rule", func(f controlplane.Flags) {
-			fl := f["f"]
-			fl.Targeting = []controlplane.Rule{{Query: queryXEq1}}
-			f["f"] = fl
-		}, "f.targeting[0]: needs a variation"},
-		{"progressive without end", func(flags controlplane.Flags) {
-			flag := flags["f"]
-			flag.Targeting = []controlplane.Rule{{ProgressiveRollout: &controlplane.ProgressiveRollout{
-				Initial: &controlplane.ProgressiveRolloutStep{Variation: "a"},
-			}}}
-			flags["f"] = flag
-		}, "f.targeting[0].progressiveRollout: needs initial and end"},
-		{"progressive unknown variation", func(flags controlplane.Flags) {
-			flag := flags["f"]
-			flag.Targeting = []controlplane.Rule{{ProgressiveRollout: &controlplane.ProgressiveRollout{
-				Initial: &controlplane.ProgressiveRolloutStep{Variation: "a"},
-				End:     &controlplane.ProgressiveRolloutStep{Variation: "q"},
-			}}}
-			flags["f"] = flag
-		}, "f.targeting[0].progressiveRollout.end.variation"},
-	}
+func edit(flags controlplane.Flags, change func(*controlplane.Flag)) {
+	flag := flags["f"]
+	change(&flag)
+	flags["f"] = flag
+}
 
-	for _, tt := range tests {
+func runFlagCases(t *testing.T, cases []flagCase) {
+	t.Helper()
+
+	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := good()
-			tt.mutate(f)
+			flags := goodFlags()
+			tt.mutate(flags)
 
-			err := controlplane.ValidateFlags(f)
-			if tt.wantPath == "" {
-				require.NoError(t, err)
-
-				return
-			}
-
-			require.ErrorIs(t, err, controlplane.ErrInvalid)
-			assert.Contains(t, err.Error(), tt.wantPath)
+			assert.Equal(t, tt.want, problemsOf(t, controlplane.ValidateFlags(flags)))
 		})
+	}
+}
+
+func TestValidateFlagsVariations(t *testing.T) {
+	t.Parallel()
+
+	runs := []flagCase{
+		{name: "valid flags", mutate: func(controlplane.Flags) {}},
+		{
+			name:   "empty name",
+			mutate: func(flags controlplane.Flags) { flags[""] = flags["f"] },
+			want:   []problem{flagProblem(controlplane.CodeInvalidName, "", "")},
+		},
+		{
+			name:   "no variations",
+			mutate: func(flags controlplane.Flags) { edit(flags, func(x *controlplane.Flag) { x.Variations = nil }) },
+			want: []problem{
+				flagProblem(controlplane.CodeMissingValue, "f", "f.variations"),
+				flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.defaultRule.variation"),
+				flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.targeting[0].percentage.a"),
+				flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.targeting[0].percentage.b"),
+			},
+		},
+		{
+			name:   "no default rule",
+			mutate: func(flags controlplane.Flags) { edit(flags, func(x *controlplane.Flag) { x.DefaultRule = nil }) },
+			want:   []problem{flagProblem(controlplane.CodeMissingValue, "f", "f.defaultRule")},
+		},
+		{
+			name: "converter alone is not a flag",
+			mutate: func(flags controlplane.Flags) {
+				flags["c"] = controlplane.Flag{Converter: new("kayenta")}
+			},
+			want: []problem{
+				flagProblem(controlplane.CodeMissingValue, "c", "c.variations"),
+				flagProblem(controlplane.CodeMissingValue, "c", "c.defaultRule"),
+			},
+		},
+		{
+			name:   "empty variation names are valid",
+			mutate: func(flags controlplane.Flags) { flags["e"] = emptyNamedFlag() },
+		},
+		{
+			name: "null variation",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Variations = map[string]any{"a": 1, "b": nil} })
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.variations.b")},
+		},
+		{
+			name: "mixed variation types",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Variations = map[string]any{"a": 1, "b": "two"} })
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.variations.b")},
+		},
+		{
+			name: "ints and floats are one type",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Variations = map[string]any{"a": 1, "b": 2.5} })
+			},
+		},
+	}
+
+	runFlagCases(t, runs)
+}
+
+func TestValidateFlagsRules(t *testing.T) {
+	t.Parallel()
+
+	runs := []flagCase{
+		{
+			name: "undeclared default variation",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.DefaultRule = &controlplane.Rule{Variation: new("z")} })
+			},
+			want: []problem{flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.defaultRule.variation")},
+		},
+		{
+			name: "undeclared percentage variation",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{{Query: new(queryXEq1), Percentage: map[string]float64{"z": 1}}}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.targeting[0].percentage.z")},
+		},
+		{
+			name: "percentage above 100 is allowed",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{{Query: new(queryXEq1), Percentage: map[string]float64{"a": 101}}}
+				})
+			},
+		},
+		{
+			name: "negative percentage",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{
+						{Query: new(queryXEq1), Percentage: map[string]float64{"a": -1, "b": 5}},
+					}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.targeting[0].percentage.a")},
+		},
+		{
+			name: "percentages that sum to zero",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{
+						{Query: new(queryXEq1), Percentage: map[string]float64{"a": 0, "b": 0}},
+					}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.targeting[0].percentage")},
+		},
+		{
+			name: "empty percentage map",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{{Query: new(queryXEq1), Percentage: map[string]float64{}}}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.targeting[0].percentage")},
+		},
+		{
+			name: "rule without outcome",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Targeting = []controlplane.Rule{{Query: new(queryXEq1)}} })
+			},
+			want: []problem{flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0]")},
+		},
+		{
+			name: "rule without query",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Targeting = []controlplane.Rule{{Variation: new("a")}} })
+			},
+			want: []problem{flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].query")},
+		},
+		{
+			name: "a disabled rule needs nothing",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) { x.Targeting = []controlplane.Rule{{Disable: new(true)}} })
+			},
+		},
+	}
+
+	runFlagCases(t, runs)
+}
+
+func TestValidateFlagsRollouts(t *testing.T) {
+	t.Parallel()
+
+	runs := []flagCase{
+		{
+			name: "progressive without end",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{
+						{Query: new(queryXEq1), ProgressiveRollout: &controlplane.ProgressiveRollout{
+							Initial: &controlplane.ProgressiveRolloutStep{Variation: new("a")},
+						}},
+					}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].progressiveRollout")},
+		},
+		{
+			name: "progressive without dates and variations",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{
+						{Query: new(queryXEq1), ProgressiveRollout: &controlplane.ProgressiveRollout{
+							Initial: &controlplane.ProgressiveRolloutStep{},
+							End:     &controlplane.ProgressiveRolloutStep{},
+						}},
+					}
+				})
+			},
+			want: []problem{
+				flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].progressiveRollout.initial.variation"),
+				flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].progressiveRollout.initial.date"),
+				flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].progressiveRollout.end.variation"),
+				flagProblem(controlplane.CodeMissingValue, "f", "f.targeting[0].progressiveRollout.end.date"),
+			},
+		},
+		{
+			name: "progressive with reversed dates and undeclared variation",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.Targeting = []controlplane.Rule{
+						{Query: new(queryXEq1), ProgressiveRollout: &controlplane.ProgressiveRollout{
+							Initial: &controlplane.ProgressiveRolloutStep{
+								Variation:  new("a"),
+								Date:       fixtureTime(2),
+								Percentage: new(50.0),
+							},
+							End: &controlplane.ProgressiveRolloutStep{
+								Variation:  new("q"),
+								Date:       fixtureTime(1),
+								Percentage: new(10.0),
+							},
+						}},
+					}
+				})
+			},
+			want: []problem{
+				flagProblem(
+					controlplane.CodeUndeclaredVariation,
+					"f",
+					"f.targeting[0].progressiveRollout.end.variation",
+				),
+				flagProblem(controlplane.CodeInvalidValue, "f", "f.targeting[0].progressiveRollout.end.date"),
+				flagProblem(controlplane.CodeInvalidValue, "f", "f.targeting[0].progressiveRollout.end.percentage"),
+			},
+		},
+		{
+			name: "scheduled step without a date",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.ScheduledRollout = []controlplane.ScheduledStep{
+						{DefaultRule: &controlplane.Rule{Variation: new("b")}},
+					}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeMissingValue, "f", "f.scheduledRollout[0].date")},
+		},
+		{
+			name: "scheduled step with an undeclared variation",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.ScheduledRollout = []controlplane.ScheduledStep{
+						{Date: fixtureTime(1), DefaultRule: &controlplane.Rule{Variation: new("q")}},
+					}
+				})
+			},
+			want: []problem{
+				flagProblem(controlplane.CodeUndeclaredVariation, "f", "f.scheduledRollout[0].defaultRule.variation"),
+			},
+		},
+		{
+			name: "scheduled step may update a named rule partially",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.ScheduledRollout = []controlplane.ScheduledStep{{
+						Date:      fixtureTime(1),
+						Targeting: []controlplane.Rule{{Name: new("beta"), Percentage: map[string]float64{"a": 1}}},
+					}}
+				})
+			},
+		},
+		{
+			name: "scheduled step with its own variations",
+			mutate: func(flags controlplane.Flags) {
+				edit(flags, func(x *controlplane.Flag) {
+					x.ScheduledRollout = []controlplane.ScheduledStep{{
+						Date:        fixtureTime(1),
+						Variations:  map[string]any{"q": 1, "r": "two"},
+						DefaultRule: &controlplane.Rule{Variation: new("q")},
+					}}
+				})
+			},
+			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.scheduledRollout[0].variations.r")},
+		},
+	}
+
+	runFlagCases(t, runs)
+}
+
+// emptyNamedFlag declares a variation called "" and uses it; the engine accepts that.
+func emptyNamedFlag() controlplane.Flag {
+	return controlplane.Flag{
+		Variations:  map[string]any{"": "x", "y": "z"},
+		DefaultRule: &controlplane.Rule{Variation: new("")},
 	}
 }

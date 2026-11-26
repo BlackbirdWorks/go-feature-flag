@@ -10,7 +10,7 @@ import (
 )
 
 // TestStructTagSnapshot pins every exported field and its tags: a change of the wire format fails here.
-// Update testdata/golden/tags.txt (UPDATE_GOLDEN=1) only for an additive change of a new version.
+// Update testdata/golden/tags.txt (GOLDEN_UPDATE=1) only for an additive change of a new version.
 func TestStructTagSnapshot(t *testing.T) {
 	t.Parallel()
 

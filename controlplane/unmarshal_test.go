@@ -57,7 +57,7 @@ func TestUnmarshalManifest(t *testing.T) {
 		{"another kind", "apiVersion: semaphore/v1\nkind: FlagSet\n", controlplane.ErrWrongKind, "", nil},
 		{"headerless", "channel: stable\n", controlplane.ErrWrongKind, "", nil},
 		{"other major", "apiVersion: semaphore/v2\nkind: Manifest\n", controlplane.ErrUnsupportedAPIVersion, "", nil},
-		{"syntax", "apiVersion: [\n", controlplane.ErrDecode, "", nil},
+		{"bad yaml", "apiVersion: [\n", controlplane.ErrDecode, "", nil},
 		{"wrong type", "apiVersion: semaphore/v1\nkind: Manifest\ngeneration: many\n", controlplane.ErrDecode, "", nil},
 		{"json syntax", "{", controlplane.ErrDecode, "", nil},
 		{"empty document", "", controlplane.ErrWrongKind, "", nil},
@@ -159,7 +159,7 @@ func TestUnmarshalFlags(t *testing.T) {
 			[]string{"f.defaultRule.nah", "f.nope"},
 		},
 		{"toml is not read", "[f]\n", controlplane.FormatTOML, controlplane.ErrUnsupportedFormat, nil, nil},
-		{"syntax", "f: [", controlplane.FormatYAML, controlplane.ErrDecode, nil, nil},
+		{"bad flags yaml", "f: [", controlplane.FormatYAML, controlplane.ErrDecode, nil, nil},
 		{"wrong type", "f: 3\n", controlplane.FormatYAML, controlplane.ErrDecode, nil, nil},
 	}
 

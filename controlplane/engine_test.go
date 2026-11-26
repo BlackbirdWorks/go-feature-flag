@@ -1,6 +1,7 @@
 package controlplane_test
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -36,9 +37,9 @@ func TestEngineEquivalence(t *testing.T) {
 		{
 			name: "plain flag with every scalar",
 			flags: controlplane.Flags{"f": {
-				TrackEvents: new(false), Disable: new(true), Version: "v2", BucketingKey: "user",
+				TrackEvents: new(false), Disable: new(true), Version: new("v2"), BucketingKey: new("user"),
 				Variations:  map[string]any{"on": true, variationOff: false},
-				DefaultRule: &controlplane.Rule{Variation: variationOff},
+				DefaultRule: &controlplane.Rule{Variation: new(variationOff)},
 				Metadata:    map[string]any{keyOwner: "me", "n": 3, "nested": map[string]any{"k": textYes}},
 			}},
 			want: map[string]dto.DTO{"f": {
@@ -60,10 +61,10 @@ func TestEngineEquivalence(t *testing.T) {
 					"z": nil,
 				},
 				Targeting: []controlplane.Rule{
-					{Name: "r1", Query: `key eq "a"`, Variation: "s"},
+					{Name: new("r1"), Query: new(`key eq "a"`), Variation: new("s")},
 					{
-						Name:       "r2",
-						Query:      queryBeta,
+						Name:       new("r2"),
+						Query:      new(queryBeta),
 						Percentage: map[string]float64{"s": 20.5, "i": 79.5},
 						Disable:    new(true),
 					},
@@ -96,25 +97,25 @@ func TestEngineEquivalence(t *testing.T) {
 			flags: controlplane.Flags{"h": {
 				Variations: map[string]any{"a": "a", "b": "b"},
 				Targeting: []controlplane.Rule{
-					{Name: "ramp", Query: queryXEq1, ProgressiveRollout: &controlplane.ProgressiveRollout{
+					{Name: new("ramp"), Query: new(queryXEq1), ProgressiveRollout: &controlplane.ProgressiveRollout{
 						Initial: &controlplane.ProgressiveRolloutStep{
-							Variation:  "a",
+							Variation:  new("a"),
 							Percentage: new(0.0),
 							Date:       at(1),
 						},
 						End: &controlplane.ProgressiveRolloutStep{
-							Variation:  "b",
+							Variation:  new("b"),
 							Percentage: new(100.0),
 							Date:       at(2),
 						},
 					}},
 				},
-				DefaultRule: &controlplane.Rule{Variation: "a"},
+				DefaultRule: &controlplane.Rule{Variation: new("a")},
 				ScheduledRollout: []controlplane.ScheduledStep{{
-					Date: at(3), Disable: new(true), Version: "v3", BucketingKey: "k",
+					Date: at(3), Disable: new(true), Version: new("v3"), BucketingKey: new("k"),
 					Variations:      map[string]any{"a": 1},
-					Targeting:       []controlplane.Rule{{Name: "r", Variation: "a"}},
-					DefaultRule:     &controlplane.Rule{Variation: "b"},
+					Targeting:       []controlplane.Rule{{Name: new("r"), Variation: new("a")}},
+					DefaultRule:     &controlplane.Rule{Variation: new("b")},
 					Experimentation: &controlplane.Experimentation{Start: at(4)},
 					Metadata:        map[string]any{"m": 1},
 					TrackEvents:     new(true),
@@ -143,8 +144,31 @@ func TestEngineEquivalence(t *testing.T) {
 			}},
 		},
 		{
+			name: "explicit empty values stay distinct from absent ones",
+			flags: controlplane.Flags{"e": {
+				Version: new(""), BucketingKey: new(""), Converter: new(""),
+				Variations: map[string]any{"": "x", "y": "z"},
+				Targeting: []controlplane.Rule{
+					{Name: new(""), Query: new(""), Variation: new(""), Percentage: map[string]float64{}},
+				},
+				DefaultRule:      &controlplane.Rule{Variation: new("")},
+				Metadata:         map[string]any{},
+				ScheduledRollout: []controlplane.ScheduledStep{},
+			}, "absent": {Variations: map[string]any{"a": 1}}},
+			want: map[string]dto.DTO{"e": {
+				Version: new(""), BucketingKey: new(""), Converter: new(""),
+				Variations: &map[string]*any{"": anyPtr("x"), "y": anyPtr("z")},
+				Rules: &[]flagdef.Rule{
+					{Name: new(""), Query: new(""), VariationResult: new(""), Percentages: &map[string]float64{}},
+				},
+				DefaultRule: &flagdef.Rule{VariationResult: new("")},
+				Metadata:    &map[string]any{},
+				Scheduled:   &[]flagdef.ScheduledStep{},
+			}, "absent": {Variations: &map[string]*any{"a": anyPtr(1)}}},
+		},
+		{
 			name:  "converter",
-			flags: controlplane.Flags{"k": {Converter: "kayenta"}},
+			flags: controlplane.Flags{"k": {Converter: new("kayenta")}},
 			want:  map[string]dto.DTO{"k": {Converter: new("kayenta")}},
 		},
 	}
@@ -165,13 +189,19 @@ func TestEngineEquivalence(t *testing.T) {
 				assert.Equal(t, want.Convert(), have.Convert(), "converted flag %s", name)
 			}
 
-			// The JSON form loads the same flags (JSON numbers are floats: compare the converted names only).
+			// The JSON form loads the same flags: compare with the engine's own JSON form of the expected flags.
 			j, err := controlplane.MarshalFlagsJSON(tt.flags)
 			require.NoError(t, err)
 
 			viaJSON, err := cache.ConvertToFlagStruct(j, controlplane.FormatJSON)
 			require.NoError(t, err)
-			assert.Len(t, viaJSON, len(tt.want))
+
+			wantJSON, err := json.Marshal(tt.want)
+			require.NoError(t, err)
+
+			wantViaJSON, err := cache.ConvertToFlagStruct(wantJSON, controlplane.FormatJSON)
+			require.NoError(t, err)
+			assert.Equal(t, wantViaJSON, viaJSON)
 		})
 	}
 }
@@ -199,29 +229,24 @@ func TestEngineFlagFilesRoundTrip(t *testing.T) {
 	}))
 	require.NotEmpty(t, files)
 
-	checked := 0
+	rejected := map[string]bool{}
 
 	for _, path := range files {
-		b, err := os.ReadFile(path)
+		data, err := os.ReadFile(path)
 		require.NoError(t, err)
 
 		format := strings.TrimPrefix(filepath.Ext(path), ".")
+		name := filepath.ToSlash(strings.TrimPrefix(path, root))
 
-		engine, err := cache.ConvertToFlagStruct(b, format)
+		engine, err := cache.ConvertToFlagStruct(data, format)
 		if err != nil {
-			continue // not a flag file (flag state dumps, invalid files on purpose)
+			rejected[name] = true
+
+			continue
 		}
 
-		checked++
-
-		t.Run(filepath.ToSlash(strings.TrimPrefix(path, root)), func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-
-			for name := range engine {
-				flag := engine[name]
-				dropEmptyStrings(&flag)
-				engine[name] = flag
-			}
 
 			asYAML, yamlErr := yaml.Marshal(engine)
 			require.NoError(t, yamlErr)
@@ -236,10 +261,29 @@ func TestEngineFlagFilesRoundTrip(t *testing.T) {
 			again, convertErr := cache.ConvertToFlagStruct(out, controlplane.FormatYAML)
 			require.NoError(t, convertErr)
 			assert.Equal(t, engine, again)
+
+			outJSON, jsonErr := controlplane.MarshalFlagsJSON(flags)
+			require.NoError(t, jsonErr)
+
+			viaJSON, convertJSONErr := cache.ConvertToFlagStruct(outJSON, controlplane.FormatJSON)
+			require.NoError(t, convertJSONErr)
+			assert.Len(t, viaJSON, len(engine))
 		})
 	}
 
-	assert.GreaterOrEqual(t, checked, 20, "the repository has more flag files than this")
+	// The files that the engine's own loader rejects (flag state dumps, files that are invalid on purpose).
+	assert.Equal(t, map[string]bool{
+		"/ffclient/all_flags/marshal_json/error_in_flag_0.json":        true,
+		"/ffclient/all_flags/marshal_json/module_not_init.json":        true,
+		"/ffclient/all_flags/marshal_json/offline.json":                true,
+		"/ffclient/all_flags/marshal_json/valid_multiple_types.json":   true,
+		"/ffclient/get_flagstates/marshal_json/all_flags.json":         true,
+		"/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json": true,
+		"/internal/dto/rollout.json":                                   true,
+		"/internal/dto/rollout.toml":                                   true,
+		"/internal/dto/rollout.yaml":                                   true,
+		"/invalid-flag-config.json":                                    true,
+	}, rejected)
 }
 
 // yamlNames returns the yaml field names of a struct, flattening inline embedded structs and skipping "-".
@@ -325,38 +369,6 @@ func TestEngineFieldParity(t *testing.T) {
 				assert.True(t, engine[n], "controlplane field %q is not an engine field", n)
 			}
 		})
-	}
-}
-
-// dropEmptyStrings turns an explicit empty name, query or variation of a rule into an absent one: this package
-// models them as plain strings, where empty and absent mean the same.
-func dropEmptyStrings(flag *dto.DTO) {
-	clean := func(r *flagdef.Rule) {
-		for _, p := range []**string{&r.Name, &r.Query, &r.VariationResult} {
-			if *p != nil && **p == "" {
-				*p = nil
-			}
-		}
-	}
-
-	cleanAll := func(def *flagdef.Rule, rules *[]flagdef.Rule) {
-		if def != nil {
-			clean(def)
-		}
-
-		if rules != nil {
-			for i := range *rules {
-				clean(&(*rules)[i])
-			}
-		}
-	}
-
-	cleanAll(flag.DefaultRule, flag.Rules)
-
-	if flag.Scheduled != nil {
-		for i := range *flag.Scheduled {
-			cleanAll((*flag.Scheduled)[i].DefaultRule, (*flag.Scheduled)[i].Rules)
-		}
 	}
 }
 

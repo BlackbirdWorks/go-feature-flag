@@ -17,18 +17,31 @@ Decode without error and without unknown fields, then pass validation. Flag-set 
 - `flags-basic.yaml`, `flags-basic.json`: headerless flag file with a targeting rule and percentages.
 - `flags-rollouts.yaml`: progressive, scheduled and experimentation rollouts, `trackEvents`, `version`, `metadata`.
 - `flags-quoted-strings.yaml`: strings that need quotes (`yes`, `no`, `007`, `1e3`, `2026-01-01`, `null`).
+- `flags-control-strings.yaml`: strings with newlines, tabs and edge spaces, in values and in metadata.
+- `flags-numbers.yaml`: `2` and `2.0` are an integer and a float and stay so; integers above 2^53 and above 2^63 are exact.
+- `flags-empty-values.yaml`: explicit empty strings, an empty variation name and an empty map are values, not absence.
+- `flags-disabled-rule.yaml`: a disabled targeting rule needs no query or outcome.
+- `flags-flow-style.yaml`, `flags-anchors.yaml`: YAML flow style, anchors and merge keys are read.
+- `manifest-size-zero.yaml`: a size of 0 is valid.
 
 ## invalid/
 
 Each file has a `<file>.error` sidecar: line 1 is the expected error class, line 2 a text the error message
-contains. Classes: `ErrWrongKind`, `ErrUnsupportedAPIVersion`, `ErrInvalid` (validation, the message starts with the
+contains (a path, or a reason). Classes: `ErrWrongKind`, `ErrUnsupportedAPIVersion`, `ErrInvalid` (validation, the message starts with the
 path of the field), `ErrDecode` (syntax). The document is rejected whole.
 
 - `manifest-wrong-kind.yaml`: a manifest whose kind is `FlagSet`.
 - `manifest-unsupported-version.yaml`: `apiVersion: semaphore/v2`.
 - `manifest-duplicate-name.yaml`: two objects with the same name.
-- `manifest-bad-checksum.yaml`: a checksum that is not 64 hex characters.
-- `manifest-missing-size.yaml`: size 0.
+- `manifest-bad-checksum.yaml`, `manifest-upper-case-checksum.yaml`: a checksum that is not 64 lower-case hex characters.
+- `manifest-negative-size.yaml`: a negative size.
+- `manifest-object-unsupported-version.yaml`: an object with a newer content version (an entry problem).
+- `manifest-generation-fraction.yaml`, `manifest-generation-overflow.yaml`: an integer field with a fraction or an overflow.
+- `manifest-multiple-documents.yaml`: a second YAML document.
+- `manifest-duplicate-key.yaml`, `manifest-json-duplicate-key.json`, `manifest-non-string-key.yaml`: duplicate and non-string keys.
+- `flagset-api-keys-not-a-list.yaml`: `apiKeys` as a scalar (the error must not repeat the value).
+- `flags-nan-variation.yaml`: NaN.
+- `flags-zero-percentages.yaml`, `flags-mixed-variation-types.yaml`, `flags-null-variation.yaml`, `flags-progressive-without-dates.yaml`, `flags-missing-default-rule.yaml`: flags that the engine would drop.
 - `manifest-unknown-object-kind.yaml`: object kind other than `flags` or `flagSets`.
 - `manifest-zero-generation.yaml`: generation below 1.
 - `manifest-syntax-error.yaml`: not parseable.
@@ -37,7 +50,7 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `flagset-duplicate-key.yaml`: an API key used by two flag sets.
 - `flagset-duplicate-name.yaml`: two flag sets with one name.
 - `flags-unknown-variation.yaml`: a rule that names an undeclared variation.
-- `flags-bad-percentage.yaml`: a percentage above 100.
+- `flags-bad-percentage.yaml`: a negative percentage.
 
 ## forward-compatible/
 

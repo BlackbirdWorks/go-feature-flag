@@ -9,11 +9,11 @@ type Flags map[string]Flag
 type Flag struct { //nolint:govet // fieldalignment: the field order is the wire order
 	TrackEvents      *bool            `json:"trackEvents,omitempty"      yaml:"trackEvents,omitempty"`
 	Disable          *bool            `json:"disable,omitempty"          yaml:"disable,omitempty"`
-	Version          string           `json:"version,omitempty"          yaml:"version,omitempty"`
-	Converter        string           `json:"converter,omitempty"        yaml:"converter,omitempty"`
+	Version          *string          `json:"version,omitempty"          yaml:"version,omitempty"`
+	Converter        *string          `json:"converter,omitempty"        yaml:"converter,omitempty"`
 	Variations       map[string]any   `json:"variations,omitempty"       yaml:"variations,omitempty"`
 	Targeting        []Rule           `json:"targeting,omitempty"        yaml:"targeting,omitempty"`
-	BucketingKey     string           `json:"bucketingKey,omitempty"     yaml:"bucketingKey,omitempty"`
+	BucketingKey     *string          `json:"bucketingKey,omitempty"     yaml:"bucketingKey,omitempty"`
 	DefaultRule      *Rule            `json:"defaultRule,omitempty"      yaml:"defaultRule,omitempty"`
 	ScheduledRollout []ScheduledStep  `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty"`
 	Experimentation  *Experimentation `json:"experimentation,omitempty"  yaml:"experimentation,omitempty"`
@@ -26,10 +26,10 @@ type ScheduledStep struct { //nolint:govet // fieldalignment: the field order is
 	Date            *time.Time       `json:"date,omitempty"            yaml:"date,omitempty"`
 	TrackEvents     *bool            `json:"trackEvents,omitempty"     yaml:"trackEvents,omitempty"`
 	Disable         *bool            `json:"disable,omitempty"         yaml:"disable,omitempty"`
-	Version         string           `json:"version,omitempty"         yaml:"version,omitempty"`
+	Version         *string          `json:"version,omitempty"         yaml:"version,omitempty"`
 	Variations      map[string]any   `json:"variations,omitempty"      yaml:"variations,omitempty"`
 	Targeting       []Rule           `json:"targeting,omitempty"       yaml:"targeting,omitempty"`
-	BucketingKey    string           `json:"bucketingKey,omitempty"    yaml:"bucketingKey,omitempty"`
+	BucketingKey    *string          `json:"bucketingKey,omitempty"    yaml:"bucketingKey,omitempty"`
 	DefaultRule     *Rule            `json:"defaultRule,omitempty"     yaml:"defaultRule,omitempty"`
 	Experimentation *Experimentation `json:"experimentation,omitempty" yaml:"experimentation,omitempty"`
 	Metadata        map[string]any   `json:"metadata,omitempty"        yaml:"metadata,omitempty"`
