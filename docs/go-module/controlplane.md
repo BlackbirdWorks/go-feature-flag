@@ -259,7 +259,7 @@ A reader that wants a last-known-good per entry uses the `FieldError` fields, no
   problem. Of an API key held by two flag sets, the first flag set keeps the key and the later one has the problem
   (`duplicate-key`); the key itself is never printed.
 - `ValidateFlags` uses the structural rules of the engine's own validation, so an accepted flag is not dropped when
-  the relay loads it: variations present, none null, all of one type (a number above the int64 range has no type in the engine); a default rule; enabled targeting rules with a
+  the relay loads it: variations present, none null, all of one type (an integer above the int64 range has no type in the engine's YAML loader, so it is refused whatever the file format; write such a value as a float or a string); a default rule; enabled targeting rules with a
   query and an outcome; declared variations; finite, non-negative percentages with a non-zero sum; progressive
   rollouts with both steps, variations and dates in order; the same checks on scheduled steps (whose rules may update
   a named rule partially). A disabled targeting rule is not checked. Queries are compiled by the engine, not here.

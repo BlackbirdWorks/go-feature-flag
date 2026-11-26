@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"encoding/json"
 	"math"
 	"slices"
 	"strconv"
@@ -353,13 +354,15 @@ func (c *flagCheck) variationTypes(path string, variations map[string]any) {
 	}
 }
 
+const typeNumber = "number"
+
 // uintType: the engine reads an integer above the int64 range as a type it does not know.
 func uintType(value uint64) string {
 	if value > math.MaxInt64 {
 		return ""
 	}
 
-	return "number"
+	return typeNumber
 }
 
 func variationType(value any) string {
@@ -369,7 +372,13 @@ func variationType(value any) string {
 	case bool:
 		return "bool"
 	case int, int8, int16, int32, int64, uint8, uint16, uint32, float32, float64:
-		return "number"
+		return typeNumber
+	case json.Number:
+		if isJSONNumber(typed.String()) {
+			return typeNumber
+		}
+
+		return ""
 	case uint:
 		return uintType(uint64(typed))
 	case uint64:

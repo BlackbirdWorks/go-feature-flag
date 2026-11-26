@@ -167,14 +167,7 @@ func (e encoder) encodeSeq(path string, value reflect.Value) (*yaml.Node, error)
 
 func (encoder) encodeScalar(path string, value reflect.Value) (*yaml.Node, error) {
 	if number, ok := reflect.TypeAssert[json.Number](value); ok {
-		// A number read with json.Decoder.UseNumber stays a number, spelled as it is.
-		node, err := jsonNumber(number.String())
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s: %q is not a JSON number in range", ErrUnsupportedValue, pathOrRoot(path),
-				shorten(number.String()))
-		}
-
-		return node, nil
+		return jsonNumberNode(path, number)
 	}
 
 	switch value.Kind() { //nolint:exhaustive // other kinds are rejected below
@@ -419,4 +412,26 @@ func jsonString(buf *bytes.Buffer, text string) error {
 	buf.Write(bytes.TrimRight(out.Bytes(), "\n"))
 
 	return nil
+}
+
+// isJSONNumber reports whether text is exactly a JSON number (no sign other than "-", no leading zeros, not a
+// string, list or literal).
+func isJSONNumber(text string) bool {
+	if text == "" || text[0] != '-' && (text[0] < '0' || text[0] > '9') {
+		return false
+	}
+
+	return json.Valid([]byte(text))
+}
+
+// jsonNumberNode writes a [json.Number] (read with [json.Decoder.UseNumber]) as a number, spelled as it is. It must
+// be a number in JSON and in range.
+func jsonNumberNode(path string, number json.Number) (*yaml.Node, error) {
+	node, err := jsonNumber(number.String())
+	if err != nil || !isJSONNumber(number.String()) {
+		return nil, fmt.Errorf("%w: %s: %q is not a JSON number in range", ErrUnsupportedValue, pathOrRoot(path),
+			shorten(number.String()))
+	}
+
+	return node, nil
 }

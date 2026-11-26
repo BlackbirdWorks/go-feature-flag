@@ -20,14 +20,26 @@ type untagged struct {
 func TestMarshalRefusesToDropFields(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		marshal func(controlplane.Flags) ([]byte, error)
+		want    error
+		name    string
+	}{
+		{controlplane.MarshalFlags, controlplane.ErrUnsupportedValue, "yaml"},
+		{controlplane.MarshalFlagsJSON, controlplane.ErrUnsupportedValue, "json"},
+	}
+
 	flags := controlplane.Flags{"f": {Metadata: map[string]any{"k": untagged{Visible: "a", Hidden: "b"}}}}
 
-	_, yamlErr := controlplane.MarshalFlags(flags)
-	_, jsonErr := controlplane.MarshalFlagsJSON(flags)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.ErrorIs(t, yamlErr, controlplane.ErrUnsupportedValue)
-	require.ErrorIs(t, jsonErr, controlplane.ErrUnsupportedValue)
-	assert.Contains(t, yamlErr.Error(), "f.metadata.k")
+			_, err := tt.marshal(flags)
+			require.ErrorIs(t, err, tt.want)
+			assert.Contains(t, err.Error(), "f.metadata.k")
+		})
+	}
 }
 
 func TestJSONNumbersAreWrittenAsNumbers(t *testing.T) {
@@ -52,7 +64,7 @@ func TestJSONNumbersAreWrittenAsNumbers(t *testing.T) {
 		}, got["f"].Metadata, "%s", data)
 	}
 
-	for _, bad := range []string{"abc", "", "1e999", "123456789012345678901234567890"} {
+	for _, bad := range []string{"abc", "", "1e999", "123456789012345678901234567890", "+1", "01", "[1]", "true", "1 "} {
 		_, err := controlplane.MarshalFlags(controlplane.Flags{"f": {Metadata: map[string]any{"k": json.Number(bad)}}})
 		require.ErrorIs(t, err, controlplane.ErrUnsupportedValue, bad)
 	}
