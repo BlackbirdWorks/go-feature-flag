@@ -54,7 +54,7 @@ func Evaluate[T model.JSONType](
 				Failed:        true,
 				TrackEvents:   targetFlag.IsTrackEvents(),
 				Version:       targetFlag.GetVersion(),
-				Metadata:      targetFlag.GetMetadata(),
+				Metadata:      flagdef.CloneMetadata(targetFlag.GetMetadata()),
 				Cacheable:     false,
 			}, fmt.Errorf("%w %v", errWrongVariationUsed, flagKey)
 		}
