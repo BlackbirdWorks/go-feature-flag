@@ -83,8 +83,15 @@ type Status struct {
 	Poll     PollStatus
 	Failures []ObjectFailure
 	// HookPanics lists the hooks that panicked (recovered), with counts; empty when none.
-	HookPanics  []HookPanic
+	HookPanics []HookPanic
+	// PollResults counts the polls by result (the Poll* constants), sorted by result; results that did not
+	// happen are absent.
+	PollResults []PollCount
 	Manifest    ManifestStatus
+	State       StateStatus
+	// Backoff is the backoff state: the consecutive failures of the manifest poll and the wait planned after
+	// this round.
+	Backoff     BackoffStatus
 	Counts      Counts
 	Polls       uint64
 	NotModified uint64
@@ -93,3 +100,38 @@ type Status struct {
 // ReasonTotalTooLarge is the [ManifestStatus.Reason] of a manifest whose distinct objects add up to more than
 // [Config.MaxTotalBytes]: it is rejected whole, before any object request.
 const ReasonTotalTooLarge = "too-large-total"
+
+// Results of the restore of the saved state, in [StateStatus.Restore]. The set is closed.
+const (
+	// RestoreNone: the restore did not run, or no state hook is installed.
+	RestoreNone = ""
+	// RestoreRestored: a manifest and all its objects were restored.
+	RestoreRestored = "restored"
+	// RestorePartial: the manifest was restored, some objects were discarded (missing or corrupt).
+	RestorePartial = "partial"
+	// RestoreEmpty: there was no usable saved state (empty, other layout version, corrupt manifest).
+	RestoreEmpty = "empty"
+	// RestoreFailed: the saved state could not be read at all (an unreadable directory).
+	RestoreFailed = "failed"
+)
+
+// StateStatus is what the persistence behind the hooks reports. A hook that is not installed reports the zero value.
+type StateStatus struct {
+	// LastSave is the time of the last write that ended, zero when none did.
+	LastSave time.Time
+	// Restore is a Restore* constant.
+	Restore string
+	// LastSaveError is the closed code of the failure of the last write, empty when it worked.
+	LastSaveError string
+	// Saves and SaveErrors count the writes that ended, and the ones that failed.
+	Saves      uint64
+	SaveErrors uint64
+	// RestoredObjects and DiscardedObjects count the saved objects that were restored and the ones that were
+	// discarded as missing or corrupt.
+	RestoredObjects  int
+	DiscardedObjects int
+	// Enabled tells that a state hook is installed.
+	Enabled bool
+	// Pending tells that a write is queued or running.
+	Pending bool
+}

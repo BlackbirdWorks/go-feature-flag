@@ -134,16 +134,34 @@ func TestReader_ObjectFailureAndRecovery(t *testing.T) {
 
 			etag2 := manifestETag(store)
 
-			// still failing: the manifest is a 304 and only the failed object is fetched again
-			assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
+			if tt.wantRetryable {
+				// still failing: the manifest is a 304 and only the failed object is fetched again
+				assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
+			} else {
+				// a failure for good is tried at the slow fixed cadence (5 min, 5 rounds of 60 s), not every round
+				for i := range 4 {
+					assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
+				}
+
+				assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "retry round")
+			}
+
 			assert.Nil(t, rdr.snapshot(), "no state change, no snapshot")
 			current = rdr.reader.Status()
 			assertFailing(t, &current, wantFailure)
 
 			tt.heal(t, store)
 
+			recovery := []call{manifestCall(etag2), {Key: alpha2Key}}
+
+			if !tt.wantRetryable {
+				for i := range 4 {
+					assert.Equal(t, []call{manifestCall(etag2)}, rdr.round(), "quiet round %d", i)
+				}
+			}
+
 			// the retry succeeds: a new snapshot of the same generation
-			assert.Equal(t, []call{manifestCall(etag2), {Key: alpha2Key}}, rdr.round(), "recovery round")
+			assert.Equal(t, recovery, rdr.round(), "recovery round")
 			assert.Equal(t, snapOf(2, map[string]manifestreader.ObjectState{
 				nameAlpha: okState(t, alpha2), nameBeta: okState(t, beta), nameGamma: okState(t, gamma),
 			}), rdr.snapshot())

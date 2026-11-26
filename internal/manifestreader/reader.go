@@ -28,32 +28,45 @@ var ErrAlreadyRunning = errors.New("manifestreader: reader already running")
 // may retry it: those are extra attempts, each observed once by the connection observer. The steady state (every
 // round answered 304, no failing object) is exactly one request per round.
 type Reader struct {
-	hooks      Hooks
-	lastSync   time.Time
-	store      ObjectStore
-	sched      Scheduler
-	cache      map[string][]byte
-	status     atomic.Pointer[Status]
-	jitter     func() float64
-	reqCtx     func(context.Context, time.Duration) (context.Context, context.CancelFunc)
-	stores     map[string]ObjectStore
+	hooks    Hooks
+	lastSync time.Time
+	store    ObjectStore
+	sched    Scheduler
+	stores   map[string]ObjectStore
+	status   atomic.Pointer[Status]
+	jitter   func() float64
+	reqCtx   func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	// retry is the schedule of the objects that failed, by checksum.
+	retry      map[string]*retryState
 	snaps      chan *Snapshot
 	logged     map[string]string
 	hookPanics map[string]uint64
 	held       *held
 	log        *slog.Logger
 	names      map[string]*nameState
-	lastPoll   string
+	pollCounts map[string]uint64
+	cache      map[string][]byte
 	// seen is the ETag sent as If-None-Match: the one of the last manifest read, accepted or not.
 	seen     string
-	groups   []*group
+	lastPoll string
 	failures []ObjectFailure
+	groups   []*group
 	manifest ManifestStatus
 	cfg      Config
+	backoff  BackoffStatus
 	counts   Counts
-	polls    uint64
-	notMod   uint64
-	started  atomic.Bool
+	// pollFails is the number of consecutive failed manifest polls; wait is the wait planned after the round;
+	// vnow is the virtual time: the sum of the waits the scheduler completed. The retry schedule of the objects
+	// is kept on it, so the scheduler is the only clock of the reader.
+	pollFails int
+	wait      time.Duration
+	vnow      time.Duration
+	notMod    uint64
+	polls     uint64
+	started   atomic.Bool
+	// spread is set by accept when the manifest replaces a held one: the object fetches of that generation
+	// wait a random delay.
+	spread bool
 	// dirty is set when the state of a name changed since the last snapshot.
 	dirty bool
 }
@@ -128,6 +141,8 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 		names:      map[string]*nameState{},
 		logged:     map[string]string{},
 		hookPanics: map[string]uint64{},
+		retry:      map[string]*retryState{},
+		pollCounts: map[string]uint64{},
 		manifest:   ManifestStatus{Outcome: OutcomeNone},
 	}
 
@@ -179,7 +194,7 @@ func (r *Reader) Run(ctx context.Context) error {
 
 	if r.held == nil && r.cfg.JitterFraction > 0 {
 		phase := time.Duration(r.jitterValue() * float64(min(r.cfg.PollInterval, maxStartPhase)))
-		if phase > 0 && r.sched.Wait(ctx, phase) != nil {
+		if phase > 0 && r.sleep(ctx, phase) != nil {
 			return nil
 		}
 	}
@@ -191,8 +206,7 @@ func (r *Reader) Run(ctx context.Context) error {
 			return nil
 		}
 
-		err := r.sched.Wait(ctx, r.next())
-		if err != nil {
+		if r.sleep(ctx, r.wait) != nil {
 			return nil
 		}
 	}
@@ -292,6 +306,7 @@ const (
 	hookRestore = "restore"
 	hookSave    = "save"
 	hookOnRound = "onRound"
+	hookState   = "stateStatus"
 )
 
 // round is one poll: the conditional GET of the manifest and what follows from the answer.
@@ -310,6 +325,7 @@ func (r *Reader) round(ctx context.Context) {
 
 	poll := PollStatus{Result: PollUpdated}
 	confirmed := false
+	throttled := false
 
 	switch {
 	case err == nil:
@@ -327,8 +343,10 @@ func (r *Reader) round(ctx context.Context) {
 		r.settle(ctx, false)
 	default:
 		poll = failedPoll(err)
+		throttled = isThrottled(err)
 	}
 
+	r.planWait(poll, throttled)
 	r.logPoll(ctx, poll)
 	r.finish(ctx, poll, confirmed)
 }
@@ -439,6 +457,8 @@ func (r *Reader) accept(ctx context.Context, obj Object) bool {
 			return false
 		}
 	}
+
+	r.spread = r.held != nil
 
 	r.adopt(manifest, ident, obj)
 	r.manifest = ManifestStatus{
@@ -584,31 +604,22 @@ type result struct {
 // earlier round, each once), applies the results, and publishes a snapshot when the generation or the state of
 // a name changed. Nothing here walks the objects of the manifest unless something changed.
 func (r *Reader) settle(ctx context.Context, genChanged bool) {
-	if len(r.groups) > 0 {
-		results := r.fetchAll(ctx, r.groups)
+	if genChanged {
+		// a new generation starts over: what failed is tried at once, after the spreading delay
+		clear(r.retry)
+	}
+
+	if due := r.dueGroups(); len(due) > 0 {
+		if genChanged && r.spread && !r.spreadWait(ctx) {
+			return
+		}
+
+		fetched := r.fetchAll(ctx, due)
 		if ctx.Err() != nil {
 			return
 		}
 
-		var keep []*group
-
-		for i, grp := range r.groups {
-			if results[i].reason == "" {
-				r.cache[grp.sum] = results[i].data
-
-				for _, name := range grp.names {
-					r.applyOK(name, results[i].data)
-				}
-
-				continue
-			}
-
-			r.applyFail(grp, results[i])
-
-			keep = append(keep, grp)
-		}
-
-		r.groups = keep
+		r.apply(due, fetched)
 	}
 
 	if !genChanged && !r.dirty {
@@ -620,6 +631,45 @@ func (r *Reader) settle(ctx context.Context, genChanged bool) {
 	r.prune()
 	r.report(ctx)
 	r.publish(ctx)
+}
+
+// apply gives the results of the fetched groups to their names. The groups that failed stay in the plan, with
+// their retry time; the other groups of the plan were not due and stay as they are.
+func (r *Reader) apply(due []*group, fetched []result) {
+	results := make(map[*group]result, len(due))
+	for i, grp := range due {
+		results[grp] = fetched[i]
+	}
+
+	var keep []*group
+
+	for _, grp := range r.groups {
+		res, tried := results[grp]
+		if !tried {
+			keep = append(keep, grp)
+
+			continue
+		}
+
+		if res.reason == "" {
+			delete(r.retry, grp.sum)
+
+			r.cache[grp.sum] = res.data
+
+			for _, name := range grp.names {
+				r.applyOK(name, res.data)
+			}
+
+			continue
+		}
+
+		r.applyFail(grp, res)
+		r.noteFailure(grp.sum, res)
+
+		keep = append(keep, grp)
+	}
+
+	r.groups = keep
 }
 
 // applyOK gives a name the verified content.
@@ -777,7 +827,13 @@ func (r *Reader) finish(ctx context.Context, poll PollStatus, confirmed bool) {
 
 	status := &Status{
 		LastSync: r.lastSync, Poll: poll, Manifest: r.manifest, Failures: r.failures, Counts: r.counts,
-		Polls: r.polls, NotModified: r.notMod,
+		Polls: r.polls, NotModified: r.notMod, Backoff: r.backoff, PollResults: r.pollResults(),
+	}
+
+	status.Backoff.ObjectsWaiting = r.objectsWaiting()
+
+	if r.hooks.StateStatus != nil {
+		r.safe(ctx, hookState, func() { status.State = r.hooks.StateStatus() })
 	}
 
 	if len(r.hookPanics) > 0 {

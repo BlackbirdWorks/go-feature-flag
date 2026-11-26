@@ -65,6 +65,9 @@ type FetchError struct {
 	Reason string
 	// Retryable tells whether trying again can succeed without a change of configuration.
 	Retryable bool
+	// Throttled marks a throttling answer (429, SlowDown): the reader backs off one step further than for
+	// another error.
+	Throttled bool
 }
 
 // Error implements error.

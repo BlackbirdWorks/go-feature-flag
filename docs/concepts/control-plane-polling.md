@@ -1,6 +1,6 @@
 # Control-plane polling
 
-> Status: the manifest reader is in the code base (`internal/manifestreader`) but not active yet. It becomes active
+> Status: the manifest reader and its state directory are in the code base (`internal/manifestreader`) but not active yet. It becomes active
 > when the relay switches to config v2 (epic #19, issue #8). The v1 configuration keeps polling its retrievers as
 > before.
 
@@ -26,7 +26,7 @@ Per replica and per control-plane connection:
 | Nothing changed (the normal case) | exactly 1 conditional GET of the manifest per poll interval, answered with `304 Not Modified` |
 | A new manifest that changes `K` objects | the manifest GET (200) plus `K` object GETs, once |
 | Two entries with the same checksum | fetched once |
-| An object that failed | 1 GET of that object per round until it succeeds, nothing else |
+| An object that failed | 1 GET of that object per retry, on a growing, capped schedule (see [Backoff](#backoff)), nothing else |
 | Any situation | 0 LIST, 0 HEAD |
 
 "One request" means one logical conditional GET. When a GET fails (5xx, throttling, a dropped connection) the S3
@@ -89,8 +89,8 @@ The listed `size` is binding:
 
 A failure that needs no request is final until the manifest changes: it costs nothing in later rounds.
 
-A failed object is tried again at the next round, and only that object: the verified ones are not fetched again. When it
-succeeds, a new snapshot of the **same generation** is published with the new state. A consumer must accept a state
+A failed object is tried again on its own schedule (see [Backoff](#backoff)), and only that object: the verified ones
+are not fetched again. When it succeeds, a new snapshot of the **same generation** is published with the new state. A consumer must accept a state
 change inside a generation.
 
 Verified bytes are cached by checksum, so two names with one checksum share one download and one copy. A cached
@@ -104,8 +104,8 @@ result.
 
 | Failure | What the reader does |
 |---|---|
-| Manifest unreachable, 5xx, 403, throttled, timeout | Keeps the previous snapshot, reports the poll result and reason in the status, tries again at the next interval. Failed objects are not retried in that round: during an outage the reader adds no object request to the failing manifest request, to keep the request budget |
-| Manifest deleted (404) | Same: the previous snapshot stays, result `not_found` |
+| Manifest unreachable, 5xx, 403, throttled, timeout | Keeps the previous snapshot, reports the poll result and reason in the status, and backs off (see [Backoff](#backoff)). Failed objects are not retried in that round: during an outage the reader adds no object request to the failing manifest request, to keep the request budget |
+| Manifest deleted (404) | Same: the previous snapshot stays, result `not_found`, and the poll backs off |
 | Manifest larger than the byte limit | Not read, previous snapshot stays (`too_large`) |
 | Manifest over `maxTotalBytes` | Rejected whole (`too-large-total`) before any object request, previous snapshot stays |
 | Manifest does not decode or validate | Rejected whole, previous snapshot stays. Its ETag is kept, so the same bytes are not downloaded and reported again; a corrected manifest has other bytes and is read |
@@ -115,8 +115,7 @@ result.
 | Object download error | Same, with a retryable reason |
 | A hook panics | The panic is recovered, logged once per hook, counted in the status; polling goes on |
 
-The reader never stops the process. Error back-off and the on-disk state copy come in a later change; until then a
-failed round is simply tried again at the next interval.
+The reader never stops the process.
 
 ## Limits
 
@@ -129,6 +128,8 @@ failed round is simply tried again at the next interval.
 | Request timeout | 60 s | Every request (manifest and each object) |
 | Concurrent object downloads | 4 | At most 16 |
 | Poll interval | 60 s, +/-10 % jitter | At least 1 s |
+| Backoff cap (`BackoffMax`) | 5 min | Never below the poll interval |
+| Fetch spreading window (`FetchSpread`) | 5 s | Never above the poll interval |
 
 Cost of a large manifest: decoding 20000 entries takes about 190 ms and allocates about 144 MB, on a commodity
 machine. The decoder builds a tree of the whole document before the entry count is checked, so a hostile manifest near
@@ -152,7 +153,137 @@ buffer sized from the listed size.
   first poll is an unconditional GET.
 - Logs and the status carry object names and reason codes only: never object bytes, keys or error text of the store.
 
-## Metric
+## Backoff
+
+All the timing goes through the scheduler of the reader, so a test (or an operator reading the code) sees the exact
+waits it asks for.
+
+**Manifest poll.** After `n` consecutive failed polls (an error, a timeout, a `404`, a manifest above the byte limit)
+the wait before the next round is a full jitter draw:
+
+```text
+ceiling(n) = min(BackoffMax, pollInterval x 2^n)           n + 1 when the failure was a throttle
+wait       = max(regular wait, random(0, 1) x ceiling)
+```
+
+- With the defaults the ceilings are 120 s, 240 s, 300 s, 300 s, ... (a throttle: 240 s, 300 s, ...).
+- A failure never makes the reader poll faster than the regular wait.
+- Throttling (`429`, `SlowDown`, other throttle codes) backs off one step further than another error.
+- The first success resets everything: a `200` or a `304`. A manifest that was read and rejected (invalid, lower
+  generation, another channel) is not a failure of the poll.
+- A poll that is retried inside the SDK is still one poll here; the extra attempts show in the request metric.
+
+**Failed objects.** A failed object has its own schedule, so one broken object does not cost one GET per round forever:
+
+- A retryable failure (`missing`, `checksum-mismatch`, `size-mismatch`, `timeout`, `error`) waits
+  `random(0, 1) x min(BackoffMax, pollInterval x 2^(n-1))` after its `n`th failure in a row: at most one poll
+  interval for the first retry, then 2x, 4x, up to 5 min.
+- A failure that is not retryable (`denied`) is tried again every `BackoffMax` (5 min), a slow fixed cadence: a retry
+  cannot help until the publisher or the configuration changes.
+- A new manifest generation tries every failed object at once (after the spreading delay).
+- Only a round whose manifest GET worked retries objects. During an outage no object request is added.
+- The object schedule runs on the sum of the waits the scheduler completed, not on a clock.
+
+Example, a permanently missing object, jitter draws of 0.5, 60 s polls: tried in round 0, 1, 2, 4, 7, 10 (6 GETs in
+11 rounds instead of 11). A denied object: rounds 0, 5, 10 (3 GETs).
+
+## Fetch spreading
+
+When a new generation replaces content that the reader already holds, the reader waits `random(0, 1) x
+min(FetchSpread, pollInterval)` (default up to 5 s) before it fetches the objects, so 200 replicas that read the same
+manifest do not send their object requests in the same instant. It costs no request.
+
+- No delay on a cold start with no content: nothing is served yet, so the first manifest is fetched at once.
+- No delay for the retry of a failed object in the same generation.
+- `DisableFetchSpread` turns it off.
+
+## State directory
+
+`internal/manifestreader/statedir` keeps the last accepted manifest and its verified objects on disk. It plugs into
+the reader through the `Hooks` (`Restore`, `Save`, `StateStatus`): the reader does not know about files.
+
+**What a restart costs**
+
+| Situation | Requests |
+|---|---|
+| Restart, nothing changed | 1 conditional GET (`If-None-Match` with the ETag of the accepted manifest), answered `304`; 0 object GETs; the snapshot is served before that request |
+| Restart, store unreachable | The failed poll only; the saved content is served at once |
+| An object file is missing or corrupt | One GET for that object, nothing else |
+| The manifest copy is missing or corrupt, another layout version, empty or unreadable directory | A cold start: the manifest and the objects |
+
+**Layout** (version 1; directory mode `0700`, files `0600`)
+
+```text
+<stateDir>/
+  VERSION            the layout version; another version is treated as empty
+  LOCK               exclusive advisory lock (flock)
+  manifest.json      the ETag, the manifest, the checksums of its objects and a digest of all of it
+  objects/<sha256>   one file per distinct content, named by its checksum
+```
+
+**Guarantees**
+
+- Crash safe. A write goes to a temporary file in the same directory, is fsynced, renamed over its name, and the
+  directory is fsynced. Objects are written first and the manifest last, so a manifest on disk never names an object
+  that was not durable. Files that nothing names any more are removed after the new manifest is durable. A crash at any
+  step leaves the old state or the new one, never a mix.
+- Nothing unverified is served. On load the manifest copy must match its digest and every object its sha256. A file
+  that fails is ignored on its own: a bad object costs one GET, a bad manifest copy a cold start. A torn or corrupt
+  file never crashes the reader.
+- Cost proportional to the change: an object that is already on disk is not written again, and an unchanged
+  snapshot writes nothing. One changed object is two file writes (the object and the manifest).
+- Bounded disk use: `MaxBytes` (default 1 GiB, the default `maxTotalBytes`) for the objects: the current ones first,
+  then stale ones that still fit, plus the manifest copy. Current objects that do not fit are reported as
+  `too-large`.
+- Polling never waits for the disk. `Save` only queues the snapshot; one background writer writes the latest one
+  (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is reported
+  in the status and the metrics, the next snapshot tries again, and polling goes on.
+- The directory has one owner. It is refused when it is a symbolic link, a file, owned by another user, or has a
+  symbolic link for one of the names of the layout; a loose mode is tightened to `0700`. Names cannot leave the
+  directory (the directory is opened with `os.Root`).
+- Two processes on one directory by mistake: the second one fails to open it (`ErrLocked`). Where the system has no `flock`, the layout is last-writer-wins: every file is complete or
+  absent and everything read back is verified, so the worst case is one object fetched again.
+
+## Metrics
+
+All series carry the `connection` label. The collector reads the reader status at scrape time. No series has a
+per-object or per-flag label, so the number of series does not grow with the manifest.
+
+| Series | Type | Labels | Meaning |
+|---|---|---|---|
+| `semaphore_manifest_generation` | gauge | `channel` | Generation of the held manifest (absent before the first accepted one) |
+| `semaphore_manifest_last_sync_timestamp_seconds` | gauge | | Unix time of the last poll that confirmed the held manifest; 0 when none |
+| `semaphore_manifest_polls_total` | counter | `result`: `not_modified`, `updated`, `not_found`, `too_large`, `error` | Manifest polls |
+| `semaphore_manifest_objects` | gauge | `state`: `ok`, `stale`, `missing` | Objects of the held manifest |
+| `semaphore_manifest_object_failures` | gauge | | Objects that are not `ok` |
+| `semaphore_manifest_backoff_failures` | gauge | | Consecutive failed polls |
+| `semaphore_manifest_backoff_wait_seconds` | gauge | | Wait planned before the next poll |
+| `semaphore_manifest_backoff_objects_waiting` | gauge | | Failed objects waiting for their retry |
+| `semaphore_manifest_state_saves_total` | counter | `result`: `ok`, `error` | Writes of the state directory (only with one) |
+| `semaphore_manifest_state_restore_total` | counter | `result`: `restored`, `partial`, `empty`, `failed` | Restore at start (only with a state directory) |
+
+They are not registered by `NewMetrics`: the relay registers them when it runs the reader, so the output of the
+running relay does not change before that.
+
+## Operations: a replica is behind
+
+1. `semaphore_manifest_last_sync_timestamp_seconds`: how long ago did this replica last confirm the manifest? Compare
+   `semaphore_manifest_generation` with the other replicas and with the published manifest.
+2. `semaphore_manifest_polls_total{result="error"}` rising and `semaphore_manifest_backoff_failures` above 0: the
+   store or the network is the problem. The wait grows to 5 min, and the replica serves what it has. Check
+   `semaphore_s3_requests_total` by `result` (`throttled`, `client_error`, `server_error`, `error`).
+3. `result="not_found"`: the manifest key is gone or wrong.
+4. Polls are healthy but `semaphore_manifest_object_failures` is above 0: an object is `stale` or `missing`. The
+   status names it with its reason (`missing`, `checksum-mismatch`, `denied`, ...). `semaphore_manifest_backoff_objects_waiting`
+   tells that retries are scheduled; a new generation tries them at once.
+5. A replica that restarted during an outage: `semaphore_manifest_state_restore_total` shows `restored` (or `partial`),
+   and the generation is the saved one until the store answers.
+6. `semaphore_manifest_state_saves_total{result="error"}` rising: the state directory cannot be written (disk full,
+   permissions). Polling is not affected; a restart would be a cold start or serve an older state.
+7. A rejected manifest (`invalid`, `lower-generation`, `generation-conflict`, `channel-mismatch`) is not a failed poll:
+   look at the manifest outcome in the status, not at the poll results.
+
+## Request metric
 
 `semaphore_s3_requests_total{connection,operation,result}` counts every attempt of every S3 request of a connection:
 

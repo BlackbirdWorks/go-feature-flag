@@ -117,11 +117,14 @@ func classifyS3(err error, withVersion bool) error {
 
 	switch {
 	case status == http.StatusTooManyRequests, status >= http.StatusInternalServerError:
-		return &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+		return &FetchError{
+			Err: err, Reason: ReasonError, Retryable: true,
+			Throttled: status == http.StatusTooManyRequests || isAPI && throttleCode(apiErr.ErrorCode()),
+		}
 	case status >= http.StatusBadRequest:
 		// 403 and the other client errors, unless the service names a throttle
 		if isAPI && throttleCode(apiErr.ErrorCode()) {
-			return &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+			return &FetchError{Err: err, Reason: ReasonError, Retryable: true, Throttled: true}
 		}
 
 		return &FetchError{Err: err, Reason: ReasonDenied, Retryable: false}
