@@ -31,7 +31,7 @@ type rig struct {
 	t       *testing.T
 	holder  *flagruntime.Holder
 	eng     *flagruntime.Engine
-	rounds  chan flagruntime.Reload
+	rounds  chan flagruntime.RoundResult
 	emitted chan flagruntime.Change
 	done    chan struct{}
 	cancel  context.CancelFunc
@@ -53,7 +53,7 @@ func newRigLogger(t *testing.T, logger *slog.Logger, hooks flagruntime.Hooks, op
 	harness := &rig{
 		t:       t,
 		holder:  flagruntime.NewHolder(),
-		rounds:  make(chan flagruntime.Reload, 1024),
+		rounds:  make(chan flagruntime.RoundResult, 1024),
 		emitted: make(chan flagruntime.Change, 1024),
 		done:    make(chan struct{}),
 		label:   fmt.Sprintf("%s-%p", t.Name(), t),
@@ -67,7 +67,7 @@ func newRigLogger(t *testing.T, logger *slog.Logger, hooks flagruntime.Hooks, op
 			user.OnParse(event)
 		}
 	}
-	hooks.AfterRound = func(res flagruntime.Reload) {
+	hooks.AfterRound = func(res flagruntime.RoundResult) {
 		if user.AfterRound != nil {
 			user.AfterRound(res)
 		}
@@ -150,7 +150,7 @@ func bound() (<-chan time.Time, func() bool) {
 }
 
 // nextRound waits for the result of the next round.
-func (r *rig) nextRound() flagruntime.Reload {
+func (r *rig) nextRound() flagruntime.RoundResult {
 	r.t.Helper()
 
 	expired, stop := bound()
@@ -172,7 +172,7 @@ func (r *rig) nextRound() flagruntime.Reload {
 		require.FailNow(r.t, "no round ended: the engine does not answer")
 	}
 
-	return flagruntime.Reload{}
+	return flagruntime.RoundResult{}
 }
 
 // nextChange waits for the next change the consumer reads from the channel of the engine.
@@ -213,7 +213,7 @@ func (r *rig) nextEmitted() {
 }
 
 // feed hands a content to the engine and waits for the round to end.
-func (r *rig) feed(content *flagruntime.Content) flagruntime.Reload {
+func (r *rig) feed(content *flagruntime.Content) flagruntime.RoundResult {
 	r.t.Helper()
 
 	r.eng.Submit(content)
@@ -222,7 +222,7 @@ func (r *rig) feed(content *flagruntime.Content) flagruntime.Reload {
 }
 
 // reload hands a bootstrap configuration to the engine and waits for the round to end.
-func (r *rig) reload(cfg *bootstrap.Config) flagruntime.Reload {
+func (r *rig) reload(cfg *bootstrap.Config) flagruntime.RoundResult {
 	r.t.Helper()
 
 	r.eng.Reload(cfg)

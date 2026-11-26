@@ -1,8 +1,10 @@
 package flagruntime
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -208,6 +210,125 @@ func TestAnnouncedInvariantHoldsAtEveryStep(t *testing.T) {
 
 			assert.ElementsMatch(t, tt.wantKnown, known)
 			assert.ElementsMatch(t, tt.wantPending, pending)
+		})
+	}
+}
+
+// The number of events of a round is the number of flag sets for which the round leaves a change waiting.
+func TestRoundResultCountsTheEventsLeftWaiting(t *testing.T) {
+	t.Parallel()
+
+	const (
+		withFlag    = internalFlags
+		withOther   = "y:\n  variations:\n    v: 2\n  defaultRule:\n    variation: v\n"
+		withNothing = "{}\n"
+	)
+
+	type step struct {
+		tmp        string // the flags file of the flag set "tmp"; empty means withdrawn
+		other      string // the flags file of the flag set "other"; empty means withdrawn
+		wantEvents int
+		deliver    bool // the consumer reads everything that waits after this step
+	}
+
+	tests := []struct {
+		name  string
+		steps []step
+	}{
+		{
+			name:  "two flag sets created in one round: one event each",
+			steps: []step{{tmp: withFlag, other: withFlag, wantEvents: 2}},
+		},
+		{
+			name: "a change merged into a waiting one counts once",
+			steps: []step{
+				{tmp: withFlag, wantEvents: 1},
+				{tmp: withOther, wantEvents: 1},
+			},
+		},
+		{
+			name: "created and withdrawn before the consumer reads: it cancels out and counts zero",
+			steps: []step{
+				{tmp: withFlag, wantEvents: 1},
+				{wantEvents: 0},
+			},
+		},
+		{
+			name: "a flag gained and lost before the consumer reads: it cancels out and counts zero",
+			steps: []step{
+				{tmp: withNothing, wantEvents: 0},
+				{tmp: withFlag, wantEvents: 1},
+				{tmp: withNothing, wantEvents: 0},
+			},
+		},
+		{
+			name: "a known flag set that is withdrawn: its removal counts once",
+			steps: []step{
+				{tmp: withFlag, deliver: true, wantEvents: 1},
+				{wantEvents: 1},
+			},
+		},
+		{
+			name: "a round that changes nothing counts zero",
+			steps: []step{
+				{tmp: withFlag, deliver: true, wantEvents: 1},
+				{tmp: withFlag, wantEvents: 0},
+			},
+		},
+		{
+			name: "one flag set cancels out while the other is merged",
+			steps: []step{
+				{tmp: withFlag, other: withFlag, wantEvents: 2},
+				{other: withOther, wantEvents: 1},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := flagdef.NewService()
+			t.Cleanup(svc.Close)
+
+			eng := NewEngine(nil, svc, NewHolder())
+
+			for idx, step := range tt.steps {
+				objects := map[string]Object{}
+				sets := []controlplane.FlagSet{}
+
+				for name, flags := range map[string]string{tmpName: step.tmp, "other": step.other} {
+					if flags == "" {
+						continue
+					}
+
+					objects[name+"flags"] = Object{
+						Kind:   KindFlags,
+						Format: controlplane.FormatYAML,
+						Bytes:  []byte(flags),
+					}
+					sets = append(sets, controlplane.FlagSet{
+						Name: name, Sources: []string{name + "flags"}, APIKeys: []string{"key-" + name},
+					})
+				}
+
+				// the flag sets in a fixed order, whatever the order of the map
+				slices.SortFunc(
+					sets,
+					func(left, right controlplane.FlagSet) int { return cmp.Compare(left.Name, right.Name) },
+				)
+
+				objects[setsKey] = internalDoc(t, sets...)
+
+				eng.round(context.Background(), &Content{Generation: uint64(idx + 1), Objects: objects}, nil)
+				checkAnnounced(t, eng)
+
+				assert.Equal(t, step.wantEvents, eng.Result().Events, "events of step %d", idx)
+
+				for front := eng.queue.front(); step.deliver && front != nil; front = eng.queue.front() {
+					eng.delivered(front)
+				}
+			}
 		})
 	}
 }

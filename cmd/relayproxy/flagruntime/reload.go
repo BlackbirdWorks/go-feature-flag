@@ -46,9 +46,18 @@ type Reload struct {
 	Detail string `json:"detail"`
 	// Generation is the generation the round was about (the attempted one for a rejection).
 	Generation uint64 `json:"generation"`
-	// Events is the number of change events that an applied round queued for the consumer (a change merged into a
-	// waiting one counts); it is not part of the status of the stored runtime.
-	Events int `json:"events"`
 	// Snapshot is the snapshot number stored by an applied round.
 	Snapshot uint64 `json:"snapshot"`
+}
+
+// RoundResult is the result of one round as the engine reports it ([Engine.Result], [Hooks.AfterRound]): the
+// [Reload] that the status of a stored runtime carries, plus what the round did to the queue of change events.
+type RoundResult struct {
+	Reload
+
+	// Events is the number of flag sets for which the round left a change event waiting for the consumer. A new
+	// change counts once, a change merged into a waiting one counts once (per flag set and round), and a change that
+	// cancels out (a flag set created and withdrawn, or flags gained and lost, before the consumer read anything)
+	// counts zero. A round that is not applied has none.
+	Events int `json:"events"`
 }

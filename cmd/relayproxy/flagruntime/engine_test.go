@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync/atomic"
@@ -40,17 +41,12 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 
 	res := r.feed(content(7, simpleObjs(t, 1)))
 
-	assert.Equal(
-		t,
-		flagruntime.Reload{
-			Events:     1, // the new flag set announces its flags
-			Outcome:    flagruntime.OutcomeApplied,
-			Code:       flagruntime.CodeApplied,
-			Generation: 7,
-			Snapshot:   1,
-		},
-		res,
-	)
+	// the new flag set announces its flags: one event
+	want := flagruntime.RoundResult{
+		Outcome: flagruntime.OutcomeApplied, Code: flagruntime.CodeApplied, Generation: 7, Snapshot: 1, Events: 1,
+	}
+
+	assert.Equal(t, want, res)
 
 	current := r.holder.Load()
 
@@ -58,11 +54,7 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 	assert.Equal(t, uint64(1), current.Snapshot)
 	assert.Equal(t, uint64(1), current.Status.Snapshot)
 	assert.Equal(t, uint64(7), current.Status.Generation)
-	// the number of events is a property of the round, not of the stored runtime
-	stored := res
-	stored.Events = 0
-
-	assert.Equal(t, stored, current.Status.LastReload)
+	assert.Equal(t, res.Reload, current.Status.LastReload)
 	assert.Equal(t, res, r.eng.Result())
 
 	fs, ok := current.FlagSetByKey(keyA)
@@ -533,4 +525,30 @@ func TestEngineBootstrapAdminKeyThatDoesNotResolveIsRejected(t *testing.T) {
 	assert.Same(t, before, r.holder.Load(), "an unresolved admin key changes nothing")
 	assert.NotContains(t, res.Detail, canary)
 	assert.Contains(t, res.Detail, "adminKeys[0]")
+}
+
+// The number of events is a property of the round, not of the stored runtime: the status has no such member.
+func TestStoredStatusHasNoEventCount(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t, flagruntime.Hooks{})
+	harness.start()
+
+	round := harness.feed(content(1, simpleObjs(t, 1)))
+
+	stored, err := json.Marshal(harness.holder.Load().Status)
+	require.NoError(t, err)
+
+	var status map[string]json.RawMessage
+
+	require.NoError(t, json.Unmarshal(stored, &status))
+
+	assert.JSONEq(t, `{"outcome":"applied","code":"applied","detail":"","generation":1,"snapshot":1}`,
+		string(status["lastReload"]), "the status carries the reload, and no event count")
+
+	reported, err := json.Marshal(round)
+	require.NoError(t, err)
+
+	assert.JSONEq(t,
+		`{"outcome":"applied","code":"applied","detail":"","generation":1,"snapshot":1,"events":1}`, string(reported))
 }

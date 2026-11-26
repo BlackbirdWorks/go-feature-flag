@@ -38,7 +38,7 @@ func TestEngineResultBeforeAnyRound(t *testing.T) {
 
 	harness := newRig(t, flagruntime.Hooks{})
 
-	assert.Equal(t, flagruntime.Reload{}, harness.eng.Result())
+	assert.Equal(t, flagruntime.RoundResult{}, harness.eng.Result())
 }
 
 // The configuration of a vetoed round is not the baseline of pendingRestart.

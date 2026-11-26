@@ -29,6 +29,8 @@ The relay changes what it serves while it runs: no restart, no redeploy, no fail
 
 A rejected round stores nothing, so the running runtime does not show it. The last round result (applied, ignored or rejected, with its reason) is read from `Engine.Result()`; the relay wiring exposes it. The next runtime that is stored also carries it as `Status.LastRejected`.
 
+The round result (`RoundResult`) is the stored `Reload` plus `Events`, the number of flag sets for which the round left a change event waiting (a merge into a waiting event counts once; a change that cancels out, such as a flag set created and withdrawn before the consumer read anything, counts zero). The stored status has no such member.
+
 ## Last-known-good, level by level
 
 A failure keeps the last good version of its own level. Nothing above it is frozen.

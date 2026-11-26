@@ -316,7 +316,7 @@ func TestNoSecretInAnyOutput(t *testing.T) {
 
 	var details []string
 
-	collect := func(res flagruntime.Reload) { details = append(details, res.Detail) }
+	collect := func(res flagruntime.RoundResult) { details = append(details, res.Detail) }
 
 	collect(r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+adminKey+", {fromEnv: KNOWN}]\n")))
 	collect(r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [{fromEnv: NOPE}]\n")))

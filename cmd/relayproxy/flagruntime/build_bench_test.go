@@ -131,9 +131,9 @@ func BenchmarkBuildNoOp(b *testing.B) {
 func engineBench(b *testing.B, first *flagruntime.Content) func(*flagruntime.Content) {
 	b.Helper()
 
-	rounds := make(chan flagruntime.Reload, 1)
+	rounds := make(chan flagruntime.RoundResult, 1)
 	eng := flagruntime.NewEngine(nil, newService(b), flagruntime.NewHolder(), flagruntime.WithHooks(flagruntime.Hooks{
-		AfterRound: func(res flagruntime.Reload) { rounds <- res },
+		AfterRound: func(res flagruntime.RoundResult) { rounds <- res },
 	}))
 
 	ctx, cancel := context.WithCancel(context.Background())

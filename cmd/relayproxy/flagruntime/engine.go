@@ -26,7 +26,7 @@ type Hooks struct {
 	// OnEmit is called after a change was handed to the channel of [Engine.Changes].
 	OnEmit func(Change)
 	// AfterRound is called at the end of every round, after the store and the change notifications.
-	AfterRound func(Reload)
+	AfterRound func(RoundResult)
 }
 
 // Option configures an [Engine].
@@ -100,7 +100,7 @@ type Engine struct {
 	announced map[string]struct{}
 	baseline  *bootstrap.Config
 	cur       *Runtime
-	last      atomic.Pointer[Reload]
+	last      atomic.Pointer[RoundResult]
 	rejected  *Reload
 	// running describes the content that runs, to tell a repeat, a state change and a conflict apart at the same
 	// generation.
@@ -181,13 +181,13 @@ func (e *Engine) Changes() <-chan Change { return e.changes }
 // Result returns the result of the last round, applied, ignored or rejected. A rejected round stores nothing, so
 // its reason is not in the status of the running Runtime: it is read here (the wiring of the relay exposes it),
 // and it is carried by the Status of the next Runtime as LastRejected. Result is safe to call from any
-// goroutine; before the first round it returns the zero Reload.
-func (e *Engine) Result() Reload {
+// goroutine; before the first round it returns the zero RoundResult.
+func (e *Engine) Result() RoundResult {
 	if res := e.last.Load(); res != nil {
 		return *res
 	}
 
-	return Reload{}
+	return RoundResult{}
 }
 
 // Run is the reconcile loop. It returns when ctx is done; it starts no other goroutine, so nothing is left
@@ -288,14 +288,14 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	if plan.built == nil && !bootChanged {
 		e.adoptBaseline(&boot, cfg)
-		e.finish(ctx, results, nil)
+		e.finish(ctx, results, nil, 0)
 
 		return
 	}
 
 	veto, events := e.swap(&plan, &boot)
 	if veto != nil {
-		e.finish(ctx, append(results, *veto), nil)
+		e.finish(ctx, append(results, *veto), nil, 0)
 
 		return
 	}
@@ -303,9 +303,8 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	e.adoptBaseline(&boot, cfg)
 
 	applied := e.cur.Status.LastReload
-	applied.Events = events
 
-	e.finish(ctx, results, &applied)
+	e.finish(ctx, results, &applied, events)
 }
 
 // adoptBaseline makes the first accepted configuration the baseline of pendingRestart: a configuration that was
@@ -598,7 +597,8 @@ func validateObject(name string, obj *Object) error {
 //     none, so churn of empty flag sets queues nothing.
 //   - A flag set that is created and withdrawn while its event waits nets to no event.
 //
-// Every step is O(1) besides the diff of the flag set. It returns the number of changes it queued or merged.
+// Every step is O(1) besides the diff of the flag set. It returns the number of flag sets whose change is left
+// waiting (see [RoundResult.Events]).
 func (e *Engine) enqueue(built *Built, next *Runtime) int {
 	queuedEvents := 0
 
@@ -630,25 +630,34 @@ func (e *Engine) enqueue(built *Built, next *Runtime) int {
 
 		compose(&queued.change, &change)
 
-		queuedEvents++
+		e.settle(queued)
 
-		switch {
-		case queued.fromNothing && queued.change.Removed,
-			queued.fromNothing && !queued.change.Diff.HasDiff():
-			// the consumer never heard of the flag set and the pending change cancels out (created and withdrawn,
-			// or flags gained and lost): nothing is told, and the flag set is not known
-			e.queue.remove(queued)
-			delete(e.announced, item.Name)
-		case !queued.change.Removed && !queued.change.Diff.HasDiff():
-			e.queue.remove(queued) // the consumer knows the flag set: it stays known
+		if e.queue.byName[item.Name] != nil {
+			queuedEvents++ // a merge into a waiting change leaves it queued; a change that cancelled out does not
 		}
 	}
 
 	return queuedEvents
 }
 
+// settle drops a pending change that cancels out: for a flag set that the consumer never heard of (created and
+// withdrawn, or flags gained and lost) nothing is told and the flag set is not known; for one that the consumer
+// knows an empty change is dropped and the flag set stays known.
+func (e *Engine) settle(queued *pendingChange) {
+	name := queued.change.FlagSet
+
+	switch {
+	case queued.fromNothing && queued.change.Removed,
+		queued.fromNothing && !queued.change.Diff.HasDiff():
+		e.queue.remove(queued)
+		delete(e.announced, name)
+	case !queued.change.Removed && !queued.change.Diff.HasDiff():
+		e.queue.remove(queued)
+	}
+}
+
 // finish records and logs the results of a round and calls the hook once.
-func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload) {
+func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, events int) {
 	final := Reload{Outcome: OutcomeIgnored, Code: "unchanged", Generation: e.cur.Generation, Snapshot: e.cur.Snapshot}
 
 	for idx := range results {
@@ -663,10 +672,15 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload) 
 		final = *applied
 	}
 
-	e.last.Store(&final)
+	result := RoundResult{Reload: final}
+	if applied != nil {
+		result.Events = events
+	}
+
+	e.last.Store(&result)
 
 	if e.hooks.AfterRound != nil {
-		e.hooks.AfterRound(final)
+		e.hooks.AfterRound(result)
 	}
 }
 
