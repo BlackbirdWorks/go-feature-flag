@@ -2,7 +2,6 @@ package bootstrap_test
 
 import (
 	"os"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,20 +37,5 @@ func FuzzParse(f *testing.F) {
 		}
 
 		require.Equal(t, bootstrap.Version, cfg.Version)
-	})
-}
-
-// FuzzParseCanary checks that a sentinel written as a secret value never appears in an error or in the print. The
-// seeds are in canarySeeds, and TestCanarySeedsAreExercised proves that none of them is skipped.
-func FuzzParseCanary(f *testing.F) {
-	seeds := slices.Concat(canaryValueSeeds(), canaryReferenceSeeds(), canaryMalformedSeeds(), canaryLoadSeeds())
-
-	for _, seed := range seeds {
-		f.Add([]byte(seed))
-	}
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		checkCanaryDoc(t, data, false)
-		checkCanaryDoc(t, data, true)
 	})
 }

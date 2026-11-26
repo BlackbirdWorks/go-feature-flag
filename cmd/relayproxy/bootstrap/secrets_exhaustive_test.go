@@ -77,14 +77,17 @@ func findSecretPositions(root reflect.Type, seen map[reflect.Type]bool, out map[
 type secretFixture struct {
 	build func(resource, value string) string
 	name  string
+	// writes is the exact list of secret positions the document sets, one entry per secret
+	writes []string
 }
 
-func credentialsFixtures(extra string) []secretFixture {
+func credentialsFixtures(extra string, writes ...string) []secretFixture {
 	out := make([]secretFixture, 0, 4)
 
 	for _, connType := range []string{"s3", "kinesis", "sqs", "redshift"} {
 		out = append(out, secretFixture{
-			name: connType,
+			name:   connType,
+			writes: writes,
 			build: func(resource, value string) string {
 				return "connections:\n  " + resource + ": {type: " + connType + ", credentials: {" +
 					strings.ReplaceAll(extra, "V", value) + "}}\n"
@@ -95,9 +98,10 @@ func credentialsFixtures(extra string) []secretFixture {
 	return out
 }
 
-func exporterFixture(kind, keys string) secretFixture {
+func exporterFixture(kind, keys string, writes ...string) secretFixture {
 	return secretFixture{
-		name: kind,
+		name:   kind,
+		writes: writes,
 		build: func(resource, value string) string {
 			return "exporters:\n  " + resource + ": {kind: " + kind + ", " + strings.ReplaceAll(
 				keys,
@@ -108,9 +112,10 @@ func exporterFixture(kind, keys string) secretFixture {
 	}
 }
 
-func notifierFixture(kind, keys string) secretFixture {
+func notifierFixture(kind, keys string, writes ...string) secretFixture {
 	return secretFixture{
-		name: kind,
+		name:   kind,
+		writes: writes,
 		build: func(resource, value string) string {
 			return "notifiers:\n  " + resource + ": {kind: " + kind + ", " + strings.ReplaceAll(
 				keys,
@@ -125,33 +130,50 @@ func notifierFixture(kind, keys string) secretFixture {
 // TestEverySecretPositionHasAFixture until a rule is written here.
 func secretRules() map[string][]secretFixture {
 	static := "type: static, accessKeyId: V, secretAccessKey: V"
+	staticWrites := []string{"Credentials.AccessKeyID", "Credentials.SecretAccessKey"}
+	webhookURL := []string{"Exporter.EndpointURL"}
 
 	return map[string][]secretFixture{
-		"Auth.AdminKeys[]": {
-			{name: "admin", build: func(_, value string) string { return "auth: {adminKeys: [" + value + "]}\n" }},
-		},
-		"Credentials.AccessKeyID":     credentialsFixtures(static),
-		"Credentials.SecretAccessKey": credentialsFixtures(static),
-		"Credentials.SessionToken":    credentialsFixtures(static + ", sessionToken: V"),
-		"Credentials.ExternalID":      credentialsFixtures("type: assumeRole, roleArn: r, externalId: V"),
-		"Exporter.EndpointURL":        {exporterFixture("webhook", "endpointUrl: V")},
-		"Exporter.Secret":             {exporterFixture("webhook", "endpointUrl: V, secret: V")},
-		"Exporter.Headers[*]":         {exporterFixture("webhook", "endpointUrl: V, headers: {A: V, B: V}")},
+		"Auth.AdminKeys[]": {{
+			name: "admin", writes: []string{"Auth.AdminKeys[]"},
+			build: func(_, value string) string { return "auth: {adminKeys: [" + value + "]}\n" },
+		}},
+		"Credentials.AccessKeyID":     credentialsFixtures(static, staticWrites...),
+		"Credentials.SecretAccessKey": credentialsFixtures(static, staticWrites...),
+		"Credentials.SessionToken": credentialsFixtures(static+", sessionToken: V",
+			"Credentials.AccessKeyID", "Credentials.SecretAccessKey", "Credentials.SessionToken"),
+		"Credentials.ExternalID": credentialsFixtures("type: assumeRole, roleArn: r, externalId: V",
+			"Credentials.ExternalID"),
+		"Exporter.EndpointURL": {exporterFixture("webhook", "endpointUrl: V", webhookURL...)},
+		"Exporter.Secret": {exporterFixture("webhook", "endpointUrl: V, secret: V",
+			"Exporter.EndpointURL", "Exporter.Secret")},
+		"Exporter.Headers[*]": {exporterFixture("webhook", "endpointUrl: V, headers: {A: V, B: V}",
+			"Exporter.EndpointURL", "Exporter.Headers[*]", "Exporter.Headers[*]")},
 		"Exporter.GoogleCredentials": {
-			exporterFixture("googleStorage", "bucket: b, googleCredentials: V"),
-			exporterFixture("pubsub", "projectId: p, topic: t, googleCredentials: V"),
-			exporterFixture("bigquery", "projectId: p, datasetId: d, googleCredentials: V"),
+			exporterFixture("googleStorage", "bucket: b, googleCredentials: V", "Exporter.GoogleCredentials"),
+			exporterFixture("pubsub", "projectId: p, topic: t, googleCredentials: V", "Exporter.GoogleCredentials"),
+			exporterFixture(
+				"bigquery",
+				"projectId: p, datasetId: d, googleCredentials: V",
+				"Exporter.GoogleCredentials",
+			),
 		},
-		"Exporter.AccountKey": {exporterFixture("azureBlobStorage", "accountName: a, container: c, accountKey: V")},
+		"Exporter.AccountKey": {exporterFixture("azureBlobStorage", "accountName: a, container: c, accountKey: V",
+			"Exporter.AccountKey")},
 		"Notifier.WebhookURL": {
-			notifierFixture("slack", "webhookUrl: V"), notifierFixture("microsoftteams", "webhookUrl: V"),
-			notifierFixture("discord", "webhookUrl: V"),
+			notifierFixture("slack", "webhookUrl: V", "Notifier.WebhookURL"),
+			notifierFixture("microsoftteams", "webhookUrl: V", "Notifier.WebhookURL"),
+			notifierFixture("discord", "webhookUrl: V", "Notifier.WebhookURL"),
 		},
-		"Notifier.EndpointURL": {notifierFixture("webhook", "endpointUrl: V")},
-		"Notifier.Secret":      {notifierFixture("webhook", "endpointUrl: V, secret: V")},
-		"Notifier.Headers[*]":  {notifierFixture("webhook", "endpointUrl: V, headers: {A: V, B: V}")},
+		"Notifier.EndpointURL": {notifierFixture("webhook", "endpointUrl: V", "Notifier.EndpointURL")},
+		"Notifier.Secret": {notifierFixture("webhook", "endpointUrl: V, secret: V",
+			"Notifier.EndpointURL", "Notifier.Secret")},
+		"Notifier.Headers[*]": {notifierFixture("webhook", "endpointUrl: V, headers: {A: V, B: V}",
+			"Notifier.EndpointURL", "Notifier.Headers[*]", "Notifier.Headers[*]")},
 	}
 }
+
+// TestEverySecretPositionHasAFixture until a rule is written here.
 
 // TestEverySecretPositionHasAFixture is the completeness guard: the positions found by reflection and the
 // positions that have a fixture are the same set.
@@ -168,6 +190,10 @@ func TestEverySecretPositionHasAFixture(t *testing.T) {
 
 	for key, fixtures := range rules {
 		assert.NotEmpty(t, fixtures, key)
+
+		for _, fixture := range fixtures {
+			assert.Contains(t, fixture.writes, key, "the fixture writes the position it is the rule of")
+		}
 	}
 }
 
@@ -182,7 +208,7 @@ func secretVariants() []secretVariant {
 	return []secretVariant{
 		{name: "inline", value: exhaustiveCanary, inline: true},
 		{name: "fromEnv", value: "{fromEnv: CANARYVAR}"},
-		{name: fileReference, value: "{fromFile: /run/canary}"},
+		{name: "fromFile", value: "{fromFile: /run/canary}"},
 	}
 }
 
@@ -205,49 +231,52 @@ func exhaustiveOptions(inline bool) bootstrap.LoadOptions {
 // heldSecret is a secret of a loaded configuration and the struct that holds it.
 type heldSecret struct {
 	holder reflect.Value
+	key    string
 	secret bootstrap.Secret
 }
 
-// collectSecrets walks a loaded configuration and returns every set secret, with the struct that holds it.
-func collectSecrets(value, holder reflect.Value, out *[]heldSecret) {
+// collectSecrets walks a loaded configuration and returns every set secret, with the struct that holds it and
+// its position, named like the positions found in the type.
+func collectSecrets(value, holder reflect.Value, key string, out *[]heldSecret) {
 	switch {
 	case value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface:
 		if !value.IsNil() {
-			collectSecrets(value.Elem(), holder, out)
+			collectSecrets(value.Elem(), holder, key, out)
 		}
 	case value.Kind() == reflect.Slice || value.Kind() == reflect.Array:
 		for i := range value.Len() {
-			collectSecrets(value.Index(i), holder, out)
+			collectSecrets(value.Index(i), holder, key+"[]", out)
 		}
 	case value.Kind() == reflect.Map:
-		for _, key := range value.MapKeys() {
-			collectSecrets(value.MapIndex(key), holder, out)
+		for _, name := range value.MapKeys() {
+			collectSecrets(value.MapIndex(name), holder, key+"[*]", out)
 		}
 	case value.Kind() == reflect.Struct:
-		collectStruct(value, holder, out)
+		collectStruct(value, holder, key, out)
 	}
 }
 
-func collectStruct(value, holder reflect.Value, out *[]heldSecret) {
+func collectStruct(value, holder reflect.Value, key string, out *[]heldSecret) {
 	switch value.Type() {
 	case reflect.TypeFor[bootstrap.Secret]():
 		secret, _ := reflect.TypeAssert[bootstrap.Secret](value)
 		if secret.IsSet() {
-			*out = append(*out, heldSecret{holder: holder, secret: secret})
+			*out = append(*out, heldSecret{holder: holder, key: key, secret: secret})
 		}
 	case reflect.TypeFor[bootstrap.AdminKey]():
-		collectStruct(value.Field(0), holder, out)
+		collectStruct(value.Field(0), holder, key, out)
 	default:
 		for i := range value.NumField() {
-			if value.Type().Field(i).IsExported() {
-				collectSecrets(value.Field(i), value, out)
+			field := value.Type().Field(i)
+			if field.IsExported() {
+				collectSecrets(value.Field(i), value, value.Type().Name()+"."+field.Name, out)
 			}
 		}
 	}
 }
 
 func exhaustiveVerbs() []string {
-	return []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%d", "%10.3s", "%-20v"}
+	return []string{"%v", fmtPlus, fmtGo, "%s", "%q", "%x", "%d", "%10.3s", "%-20v"}
 }
 
 // formatsOf is every way the test knows to turn a value into text.
@@ -282,7 +311,7 @@ func formatsOf(tb testing.TB, value any) map[string]string {
 
 // runSecretFixture loads the document, resolves every secret, and checks that the canary is in no text of the
 // configuration, of the struct that holds the secret, or of the resolved secret, while Reveal returns it.
-func runSecretFixture(t *testing.T, doc string, variant secretVariant) int {
+func runSecretFixture(t *testing.T, doc string, writes []string, variant secretVariant) int {
 	t.Helper()
 
 	opts := exhaustiveOptions(variant.inline)
@@ -292,8 +321,16 @@ func runSecretFixture(t *testing.T, doc string, variant secretVariant) int {
 
 	var held []heldSecret
 
-	collectSecrets(reflect.ValueOf(cfg), reflect.ValueOf(cfg).Elem(), &held)
-	require.NotEmpty(t, held, "the document sets no secret: %s", doc)
+	collectSecrets(reflect.ValueOf(cfg), reflect.ValueOf(cfg).Elem(), "", &held)
+
+	// the secrets found in the loaded configuration are exactly the ones the fixture writes: a secret that the
+	// loader drops fails here
+	foundKeys := make([]string, 0, len(held))
+	for _, item := range held {
+		foundKeys = append(foundKeys, item.key)
+	}
+
+	assert.ElementsMatch(t, writes, foundKeys, "the secrets of the loaded configuration: %s", doc)
 
 	var printed bytes.Buffer
 
@@ -342,8 +379,8 @@ func TestNoSecretPositionLeaks(t *testing.T) {
 					t.Run(key+"/"+fixture.name+"/"+variant.name+"/"+resource, func(t *testing.T) {
 						t.Parallel()
 
-						secrets := runSecretFixture(t, fixture.build(resource, variant.value), variant)
-						assert.GreaterOrEqual(t, secrets, 1)
+						secrets := runSecretFixture(t, fixture.build(resource, variant.value), fixture.writes, variant)
+						assert.Len(t, fixture.writes, secrets)
 					})
 				}
 			}

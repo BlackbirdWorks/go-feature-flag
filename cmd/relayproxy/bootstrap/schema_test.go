@@ -56,7 +56,7 @@ func TestSchemaShape(t *testing.T) {
 		{name: "control plane", def: defMaxManifest, wantProperty: "maxObjects"},
 		{name: "connection is a union", def: "Connection", wantOneOf: 4},
 		{name: "s3 member", def: "S3Connection", wantProperty: tcBucket, wantRequired: []string{typeKey}},
-		{name: "secret reference", def: "Secret", wantProperty: envReference},
+		{name: "secret reference", def: "Secret", wantProperty: "fromEnv"},
 	}
 
 	for _, tcase := range tests {

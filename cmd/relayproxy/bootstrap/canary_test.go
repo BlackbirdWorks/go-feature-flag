@@ -261,7 +261,7 @@ func TestCanaryThroughResolvedSecret(t *testing.T) {
 		Secret bootstrap.ResolvedSecret
 	}{Name: "n", Secret: resolved, Ptr: &resolved}
 
-	for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%T", "%10.3s", "%-20v"} {
+	for _, verb := range []string{"%v", fmtPlus, fmtGo, "%s", "%q", "%x", "%X", "%d", "%T", "%10.3s", "%-20v"} {
 		t.Run(verb, func(t *testing.T) {
 			t.Parallel()
 
