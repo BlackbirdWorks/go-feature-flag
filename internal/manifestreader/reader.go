@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,34 +29,50 @@ var ErrAlreadyRunning = errors.New("manifestreader: reader already running")
 // may retry it: those are extra attempts, each observed once by the connection observer. The steady state (every
 // round answered 304, no failing object) is exactly one request per round.
 type Reader struct {
-	hooks      Hooks
-	lastSync   time.Time
-	store      ObjectStore
-	sched      Scheduler
-	cache      map[string][]byte
-	status     atomic.Pointer[Status]
-	jitter     func() float64
-	reqCtx     func(context.Context, time.Duration) (context.Context, context.CancelFunc)
-	stores     map[string]ObjectStore
+	hooks    Hooks
+	lastSync time.Time
+	store    ObjectStore
+	sched    Scheduler
+	stores   map[string]ObjectStore
+	status   atomic.Pointer[Status]
+	jitter   func() float64
+	reqCtx   func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	// retry is the schedule of the objects that failed, by checksum.
+	retry      map[string]*retryState
+	routes     map[string]string
 	snaps      chan *Snapshot
 	logged     map[string]string
 	hookPanics map[string]uint64
 	held       *held
 	log        *slog.Logger
 	names      map[string]*nameState
-	lastPoll   string
+	pollCounts map[string]uint64
+	cache      map[string][]byte
 	// seen is the ETag sent as If-None-Match: the one of the last manifest read, accepted or not.
 	seen     string
-	groups   []*group
-	failures []ObjectFailure
-	manifest ManifestStatus
-	cfg      Config
-	counts   Counts
+	lastPoll string
+	// restoredStale are the names to serve stale while the restored manifest is accepted.
+	restoredStale []StaleObject
+	groups        []*group
+	failures      []ObjectFailure
+	manifest      ManifestStatus
+	cfg           Config
+	backoff       BackoffStatus
+	counts        Counts
+	wait          time.Duration
+	// pollFails is the number of consecutive failed manifest polls; wait is the wait planned after the round;
+	// vnow is the virtual time: the sum of the waits the scheduler completed. The retry schedule of the objects
+	// is kept on it, so the scheduler is the only clock of the reader.
+	pollFails int
+	vnow      time.Duration
+	notMod    uint64
+	polls     uint64
 	// cacheBytes is the number of bytes in cache.
 	cacheBytes int64
-	polls      uint64
-	notMod     uint64
 	started    atomic.Bool
+	// spread is set by accept when the manifest replaces a held one: the object fetches of that generation
+	// wait a random delay.
+	spread bool
 	// dirty is set when the state of a name changed since the last snapshot.
 	dirty bool
 }
@@ -128,6 +145,8 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 		names:      map[string]*nameState{},
 		logged:     map[string]string{},
 		hookPanics: map[string]uint64{},
+		retry:      map[string]*retryState{},
+		pollCounts: map[string]uint64{},
 		manifest:   ManifestStatus{Outcome: OutcomeNone},
 	}
 
@@ -179,7 +198,7 @@ func (r *Reader) Run(ctx context.Context) error {
 
 	if r.held == nil && r.cfg.JitterFraction > 0 {
 		phase := time.Duration(r.jitterValue() * float64(min(r.cfg.PollInterval, maxStartPhase)))
-		if phase > 0 && r.sched.Wait(ctx, phase) != nil {
+		if phase > 0 && r.sleep(ctx, phase) != nil {
 			return nil
 		}
 	}
@@ -191,8 +210,7 @@ func (r *Reader) Run(ctx context.Context) error {
 			return nil
 		}
 
-		err := r.sched.Wait(ctx, r.next())
-		if err != nil {
+		if r.sleep(ctx, r.wait) != nil {
 			return nil
 		}
 	}
@@ -284,7 +302,11 @@ func (r *Reader) restore(ctx context.Context) {
 		r.cache[sum] = content
 	}
 
-	if !r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag}, true) {
+	r.restoredStale = restored.Stale
+	accepted := r.accept(ctx, Object{Bytes: restored.Manifest, ETag: restored.ETag}, true)
+	r.restoredStale = nil
+
+	if !accepted {
 		// the saved ETag names bytes that were not accepted: the first poll must read the manifest, and the saved
 		// objects belong to no manifest
 		r.seen = ""
@@ -294,7 +316,7 @@ func (r *Reader) restore(ctx context.Context) {
 		r.cacheBytes = 0
 	}
 
-	r.storeStatus(PollStatus{Result: PollNone}, false)
+	r.storeStatus(ctx, PollStatus{Result: PollNone}, false)
 }
 
 // Hook names, as reported in [Status.HookPanics].
@@ -302,6 +324,7 @@ const (
 	hookRestore = "restore"
 	hookSave    = "save"
 	hookOnRound = "onRound"
+	hookState   = "stateStatus"
 )
 
 // round is one poll: the conditional GET of the manifest and what follows from the answer.
@@ -320,6 +343,7 @@ func (r *Reader) round(ctx context.Context) {
 
 	poll := PollStatus{Result: PollUpdated}
 	confirmed := false
+	throttled := false
 
 	switch {
 	case err == nil:
@@ -337,8 +361,10 @@ func (r *Reader) round(ctx context.Context) {
 		r.settle(ctx, false, true)
 	default:
 		poll = failedPoll(err)
+		throttled = isThrottled(err)
 	}
 
+	r.planWait(poll, throttled)
 	r.logPoll(ctx, poll)
 	r.finish(ctx, poll, confirmed)
 }
@@ -450,7 +476,12 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 		}
 	}
 
+	r.spread = r.held != nil
+
 	r.adopt(manifest, ident, obj)
+
+	r.restoreStale(restoring)
+
 	r.manifest = ManifestStatus{
 		Outcome: OutcomeAccepted, Channel: manifest.Channel, Generation: manifest.Generation,
 		Objects: len(manifest.Objects), UnknownFields: unknown,
@@ -459,6 +490,32 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 	r.settle(ctx, genChanged, !restoring)
 
 	return true
+}
+
+// restoreStale gives the names that were stale when the state was saved their old content again, as their last
+// good one: they come back stale with the bytes they were served with, not missing. It runs before the restored
+// snapshot is published, so there is no request first.
+func (r *Reader) restoreStale(restoring bool) {
+	if !restoring {
+		return
+	}
+
+	for _, saved := range r.restoredStale {
+		name := r.names[saved.Name]
+		data, held := r.cache[saved.Checksum.Value]
+
+		if name == nil || !held || name.state == StateOK || name.good != nil ||
+			int64(len(data)) > r.cfg.MaxObjectBytes {
+			continue
+		}
+
+		name.good = &good{kind: saved.Kind, format: saved.Format, sum: saved.Checksum, bytes: data}
+
+		if name.state == StateMissing {
+			// an entry that failed its own checks is not in the fetch plan: give it its failure again, now stale
+			r.applyFailName(name, result{reason: name.reason, retryable: name.retryable})
+		}
+	}
 }
 
 // withinTotal reports whether the distinct objects of the manifest fit in MaxTotalBytes. A checksum listed with
@@ -560,10 +617,35 @@ func (r *Reader) adopt(manifest *controlplane.Manifest, ident map[string]identit
 
 	r.names = names
 	r.groups = order
+
+	r.noteRoutes(order)
 	r.held = &held{
 		generation: manifest.Generation, channel: manifest.Channel, ident: ident, raw: obj.Bytes, etag: obj.ETag,
 		objects: manifest.Objects,
 	}
+}
+
+// noteRoutes forgets the retry schedule of a checksum whose routes changed (another key, connection or version in
+// a rewrite of the same generation): a corrected route is tried in that round, not after the deadline the old route
+// earned.
+func (r *Reader) noteRoutes(groups []*group) {
+	routes := make(map[string]string, len(groups))
+
+	for _, grp := range groups {
+		var route strings.Builder
+
+		for _, name := range grp.names {
+			route.WriteString(name.entry.Key + "\x00" + name.entry.Connection + "\x00" + name.entry.VersionID + "\n")
+		}
+
+		routes[grp.sum] = route.String()
+
+		if previous, known := r.routes[grp.sum]; known && previous != routes[grp.sum] {
+			delete(r.retry, grp.sum)
+		}
+	}
+
+	r.routes = routes
 }
 
 // localFailure is the reason an entry cannot be requested at all, or "". It depends on the entry only, so it
@@ -604,32 +686,22 @@ func (r *Reader) settle(ctx context.Context, genChanged, fetch bool) {
 		}
 	}
 
-	if len(r.groups) > 0 && fetch {
-		results := r.fetchAll(ctx, r.groups)
+	if genChanged {
+		// a new generation starts over: what failed is tried at once, after the spreading delay
+		clear(r.retry)
+	}
+
+	if due := r.dueGroups(); fetch && len(due) > 0 {
+		if genChanged && r.spread && !r.spreadWait(ctx) {
+			return
+		}
+
+		fetched := r.fetchAll(ctx, due)
 		if ctx.Err() != nil {
 			return
 		}
 
-		var keep []*group
-
-		for i, grp := range r.groups {
-			if results[i].reason == "" {
-				r.cache[grp.sum] = results[i].data
-				r.cacheBytes += int64(len(results[i].data))
-
-				for _, name := range grp.names {
-					r.applyData(name, results[i].data)
-				}
-
-				continue
-			}
-
-			r.applyFail(grp, results[i])
-
-			keep = append(keep, grp)
-		}
-
-		r.groups = keep
+		r.apply(due, fetched)
 	}
 
 	if !genChanged && !r.dirty {
@@ -641,6 +713,46 @@ func (r *Reader) settle(ctx context.Context, genChanged, fetch bool) {
 	r.prune()
 	r.report(ctx)
 	r.publish(ctx)
+}
+
+// apply gives the results of the fetched groups to their names. The groups that failed stay in the plan, with
+// their retry time; the other groups of the plan were not due and stay as they are.
+func (r *Reader) apply(due []*group, fetched []result) {
+	results := make(map[*group]result, len(due))
+	for i, grp := range due {
+		results[grp] = fetched[i]
+	}
+
+	var keep []*group
+
+	for _, grp := range r.groups {
+		res, tried := results[grp]
+		if !tried {
+			keep = append(keep, grp)
+
+			continue
+		}
+
+		if res.reason == "" {
+			delete(r.retry, grp.sum)
+
+			r.cache[grp.sum] = res.data
+			r.cacheBytes += int64(len(res.data))
+
+			for _, name := range grp.names {
+				r.applyData(name, res.data)
+			}
+
+			continue
+		}
+
+		r.applyFail(grp, res)
+		r.noteFailure(grp.sum, res)
+
+		keep = append(keep, grp)
+	}
+
+	r.groups = keep
 }
 
 // applyOK gives a name the verified content.
@@ -815,7 +927,7 @@ func (n *nameState) objectState() ObjectState {
 }
 
 // storeStatus makes the state of the reader visible. It does not call a hook.
-func (r *Reader) storeStatus(poll PollStatus, confirmed bool) *Status {
+func (r *Reader) storeStatus(ctx context.Context, poll PollStatus, confirmed bool) *Status {
 	now := clock.Now()
 	poll.At = now
 
@@ -825,7 +937,14 @@ func (r *Reader) storeStatus(poll PollStatus, confirmed bool) *Status {
 
 	status := &Status{
 		LastSync: r.lastSync, Poll: poll, Manifest: r.manifest, Failures: r.failures, Counts: r.counts,
-		Cache: r.cacheStats(), Polls: r.polls, NotModified: r.notMod,
+		Cache: r.cacheStats(), Polls: r.polls, NotModified: r.notMod, Backoff: r.backoff,
+		PollResults: r.pollResults(),
+	}
+
+	status.Backoff.ObjectsWaiting = r.objectsWaiting()
+
+	if r.hooks.StateStatus != nil {
+		r.safe(ctx, hookState, func() { status.State = r.hooks.StateStatus() })
 	}
 
 	if len(r.hookPanics) > 0 {
@@ -848,7 +967,7 @@ func (r *Reader) cacheStats() CacheStatus {
 
 // finish ends a live round: the status, then the OnRound hook, which means "a live poll round ended".
 func (r *Reader) finish(ctx context.Context, poll PollStatus, confirmed bool) {
-	status := r.storeStatus(poll, confirmed)
+	status := r.storeStatus(ctx, poll, confirmed)
 
 	if r.hooks.OnRound != nil {
 		r.safe(ctx, hookOnRound, func() { r.hooks.OnRound(status) })
