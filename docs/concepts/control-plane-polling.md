@@ -71,7 +71,7 @@ A failed object never blocks the others.
 |---|---|
 | Higher generation than the held one | accepted |
 | Lower generation | ignored and reported (`lower-generation`) |
-| Equal generation, same channel, objects, checksums, kinds and formats | accepted. A rewrite that changes only `createdAt`, a valid `key` or a known `connection` changes nothing and publishes no snapshot. The entry checks still apply to the new entry: an unknown `connection`, an invalid `key` or another `size` than the content fails that entry (`unknown-connection`, `invalid-key`, `size-mismatch`), which is then `stale` (or `missing`) and published as a state change |
+| Equal generation, same channel, objects, checksums, kinds and formats | accepted. A rewrite that changes only `createdAt`, or the `key` or `connection` of an entry that already serves its checksum (the connection being a known one), changes nothing and publishes no snapshot. For an entry that is failing, a new `key` or `connection` is a new route: it is tried in that round, and a recovery snapshot of the same generation follows if it works. The entry checks still apply to the new entry: an unknown `connection`, an invalid `key` or another `size` than the content fails that entry (`unknown-connection`, `invalid-key`, `size-mismatch`), which is then `stale` (or `missing`) and published as a state change |
 | Equal generation, another channel, object set, checksum, `kind` or `format` | rejected and reported (`generation-conflict`): a publisher bug |
 
 A rollback is a new, higher generation that references older objects.
