@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,7 @@ type Reader struct {
 	reqCtx   func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// retry is the schedule of the objects that failed, by checksum.
 	retry      map[string]*retryState
+	routes     map[string]string
 	snaps      chan *Snapshot
 	logged     map[string]string
 	hookPanics map[string]uint64
@@ -508,6 +510,11 @@ func (r *Reader) restoreStale(restoring bool) {
 		}
 
 		name.good = &good{kind: saved.Kind, format: saved.Format, sum: saved.Checksum, bytes: data}
+
+		if name.state == StateMissing {
+			// an entry that failed its own checks is not in the fetch plan: give it its failure again, now stale
+			r.applyFailName(name, result{reason: name.reason, retryable: name.retryable})
+		}
 	}
 }
 
@@ -610,10 +617,35 @@ func (r *Reader) adopt(manifest *controlplane.Manifest, ident map[string]identit
 
 	r.names = names
 	r.groups = order
+
+	r.noteRoutes(order)
 	r.held = &held{
 		generation: manifest.Generation, channel: manifest.Channel, ident: ident, raw: obj.Bytes, etag: obj.ETag,
 		objects: manifest.Objects,
 	}
+}
+
+// noteRoutes forgets the retry schedule of a checksum whose routes changed (another key, connection or version in
+// a rewrite of the same generation): a corrected route is tried in that round, not after the deadline the old route
+// earned.
+func (r *Reader) noteRoutes(groups []*group) {
+	routes := make(map[string]string, len(groups))
+
+	for _, grp := range groups {
+		var route strings.Builder
+
+		for _, name := range grp.names {
+			route.WriteString(name.entry.Key + "\x00" + name.entry.Connection + "\x00" + name.entry.VersionID + "\n")
+		}
+
+		routes[grp.sum] = route.String()
+
+		if previous, known := r.routes[grp.sum]; known && previous != routes[grp.sum] {
+			delete(r.retry, grp.sum)
+		}
+	}
+
+	r.routes = routes
 }
 
 // localFailure is the reason an entry cannot be requested at all, or "". It depends on the entry only, so it

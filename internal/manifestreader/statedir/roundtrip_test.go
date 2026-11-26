@@ -40,10 +40,10 @@ func TestStore_RoundTrip(t *testing.T) {
 		},
 		{
 			name:    "stale content is kept, an object that never loaded is not saved",
-			persist: withMissing(withStale(persistOf(`"e2"`, "manifest-2", contentAlpha), "old-beta")),
+			persist: withMissing(withStale(persistOf(etagTwo, manifestTwo, contentAlpha), "old-beta")),
 			wantRestore: wantRestored{
-				etag:     `"e2"`,
-				manifest: "manifest-2",
+				etag:     etagTwo,
+				manifest: manifestTwo,
 				objects:  []string{contentAlpha, "old-beta"},
 			},
 			wantStatus: manifestreader.StateStatus{

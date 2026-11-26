@@ -96,7 +96,21 @@ func (s *Store) write(job *job) outcome {
 	s.ioMu.Lock()
 	defer s.ioMu.Unlock()
 
+	if s.root == nil {
+		// an earlier reopen failed: the directory is lost until it can be opened again
+		err := s.reopen()
+		if err != nil {
+			return outcome{written: true, reason: reasonOf(err)}
+		}
+	}
+
+	s.reconcile()
+
 	keep, staleKept, partial := s.fit(job)
+
+	keep, blocked := s.usableDestinations(keep)
+	partial = partial || blocked
+
 	refs := make([]objectRef, len(keep))
 
 	for i := range keep {
@@ -137,9 +151,82 @@ func (s *Store) forget() {
 	s.disk = diskState{objects: map[string]struct{}{}}
 }
 
+// reconcile checks what the store believes about the disk against the directory: an object that is not there any
+// more, a manifest copy that is gone, a layout that vanished are forgotten, so the next write puts them back. It
+// costs a listing of objects/ per write.
+func (s *Store) reconcile() {
+	if !s.layout {
+		return
+	}
+
+	objects, err := s.root.ReadDir(objectsDir)
+	if err != nil {
+		s.forget()
+
+		return
+	}
+
+	rootNames, err := s.root.ReadDir(".")
+	if err != nil || !slices.Contains(rootNames, versionFile) {
+		s.forget()
+
+		return
+	}
+
+	if !slices.Contains(rootNames, manifestFile) {
+		s.disk.digest = ""
+	}
+
+	present := make(map[string]struct{}, len(objects))
+	for _, name := range objects {
+		present[name] = struct{}{}
+	}
+
+	for sum := range s.disk.objects {
+		if _, ok := present[sum]; !ok {
+			delete(s.disk.objects, sum)
+		}
+	}
+}
+
+// usableDestinations drops the objects whose file name is taken by a directory that cannot be removed (it is not
+// empty): they are not saved, and the save is partial. An empty directory is removed. Nothing else is ever
+// removed recursively.
+func (s *Store) usableDestinations(keep []object) ([]object, bool) {
+	var (
+		usable  = make([]object, 0, len(keep))
+		blocked bool
+	)
+
+	for _, obj := range keep {
+		if _, known := s.disk.objects[obj.sum]; !known && s.destinationBlocked(objectsDir+"/"+obj.sum) {
+			blocked = true
+
+			continue
+		}
+
+		usable = append(usable, obj)
+	}
+
+	return usable, blocked
+}
+
+// destinationBlocked reports whether name is a directory that cannot be replaced; an empty one is removed.
+func (s *Store) destinationBlocked(name string) bool {
+	info, err := s.root.Lstat(name)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+
+	return s.root.Remove(name) != nil
+}
+
 // reopen opens the directory again (it may have been removed and made anew) and takes the lock.
 func (s *Store) reopen() error {
-	_ = s.root.Close()
+	if s.root != nil {
+		_ = s.root.Close()
+		s.root = nil
+	}
 
 	root, _, err := openLocked(s.fsys, s.dir)
 	if err != nil {
@@ -265,6 +352,10 @@ func (s *Store) persist(job *job, keep []object, refs []objectRef, stale []stale
 
 	for _, sum := range written {
 		s.disk.objects[sum] = struct{}{}
+	}
+
+	if s.destinationBlocked(manifestFile) {
+		return fmt.Errorf("%w: %s is a directory that is not empty", ErrUnsafe, manifestFile)
 	}
 
 	content, err := json.Marshal(&envelope{

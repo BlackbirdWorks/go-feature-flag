@@ -176,11 +176,13 @@ func newStateRigWithRetry(
 	}
 }
 
-// agreeNow asserts that the three counts name the same requests since the last call: the wire carried exactly
+// agreeNow asserts that the three counts name the same requests since the last call: the transport carried exactly
 // wantWire (as a set: concurrent downloads have no order), the observer saw exactly wantObs, and the Prometheus
-// counter grew by the results of wantObs. The wire count (a RoundTripper under the SDK) is the independent one: the
-// counter is fed by the observer of the connection factory, so those two agree by construction, and the check on the
-// counter proves the plumbing (the names and the results), not a second count. Nothing but GET is allowed.
+// counter grew by the results of wantObs. The transport count is the independent one: it is the calls of a
+// RoundTripper under the SDK, that is the requests handed to the transport (not packets, so a replay by the Go
+// transport is not seen). The counter is fed by the observer of the connection factory, so those two agree by
+// construction, and the check on the counter proves the plumbing (the names and the results), not a second count.
+// Nothing but GET is allowed.
 func (s *stateRig) agreeNow(t *testing.T, wantWire []wireRequest, wantObs []observation) []observation {
 	t.Helper()
 

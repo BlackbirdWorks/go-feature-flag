@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 )
 
 // Errors of opening a state directory.
@@ -75,18 +76,21 @@ type File interface {
 // A directory is accepted when it is not a symbolic link, is not world-writable, and the process can read,
 // write and lock it. Its owner does not matter: a volume that Kubernetes mounts with fsGroup is owned by root and
 // group-writable. A directory that does not exist is created with mode 0700; an existing one keeps its mode.
-type OSFS struct{}
+type OSFS struct {
+	// syncDir flushes a directory; nil is the real one. A test replaces it.
+	syncDir func(string) error
+}
 
 // NewOSFS returns the real file system.
-func NewOSFS() OSFS { return OSFS{} }
+func NewOSFS() OSFS { return OSFS{syncDir: syncPath} }
 
 // Open implements [FS].
-func (OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the FS seam, which returns an interface
+func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the FS seam, which returns an interface
 	clean := filepath.Clean(dir)
 
 	info, err := os.Lstat(clean)
 	if errors.Is(err, fs.ErrNotExist) {
-		err = os.MkdirAll(clean, dirMode)
+		err = o.create(clean)
 		if err == nil {
 			info, err = os.Lstat(clean)
 		}
@@ -111,6 +115,47 @@ func (OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements the 
 	}
 
 	return &osRoot{root: root}, nil
+}
+
+// create makes the directory and the missing directories above it, and makes their entries durable: the parent of
+// each directory that was created is flushed, top down, so the path survives a power loss with the first save.
+func (o OSFS) create(clean string) error {
+	var created []string
+
+	for current := clean; ; {
+		_, err := os.Lstat(current)
+		if err == nil {
+			break
+		}
+
+		created = append(created, current)
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+
+		current = parent
+	}
+
+	err := os.MkdirAll(clean, dirMode)
+	if err != nil {
+		return fmt.Errorf("statedir: create directory: %w", err)
+	}
+
+	syncDir := o.syncDir
+	if syncDir == nil {
+		syncDir = syncPath
+	}
+
+	for _, made := range slices.Backward(created) {
+		err = syncDir(filepath.Dir(made))
+		if err != nil {
+			return fmt.Errorf("statedir: sync %s: %w", filepath.Dir(made), err)
+		}
+	}
+
+	return nil
 }
 
 // wrapPermission makes a refusal of the system a [ErrUnsafe]: a directory the process cannot use is not safe to use.

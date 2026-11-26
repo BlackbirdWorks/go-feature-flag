@@ -27,6 +27,10 @@ const (
 	contentBeta   = "beta"
 	contentShared = "shared"
 	contentAAAA   = "aaaa"
+	etagTwo       = `"e2"`
+	etagB         = `"eB"`
+	manifestTwo   = "manifest-2"
+	manifestB     = "manifest-B"
 )
 
 // wait bounds every wait of a test: a missing event fails the test instead of hanging it.
@@ -126,6 +130,16 @@ func (r *running) saveAndFlush(p manifestreader.Persist) {
 
 	r.store.Hooks().Save(p)
 	r.flush()
+}
+
+// saveAndFlushAsserting is saveAndFlush for a goroutine other than the one of the test: it never stops the test.
+func (r *running) saveAndFlushAsserting(p manifestreader.Persist) {
+	r.store.Hooks().Save(p)
+
+	ctx, cancel := context.WithTimeout(r.t.Context(), wait)
+	defer cancel()
+
+	assert.NoError(r.t, r.store.Flush(ctx))
 }
 
 func (r *running) flush() {

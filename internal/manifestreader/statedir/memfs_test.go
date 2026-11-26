@@ -4,10 +4,12 @@ import (
 	"errors"
 	"io/fs"
 	"maps"
+	"os"
 	"path"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
@@ -199,16 +201,23 @@ func (f *faults) reset() {
 type memFS struct {
 	disk   *memDisk
 	faults *faults
-	noLock bool
+	// failOpens is the number of the next Open calls that fail.
+	failOpens atomic.Int32
+	noLock    bool
 }
 
 func (m *memFS) Open(string) (statedir.Root, error) { //nolint:ireturn // implements the FS seam
+	if m.failOpens.Add(-1) >= 0 {
+		return nil, errNotAvailable
+	}
+
 	return &memRoot{fsys: m}, nil
 }
 
 type memRoot struct {
 	fsys   *memFS
 	locked bool
+	closed bool
 }
 
 func (r *memRoot) Lock() error {
@@ -230,6 +239,8 @@ func (r *memRoot) Lock() error {
 }
 
 func (r *memRoot) Close() error {
+	r.closed = true
+
 	if r.locked {
 		dsk := r.disk()
 		dsk.mu.Lock()
@@ -243,6 +254,10 @@ func (r *memRoot) Close() error {
 }
 
 func (r *memRoot) ReadFile(name string, limit int64) ([]byte, error) {
+	if r.closed {
+		return nil, os.ErrClosed
+	}
+
 	err := r.fsys.faults.readErr(name)
 	if err != nil {
 		return nil, err
@@ -279,6 +294,10 @@ func (i memInfo) IsDir() bool       { return i.mode.IsDir() }
 func (memInfo) Sys() any            { return nil }
 
 func (r *memRoot) Lstat(name string) (fs.FileInfo, error) {
+	if r.closed {
+		return nil, os.ErrClosed
+	}
+
 	dsk := r.disk()
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
@@ -295,6 +314,10 @@ func (r *memRoot) Lstat(name string) (fs.FileInfo, error) {
 }
 
 func (r *memRoot) Create(name string) (statedir.File, error) { //nolint:ireturn // implements the FS seam
+	if r.closed {
+		return nil, os.ErrClosed
+	}
+
 	_, err := r.fsys.faults.step(opCreate, name)
 	if err != nil {
 		return nil, err
@@ -373,6 +396,10 @@ func (f *memFile) append(data []byte) {
 }
 
 func (r *memRoot) Rename(oldname, newname string) error {
+	if r.closed {
+		return os.ErrClosed
+	}
+
 	_, err := r.fsys.faults.step("rename", newname)
 	if err != nil {
 		return err
@@ -394,6 +421,10 @@ func (r *memRoot) Rename(oldname, newname string) error {
 }
 
 func (r *memRoot) Remove(name string) error {
+	if r.closed {
+		return os.ErrClosed
+	}
+
 	if name == lockName {
 		return nil // the lock of the memory file system is not a file
 	}
@@ -417,6 +448,10 @@ func (r *memRoot) Remove(name string) error {
 }
 
 func (r *memRoot) ReadDir(name string) ([]string, error) {
+	if r.closed {
+		return nil, os.ErrClosed
+	}
+
 	err := r.fsys.faults.readErr(name + "/")
 	if err != nil {
 		return nil, err
@@ -448,6 +483,10 @@ func (r *memRoot) ReadDir(name string) ([]string, error) {
 }
 
 func (r *memRoot) MkdirAll(name string) error {
+	if r.closed {
+		return os.ErrClosed
+	}
+
 	_, err := r.fsys.faults.step("mkdir", name)
 	if err != nil {
 		return err
@@ -463,6 +502,10 @@ func (r *memRoot) MkdirAll(name string) error {
 
 // SyncDir makes the entries of a directory durable: what is there now stays, what was removed stays removed.
 func (r *memRoot) SyncDir(name string) error {
+	if r.closed {
+		return os.ErrClosed
+	}
+
 	_, err := r.fsys.faults.step("syncdir", name)
 	if err != nil {
 		return err

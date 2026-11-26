@@ -333,8 +333,8 @@ func TestStore_TwoWritersOnOneDirectory(t *testing.T) {
 				objects: []string{fmt.Sprintf("r-%d", i), contentShared},
 			}
 
-			wg.Go(func() { left.saveAndFlush(leftState) })
-			wg.Go(func() { right.saveAndFlush(rightState) })
+			wg.Go(func() { left.saveAndFlushAsserting(leftState) })
+			wg.Go(func() { right.saveAndFlushAsserting(rightState) })
 			wg.Wait()
 
 			restored, status, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}, noLock: true})

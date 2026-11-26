@@ -1,6 +1,7 @@
 package statedir_test
 
 import (
+	"io/fs"
 	"syscall"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestStore_RebuildsWhatVanishedWhileRunning(t *testing.T) {
 			tt.vanish(disk)
 
 			// the next save rebuilds the layout and writes every object again: the one that did not change too
-			run.saveAndFlush(persistOf(`"e2"`, "manifest-2", contentBeta, contentShared))
+			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentBeta, contentShared))
 
 			status := run.store.Hooks().StateStatus()
 			assert.Empty(t, status.LastSaveError)
@@ -51,7 +52,7 @@ func TestStore_RebuildsWhatVanishedWhileRunning(t *testing.T) {
 			restored, _, err := restoreOf(t, fsys)
 			require.NoError(t, err)
 			assertRestored(t, wantRestored{
-				etag: `"e2"`, manifest: "manifest-2", objects: []string{contentBeta, contentShared},
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentBeta, contentShared},
 			}, restored)
 		})
 	}
@@ -64,7 +65,7 @@ func TestStore_DoesNotTrustItsMemoryAfterAFailedSave(t *testing.T) {
 	fault := &faults{}
 	fsys := &memFS{disk: disk, faults: fault}
 	run := openStore(t, fsys, statedirConfig())
-	stateB := persistOf(`"eB"`, "manifest-B", contentAlpha, contentShared)
+	stateB := persistOf(etagB, manifestB, contentAlpha, contentShared)
 
 	run.saveAndFlush(stateB)
 
@@ -88,7 +89,7 @@ func TestStore_DoesNotTrustItsMemoryAfterAFailedSave(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, status.DiscardedObjects)
 	assertRestored(t, wantRestored{
-		etag: `"eB"`, manifest: "manifest-B", objects: []string{contentAlpha, contentShared},
+		etag: etagB, manifest: manifestB, objects: []string{contentAlpha, contentShared},
 	}, restored)
 }
 
@@ -127,4 +128,93 @@ func TestStore_ARestartRewritesAnObjectFileThatWentMissing(t *testing.T) {
 		wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha, contentBeta}},
 		restored,
 	)
+}
+
+func TestStore_ASaveThatAddsNoChecksumStillRebuildsWhatVanished(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		vanish func(*memDisk)
+		name   string
+	}{
+		{name: "the objects directory", vanish: func(d *memDisk) { d.removeObjectsDir() }},
+		{name: "one object file", vanish: func(d *memDisk) { d.remove(objectFile(contentAlpha)) }},
+		{name: "the manifest copy", vanish: func(d *memDisk) { d.remove(manifestName) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			disk := newMemDisk()
+			fsys := &memFS{disk: disk, faults: &faults{}}
+			run := openStore(t, fsys, statedirConfig())
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha, contentBeta))
+
+			tt.vanish(disk)
+
+			// the next generation keeps every checksum (and so writes no new object by the book): alpha is
+			// unchanged, the manifest copy is the new one
+			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+			assert.Empty(t, run.store.Hooks().StateStatus().LastSaveError)
+			run.close()
+
+			restored, status, err := restoreOf(t, fsys)
+			require.NoError(t, err)
+			assert.Zero(t, status.DiscardedObjects)
+			assertRestored(t, wantRestored{
+				etag: etagTwo, manifest: manifestTwo, objects: []string{contentAlpha, contentBeta},
+			}, restored)
+		})
+	}
+
+	t.Run("an unchanged state with a vanished object file is written again", func(t *testing.T) {
+		t.Parallel()
+
+		disk := newMemDisk()
+		fsys := &memFS{disk: disk, faults: &faults{}}
+		run := openStore(t, fsys, statedirConfig())
+		persist := persistOf(etagOne, manifestOne, contentAlpha, contentBeta)
+		run.saveAndFlush(persist)
+
+		disk.remove(objectFile(contentBeta))
+		run.saveAndFlush(persist)
+		run.close()
+
+		_, there := disk.read(objectFile(contentBeta))
+		assert.True(t, there)
+	})
+}
+
+func TestStore_ALostDirectoryIsOpenedAgainByALaterSave(t *testing.T) {
+	t.Parallel()
+
+	disk := newMemDisk()
+	probe := &faults{}
+	p := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedirConfig())
+	p.saveAndFlush(persistOf(etagB, manifestB, contentBeta))
+	p.close()
+
+	// the first write operation that touches the directory finds it gone, and opening it again fails once
+	fault := &faults{failAt: stepOf(t, probe.ops, "create objects/", 1), err: fs.ErrNotExist}
+	fsys := &memFS{disk: disk, faults: fault}
+	run := openStore(t, fsys, statedirConfig())
+
+	fsys.failOpens.Store(1)
+	run.saveAndFlush(persistOf(etagB, manifestB, contentBeta))
+
+	status := run.store.Hooks().StateStatus()
+	assert.Equal(t, uint64(1), status.SaveErrors, "the directory could not be opened again")
+
+	// the directory is usable again: the next save opens it and writes everything, though the state is the same
+	run.saveAndFlush(persistOf(etagB, manifestB, contentBeta))
+
+	status = run.store.Hooks().StateStatus()
+	assert.Equal(t, uint64(1), status.SaveErrors)
+	assert.Empty(t, status.LastSaveError)
+	run.close()
+
+	restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
+	require.NoError(t, err)
+	assertRestored(t, wantRestored{etag: etagB, manifest: manifestB, objects: []string{contentBeta}}, restored)
 }

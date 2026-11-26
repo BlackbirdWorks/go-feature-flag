@@ -309,3 +309,50 @@ func dirImage(tb testing.TB, dir string) map[string]string {
 
 	return out
 }
+
+// TestRestart_AStaleNameWhoseEntryFailsItsOwnChecksSurvivesTwoRestarts: generation 2 lists alpha with a connection
+// the reader has no store for, so alpha is stale from its generation 1 content without any request. The first
+// restart restores it stale (not missing), and the save after it must not delete the fallback: the second restart
+// restores it stale again.
+func TestRestart_AStaleNameWhoseEntryFailsItsOwnChecksSurvivesTwoRestarts(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	objs := threeObjects()
+	publish(t, store, 1, objs...)
+
+	dir := filepath.Join(t.TempDir(), "state")
+
+	first, state := startWithState(t, store, dir, nil)
+	require.NotNil(t, first.snapshot())
+
+	next := manifestOf(t, 2, objs...)
+	next.Objects[0].Connection = connElsewhere
+	putManifest(t, store, next)
+
+	first.round()
+	state.flush()
+
+	snap := first.snapshot()
+	require.NotNil(t, snap)
+	assert.Equal(t, staleAlpha(t, manifestreader.ReasonUnknownConnection), snap.Objects[nameAlpha])
+
+	first.stop()
+	state.close()
+
+	want := staleAlpha(t, manifestreader.ReasonUnknownConnection)
+
+	for restart := 1; restart <= 2; restart++ {
+		store.takeCalls()
+
+		rdr, restarted := startWithState(t, store, dir, nil)
+		restored := rdr.snapshot()
+		require.NotNil(t, restored, "restart %d", restart)
+		assert.Equal(t, want, restored.Objects[nameAlpha], "restart %d: stale with the generation 1 bytes", restart)
+		assert.Equal(t, manifestreader.Counts{OK: 2, Stale: 1}, rdr.reader.Status().Counts, "restart %d", restart)
+
+		restarted.flush()
+		rdr.stop()
+		restarted.close()
+	}
+}

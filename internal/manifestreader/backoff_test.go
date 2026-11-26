@@ -268,3 +268,35 @@ func TestReader_FailingObjectIsTriedAtOnceByANewGeneration(t *testing.T) {
 	assert.Empty(t, rdr.reader.Status().Failures)
 	assert.Zero(t, rdr.reader.Status().Backoff.ObjectsWaiting)
 }
+
+// TestReader_ACorrectedRouteIsTriedInTheRoundOfTheRewrite: an object that failed is backed off. A rewrite of the same
+// generation that gives its entry another key is a new route, and it is tried in that round, not after the
+// deadline the old route earned.
+func TestReader_ACorrectedRouteIsTriedInTheRoundOfTheRewrite(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	objs := threeObjects()
+	publish(t, store, 1, objs...)
+	store.remove(keyOf(t, objs[0]))
+
+	// jitter 0.9: the first retry is due at the next round, the second one 108 s after that
+	rdr := startRig(t, store, &manifestreader.Config{DisableFetchSpread: true}, fixedJitter(0.9))
+	store.takeCalls()
+
+	etag := manifestETag(store)
+
+	assert.Equal(t, []call{manifestCall(etag), objCall(t, objs[0])}, rdr.round(), "the first retry")
+
+	altKey := keyPrefix + "alt/alpha.json"
+	rewrite := manifestOf(t, 1, objs...)
+	rewrite.Objects[0].Key = altKey
+
+	store.put(altKey, []byte(objs[0].content))
+	putManifest(t, store, rewrite)
+
+	// the object is backed off until 108 s after that retry, and the next round is 60 s away: only the corrected
+	// route makes it due
+	assert.Equal(t, []call{manifestCall(etag), {Key: altKey}}, rdr.round(), "the corrected route is tried at once")
+	assert.Empty(t, rdr.reader.Status().Failures)
+}

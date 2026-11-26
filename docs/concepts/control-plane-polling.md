@@ -284,8 +284,16 @@ restored object is checked like a fetched one (the listed size, the object limit
   (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is
   reported in the status and the metrics, the next snapshot tries again, and polling goes on. The result of a
   write that ends after a round reaches `Status` one round late.
-- Self-healing. After any failed write, or when `objects/` or the whole directory vanishes while the relay runs, the
-  store forgets what it believed about the disk and the next write rebuilds the layout and writes every object again.
+- Self-healing. Before each write the store lists `objects/` and the directory and drops what it believed about files
+  that are gone, so a vanished object or manifest copy is written again even when the new state adds no checksum.
+  After any failed write, or when the whole directory vanishes while the relay runs, it forgets everything, opens the
+  directory again (a failed open is retried by the next write) and rebuilds the layout.
+- A directory under the name of an object or of the manifest copy is replaced when it is empty. One with content is
+  never removed: the object is left out of the save (a partial save), and for the manifest copy the save fails with
+  reason `unsafe`.
+- A state directory that `Open` creates, with its parents, is made durable at once (the parent of each created
+  directory is flushed), so the first save survives a power loss.
+- `Flush` returns when the writer is done with a snapshot: written, failed or replaced. The failure is in the status.
 
 **The directory must be ours.** Nothing is ever written to, changed in or deleted from a directory that is not.
 
@@ -360,9 +368,11 @@ running relay does not change before that.
 - `operation`: `get`, `list`, `head`, `put`, `delete` or `other`
 - `result`: `ok`, `not_modified`, `not_found`, `throttled`, `client_error`, `redirect`, `server_error` or `error`
 
-A request retried after a `503` counts twice: one poll of the reader, two requests on the wire, two observations and
+A request retried after a `503` counts twice: one poll of the reader, two requests handed to the transport, two observations and
 two counts (a test with the retries of the SDK on checks it). The counter is fed by the same observer, so the
-independent count is the wire (a counting `RoundTripper` under the SDK) in the tests. A `304` is `not_modified`, never an error. The only labels are the
+independent count in the tests is a counting `RoundTripper` under the SDK. It counts the requests the SDK hands to the
+transport (a refused connection is one), not packets: a replay by the Go transport of an idempotent request that got no
+response is below it and is not counted (see [Connections](connections.md)). A `304` is `not_modified`, never an error. The only labels are the
 connection name and the two closed sets: there is no per-flag or per-object series. With the manifest reader the
 steady state is one `get`/`not_modified` per interval per connection.
 

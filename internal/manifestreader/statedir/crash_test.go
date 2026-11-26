@@ -54,9 +54,9 @@ func TestStore_CrashAtEveryStep(t *testing.T) {
 	t.Parallel()
 
 	stateA := persistOf(`"eA"`, "manifest-A", "a-only", contentShared)
-	stateB := persistOf(`"eB"`, "manifest-B", "b-only", contentShared)
+	stateB := persistOf(etagB, manifestB, "b-only", contentShared)
 	wantA := wantRestored{etag: `"eA"`, manifest: "manifest-A", objects: []string{"a-only", contentShared}}
-	wantB := wantRestored{etag: `"eB"`, manifest: "manifest-B", objects: []string{"b-only", contentShared}}
+	wantB := wantRestored{etag: etagB, manifest: manifestB, objects: []string{"b-only", contentShared}}
 
 	for _, mode := range []struct {
 		name      string
@@ -173,7 +173,7 @@ func crashTable(
 func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 	t.Parallel()
 
-	stateB := persistOf(`"eB"`, "manifest-B", "b1", "b2")
+	stateB := persistOf(etagB, manifestB, "b1", "b2")
 	stateC := persistOf(`"eC"`, "manifest-C", "c1", "b2")
 
 	tests := []struct {
@@ -273,7 +273,7 @@ func TestStore_SaveOperationOrder(t *testing.T) {
 	_, err := second.store.Hooks().Restore()
 	require.NoError(t, err)
 
-	second.saveAndFlush(persistOf(`"eB"`, "manifest-B", "b-only", contentShared))
+	second.saveAndFlush(persistOf(etagB, manifestB, "b-only", contentShared))
 	second.close()
 
 	ops := probe.ops

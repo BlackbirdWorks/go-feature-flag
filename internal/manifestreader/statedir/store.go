@@ -276,7 +276,7 @@ func (s *Store) Close() error {
 	s.ioMu.Lock()
 	defer s.ioMu.Unlock()
 
-	if s.closed {
+	if s.closed || s.root == nil {
 		return nil
 	}
 
@@ -308,8 +308,9 @@ func (s *Store) Run(ctx context.Context) {
 	}
 }
 
-// Flush returns when everything saved before the call is written (or superseded by something written). It
-// needs [Store.Run] running; ctx bounds the wait.
+// Flush returns when the writer is done with everything saved before the call: written, failed (the failure is in
+// [manifestreader.StateStatus]: Flush does not report it) or replaced by a newer snapshot. It needs [Store.Run]
+// running; ctx bounds the wait.
 func (s *Store) Flush(ctx context.Context) error {
 	s.mu.Lock()
 	target := s.seq
