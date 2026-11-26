@@ -285,6 +285,7 @@ export default withMermaid({
           { text: 'Flag Sets', link: '/concepts/flagset' },
           { text: 'Live Reload', link: '/concepts/live-reload' },
           { text: 'Connections', link: '/concepts/connections' },
+          { text: 'Events and Notifiers', link: '/concepts/events-and-notifiers' },
           { text: 'Retrievers', link: '/concepts/retriever' },
           { text: 'Exporters', link: '/concepts/exporter' },
           { text: 'Notifiers', link: '/concepts/notifier' },

@@ -49,6 +49,9 @@ type Exporter struct {
 	// Available options https://github.com/apache/parquet-format/blob/master/Compression.md
 	// Default: SNAPPY
 	ParquetCompressionCodec string
+	// S3Client is an optional ready-made S3 client (for example the one of a connection factory). When it is set
+	// the exporter uses it as it is: AwsConfig and S3ClientOptions are not used to build another client.
+	S3Client *s3.Client
 	// S3ClientOptions is a list of functional options to configure the S3 client.
 	// Provide additional functional options to further configure the behavior of the client,
 	// such as changing the client's endpoint or adding custom middleware behavior.
@@ -132,6 +135,12 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 	var initErr error
 
 	f.init.Do(func() {
+		if f.S3Client != nil {
+			f.s3Uploader = transfermanager.New(f.S3Client)
+
+			return
+		}
+
 		if f.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {

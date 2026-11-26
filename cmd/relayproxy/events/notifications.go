@@ -1,0 +1,288 @@
+package events
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/internal"
+)
+
+// DefaultNotifierQueueSize is the number of changes that wait for one notifier.
+const DefaultNotifierQueueSize = 64
+
+// NotificationsConfig configures [Notifications]. Zero values take the defaults.
+type NotificationsConfig struct {
+	// Logger receives the logs; nil discards them.
+	Logger *slog.Logger
+	// Broadcast is called with every change that has a diff, from the one goroutine that consumes the channel,
+	// before the notifiers. The relay's SSE and websocket broadcast hooks in here. It must not block: a slow
+	// function delays the consumption of the channel. A panic is recovered and logged.
+	Broadcast func(flagruntime.Change)
+	// Builder builds the notifiers of [Notifications.Reload].
+	Builder Builder
+	// QueueSize is the number of changes that wait for one notifier. When it is full the change is dropped for
+	// that notifier and counted.
+	QueueSize int
+	// DrainTimeout is the deadline of the drain of a notifier that a reload replaces or removes.
+	DrainTimeout time.Duration
+}
+
+// Notifications is the change worker: one goroutine consumes the changes of the reconcile engine and offers
+// each of them to the bounded queue of every notifier. Each notifier has one goroutine that calls it, one change
+// at a time and in the order of the queue, so the changes of a flag set reach a notifier in order. A slow or
+// failing notifier fills its own queue and loses its own changes; it never delays the consumer or the other
+// notifiers. There is no per-call timeout: the notifiers of the engine bound their own HTTP calls, and a call
+// that never returns holds only its own goroutine.
+type Notifications struct {
+	state    atomic.Pointer[notifyState]
+	stop     chan struct{}
+	done     chan struct{}
+	cfg      NotificationsConfig
+	consumer sync.WaitGroup
+	// mu guards the offer of a change (read) against the swap of the set (write).
+	mu        sync.RWMutex
+	lifecycle sync.Mutex
+	started   bool
+	closed    bool
+}
+
+type notifyState struct {
+	active  []*notifierRun
+	retired []*notifierRun
+}
+
+// NewNotifications returns a worker with no notifier.
+func NewNotifications(config *NotificationsConfig) *Notifications {
+	cfg := *config
+	cfg.Logger = internal.LoggerOrDiscard(cfg.Logger)
+
+	if cfg.QueueSize <= 0 {
+		cfg.QueueSize = DefaultNotifierQueueSize
+	}
+
+	if cfg.DrainTimeout <= 0 {
+		cfg.DrainTimeout = DefaultDrainTimeout
+	}
+
+	n := &Notifications{cfg: cfg, stop: make(chan struct{}), done: make(chan struct{})}
+	n.state.Store(&notifyState{})
+
+	return n
+}
+
+// Start starts the consumer of changes. It stops when changes is closed, when ctx ends or at Shutdown.
+func (n *Notifications) Start(ctx context.Context, changes <-chan flagruntime.Change) error {
+	n.lifecycle.Lock()
+	defer n.lifecycle.Unlock()
+
+	if n.closed {
+		return ErrClosed
+	}
+
+	if n.started {
+		return ErrAlreadyStarted
+	}
+
+	n.started = true
+
+	n.consumer.Add(1)
+
+	go n.consume(ctx, changes)
+
+	return nil
+}
+
+// Reload builds the notifiers of the specs and applies them, see [Notifications.Apply].
+func (n *Notifications) Reload(ctx context.Context, specs Specs) (ReloadSet, error) {
+	defs, err := n.cfg.Builder.Notifiers(ctx, specs)
+	if err != nil {
+		return ReloadSet{}, err
+	}
+
+	return n.Apply(ctx, defs)
+}
+
+// Apply replaces the set of notifiers in place. A notifier whose identity did not change keeps its goroutine
+// and its queue. A new or changed one gets its own; the old one of a changed or removed notifier gets no more
+// changes, delivers what its queue holds within the drain timeout and stops.
+func (n *Notifications) Apply(ctx context.Context, defs []NotifierDef) (ReloadSet, error) {
+	n.lifecycle.Lock()
+	defer n.lifecycle.Unlock()
+
+	if n.closed {
+		return ReloadSet{}, ErrClosed
+	}
+
+	old := n.state.Load()
+	current := make(map[string]*notifierRun, len(old.active))
+
+	for _, run := range old.active {
+		current[run.def.Name] = run
+	}
+
+	var (
+		set     ReloadSet
+		next    = make([]*notifierRun, 0, len(defs))
+		leaving []*notifierRun
+	)
+
+	for _, def := range defs {
+		prev := current[def.Name]
+		delete(current, def.Name)
+
+		if prev != nil && prev.def.Identity == def.Identity {
+			next = append(next, prev)
+			set.Kept = append(set.Kept, def.Name)
+
+			continue
+		}
+
+		next = append(next, newNotifierRun(ctx, def, &n.cfg))
+
+		if prev == nil {
+			set.Added = append(set.Added, def.Name)
+
+			continue
+		}
+
+		set.Replaced = append(set.Replaced, def.Name)
+		leaving = append(leaving, prev)
+	}
+
+	for _, run := range old.active {
+		if _, gone := current[run.def.Name]; gone {
+			set.Removed = append(set.Removed, run.def.Name)
+			leaving = append(leaving, run)
+		}
+	}
+
+	n.swap(&notifyState{active: next, retired: leaving})
+
+	drainCtx, cancel := context.WithTimeout(ctx, n.cfg.DrainTimeout)
+	defer cancel()
+
+	set.Cut = closeRuns(drainCtx, leaving)
+
+	n.swap(&notifyState{active: next, retired: leaving})
+
+	return set, nil
+}
+
+// closeRuns closes the queues of the runs and waits for their goroutines until the deadline of ctx. It returns
+// the names of the runs that were cut.
+func closeRuns(ctx context.Context, runs []*notifierRun) []string {
+	for _, run := range runs {
+		run.close()
+	}
+
+	var cut []string
+
+	for _, run := range runs {
+		if !run.wait(ctx) {
+			cut = append(cut, run.def.Name)
+		}
+	}
+
+	return cut
+}
+
+// Done is closed when [Notifications.Shutdown] finished.
+func (n *Notifications) Done() <-chan struct{} { return n.done }
+
+// Shutdown stops consuming changes, lets every notifier deliver what its queue holds until the deadline of ctx,
+// and stops them. What is still queued at the deadline is dropped and counted. A second call does nothing.
+func (n *Notifications) Shutdown(ctx context.Context) error {
+	n.lifecycle.Lock()
+	defer n.lifecycle.Unlock()
+
+	if n.closed {
+		return nil
+	}
+
+	n.closed = true
+	defer close(n.done)
+
+	close(n.stop)
+	n.consumer.Wait()
+
+	st := n.state.Load()
+	closeRuns(ctx, st.active)
+	n.swap(&notifyState{retired: append(append([]*notifierRun(nil), st.retired...), st.active...)})
+
+	return nil
+}
+
+// Status returns a snapshot of the notifiers, without blocking.
+func (n *Notifications) Status() Status {
+	snap := n.state.Load()
+	out := Status{Notifiers: make([]NotifierStatus, 0, len(snap.active)+len(snap.retired))}
+
+	for _, run := range snap.active {
+		out.Notifiers = append(out.Notifiers, run.status())
+	}
+
+	for _, run := range snap.retired {
+		out.Notifiers = append(out.Notifiers, run.status())
+	}
+
+	return out
+}
+
+func (n *Notifications) consume(ctx context.Context, changes <-chan flagruntime.Change) {
+	defer n.consumer.Done()
+
+	for {
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				return
+			}
+
+			n.dispatch(ctx, change)
+		case <-ctx.Done():
+			return
+		case <-n.stop:
+			return
+		}
+	}
+}
+
+// dispatch hands one change to the broadcast hook and to every notifier.
+func (n *Notifications) dispatch(ctx context.Context, change flagruntime.Change) {
+	if !change.Diff.HasDiff() {
+		return
+	}
+
+	if n.cfg.Broadcast != nil {
+		n.broadcast(ctx, change)
+	}
+
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	for _, run := range n.state.Load().active {
+		run.offer(change)
+	}
+}
+
+func (n *Notifications) broadcast(ctx context.Context, change flagruntime.Change) {
+	defer func() {
+		if r := recover(); r != nil {
+			n.cfg.Logger.LogAttrs(ctx, slog.LevelError, "the broadcast hook panicked",
+				slog.String("flagSet", change.FlagSet), slog.String("panic", fmt.Sprint(r)))
+		}
+	}()
+
+	n.cfg.Broadcast(change)
+}
+
+func (n *Notifications) swap(st *notifyState) {
+	n.mu.Lock()
+	n.state.Store(st)
+	n.mu.Unlock()
+}

@@ -25,6 +25,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Flag sets](concepts/flagset.md)
 - [Live reload](concepts/live-reload.md)
 - [Connections](concepts/connections.md)
+- [Events and notifiers](concepts/events-and-notifiers.md)
 - [Retrievers](concepts/retriever.md), [exporters](concepts/exporter.md), [notifiers](concepts/notifier.md)
 
 ## Configure flags
