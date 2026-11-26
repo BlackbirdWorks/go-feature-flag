@@ -414,6 +414,9 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 	}
 }
 
+// bulkFlushInterval is the flush interval of the bulk exporter in TestDataExporterManager_multipleExporters.
+const bulkFlushInterval = 2 * time.Second
+
 func TestDataExporterManager_multipleExporters(t *testing.T) {
 	t.Parallel()
 
@@ -431,7 +434,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 			Exporter:         &mockExporter1,
 		},
 		{
-			FlushInterval:    200 * time.Millisecond,
+			FlushInterval:    bulkFlushInterval,
 			MaxEventInMemory: 200,
 			Exporter:         &mockExporter2,
 		},
@@ -460,8 +463,12 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	}
 
 	assert.Equal(t, want[:100], mockExporter1.GetExportedEvents())
-	assert.Empty(t, mockExporter2.GetExportedEvents())
-	time.Sleep(250 * time.Millisecond)
+	assert.Empty(t, mockExporter2.GetExportedEvents(), "the bulk exporter waits for its flush interval")
+
+	// The flush interval is far longer than the loop above, even on a loaded machine, so the assertion above does
+	// not race with the flush; the flush itself is awaited, not slept for.
+	assert.Eventually(t, func() bool { return len(mockExporter2.GetExportedEvents()) == len(want) },
+		10*time.Second, 10*time.Millisecond)
 	assert.Equal(t, want[:100], mockExporter2.GetExportedEvents())
 }
 
