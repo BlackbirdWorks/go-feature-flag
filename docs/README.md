@@ -24,6 +24,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Evaluation context](concepts/evaluation-context.md)
 - [Flag sets](concepts/flagset.md)
 - [Live reload](concepts/live-reload.md)
+- [Flag sets and evaluation](concepts/flag-sets-and-evaluation.md)
 - [Connections](concepts/connections.md)
 - [Control-plane polling](concepts/control-plane-polling.md)
 - [Retrievers](concepts/retriever.md), [exporters](concepts/exporter.md), [notifiers](concepts/notifier.md)

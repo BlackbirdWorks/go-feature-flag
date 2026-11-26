@@ -284,6 +284,7 @@ export default withMermaid({
           { text: 'Evaluation Context', link: '/concepts/evaluation-context' },
           { text: 'Flag Sets', link: '/concepts/flagset' },
           { text: 'Live Reload', link: '/concepts/live-reload' },
+          { text: 'Flag Sets and Evaluation', link: '/concepts/flag-sets-and-evaluation' },
           { text: 'Connections', link: '/concepts/connections' },
           { text: 'Control-Plane Polling', link: '/concepts/control-plane-polling' },
           { text: 'Retrievers', link: '/concepts/retriever' },
