@@ -28,13 +28,13 @@ type S3Store struct {
 	provider   S3Provider
 	connection string
 	bucket     string
-	prefix     string
 }
 
-// NewS3Store returns the store of bucket on the connection named connection; every key is prefixed with
-// prefix (which may be empty).
-func NewS3Store(provider S3Provider, connectionName, bucket, prefix string) *S3Store {
-	return &S3Store{provider: provider, connection: connectionName, bucket: bucket, prefix: prefix}
+// NewS3Store returns the store of bucket on the connection named connectionName. Keys are absolute bucket keys,
+// as the publisher writes them (a key prefix is applied by the publisher only): the store fetches exactly the key
+// it is given and never adds a prefix.
+func NewS3Store(provider S3Provider, connectionName, bucket string) *S3Store {
+	return &S3Store{provider: provider, connection: connectionName, bucket: bucket}
 }
 
 var _ ObjectStore = (*S3Store)(nil)
@@ -48,7 +48,7 @@ func (s *S3Store) Get(ctx context.Context, req GetRequest) (Object, error) {
 		return Object{}, &FetchError{Err: err, Reason: ReasonDenied, Retryable: false}
 	}
 
-	input := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(s.prefix + req.Key)}
+	input := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(req.Key)}
 	if req.ETag != "" {
 		input.IfNoneMatch = aws.String(req.ETag)
 	}

@@ -27,6 +27,9 @@ const (
 	ReasonChecksumMismatch = "checksum-mismatch"
 	// ReasonTooLarge is an entry whose listed size is above the object limit: it is not requested.
 	ReasonTooLarge = "too-large"
+	// ReasonInvalidKey is an entry whose key is empty or starts with "/": keys are absolute bucket keys, and the
+	// entry is not requested.
+	ReasonInvalidKey = "invalid-key"
 	// ReasonInvalidSize is an entry whose listed size is below 1: it is not requested.
 	ReasonInvalidSize = "invalid-size"
 	// ReasonSizeMismatch is a download that is shorter or longer than the listed size.

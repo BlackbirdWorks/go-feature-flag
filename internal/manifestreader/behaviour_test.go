@@ -258,7 +258,7 @@ func TestReader_LogsStateChangesOnceAndLeaksNothing(t *testing.T) {
 	assert.Contains(t, out, `"reason":"error"`)
 
 	for _, forbidden := range []string{
-		"SECRET-DETAIL", "SECRET-CONTENT", "objects/sha256", "manifests/stable",
+		"SECRET-DETAIL", "SECRET-CONTENT", keyPrefix, "objects/sha256",
 		controlplane.ChecksumOf([]byte(secret.content)).Value,
 	} {
 		assert.NotContains(t, out, forbidden)

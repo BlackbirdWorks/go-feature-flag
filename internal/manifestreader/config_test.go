@@ -29,6 +29,15 @@ func TestNew_ConfigValidation(t *testing.T) {
 	}{
 		{name: "key and connection are enough", cfg: base},
 		{name: "no manifest key", cfg: with(func(c *manifestreader.Config) { c.ManifestKey = "" }), wantErr: true},
+		{
+			name:    "a manifest key with a leading slash",
+			cfg:     with(func(c *manifestreader.Config) { c.ManifestKey = "/m" }),
+			wantErr: true,
+		},
+		{
+			name: "a manifest key with a prefix path",
+			cfg:  with(func(c *manifestreader.Config) { c.ManifestKey = "a/b/m" }),
+		},
 		{name: "no connection", cfg: with(func(c *manifestreader.Config) { c.Connection = "" }), wantErr: true},
 		{name: "negative interval", cfg: with(func(c *manifestreader.Config) { c.PollInterval = -1 }), wantErr: true},
 		{

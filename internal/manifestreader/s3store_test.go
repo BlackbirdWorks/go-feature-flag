@@ -117,7 +117,7 @@ func okAnswer(body string) httpStep {
 func TestS3Store_Get(t *testing.T) {
 	t.Parallel()
 
-	wantPath := "/" + s3Bucket + "/" + s3Prefix + "manifest.yaml"
+	wantPath := "/" + s3Bucket + "/" + s3Prefix + "manifest.yaml" // the key is fetched verbatim
 
 	tests := []struct {
 		wantErrIs    error
@@ -258,11 +258,11 @@ func TestS3Store_Get(t *testing.T) {
 			fac := connection.New(connection.WithRoundTripper(transport))
 			require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-			store := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, s3Prefix)
+			store := manifestreader.NewS3Store(fac, s3Conn, s3Bucket)
 
 			got, err := store.Get(
 				t.Context(),
-				manifestreader.GetRequest{Key: "manifest.yaml", ETag: tt.etag, Limit: tt.limit},
+				manifestreader.GetRequest{Key: s3Prefix + "manifest.yaml", ETag: tt.etag, Limit: tt.limit},
 			)
 
 			switch {
@@ -318,14 +318,14 @@ func TestS3Store_IfNoneMatchOnlyWithAnETag(t *testing.T) {
 			fac := connection.New(connection.WithRoundTripper(transport))
 			require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 				Get(t.Context(), manifestreader.GetRequest{Key: "k", ETag: tt.etag, Limit: 10})
 			require.NoError(t, err)
 
 			reqs := transport.requests()
 			require.Len(t, reqs, 1)
 			assert.Equal(t, tt.wantSent, reqs[0].IfNoneMatch)
-			assert.Equal(t, "/"+s3Bucket+"/k", reqs[0].Path, "an empty prefix adds nothing")
+			assert.Equal(t, "/"+s3Bucket+"/k", reqs[0].Path, "the store adds nothing to the key")
 		})
 	}
 }
@@ -339,7 +339,7 @@ func TestS3Store_TransportErrorIsRetryable(t *testing.T) {
 	fac := connection.New(connection.WithRoundTripper(transport))
 	require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
 
 	var fetchErr *manifestreader.FetchError
@@ -353,7 +353,7 @@ func TestS3Store_UnknownConnectionIsNotRetryable(t *testing.T) {
 	t.Parallel()
 
 	fac := connection.New()
-	_, err := manifestreader.NewS3Store(fac, "nope", s3Bucket, "").
+	_, err := manifestreader.NewS3Store(fac, "nope", s3Bucket).
 		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
 
 	var fetchErr *manifestreader.FetchError
@@ -373,7 +373,7 @@ func TestS3Store_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 		Get(ctx, manifestreader.GetRequest{Key: "k", Limit: 10})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
@@ -413,7 +413,7 @@ func TestS3Store_VersionID(t *testing.T) {
 			fac := connection.New(connection.WithRoundTripper(transport))
 			require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+			_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 				Get(t.Context(), manifestreader.GetRequest{Key: "k", VersionID: "v-1", Limit: 10})
 
 			if tt.want != nil {
@@ -438,7 +438,7 @@ func TestS3Store_InvalidArgumentWithoutAVersionIsADenial(t *testing.T) {
 	fac := connection.New(connection.WithRoundTripper(transport))
 	require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+	_, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 		Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: 10})
 
 	var fetchErr *manifestreader.FetchError
@@ -481,7 +481,7 @@ func TestS3Store_ContentLengthSizesTheBuffer(t *testing.T) {
 			fac := connection.New(connection.WithRoundTripper(transport))
 			require.NoError(t, fac.Set(s3Conn, s3Spec()))
 
-			got, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket, "").
+			got, err := manifestreader.NewS3Store(fac, s3Conn, s3Bucket).
 				Get(t.Context(), manifestreader.GetRequest{Key: "k", Limit: tt.limit})
 
 			switch {

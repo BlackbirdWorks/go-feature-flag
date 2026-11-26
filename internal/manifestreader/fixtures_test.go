@@ -26,7 +26,8 @@ const (
 	contentAlphaChanged = `{"alpha":"changed"}`
 	contentAlphaSecond  = `{"alpha":"second"}`
 
-	manifestKey = "manifests/stable.yaml"
+	keyPrefix   = "tenant/a/" // the publisher applies the prefix; the reader fetches keys verbatim
+	manifestKey = keyPrefix + "manifests/stable.yaml"
 	testChannel = "stable"
 	connControl = "control"
 )
@@ -50,6 +51,8 @@ func entryOf(tb testing.TB, item obj) controlplane.ManifestObject {
 	sum := controlplane.ChecksumOf([]byte(item.content))
 	key, err := controlplane.ObjectKey(sum, "json")
 	require.NoError(tb, err)
+
+	key = keyPrefix + key
 
 	return controlplane.ManifestObject{
 		Name:       item.name,

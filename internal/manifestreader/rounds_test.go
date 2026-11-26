@@ -663,3 +663,75 @@ func TestReader_SaveGetsTheSnapshotItPublished(t *testing.T) {
 	assert.True(t, bytes.Equal(raw, persisted.Manifest))
 	assert.Same(t, rdr.snapshot(), persisted.Snapshot)
 }
+
+func TestReader_KeysAreAbsoluteBucketKeys(t *testing.T) {
+	t.Parallel()
+
+	alpha, beta, gamma := threeObjects()[0], threeObjects()[1], threeObjects()[2]
+
+	tests := []struct {
+		name string
+		key  string
+		// wantKey is the key requested for alpha, or empty when no request is made for it.
+		wantKey string
+		wantOK  bool
+	}{
+		{
+			name: "a key with a prefix path is requested verbatim",
+			key:  keyPrefix + "deep/alpha.json", wantKey: keyPrefix + "deep/alpha.json", wantOK: true,
+		},
+		{name: "a key with a leading slash costs no request", key: "/alpha.json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			store.put(tt.key, []byte(alpha.content))
+			store.put(keyOf(t, beta), []byte(beta.content))
+			store.put(keyOf(t, gamma), []byte(gamma.content))
+
+			manifest := manifestOf(t, 1, alpha, beta, gamma)
+			manifest.Objects[0].Key = tt.key
+			putManifest(t, store, manifest)
+
+			rdr := startRig(t, store, &manifestreader.Config{})
+
+			snap := rdr.snapshot()
+			require.NotNil(t, snap)
+
+			wantCalls := []call{manifestCall(""), objCall(t, beta), objCall(t, gamma)}
+			if tt.wantOK {
+				wantCalls = append(wantCalls, call{Key: tt.wantKey})
+
+				assert.Equal(t, manifestreader.StateOK, snap.Objects[nameAlpha].State)
+			} else {
+				assert.Equal(t, manifestreader.StateMissing, snap.Objects[nameAlpha].State)
+				assert.Equal(t, manifestreader.ReasonInvalidKey, snap.Objects[nameAlpha].Reason)
+			}
+
+			assert.Equal(t, sortCalls(wantCalls), store.takeCalls())
+
+			// later rounds: a bad key stays free of requests
+			for range 2 {
+				assert.Equal(t, []call{manifestCall(manifestETag(store))}, rdr.round())
+			}
+		})
+	}
+}
+
+func TestReader_EmptyKeyRejectsTheManifestWithoutObjectRequests(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	manifest := publish(t, store, 1, threeObjects()...)
+	manifest.Objects[0].Key = ""
+	putManifest(t, store, manifest)
+
+	rdr := startRig(t, store, &manifestreader.Config{})
+
+	assert.Equal(t, []call{manifestCall("")}, store.takeCalls())
+	assert.Nil(t, rdr.snapshot())
+	assert.Equal(t, string(controlplane.CodeMissingValue), rdr.reader.Status().Manifest.Reason)
+}

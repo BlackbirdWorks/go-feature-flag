@@ -46,7 +46,8 @@ var ErrInvalidConfig = errors.New("manifestreader: invalid config")
 
 // Config configures a [Reader]. A zero field takes its default, except where noted. [New] copies it.
 type Config struct {
-	// ManifestKey is the key of the manifest in the store. Required.
+	// ManifestKey is the absolute bucket key of the manifest, as the publisher wrote it (a key prefix is applied
+	// by the publisher only; the reader never adds one). Required; it must not start with "/".
 	ManifestKey string
 	// Connection is the name of the connection the store of the reader serves. Required: an object whose entry
 	// names another connection is failed with [ReasonUnknownConnection] unless [WithObjectStores] has a store
@@ -104,6 +105,11 @@ func (c *Config) withDefaults() error {
 	return nil
 }
 
+// validKey reports whether key can be an absolute bucket key: not empty and not starting with a slash.
+func validKey(key string) bool {
+	return key != "" && key[0] != '/'
+}
+
 func (c *Config) validateLimits() error {
 	if c.PollInterval < 0 || c.RequestTimeout < 0 || c.MaxObjects < 0 || c.MaxManifestBytes < 0 ||
 		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 {
@@ -116,6 +122,10 @@ func (c *Config) validateLimits() error {
 func (c *Config) validate() error {
 	if c.ManifestKey == "" {
 		return fmt.Errorf("%w: ManifestKey is required", ErrInvalidConfig)
+	}
+
+	if !validKey(c.ManifestKey) {
+		return fmt.Errorf("%w: ManifestKey is not an absolute bucket key", ErrInvalidConfig)
 	}
 
 	if c.Connection == "" {

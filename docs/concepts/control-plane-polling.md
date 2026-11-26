@@ -4,6 +4,14 @@
 > when the relay switches to config v2 (epic #19, issue #8). The v1 configuration keeps polling its retrievers as
 > before.
 
+## Keys are absolute bucket keys
+
+The manifest key (`controlPlane.manifest.key`) and the `key` of every object entry are absolute bucket keys, exactly as
+the publisher wrote them. A key prefix is applied by the publisher only: the reader never adds one, and fetches
+exactly the key it is given. A key that is empty or starts with `/` is not requested: an object entry fails with
+`invalid-key` (the manifest key is refused when the reader is built, and an entry with an empty key makes the whole
+manifest invalid).
+
 ## What it does
 
 The relay learns what to serve from one small document, the **manifest**, that an external control plane publishes
@@ -76,7 +84,7 @@ Each object of a snapshot has a state:
 | `missing` | Fetching or verifying failed and no content of this name was ever loaded: no bytes |
 
 Every failed object has a reason: `missing` (404), `checksum-mismatch`, `size-mismatch`, `invalid-size`, `too-large`,
-`denied`, `timeout`, `error`, `unknown-connection`.
+`denied`, `timeout`, `error`, `unknown-connection`, `invalid-key`.
 
 The listed `size` is binding:
 
@@ -84,6 +92,7 @@ The listed `size` is binding:
   any request;
 - the request is limited to the listed size, and a body shorter or longer than it fails with `size-mismatch`, before
   the checksum is looked at;
+- an entry whose key starts with `/` fails with `invalid-key`, without any request;
 - an entry that names a connection the reader has no store for fails with `unknown-connection`, without any request;
   it is never read from the store of the manifest. An entry with a `versionId` is read at that version.
 

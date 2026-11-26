@@ -179,7 +179,7 @@ func startE2ENoWait(t *testing.T) *e2eRig {
 
 	rdr := &e2eRig{srv: srv, bucket: bucket, wire: wire, obs: obs}
 	rdr.publishE2E(t, 1, threeObjects()...)
-	rdr.rig = launchRig(t, manifestreader.NewS3Store(fac, connControl, bucket, ""), e2eConfig())
+	rdr.rig = launchRig(t, manifestreader.NewS3Store(fac, connControl, bucket), e2eConfig())
 
 	return rdr
 }
