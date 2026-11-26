@@ -38,10 +38,12 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 	tests := []struct {
 		flag func() *flagdef.InternalFlag
 		// userKey is the targeting key of the evaluation, empty makes the bucketing fail.
-		userKey     string
-		name        string
-		wantReason  flagdef.ResolutionReason
-		nestedOwned bool // true when the nested maps of the metadata are copies too
+		userKey      string
+		name         string
+		wantReason   flagdef.ResolutionReason
+		wantRuleName string
+		// wantNestedOwned: the nested maps of the metadata are copies (true) or shared and read-only (false).
+		wantNestedOwned bool
 	}{
 		{
 			name:    "disabled flag",
@@ -54,8 +56,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata:    new(ownedMetadata()),
 				}
 			},
-			wantReason:  flagdef.ReasonDisabled,
-			nestedOwned: true,
+			wantReason:      flagdef.ReasonDisabled,
+			wantNestedOwned: true,
 		},
 		{
 			name:    "bucketing key missing",
@@ -69,8 +71,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata: new(ownedMetadata()),
 				}
 			},
-			wantReason:  flagdef.ReasonError,
-			nestedOwned: true,
+			wantReason:      flagdef.ReasonError,
+			wantNestedOwned: true,
 		},
 		{
 			name:    "invalid targeting rule",
@@ -85,8 +87,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata:    new(ownedMetadata()),
 				}
 			},
-			wantReason:  flagdef.ReasonError,
-			nestedOwned: true,
+			wantReason:      flagdef.ReasonError,
+			wantNestedOwned: true,
 		},
 		{
 			name:    "experiment over",
@@ -99,8 +101,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata:        new(ownedMetadata()),
 				}
 			},
-			wantReason:  flagdef.ReasonDisabled,
-			nestedOwned: true,
+			wantReason:      flagdef.ReasonDisabled,
+			wantNestedOwned: true,
 		},
 		{
 			name:    "memoized scheduled flag",
@@ -118,8 +120,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata: new(ownedMetadata()),
 				}
 			},
-			wantReason:  flagdef.ReasonStatic,
-			nestedOwned: true,
+			wantReason:      flagdef.ReasonStatic,
+			wantNestedOwned: true,
 		},
 		{
 			name:    "enabled flag",
@@ -146,7 +148,8 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 					Metadata:    new(ownedMetadata()),
 				}
 			},
-			wantReason: flagdef.ReasonTargetingMatch,
+			wantReason:   flagdef.ReasonTargetingMatch,
+			wantRuleName: "rule-1",
 		},
 	}
 
@@ -158,23 +161,31 @@ func TestInternalFlag_Value_MetadataBelongsToTheCaller(t *testing.T) {
 			flagContext := flagdef.Context{Service: flagdef.NewService()}
 			evalCtx := ffcontext.NewEvaluationContext(tt.userKey)
 
+			// the content every evaluation of this flag must return.
+			want := ownedMetadata()
+			if tt.wantRuleName != "" {
+				want["evaluatedRuleName"] = tt.wantRuleName
+			}
+
 			_, first := flg.Value("flag", evalCtx, flagContext)
 			require.Equal(t, tt.wantReason, first.Reason)
-			require.NotEmpty(t, first.Metadata)
+			require.Equal(t, want, first.Metadata)
 
-			// the caller changes what it received.
+			// the caller changes what it received: top-level keys, and the nested containers it owns.
 			first.Metadata["owner"] = "someone-else"
 			first.Metadata["semaphore_cacheable"] = true
 			delete(first.Metadata, "links")
 
+			if tt.wantNestedOwned {
+				_, nested := flg.Value("flag", evalCtx, flagContext)
+				asMap(t, nested.Metadata["links"])["docs"] = "changed"
+			}
+
 			assert.Equal(t, ownedMetadata(), flg.GetMetadata(), "the metadata of the flag was changed")
 
-			if tt.nestedOwned {
-				_, again := flg.Value("flag", evalCtx, flagContext)
-				asMap(t, again.Metadata["links"])["docs"] = "changed"
-
-				assert.Equal(t, ownedMetadata(), flg.GetMetadata(), "a nested map of the flag was changed")
-			}
+			// a second evaluation (of the memoized flag for a scheduled one) is not affected by those changes.
+			_, second := flg.Value("flag", evalCtx, flagContext)
+			assert.Equal(t, want, second.Metadata, "the second evaluation returns what the caller changed")
 
 			// evaluations that overlap, each changing its own result: the flag is only read.
 			start := make(chan struct{})
@@ -213,18 +224,22 @@ func TestInternalFlag_Value_NoMetadataIsNil(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		flag *flagdef.InternalFlag
-		name string
+		flag          *flagdef.InternalFlag
+		wantReason    flagdef.ResolutionReason
+		wantErrorCode flagdef.ErrorCode
+		name          string
 	}{
 		{
-			name: "enabled",
+			name:       "enabled",
+			wantReason: flagdef.ReasonStatic,
 			flag: &flagdef.InternalFlag{
 				Variations:  &map[string]*any{"on": new(any("on"))},
 				DefaultRule: &flagdef.Rule{VariationResult: new("on")},
 			},
 		},
 		{
-			name: "disabled",
+			name:       "disabled",
+			wantReason: flagdef.ReasonDisabled,
 			flag: &flagdef.InternalFlag{
 				Variations:  &map[string]*any{"on": new(any("on"))},
 				DefaultRule: &flagdef.Rule{VariationResult: new("on")},
@@ -239,6 +254,8 @@ func TestInternalFlag_Value_NoMetadataIsNil(t *testing.T) {
 
 			_, details := tt.flag.Value("flag", ffcontext.NewEvaluationContext(ownedUserKey),
 				flagdef.Context{Service: flagdef.NewService()})
+			assert.Equal(t, tt.wantReason, details.Reason)
+			assert.Equal(t, tt.wantErrorCode, details.ErrorCode)
 			assert.Nil(t, details.Metadata)
 		})
 	}
