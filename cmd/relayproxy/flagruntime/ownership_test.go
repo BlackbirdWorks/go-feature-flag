@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
@@ -202,4 +203,90 @@ func TestOwnership_EnrichmentInputChangeDoesNotReachEvaluations(t *testing.T) {
 
 	assert.Equal(t, true, before.Value)
 	assert.Equal(t, before.Value, after.Value)
+}
+
+// The value of a tracked event is not the value the caller gets from a typed call: the exporter keeps the event, so a
+// caller that edits its result must not change what is recorded. The cases are the flag itself, a scheduled flag (the
+// engine's own copy) and the default of the caller (a flag that is not there is tracked, as in version 1).
+func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		call   func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any
+		name   string
+		want   map[string]any
+		change string
+	}{
+		{
+			name: "flag value",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+				res, _ := eval.JSONVariationDetails(set, objectFlag, ownedContext(), nil)
+
+				return res.Value
+			},
+			want:   map[string]any{"name": "beta", "nested": map[string]any{"deep": []any{}}},
+			change: "name",
+		},
+		{
+			name: "scheduled flag value",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ownedContext(), nil)
+
+				return res.Value
+			},
+			want:   map[string]any{"k": []any{float64(3)}},
+			change: "k",
+		},
+		{
+			name: "default value of the caller",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+				res, _ := eval.JSONVariationDetails(set, missingKey, ownedContext(), map[string]any{"d": 1})
+
+				return res.Value
+			},
+			want:   map[string]any{"d": 1},
+			change: "d",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var events []*exporter.FeatureEvent
+
+			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+				TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
+			})
+
+			// the flag of this case must be tracked: objectFlag is, so is the scheduled one, a missing flag is
+			got := tt.call(eval, shapesSet(t))
+			require.Len(t, events, 1)
+
+			got[tt.change] = mutated
+
+			assert.Equal(t, tt.want, events[0].Value, "what the exporter keeps")
+		})
+	}
+}
+
+// A nil evaluation context is the empty context for a tracked evaluation too: the event is built, it describes an
+// empty targeting key, and nothing panics.
+func TestEvaluator_TrackedEvaluationWithANilContext(t *testing.T) {
+	t.Parallel()
+
+	var events []*exporter.FeatureEvent
+
+	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+		TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
+	})
+
+	res, err := eval.RawVariation(shapesSet(t), trackedFlag, nil, nil)
+	require.NoError(t, err)
+	assert.True(t, res.TrackEvents)
+
+	require.Len(t, events, 1)
+	assert.Equal(t, trackedFlag, events[0].Key)
+	assert.Empty(t, events[0].UserKey)
+	assert.Equal(t, "user", events[0].ContextKind)
 }

@@ -1,6 +1,8 @@
 package flagruntime_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,20 +31,20 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	doc := setsObj(t, fset("s", src(flagsName), keyA))
 
 	tests := []struct {
-		name          string
-		first         objs
-		second        objs // nil: only the first content is fed
-		wantValue     any
-		wantState     flagruntime.ObjectState
-		wantSetState  flagruntime.SetState
-		wantParsed    int
-		wantFlagCount int
+		wantValue    any
+		first        objs
+		second       objs
+		name         string
+		wantState    flagruntime.ObjectState
+		wantSetState flagruntime.SetState
+		wantFlags    []string
+		wantParsed   int
 	}{
 		{
 			name:      "stale with bytes, never loaded",
 			first:     objs{flagsName: stale(&good), setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectStale, wantSetState: flagruntime.StateDegraded,
-			wantParsed: 2, wantFlagCount: 1,
+			wantParsed: 2, wantFlags: []string{"f"},
 		},
 		{
 			name: "stale without bytes, never loaded",
@@ -50,31 +52,31 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 				flagsName: {Kind: flagruntime.KindFlags, Format: "yaml", Checksum: "x", State: flagruntime.ObjectStale},
 				setsName:  doc,
 			},
-			wantValue:     nil,
-			wantState:     flagruntime.ObjectStale,
-			wantSetState:  flagruntime.StatePending,
-			wantParsed:    1,
-			wantFlagCount: 0,
+			wantValue:    nil,
+			wantState:    flagruntime.ObjectStale,
+			wantSetState: flagruntime.StatePending,
+			wantParsed:   1,
+			wantFlags:    []string{},
 		},
 		{
 			name:      "stale with bytes that do not decode",
 			first:     objs{flagsName: stale(&broken), setsName: doc},
 			wantValue: nil, wantState: flagruntime.ObjectInvalid, wantSetState: flagruntime.StatePending,
-			wantParsed: 2, wantFlagCount: 0,
+			wantParsed: 2, wantFlags: []string{},
 		},
 		{
 			name:      "stale with other bytes after a good load keeps the loaded content",
 			first:     objs{flagsName: good, setsName: doc},
 			second:    objs{flagsName: stale(&other), setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectStale, wantSetState: flagruntime.StateDegraded,
-			wantParsed: 2, wantFlagCount: 1,
+			wantParsed: 2, wantFlags: []string{"f"},
 		},
 		{
 			name:      "recovery to the same checksum is not parsed again",
 			first:     objs{flagsName: stale(&good), setsName: doc},
 			second:    objs{flagsName: good, setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectOK, wantSetState: flagruntime.StateServing,
-			wantParsed: 2, wantFlagCount: 1,
+			wantParsed: 2, wantFlags: []string{"f"},
 		},
 	}
 
@@ -99,7 +101,7 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 			require.NotNil(t, set)
 
 			assert.Equal(t, tt.wantValue, value(set, "f"))
-			assert.Len(t, set.Flags, tt.wantFlagCount)
+			assert.ElementsMatch(t, tt.wantFlags, flagNames(set))
 			assert.Equal(t, tt.wantSetState, set.State)
 			assert.Equal(t, tt.wantState, run.Status.Objects["flags"].State)
 			assert.Equal(t, tt.wantParsed, parsed)
@@ -119,32 +121,30 @@ func TestStaleDocument_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	flags := flagsObj(1, "f")
 
 	tests := []struct {
-		first        objs
-		second       objs
-		name         string
-		wantSet      string
-		wantGone     string
-		wantDoc      flagruntime.ObjectState
-		wantParsed   int
-		wantSetCount int
+		first      objs
+		second     objs
+		name       string
+		wantDoc    flagruntime.ObjectState
+		wantSets   []string
+		wantParsed int
 	}{
 		{
 			name: "never loaded, readable", first: objs{flagsName: flags, setsName: stale(&doc)},
-			wantSet: "s", wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSetCount: 1,
+			wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSets: []string{"s"},
 		},
 		{
 			name: "never loaded, not decodable", first: objs{flagsName: flags, setsName: stale(&broken)},
-			wantDoc: flagruntime.ObjectInvalid, wantParsed: 2, wantSetCount: 0,
+			wantDoc: flagruntime.ObjectInvalid, wantParsed: 2, wantSets: []string{},
 		},
 		{
 			name: "loaded: the other bytes are not read", first: objs{flagsName: flags, setsName: doc},
 			second:  objs{flagsName: flags, setsName: stale(&other)},
-			wantSet: "s", wantGone: "other", wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSetCount: 1,
+			wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSets: []string{"s"},
 		},
 		{
 			name: "back to ok with the same bytes", first: objs{flagsName: flags, setsName: stale(&doc)},
 			second:  objs{flagsName: flags, setsName: doc},
-			wantSet: "s", wantDoc: flagruntime.ObjectOK, wantParsed: 2, wantSetCount: 1,
+			wantDoc: flagruntime.ObjectOK, wantParsed: 2, wantSets: []string{"s"},
 		},
 	}
 
@@ -166,17 +166,35 @@ func TestStaleDocument_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 
 			run := harness.holder.Load()
 
-			assert.Len(t, run.FlagSets, tt.wantSetCount)
+			assert.ElementsMatch(t, tt.wantSets, slices.Collect(maps.Keys(run.FlagSets)))
 			assert.Equal(t, tt.wantDoc, run.Status.Objects[setsName].State)
 			assert.Equal(t, tt.wantParsed, parsed)
-
-			if tt.wantSet != "" {
-				assert.Contains(t, run.FlagSets, tt.wantSet)
-			}
-
-			if tt.wantGone != "" {
-				assert.NotContains(t, run.FlagSets, tt.wantGone)
-			}
 		})
 	}
+}
+
+// The last known good definition of a single flag lives in the memory of the running engine only. A restart that
+// adopts stale bytes holding a flag that fails validation has no earlier definition of it: the flag is absent and
+// counted as rejected (not kept), the other flags of the object are served. This pins that limit (see the docs).
+func TestStaleObject_RejectedFlagHasNoEarlierDefinitionAfterARestart(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t, flagruntime.Hooks{})
+	harness.start()
+
+	bytes := obj(flagruntime.KindFlags, join(flagsYAML(7, "f"), badYAML()))
+	doc := setsObj(t, fset("s", src(flagsName), keyA))
+
+	res := harness.feed(content(1, objs{flagsName: stale(&bytes), setsName: doc}))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+
+	run := harness.holder.Load()
+
+	assert.Equal(t, []string{"f"}, flagNames(run.FlagSets["s"]))
+	assert.Equal(t, flagruntime.StateDegraded, run.FlagSets["s"].State)
+
+	rejected := run.Status.Objects[flagsName].Rejected
+	require.Len(t, rejected, 1)
+	assert.Equal(t, "y", rejected[0].Flag)
+	assert.False(t, rejected[0].Kept)
 }

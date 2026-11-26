@@ -237,9 +237,9 @@ func (e *Evaluator) JSONArrayVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue []any,
 ) (model.VariationResult[[]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeArray)
-	notify(e, set, flagKey, evalCtx, &res)
+	tracked := notify(e, set, flagKey, evalCtx, &res)
 
-	if res.Value != nil && sharesFlagValue(set, flagKey, res.Reason) {
+	if res.Value != nil && (tracked || sharesFlagValue(set, flagKey, res.Reason)) {
 		res.Value, _ = flagdef.CloneValue(res.Value).([]any)
 	}
 
@@ -252,9 +252,9 @@ func (e *Evaluator) JSONVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue map[string]any,
 ) (model.VariationResult[map[string]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeObject)
-	notify(e, set, flagKey, evalCtx, &res)
+	tracked := notify(e, set, flagKey, evalCtx, &res)
 
-	if res.Value != nil && sharesFlagValue(set, flagKey, res.Reason) {
+	if res.Value != nil && (tracked || sharesFlagValue(set, flagKey, res.Reason)) {
 		res.Value, _ = flagdef.CloneValue(res.Value).(map[string]any)
 	}
 
@@ -312,7 +312,9 @@ func variation[T model.JSONType](
 // sharesFlagValue tells whether the value of a result is still the value stored in the flag, so that a typed call
 // that hands out an owned copy must copy it. It is not when the result carries the default value of the caller (an
 // error or a disabled flag: the caller owns it and gets it as given), and not when the flag has scheduled steps:
-// the engine evaluates those on a copy of the flag and already copies the value, once.
+// the engine evaluates those on a copy of the flag and already copies the value, once. A value that is in a tracked
+// event is copied in every case (see the typed calls): the exporter keeps the event, and the caller must not be able
+// to change what it records.
 func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReason) bool {
 	if reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled {
 		return false
@@ -324,12 +326,18 @@ func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReas
 }
 
 // notify hands the event of an evaluation to the hook when the evaluation must be tracked. It is the version 1
-// condition: the evaluation says trackEvents (the flag setting) and there is somewhere to send the event.
+// condition: the evaluation says trackEvents (the flag setting) and there is somewhere to send the event. It reports
+// whether an event was handed over: the value of the result is then also the value of the event. A nil context is
+// the empty one, as it is for the evaluation itself.
 func notify[T model.JSONType](
 	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T],
-) {
+) bool {
 	if eval.track == nil || !res.TrackEvents {
-		return
+		return false
+	}
+
+	if evalCtx == nil {
+		evalCtx = ffcontext.EvaluationContext{}
 	}
 
 	// the event describes the context as it was evaluated: with the enrichment, when the event reads it
@@ -341,6 +349,8 @@ func notify[T model.JSONType](
 		evalCtx, flagKey, res.Value, res.VariationType, res.Failed, res.Version, "SERVER",
 		evalCtx.ExtractGOFFProtectedFields().ExporterMetadata,
 	))
+
+	return true
 }
 
 // AllFlagsState evaluates every flag of the flag set for a context. A nil flag set (not available) answers like an

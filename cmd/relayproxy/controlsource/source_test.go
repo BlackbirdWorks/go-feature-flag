@@ -1,9 +1,12 @@
 package controlsource_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,16 +151,16 @@ func TestSource_LatestWinsBurst(t *testing.T) {
 	assert.EqualValues(t, 6, next.Generation)
 	assert.EqualValues(t, 2, harness.holder.Load().Snapshot, "no round ran for the generations that were replaced")
 
-	// 5 parsed generations of the same shape: the last one built the flags and the document once each
-	built := 0
+	// the replaced generations were never parsed: the flags object was parsed for generation 5 and for generation 6
+	var parsedFlags []string
 
 	for _, event := range harness.parses() {
 		if event.Kind == flagruntime.KindFlags {
-			built++
+			parsedFlags = append(parsedFlags, event.Name)
 		}
 	}
 
-	assert.Equal(t, 2, built, "the replaced generations were never parsed")
+	assert.Equal(t, []string{objA, objA}, parsedFlags)
 }
 
 // A snapshot becomes a served runtime: the key routes, the flags evaluate, a stale object keeps the previous flags
@@ -246,7 +249,8 @@ func TestSource_StructuralSharing(t *testing.T) {
 	harness.feed(snapshot(1, objects(flagsA)))
 
 	first := harness.holder.Load()
-	assert.Len(t, harness.parses(), 4, "three flags objects and one document, each parsed once")
+	assert.Equal(t, []string{objA, objB, docName, objShared}, parsedNames(harness.parses()),
+		"three flags objects and one document, each parsed once")
 
 	harness.feed(snapshot(2, objects(flagsYAML(10, "f"))))
 
@@ -259,9 +263,7 @@ func TestSource_StructuralSharing(t *testing.T) {
 	assert.NotSame(t, first.FlagSets["a"], second.FlagSets["a"], "the flag set of the changed object is rebuilt")
 	assert.Equal(t, 10, mustVariation(t, second.FlagSets["a"], "f"))
 
-	parses := harness.parses()
-	require.Len(t, parses, 1, "one object parsed for one changed checksum")
-	assert.Equal(t, objA, parses[0].Name)
+	assert.Equal(t, []string{objA}, parsedNames(harness.parses()), "one object parsed for one changed checksum")
 }
 
 func mustVariation(tb testing.TB, set *flagruntime.FlagSet, name string) any {
@@ -415,4 +417,105 @@ func TestSource_StatusJSONGolden(t *testing.T) {
 	for _, secret := range []string{secretKey, secretAdmin} {
 		assert.NotContains(t, string(got), secret)
 	}
+}
+
+// A name that changes kind while its new object is failing recovers at the same generation: the snapshot of the
+// failure carries the old bytes with the old kind (stale), the snapshot of the recovery carries the new object with
+// its own kind, and the runtime installs the routes of the new document without a third generation.
+func TestSource_KindChangeRecoversAtTheSameGeneration(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t)
+	harness.startEngine()
+
+	oldFlags := flagsYAML(1, "f")
+	doc := setsObject(t, fset("a", []string{objA}, keyA))
+	moved := setsObject(t, fset("moved", []string{objA}, "key-moved"))
+
+	res := harness.feed(snapshot(1, map[string]manifestreader.ObjectState{
+		objA: flagsObject(oldFlags), objShared: flagsObject(oldFlags), docName: doc,
+	}))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+
+	// generation 2 lists "shared" as a flag-set document that cannot be fetched yet
+	res = harness.feed(snapshot(2, map[string]manifestreader.ObjectState{
+		objA:      flagsObject(oldFlags),
+		objShared: failed(oldFlags, manifestreader.StateStale, manifestreader.ReasonMissing),
+		docName:   doc,
+	}))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+
+	// the object is there at the next poll: same generation, new kind
+	res = harness.feed(snapshot(2, map[string]manifestreader.ObjectState{
+		objA: flagsObject(oldFlags), objShared: moved, docName: doc,
+	}))
+	assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+
+	_, route := harness.holder.Load().Route("key-moved")
+	assert.Equal(t, flagruntime.RouteFlagSet, route)
+}
+
+// The generation of the status is recorded before the engine can answer: while the engine still holds the snapshot,
+// the status already names its generation, so a reader of the status that has seen the round has seen the generation.
+func TestSource_LastGenerationIsRecordedBeforeTheHandOver(t *testing.T) {
+	t.Parallel()
+
+	reader := newFakeReader()
+	engine := &gatedEngine{entered: make(chan uint64, 1), release: make(chan struct{})}
+	source := controlsource.New(reader, engine, flagruntime.NewHolder(), nil)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		source.Run(ctx)
+	}()
+
+	t.Cleanup(func() {
+		cancel()
+		close(engine.release)
+		<-done
+	})
+
+	reader.send(t, snapshot(5, nil))
+
+	timer := time.NewTimer(waitBound)
+	defer timer.Stop()
+
+	select {
+	case gen := <-engine.entered:
+		assert.EqualValues(t, 5, gen)
+		assert.EqualValues(t, 5, source.Status().LastGeneration, "recorded while the engine holds the snapshot")
+		assert.EqualValues(t, 1, source.Status().Received)
+	case <-timer.C:
+		require.FailNow(t, "the source did not hand the snapshot over")
+	}
+}
+
+// gatedEngine holds every Submit until the test releases it.
+type gatedEngine struct {
+	entered chan uint64
+	release chan struct{}
+}
+
+func (g *gatedEngine) Submit(content *flagruntime.Content) {
+	g.entered <- content.Generation
+
+	<-g.release
+}
+
+func (*gatedEngine) Result() flagruntime.RoundResult { return flagruntime.RoundResult{} }
+
+// parsedNames lists the names of the parsed objects, sorted.
+func parsedNames(events []flagruntime.ParseEvent) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		names = append(names, event.Name)
+	}
+
+	slices.Sort(names)
+
+	return names
 }

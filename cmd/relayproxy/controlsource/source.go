@@ -101,8 +101,10 @@ func (s *Source) deliver(ctx context.Context, snap *manifestreader.Snapshot) {
 
 	content := Content(snap)
 
-	s.engine.Submit(content)
+	// recorded before the engine can answer: whoever reads the result of the round reads this generation too
 	s.lastGen.Store(content.Generation)
+
+	s.engine.Submit(content)
 
 	if s.logger.Enabled(ctx, slog.LevelDebug) {
 		s.logger.LogAttrs(ctx, slog.LevelDebug, "snapshot handed to the runtime",

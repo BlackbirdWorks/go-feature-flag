@@ -58,6 +58,8 @@ A flag set lists all its keys (`apiKeys`). To rotate, publish the flag set with 
 | The store is unreachable | the runtime keeps serving what it has; the status shows the poll error |
 | A flag set is removed | its keys answer `401` |
 
+The last good definition of a single flag is kept in the memory of the running runtime, not on disk. After a restart, a flag whose definition fails validation has no earlier definition: it is absent and counted as rejected until the object is fixed, while the other flags of the object are served.
+
 After a restart, the manifest reader can restore its saved state. The objects it carries come back as `stale` with their last good bytes, and the runtime serves them as the last good content, so a restart does not lose it.
 
 ## Evaluation is the version 1 evaluation
@@ -85,16 +87,16 @@ The flags are shared between flag sets that list the same object, and between ge
 | The value of `RawVariation`, the values of the all-flags state, the value of a tracked event | the flag: shared, **read only** |
 | Nested objects and arrays in the metadata of a result or a state | the flag: shared, **read only** |
 | The metadata map itself, the result structs, the state table | the caller: new for every evaluation |
-| The value of `JSONVariationDetails` and `JSONArrayVariationDetails` | the caller: a copy (one copy, none when the engine already made one for a scheduled flag) |
+| The value of `JSONVariationDetails` and `JSONArrayVariationDetails` | the caller: a copy (one copy; none when the engine already made one for a scheduled flag and no event holds it) |
 | The default value that the caller passed in | the caller: returned as given |
 | The map of `Configuration`, the answer of `Change` | the map of `Configuration` is new; the flags in it and the map of `Change` are shared, read only |
 | The enrichment | the evaluator: a deep copy of the input; `EvaluationContextEnrichment` returns a deep copy |
 
 - **Read only means: encode it, do not change it.** A handler that wants to change a value takes a copy with `flagdef.CloneValue` (values) or `flagdef.CloneMetadata` (metadata maps). The metadata keys that a handler adds to the metadata map of a result (the cacheable keys) are safe: the map is the caller's.
 - A write into a shared part would change what every other request, and the next generation, sees. The switch to config v2 will add a guard against it in the handlers, and until then the tests check that the evaluator never writes into the flags and that readers racing with reloads only read.
-- The hook for tracked events gets the event with the shared value, and the exporter metadata map of the request context, as in version 1. The exporters must encode or copy them.
+- A typed object or array call copies the value also when a tracked event holds it, so editing the result never changes what the exporter keeps. The hook for tracked events gets the event with the shared value, and the exporter metadata map of the request context, as in version 1. The exporters must encode or copy them.
 
-Measured cost (allocations per call, the engine alone against the evaluator): the evaluator adds none. For example a scalar flag costs 1 allocation (no metadata) or 6 (a rule, flat metadata), and so does the engine alone; the all-flags state of 100 flags costs 45, as the engine alone. A typed object or array call adds the one copy of the value (5 allocations for a small object); a scheduled flag adds none, as the engine copies its value already.
+Measured cost (allocations per call, the engine alone against the evaluator): the evaluator adds none. For example a scalar flag costs 1 allocation (no metadata) or 6 (a rule, flat metadata), and so does the engine alone; the all-flags state costs what the engine alone costs for the same flags. A typed object or array call adds the one copy of the value (5 allocations for a small object); a scheduled flag adds none, as the engine copies its value already.
 
 ## Events
 

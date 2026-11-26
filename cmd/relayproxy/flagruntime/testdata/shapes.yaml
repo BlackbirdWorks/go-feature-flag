@@ -184,3 +184,14 @@ bool-flat-meta:
   metadata:
     team: payments
     tier: gold
+scheduled-tracked-object-flag:
+  trackEvents: true
+  variations:
+    a: {k: [1, 2]}
+    b: {k: [3]}
+  defaultRule:
+    variation: a
+  scheduledRollout:
+    - date: 2025-06-10T00:00:00Z
+      defaultRule:
+        variation: b

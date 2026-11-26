@@ -1,12 +1,15 @@
-//go:build !race
-
-// The exact allocation counts of an evaluation are measured without the race detector: under it sync.Pool drops
-// items at random (the query maps of the rule engine come from one), so the counts of the engine itself move by one
-// or two between two runs. The `go test` runs of the CI that use -race do not run this file.
-
 package flagruntime_test
 
+// The rule engine takes the maps of its query contexts from a sync.Pool. Under the race detector a pool drops items
+// at random, so one run of the engine can allocate one map more than another. The tests below therefore take the
+// MINIMUM of many single runs (see minAllocs): it is the cost of a run that finds its map in the pool, which is the
+// cost without noise, and it is the same figure with and without -race. A regression that adds an allocation to
+// every call raises the minimum too; only a one-off allocation (a pool miss) is not seen, and it is not a cost of the
+// evaluator.
+
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
-	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
@@ -50,10 +52,10 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 			continue
 		}
 
-		engine := testing.AllocsPerRun(200, func() {
+		engine := minAllocs(func() {
 			_, _ = evaluation.Evaluate[any](flag, tt.flag, ctx, flagdef.Context{Service: svc}, "interface{}", nil)
 		})
-		raw := testing.AllocsPerRun(200, func() { _, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
+		raw := minAllocs(func() { _, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
 
 		assert.InDelta(t, engine, raw, 0, "RawVariation of %s: engine %v, evaluator %v", tt.name, engine, raw)
 		t.Logf("%-28s engine alone %v allocs, RawVariation %v", tt.name, engine, raw)
@@ -125,12 +127,12 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 
 	for _, tt := range tests {
 		flag, _ := set.Flag(tt.flag)
-		engine := testing.AllocsPerRun(200, func() { _ = tt.engine(flag) })
-		typed := testing.AllocsPerRun(200, func() { _ = tt.typed() })
+		engine := minAllocs(func() { _ = tt.engine(flag) })
+		typed := minAllocs(func() { _ = tt.typed() })
 
 		// the copy as the typed call makes it: from the typed value (boxing a slice header is an allocation)
 		held := tt.engine(flag)
-		copyCost := testing.AllocsPerRun(200, func() { _ = cloneTyped(held) })
+		copyCost := minAllocs(func() { _ = cloneTyped(held) })
 
 		want := engine
 		if tt.copies {
@@ -148,14 +150,14 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestEvaluator_AllFlagsAllocationsEqualTheEngine(t *testing.T) {
 	svc := newService(t)
-	data := []byte(loadtest.ManyFlagsYAML(100))
+	data := staticFlagsYAML(100)
 	set := runtimeOf(t, data, "yaml")
 	eval := flagruntime.NewEvaluator(svc, nil)
 	ctx := ffcontext.NewEvaluationContext("user-42")
 
 	flagCtx := flagdef.Context{Service: svc}
-	engine := testing.AllocsPerRun(50, func() { _ = engineAllFlags(set.Flags, ctx, flagCtx) })
-	got := testing.AllocsPerRun(50, func() { _ = eval.AllFlagsState(set, ctx) })
+	engine := minAllocs(func() { _ = engineAllFlags(set.Flags, ctx, flagCtx) })
+	got := minAllocs(func() { _ = eval.AllFlagsState(set, ctx) })
 
 	assert.Len(t, set.Flags, 100)
 	assert.InDelta(t, engine, got, 0, "engine alone %v, evaluator %v", engine, got)
@@ -186,4 +188,41 @@ func cloneTyped(val any) any {
 	default:
 		return val
 	}
+}
+
+// minAllocs is the least number of allocations of one run of the function over many runs. Each run is measured
+// alone, after a warm-up run, so a run that misses the [sync.Pool] of the rule engine (always possible under the
+// race detector, and after a garbage collection) does not move the figure.
+func minAllocs(run func()) float64 {
+	const runs = 60
+
+	best := testing.AllocsPerRun(1, run)
+
+	for range runs - 1 {
+		best = min(best, testing.AllocsPerRun(1, run))
+	}
+
+	return best
+}
+
+// staticFlagsYAML is n flags without a query (static and percentage ones): they do not use the pool of the rule
+// engine, so the cost of the whole table does not move between runs.
+func staticFlagsYAML(count int) []byte {
+	var out strings.Builder
+
+	for idx := range count {
+		if idx%2 == 0 {
+			fmt.Fprintf(&out, "flag-%d:\n  variations: {A: true, B: false}\n  defaultRule: {variation: A}\n", idx)
+
+			continue
+		}
+
+		fmt.Fprintf(
+			&out,
+			"flag-%d:\n  variations: {A: true, B: false}\n  defaultRule: {percentage: {A: 50, B: 50}}\n",
+			idx,
+		)
+	}
+
+	return []byte(out.String())
 }
