@@ -74,3 +74,39 @@ func TestOS_AParentThatCannotBeReadDoesNotDisableThePersistence(t *testing.T) {
 	require.NoError(t, err)
 	assertRestored(t, wantRestored{etag: etagOne, manifest: manifestOne, objects: []string{contentAlpha}}, restored)
 }
+
+// TestOS_OwnershipIsCheckedAfterAForcedReopen: a write fails (the objects directory cannot be written), so the next
+// write opens the directory again. Meanwhile the VERSION became foreign. The reopened directory is validated
+// before the destinations are probed: an empty directory under an object name, which an allowed write would
+// remove, is still there, and the full tree is the same before and after. (Skipped as root: root can write to a
+// directory without permission.)
+func TestOS_OwnershipIsCheckedAfterAForcedReopen(t *testing.T) {
+	t.Parallel()
+
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to a directory without write permission")
+	}
+
+	dir := filepath.Join(t.TempDir(), "state")
+	run := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
+	run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
+
+	objects := filepath.Join(dir, "objects")
+	require.NoError(t, os.Chmod(objects, 0o500))
+
+	t.Cleanup(func() { _ = os.Chmod(objects, 0o700) })
+
+	run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+	require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors, "the write fails")
+
+	require.NoError(t, os.Chmod(objects, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, versionName), []byte("semaphore-manifest-state 2\n"), 0o600))
+	require.NoError(t, os.Mkdir(filepath.Join(objects, sumOf(contentBeta)), 0o700))
+
+	before := treeImage(t, dir)
+
+	run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+
+	assert.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
+	assert.Equal(t, before, treeImage(t, dir))
+}

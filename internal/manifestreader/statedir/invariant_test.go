@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -134,6 +135,97 @@ func TestStore_ASaveNeverRemovesAnObjectTheSnapshotStillNeeds(t *testing.T) {
 			require.NoError(t, err)
 			assert.Zero(t, store.Hooks().StateStatus().DiscardedObjects)
 			assert.Len(t, restored.Objects, len(tt.wantOnDisk))
+		})
+	}
+}
+
+// TestStore_AFailedWriteDoesNotChangeWhatTheBudgetKeeps: a write that fails forgets which files are known to be
+// durable (so they are written again), but not which files are there: the budget priority is taken from the
+// directory, so the retry of the same snapshot keeps the object that is on disk and needed, exactly as an
+// uninterrupted save would. Without that, the retry of an over-budget snapshot prefers the smaller new object and
+// removes the one that was there.
+func TestStore_AFailedWriteDoesNotChangeWhatTheBudgetKeeps(t *testing.T) {
+	t.Parallel()
+
+	big := strings.Repeat("X", 10)
+	small := strings.Repeat("Y", 4)
+	mid := strings.Repeat("Z", 6)
+
+	tests := []struct {
+		name       string
+		failOp     string
+		first      manifestreader.Persist
+		second     manifestreader.Persist
+		wantOnDisk []string
+		budget     int64
+	}{
+		{
+			name: "the manifest write fails, the retry is over budget", budget: 10,
+			first:  persistOf(etagOne, manifestOne, big),
+			second: persistOf(etagTwo, manifestTwo, big, small), failOp: opRenameMan,
+			wantOnDisk: []string{big},
+		},
+		{
+			name: "the write of a new object fails, the retry fits", budget: 10,
+			first:  persistOf(etagOne, manifestOne, mid),
+			second: persistOf(etagTwo, manifestTwo, mid, small), failOp: opCreateObj,
+			wantOnDisk: []string{mid, small},
+		},
+		{
+			name: "the manifest write fails, the retry is over budget with a bigger new object", budget: 10,
+			first:  persistOf(etagOne, manifestOne, mid),
+			second: persistOf(etagTwo, manifestTwo, mid, big), failOp: opRenameMan,
+			wantOnDisk: []string{mid},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// the steps of the second save, in an uninterrupted run
+			probe := &faults{}
+			probing := openStore(t, &memFS{disk: newMemDisk(), faults: probe}, statedir.Config{MaxBytes: tt.budget})
+			probing.saveAndFlush(tt.first)
+			probe.reset()
+			probing.saveAndFlush(tt.second)
+
+			probing.close()
+
+			failAt := stepOf(t, probe.ops, tt.failOp, 1)
+
+			disk := newMemDisk()
+			fault := &faults{}
+			run := openStore(t, &memFS{disk: disk, faults: fault}, statedir.Config{MaxBytes: tt.budget})
+			run.saveAndFlush(tt.first)
+
+			fault.reset()
+			fault.failAt, fault.err = failAt, syscall.EIO
+
+			run.saveAndFlush(tt.second)
+			require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors, "the second save fails")
+
+			// the retry of the same snapshot
+			run.saveAndFlush(tt.second)
+
+			status := run.store.Hooks().StateStatus()
+			assert.Empty(t, status.LastSaveError)
+			assert.Equal(t, uint64(1), status.SaveErrors)
+
+			var onDisk []string
+
+			for _, content := range []string{big, small, mid} {
+				if _, there := disk.read(objectFile(content)); there {
+					onDisk = append(onDisk, content)
+				}
+			}
+
+			assert.ElementsMatch(t, tt.wantOnDisk, onDisk)
+			run.close()
+
+			restored, _, err := restoreOf(t, &memFS{disk: disk, faults: &faults{}})
+			require.NoError(t, err)
+			assertRestored(t, wantRestored{etag: etagTwo, manifest: manifestTwo, objects: tt.wantOnDisk}, restored)
 		})
 	}
 }

@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"io/fs"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -261,4 +264,124 @@ func TestOpenOrDisable(t *testing.T) {
 			assert.Contains(t, lines[0], "reason="+tt.wantReason)
 		})
 	}
+}
+
+// treeImage is every entry of a real directory, with the content of the files: two images are equal when nothing was
+// added, removed, changed or made into something else, a directory included.
+func treeImage(tb testing.TB, dir string) map[string]string {
+	tb.Helper()
+
+	out := map[string]string{}
+
+	require.NoError(tb, filepath.WalkDir(dir, func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() {
+			out[name] = "<dir>"
+
+			return nil
+		}
+
+		data, readErr := os.ReadFile(name)
+		out[name] = string(data)
+
+		return readErr
+	}))
+
+	return out
+}
+
+// TestStore_OwnershipIsCheckedBeforeAnythingIsTouched: on every write the VERSION file is validated before anything is
+// probed, removed or written. A VERSION that became foreign (or unreadable) between two saves stops the save
+// untouched: the full directory listing and every content are the same before and after, including an empty
+// directory under an object name that the write would otherwise have removed.
+func TestStore_OwnershipIsCheckedBeforeAnythingIsTouched(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		damage func(t *testing.T, dir string)
+		name   string
+	}{
+		{
+			name: "another layout version",
+			damage: func(t *testing.T, dir string) {
+				t.Helper()
+				require.NoError(
+					t,
+					os.WriteFile(filepath.Join(dir, versionName), []byte("semaphore-manifest-state 2\n"), 0o600),
+				)
+			},
+		},
+		{
+			name: "a VERSION of another product",
+			damage: func(t *testing.T, dir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, versionName), []byte("hello"), 0o600))
+			},
+		},
+		{
+			name: "a VERSION that is a directory",
+			damage: func(t *testing.T, dir string) {
+				t.Helper()
+				require.NoError(t, os.Remove(filepath.Join(dir, versionName)))
+				require.NoError(t, os.Mkdir(filepath.Join(dir, versionName), 0o700))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := filepath.Join(t.TempDir(), "state")
+			run := openStore(t, statedir.NewOSFS(), statedir.Config{Dir: dir})
+			run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
+
+			tt.damage(t, dir)
+
+			// an empty directory where the next write would put an object: it is removed by a write that is
+			// allowed to touch the directory
+			require.NoError(t, os.Mkdir(filepath.Join(dir, "objects", sumOf(contentBeta)), 0o700))
+
+			before := treeImage(t, dir)
+
+			run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+
+			status := run.store.Hooks().StateStatus()
+			assert.Equal(t, statedir.ReasonUnsafe, status.LastSaveError)
+			assert.Equal(t, uint64(1), status.SaveErrors)
+			assert.Equal(t, before, treeImage(t, dir), "nothing was added, changed or removed")
+		})
+	}
+}
+
+func TestStore_OwnershipIsCheckedAfterAReopenToo(t *testing.T) {
+	t.Parallel()
+
+	disk := newMemDisk()
+	fault := &faults{}
+	fsys := &memFS{disk: disk, faults: fault}
+	run := openStore(t, fsys, statedirConfig())
+	run.saveAndFlush(persistOf(etagOne, manifestOne, contentAlpha))
+
+	// a failed write: the next write opens the directory again
+	fault.reset()
+	fault.failAt, fault.err = 1, syscall.EIO
+
+	run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+	require.Equal(t, uint64(1), run.store.Hooks().StateStatus().SaveErrors)
+
+	// meanwhile the directory became somebody else's
+	disk.write(versionName, []byte("semaphore-manifest-state 2\n"))
+
+	before := image(disk)
+	opens := fsys.opens.Load()
+
+	run.saveAndFlush(persistOf(etagTwo, manifestTwo, contentAlpha, contentBeta))
+
+	assert.Equal(t, opens+1, fsys.opens.Load(), "the directory was opened again")
+	assert.Equal(t, statedir.ReasonUnsafe, run.store.Hooks().StateStatus().LastSaveError)
+	assert.Equal(t, before, image(disk), "nothing was added, changed or removed")
 }

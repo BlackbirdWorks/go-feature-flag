@@ -91,8 +91,11 @@ type outcome struct {
 	partial bool
 }
 
-// write saves a job: the objects that are not on disk, then the manifest, then the garbage collection. Nothing
-// is written when the state on disk is already this one.
+// write saves a job. The order is the safety argument, and it never changes: the lock is held (taken when the
+// directory was opened, and again by every reopen); the VERSION file is valid; the destinations are checked; the
+// budget is applied; the objects are written; the manifest is written; what the manifest does not reference is
+// removed. Nothing is probed, removed or written in a directory whose VERSION is foreign or unreadable. Nothing is
+// written when the state on disk is already this one.
 func (s *Store) write(ctx context.Context, job *job) outcome {
 	s.ioMu.Lock()
 	defer s.ioMu.Unlock()
@@ -108,9 +111,20 @@ func (s *Store) write(ctx context.Context, job *job) outcome {
 		}
 	}
 
+	// 2. ownership first: the VERSION file is read and validated before anything is probed, removed or written
+	_, err := inspect(s.root)
+	if err != nil {
+		s.forget()
+
+		return outcome{written: true, reason: reasonOf(err)}
+	}
+
+	// 3. destinations: what is on disk is listed and typed, and what cannot be written is left out before the
+	// budget is applied, so it never takes the place of an object that could be kept
 	s.reconcile()
 
 	// what cannot be written is left out before the budget is applied, so it never takes the place of an object
+	// that could be kept is left out before the budget is applied, so it never takes the place of an object
 	// that could be kept
 	usable, blocked := s.withoutBlocked(job)
 	keep, staleKept, partial := s.fit(usable)
@@ -128,7 +142,7 @@ func (s *Store) write(ctx context.Context, job *job) outcome {
 		return outcome{partial: partial}
 	}
 
-	err := s.persist(job, keep, refs, staleKept, digest)
+	err = s.persist(job, keep, refs, staleKept, digest)
 
 	if errors.Is(err, fs.ErrNotExist) {
 		// something under us vanished (the objects directory, the whole directory): rebuild from nothing
@@ -162,14 +176,26 @@ func (s *Store) forget() {
 // more, a manifest copy that is gone, a layout that vanished are forgotten, so the next write puts them back. It
 // costs a listing of objects/ per write.
 func (s *Store) reconcile() {
-	if !s.layout {
-		return
-	}
+	s.present = map[string]struct{}{}
 
 	objects, err := s.root.ReadDir(objectsDir)
 	if err != nil {
 		s.forget()
 
+		return
+	}
+
+	// "present": a regular file under the name of a checksum. What is trusted is the name and the type, not the
+	// content: a file that this package wrote was renamed into place whole, and one that is wrong in any other way
+	// is caught at restore by its checksum, and written again by the next write anyway (presence only drives the
+	// budget priority, never the skipping of a write).
+	for _, name := range objects {
+		if isSum(name) && s.isRegular(objectsDir+"/"+name) {
+			s.present[name] = struct{}{}
+		}
+	}
+
+	if !s.layout {
 		return
 	}
 
@@ -180,22 +206,14 @@ func (s *Store) reconcile() {
 		return
 	}
 
-	if !slices.Contains(rootNames, manifestFile) {
-		s.disk.digest = ""
-	}
-
-	present := make(map[string]struct{}, len(objects))
-	for _, name := range objects {
-		present[name] = struct{}{}
-	}
-
+	// "durable": known to be written by this store since it was last in doubt. Only that lets a write be skipped.
 	for sum := range s.disk.objects {
-		if _, ok := present[sum]; !ok || !s.isRegular(objectsDir+"/"+sum) {
+		if _, ok := s.present[sum]; !ok {
 			delete(s.disk.objects, sum)
 		}
 	}
 
-	if !s.isRegular(manifestFile) {
+	if !slices.Contains(rootNames, manifestFile) || !s.isRegular(manifestFile) {
 		s.disk.digest = ""
 	}
 }
@@ -293,7 +311,7 @@ func (s *Store) reopen(ctx context.Context) error {
 // When the current objects alone are above the budget, the stale ones are dropped and the current ones are kept
 // in this order: the ones that are on disk already (they cost nothing to keep, and a save never removes an object
 // that the snapshot still needs if the budget allows it), then the others, each smallest first (ties by checksum),
-// so that the largest number of contents comes back after a restart.
+// which favours not losing what a restart can already restore over the count of contents.
 func (s *Store) fit(job *job) ([]object, []staleRef, bool) {
 	var total int64
 	for _, obj := range job.current {
@@ -355,8 +373,8 @@ func (s *Store) byPriority(objects []object) []object {
 	ordered := slices.Clone(objects)
 
 	slices.SortFunc(ordered, func(left, right object) int {
-		_, onA := s.disk.objects[left.sum]
-		_, onB := s.disk.objects[right.sum]
+		_, onA := s.present[left.sum]
+		_, onB := s.present[right.sum]
 
 		switch {
 		case onA && !onB:

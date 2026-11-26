@@ -31,6 +31,8 @@ const (
 	etagB         = `"eB"`
 	manifestTwo   = "manifest-2"
 	manifestB     = "manifest-B"
+	opCreateObj   = "create objects/"
+	opRenameMan   = "rename manifest.json"
 )
 
 // wait bounds every wait of a test: a missing event fails the test instead of hanging it.

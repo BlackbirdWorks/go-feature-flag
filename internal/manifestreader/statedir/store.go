@@ -69,8 +69,9 @@ type Config struct {
 	Dir string
 	// MaxBytes bounds the bytes of objects on disk (the manifest copy comes on top). Zero is
 	// [manifestreader.DefaultMaxTotalBytes], the cap on the current objects of the reader. When the current
-	// objects do not fit, the stale ones are dropped first and then the current ones are kept smallest first, so
-	// the largest number of names comes back after a restart; such a save is a partial save, not an error.
+	// objects do not fit, the stale ones are dropped first and then the current ones are kept in this order:
+	// the contents already on disk are kept first and the rest of the budget goes to the new ones, smallest first;
+	// such a save is a partial save, not an error.
 	MaxBytes int64
 	// MaxManifestBytes, MaxObjectBytes and MaxObjects bound what is read back (use the limits of the reader).
 	// Zero selects [manifestreader.DefaultMaxManifestBytes], [manifestreader.DefaultMaxObjectBytes] and
@@ -90,6 +91,9 @@ type Store struct {
 	wake    chan struct{}
 	pending *job
 	disk    diskState
+	// present is what a listing of objects/ found as regular files named by a checksum when the last write began: it
+	// drives the budget priority. disk is the narrower knowledge that lets a write be skipped.
+	present map[string]struct{}
 	dir     string
 	st      manifestreader.StateStatus
 	max     int64
@@ -141,6 +145,12 @@ func New(cfg Config) (*Store, error) {
 	}
 
 	root, created, err := openLocked(fsys, cfg.Dir)
+	if errors.Is(err, ErrParentSync) {
+		// the opener remembers the flush that failed: one more try costs nothing (the memory is the opener's, so
+		// it lives as long as this opener; a fresh process cannot know, and treats an existing path as flushed)
+		root, created, err = openLocked(fsys, cfg.Dir)
+	}
+
 	if err != nil {
 		return nil, err
 	}

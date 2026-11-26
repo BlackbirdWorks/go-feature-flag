@@ -91,7 +91,7 @@ func crashTable(
 
 		ops := slices.Clone(probe.ops)
 		total := len(ops)
-		manifestRename := stepOf(t, ops, "rename manifest.json", 1)
+		manifestRename := stepOf(t, ops, opRenameMan, 1)
 		syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
 		lastFatal := syncRoot
 		// the first step from which the new state is found: the rename, or, after a power loss, the directory sync
@@ -185,7 +185,7 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 		beforeManifest bool
 	}{
 		{name: "disk full on write", failOp: "write objects/", err: syscall.ENOSPC, wantReason: "no-space"},
-		{name: "disk full on create", failOp: "create objects/", err: syscall.ENOSPC, wantReason: "no-space"},
+		{name: "disk full on create", failOp: opCreateObj, err: syscall.ENOSPC, wantReason: "no-space"},
 		{
 			name: "EIO on write of the manifest", failOp: "write .tmp-", err: syscall.EIO, wantReason: "io",
 			beforeManifest: true,
@@ -195,9 +195,9 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 			name: "fsync of the manifest fails", failOp: "sync .tmp-", err: syscall.EIO, wantReason: "io",
 			beforeManifest: true,
 		},
-		{name: "rename of the manifest fails", failOp: "rename manifest.json", err: syscall.EIO, wantReason: "io"},
+		{name: "rename of the manifest fails", failOp: opRenameMan, err: syscall.EIO, wantReason: "io"},
 		{name: "fsync of the directory fails", failOp: "syncdir objects", err: syscall.EIO, wantReason: "io"},
-		{name: "read-only file system", failOp: "create objects/", err: syscall.EROFS, wantReason: "denied"},
+		{name: "read-only file system", failOp: opCreateObj, err: syscall.EROFS, wantReason: "denied"},
 		{
 			name: "permission denied", failOp: "create .tmp-", err: syscall.EACCES, wantReason: "denied",
 			beforeManifest: true,
@@ -219,7 +219,7 @@ func TestStore_SaveFailuresAreReportedAndTheNextSaveRecovers(t *testing.T) {
 			failAt := stepOf(t, probe.ops, tt.failOp, 1)
 
 			if tt.beforeManifest {
-				failAt = stepBefore(t, probe.ops, tt.failOp, stepOf(t, probe.ops, "rename manifest.json", 1))
+				failAt = stepBefore(t, probe.ops, tt.failOp, stepOf(t, probe.ops, opRenameMan, 1))
 			}
 
 			fault := &faults{failAt: failAt, err: tt.err}
@@ -300,10 +300,10 @@ func TestStore_SaveOperationOrder(t *testing.T) {
 
 	assert.Equal(t, 2, renames, "one object and the manifest")
 
-	lastObject := stepBefore(t, ops, "rename objects/", stepOf(t, ops, "rename manifest.json", 1))
+	lastObject := stepBefore(t, ops, "rename objects/", stepOf(t, ops, opRenameMan, 1))
 	syncObjects := stepOf(t, ops, "syncdir objects", lastObject)
 	manifestSync := stepOf(t, ops, "sync .tmp-", syncObjects)
-	manifestRename := stepOf(t, ops, "rename manifest.json", 1)
+	manifestRename := stepOf(t, ops, opRenameMan, 1)
 	syncRoot := stepOf(t, ops, "syncdir .", manifestRename)
 	collect := stepOf(t, ops, "remove objects/"+sumOf("a-only"), syncRoot)
 

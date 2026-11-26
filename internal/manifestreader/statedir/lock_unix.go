@@ -26,20 +26,3 @@ func lockFileExclusive(file *os.File) error {
 
 	return nil
 }
-
-// syncPath flushes the entries of a directory to disk.
-func syncPath(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open: %w", err)
-	}
-
-	err = dir.Sync()
-	_ = dir.Close()
-
-	if err != nil {
-		return fmt.Errorf("sync: %w", err)
-	}
-
-	return nil
-}

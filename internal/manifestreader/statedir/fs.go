@@ -87,6 +87,8 @@ type OSFS struct {
 	syncDir func(string) error
 	// pending remembers the flushes that failed, by state directory, until they succeed.
 	pending *pendingFlushes
+	// flushDir flushes an open directory; nil is the one of the platform. A test replaces it.
+	flushDir func(*os.File) error
 }
 
 // pendingFlushes are the parent directories that a failed flush left to flush, by the state directory they lead to.
@@ -178,7 +180,12 @@ func (o OSFS) Open(dir string) (Root, error) { //nolint:ireturn // implements th
 		parentSync = manifestreader.ParentSyncSkipped
 	}
 
-	return &osRoot{root: root, parentSync: parentSync}, nil
+	flush := o.flushDir
+	if flush == nil {
+		flush = flushDir
+	}
+
+	return &osRoot{root: root, parentSync: parentSync, flush: flush}, nil
 }
 
 // create makes the directory and the missing directories above it, and returns the parents to flush, top down.
@@ -259,6 +266,8 @@ const (
 )
 
 type osRoot struct {
+	// flush flushes an open directory: flushDir of the platform, or the one of a test.
+	flush      func(*os.File) error
 	root       *os.Root
 	lock       *os.File
 	parentSync string
@@ -389,7 +398,7 @@ func (r *osRoot) SyncDir(name string) error {
 		return fmt.Errorf("statedir: open %s: %w", name, err)
 	}
 
-	err = dir.Sync()
+	err = r.flush(dir)
 	_ = dir.Close()
 
 	if err != nil {
@@ -415,4 +424,17 @@ func (r *osRoot) Close() error {
 	}
 
 	return nil
+}
+
+// syncPath flushes the entries of a directory to disk, by the flushDir of the platform.
+func syncPath(name string) error {
+	dir, err := os.Open(name)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+
+	err = flushDir(dir)
+	_ = dir.Close()
+
+	return err
 }

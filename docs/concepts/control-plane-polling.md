@@ -277,10 +277,19 @@ restored object is checked like a fetched one (the listed size, the object limit
   snapshot writes nothing. One changed object is two file writes (the object and the manifest).
 - Bounded disk use. `MaxBytes` (default 1 GiB, the default `maxTotalBytes`) bounds the objects, the manifest copy
   comes on top. The current objects come first, then the stale ones that still fit. When the current objects alone
-  do not fit, the stale ones are dropped first and the current ones are kept in this order: the ones already on
-  disk first (a save never removes an object the snapshot still needs when the budget allows it), then the others,
-  each smallest first (ties by checksum), so the largest number of contents comes back after a restart. Such a write is a partial save: it is counted as its
-  own result (`partial`), not as an error.
+  do not fit, the stale ones are dropped first and the current ones are kept in this order: the objects already on
+  disk that the snapshot still needs come first, and the remaining budget goes to the new objects, smallest first
+  (ties by checksum). This favours not losing what a restart can already restore over the count of contents: a
+  cached 10-byte object is kept ahead of two new objects that total 10 bytes. "On disk" is what a listing of
+  `objects/` finds as regular files named by a checksum when the write begins (the name and the type are trusted,
+  not the content: a wrong file is caught by its checksum at restore, and every write that is not known to be
+  durable puts the object there again), also after a failed write. Such a write is a partial save: it is counted
+  as its own result (`partial`), not as an error.
+- The order of a write never changes: the lock is held, then the `VERSION` file is validated, then the destinations
+  are checked, then the budget is applied, then the objects are written, then the manifest, and last what the
+  manifest does not reference is removed. A directory whose `VERSION` is foreign or unreadable (checked on every
+  write, on the live store and after a reopen) is left exactly as it is: nothing is probed, removed or written, and
+  the save fails with reason `unsafe`.
 - Polling never waits for the disk. `Save` only queues the snapshot; one background writer writes the latest one
   (latest wins), so a slow or full disk delays nothing. A failed write (full disk, I/O error, permission) is
   reported in the status and the metrics, the next snapshot tries again, and polling goes on. The result of a
@@ -298,9 +307,11 @@ restored object is checked like a fetched one (the listed size, the object limit
   partial. For the manifest copy the save fails with reason `unsafe`.
 - A state directory that `Open` creates, with its parents, is made durable at once (the parent of each created
   directory is flushed), so the first save survives a power loss. A flush that fails (not for lack of permission)
-  is remembered: the path exists afterwards, but the next `Open` of it flushes what is left, until it works, and
-  fails with `ErrParentSync` meanwhile (`parent-sync` in the disabled status, `ParentSync = pending` while a save
-  waits for it). A parent that cannot be opened for the flush because of permissions (write and search, no read) is
+  is remembered by the opener (`OSFS` value), that is by the running store, not by the process or the disk: the
+  path exists afterwards, but the next `Open` with the same opener flushes what is left, until it works, and fails
+  with `ErrParentSync` meanwhile (`New` tries once more itself; `parent-sync` in the disabled status,
+  `ParentSync = pending` while a save waits for it). A fresh process cannot know, and treats an existing path as
+  flushed. A parent that cannot be opened for the flush because of permissions (write and search, no read) is
   skipped: the directory is a cache, so persistence stays on, the relay logs once at warn level with the path, and
   `State.ParentSync` is `skipped`. After a power loss the directory entry itself may then be missing, and the relay
   starts as on a first run.
@@ -325,6 +336,12 @@ restored object is checked like a fetched one (the listed size, the object limit
   the other's new object before its manifest is renamed). Nothing is corrupted, because every file is complete or
   absent and everything read back is verified, but the restore is then partial and the missing objects are
   fetched again.
+- Windows (compile-checked, not run there). The directory flush is a no-op on Windows, in one place (`flushDir`),
+  both for the parents of a created directory and for the layout steps: a directory handle cannot be flushed there.
+  Files are still written to a temporary file, flushed, closed, and renamed over their name (`os.Rename` replaces an
+  existing file on Windows, and every file is closed before the rename), but there is no guarantee that a directory
+  entry survives a power loss: a restart reads what is there, verifies it, and fetches what is missing. There is
+  no file lock (see above).
 
 **Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
 `ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to

@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 var errSpy = errors.New("sync failed")
@@ -154,4 +156,100 @@ func TestOSFS_APermissionErrorOnTheFlushSkipsIt(t *testing.T) {
 	reporter, ok := root.(interface{ ParentSync() string })
 	require.True(t, ok)
 	assert.Equal(t, "skipped", reporter.ParentSync())
+}
+
+// TestNew_RetriesAFailedParentFlushWithItsOwnOpener: the memory of a failed flush is the opener's, so New retries once
+// with the opener it was given, which costs nothing. A flush that fails twice fails New.
+func TestNew_RetriesAFailedParentFlushWithItsOwnOpener(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr    error
+		name       string
+		failures   int
+		wantSynced int
+	}{
+		{name: "the flush works the second time", failures: 1, wantSynced: 2},
+		{name: "the flush fails twice", failures: 2, wantErr: ErrParentSync, wantSynced: 2},
+		{name: "the flush works", failures: 0, wantSynced: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				synced  int
+				opener  = NewOSFS()
+				dirPath = filepath.Join(t.TempDir(), "state")
+			)
+
+			opener.syncDir = func(string) error {
+				synced++
+				if synced <= tt.failures {
+					return errBusy
+				}
+
+				return nil
+			}
+
+			store, err := New(Config{FS: opener, Dir: dirPath})
+
+			assert.Equal(t, tt.wantSynced, synced)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NoError(t, store.Close())
+		})
+	}
+}
+
+var errNoFlush = errors.New("cannot flush a directory on this system")
+
+// TestOSRoot_TheLayoutStepFollowsTheDirectoryFlushOfThePlatform: the layout step flushes the directory through the
+// one function of the platform (flushDir). When the platform cannot flush a directory and says so with an error, the
+// save fails and the status says io; with the function that does nothing, which is what Windows has, the same save
+// succeeds. The caller is the same on every platform.
+func TestOSRoot_TheLayoutStepFollowsTheDirectoryFlushOfThePlatform(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		flush      func(*os.File) error
+		wantReason string
+	}{
+		{
+			name:       "a platform that cannot flush a directory and says so",
+			flush:      func(*os.File) error { return errNoFlush },
+			wantReason: ReasonIO,
+		},
+		{name: "a platform where the flush does nothing", flush: func(*os.File) error { return nil }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opener := NewOSFS()
+			opener.flushDir = tt.flush
+			opener.syncDir = func(string) error { return nil }
+
+			store, err := New(Config{FS: opener, Dir: filepath.Join(t.TempDir(), "state")})
+			require.NoError(t, err)
+
+			defer func() { require.NoError(t, store.Close()) }()
+
+			store.Hooks().Save(manifestreader.Persist{
+				Snapshot: &manifestreader.Snapshot{}, ETag: "e", Manifest: []byte("m"),
+			})
+
+			res := store.write(t.Context(), store.pending)
+			assert.Equal(t, tt.wantReason, res.reason)
+		})
+	}
 }
