@@ -24,12 +24,12 @@ type Exporter struct {
 	Meta                    map[string]string `json:"meta,omitempty"                    yaml:"meta,omitempty"`
 	Headers                 map[string]Secret `json:"headers,omitzero"                  yaml:"headers,omitempty"`
 	FlushInterval           *Duration         `json:"flushInterval,omitempty"           yaml:"flushInterval,omitempty"`
-	MaxEventInMemory        *int              `json:"maxEventInMemory,omitempty"        yaml:"maxEventInMemory,omitempty"`
+	MaxEventInMemory        *int              `json:"maxEventInMemory,omitempty"        jsonschema:"minimum=1,default=100000"                                                                                                                                                     yaml:"maxEventInMemory,omitempty"` //nolint:lll // struct tags can not be wrapped
 	Kafka                   *KafkaSettings    `json:"kafka,omitempty"                   yaml:"kafka,omitempty"`
 	ClusterIdentifier       string            `json:"clusterIdentifier,omitempty"       yaml:"clusterIdentifier,omitempty"`
 	StreamName              string            `json:"streamName,omitempty"              yaml:"streamName,omitempty"`
 	EventType               string            `json:"eventType,omitempty"               yaml:"eventType,omitempty"`
-	Format                  string            `json:"format,omitempty"                  yaml:"format,omitempty"`
+	Format                  string            `json:"format,omitempty"                  jsonschema:"enum=json,enum=csv,enum=parquet"                                                                                                                                              yaml:"format,omitempty"` //nolint:lll // struct tags can not be wrapped
 	Filename                string            `json:"filename,omitempty"                yaml:"filename,omitempty"`
 	CsvTemplate             string            `json:"csvTemplate,omitempty"             yaml:"csvTemplate,omitempty"`
 	ParquetCompressionCodec string            `json:"parquetCompressionCodec,omitempty" yaml:"parquetCompressionCodec,omitempty"` //nolint:lll // struct tags can not be wrapped

@@ -33,12 +33,12 @@ type Server struct {
 
 // Listener is one address the relay listens on.
 type Listener struct {
-	Name    string `json:"name"    yaml:"name"`
-	Address string `json:"address" yaml:"address"`
+	Name    string `json:"name"              yaml:"name"`
+	Address string `json:"address,omitempty" yaml:"address"`
 	// Role is "api" (default) or "ops".
-	Role string `json:"role,omitempty" yaml:"role,omitempty"`
+	Role string `json:"role,omitempty" jsonschema:"enum=api,enum=ops,default=api" yaml:"role,omitempty"`
 	// Protocols are "http1" (default) and "h2c". "h2" and "tls" are reserved.
-	Protocols []string `json:"protocols,omitempty" yaml:"protocols,omitempty"`
+	Protocols []string `json:"protocols,omitempty" jsonschema:"enum=http1,enum=h2c,uniqueItems=true" yaml:"protocols,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
 // Auth holds the admin API keys.

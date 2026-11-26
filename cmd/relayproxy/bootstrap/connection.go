@@ -68,7 +68,7 @@ func connectionVariant(name string) (reflect.Type, error) {
 		return reflect.TypeFor[SQSConnection](), nil
 	case TypeRedshift:
 		return reflect.TypeFor[RedshiftConnection](), nil
-	case "valkey", "redis", "webhook", "kafka", "postgres", "mysql", "dynamodb", "gcs", "azureBlob", "pubsub",
+	case "valkey", "redis", "webhook", keyKafka, "postgres", "mysql", "dynamodb", "gcs", "azureBlob", "pubsub",
 		"bigquery", "http", "file":
 		return nil, fmt.Errorf("%w: %q", ErrUnsupportedType, name)
 	}
@@ -173,10 +173,10 @@ type AWS struct {
 
 // Credentials selects how the AWS client authenticates.
 type Credentials struct {
-	Type            string `json:"type,omitempty"           yaml:"type,omitempty"`
+	Type            string `json:"type,omitempty"           jsonschema:"enum=chain,enum=static,enum=assumeRole,enum=webIdentity,default=chain" yaml:"type,omitempty"` //nolint:lll // struct tags can not be wrapped
 	RoleARN         string `json:"roleArn,omitempty"        yaml:"roleArn,omitempty"`
 	SessionName     string `json:"sessionName,omitempty"    yaml:"sessionName,omitempty"`
-	ExternalID      string `json:"externalId,omitempty"     yaml:"externalId,omitempty"`
+	ExternalID      Secret `json:"externalId,omitzero"      yaml:"externalId,omitempty"`
 	TokenFile       string `json:"tokenFile,omitempty"      yaml:"tokenFile,omitempty"`
 	AccessKeyID     Secret `json:"accessKeyId,omitzero"     yaml:"accessKeyId,omitempty"`
 	SecretAccessKey Secret `json:"secretAccessKey,omitzero" yaml:"secretAccessKey,omitempty"`
@@ -194,7 +194,7 @@ type Timeouts struct {
 // Retry settings of the AWS client.
 type Retry struct {
 	// MaxAttempts defaults to 3.
-	MaxAttempts *int `json:"maxAttempts,omitempty" yaml:"maxAttempts,omitempty"`
+	MaxAttempts *int `json:"maxAttempts,omitempty" jsonschema:"minimum=1,maximum=20,default=3" yaml:"maxAttempts,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// MaxBackoff defaults to 20s.
 	MaxBackoff *Duration `json:"maxBackoff,omitempty" yaml:"maxBackoff,omitempty"`
 }

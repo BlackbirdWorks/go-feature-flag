@@ -21,24 +21,36 @@ var (
 )
 
 type validator struct {
-	pos  positions
-	opts LoadOptions
-	cfg  *Config
-	errs []error
+	pos     positions
+	sources map[string]string
+	opts    LoadOptions
+	cfg     *Config
+	errs    []error
 }
 
 func (v *validator) fail(path string, sentinel error) {
-	v.errs = append(v.errs, &Error{Path: path, Line: v.pos.lineOf(path), Err: sentinel})
+	v.failf(path, sentinel, "")
 }
 
+// failf records an error. A value that comes from a flag or a variable names its source and has no file line.
 func (v *validator) failf(path string, sentinel error, format string, args ...any) {
-	v.errs = append(v.errs, &Error{
-		Path: path, Line: v.pos.lineOf(path), Err: sentinel, Detail: fmt.Sprintf(format, args...),
-	})
+	detail := fmt.Sprintf(format, args...)
+
+	if source, ok := v.sources[path]; ok {
+		if detail != "" {
+			detail = ": " + detail
+		}
+
+		v.errs = append(v.errs, &Error{Path: path, Err: sentinel, Detail: "set by " + source + detail})
+
+		return
+	}
+
+	v.errs = append(v.errs, &Error{Path: path, Line: v.pos.lineOf(path), Err: sentinel, Detail: detail})
 }
 
-func (c *Config) validate(pos positions, opts LoadOptions) error {
-	check := &validator{pos: pos, opts: opts, cfg: c}
+func (c *Config) validate(pos positions, sources map[string]string, opts LoadOptions) error {
+	check := &validator{pos: pos, sources: sources, opts: opts, cfg: c}
 
 	check.server()
 	check.observability()
@@ -92,11 +104,13 @@ func (v *validator) oneOf(path, value string, allowed ...string) {
 	}
 }
 
-func (v *validator) secret(path string, s Secret) {
+func (v *validator) secret(path string, secret Secret) {
 	switch {
-	case s.kind == secretInline && !v.opts.AllowInlineSecrets:
+	case secret.kind == secretInline && !v.opts.AllowInlineSecrets:
 		v.fail(path, ErrInlineSecret)
-	case s.kind == secretFromEnv && !envNameRE.MatchString(s.value):
+	case secret.kind == secretInline && secret.value == "":
+		v.failf(path, ErrMissingValue, "empty secret")
+	case secret.kind == secretFromEnv && !envNameRE.MatchString(secret.value):
 		v.failf(path+".fromEnv", ErrInvalidSecret, "not a valid environment variable name")
 	}
 }
@@ -127,8 +141,8 @@ func (v *validator) server() {
 
 		api = api || listener.Role == RoleAPI
 
-		for j, proto := range listener.Protocols {
-			protoPath := base + ".protocols[" + strconv.Itoa(j) + "]"
+		for index, proto := range listener.Protocols {
+			protoPath := base + ".protocols[" + strconv.Itoa(index) + "]"
 
 			if proto == "h2" || proto == "tls" {
 				v.failf(protoPath, ErrReservedKey, "%q is reserved for a later release", proto)
@@ -137,6 +151,10 @@ func (v *validator) server() {
 			}
 
 			v.oneOf(protoPath, proto, ProtocolHTTP1, ProtocolH2C)
+
+			if first := slices.Index(listener.Protocols, proto); first != index {
+				v.failf(protoPath, ErrDuplicateName, "same protocol as protocols[%d]", first)
+			}
 		}
 	}
 
@@ -149,7 +167,7 @@ func (v *validator) address(path, address string, idx int, seen map[string]int) 
 	_, port, err := net.SplitHostPort(address)
 
 	n, perr := strconv.Atoi(port)
-	if err != nil || perr != nil || n < 0 || n > 65535 {
+	if err != nil || perr != nil || n < 0 || n > maxPort {
 		v.failf(path, ErrInvalidValue, "expected host:port such as :1031")
 
 		return
@@ -163,11 +181,54 @@ func (v *validator) address(path, address string, idx int, seen map[string]int) 
 }
 
 func (v *validator) observability() {
-	o := v.cfg.Observability
-	v.oneOf("observability.logging.level", o.Logging.Level, "debug", "info", "warn", "error")
-	v.oneOf("observability.logging.format", o.Logging.Format, "json", "text")
-	v.oneOf("observability.tracing.sampler", o.Tracing.Sampler, "always_on", "always_off", "traceidratio",
+	obs := v.cfg.Observability
+	v.oneOf("observability.logging.level", obs.Logging.Level, "debug", "info", "warn", "error")
+	v.oneOf("observability.logging.format", obs.Logging.Format, "json", "text")
+	v.oneOf("observability.tracing.sampler", obs.Tracing.Sampler, "always_on", "always_off", "traceidratio",
 		"parentbased_always_on", "parentbased_always_off", "parentbased_traceidratio")
+
+	if obs.Tracing.OTLPEndpoint != "" {
+		v.endpointOrHostPort("observability.tracing.otlpEndpoint", obs.Tracing.OTLPEndpoint)
+	}
+}
+
+// httpURL checks an http or https URL. It never accepts credentials in the URL, because the URL is printed.
+func (v *validator) httpURL(path, value string) {
+	if value == "" {
+		return
+	}
+
+	parsed, err := url.Parse(value)
+
+	switch {
+	case err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "":
+		v.failf(path, ErrInvalidValue, "expected an http or https URL")
+	case parsed.User != nil:
+		v.failf(path, ErrInvalidValue, "credentials in the URL are not allowed, use a secret reference")
+	}
+}
+
+// hostPort checks a host:port address without user information.
+func (v *validator) hostPort(path, value string) {
+	host, port, err := net.SplitHostPort(value)
+	portNumber, portErr := strconv.Atoi(port)
+
+	switch {
+	case strings.Contains(value, "@"):
+		v.failf(path, ErrInvalidValue, "credentials in the address are not allowed")
+	case err != nil || host == "" || portErr != nil || portNumber < 1 || portNumber > maxPort:
+		v.failf(path, ErrInvalidValue, "expected host:port")
+	}
+}
+
+func (v *validator) endpointOrHostPort(path, value string) {
+	if strings.Contains(value, "://") {
+		v.httpURL(path, value)
+
+		return
+	}
+
+	v.hostPort(path, value)
 }
 
 func (v *validator) adminKeys() {
@@ -222,11 +283,10 @@ func (v *validator) connection(path string, conn Connection) {
 		v.failf(path+".retry.maxAttempts", ErrInvalidValue, "expected an integer between 1 and 20")
 	}
 
-	if awsCfg.Endpoint != "" {
-		parsed, err := url.Parse(awsCfg.Endpoint)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-			v.failf(path+".endpoint", ErrInvalidValue, "expected an http or https URL")
-		}
+	v.httpURL(path+".endpoint", awsCfg.Endpoint)
+
+	if conn.SQS != nil {
+		v.httpURL(path+".queueUrl", conn.SQS.QueueURL)
 	}
 
 	if s := conn.S3; s != nil {
@@ -239,7 +299,7 @@ func (v *validator) connection(path string, conn Connection) {
 }
 
 func (v *validator) jitter(path string, j float64) {
-	if j < 0 || j > 1 {
+	if !(j >= 0 && j <= 1) {
 		v.failf(path, ErrInvalidValue, "expected a number between 0 and 1")
 	}
 }
@@ -248,20 +308,21 @@ func (v *validator) credentials(path string, cred *Credentials) {
 	v.secret(path+".accessKeyId", cred.AccessKeyID)
 	v.secret(path+".secretAccessKey", cred.SecretAccessKey)
 	v.secret(path+".sessionToken", cred.SessionToken)
+	v.secret(path+".externalId", cred.ExternalID)
 
 	var allowed, required []string
 
 	switch cred.Type {
 	case CredentialsChain:
 	case CredentialsStatic:
-		allowed = []string{"accessKeyId", "secretAccessKey", "sessionToken"}
-		required = []string{"accessKeyId", "secretAccessKey"}
+		allowed = []string{keyAccessKeyID, keySecretKey, "sessionToken"}
+		required = []string{keyAccessKeyID, keySecretKey}
 	case CredentialsAssumeRole:
 		allowed = []string{keyRoleARN, "sessionName", "externalId"}
 		required = []string{keyRoleARN}
 	case CredentialsWebIdentity:
-		allowed = []string{keyRoleARN, "tokenFile", "sessionName"}
-		required = []string{keyRoleARN, "tokenFile"}
+		allowed = []string{keyRoleARN, keyTokenFile, "sessionName"}
+		required = []string{keyRoleARN, keyTokenFile}
 	default:
 		v.failf(path+".type", ErrInvalidValue, "allowed values: chain, static, assumeRole, webIdentity")
 
@@ -279,10 +340,11 @@ func (v *validator) allowed(path string, strct reflect.Value, allowed, required 
 		name, _, _ := strings.Cut(strct.Type().Field(i).Tag.Get("yaml"), ",")
 		if isSet(strct.Field(i)) {
 			set[name] = true
+		}
 
-			if !slices.Contains(allowed, name) {
-				v.failf(path+"."+name, ErrNotAllowed, "not valid for %s", kindOf(strct))
-			}
+		// a key that is written is checked even when its value is a zero value
+		if _, written := v.pos[path+"."+name]; written && !slices.Contains(allowed, name) {
+			v.failf(path+"."+name, ErrNotAllowed, "not valid for %s", kindOf(strct))
 		}
 	}
 

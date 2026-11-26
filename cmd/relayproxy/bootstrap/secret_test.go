@@ -60,7 +60,7 @@ func TestSecretResolve(t *testing.T) {
 			wantErr: bootstrap.ErrSecretUnresolved,
 		},
 		{
-			name:    "no reader",
+			name:    noReader,
 			doc:     "{fromFile: /run/token}",
 			opts:    bootstrap.LoadOptions{},
 			wantErr: bootstrap.ErrNoReader,

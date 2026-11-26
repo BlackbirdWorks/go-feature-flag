@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/invopop/jsonschema"
@@ -58,7 +59,8 @@ func main() {
 		log.Fatal("impossible to generate the bootstrap jsonschema: ", err)
 	}
 
-	log.Println("Writing bootstrap jsonschema to", opts.BootstrapSchemaLocation)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger.Info("Writing bootstrap jsonschema", slog.String("path", opts.BootstrapSchemaLocation))
 
 	err = os.WriteFile(opts.BootstrapSchemaLocation, bootstrapSchema, 0o600)
 	if err != nil {

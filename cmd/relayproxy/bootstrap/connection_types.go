@@ -5,7 +5,7 @@ type Poll struct {
 	// Interval defaults to 60s.
 	Interval *Duration `json:"interval,omitempty" yaml:"interval,omitempty"`
 	// Jitter is a fraction between 0 and 1. Default 0.1.
-	Jitter *float64 `json:"jitter,omitempty" yaml:"jitter,omitempty"`
+	Jitter *float64 `json:"jitter,omitempty" jsonschema:"minimum=0,maximum=1,default=0.1" yaml:"jitter,omitempty"`
 }
 
 // S3Connection is a connection of type s3: one bucket, one endpoint, one credentials identity.
@@ -16,9 +16,9 @@ type S3Connection struct {
 	Type   string `json:"type"             jsonschema:"enum=s3"    yaml:"type"`
 	Bucket string `json:"bucket,omitempty" yaml:"bucket,omitempty"`
 	// RequestChecksumCalculation is whenSupported (default) or whenRequired.
-	RequestChecksumCalculation string `json:"requestChecksumCalculation,omitempty" yaml:"requestChecksumCalculation,omitempty"` //nolint:lll // struct tags can not be wrapped
+	RequestChecksumCalculation string `json:"requestChecksumCalculation,omitempty" jsonschema:"enum=whenSupported,enum=whenRequired,default=whenSupported" yaml:"requestChecksumCalculation,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// ResponseChecksumValidation is whenSupported (default) or whenRequired.
-	ResponseChecksumValidation string `json:"responseChecksumValidation,omitempty" yaml:"responseChecksumValidation,omitempty"` //nolint:lll // struct tags can not be wrapped
+	ResponseChecksumValidation string `json:"responseChecksumValidation,omitempty" jsonschema:"enum=whenSupported,enum=whenRequired,default=whenSupported" yaml:"responseChecksumValidation,omitempty"` //nolint:lll // struct tags can not be wrapped
 	PathStyle                  bool   `json:"pathStyle,omitempty"                  yaml:"pathStyle,omitempty"`
 }
 

@@ -104,3 +104,135 @@ func TestCanaryNeverLeaks(t *testing.T) {
 
 	assert.Contains(t, printed.String(), bootstrap.RedactedValue)
 }
+
+// TestCanaryInErrorPaths checks that a sentinel placed in a wrong-typed or invalid field never reaches an error.
+func TestCanaryInErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	const canary = "CANARY-error-path-7d41"
+
+	tests := []struct {
+		name string
+		doc  string
+	}{
+		{
+			name: "string where a mapping is expected",
+			doc:  "connections:\n  a: {type: s3, credentials: " + canary + "}\n",
+		},
+		{
+			name: "mapping where a string is expected",
+			doc:  "connections:\n  a: {type: s3, bucket: {k: " + canary + "}}\n",
+		},
+		{
+			name: "text where an integer is expected",
+			doc:  "connections:\n  a: {type: s3, retry: {maxAttempts: " + canary + "}}\n",
+		},
+		{
+			name: "text where a duration is expected",
+			doc:  "connections:\n  a: {type: s3, timeouts: {connect: " + canary + "}}\n",
+		},
+		{name: "text as credentials type", doc: "connections:\n  a: {type: s3, credentials: {type: " + canary + "}}\n"},
+		{name: "text as a secret reference key", doc: "auth: {adminKeys: [{" + canary + ": x}]}\n"},
+		{name: "text as an environment variable name", doc: "auth: {adminKeys: [{fromEnv: \"" + canary + " x\"}]}\n"},
+		{name: "number as an admin key", doc: "auth: {adminKeys: [12345, " + canary + ", " + canary + "]}\n"},
+		{
+			name: "userinfo in the endpoint",
+			doc:  "connections:\n  a: {type: s3, endpoint: \"http://u:" + canary + "@h:1\"}\n",
+		},
+		{
+			name: "userinfo in the queue URL",
+			doc:  "connections:\n  a: {type: sqs, queueUrl: \"https://u:" + canary + "@h/q\"}\n",
+		},
+		{
+			name: "userinfo in the tracing endpoint",
+			doc:  "observability: {tracing: {otlpEndpoint: \"u:" + canary + "@h:1\"}}\n",
+		},
+		{
+			name: "userinfo in a kafka address",
+			doc:  "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"u:" + canary + "@h:1\"]}}\n",
+		},
+		{name: "text as the log level", doc: "observability: {logging: {level: " + canary + "}}\n"},
+		{name: "text as a listener address", doc: "server: {listeners: [{name: api, address: " + canary + "}]}\n"},
+		{name: "unknown key under auth", doc: "auth:\n  " + canary + ": x\n"},
+		{
+			name: "inline secret in a header",
+			doc:  "notifiers:\n  n: {kind: webhook, endpointUrl: {fromEnv: U}, headers: {A: " + canary + "}}\n",
+		},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := bootstrap.Parse([]byte("version: 2\n"+tcase.doc), nil, options(nil, nil, false))
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), canary)
+
+			for _, e := range pathErrors(err) {
+				assert.NotContains(t, e.Path, canary)
+				assert.NotContains(t, e.Detail, canary)
+			}
+		})
+	}
+}
+
+// TestCanaryInResolveErrors checks the error paths of Secret.Resolve.
+func TestCanaryInResolveErrors(t *testing.T) {
+	t.Parallel()
+
+	const canary = "CANARY-resolve-5a90"
+
+	failing := bootstrap.LoadOptions{
+		LookupEnv: func(name string) (string, bool) { return canary, name == "OTHER" },
+		ReadFile:  func(string) ([]byte, error) { return []byte(canary), errNoFile },
+	}
+
+	tests := []struct {
+		name string
+		doc  string
+		opts bootstrap.LoadOptions
+	}{
+		{name: "unset variable", doc: "{fromEnv: MISSING}", opts: failing},
+		{name: "unreadable file with content", doc: "{fromFile: /run/missing}", opts: failing},
+		{name: noReader, doc: "{fromFile: /run/x}", opts: bootstrap.LoadOptions{}},
+		{name: "unset secret", doc: "null", opts: failing},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := secretOf(t, tcase.doc).Resolve(tcase.opts)
+			require.ErrorIs(t, err, bootstrap.ErrSecretUnresolved)
+			assert.NotContains(t, err.Error(), canary)
+		})
+	}
+}
+
+// TestCanaryThroughResolvedSecret checks every formatting verb of a resolved secret, alone and inside a struct.
+func TestCanaryThroughResolvedSecret(t *testing.T) {
+	t.Parallel()
+
+	const canary = "CANARY-resolved-c3b8"
+
+	resolved, err := secretOf(t, "{fromEnv: T}").Resolve(options(envMap{"T": canary}, nil, false))
+	require.NoError(t, err)
+
+	holder := struct {
+		Ptr    *bootstrap.ResolvedSecret
+		Name   string
+		Secret bootstrap.ResolvedSecret
+	}{Name: "n", Secret: resolved, Ptr: &resolved}
+
+	for _, verb := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%T", "%10.3s", "%-20v"} {
+		t.Run(verb, func(t *testing.T) {
+			t.Parallel()
+
+			assert.NotContains(t, fmt.Sprintf(verb, resolved), canary)
+			assert.NotContains(t, fmt.Sprintf(verb, &resolved), canary)
+			assert.NotContains(t, fmt.Sprintf(verb, holder), canary)
+			assert.NotContains(t, fmt.Sprintf(verb, []bootstrap.ResolvedSecret{resolved}), canary)
+			assert.NotContains(t, fmt.Sprintf(verb, map[string]bootstrap.ResolvedSecret{"k": resolved}), canary)
+		})
+	}
+}

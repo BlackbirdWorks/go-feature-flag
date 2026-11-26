@@ -9,12 +9,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// durationPattern is the string form the loader accepts: units ns, us, µs, μs, ms, s, m, h, and at least one
+// non-zero digit. It uses a lookahead, which JSON Schema (ECMA 262) allows.
+const durationPattern = `^\+?(?=.*[1-9])(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$`
+
 // Duration is a positive duration written as a string such as "60s" or "1m30s".
 type Duration time.Duration
 
 // UnmarshalYAML implements [yaml.Unmarshaler]. Only strings are accepted: a bare number is rejected.
 func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
+	if node.Kind != yaml.ScalarNode || node.Tag != tagStr {
 		return fmt.Errorf("%w: write it as a string such as \"60s\"", ErrInvalidDuration)
 	}
 
@@ -51,7 +55,7 @@ func (d Duration) MarshalText() ([]byte, error) { //nolint:unparam // encoding.T
 func (Duration) JSONSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        jsonString,
-		Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
-		Description: "Positive duration string, for example 60s or 1m30s.",
+		Pattern:     durationPattern,
+		Description: "Positive duration string, for example 60s or 1m30s. Zero and negative durations are rejected.",
 	}
 }

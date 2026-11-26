@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -45,11 +46,11 @@ func exporterKindCloud(kind string) (exporterSpec, bool) {
 
 	switch kind {
 	case ExporterKafka:
-		return exporterSpec{allowed: []string{"kafka"}}, true
+		return exporterSpec{allowed: []string{keyKafka}}, true
 	case ExporterPubSub:
-		return exporterSpec{allowed: []string{"projectId", "topic", keyGoogleCredentials}}, true
+		return exporterSpec{allowed: []string{keyProjectID, "topic", keyGoogleCredentials}}, true
 	case ExporterBigQuery:
-		return exporterSpec{allowed: []string{"projectId", "datasetId", "tableName", keyGoogleCredentials}}, true
+		return exporterSpec{allowed: []string{keyProjectID, "datasetId", "tableName", keyGoogleCredentials}}, true
 	case ExporterRedshift:
 		return exporterSpec{connType: TypeRedshift, allowed: []string{keyConnection, "database", "clusterIdentifier",
 			"workgroupName", "dbUser", "secretArn", "tableName", "autoMigrate"}}, true
@@ -100,13 +101,28 @@ func (v *validator) exporter(path string, exp *Exporter) {
 
 	v.allowed(path, reflect.ValueOf(*exp), append(commonExporterKeys(), spec.allowed...), nil)
 
-	for k, s := range exp.Headers {
-		v.secret(path+".headers."+k, s)
+	v.headers(path, exp.Headers)
+
+	for _, field := range []struct {
+		name   string
+		secret Secret
+	}{
+		{keyEndpointURL, exp.EndpointURL}, {keySecret, exp.Secret},
+		{keyGoogleCredentials, exp.GoogleCredentials}, {"accountKey", exp.AccountKey},
+	} {
+		v.secret(path+"."+field.name, field.secret)
 	}
 
-	for field, s := range map[string]Secret{keyEndpointURL: exp.EndpointURL, keySecret: exp.Secret,
-		keyGoogleCredentials: exp.GoogleCredentials, "accountKey": exp.AccountKey} {
-		v.secret(path+"."+field, s)
+	v.httpURL(path+".queueUrl", exp.QueueURL)
+
+	if exp.MaxEventInMemory != nil && *exp.MaxEventInMemory < 1 {
+		v.failf(path+".maxEventInMemory", ErrInvalidValue, "expected an integer of 1 or more")
+	}
+
+	if exp.Kafka != nil {
+		for i, address := range exp.Kafka.Addresses {
+			v.hostPort(path+".kafka.addresses["+strconv.Itoa(i)+"]", address)
+		}
 	}
 
 	var conn Connection
@@ -191,12 +207,19 @@ func (v *validator) redshift(path string, exp *Exporter) {
 	}
 }
 
+// headers checks the secrets of a header map, in the order of the names.
+func (v *validator) headers(path string, headers map[string]Secret) {
+	for _, name := range sortedKeys(headers) {
+		v.secret(path+".headers."+name, headers[name])
+	}
+}
+
 func (v *validator) notifier(path string, notif *Notifier) {
 	var allowed, required []string
 
 	switch notif.Kind {
 	case NotifierSlack, NotifierMicrosoftTeams, NotifierDiscord:
-		allowed, required = []string{"webhookUrl"}, []string{"webhookUrl"}
+		allowed, required = []string{keyWebhookURL}, []string{keyWebhookURL}
 	case NotifierWebhook:
 		allowed, required = []string{keyEndpointURL, keySecret, "headers"}, []string{keyEndpointURL}
 	case "":
@@ -211,9 +234,7 @@ func (v *validator) notifier(path string, notif *Notifier) {
 
 	v.allowed(path, reflect.ValueOf(*notif), append([]string{"kind", "meta"}, allowed...), required)
 
-	for k, s := range notif.Headers {
-		v.secret(path+".headers."+k, s)
-	}
+	v.headers(path, notif.Headers)
 
 	v.secret(path+".webhookUrl", notif.WebhookURL)
 	v.secret(path+".endpointUrl", notif.EndpointURL)
@@ -230,11 +251,16 @@ func (v *validator) controlPlane() {
 		v.failf("controlPlane.connection", ErrMissingValue, "connection %q sets no bucket", plane.Connection)
 	}
 
-	m := plane.Manifest
-	v.require("controlPlane.manifest.key", strings.TrimSpace(m.Key) != "", "")
-	v.jitter("controlPlane.manifest.jitter", *m.Jitter)
+	manifest := plane.Manifest
+	v.require("controlPlane.manifest.key", strings.TrimSpace(manifest.Key) != "", "")
 
-	if *m.MaxObjects < 1 {
+	if strings.TrimSpace(manifest.Channel) == "" {
+		v.failf("controlPlane.manifest.channel", ErrInvalidValue, "expected a channel name")
+	}
+
+	v.jitter("controlPlane.manifest.jitter", *manifest.Jitter)
+
+	if *manifest.MaxObjects < 1 {
 		v.failf("controlPlane.manifest.maxObjects", ErrInvalidValue, "expected a positive integer")
 	}
 }

@@ -45,17 +45,35 @@
                     "additionalProperties": {
                         "$ref": "#/$defs/Connection"
                     },
+                    "propertyNames": {
+                        "not": {
+                            "const": "default"
+                        },
+                        "pattern": "^[a-z][a-z0-9-]{0,62}$"
+                    },
                     "type": "object"
                 },
                 "exporters": {
                     "additionalProperties": {
                         "$ref": "#/$defs/Exporter"
                     },
+                    "propertyNames": {
+                        "not": {
+                            "const": "default"
+                        },
+                        "pattern": "^[a-z][a-z0-9-]{0,62}$"
+                    },
                     "type": "object"
                 },
                 "notifiers": {
                     "additionalProperties": {
                         "$ref": "#/$defs/Notifier"
+                    },
+                    "propertyNames": {
+                        "not": {
+                            "const": "default"
+                        },
+                        "pattern": "^[a-z][a-z0-9-]{0,62}$"
                     },
                     "type": "object"
                 },
@@ -115,14 +133,75 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "manifest",
                 "connection"
             ]
         },
         "Credentials": {
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "assumeRole"
+                            }
+                        },
+                        "required": [
+                            "type"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "roleArn"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "static"
+                            }
+                        },
+                        "required": [
+                            "type"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "accessKeyId",
+                            "secretAccessKey"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "webIdentity"
+                            }
+                        },
+                        "required": [
+                            "type"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "roleArn",
+                            "tokenFile"
+                        ]
+                    }
+                }
+            ],
             "properties": {
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "chain",
+                        "static",
+                        "assumeRole",
+                        "webIdentity"
+                    ],
+                    "default": "chain"
                 },
                 "roleArn": {
                     "type": "string"
@@ -131,7 +210,7 @@
                     "type": "string"
                 },
                 "externalId": {
-                    "type": "string"
+                    "$ref": "#/$defs/Secret"
                 },
                 "tokenFile": {
                     "type": "string"
@@ -151,10 +230,203 @@
         },
         "Duration": {
             "type": "string",
-            "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
-            "description": "Positive duration string, for example 60s or 1m30s."
+            "pattern": "^\\+?(?=.*[1-9])(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$",
+            "description": "Positive duration string, for example 60s or 1m30s. Zero and negative durations are rejected."
         },
         "Exporter": {
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "azureBlobStorage"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "container",
+                            "accountName"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "bigquery"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "projectId",
+                            "datasetId"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "file"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "outputDir"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "googleStorage"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "bucket"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "kafka"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "kafka"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "kinesis"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "connection"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "pubsub"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "projectId",
+                            "topic"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "redshift"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "connection",
+                            "database"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "s3"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "connection"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "sqs"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "connection"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "webhook"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "endpointUrl"
+                        ]
+                    }
+                }
+            ],
             "properties": {
                 "meta": {
                     "additionalProperties": {
@@ -169,10 +441,13 @@
                     "type": "object"
                 },
                 "flushInterval": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "60s"
                 },
                 "maxEventInMemory": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 100000
                 },
                 "kafka": {
                     "$ref": "#/$defs/KafkaSettings"
@@ -187,7 +462,12 @@
                     "type": "string"
                 },
                 "format": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "json",
+                        "csv",
+                        "parquet"
+                    ]
                 },
                 "filename": {
                     "type": "string"
@@ -347,35 +627,57 @@
         "Listener": {
             "properties": {
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}$"
                 },
                 "address": {
                     "type": "string"
                 },
                 "role": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "api",
+                        "ops"
+                    ],
+                    "default": "api"
                 },
                 "protocols": {
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "http1",
+                            "h2c"
+                        ]
                     },
-                    "type": "array"
+                    "type": "array",
+                    "uniqueItems": true
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "name",
-                "address"
+                "name"
             ]
         },
         "Logging": {
             "properties": {
                 "level": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "debug",
+                        "info",
+                        "warn",
+                        "error"
+                    ],
+                    "default": "info"
                 },
                 "format": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "json",
+                        "text"
+                    ],
+                    "default": "json"
                 }
             },
             "additionalProperties": false,
@@ -384,31 +686,36 @@
         "Manifest": {
             "properties": {
                 "pollInterval": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "60s"
                 },
                 "jitter": {
-                    "type": "number"
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0,
+                    "default": 0.1
                 },
                 "maxObjects": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 20000
                 },
                 "key": {
                     "type": "string"
                 },
                 "channel": {
-                    "type": "string"
+                    "type": "string",
+                    "default": "stable"
                 }
             },
             "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "key"
-            ]
+            "type": "object"
         },
         "Metrics": {
             "properties": {
                 "enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 },
                 "legacyNames": {
                     "type": "boolean"
@@ -421,6 +728,76 @@
             "type": "object"
         },
         "Notifier": {
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "discord"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "webhookUrl"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "microsoftteams"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "webhookUrl"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "slack"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "webhookUrl"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "webhook"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "required": [
+                            "endpointUrl"
+                        ]
+                    }
+                }
+            ],
             "properties": {
                 "meta": {
                     "additionalProperties": {
@@ -477,10 +854,14 @@
         "Poll": {
             "properties": {
                 "interval": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "60s"
                 },
                 "jitter": {
-                    "type": "number"
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0,
+                    "default": 0.1
                 }
             },
             "additionalProperties": false,
@@ -519,10 +900,14 @@
         "Retry": {
             "properties": {
                 "maxAttempts": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "default": 3
                 },
                 "maxBackoff": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "20s"
                 }
             },
             "additionalProperties": false,
@@ -558,10 +943,20 @@
                     "type": "string"
                 },
                 "requestChecksumCalculation": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "whenSupported",
+                        "whenRequired"
+                    ],
+                    "default": "whenSupported"
                 },
                 "responseChecksumValidation": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "whenSupported",
+                        "whenRequired"
+                    ],
+                    "default": "whenSupported"
                 },
                 "pathStyle": {
                     "type": "boolean"
@@ -640,10 +1035,12 @@
         "Timeouts": {
             "properties": {
                 "connect": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "10s"
                 },
                 "request": {
-                    "$ref": "#/$defs/Duration"
+                    "$ref": "#/$defs/Duration",
+                    "default": "30s"
                 }
             },
             "additionalProperties": false,
@@ -655,10 +1052,20 @@
                     "type": "string"
                 },
                 "serviceName": {
-                    "type": "string"
+                    "type": "string",
+                    "default": "semaphore"
                 },
                 "sampler": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "always_on",
+                        "always_off",
+                        "traceidratio",
+                        "parentbased_always_on",
+                        "parentbased_always_off",
+                        "parentbased_traceidratio"
+                    ],
+                    "default": "parentbased_always_off"
                 }
             },
             "additionalProperties": false,

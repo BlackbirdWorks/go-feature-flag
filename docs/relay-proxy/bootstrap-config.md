@@ -9,19 +9,29 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 ## Rules
 
-- The file is YAML. The first key is `version: 2`. A file without it, or with another value, fails with
-  `version 2 required`.
+- The file is YAML with one document. A second document (`---`) is an error. The key `version: 2` is required, in
+  any position. A file without it, or with another value, fails with `version 2 required`.
 - Unknown keys are rejected. `studio` and the AWS Lambda `server.mode` are not part of version 2, so they are unknown
   keys. Inline `flagSets` is reserved and rejected: flag sets arrive from the manifest.
 - Every error names the path of the key and its line, for example
   `controlPlane.manifest.pollInterval (line 12): invalid duration: expected a positive duration such as "60s"`.
-  Errors never print a value.
+  An error never contains a secret or an admin key. It does name keys, types and references written in the file
+  (for example an unknown key or a connection name), except under `auth`, where an unknown key is reported by path
+  and line only, so that a mis-indented admin key is not echoed.
+- Scalars keep their YAML type: a string setting must be a string (write `bucket: "123"`, not `bucket: 123`), an
+  integer setting must be an integer (`3`, not `3.0`), and a boolean must be `true` or `false`.
+- URLs and addresses that are printed (`endpoint`, `queueUrl`, `tracing.otlpEndpoint`, Kafka addresses) must not
+  contain credentials (`http://user:pass@host`). Put them in a secret reference or a credentials setting.
 - Durations are strings: `60s`, `1m30s`. A bare number is rejected.
+- A key written for another kind of exporter, notifier or credentials is an error even with a zero value
+  (`autoMigrate: false` on a `log` exporter).
 - Names (connections, exporters, notifiers, listeners) match `^[a-z][a-z0-9-]{0,62}$`, are unique per kind, and
   `default` is reserved.
 - A file with only `connections`, or with a `controlPlane` and nothing else optional, is valid. Without `controlPlane`
   the relay runs with no flag sets.
-- The JSON Schema is generated from the Go types: `.schema/bootstrap-schema.json`.
+- The JSON Schema is generated from the Go types: `.schema/bootstrap-schema.json`. It carries the enumerations,
+  ranges, defaults, name patterns and the keys required per kind and per credentials type. The loader stays the
+  authority: some rules (references between sections, uniqueness, host and URL checks) are not in the schema.
 
 ## Secrets
 
@@ -58,6 +68,13 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `SEMAPHORE_STATE_DIR` | `controlPlane.stateDir` |
 
 - Every other `SEMAPHORE_*` variable is ignored.
+- A value from a flag or variable that fails validation is reported with its source (`set by flag --listen`,
+  `set by environment variable SEMAPHORE_LISTEN`) and no file line. The flags are `--config`, `--log-level`,
+  `--log-format`, `--listen`, `--ops-listen`, `--manifest-key` and `--state-dir`.
+- `SEMAPHORE_OPS_LISTEN` sets the address of the first `ops` listener. When there is none it adds a listener named
+  `ops` (or `ops-2`, ... when that name is taken).
+- The JSON Schema describes the file before overrides, so `controlPlane.manifest.key` and `listeners[].address` are
+  optional in it; the loader still requires an effective value.
 - `SEMAPHORE_MANIFEST_KEY` and `SEMAPHORE_STATE_DIR` only apply when the file has a `controlPlane`.
 - The standard AWS SDK variables keep working for `credentials.type: chain`, and the OpenTelemetry SDK variables for
   tracing. Semaphore does not map them.
@@ -85,7 +102,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].name` | string | required | name rules |
 | `server.listeners[].address` | string | required | `host:port`, for example `:1031` |
 | `server.listeners[].role` | string | `api` | `api`, `ops` |
-| `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c` (`h2` and `tls` are reserved) |
+| `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
 
 - With no listener, the relay has one `api` listener on `:1031`.
 - At least one listener has the role `api`. Names and addresses are unique.
@@ -99,7 +116,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `metrics.enabled` | boolean | `true` | |
 | `metrics.legacyNames` | boolean | `false` | |
 | `metrics.perFlagLabels` | boolean | `false` | |
-| `tracing.otlpEndpoint` | string | none | `host:port` |
+| `tracing.otlpEndpoint` | string | none | `host:port`, or an `http`/`https` URL, without credentials |
 | `tracing.serviceName` | string | `semaphore` | |
 | `tracing.sampler` | string | `parentbased_always_off` | `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
 
@@ -115,7 +132,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 |---|---|---|---|
 | `connection` | string | required | name of an `s3` connection that sets a `bucket` |
 | `manifest.key` | string | required (or `SEMAPHORE_MANIFEST_KEY`) | object key in the connection's bucket |
-| `manifest.channel` | string | `stable` | the expected channel name |
+| `manifest.channel` | string | `stable` | the expected channel name, not blank |
 | `manifest.pollInterval` | duration | `60s` | positive; overrides the connection's `poll.interval` |
 | `manifest.jitter` | number | `0.1` | 0 to 1 |
 | `manifest.maxObjects` | integer | `20000` | 1 or more |
@@ -131,7 +148,7 @@ Settings shared by the four AWS types:
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
-| `endpoint` | string | none (the SDK endpoint) | an `http` or `https` URL, for emulators |
+| `endpoint` | string | none (the SDK endpoint) | an `http` or `https` URL without credentials, for emulators |
 | `region` | string | none (the SDK chain) | |
 | `credentials.type` | string | `chain` | `chain`, `static`, `assumeRole`, `webIdentity` |
 | `credentials.accessKeyId` | secret | | `static` only, required |
@@ -139,7 +156,7 @@ Settings shared by the four AWS types:
 | `credentials.sessionToken` | secret | | `static` only |
 | `credentials.roleArn` | string | | `assumeRole` and `webIdentity`, required |
 | `credentials.sessionName` | string | | `assumeRole` and `webIdentity` |
-| `credentials.externalId` | string | | `assumeRole` only |
+| `credentials.externalId` | secret | | `assumeRole` only |
 | `credentials.tokenFile` | string | | `webIdentity` only, required |
 | `timeouts.connect` | duration | `10s` | positive |
 | `timeouts.request` | duration | `30s` | positive |
@@ -157,7 +174,7 @@ Extra keys per type:
 | `s3` | `requestChecksumCalculation` | string | `whenSupported` | `whenSupported`, `whenRequired` |
 | `s3` | `responseChecksumValidation` | string | `whenSupported` | `whenSupported`, `whenRequired` |
 | `kinesis` | `stream` | string | none | |
-| `sqs` | `queueUrl` | string | none | |
+| `sqs` | `queueUrl` | string | none | an `http` or `https` URL without credentials |
 
 ### `exporters.<name>`
 
@@ -166,7 +183,8 @@ Extra keys per type:
 relay does not run these exporters from this file yet.
 
 Keys valid for every kind: `kind`, `meta` (map of string), `flushInterval` (duration, default `60s`),
-`maxEventInMemory` (integer, default `100000`), `eventType`.
+`maxEventInMemory` (integer, 1 or more, default `100000`), `eventType`. A `queueUrl` is an `http` or `https` URL
+without credentials.
 
 | Kind | Connection type | Required | Other keys |
 |---|---|---|---|
@@ -177,7 +195,7 @@ Keys valid for every kind: `kind`, `meta` (map of string), `flushInterval` (dura
 | `kinesis` | `kinesis` | `connection`, and a stream (`streamName`, `streamArn`, or `stream` on the connection) | |
 | `googleStorage` | | `bucket` | `googleCredentials` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
 | `sqs` | `sqs` | `connection`, and a queue (`queueUrl` here or on the connection) | |
-| `kafka` | | `kafka.topic`, `kafka.addresses` | |
+| `kafka` | | `kafka.topic`, `kafka.addresses` (each `host:port`, without credentials) | |
 | `pubsub` | | `projectId`, `topic` | `googleCredentials` (secret) |
 | `bigquery` | | `projectId`, `datasetId` | `tableName`, `googleCredentials` (secret) |
 | `redshift` | `redshift` | `connection`, `database`, one of `clusterIdentifier` or `workgroupName` | `dbUser` (not with `workgroupName` or `secretArn`), `secretArn`, `tableName`, `autoMigrate` |

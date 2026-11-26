@@ -53,7 +53,8 @@ var (
 )
 
 // Error is a path- and line-addressed configuration error.
-// It never contains a configuration value, only key names and the reason.
+// It never contains the value of a secret or of an admin key. It does carry key names, type names and reference
+// names written in the file, and it does not echo a key written directly under "auth".
 type Error struct {
 	// Err is the sentinel that tells the kind of the error.
 	Err error

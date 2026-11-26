@@ -50,11 +50,16 @@ func (s *Secret) UnmarshalYAML(node *yaml.Node) error {
 			return nil
 		}
 
+		if node.Tag != tagStr {
+			return fmt.Errorf("%w: write it as a string", ErrInvalidSecret)
+		}
+
 		*s = Secret{kind: secretInline, value: node.Value}
 
 		return nil
 	case yaml.MappingNode:
-		if len(node.Content) != 2 || node.Content[1].Kind != yaml.ScalarNode || node.Content[1].Value == "" {
+		if len(node.Content) != 2 || node.Content[1].Kind != yaml.ScalarNode ||
+			node.Content[1].Tag != tagStr || node.Content[1].Value == "" {
 			return fmt.Errorf(
 				"%w: expected exactly one of fromEnv or fromFile with a non-empty value",
 				ErrInvalidSecret,

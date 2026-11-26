@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"fmt"
 	"io"
+	"slices"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -62,21 +64,12 @@ func (o LoadOptions) env(name string) string {
 	return v
 }
 
-// pick returns the flag if set, else the environment variable.
-func (o LoadOptions) pick(flag, name string) string {
-	if flag != "" {
-		return flag
-	}
-
-	return o.env(name)
-}
-
 // Load reads the bootstrap file named by the --config flag or SEMAPHORE_CONFIG, then parses, overrides, defaults
 // and validates it.
 func Load(overrides *Overrides, opts LoadOptions) (*Config, error) {
 	overrides = orEmpty(overrides)
 
-	path := opts.pick(overrides.Config, EnvConfig)
+	path, _ := opts.pickSource(overrides.Config, source{flag: "--config", env: EnvConfig})
 	if path == "" {
 		return nil, ErrNoConfigPath
 	}
@@ -102,10 +95,10 @@ func Parse(data []byte, overrides *Overrides, opts LoadOptions) (*Config, error)
 		return nil, err
 	}
 
-	cfg.applyOverrides(overrides, opts)
+	sources := cfg.applyOverrides(overrides, opts)
 	cfg.applyDefaults()
 
-	err = cfg.validate(pos, opts)
+	err = cfg.validate(pos, sources, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -113,42 +106,72 @@ func Parse(data []byte, overrides *Overrides, opts LoadOptions) (*Config, error)
 	return cfg, nil
 }
 
-func (c *Config) applyOverrides(overrides *Overrides, opts LoadOptions) {
-	if v := opts.pick(overrides.LogLevel, EnvLogLevel); v != "" {
+// source says where an override comes from, for the error messages.
+type source struct {
+	flag string
+	env  string
+}
+
+// pickSource returns the value of the flag if set, else of the environment variable, with the name of its source.
+func (o LoadOptions) pickSource(flagValue string, src source) (string, string) {
+	if flagValue != "" {
+		return flagValue, "flag " + src.flag
+	}
+
+	if v := o.env(src.env); v != "" {
+		return v, "environment variable " + src.env
+	}
+
+	return "", ""
+}
+
+// applyOverrides applies the flags and variables and returns the source of every overridden path.
+func (c *Config) applyOverrides(overrides *Overrides, opts LoadOptions) map[string]string {
+	sources := map[string]string{}
+
+	if v, from := opts.pickSource(overrides.LogLevel, source{flag: "--log-level", env: EnvLogLevel}); v != "" {
 		c.Observability.Logging.Level = v
+		sources["observability.logging.level"] = from
 	}
 
-	if v := opts.pick(overrides.LogFormat, EnvLogFormat); v != "" {
+	if v, from := opts.pickSource(overrides.LogFormat, source{flag: "--log-format", env: EnvLogFormat}); v != "" {
 		c.Observability.Logging.Format = v
+		sources["observability.logging.format"] = from
 	}
 
-	if v := opts.pick(overrides.Listen, EnvListen); v != "" {
-		c.setListener(RoleAPI, v)
+	if v, from := opts.pickSource(overrides.Listen, source{flag: "--listen", env: EnvListen}); v != "" {
+		sources["server.listeners["+strconv.Itoa(c.setListener(RoleAPI, v))+"].address"] = from
 	}
 
-	if v := opts.pick(overrides.OpsListen, EnvOpsListen); v != "" {
-		c.setListener(RoleOps, v)
+	if v, from := opts.pickSource(overrides.OpsListen, source{flag: "--ops-listen", env: EnvOpsListen}); v != "" {
+		sources["server.listeners["+strconv.Itoa(c.setListener(RoleOps, v))+"].address"] = from
 	}
 
 	if c.ControlPlane != nil {
-		if v := opts.pick(overrides.ManifestKey, EnvManifestKey); v != "" {
+		manifestKey := source{flag: "--manifest-key", env: EnvManifestKey}
+		if v, from := opts.pickSource(overrides.ManifestKey, manifestKey); v != "" {
 			c.ControlPlane.Manifest.Key = v
+			sources["controlPlane.manifest.key"] = from
 		}
 
-		if v := opts.pick(overrides.StateDir, EnvStateDir); v != "" {
+		if v, from := opts.pickSource(overrides.StateDir, source{flag: "--state-dir", env: EnvStateDir}); v != "" {
 			c.ControlPlane.StateDir = v
+			sources["controlPlane.stateDir"] = from
 		}
 	}
+
+	return sources
 }
 
-// setListener sets the address of the first listener with the role, and creates it when there is none.
-func (c *Config) setListener(role, address string) {
+// setListener sets the address of the first listener with the role, or adds a listener with a unique name when
+// there is none. It returns the index of the listener.
+func (c *Config) setListener(role, address string) int {
 	for i := range c.Server.Listeners {
-		l := &c.Server.Listeners[i]
-		if l.Role == role || (l.Role == "" && role == RoleAPI) {
-			l.Address = address
+		listener := &c.Server.Listeners[i]
+		if listener.Role == role || (listener.Role == "" && role == RoleAPI) {
+			listener.Address = address
 
-			return
+			return i
 		}
 	}
 
@@ -160,7 +183,19 @@ func (c *Config) setListener(role, address string) {
 		)
 	}
 
-	c.Server.Listeners = append(c.Server.Listeners, Listener{Name: role, Address: address, Role: role})
+	name := role
+
+	for n := 2; c.hasListener(name); n++ {
+		name = role + "-" + strconv.Itoa(n)
+	}
+
+	c.Server.Listeners = append(c.Server.Listeners, Listener{Name: name, Address: address, Role: role})
+
+	return len(c.Server.Listeners) - 1
+}
+
+func (c *Config) hasListener(name string) bool {
+	return slices.ContainsFunc(c.Server.Listeners, func(l Listener) bool { return l.Name == name })
 }
 
 // Print writes the effective configuration as YAML: defaults and overrides applied, secrets and admin keys

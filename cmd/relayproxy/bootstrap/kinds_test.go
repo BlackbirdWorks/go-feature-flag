@@ -1,7 +1,10 @@
 package bootstrap_test
 
 import (
+	"cmp"
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,7 +90,7 @@ func TestExporterKinds(t *testing.T) {
 			wantErr:  bootstrap.ErrMissingValue,
 			wantPath: "exporters.e.bucket",
 		},
-		{name: "sqs queue on the exporter", body: "kind: sqs\n    connection: q\n    queueUrl: u"},
+		{name: "sqs queue on the exporter", body: "kind: sqs\n    connection: q\n    queueUrl: https://sqs.example/q"},
 		{name: "sqs queue on the connection", body: "kind: sqs\n    connection: qq"},
 		{
 			name:     "sqs without queue",
@@ -169,9 +172,21 @@ func TestExporterKinds(t *testing.T) {
 
 			doc := kindConns + "exporters:\n  e:\n    " + tcase.body + "\n"
 
-			_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 			if tcase.wantErr == nil {
 				require.NoError(t, err)
+
+				got := cfg.Exporters["e"]
+				assert.Equal(t, bodyValue(tcase.body, "kind"), got.Kind)
+				assert.Equal(t, bodyValue(tcase.body, "connection"), got.Connection)
+				assert.Equal(t, cmp.Or(bodyValue(tcase.body, "flushInterval"), "60s"), got.FlushInterval.String())
+
+				wantEvents := bootstrap.DefaultMaxEvents
+				if explicit := bodyValue(tcase.body, "maxEventInMemory"); explicit != "" {
+					wantEvents, _ = strconv.Atoi(explicit)
+				}
+
+				assert.Equal(t, wantEvents, *got.MaxEventInMemory)
 
 				return
 			}
@@ -212,9 +227,10 @@ func TestNotifierKinds(t *testing.T) {
 
 			doc := "version: 2\nnotifiers:\n  n:\n    " + tcase.body + "\n"
 
-			_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 			if tcase.wantErr == nil {
 				require.NoError(t, err)
+				assert.Equal(t, bodyValue(tcase.body, "kind"), cfg.Notifiers["n"].Kind)
 
 				return
 			}
@@ -263,10 +279,11 @@ func TestAdminKeyChecks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		keys    string
-		wantErr error
-		wantMsg string
+		name     string
+		keys     string
+		wantErr  error
+		wantMsg  string
+		wantKeys int
 	}{
 		{
 			name:    "duplicate plain key",
@@ -275,7 +292,7 @@ func TestAdminKeyChecks(t *testing.T) {
 			wantMsg: "auth.adminKeys[1]",
 		},
 		{name: "duplicate reference", keys: "[{fromEnv: A}, {fromEnv: A}]", wantErr: bootstrap.ErrDuplicateKey},
-		{name: "same text, different source", keys: "[{fromEnv: A}, {fromFile: A}]"},
+		{name: "same text, different source", keys: "[{fromEnv: A}, {fromFile: A}]", wantKeys: 2},
 		{name: "empty key", keys: "['']", wantErr: bootstrap.ErrMissingValue},
 		{name: "null key", keys: "[~]", wantErr: bootstrap.ErrMissingValue},
 		{name: "bad variable name", keys: "[{fromEnv: 'a b'}]", wantErr: bootstrap.ErrInvalidSecret},
@@ -287,9 +304,10 @@ func TestAdminKeyChecks(t *testing.T) {
 
 			doc := fmt.Sprintf("version: 2\nauth:\n  adminKeys: %s\n", tcase.keys)
 
-			_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 			if tcase.wantErr == nil {
 				require.NoError(t, err)
+				assert.Len(t, cfg.Auth.AdminKeys, tcase.wantKeys)
 
 				return
 			}
@@ -385,4 +403,15 @@ func TestSecretRedaction(t *testing.T) {
 			assert.NotContains(t, tcase.got, sentinel)
 		})
 	}
+}
+
+// bodyValue returns the value of a top-level "key: value" line of a test body, or "".
+func bodyValue(body, key string) string {
+	for line := range strings.SplitSeq(body, "\n") {
+		if value, found := strings.CutPrefix(strings.TrimSpace(line), key+": "); found {
+			return value
+		}
+	}
+
+	return ""
 }

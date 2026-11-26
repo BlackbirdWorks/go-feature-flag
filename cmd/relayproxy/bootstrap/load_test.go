@@ -298,7 +298,7 @@ func TestParseErrorsReferences(t *testing.T) {
 		{
 			name:    "bad log level",
 			doc:     "version: 2\nobservability:\n  logging: {level: loud}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "observability.logging.level", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: levelPath, wantLine: 3,
 		},
 		{
 			name: "syntax error", doc: "version: 2\nserver: [\n",
@@ -449,11 +449,11 @@ func TestEnvOverrides(t *testing.T) {
 				bootstrap.EnvLogLevel:    levelDebug,
 				bootstrap.EnvLogFormat:   logFormatDefault,
 				bootstrap.EnvListen:      addr8080,
-				bootstrap.EnvOpsListen:   "127.0.0.1:9090",
+				bootstrap.EnvOpsListen:   opsAddr,
 				bootstrap.EnvManifestKey: envKeyJSON,
 				bootstrap.EnvStateDir:    "/env",
 			},
-			wantLevel: levelDebug, wantFormat: logFormatDefault, wantAddresses: []string{addr8080, "127.0.0.1:9090"},
+			wantLevel: levelDebug, wantFormat: logFormatDefault, wantAddresses: []string{addr8080, opsAddr},
 			wantKey: envKeyJSON, wantState: "/env",
 		},
 		{
@@ -522,7 +522,7 @@ func TestEnvOverridesWithoutControlPlane(t *testing.T) {
 func TestEnvOverrideIsValidated(t *testing.T) {
 	t.Parallel()
 
-	env := envMap{bootstrap.EnvLogLevel: "loud"}
+	env := envMap{bootstrap.EnvLogLevel: levelLoud}
 
 	_, err := bootstrap.Parse([]byte(v2Doc), nil, options(env, nil, false))
 	require.ErrorIs(t, err, bootstrap.ErrInvalidValue)
@@ -556,7 +556,7 @@ func TestLoad(t *testing.T) {
 			wantMsg: "read bootstrap file /etc/none.yaml",
 		},
 		{
-			name: "no reader", flags: bootstrap.Overrides{Config: etcA}, wantErr: bootstrap.ErrNoReader,
+			name: noReader, flags: bootstrap.Overrides{Config: etcA}, wantErr: bootstrap.ErrNoReader,
 			opts: func(e envMap) bootstrap.LoadOptions { return bootstrap.LoadOptions{LookupEnv: e.lookup} },
 		},
 	}

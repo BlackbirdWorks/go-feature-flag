@@ -10,15 +10,15 @@ type Observability struct {
 // Logging is the slog setup.
 type Logging struct {
 	// Level is debug, info, warn or error. Default info.
-	Level string `json:"level,omitempty" yaml:"level,omitempty"`
+	Level string `json:"level,omitempty" jsonschema:"enum=debug,enum=info,enum=warn,enum=error,default=info" yaml:"level,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// Format is json or text. Default json.
-	Format string `json:"format,omitempty" yaml:"format,omitempty"`
+	Format string `json:"format,omitempty" jsonschema:"enum=json,enum=text,default=json" yaml:"format,omitempty"`
 }
 
 // Metrics is the Prometheus setup.
 type Metrics struct {
 	// Enabled defaults to true.
-	Enabled       *bool `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
+	Enabled       *bool `json:"enabled,omitempty"       jsonschema:"default=true"      yaml:"enabled,omitempty"`
 	LegacyNames   bool  `json:"legacyNames,omitempty"   yaml:"legacyNames,omitempty"`
 	PerFlagLabels bool  `json:"perFlagLabels,omitempty" yaml:"perFlagLabels,omitempty"`
 }
@@ -27,7 +27,7 @@ type Metrics struct {
 type Tracing struct {
 	OTLPEndpoint string `json:"otlpEndpoint,omitempty" yaml:"otlpEndpoint,omitempty"`
 	// ServiceName defaults to semaphore.
-	ServiceName string `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
+	ServiceName string `json:"serviceName,omitempty" jsonschema:"default=semaphore" yaml:"serviceName,omitempty"`
 	// Sampler defaults to parentbased_always_off.
-	Sampler string `json:"sampler,omitempty" yaml:"sampler,omitempty"`
+	Sampler string `json:"sampler,omitempty" jsonschema:"enum=always_on,enum=always_off,enum=traceidratio,enum=parentbased_always_on,enum=parentbased_always_off,enum=parentbased_traceidratio,default=parentbased_always_off" yaml:"sampler,omitempty"` //nolint:lll // struct tags can not be wrapped
 }

@@ -10,6 +10,11 @@ import (
 )
 
 const (
+	noReader         = "no reader"
+	levelPath        = "observability.logging.level"
+	levelLoud        = "loud"
+	opsAddr          = "127.0.0.1:9090"
+	defMaxManifest   = "Manifest"
 	v1Doc            = "version: 1\n"
 	fmtPlus          = "%+v"
 	fmtGo            = "%#v"
