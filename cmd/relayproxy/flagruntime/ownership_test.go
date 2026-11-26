@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 		name   string
 	}{
 		{
-			name: "object",
+			name: kindObject,
 			call: func() any {
 				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
 
@@ -49,7 +50,7 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 			},
 		},
 		{
-			name: "array",
+			name: kindArray,
 			call: func() any {
 				res, _ := eval.JSONArrayVariationDetails(set, "array-flag", ctx, nil)
 
@@ -289,4 +290,112 @@ func TestEvaluator_TrackedEvaluationWithANilContext(t *testing.T) {
 	assert.Equal(t, trackedFlag, events[0].Key)
 	assert.Empty(t, events[0].UserKey)
 	assert.Equal(t, "user", events[0].ContextKind)
+}
+
+// The default of the caller is returned as given by the typed calls whether the evaluation is tracked or not, and a
+// tracked evaluation gives the event a snapshot of it: nil maps and slices inside the default stay nil (they encode
+// as null), the result encodes the same with and without the hook, and neither side can change the other.
+func TestOwnership_TrackedDefaultIsReturnedAsGivenAndSnapshotted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		call       func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any
+		newGiven   func() any
+		changeSelf func(val any)
+		name       string
+		wantJSON   string
+	}{
+		{
+			name: kindObject,
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any {
+				def, _ := given.(map[string]any)
+				res, _ := eval.JSONVariationDetails(set, missingKey, ownedContext(), def)
+
+				return res.Value
+			},
+			newGiven: func() any {
+				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, "list": []any{1}}
+			},
+			changeSelf: func(val any) {
+				obj, _ := val.(map[string]any)
+				obj["list"] = mutated
+			},
+			wantJSON: `{"items":null,"list":[1],"none":null,"obj":null}`,
+		},
+		{
+			name: kindArray,
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any {
+				def, _ := given.([]any)
+				res, _ := eval.JSONArrayVariationDetails(set, missingKey, ownedContext(), def)
+
+				return res.Value
+			},
+			newGiven: func() any { return []any{[]any(nil), map[string]any(nil), nil, []any{1}} },
+			changeSelf: func(val any) {
+				arr, _ := val.([]any)
+				arr[3] = mutated
+			},
+			wantJSON: `[null,null,null,[1]]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			set := shapesSet(t)
+
+			// without the hook: the result is the default, as given
+			given := tt.newGiven()
+			plain := flagruntime.NewEvaluator(newService(t), nil)
+			assert.JSONEq(t, tt.wantJSON, mustJSON(t, tt.call(plain, set, given)))
+
+			// with the hook: the same result, and an event that holds a snapshot
+			var events []*exporter.FeatureEvent
+
+			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+				TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
+			})
+
+			given = tt.newGiven()
+			result := tt.call(eval, set, given)
+
+			require.Len(t, events, 1)
+			assert.JSONEq(t, tt.wantJSON, mustJSON(t, result), "the result encodes as without the hook")
+			assert.JSONEq(t, tt.wantJSON, mustJSON(t, events[0].Value), "the event keeps nil containers nil")
+			assert.Equal(t, reflect.ValueOf(given).Pointer(), reflect.ValueOf(result).Pointer(), "the default as given")
+			assert.NotEqual(t, reflect.ValueOf(given).Pointer(), reflect.ValueOf(events[0].Value).Pointer())
+
+			// the caller changes what it got back: the event does not move
+			tt.changeSelf(result)
+			assert.JSONEq(t, tt.wantJSON, mustJSON(t, events[0].Value), "the event after the caller's change")
+
+			// the exporter changes the event: a default of the caller does not move
+			given = tt.newGiven()
+			_ = tt.call(eval, set, given)
+
+			require.Len(t, events, 2)
+			tt.changeSelf(events[1].Value)
+			assert.JSONEq(t, tt.wantJSON, mustJSON(t, given), "the default after the exporter's change")
+		})
+	}
+}
+
+// A flag value with nested nulls and empty containers encodes the same through the typed calls (which copy it) and
+// through the raw call (which shares it): the copy does not turn a null into a container.
+func TestOwnership_NestedNullsInAFlagValueSurviveTheCopy(t *testing.T) {
+	t.Parallel()
+
+	set := shapesSet(t)
+	eval := flagruntime.NewEvaluator(newService(t), nil)
+	want := `{"empty":[],"list":[null,{"y":null}],"x":null}`
+
+	raw, err := eval.RawVariation(set, "object-null-flag", ownedContext(), nil)
+	require.NoError(t, err)
+
+	typed, err := eval.JSONVariationDetails(set, "object-null-flag", ownedContext(), nil)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, want, mustJSON(t, raw.Value))
+	assert.JSONEq(t, want, mustJSON(t, typed.Value))
 }

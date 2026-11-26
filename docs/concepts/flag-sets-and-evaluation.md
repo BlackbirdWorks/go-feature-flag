@@ -87,16 +87,20 @@ The flags are shared between flag sets that list the same object, and between ge
 | The value of `RawVariation`, the values of the all-flags state, the value of a tracked event | the flag: shared, **read only** |
 | Nested objects and arrays in the metadata of a result or a state | the flag: shared, **read only** |
 | The metadata map itself, the result structs, the state table | the caller: new for every evaluation |
-| The value of `JSONVariationDetails` and `JSONArrayVariationDetails` | the caller: a copy (one copy; none when the engine already made one for a scheduled flag and no event holds it) |
-| The default value that the caller passed in | the caller: returned as given |
+| The value of `JSONVariationDetails` and `JSONArrayVariationDetails` | the caller: a copy of a flag value (one copy; none when the engine already made one for a scheduled flag) |
+| The default value that the caller passed in | the caller: returned as given, tracked or not |
 | The map of `Configuration`, the answer of `Change` | the map of `Configuration` is new; the flags in it and the map of `Change` are shared, read only |
 | The enrichment | the evaluator: a deep copy of the input; `EvaluationContextEnrichment` returns a deep copy |
 
 - **Read only means: encode it, do not change it.** A handler that wants to change a value takes a copy with `flagdef.CloneValue` (values) or `flagdef.CloneMetadata` (metadata maps). The metadata keys that a handler adds to the metadata map of a result (the cacheable keys) are safe: the map is the caller's.
 - A write into a shared part would change what every other request, and the next generation, sees. The switch to config v2 will add a guard against it in the handlers, and until then the tests check that the evaluator never writes into the flags and that readers racing with reloads only read.
-- A typed object or array call copies the value also when a tracked event holds it, so editing the result never changes what the exporter keeps. The hook for tracked events gets the event with the shared value, and the exporter metadata map of the request context, as in version 1. The exporters must encode or copy them.
+- A tracked event never holds a value that the caller can change. When the caller keeps the value it gets back (its own default, or the engine's copy of a scheduled flag), the event gets a snapshot of it that keeps nil maps and slices nil; when the caller gets a copy of a flag value, the event keeps the flag's own value. The hook for tracked events gets the event with the shared value, and the exporter metadata map of the request context, as in version 1. The exporters must encode or copy them.
 
 Measured cost (allocations per call, the engine alone against the evaluator): the evaluator adds none. For example a scalar flag costs 1 allocation (no metadata) or 6 (a rule, flat metadata), and so does the engine alone; the all-flags state costs what the engine alone costs for the same flags. A typed object or array call adds the one copy of the value (5 allocations for a small object); a scheduled flag adds none, as the engine copies its value already.
+
+With a hook that takes the events, a tracked evaluation adds the event (1 allocation), and a snapshot (4 for a small object) when the caller keeps the value it gets back. Measured: a scalar flag 1 without the hook, 2 with it; an object value of the raw call 6 and 7; a typed object 11 and 12; a typed scheduled object 5 and 10; a missing flag with an object default, typed, 8 and 13.
+
+Two tests guard the figures. One compares each shape with the engine alone and takes the least cost over many runs, because the rule engine's pool makes single runs move under the race detector. The other checks that the code of the evaluator itself (the lookups, the decision to copy, the choice of enrichment, the event step without a hook, the response metadata) allocates exactly nothing.
 
 ## Events
 

@@ -186,7 +186,7 @@ func (e *Evaluator) RawVariation(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
 ) (model.RawVarResult, error) {
 	res, err := variation(e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
-	notify(e, set, flagKey, evalCtx, &res)
+	notify(e, set, flagKey, evalCtx, &res, false)
 
 	return model.RawVarResult(res), err
 }
@@ -196,7 +196,7 @@ func (e *Evaluator) BoolVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue bool,
 ) (model.VariationResult[bool], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeBool)
-	notify(e, set, flagKey, evalCtx, &res)
+	notify(e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -206,7 +206,7 @@ func (e *Evaluator) IntVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue int,
 ) (model.VariationResult[int], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeInt)
-	notify(e, set, flagKey, evalCtx, &res)
+	notify(e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -216,7 +216,7 @@ func (e *Evaluator) Float64VariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue float64,
 ) (model.VariationResult[float64], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeFloat64)
-	notify(e, set, flagKey, evalCtx, &res)
+	notify(e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -226,7 +226,7 @@ func (e *Evaluator) StringVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue string,
 ) (model.VariationResult[string], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeString)
-	notify(e, set, flagKey, evalCtx, &res)
+	notify(e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -237,9 +237,11 @@ func (e *Evaluator) JSONArrayVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue []any,
 ) (model.VariationResult[[]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeArray)
-	tracked := notify(e, set, flagKey, evalCtx, &res)
+	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	if res.Value != nil && (tracked || sharesFlagValue(set, flagKey, res.Reason)) {
+	notify(e, set, flagKey, evalCtx, &res, !shared)
+
+	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).([]any)
 	}
 
@@ -252,9 +254,11 @@ func (e *Evaluator) JSONVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue map[string]any,
 ) (model.VariationResult[map[string]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeObject)
-	tracked := notify(e, set, flagKey, evalCtx, &res)
+	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	if res.Value != nil && (tracked || sharesFlagValue(set, flagKey, res.Reason)) {
+	notify(e, set, flagKey, evalCtx, &res, !shared)
+
+	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).(map[string]any)
 	}
 
@@ -312,9 +316,7 @@ func variation[T model.JSONType](
 // sharesFlagValue tells whether the value of a result is still the value stored in the flag, so that a typed call
 // that hands out an owned copy must copy it. It is not when the result carries the default value of the caller (an
 // error or a disabled flag: the caller owns it and gets it as given), and not when the flag has scheduled steps:
-// the engine evaluates those on a copy of the flag and already copies the value, once. A value that is in a tracked
-// event is copied in every case (see the typed calls): the exporter keeps the event, and the caller must not be able
-// to change what it records.
+// the engine evaluates those on a copy of the flag and already copies the value, once.
 func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReason) bool {
 	if reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled {
 		return false
@@ -326,14 +328,18 @@ func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReas
 }
 
 // notify hands the event of an evaluation to the hook when the evaluation must be tracked. It is the version 1
-// condition: the evaluation says trackEvents (the flag setting) and there is somewhere to send the event. It reports
-// whether an event was handed over: the value of the result is then also the value of the event. A nil context is
-// the empty one, as it is for the evaluation itself.
+// condition: the evaluation says trackEvents (the flag setting) and there is somewhere to send the event. A nil
+// context is the empty one, as it is for the evaluation itself.
+//
+// The exporter keeps the event, so its value must not be a value that the caller can change. A value that comes from
+// the flag is shared and read only, and a typed call hands out a copy of it: the event keeps the flag's. A value that
+// the caller receives as it is (its own default, or the copy that the engine made for a scheduled flag) is
+// snapshotted for the event when own is set; the result keeps the value, and the snapshot keeps nil containers nil.
 func notify[T model.JSONType](
-	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T],
-) bool {
+	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T], own bool,
+) {
 	if eval.track == nil || !res.TrackEvents {
-		return false
+		return
 	}
 
 	if evalCtx == nil {
@@ -345,12 +351,57 @@ func notify[T model.JSONType](
 		evalCtx = flagdef.NewEnrichedContext(evalCtx, enr.values)
 	}
 
+	var value any = res.Value
+	if own {
+		value = snapshotValue(value)
+	}
+
 	eval.track(exporter.NewFeatureEvent(
-		evalCtx, flagKey, res.Value, res.VariationType, res.Failed, res.Version, "SERVER",
+		evalCtx, flagKey, value, res.VariationType, res.Failed, res.Version, "SERVER",
 		evalCtx.ExtractGOFFProtectedFields().ExporterMetadata,
 	))
+}
 
-	return true
+// snapshotValue copies the objects and arrays of a value, deeply, and keeps a nil map or slice nil: it is the value
+// of a default that the caller wrote, and what it encodes to (null) must not change. The other values are immutable.
+func snapshotValue(val any) any {
+	switch typed := val.(type) {
+	case map[string]any:
+		if typed == nil {
+			return nil
+		}
+
+		out := make(map[string]any, len(typed))
+		for key, elem := range typed {
+			out[key] = snapshotValue(elem)
+		}
+
+		return out
+	case map[any]any:
+		if typed == nil {
+			return nil
+		}
+
+		out := make(map[any]any, len(typed))
+		for key, elem := range typed {
+			out[key] = snapshotValue(elem)
+		}
+
+		return out
+	case []any:
+		if typed == nil {
+			return nil
+		}
+
+		out := make([]any, len(typed))
+		for idx, elem := range typed {
+			out[idx] = snapshotValue(elem)
+		}
+
+		return out
+	default:
+		return val
+	}
 }
 
 // AllFlagsState evaluates every flag of the flag set for a context. A nil flag set (not available) answers like an

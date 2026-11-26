@@ -30,6 +30,8 @@ const (
 	flagsName   = "flags"
 	planAttr    = "plan"
 	proPlan     = "pro"
+	kindObject  = "object"
+	kindArray   = "array"
 	nameKey     = "name"
 	orgKey      = "org"
 	prodEnv     = "prod"
