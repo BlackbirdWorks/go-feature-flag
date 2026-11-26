@@ -17,6 +17,10 @@ them by name.
 - The factory counts the clients it built per connection, so a test can assert the invariant.
 - Endpoint and region are per connection: two connections can target two emulators in one process, with no
   environment variable set and no global state.
+- The spec is the only source of region and endpoint. `region` is required. `AWS_REGION`, `AWS_ENDPOINT_URL`,
+  `AWS_ENDPOINT_URL_S3`, `AWS_DEFAULTS_MODE`, `AWS_PROFILE` and the shared config files are ignored. The only
+  exception is the credentials chain (see below).
+- Connection names must not be empty.
 
 ## Fields
 
@@ -25,12 +29,12 @@ S3 connection:
 | Field | Default | Meaning |
 |---|---|---|
 | `bucket` | none | Bucket of the connection (required by the components that use one) |
-| `endpoint` | AWS | Base URL, for emulators and S3 compatible stores |
-| `region` | SDK chain | AWS region |
+| `endpoint` | AWS endpoint of the region | Base URL, for emulators and S3 compatible stores |
+| `region` | required | AWS region |
 | `pathStyle` | `false` | Path-style addressing |
 | `credentials` | `chain` | See below |
-| `connectTimeout` | SDK default | TCP connect timeout |
-| `requestTimeout` | none | Timeout of one HTTP attempt |
+| `connectTimeout` | 30s | TCP connect timeout only (the TLS handshake has a fixed 10s limit) |
+| `requestTimeout` | none | Wait for the response headers of one HTTP attempt. It does not cut the reading of a body: only the caller's context does |
 | `retry.maxAttempts` | SDK default (3) | Attempts per operation, the first one included |
 | `retry.maxBackoff` | SDK default (20s) | Longest wait between two attempts |
 | `requestChecksumCalculation` | SDK default (`whenSupported`) | `whenSupported` or `whenRequired` |
@@ -44,9 +48,9 @@ Kinesis, SQS and Redshift connections take the same fields except `bucket`, `pat
 
 | Type | Fields | Behaviour |
 |---|---|---|
-| `chain` (default) | none | The SDK default chain (environment, shared files, container and instance roles) |
+| `chain` (default) | none | The SDK default chain (environment, shared files, container and instance roles). The only type that reads the process environment |
 | `static` | `accessKeyId`, `secretAccessKey`, `sessionToken` | Fixed keys |
-| `assumeRole` | `roleArn`, `sessionName`, `externalId`, `stsEndpoint`, optional static source keys | Assumes the role; the source is the static keys when given, the chain otherwise |
+| `assumeRole` | `roleArn`, `sessionName`, `externalId`, `stsEndpoint`, optional static source keys | Assumes the role; the source is the static keys when given (`accessKeyId` and `secretAccessKey` together), the chain otherwise |
 | `webIdentity` | `roleArn`, `tokenFile`, `sessionName`, `stsEndpoint` | Assumes the role with a web identity token file |
 
 - Secret values arrive already resolved. They print as `[REDACTED]` in logs, JSON, errors and `%v`, `%+v`, `%#v`.
@@ -57,18 +61,21 @@ Kinesis, SQS and Redshift connections take the same fields except `bucket`, `pat
 
 Every connection has an identity: a fingerprint of everything that affects its client (endpoint, region, bucket,
 path style, credential settings including a hash of the secret values, timeouts, retry, checksum settings). It never
-contains a secret in clear.
+contains a secret in clear. Credential fields that the chosen type ignores do not count, and an empty type equals
+`chain`.
 
 On a reload the factory compares identities:
 
 - unchanged: the same client is kept, nothing is rebuilt;
 - changed: a new client is built on next use;
 - removed: the connection is dropped;
+- dropped or replaced: the idle connections of the old client are closed;
 - invalid: the whole reload is refused and nothing changes.
 
 ## Request metric
 
 Every HTTP attempt made through a connection client is reported once (a request retried after a 503 counts twice).
+The clients do not follow redirects, so one observation is one request on the wire.
 The relay exposes it as `semaphore_s3_requests_total{connection,operation,result}`.
 
 `operation` is `get`, `list`, `head`, `put`, `delete` or `other`.
@@ -79,6 +86,7 @@ The relay exposes it as `semaphore_s3_requests_total{connection,operation,result
 | `not_modified` | 304 answer to a conditional request (`If-None-Match`); not a failure |
 | `not_found` | 404 |
 | `throttled` | 429, or a throttling error code such as `SlowDown` (also on a 503) |
+| `redirect` | any 3xx other than 304 (not followed) |
 | `client_error` | any other 4xx (403, 400, ...) |
 | `server_error` | 5xx that is not a throttle |
 | `error` | no usable answer: transport error, timeout, cancellation, undecodable 2xx |

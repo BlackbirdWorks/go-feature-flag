@@ -161,4 +161,6 @@ func TestCanary_NoSecretLeaks(t *testing.T) {
 	}
 
 	assert.NotEmpty(t, logs.String(), "the build is logged")
+	assert.NotContains(t, logs.String(), spec.Identity(), "the identity digest is not logged")
+	assert.Contains(t, logs.String(), `"connection":"c"`)
 }

@@ -25,6 +25,9 @@ const (
 	ResultThrottled = "throttled"
 	// ResultClientError is any other 4xx answer (403, 400, ...).
 	ResultClientError = "client_error"
+	// ResultRedirect is a 3xx answer other than 304: the factory clients never follow redirects, so the SDK
+	// gets the redirect itself and the observation is the one wire request.
+	ResultRedirect = "redirect"
 	// ResultServerError is a 5xx answer that is not a throttle.
 	ResultServerError = "server_error"
 	// ResultError is an attempt without a usable answer: transport error, timeout, cancellation, or a 2xx
@@ -126,6 +129,10 @@ func classify(status int, err error) string {
 
 	if status == 0 {
 		return ResultError
+	}
+
+	if status >= http.StatusMultipleChoices && status < http.StatusBadRequest {
+		return ResultRedirect
 	}
 
 	if status >= http.StatusOK && status < http.StatusMultipleChoices {

@@ -82,16 +82,31 @@ func s3Conn(endpoint, bucket, keyID string) *connection.S3Spec {
 	}
 }
 
-// localhostEndpoint is the same emulator under another host name: a different endpoint for the factory.
+// localhostEndpoint is the same emulator under another host name: a different endpoint for the factory. A
+// remote emulator (GOPHERSTACK_ENDPOINT with another host) is returned unchanged, since localhost would not
+// reach it.
 func localhostEndpoint(t *testing.T, endpoint string) string {
 	t.Helper()
 
-	u, err := url.Parse(endpoint)
+	parsed, err := url.Parse(endpoint)
 	require.NoError(t, err)
 
-	u.Host = net.JoinHostPort("localhost", u.Port())
+	if parsed.Hostname() != "127.0.0.1" {
+		return endpoint
+	}
 
-	return u.String()
+	parsed.Host = net.JoinHostPort("localhost", parsed.Port())
+
+	return parsed.String()
+}
+
+func mustHost(t *testing.T, endpoint string) string {
+	t.Helper()
+
+	parsed, err := url.Parse(endpoint)
+	require.NoError(t, err)
+
+	return parsed.Host
 }
 
 func createBucket(t *testing.T, c *s3.Client, bucket string) {
@@ -250,18 +265,14 @@ func TestE2E_TwoConnectionsTwoCredentialsTwoBuckets(t *testing.T) {
 	putObject(t, clientB, bucketB, "k", "from-b")
 	assert.Equal(t, "from-b", getObject(t, clientB, bucketB, "k"))
 
-	srvURL, err := url.Parse(srv.Endpoint)
-	require.NoError(t, err)
+	hostA := mustHost(t, srv.Endpoint)
+	hostB := mustHost(t, endpointB)
 
 	transport.mu.Lock()
 	defer transport.mu.Unlock()
 
 	wantKeys := []string{keyTwoA, keyTwoA, keyTwoA, keyTwoB, keyTwoB, keyTwoB}
-	wantHosts := []string{
-		srvURL.Host, srvURL.Host, srvURL.Host,
-		net.JoinHostPort("localhost", srvURL.Port()), net.JoinHostPort("localhost", srvURL.Port()),
-		net.JoinHostPort("localhost", srvURL.Port()),
-	}
+	wantHosts := []string{hostA, hostA, hostA, hostB, hostB, hostB}
 
 	assert.Equal(t, wantKeys, transport.keyIDs)
 	assert.Equal(t, wantHosts, transport.hosts)
@@ -290,8 +301,14 @@ func TestE2E_RequestsEqualObservations(t *testing.T) {
 	require.NoError(t, err)
 
 	createBucket(t, cli, bucket)
-	putObject(t, cli, bucket, "present", "x")
+	etag := putObject(t, cli, bucket, "present", "x")
 	assert.Equal(t, "x", getObject(t, cli, bucket, "present"))
+
+	_, err = cli.GetObject(t.Context(), &s3.GetObjectInput{
+		Bucket: aws.String(bucket), Key: aws.String("present"), IfNoneMatch: aws.String(etag),
+	})
+	require.Error(t, err)
+	assert.True(t, connection.IsNotModified(err))
 
 	_, err = cli.GetObject(t.Context(), &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String("absent")})
 	require.Error(t, err)
@@ -306,6 +323,7 @@ func TestE2E_RequestsEqualObservations(t *testing.T) {
 		{connCount, opOther, resOK},
 		{connCount, opPut, resOK},
 		{connCount, opGet, resOK},
+		{connCount, opGet, resNotModified},
 		{connCount, opGet, resNotFound},
 		{connCount, opHead, resOK},
 		{connCount, opList, resOK},

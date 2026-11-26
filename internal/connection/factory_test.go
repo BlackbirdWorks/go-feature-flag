@@ -324,7 +324,32 @@ func TestSpec_Validate(t *testing.T) {
 		wantField string // empty: valid
 	}{
 		{"valid s3", testS3(), ""},
-		{"valid aws", &connection.AWSSpec{Type: connection.KindKinesis}, ""},
+		{"valid aws", &connection.AWSSpec{Type: connection.KindKinesis, Common: testS3().Common}, ""},
+		{"s3 region is required", other(func(spec *connection.S3Spec) { spec.Region = "" }), fieldRegion},
+		{"aws region is required", &connection.AWSSpec{Type: connection.KindSQS}, fieldRegion},
+		{"assumeRole with source key pair", other(func(spec *connection.S3Spec) {
+			spec.Credentials = connection.Credentials{
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: "a", SecretAccessKey: "b",
+			}
+		}), ""},
+		{"assumeRole on the chain", other(func(spec *connection.S3Spec) {
+			spec.Credentials = connection.Credentials{Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN}
+		}), ""},
+		{"assumeRole with only an access key", other(func(spec *connection.S3Spec) {
+			spec.Credentials = connection.Credentials{
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: "a",
+			}
+		}), fieldCreds},
+		{"assumeRole with only a secret key", other(func(spec *connection.S3Spec) {
+			spec.Credentials = connection.Credentials{
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, SecretAccessKey: "b",
+			}
+		}), fieldCreds},
+		{"assumeRole with only a session token", other(func(spec *connection.S3Spec) {
+			spec.Credentials = connection.Credentials{
+				Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, SessionToken: "t",
+			}
+		}), fieldCreds},
 		{"kind is required", &connection.AWSSpec{}, "type"},
 		{"bad endpoint", other(func(spec *connection.S3Spec) { spec.Endpoint = "localhost:4566" }), "endpoint"},
 		{"negative timeout", other(func(spec *connection.S3Spec) { spec.RequestTimeout = -time.Second }), "timeouts"},
@@ -536,20 +561,32 @@ func TestFactory_Credentials(t *testing.T) {
 				Type:            connection.CredentialsAssumeRole,
 				AccessKeyID:     "AKIDSRC",
 				SecretAccessKey: "s",
-				RoleARN:         "arn:aws:iam::1:role/r",
-				SessionName:     "sess",
+				RoleARN:         testRoleFull,
+				SessionName:     testSession,
 				ExternalID:      "ext-1",
 				STSEndpoint:     testSTSEndpoint,
 			},
 			stsResponse:  assumeRoleXML,
 			wantAccessID: "ASIAROLE",
 			wantSTSForm: map[string]string{
-				"Action":          "AssumeRole",
-				"RoleArn":         "arn:aws:iam::1:role/r",
-				"RoleSessionName": "sess",
+				formAction:        "AssumeRole",
+				formRoleArn:       testRoleFull,
+				"RoleSessionName": testSession,
 				"ExternalId":      "ext-1",
 			},
 			wantSTSHost:  "sts.test",
+			wantSTSCalls: 1,
+		},
+		{
+			name: "assumeRole without an STS endpoint does not use the connection endpoint",
+			creds: connection.Credentials{
+				Type: connection.CredentialsAssumeRole, AccessKeyID: "AKIDSRC", SecretAccessKey: "s",
+				RoleARN: testRoleFull, SessionName: testSession,
+			},
+			stsResponse:  assumeRoleXML,
+			wantAccessID: "ASIAROLE",
+			wantSTSForm:  map[string]string{formAction: "AssumeRole", formRoleArn: testRoleFull},
+			wantSTSHost:  "sts.us-east-1.amazonaws.com",
 			wantSTSCalls: 1,
 		},
 		{
@@ -561,7 +598,7 @@ func TestFactory_Credentials(t *testing.T) {
 			stsResponse:  webIdentityXML,
 			wantAccessID: "ASIAWEB",
 			wantSTSForm: map[string]string{
-				"Action": "AssumeRoleWithWebIdentity", "RoleArn": "arn:aws:iam::1:role/web",
+				formAction: "AssumeRoleWithWebIdentity", formRoleArn: "arn:aws:iam::1:role/web",
 				"RoleSessionName": "websess", "WebIdentityToken": "jwt-token",
 			},
 			wantSTSHost:  "sts.test",

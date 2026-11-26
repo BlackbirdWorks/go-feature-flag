@@ -10,34 +10,32 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
+func assumeBase(spec *connection.S3Spec) {
+	spec.Credentials = connection.Credentials{
+		Type: connection.CredentialsAssumeRole, RoleARN: "arn:base", SessionName: "s", ExternalID: "e",
+		STSEndpoint: "http://sts.base", AccessKeyID: "AKIDBASE", SecretAccessKey: "base-secret",
+	}
+}
+
+func webBase(spec *connection.S3Spec) {
+	spec.Credentials = connection.Credentials{
+		Type: connection.CredentialsWebIdentity, RoleARN: "arn:base", SessionName: "s",
+		TokenFile: "/tok-base", STSEndpoint: "http://sts.base",
+	}
+}
+
 func TestIdentity_EachFieldChangesIt(t *testing.T) {
 	t.Parallel()
 
-	base := testS3().Identity()
-
 	tests := []struct {
+		base func(*connection.S3Spec)
 		mut  func(*connection.S3Spec)
 		name string
 	}{
 		{name: "endpoint", mut: func(spec *connection.S3Spec) { spec.Endpoint = "http://other.test" }},
-		{name: "region", mut: func(spec *connection.S3Spec) { spec.Region = testRegionEU }},
+		{name: fieldRegion, mut: func(spec *connection.S3Spec) { spec.Region = testRegionEU }},
 		{name: "bucket", mut: func(spec *connection.S3Spec) { spec.Bucket = bucketOther }},
 		{name: "path style", mut: func(spec *connection.S3Spec) { spec.PathStyle = false }},
-		{
-			name: "credentials type",
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.Type = connection.CredentialsAssumeRole },
-		},
-		{name: "access key id", mut: func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = "AKIDOTHER" }},
-		{
-			name: "secret access key",
-			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "another-secret" },
-		},
-		{name: "session token", mut: func(spec *connection.S3Spec) { spec.Credentials.SessionToken = "tok" }},
-		{name: "role arn", mut: func(spec *connection.S3Spec) { spec.Credentials.RoleARN = testRoleARN }},
-		{name: "session name", mut: func(spec *connection.S3Spec) { spec.Credentials.SessionName = "sn" }},
-		{name: "external id", mut: func(spec *connection.S3Spec) { spec.Credentials.ExternalID = "ext" }},
-		{name: "token file", mut: func(spec *connection.S3Spec) { spec.Credentials.TokenFile = "/tok" }},
-		{name: "sts endpoint", mut: func(spec *connection.S3Spec) { spec.Credentials.STSEndpoint = testSTSEndpoint }},
 		{name: "connect timeout", mut: func(spec *connection.S3Spec) { spec.ConnectTimeout = time.Second }},
 		{name: "request timeout", mut: func(spec *connection.S3Spec) { spec.RequestTimeout = time.Second }},
 		{name: "retry attempts", mut: func(spec *connection.S3Spec) { spec.Retry.MaxAttempts = 9 }},
@@ -50,22 +48,99 @@ func TestIdentity_EachFieldChangesIt(t *testing.T) {
 			name: "response checksum",
 			mut:  func(spec *connection.S3Spec) { spec.ResponseChecksumValidation = connection.ChecksumWhenRequired },
 		},
+		{
+			name: "static to chain",
+			mut:  func(spec *connection.S3Spec) { spec.Credentials = connection.Credentials{} },
+		},
+		{
+			name: "static access key id",
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = "AKIDOTHER" },
+		},
+		{
+			name: "static secret access key",
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "another-secret" },
+		},
+		{name: "static session token", mut: func(spec *connection.S3Spec) { spec.Credentials.SessionToken = "tok" }},
+		{
+			name: "assume role arn",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.RoleARN = "arn:x" },
+		},
+		{
+			name: "assume session name",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionName = "x" },
+		},
+		{
+			name: "assume external id",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.ExternalID = "x" },
+		},
+		{
+			name: "assume sts endpoint", base: assumeBase,
+			mut: func(spec *connection.S3Spec) { spec.Credentials.STSEndpoint = testSTSEndpoint },
+		},
+		{
+			name: "assume source key",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.AccessKeyID = "AKIDX" },
+		},
+		{
+			name: "assume source secret",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SecretAccessKey = "x" },
+		},
+		{
+			name: "assume source token",
+			base: assumeBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionToken = "x" },
+		},
+		{
+			name: "web role arn",
+			base: webBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.RoleARN = "arn:x" },
+		},
+		{
+			name: "web session name",
+			base: webBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.SessionName = "x" },
+		},
+		{
+			name: "web token file",
+			base: webBase,
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.TokenFile = "/x" },
+		},
+		{
+			name: "web sts endpoint", base: webBase,
+			mut: func(spec *connection.S3Spec) { spec.Credentials.STSEndpoint = testSTSEndpoint },
+		},
+		{
+			name: "static to assumeRole",
+			mut:  func(spec *connection.S3Spec) { spec.Credentials.Type = connection.CredentialsAssumeRole },
+		},
 	}
 
-	seen := map[string]string{base: "base"}
+	seen := map[string]string{}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		baseSpec := testS3()
+		if tt.base != nil {
+			tt.base(baseSpec)
+		}
 
-			id := other(tt.mut).Identity()
-			assert.NotEqual(t, base, id)
-		})
+		base := baseSpec.Identity()
+		changed := other(func(spec *connection.S3Spec) {
+			if tt.base != nil {
+				tt.base(spec)
+			}
 
-		// distinct changes must also be distinct from each other
-		id := other(tt.mut).Identity()
-		assert.NotContains(t, seen, id, "%s collides with %s", tt.name, seen[id])
-		seen[id] = tt.name
+			tt.mut(spec)
+		}).Identity()
+
+		assert.NotEqual(t, base, changed, tt.name)
+		assert.NotContains(t, seen, changed, "%s collides with %s", tt.name, seen[changed])
+
+		seen[changed] = tt.name
 	}
 }
 
@@ -84,6 +159,53 @@ func TestIdentity_Stability(t *testing.T) {
 			a:    other(func(spec *connection.S3Spec) { spec.Credentials = connection.Credentials{} }),
 			b: other(func(spec *connection.S3Spec) {
 				spec.Credentials = connection.Credentials{Type: connection.CredentialsChain}
+			}),
+			want: true,
+		},
+		{
+			name: "chain ignores leftover keys and role fields",
+			a:    other(func(spec *connection.S3Spec) { spec.Credentials = connection.Credentials{} }),
+			b: other(func(spec *connection.S3Spec) {
+				spec.Credentials = connection.Credentials{
+					Type:            connection.CredentialsChain,
+					AccessKeyID:     "AKIDLEFT",
+					SecretAccessKey: "left",
+					SessionToken:    "t",
+					RoleARN:         "arn:left",
+					SessionName:     "s",
+					ExternalID:      "e",
+					TokenFile:       "/t",
+					STSEndpoint:     testSTSEndpoint,
+				}
+			}),
+			want: true,
+		},
+		{
+			name: "static ignores role fields",
+			a:    testS3(),
+			b: other(func(spec *connection.S3Spec) {
+				spec.Credentials.RoleARN = "arn:left"
+				spec.Credentials.TokenFile = "/t"
+				spec.Credentials.ExternalID = "e"
+			}),
+			want: true,
+		},
+		{
+			name: "webIdentity ignores keys and external id",
+			a:    other(webBase),
+			b: other(func(spec *connection.S3Spec) {
+				webBase(spec)
+				spec.Credentials.AccessKeyID = "AKIDLEFT"
+				spec.Credentials.ExternalID = "e"
+			}),
+			want: true,
+		},
+		{
+			name: "assumeRole ignores the token file",
+			a:    other(assumeBase),
+			b: other(func(spec *connection.S3Spec) {
+				assumeBase(spec)
+				spec.Credentials.TokenFile = "/left"
 			}),
 			want: true,
 		},

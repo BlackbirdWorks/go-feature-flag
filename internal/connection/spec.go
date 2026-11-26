@@ -24,8 +24,9 @@ const (
 	KindRedshift = "redshift"
 )
 
-// Spec describes one connection. The set of implementations is open: a new connection kind is a new Spec,
-// and callers keep going through the [Factory].
+// Spec describes one connection. The AWS backed kinds ([S3Spec], [AWSSpec]) live in this package and are the
+// only ones the [Factory] can build clients for; a backend that is not AWS gets its own spec type and its own
+// factory method later, without changing the callers of the existing ones.
 type Spec interface {
 	// Kind is the connection type (s3, kinesis, sqs, redshift, ...).
 	Kind() string
@@ -97,15 +98,20 @@ type Retry struct {
 // Common holds the settings shared by every AWS backed connection.
 type Common struct {
 	Credentials Credentials `json:"credentials"`
-	// Endpoint overrides the service endpoint (emulators, S3 compatible stores); optional.
+	// Endpoint is the service endpoint (emulators, S3 compatible stores); empty means the AWS endpoint of
+	// the region. Environment endpoint variables (AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3, ...) are ignored.
 	Endpoint string `json:"endpoint"`
-	// Region is the AWS region; empty leaves it to the SDK chain.
+	// Region is the AWS region. It is required: a connection never takes its region from the process
+	// environment or the shared config files.
 	Region string `json:"region"`
 	Retry  Retry  `json:"retry"`
-	// ConnectTimeout bounds the TCP connect; zero keeps the SDK default. It is ignored when the factory
-	// has an HTTP client or round tripper override.
+	// ConnectTimeout bounds the TCP connect only; zero means 30s. The TLS handshake is bounded by 10s.
+	// It is ignored when the factory has an HTTP client or round tripper override.
 	ConnectTimeout time.Duration `json:"connectTimeout"`
-	// RequestTimeout bounds one HTTP attempt; zero means no limit besides the context.
+	// RequestTimeout bounds the wait for the response headers of one HTTP attempt, once the request is
+	// written; zero means no limit besides the context. It does not bound the reading of the body, which
+	// only the context of the caller cancels. It is ignored when the factory has an HTTP client or round
+	// tripper override.
 	RequestTimeout time.Duration `json:"requestTimeout"`
 }
 
@@ -145,10 +151,20 @@ type awsBacked interface {
 func (*S3Spec) Kind() string { return KindS3 }
 
 // Kind implements [Spec].
-func (s *AWSSpec) Kind() string { return s.Type }
+func (s *AWSSpec) Kind() string {
+	if s == nil {
+		return ""
+	}
+
+	return s.Type
+}
 
 // Validate implements [Spec].
 func (s *S3Spec) Validate() error {
+	if s == nil {
+		return errNilSpec()
+	}
+
 	err := s.Common.validate()
 	if err != nil {
 		return err
@@ -164,6 +180,10 @@ func (s *S3Spec) Validate() error {
 
 // Validate implements [Spec].
 func (s *AWSSpec) Validate() error {
+	if s == nil {
+		return errNilSpec()
+	}
+
 	switch s.Type {
 	case KindKinesis, KindSQS, KindRedshift:
 	default:
@@ -175,6 +195,10 @@ func (s *AWSSpec) Validate() error {
 
 // Identity implements [Spec].
 func (s *S3Spec) Identity() string {
+	if s == nil {
+		return ""
+	}
+
 	fprint := newFingerprint(KindS3)
 	s.Common.fingerprint(fprint)
 	fprint.str("bucket", s.Bucket)
@@ -187,6 +211,10 @@ func (s *S3Spec) Identity() string {
 
 // Identity implements [Spec].
 func (s *AWSSpec) Identity() string {
+	if s == nil {
+		return ""
+	}
+
 	fprint := newFingerprint(s.Type)
 	s.Common.fingerprint(fprint)
 
@@ -195,6 +223,8 @@ func (s *AWSSpec) Identity() string {
 
 func (s *S3Spec) common() *Common  { return &s.Common }
 func (s *AWSSpec) common() *Common { return &s.Common }
+
+func errNilSpec() error { return &SpecError{Field: "spec", Reason: "is nil"} }
 
 func validateChecksum(field string, mode ChecksumMode) error {
 	switch mode {
@@ -206,6 +236,10 @@ func validateChecksum(field string, mode ChecksumMode) error {
 }
 
 func (c *Common) validate() error {
+	if c.Region == "" {
+		return &SpecError{Field: "region", Reason: "is required"}
+	}
+
 	err := validateURL("endpoint", c.Endpoint)
 	if err != nil {
 		return err
@@ -235,6 +269,21 @@ func validateURL(field, raw string) error {
 	return nil
 }
 
+func (c *Credentials) validateAssumeRole() error {
+	if c.RoleARN == "" {
+		return &SpecError{Field: fieldCredentials, Reason: "assumeRole needs roleArn"}
+	}
+
+	if (c.AccessKeyID == "") != (c.SecretAccessKey == "") || (c.AccessKeyID == "" && c.SessionToken != "") {
+		return &SpecError{
+			Field:  fieldCredentials,
+			Reason: "assumeRole source credentials need accessKeyId and secretAccessKey together",
+		}
+	}
+
+	return nil
+}
+
 func (c *Credentials) validate() error {
 	switch c.Type {
 	case "", CredentialsChain:
@@ -246,8 +295,9 @@ func (c *Credentials) validate() error {
 			}
 		}
 	case CredentialsAssumeRole:
-		if c.RoleARN == "" {
-			return &SpecError{Field: fieldCredentials, Reason: "assumeRole needs roleArn"}
+		err := c.validateAssumeRole()
+		if err != nil {
+			return err
 		}
 	case CredentialsWebIdentity:
 		if c.RoleARN == "" || c.TokenFile == "" {
@@ -268,22 +318,39 @@ func (c *Common) fingerprint(fprint *fingerprint) {
 	fprint.str("retry.maxAttempts", strconv.Itoa(c.Retry.MaxAttempts))
 	fprint.str("retry.maxBackoff", c.Retry.MaxBackoff.String())
 
-	creds := &c.Credentials
+	c.Credentials.fingerprint(fprint)
+}
 
-	credType := creds.Type
+// fingerprint writes the credential settings that matter for the type: leftover fields of another type do
+// not change the identity, and an empty type is chain.
+func (c *Credentials) fingerprint(fprint *fingerprint) {
+	credType := c.Type
 	if credType == "" {
 		credType = CredentialsChain
 	}
 
 	fprint.str("credentials.type", string(credType))
-	fprint.secret("credentials.accessKeyId", creds.AccessKeyID)
-	fprint.secret("credentials.secretAccessKey", creds.SecretAccessKey)
-	fprint.secret("credentials.sessionToken", creds.SessionToken)
-	fprint.str("credentials.roleArn", creds.RoleARN)
-	fprint.str("credentials.sessionName", creds.SessionName)
-	fprint.str("credentials.externalId", creds.ExternalID)
-	fprint.str("credentials.tokenFile", creds.TokenFile)
-	fprint.str("credentials.stsEndpoint", creds.STSEndpoint)
+
+	switch credType {
+	case CredentialsStatic:
+		fprint.secret("credentials.accessKeyId", c.AccessKeyID)
+		fprint.secret("credentials.secretAccessKey", c.SecretAccessKey)
+		fprint.secret("credentials.sessionToken", c.SessionToken)
+	case CredentialsAssumeRole:
+		fprint.secret("credentials.accessKeyId", c.AccessKeyID)
+		fprint.secret("credentials.secretAccessKey", c.SecretAccessKey)
+		fprint.secret("credentials.sessionToken", c.SessionToken)
+		fprint.str("credentials.roleArn", c.RoleARN)
+		fprint.str("credentials.sessionName", c.SessionName)
+		fprint.str("credentials.externalId", c.ExternalID)
+		fprint.str("credentials.stsEndpoint", c.STSEndpoint)
+	case CredentialsWebIdentity:
+		fprint.str("credentials.roleArn", c.RoleARN)
+		fprint.str("credentials.sessionName", c.SessionName)
+		fprint.str("credentials.tokenFile", c.TokenFile)
+		fprint.str("credentials.stsEndpoint", c.STSEndpoint)
+	case CredentialsChain:
+	}
 }
 
 // fingerprint writes length prefixed fields (so no two field lists collide) to a SHA-256. A secret enters

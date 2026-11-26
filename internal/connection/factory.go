@@ -2,16 +2,18 @@ package connection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -23,13 +25,16 @@ import (
 type Option func(*Factory)
 
 // WithHTTPClient makes every client use client instead of one HTTP client per connection (tests). The
-// connect and request timeouts of the specs are then the business of client.
+// timeouts of the specs and the redirect policy are then the business of client: to keep the request
+// metric exact, it must not follow redirects (see [NoRedirect]). The factory never closes it.
 func WithHTTPClient(client aws.HTTPClient) Option {
 	return func(f *Factory) { f.httpClient = client }
 }
 
-// WithRoundTripper makes every client use rt as the transport of its HTTP client (tests). The request
-// timeout of the spec still applies, the connect timeout does not.
+// WithRoundTripper makes every client use rt as the transport of an HTTP client of its own (tests). That
+// client does not follow redirects. The timeouts of the specs do not apply (they configure the transport
+// the factory builds itself), and when a connection is dropped or replaced the factory calls
+// CloseIdleConnections on rt if it has the method.
 func WithRoundTripper(rt http.RoundTripper) Option {
 	return func(f *Factory) { f.roundTripper = rt }
 }
@@ -44,8 +49,12 @@ func WithLogger(logger *slog.Logger) Option {
 	return func(f *Factory) { f.logger = logger }
 }
 
-// Factory holds the specs of the connections by name and builds exactly one client per connection and
-// identity. It is safe for concurrent use.
+// NoRedirect is the [http.Client.CheckRedirect] of every client the factory builds: a 3xx answer is
+// returned to the SDK instead of followed, so one SDK attempt is one wire request.
+func NoRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+// Factory holds the specs of the connections by name and builds exactly one AWS configuration (and S3
+// client) per connection and identity. It is safe for concurrent use.
 type Factory struct {
 	httpClient   aws.HTTPClient
 	roundTripper http.RoundTripper
@@ -59,11 +68,23 @@ type Factory struct {
 
 // entry is the built state of one connection at one identity.
 type entry struct {
-	cfg      *aws.Config
-	s3       *s3.Client
+	cfg *aws.Config
+	s3  *s3.Client
+	// owned is the HTTP client the factory built for this entry; nil when the caller supplied it.
+	owned    *http.Client
 	spec     Spec
 	identity string
 	mu       sync.Mutex
+}
+
+// closeIdle closes the idle connections of the HTTP client the factory built for the entry.
+func (e *entry) closeIdle() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.owned != nil {
+		e.owned.CloseIdleConnections()
+	}
 }
 
 // New returns an empty factory; load its connections with [Factory.Replace] or [Factory.Set].
@@ -80,7 +101,8 @@ func New(opts ...Option) *Factory {
 }
 
 // Set adds or updates the connection name. The client built for it is kept when the identity of spec is
-// the one already held, and rebuilt on next use otherwise. An invalid spec changes nothing.
+// the one already held, and rebuilt on next use otherwise (the idle connections of the old one are
+// closed). An invalid spec changes nothing.
 func (f *Factory) Set(name string, spec Spec) error {
 	err := validateNamed(name, spec)
 	if err != nil {
@@ -88,16 +110,18 @@ func (f *Factory) Set(name string, spec Spec) error {
 	}
 
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	stale := f.put(name, spec)
+	f.mu.Unlock()
 
-	f.put(name, spec)
+	closeAll(stale)
 
 	return nil
 }
 
 // Replace makes specs the whole set of connections, as a reload does: a connection whose identity did not
 // change keeps its client, a changed one gets a new client on next use, and a connection that is not in
-// specs is dropped. An invalid spec changes nothing.
+// specs is dropped. The idle connections of every dropped or replaced client are closed. An invalid spec
+// changes nothing.
 func (f *Factory) Replace(specs map[string]Spec) error {
 	for name, spec := range specs {
 		err := validateNamed(name, spec)
@@ -106,38 +130,60 @@ func (f *Factory) Replace(specs map[string]Spec) error {
 		}
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	var stale []*entry
 
-	for name := range f.entries {
+	f.mu.Lock()
+
+	for name, ent := range f.entries {
 		if _, ok := specs[name]; !ok {
 			delete(f.entries, name)
+
+			stale = append(stale, ent)
 		}
 	}
 
 	for name, spec := range specs {
-		f.put(name, spec)
+		stale = append(stale, f.put(name, spec)...)
 	}
+
+	f.mu.Unlock()
+
+	closeAll(stale)
 
 	return nil
 }
 
-// Remove drops the connection name; it is a no-op for an unknown name.
+// Remove drops the connection name and closes the idle connections of its client; it is a no-op for an
+// unknown name.
 func (f *Factory) Remove(name string) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-
+	ent := f.entries[name]
 	delete(f.entries, name)
+	f.mu.Unlock()
+
+	if ent != nil {
+		ent.closeIdle()
+	}
+}
+
+func closeAll(entries []*entry) {
+	for _, ent := range entries {
+		ent.closeIdle()
+	}
 }
 
 func validateNamed(name string, spec Spec) error {
+	if name == "" {
+		return &SpecError{Field: "name", Reason: "must not be empty"}
+	}
+
 	if spec == nil {
 		return &SpecError{Connection: name, Field: "spec", Reason: "is nil"}
 	}
 
 	err := spec.Validate()
 	if err != nil {
-		if se, ok := err.(*SpecError); ok { //nolint:errorlint // own type, returned unwrapped by Validate
+		if se, ok := errors.AsType[*SpecError](err); ok {
 			named := *se
 			named.Connection = name
 
@@ -158,21 +204,18 @@ func (f *Factory) String() string {
 // GoString implements [fmt.GoStringer].
 func (f *Factory) GoString() string { return f.String() }
 
-// Names returns the connection names.
+// Names returns the connection names, sorted.
 func (f *Factory) Names() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	names := make([]string, 0, len(f.entries))
-	for name := range f.entries {
-		names = append(names, name)
-	}
-
-	return names
+	return slices.Sorted(maps.Keys(f.entries))
 }
 
-// Builds returns, per connection name, how many clients the factory built for it since it was created. A
-// connection used by any number of callers and never changed has one.
+// Builds returns, per connection name, how many AWS configurations (and with them the S3 client) the
+// factory built for it since it was created. A connection used by any number of callers and never changed
+// has one. A caller that builds several service clients (SQS, Kinesis, ...) from one [Factory.AWSConfig]
+// is not counted: the factory only sees the configuration.
 func (f *Factory) Builds() map[string]int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -180,8 +223,10 @@ func (f *Factory) Builds() map[string]int {
 	return maps.Clone(f.builds)
 }
 
-// AWSConfig returns the AWS configuration of the connection name, built once per identity. It serves any
-// AWS backed connection (S3, Kinesis, SQS, Redshift).
+// AWSConfig returns a copy of the AWS configuration of the connection name, built once per identity. It
+// serves any AWS backed connection (S3, Kinesis, SQS, Redshift). The configuration carries the endpoint
+// and region of the spec and ignores the process environment and shared config files for them (and for
+// service endpoints), but a service client built from it must not be given another endpoint.
 func (f *Factory) AWSConfig(ctx context.Context, name string) (aws.Config, error) {
 	ent, err := f.lookup(name)
 	if err != nil {
@@ -196,7 +241,10 @@ func (f *Factory) AWSConfig(ctx context.Context, name string) (aws.Config, error
 		return aws.Config{}, err
 	}
 
-	return *cfg, nil
+	cp := cfg.Copy()
+	cp.APIOptions = slices.Clone(cfg.APIOptions)
+
+	return cp, nil
 }
 
 // S3 returns the S3 client of the connection name: the same client for every caller until the identity of
@@ -224,19 +272,33 @@ func (f *Factory) S3(ctx context.Context, name string) (*s3.Client, error) {
 		return nil, err
 	}
 
-	ent.s3 = s3.NewFromConfig(*cfg, func(o *s3.Options) { o.UsePathStyle = spec.PathStyle })
+	ent.s3 = s3.NewFromConfig(*cfg, func(opts *s3.Options) {
+		opts.UsePathStyle = spec.PathStyle
+		// the spec endpoint wins over any service endpoint the SDK would resolve by itself
+		if spec.Endpoint != "" {
+			opts.BaseEndpoint = aws.String(spec.Endpoint)
+		}
+	})
 
 	return ent.s3, nil
 }
 
-// put must be called with f.mu held.
-func (f *Factory) put(name string, spec Spec) {
+// put must be called with f.mu held. It returns the entry it replaced, if any.
+func (f *Factory) put(name string, spec Spec) []*entry {
 	identity := spec.Identity()
-	if cur, ok := f.entries[name]; ok && cur.identity == identity {
-		return
+
+	cur, ok := f.entries[name]
+	if ok && cur.identity == identity {
+		return nil
 	}
 
 	f.entries[name] = &entry{spec: spec, identity: identity}
+
+	if ok {
+		return []*entry{cur}
+	}
+
+	return nil
 }
 
 func (f *Factory) lookup(name string) (*entry, error) {
@@ -251,7 +313,7 @@ func (f *Factory) lookup(name string) (*entry, error) {
 	return ent, nil
 }
 
-// config builds the AWS configuration of e once; ent.mu must be held.
+// config builds the AWS configuration of ent once; ent.mu must be held.
 func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Config, error) {
 	if ent.cfg != nil {
 		return ent.cfg, nil
@@ -262,12 +324,13 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 		return nil, &KindError{Name: name, Want: "an AWS backed kind", Got: ent.spec.Kind()}
 	}
 
-	cfg, err := f.build(ctx, name, backed)
+	cfg, owned, err := f.build(ctx, name, backed)
 	if err != nil {
 		return nil, err
 	}
 
 	ent.cfg = &cfg
+	ent.owned = owned
 
 	f.mu.Lock()
 	f.builds[name]++
@@ -275,57 +338,48 @@ func (f *Factory) config(ctx context.Context, name string, ent *entry) (*aws.Con
 
 	if f.logger != nil {
 		f.logger.LogAttrs(ctx, slog.LevelDebug, "connection client built",
-			slog.String("connection", name), slog.String("kind", ent.spec.Kind()),
-			slog.String("identity", ent.identity))
+			slog.String("connection", name), slog.String("kind", ent.spec.Kind()))
 	}
 
 	return ent.cfg, nil
 }
 
-func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.Config, error) {
+// build makes the AWS configuration of a connection. Region and endpoint come from the spec only. The
+// configuration never reads the process environment or the shared config files, except for credentials
+// of type chain (and assumeRole without source keys), which use the SDK default chain on purpose.
+func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.Config, *http.Client, error) {
 	com := spec.common()
+	choice := f.newHTTPClient(com)
 
-	opts := []func(*config.LoadOptions) error{f.httpClientOption(com)}
+	var cfg aws.Config
 
-	if com.Region != "" {
-		opts = append(opts, config.WithRegion(com.Region))
+	if usesChain(&com.Credentials) {
+		var err error
+
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(com.Region), config.WithHTTPClient(choice.client))
+		if err != nil {
+			return aws.Config{}, nil, fmt.Errorf("connection %q: load AWS config: %w", name, err)
+		}
+	} else {
+		cfg = aws.Config{Region: com.Region, HTTPClient: choice.client}
+		if com.Credentials.Type == CredentialsStatic || com.Credentials.Type == CredentialsAssumeRole {
+			cfg.Credentials = credentials.NewStaticCredentialsProvider(
+				com.Credentials.AccessKeyID.Reveal(), com.Credentials.SecretAccessKey.Reveal(),
+				com.Credentials.SessionToken.Reveal())
+		}
 	}
+
+	// Isolation: nothing is read from the environment or the shared files after this point.
+	cfg.ConfigSources = nil
+	cfg.DefaultsMode = aws.DefaultsModeLegacy
+	cfg.BaseEndpoint = nil
 
 	if com.Endpoint != "" {
-		opts = append(opts, config.WithBaseEndpoint(com.Endpoint))
+		cfg.BaseEndpoint = aws.String(com.Endpoint)
 	}
 
-	// Static keys are the credentials of a static connection, and the source of an assumeRole one (the
-	// chain is the source when no key is given).
-	if com.Credentials.Type == CredentialsStatic ||
-		(com.Credentials.Type == CredentialsAssumeRole && com.Credentials.AccessKeyID != "") {
-		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			com.Credentials.AccessKeyID.Reveal(), com.Credentials.SecretAccessKey.Reveal(),
-			com.Credentials.SessionToken.Reveal())))
-	}
-
-	if com.Retry.MaxAttempts > 0 || com.Retry.MaxBackoff > 0 {
-		opts = append(opts, config.WithRetryer(func() aws.Retryer {
-			return retry.NewStandard(func(opts *retry.StandardOptions) {
-				if com.Retry.MaxAttempts > 0 {
-					opts.MaxAttempts = com.Retry.MaxAttempts
-				}
-
-				if com.Retry.MaxBackoff > 0 {
-					opts.MaxBackoff = com.Retry.MaxBackoff
-				}
-			})
-		}))
-	}
-
-	if s3spec, ok := spec.(*S3Spec); ok {
-		opts = append(opts, checksumOptions(s3spec)...)
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return aws.Config{}, fmt.Errorf("connection %q: load AWS config: %w", name, err)
-	}
+	cfg.Retryer = retryer(com.Retry)
+	cfg.RequestChecksumCalculation, cfg.ResponseChecksumValidation = checksums(spec)
 
 	assumeRole(&cfg, &com.Credentials)
 
@@ -333,29 +387,55 @@ func (f *Factory) build(ctx context.Context, name string, spec awsBacked) (aws.C
 		cfg.APIOptions = append(cfg.APIOptions, observerOption(name, f.observer))
 	}
 
-	return cfg, nil
+	return cfg, choice.owned, nil
 }
 
-func checksumOptions(spec *S3Spec) []func(*config.LoadOptions) error {
-	var opts []func(*config.LoadOptions) error
-
-	switch spec.RequestChecksumCalculation {
-	case ChecksumWhenSupported:
-		opts = append(opts, config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenSupported))
-	case ChecksumWhenRequired:
-		opts = append(opts, config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired))
-	case ChecksumDefault:
+// usesChain reports whether the credentials come from the SDK default chain.
+func usesChain(creds *Credentials) bool {
+	switch creds.Type {
+	case "", CredentialsChain:
+		return true
+	case CredentialsAssumeRole:
+		return creds.AccessKeyID == ""
+	case CredentialsStatic, CredentialsWebIdentity:
 	}
 
-	switch spec.ResponseChecksumValidation {
-	case ChecksumWhenSupported:
-		opts = append(opts, config.WithResponseChecksumValidation(aws.ResponseChecksumValidationWhenSupported))
-	case ChecksumWhenRequired:
-		opts = append(opts, config.WithResponseChecksumValidation(aws.ResponseChecksumValidationWhenRequired))
-	case ChecksumDefault:
+	return false
+}
+
+func retryer(retries Retry) func() aws.Retryer {
+	return func() aws.Retryer {
+		return retry.NewStandard(func(opts *retry.StandardOptions) {
+			if retries.MaxAttempts > 0 {
+				opts.MaxAttempts = retries.MaxAttempts
+			}
+
+			if retries.MaxBackoff > 0 {
+				opts.MaxBackoff = retries.MaxBackoff
+			}
+		})
+	}
+}
+
+// checksums resolves the two checksum settings; the SDK default (whenSupported) when unset or not S3.
+func checksums(spec awsBacked) (aws.RequestChecksumCalculation, aws.ResponseChecksumValidation) {
+	request := aws.RequestChecksumCalculationWhenSupported
+	response := aws.ResponseChecksumValidationWhenSupported
+
+	s3spec, ok := spec.(*S3Spec)
+	if !ok {
+		return request, response
 	}
 
-	return opts
+	if s3spec.RequestChecksumCalculation == ChecksumWhenRequired {
+		request = aws.RequestChecksumCalculationWhenRequired
+	}
+
+	if s3spec.ResponseChecksumValidation == ChecksumWhenRequired {
+		response = aws.ResponseChecksumValidationWhenRequired
+	}
+
+	return request, response
 }
 
 // assumeRole replaces the credentials of cfg for the assumeRole and webIdentity types. The STS client is
@@ -395,24 +475,51 @@ func stsEndpoint(creds *Credentials) func(*sts.Options) {
 	}
 }
 
-// httpClientOption sets the HTTP client of one connection: the override of the factory, or a client of its
-// own, so connection pools are never shared between connections.
-func (f *Factory) httpClientOption(com *Common) config.LoadOptionsFunc {
-	switch {
-	case f.httpClient != nil:
-		return config.WithHTTPClient(f.httpClient)
-	case f.roundTripper != nil:
-		return config.WithHTTPClient(&http.Client{Transport: f.roundTripper, Timeout: com.RequestTimeout})
-	}
-
-	client := awshttp.NewBuildableClient()
-	if com.RequestTimeout > 0 {
-		client = client.WithTimeout(com.RequestTimeout)
-	}
-
-	if com.ConnectTimeout > 0 {
-		client = client.WithDialerOptions(func(d *net.Dialer) { d.Timeout = com.ConnectTimeout })
-	}
-
-	return config.WithHTTPClient(client)
+// httpChoice is the HTTP client of a connection, and the client the factory built (and so closes), if any.
+type httpChoice struct {
+	client aws.HTTPClient
+	owned  *http.Client
 }
+
+// newHTTPClient returns the HTTP client of one connection. The client built from scratch has its own
+// connection pool and a transport bounding the TCP connect (ConnectTimeout), the TLS handshake and the wait
+// for the response headers (RequestTimeout); the reading of the body is bounded by the context of the caller
+// only. It never follows redirects.
+func (f *Factory) newHTTPClient(com *Common) httpChoice {
+	if f.httpClient != nil {
+		return httpChoice{client: f.httpClient}
+	}
+
+	if f.roundTripper != nil {
+		client := &http.Client{Transport: f.roundTripper, CheckRedirect: NoRedirect}
+
+		return httpChoice{client: client, owned: client}
+	}
+
+	connect := defaultConnectTimeout
+	if com.ConnectTimeout > 0 {
+		connect = com.ConnectTimeout
+	}
+
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: connect, KeepAlive: dialKeepAlive}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          maxIdleConns,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: time.Second,
+		ResponseHeaderTimeout: com.RequestTimeout,
+	}
+	client := &http.Client{Transport: transport, CheckRedirect: NoRedirect}
+
+	return httpChoice{client: client, owned: client}
+}
+
+const (
+	defaultConnectTimeout = 30 * time.Second
+	dialKeepAlive         = 30 * time.Second
+	tlsHandshakeTimeout   = 10 * time.Second
+	idleConnTimeout       = 90 * time.Second
+	maxIdleConns          = 100
+)

@@ -108,6 +108,11 @@ const (
 	// testSTSEndpoint is the STS endpoint of the credential tests.
 	testSTSEndpoint = "http://sts.test"
 	testRoleARN     = "arn:r"
+	fieldRegion     = "region"
+	testRoleFull    = "arn:aws:iam::1:role/r"
+	testSession     = "sess"
+	formAction      = "Action"
+	formRoleArn     = "RoleArn"
 	testRegionEU    = "eu-west-1"
 	connC           = "c"
 	connOne         = "one"
@@ -131,6 +136,7 @@ const (
 	resClientError = "client_error"
 	resServerError = "server_error"
 	resError       = "error"
+	resRedirect    = "redirect"
 )
 
 const (
