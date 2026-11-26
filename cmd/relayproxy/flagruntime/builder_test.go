@@ -468,7 +468,7 @@ func TestContestedKeysStayWithTheRunningOwner(t *testing.T) {
 	assert.Equal(t, keys, built.Runtime.FlagSets["holder"].APIKeys)
 	assert.Equal(t, 0, built.Runtime.FlagSets["newcomer"].APIKeys)
 
-	owner, _ := built.Runtime.FlagSetByKey(declared[keys-1])
+	owner, _ := routedSet(built.Runtime, declared[keys-1])
 
 	assert.Equal(t, "holder", owner.Name)
 }

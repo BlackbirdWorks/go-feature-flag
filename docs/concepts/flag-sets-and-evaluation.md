@@ -62,27 +62,43 @@ After a restart, the manifest reader can restore its saved state. The objects it
 
 ## Evaluation is the version 1 evaluation
 
-For the same flag files and contexts, the evaluator answers what the version 1 client answers, field by field: value, variation, reason, error code and details, metadata (including `evaluatedRuleName`), cacheable, version, `trackEvents` and failed. The same holds for the all-flags state, the listed flags, the flag configuration view and the hashes of `/v1/flag/change`. A test runs the same files through both.
+For the same flag files and contexts, the evaluator answers what the version 1 client answers, field by field: value, variation, reason, error code and details, metadata (including `evaluatedRuleName`), cacheable, version, `trackEvents` and failed. The same holds for the all-flags state (compared state by state, `failed` included), the listed flags, the flag configuration view and the hashes of `/v1/flag/change`.
 
+- The test runs the same files through both. It checks the wrapper around the engine: the enrichment and the environment, the default values, the error text, the events, the flag-not-found answer. The rule engine itself is the same code in both and is tested in its own packages.
 - There is no client, cache, notifier or goroutine per flag set. One `Evaluator` owns one flag service for the process. It is the service the reload engine validates the flags with, so a flag is never parsed twice.
-- The evaluation context enrichment (and the environment under `env`) is applied as in version 1. It can be set for all flag sets, and replaced for a named flag set.
+- The evaluation context enrichment (and the environment under `env`) is applied as in version 1. It can be set for all flag sets, and replaced for a named flag set. The evaluator keeps its own deep copy of what it is given.
 - A flag set is selected by the route, so the evaluator methods take the flag set: `RawVariation`, the typed `...VariationDetails`, `AllFlagsState`, `GetFlagStates`. The flag set has `Configuration` and `Change`.
 - `ResponseMetadata` adds `gofeatureflag_cacheable` (and `semaphore_cacheable`, unless `disableSemaphoreMetadata` is set) to the metadata of a cacheable result, as the OFREP handler does today.
 
+### The flag configuration and the change hashes
+
+- `FlagSet.Configuration(keys)` lists the flags of the flag set. The map is new for each call, the flags in it are the flag set's own (read only, see below).
+- `FlagSet.Change()` answers `/v1/flag/change`. The hashes are those of the JSON encoding of the flags, byte for byte as in version 1. A flag set is immutable, so the answer is computed once, by the first call (each flag is encoded once), and kept with the flag set: later calls return the same value without allocating. A flag set that a later generation carries over keeps it. The map of the answer is shared and read only.
+- `FlagSet.ModifiedAt` is the time of the build that created the flag set. A flag set carried over by pointer keeps its time, a rebuilt one gets the time of its rebuild, a pending flag set has the time of its build. After the switch it will be the `Last-Modified` of the configuration endpoint.
+
 ## Who owns a value
 
-The flags are shared between flag sets that list the same object, and between generations. So:
+The flags are shared between flag sets that list the same object, and between generations. The evaluator follows the read-only contract of the version 1 client: it does not copy on the hot path.
 
-- an object or array value, and every map of the metadata (nested ones too), is a copy: a caller can change it without changing the flag or another request;
-- the default value that the caller passed in is returned as given;
-- the configuration view is made of deep copies;
-- the flags, the maps of the runtime and the status are read only.
+| What | Owner |
+| --- | --- |
+| The value of `RawVariation`, the values of the all-flags state, the value of a tracked event | the flag: shared, **read only** |
+| Nested objects and arrays in the metadata of a result or a state | the flag: shared, **read only** |
+| The metadata map itself, the result structs, the state table | the caller: new for every evaluation |
+| The value of `JSONVariationDetails` and `JSONArrayVariationDetails` | the caller: a copy (one copy, none when the engine already made one for a scheduled flag) |
+| The default value that the caller passed in | the caller: returned as given |
+| The map of `Configuration`, the answer of `Change` | the map of `Configuration` is new; the flags in it and the map of `Change` are shared, read only |
+| The enrichment | the evaluator: a deep copy of the input; `EvaluationContextEnrichment` returns a deep copy |
 
-Copying costs one allocation per container. A flag with scalar values and flat metadata costs what it costs in version 1.
+- **Read only means: encode it, do not change it.** A handler that wants to change a value takes a copy with `flagdef.CloneValue` (values) or `flagdef.CloneMetadata` (metadata maps). The metadata keys that a handler adds to the metadata map of a result (the cacheable keys) are safe: the map is the caller's.
+- A write into a shared part would change what every other request, and the next generation, sees. The switch to config v2 will add a guard against it in the handlers, and until then the tests check that the evaluator never writes into the flags and that readers racing with reloads only read.
+- The hook for tracked events gets the event with the shared value, and the exporter metadata map of the request context, as in version 1. The exporters must encode or copy them.
+
+Measured cost (allocations per call, the engine alone against the evaluator): the evaluator adds none. For example a scalar flag costs 1 allocation (no metadata) or 6 (a rule, flat metadata), and so does the engine alone; the all-flags state of 100 flags costs 45, as the engine alone. A typed object or array call adds the one copy of the value (5 allocations for a small object); a scheduled flag adds none, as the engine copies its value already.
 
 ## Events
 
-The evaluator calls an optional hook with the event of an evaluation that must be tracked: the flag sets `trackEvents` and the hook is set. Without the hook there is no cost. The exporter wiring plugs in later.
+The evaluator calls an optional hook with the event of an evaluation that must be tracked: the flag sets `trackEvents` and the hook is set. Without the hook there is no cost. The event is read only for the hook and for the exporters it feeds (see above). The exporter wiring plugs in later.
 
 ## From the manifest to the runtime
 
@@ -101,3 +117,5 @@ See [live reload](live-reload.md) for the engine and [control-plane polling](con
 - The handlers call the evaluator on the flag set of the route, instead of a client per flag set.
 - The exporter hook, the readiness view and the observability endpoints use `Source.Status()`.
 - Admin keys stay in the bootstrap file.
+- The handlers will get a guard that fails a test when a handler writes into a result of the evaluator (the read-only contract above).
+- The `Last-Modified` header of the configuration endpoint will come from `FlagSet.ModifiedAt`.

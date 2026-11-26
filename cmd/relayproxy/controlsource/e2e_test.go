@@ -69,23 +69,6 @@ func (w *wireLog) take() []string {
 	return out
 }
 
-// tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
-type tickScheduler struct {
-	entered chan struct{}
-	release chan struct{}
-}
-
-func (s *tickScheduler) Wait(ctx context.Context, _ time.Duration) error {
-	s.entered <- struct{}{}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.release:
-		return nil
-	}
-}
-
 // publication is what a publisher writes: flags objects by name, the document of flag sets, and the manifest.
 type publication struct {
 	t      *testing.T

@@ -58,8 +58,8 @@ func bigSets(tb testing.TB, sets []flagruntimeSet) objs {
 // BenchmarkSingleEvaluation compares the version 1 client with the runtime evaluator for the same flag file: the
 // allocations of the runtime must not exceed the ones of version 1 for a scalar flag.
 //
-// The flags carry flat metadata, the usual case. A flag whose metadata holds objects or arrays costs one copy of
-// each container per evaluation (the metadata of an evaluation never aliases the table), see BenchmarkNestedMetadata.
+// The runtime follows the read-only contract of version 1: nothing is copied, so the cost is the one of the engine
+// (see also BenchmarkNestedMetadata).
 func BenchmarkSingleEvaluation(b *testing.B) {
 	data := []byte(benchFlags)
 	path := b.TempDir() + "/flags.yaml"
@@ -70,7 +70,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 	set := runtimeOf(b, data, "yaml")
 	ctx := benchContext()
 
-	for _, flag := range []string{"bool-static", "bool-rule", "object-flag", "int-flag"} {
+	for _, flag := range []string{"bool-static", boolRule, objectFlag, "int-flag"} {
 		b.Run(flag+"/v1", func(b *testing.B) {
 			b.ReportAllocs()
 
@@ -92,7 +92,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = legacy.BoolVariationDetails("bool-rule", ctx, false)
+			_, _ = legacy.BoolVariationDetails(boolRule, ctx, false)
 		}
 	})
 
@@ -100,7 +100,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = eval.BoolVariationDetails(set, "bool-rule", ctx, false)
+			_, _ = eval.BoolVariationDetails(set, boolRule, ctx, false)
 		}
 	})
 }
@@ -135,8 +135,8 @@ func BenchmarkAllFlags(b *testing.B) {
 	})
 }
 
-// BenchmarkNestedMetadata is the cost of the ownership of nested metadata: version 1 hands out the containers of the
-// table, the runtime copies them.
+// BenchmarkNestedMetadata is a flag whose metadata holds objects and arrays: version 1 and the runtime both hand out
+// the containers of the table, so they cost the same.
 func BenchmarkNestedMetadata(b *testing.B) {
 	data := readFile(b, shapesFile)
 	legacy := versionOne(b, shapesFile, nil, "", nil)
@@ -148,7 +148,7 @@ func BenchmarkNestedMetadata(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = legacy.RawVariation("bool-rule", ctx, nil)
+			_, _ = legacy.RawVariation(boolRule, ctx, nil)
 		}
 	})
 
@@ -156,7 +156,7 @@ func BenchmarkNestedMetadata(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = eval.RawVariation(set, "bool-rule", ctx, nil)
+			_, _ = eval.RawVariation(set, boolRule, ctx, nil)
 		}
 	})
 }

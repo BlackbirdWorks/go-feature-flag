@@ -20,211 +20,6 @@ func shapesSet(tb testing.TB) *flagruntime.FlagSet {
 	return runtimeOf(tb, readFile(tb, shapesFile), "yaml")
 }
 
-// Mutating what an evaluation returned never changes the table: the next evaluation, the configuration view and
-// the hash are those of the first one. Every owner of a copy is changed: the value (map or slice, nested), the
-// metadata (nested containers too), the states of all flags.
-func TestAliasing_ReturnedValuesAreCopies(t *testing.T) {
-	t.Parallel()
-
-	set := shapesSet(t)
-	eval := flagruntime.NewEvaluator(newService(t), nil)
-	ctx := ffcontext.NewEvaluationContextBuilder("user-2").
-		AddCustom("beta", true).AddCustom(planAttr, proPlan).AddCustom("country", "FR").Build()
-	before, changeErr := set.Change()
-	require.NoError(t, changeErr)
-
-	tests := []struct {
-		mutate func(t *testing.T)
-		// again evaluates again and returns what must be unchanged
-		again func() any
-		name  string
-	}{
-		{
-			name: "raw object value, nested",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				res, _ := eval.RawVariation(set, "object-flag", ctx, nil)
-				obj, ok := res.Value.(map[string]any)
-				require.True(t, ok)
-
-				obj["name"] = mutated
-				obj["added"] = 1
-				nested, ok := obj["nested"].(map[string]any)
-				require.True(t, ok)
-
-				nested["deep"] = []any{mutated}
-			},
-			again: func() any {
-				res, _ := eval.RawVariation(set, "object-flag", ctx, nil)
-
-				return res.Value
-			},
-		},
-		{
-			name: "raw array value, nested",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				res, _ := eval.RawVariation(set, "array-flag", ctx, nil)
-				arr, ok := res.Value.([]any)
-				require.True(t, ok)
-
-				arr[0] = mutated
-
-				if inner, isArr := arr[len(arr)-1].([]any); isArr {
-					inner[0] = mutated
-				}
-			},
-			again: func() any {
-				res, _ := eval.RawVariation(set, "array-flag", ctx, nil)
-
-				return res.Value
-			},
-		},
-		{
-			name: "typed object and array",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				obj, _ := eval.JSONVariationDetails(set, "object-flag", ctx, nil)
-				obj.Value["name"] = mutated
-
-				arr, _ := eval.JSONArrayVariationDetails(set, "array-flag", ctx, nil)
-				arr.Value[0] = mutated
-			},
-			again: func() any {
-				obj, _ := eval.JSONVariationDetails(set, "object-flag", ctx, nil)
-				arr, _ := eval.JSONArrayVariationDetails(set, "array-flag", ctx, nil)
-
-				return []any{obj.Value, arr.Value}
-			},
-		},
-		{
-			name: "metadata, nested containers",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				res, _ := eval.RawVariation(set, "bool-rule", ctx, nil)
-				res.Metadata["team"] = mutated
-				res.Metadata["evaluatedRuleName"] = mutated
-
-				owner, ok := res.Metadata["owner"].(map[string]any)
-				require.True(t, ok)
-
-				owner["name"] = mutated
-
-				tags, ok := owner["tags"].([]any)
-				require.True(t, ok)
-
-				tags[0] = mutated
-
-				list, ok := res.Metadata["list"].([]any)
-				require.True(t, ok)
-
-				list[0] = mutated
-
-				inner, ok := list[2].(map[string]any)
-				require.True(t, ok)
-
-				inner["x"] = mutated
-			},
-			again: func() any {
-				res, _ := eval.RawVariation(set, "bool-rule", ctx, nil)
-
-				return res.Metadata
-			},
-		},
-		{
-			name: "metadata of a disabled flag",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				res, _ := eval.RawVariation(set, "bool-disabled", ctx, nil)
-				res.Metadata["reason"] = mutated
-			},
-			again: func() any {
-				res, _ := eval.RawVariation(set, "bool-disabled", ctx, nil)
-
-				return res.Metadata
-			},
-		},
-		{
-			name: "scheduled object value",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				res, _ := eval.RawVariation(set, "scheduled-object-flag", ctx, nil)
-				obj, ok := res.Value.(map[string]any)
-				require.True(t, ok)
-
-				obj["k"] = mutated
-			},
-			again: func() any {
-				res, _ := eval.RawVariation(set, "scheduled-object-flag", ctx, nil)
-
-				return res.Value
-			},
-		},
-		{
-			name: "all flags state values and metadata",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				states := eval.AllFlagsState(set, ctx)
-				for _, state := range states.GetFlags() {
-					if obj, ok := state.Value.(map[string]any); ok {
-						obj["name"] = mutated
-					}
-
-					if arr, ok := state.Value.([]any); ok && len(arr) > 0 {
-						arr[0] = mutated
-					}
-
-					for key := range state.Metadata {
-						state.Metadata[key] = mutated
-					}
-				}
-			},
-			again: func() any { return mustJSON(t, eval.AllFlagsState(set, ctx)) },
-		},
-		{
-			name: "configuration view",
-			mutate: func(t *testing.T) {
-				t.Helper()
-
-				for _, flag := range set.Configuration(nil) {
-					internal, ok := flag.(*flagdef.InternalFlag)
-					require.True(t, ok)
-
-					for key := range internal.GetVariations() {
-						delete(internal.GetVariations(), key)
-					}
-
-					internal.Metadata = nil
-				}
-			},
-			again: func() any { return mustJSON(t, set.Configuration(nil)) },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			first := mustJSON(t, tt.again())
-
-			tt.mutate(t)
-
-			assert.Equal(t, first, mustJSON(t, tt.again()))
-
-			after, err := set.Change()
-			require.NoError(t, err)
-			assert.Equal(t, before, after, "the table did not change")
-		})
-	}
-}
-
 // The SDK default of the caller is returned as given: the evaluator does not copy what the caller owns.
 func TestEvaluator_DefaultValueIsReturnedAsGiven(t *testing.T) {
 	t.Parallel()
@@ -344,7 +139,7 @@ func TestEvaluator_PerFlagSetEnrichment(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
 		EvaluationContextEnrichment: map[string]any{planAttr: freePlan},
 		FlagSetEnrichment:           map[string]map[string]any{proPlan: {planAttr: proPlan}},
-		Environment:                 "prod",
+		Environment:                 prodEnv,
 	})
 	ctx := ffcontext.NewEvaluationContext("u")
 
@@ -371,21 +166,69 @@ func TestEvaluator_PerFlagSetEnrichment(t *testing.T) {
 	}
 }
 
-// The enrichment the caller passes is not shared with the evaluator, and the one it returns is a copy.
+// The enrichment the caller passes is copied deeply: changing the input (nested containers too) after NewEvaluator
+// changes nothing, and so does changing what the evaluator returns. Each case would fail with a shallow copy.
 func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 	t.Parallel()
 
-	in := map[string]any{planAttr: proPlan}
-	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{EvaluationContextEnrichment: in})
+	tests := []struct {
+		change func(in map[string]any, out map[string]any)
+		name   string
+	}{
+		{name: "top level key of the input", change: func(in, _ map[string]any) { in[planAttr] = mutated }},
+		{name: "top level key of the output", change: func(_, out map[string]any) { out[planAttr] = mutated }},
+		{
+			name: "nested map of the input",
+			change: func(in, _ map[string]any) {
+				nested, _ := in[orgKey].(map[string]any)
+				nested["name"] = mutated
+			},
+		},
+		{
+			name: "nested map of the output",
+			change: func(_, out map[string]any) {
+				nested, _ := out[orgKey].(map[string]any)
+				nested["name"] = mutated
+			},
+		},
+		{
+			name: "nested slice of the input",
+			change: func(in, _ map[string]any) {
+				tags, _ := in["tags"].([]any)
+				tags[0] = mutated
+			},
+		},
+		{
+			name: "nested slice of the output",
+			change: func(_, out map[string]any) {
+				tags, _ := out["tags"].([]any)
+				tags[0] = mutated
+			},
+		},
+	}
 
-	in["plan"] = mutated
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	out := eval.EvaluationContextEnrichment(nil)
-	assert.Equal(t, map[string]any{planAttr: proPlan}, out)
+			want := map[string]any{planAttr: proPlan, orgKey: map[string]any{nameKey: acmeOrg}, "tags": []any{"a", "b"}}
+			input := map[string]any{
+				planAttr: proPlan,
+				orgKey:   map[string]any{nameKey: acmeOrg},
+				"tags":   []any{"a", "b"},
+			}
 
-	out["plan"] = mutated
+			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+				EvaluationContextEnrichment: input,
+				FlagSetEnrichment:           map[string]map[string]any{"named": input},
+				Environment:                 prodEnv,
+			})
 
-	assert.Equal(t, map[string]any{planAttr: proPlan}, eval.EvaluationContextEnrichment(nil))
+			tt.change(input, eval.EvaluationContextEnrichment(nil))
+
+			assert.Equal(t, want, eval.EvaluationContextEnrichment(nil))
+		})
+	}
 }
 
 // The response metadata is the one the version 1 OFREP handler writes: the cacheable keys only for a cacheable

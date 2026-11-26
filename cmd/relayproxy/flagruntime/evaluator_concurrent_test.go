@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -13,26 +14,36 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 )
 
-// Evaluations that run while the engine swaps generations always see one whole generation: the flag set they
-// routed to answers with a value of its own generation (never a mix), a key never stops routing while it is listed,
-// and a returned object can be changed by its caller without a reader of another goroutine seeing it. Run with
-// -race: it is the data race detector that proves the absence of a shared write.
-func TestEvaluator_ConcurrentWithSwaps(t *testing.T) {
+// Evaluations that run while the engine swaps generations see one whole generation. Many goroutines evaluate the
+// same object flag with nested metadata and encode everything they got (the value, the metadata, the states, the
+// hashes), the way the handlers do, while reloads replace the flags: under -race this proves that the shared parts
+// (the value and the nested metadata containers are the flag's own) are only ever read, and that each result is
+// internally consistent: the value, the metadata and the number of the same generation.
+func TestEvaluator_ConcurrentReadersAndSwaps(t *testing.T) {
 	t.Parallel()
 
 	const (
-		readers     = 4
+		readers     = 6
 		generations = 40
 	)
 
-	objectFlag := func(gen int) []byte {
-		return fmt.Appendf(nil,
-			"obj:\n  variations:\n    v:\n      gen: %d\n      list: [%d]\n  defaultRule:\n    variation: v\n"+
-				"num:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", gen, gen, gen)
+	flagsOf := func(gen int) []byte {
+		return fmt.Appendf(
+			nil,
+			"obj:\n  variations:\n    v:\n      gen: %d\n      list: [%d, {deep: [%d]}]\n  defaultRule:\n    variation: v\n"+
+				"  metadata:\n    gen: %d\n    nested:\n      gen: %d\n      tags: [a, b]\n"+
+				"num:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n",
+			gen,
+			gen,
+			gen,
+			gen,
+			gen,
+			gen,
+		)
 	}
 	build := func(gen int) *flagruntime.Content {
 		return content(uint64(gen), objs{
-			flagsName: obj(flagruntime.KindFlags, objectFlag(gen)),
+			flagsName: obj(flagruntime.KindFlags, flagsOf(gen)),
 			setsName:  setsObj(t, fset("a", src(flagsName), keyA), fset("b", src(flagsName), keyB)),
 		})
 	}
@@ -63,20 +74,7 @@ func TestEvaluator_ConcurrentWithSwaps(t *testing.T) {
 						return
 					}
 
-					obj, _ := eval.RawVariation(set, "obj", ctx, nil)
-					num, _ := eval.IntVariationDetails(set, "num", ctx, -1)
-
-					val, ok := obj.Value.(map[string]any)
-					if !assert.True(t, ok) {
-						return
-					}
-
-					// both flags come from the same generation: the object and the number agree
-					assert.EqualValues(t, num.Value, val["gen"])
-
-					// the caller owns the value: this write would race with the other readers if it was shared
-					val["gen"] = -1
-					val["list"].([]any)[0] = -1 //nolint:forcetypeassert,errcheck // the shape is known
+					evaluateAndEncode(t, eval, set, ctx)
 
 					served.Add(1)
 				}
@@ -93,4 +91,51 @@ func TestEvaluator_ConcurrentWithSwaps(t *testing.T) {
 
 	assert.Positive(t, served.Load())
 	assert.EqualValues(t, generations, harness.holder.Load().Generation)
+}
+
+// evaluateAndEncode evaluates the flags of a flag set in every way and encodes the results.
+func evaluateAndEncode(t *testing.T, eval *flagruntime.Evaluator, set *flagruntime.FlagSet, ctx ffcontext.Context) {
+	t.Helper()
+
+	raw, _ := eval.RawVariation(set, "obj", ctx, nil)
+	num, _ := eval.IntVariationDetails(set, "num", ctx, -1)
+	typed, _ := eval.JSONVariationDetails(set, "obj", ctx, nil)
+	states := eval.AllFlagsState(set, ctx)
+	meta := eval.ResponseMetadata(&raw)
+
+	encoded, err := json.Marshal([]any{raw, typed, states, meta})
+	if err != nil {
+		assert.Fail(t, "the results do not encode", err.Error())
+
+		return
+	}
+
+	assert.NotEmpty(t, encoded)
+
+	change, err := set.Change()
+	if err != nil {
+		assert.Fail(t, "the change answer", err.Error())
+
+		return
+	}
+
+	assert.Len(t, change.Flags, 2)
+
+	conf, err := json.Marshal(set.Configuration(nil))
+	if err != nil {
+		assert.Fail(t, "the configuration does not encode", err.Error())
+
+		return
+	}
+
+	assert.NotEmpty(t, conf)
+
+	val, _ := raw.Value.(map[string]any)
+	nested, _ := raw.Metadata["nested"].(map[string]any)
+
+	// the value, the metadata and the number are those of one generation
+	assert.EqualValues(t, num.Value, val["gen"])
+	assert.EqualValues(t, num.Value, raw.Metadata["gen"])
+	assert.EqualValues(t, num.Value, nested["gen"])
+	assert.Equal(t, val["gen"], typed.Value["gen"])
 }

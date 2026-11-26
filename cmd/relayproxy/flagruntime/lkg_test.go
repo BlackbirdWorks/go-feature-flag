@@ -531,7 +531,7 @@ func assertLKG(t *testing.T, tt *lkgCase, prev, last *flagruntime.Runtime) {
 	assert.Len(t, last.ByKey, len(tt.wantKeys), "the routed keys")
 
 	for key, want := range tt.wantKeys {
-		fs, ok := last.FlagSetByKey(key)
+		fs, ok := routedSet(last, key)
 		require.True(t, ok, "key %s routes", key)
 		assert.Equal(t, want, fs.Name, "owner of key %s", key)
 	}

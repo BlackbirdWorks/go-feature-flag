@@ -30,6 +30,13 @@ const (
 	flagsName   = "flags"
 	planAttr    = "plan"
 	proPlan     = "pro"
+	nameKey     = "name"
+	orgKey      = "org"
+	prodEnv     = "prod"
+	boolRule    = "bool-rule"
+	objectFlag  = "object-flag"
+	acmeOrg     = "acme"
+	pendingSet  = "pending"
 	freePlan    = "free"
 	mutated     = "mutated"
 	trackedFlag = "bool-tracked"
@@ -163,9 +170,11 @@ func atInstant(key string, delta time.Duration) ffcontext.EvaluationContext {
 }
 
 // equivalenceContexts are the evaluation contexts of the equivalence tables.
-func equivalenceContexts() []ffcontext.EvaluationContext {
-	ctxs := make([]ffcontext.EvaluationContext, 0, 20)
+func equivalenceContexts() []ffcontext.Context {
+	ctxs := make([]ffcontext.Context, 0, 24)
 	ctxs = append(ctxs,
+		nil,
+		ffcontext.NewEvaluationContextBuilder("env-user").AddCustom("env", "staging").AddCustom("beta", true).Build(),
 		ffcontext.NewEvaluationContext(""),
 		ffcontext.NewEvaluationContext("user-1"),
 		ffcontext.NewEvaluationContextBuilder("user-2").
@@ -195,3 +204,15 @@ func equivalenceContexts() []ffcontext.EvaluationContext {
 func writeFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o600)
 }
+
+// keyOf is the targeting key of a context, for the messages ("nil" for the nil context).
+func keyOf(ctx ffcontext.Context) string {
+	if ctx == nil {
+		return "nil"
+	}
+
+	return ctx.GetKey()
+}
+
+// minPairs is the least number of flag and context pairs the single evaluation table checks.
+const minPairs = 3800

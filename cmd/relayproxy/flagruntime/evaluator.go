@@ -3,7 +3,6 @@ package flagruntime
 import (
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -31,6 +30,11 @@ type EvaluatorConfig struct {
 	// TrackEvent receives the event of an evaluation that must be tracked: the evaluation says trackEvents (the
 	// setting of the flag) and the hook is set. A nil hook costs nothing. The hook runs on the goroutine of the
 	// evaluation and must not block; the events package of the relay proxy plugs its queue in here.
+	//
+	// The event is READ-ONLY for the hook and for whatever it hands the event to (the exporters): its Value is the
+	// value of the flag, shared with the flag set and with every other evaluation, and its Metadata is the
+	// exporter-metadata map of the request context, as in version 1. The hook must encode or copy them, never
+	// change them; [flagdef.CloneValue] and [flagdef.CloneMetadata] make a copy.
 	TrackEvent func(*exporter.FeatureEvent)
 	// Environment is added to the enrichment under "env" when it is not empty.
 	Environment string
@@ -48,8 +52,10 @@ type enrichment struct {
 	eventFields bool
 }
 
+// newEnrichment copies the configured enrichment deeply: the caller keeps its map, and nothing it changes later
+// reaches the evaluations.
 func newEnrichment(configured map[string]any, environment string) *enrichment {
-	values := maps.Clone(configured)
+	values := flagdef.CloneMetadata(configured)
 	if environment != "" {
 		if values == nil {
 			values = make(map[string]any, 1)
@@ -62,7 +68,7 @@ func newEnrichment(configured map[string]any, environment string) *enrichment {
 
 	return &enrichment{
 		values:      values,
-		configured:  maps.Clone(configured),
+		configured:  flagdef.CloneMetadata(configured),
 		eventFields: ffcontext.HasReservedKey(values) || anonymous,
 	}
 }
@@ -75,9 +81,19 @@ func newEnrichment(configured map[string]any, environment string) *enrichment {
 // An Evaluator is immutable and safe for concurrent use. It lives outside [FlagSet] because the flag sets are
 // shared between generations while the service and the enrichment belong to the process.
 //
-// Ownership of what it returns: a variation value that is a map or a slice, and every map of the metadata, are
-// copies that the caller may change; the flags themselves are shared and read-only. The value that is the
-// default of the SDK is returned as given.
+// Ownership of what it returns (the read-only contract of the version 1 client):
+//   - The flags, and everything inside them, are shared by every flag set that lists the same object and by every
+//     evaluation. The value of an evaluation ([Evaluator.RawVariation], the values of [Evaluator.AllFlagsState] and
+//     [Evaluator.GetFlagStates], the value of a tracked event) and the containers that the metadata holds (nested
+//     objects and arrays) are those of the flag: they are READ-ONLY. Encode them, do not change them. A caller that
+//     must change one takes a copy with [flagdef.CloneValue] or [flagdef.CloneMetadata].
+//   - The metadata map itself, and the result structs, are new for every evaluation (the engine builds them): the
+//     caller owns them and may add keys, as [Evaluator.ResponseMetadata] does.
+//   - [Evaluator.JSONVariationDetails] and [Evaluator.JSONArrayVariationDetails] return a copy of the value: the
+//     caller owns it.
+//   - The default value that the caller passed in is returned as given.
+//
+// A handler must therefore never write into a result; the switch to config v2 adds a guard for it.
 type Evaluator struct {
 	svc    *flagdef.Service
 	def    *enrichment
@@ -135,8 +151,9 @@ const (
 
 // ResponseMetadata returns the metadata of the OFREP response of an evaluation: the metadata of the result plus, for
 // a cacheable result, the legacy key and (unless DisableSemaphoreMetadata is set) the Semaphore key, as the version 1
-// handler adds them. The metadata of a result is owned by the caller (see [Evaluator]), so the keys are added to it
-// without a copy; a result without metadata gets a new map only when it is cacheable.
+// handler adds them. The metadata map of a result is owned by the caller (see [Evaluator]), so the keys are added
+// to it without a copy and the flag is never touched; a result without metadata gets a new map only when it is
+// cacheable.
 func (e *Evaluator) ResponseMetadata(res *model.RawVarResult) map[string]any {
 	metadata := res.Metadata
 	if !res.Cacheable {
@@ -156,23 +173,20 @@ func (e *Evaluator) ResponseMetadata(res *model.RawVarResult) map[string]any {
 	return metadata
 }
 
-// EvaluationContextEnrichment returns a copy of the configured enrichment of the flag set, without the
-// environment: the "evaluationContextEnrichment" of the flag configuration endpoint.
+// EvaluationContextEnrichment returns a deep copy of the configured enrichment of the flag set, without the
+// environment: the "evaluationContextEnrichment" of the flag configuration endpoint. The caller owns it.
 func (e *Evaluator) EvaluationContextEnrichment(set *FlagSet) map[string]any {
-	return maps.Clone(e.enrichmentFor(set).configured)
+	return flagdef.CloneMetadata(e.enrichmentFor(set).configured)
 }
 
 // RawVariation is the evaluation of a flag without a type, as the engine client's RawVariation: the value is
-// whatever the flag holds. An object or array value is a copy.
+// whatever the flag holds. An object or array value, and the nested containers of the metadata, are shared with the
+// flag and READ-ONLY (see [Evaluator]); the metadata map itself belongs to the caller.
 func (e *Evaluator) RawVariation(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
 ) (model.RawVarResult, error) {
 	res, err := variation(e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
 	notify(e, set, flagKey, evalCtx, &res)
-
-	if holdsFlagValue(res.Reason) {
-		res.Value = flagdef.CloneValue(res.Value)
-	}
 
 	return model.RawVarResult(res), err
 }
@@ -217,28 +231,30 @@ func (e *Evaluator) StringVariationDetails(
 	return res, err
 }
 
-// JSONArrayVariationDetails evaluates an array flag. The value is a copy.
+// JSONArrayVariationDetails evaluates an array flag. The value is a copy that the caller owns; the nested containers
+// of the metadata are shared and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) JSONArrayVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue []any,
 ) (model.VariationResult[[]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeArray)
 	notify(e, set, flagKey, evalCtx, &res)
 
-	if res.Value != nil && holdsFlagValue(res.Reason) {
+	if res.Value != nil && sharesFlagValue(set, flagKey, res.Reason) {
 		res.Value, _ = flagdef.CloneValue(res.Value).([]any)
 	}
 
 	return res, err
 }
 
-// JSONVariationDetails evaluates an object flag. The value is a copy.
+// JSONVariationDetails evaluates an object flag. The value is a copy that the caller owns; the nested containers of
+// the metadata are shared and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) JSONVariationDetails(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue map[string]any,
 ) (model.VariationResult[map[string]any], error) {
 	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeObject)
 	notify(e, set, flagKey, evalCtx, &res)
 
-	if res.Value != nil && holdsFlagValue(res.Reason) {
+	if res.Value != nil && sharesFlagValue(set, flagKey, res.Reason) {
 		res.Value, _ = flagdef.CloneValue(res.Value).(map[string]any)
 	}
 
@@ -283,31 +299,28 @@ func variation[T model.JSONType](
 		Service:                     eval.svc,
 	}
 
-	res, err := evaluation.Evaluate[T](flag, flagKey, evalCtx, flagCtx, expectedType, sdkDefaultValue)
-	res.Metadata = ownMetadata(res.Metadata)
-
-	return res, err
+	return evaluation.Evaluate[T](
+		flag,
+		flagKey,
+		evalCtx,
+		flagCtx,
+		expectedType,
+		sdkDefaultValue,
+	)
 }
 
-// holdsFlagValue tells whether the value of a result with this reason comes from the flag. A result that is an
-// error or a disabled flag carries the default value of the caller, which the caller owns and which is returned as
-// given.
-func holdsFlagValue(reason flagdef.ResolutionReason) bool {
-	return reason != flagdef.ReasonError && reason != flagdef.ReasonDisabled
-}
-
-// ownMetadata makes the metadata of an evaluation safe to hand out. The map itself was made for the evaluation
-// (the flag's own is never returned), but its values can still be the containers of the flag's metadata: those are
-// replaced by copies, in place.
-func ownMetadata(metadata map[string]any) map[string]any {
-	for key, val := range metadata {
-		switch val.(type) {
-		case map[string]any, map[any]any, []any:
-			metadata[key] = flagdef.CloneValue(val)
-		}
+// sharesFlagValue tells whether the value of a result is still the value stored in the flag, so that a typed call
+// that hands out an owned copy must copy it. It is not when the result carries the default value of the caller (an
+// error or a disabled flag: the caller owns it and gets it as given), and not when the flag has scheduled steps:
+// the engine evaluates those on a copy of the flag and already copies the value, once.
+func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReason) bool {
+	if reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled {
+		return false
 	}
 
-	return metadata
+	flag, ok := set.Flag(flagKey)
+
+	return ok && flag.Scheduled == nil
 }
 
 // notify hands the event of an evaluation to the hook when the evaluation must be tracked. It is the version 1
@@ -331,13 +344,15 @@ func notify[T model.JSONType](
 }
 
 // AllFlagsState evaluates every flag of the flag set for a context. A nil flag set (not available) answers like an
-// empty one: valid, no flags.
+// empty one: valid, no flags. The values and the nested metadata containers of the states are shared with the flags
+// and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) AllFlagsState(set *FlagSet, evalCtx ffcontext.Context) flagstate.AllFlags {
 	return e.GetFlagStates(set, evalCtx, nil)
 }
 
 // GetFlagStates evaluates the flags named in flagsToEvaluate, or every flag when the list is empty. A name that
-// the flag set does not hold is left out. Object and array values are copies.
+// the flag set does not hold is left out. The values and the nested metadata containers of the states are shared
+// with the flags and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) GetFlagStates(
 	set *FlagSet, evalCtx ffcontext.Context, flagsToEvaluate []string,
 ) flagstate.AllFlags {
@@ -378,8 +393,6 @@ func addState(
 	flag *flagdef.InternalFlag,
 ) {
 	state := flagstate.FromFlagEvaluation(key, evalCtx, flagCtx, flag)
-	state.Value = flagdef.CloneValue(state.Value)
-	state.Metadata = ownMetadata(state.Metadata)
 
 	states.AddFlag(key, &state)
 }

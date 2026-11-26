@@ -107,23 +107,76 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	}
 }
 
-// A stale document with bytes of a runtime that never loaded it routes its keys: the restart keeps the flag sets.
-func TestStaleDocument_AdoptedWhenNeverLoaded(t *testing.T) {
+// A stale flag-set document follows the same rule as a stale flags object: read when never loaded, otherwise the
+// loaded one stays; bytes that do not decode leave the document invalid; recovery to the same bytes is not parsed
+// again.
+func TestStaleDocument_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	t.Parallel()
 
-	harness := newRig(t, flagruntime.Hooks{})
-	harness.start()
+	doc := setsObj(t, fset("s", src(flagsName), keyA))
+	other := setsObj(t, fset("other", src(flagsName), keyB))
+	broken := obj(flagruntime.KindFlagSets, []byte("flagSets: [[["))
+	flags := flagsObj(1, "f")
 
-	staleDoc := setsObj(t, fset("s", src(flagsName), keyA))
-	res := harness.feed(content(1, objs{
-		flagsName: flagsObj(1, "f"),
-		setsName:  stale(&staleDoc),
-	}))
-	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+	tests := []struct {
+		first        objs
+		second       objs
+		name         string
+		wantSet      string
+		wantGone     string
+		wantDoc      flagruntime.ObjectState
+		wantParsed   int
+		wantSetCount int
+	}{
+		{
+			name: "never loaded, readable", first: objs{flagsName: flags, setsName: stale(&doc)},
+			wantSet: "s", wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSetCount: 1,
+		},
+		{
+			name: "never loaded, not decodable", first: objs{flagsName: flags, setsName: stale(&broken)},
+			wantDoc: flagruntime.ObjectInvalid, wantParsed: 2, wantSetCount: 0,
+		},
+		{
+			name: "loaded: the other bytes are not read", first: objs{flagsName: flags, setsName: doc},
+			second:  objs{flagsName: flags, setsName: stale(&other)},
+			wantSet: "s", wantGone: "other", wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSetCount: 1,
+		},
+		{
+			name: "back to ok with the same bytes", first: objs{flagsName: flags, setsName: stale(&doc)},
+			second:  objs{flagsName: flags, setsName: doc},
+			wantSet: "s", wantDoc: flagruntime.ObjectOK, wantParsed: 2, wantSetCount: 1,
+		},
+	}
 
-	run := harness.holder.Load()
-	set, route := run.Route(keyA)
-	require.Equal(t, flagruntime.RouteFlagSet, route)
-	assert.Equal(t, "s", set.Name)
-	assert.Equal(t, flagruntime.ObjectStale, run.Status.Objects[setsName].State)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed := 0
+			harness := newRig(t, flagruntime.Hooks{OnParse: func(flagruntime.ParseEvent) { parsed++ }})
+			harness.start()
+
+			res := harness.feed(content(1, tt.first))
+			require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+
+			if tt.second != nil {
+				res = harness.feed(content(1, tt.second))
+				require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+			}
+
+			run := harness.holder.Load()
+
+			assert.Len(t, run.FlagSets, tt.wantSetCount)
+			assert.Equal(t, tt.wantDoc, run.Status.Objects[setsName].State)
+			assert.Equal(t, tt.wantParsed, parsed)
+
+			if tt.wantSet != "" {
+				assert.Contains(t, run.FlagSets, tt.wantSet)
+			}
+
+			if tt.wantGone != "" {
+				assert.NotContains(t, run.FlagSets, tt.wantGone)
+			}
+		})
+	}
 }

@@ -88,7 +88,7 @@ func TestRoute_Kinds(t *testing.T) {
 		flagsName: flagsObj(1, "f"),
 		setsName: setsObj(t,
 			fset("live", src(flagsName), keyA, keyB),
-			fset("pending", src("nope"), "key-pending")),
+			fset(pendingSet, src("nope"), "key-pending")),
 	}))
 	harness.eng.Reload(bootstrapFromYAML(t, "auth:\n  adminKeys:\n    - "+adminOne+"\n"))
 	harness.nextRound()
@@ -118,8 +118,8 @@ func TestRoute_Kinds(t *testing.T) {
 			wantRouteStr: "flagSet",
 		},
 		{
-			name: "pending flag set", key: "key-pending", wantRoute: flagruntime.RoutePending, wantFlagSet: "pending",
-			wantErr: flagruntime.ErrFlagSetUnavailable, wantRouteStr: "pending",
+			name: "pending flag set", key: "key-pending", wantRoute: flagruntime.RoutePending, wantFlagSet: pendingSet,
+			wantErr: flagruntime.ErrFlagSetUnavailable, wantRouteStr: pendingSet,
 		},
 		{name: "admin key", key: adminOne, wantRoute: flagruntime.RouteAdmin, wantRouteStr: "admin"},
 		{
@@ -174,7 +174,7 @@ func TestRoute_PendingFlagSetAnswers(t *testing.T) {
 	t.Parallel()
 
 	harness := routeRig(t, slog.DiscardHandler, content(1, objs{
-		setsName: setsObj(t, fset("pending", src("not-listed"), "key-pending")),
+		setsName: setsObj(t, fset(pendingSet, src("not-listed"), "key-pending")),
 	}))
 
 	set, route := harness.holder.Load().Route("key-pending")

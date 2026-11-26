@@ -2,6 +2,7 @@ package flagruntime
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
@@ -44,13 +45,6 @@ type Runtime struct {
 	Snapshot uint64
 }
 
-// FlagSetByKey returns the flag set that an API key routes to. It does not allocate.
-func (r *Runtime) FlagSetByKey(key string) (*FlagSet, bool) {
-	fs, ok := r.ByKey[key]
-
-	return fs, ok
-}
-
 // FlagSetByName returns the flag set with a name. It does not allocate.
 func (r *Runtime) FlagSetByName(name string) (*FlagSet, bool) {
 	fs, ok := r.FlagSets[name]
@@ -58,16 +52,17 @@ func (r *Runtime) FlagSetByName(name string) (*FlagSet, bool) {
 	return fs, ok
 }
 
-// IsAdminKey reports whether key is an admin key. It does not allocate.
-func (r *Runtime) IsAdminKey(key string) bool {
-	_, ok := r.AdminKeys[key]
-
-	return ok
-}
-
 // FlagSet is the immutable flag table of one flag set. It is reused by pointer across generations while its
 // definition and the content of its sources are unchanged.
 type FlagSet struct {
+	// ModifiedAt is the time ([clock.Now]) of the build that created this flag set (the pointer): a flag set
+	// that a later generation carries over by pointer keeps its time, a rebuilt one gets the time of the build
+	// that rebuilt it. A pending flag set has the time of the build that created it, like any other. It is
+	// the value for a Last-Modified header; it says nothing about the content (a rebuilt flag set can hold the
+	// same flags).
+	ModifiedAt time.Time
+	// change is the memo of [FlagSet.Change]; the flags never change, so it is computed once.
+	change atomic.Pointer[changeMemo]
 	// Flags are the flags by key. The flag pointers are shared with every flag set that uses the same source
 	// object, and with the next generation while the flag is unchanged. When a flag set has one source the
 	// map itself is the map of the source object.

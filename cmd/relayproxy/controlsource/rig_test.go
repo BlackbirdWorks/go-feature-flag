@@ -299,3 +299,20 @@ func failed(data []byte, state manifestreader.State, reason string) manifestread
 
 	return out
 }
+
+// tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
+type tickScheduler struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (s *tickScheduler) Wait(ctx context.Context, _ time.Duration) error {
+	s.entered <- struct{}{}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.release:
+		return nil
+	}
+}

@@ -1,0 +1,142 @@
+{
+  "round": {
+    "outcome": "applied",
+    "code": "applied",
+    "detail": "",
+    "generation": 7,
+    "snapshot": 2,
+    "events": 1
+  },
+  "runtime": {
+    "flagSets": {
+      "a": {
+        "name": "a",
+        "state": "serving",
+        "sources": [
+          "flags-a"
+        ],
+        "problems": null,
+        "flags": 1,
+        "apiKeys": 2,
+        "rejected": 0
+      },
+      "b": {
+        "name": "b",
+        "state": "pending",
+        "sources": [
+          "flags-c"
+        ],
+        "problems": [
+          {
+            "code": "unresolved-source",
+            "reason": "\"flags-c\" is not an object of kind flags in the manifest"
+          }
+        ],
+        "flags": 0,
+        "apiKeys": 1,
+        "rejected": 0
+      }
+    },
+    "objects": {
+      "flags-a": {
+        "name": "flags-a",
+        "kind": "flags",
+        "state": "ok",
+        "checksum": "579d2c445c4391f23e3f3faa8bbb73430e428958d6a00bacdce358180809aacd",
+        "reason": "",
+        "rejected": [],
+        "flags": 1
+      },
+      "sets": {
+        "name": "sets",
+        "kind": "flagSets",
+        "state": "ok",
+        "checksum": "9cc42a8f2bb8b0c54293f70e67f517d3fa1fbd4db9771de3bd13ab1cff2f759d",
+        "reason": "",
+        "rejected": null,
+        "flags": 2
+      }
+    },
+    "entries": [
+      {
+        "object": "sets",
+        "name": "b",
+        "reason": "\"flags-c\" is not an object of kind flags in the manifest",
+        "code": "unresolved-source",
+        "index": 1
+      }
+    ],
+    "withdrawn": null,
+    "pendingRestart": null,
+    "lastReload": {
+      "outcome": "applied",
+      "code": "applied",
+      "detail": "",
+      "generation": 7,
+      "snapshot": 2
+    },
+    "generation": 7,
+    "snapshot": 2
+  },
+  "reader": {
+    "lastSync": "0001-01-01T00:00:00Z",
+    "poll": {
+      "at": "2025-06-15T12:00:00Z",
+      "result": "updated",
+      "reason": ""
+    },
+    "failures": [
+      {
+        "name": "flags-b",
+        "state": "stale",
+        "reason": "checksum-mismatch",
+        "checksum": "sha256:abcd",
+        "retryable": true
+      }
+    ],
+    "hookPanics": null,
+    "pollResults": null,
+    "manifest": {
+      "outcome": "accepted",
+      "reason": "",
+      "channel": "",
+      "generation": 7,
+      "objects": 2,
+      "unknownFields": 0
+    },
+    "state": {
+      "lastSave": "0001-01-01T00:00:00Z",
+      "restore": "",
+      "lastSaveError": "",
+      "parentSync": "",
+      "disabledReason": "",
+      "saves": 0,
+      "saveErrors": 0,
+      "partialSaves": 0,
+      "restoredObjects": 0,
+      "discardedObjects": 0,
+      "enabled": false,
+      "lastSavePartial": false,
+      "pending": false
+    },
+    "backoff": {
+      "wait": 0,
+      "failures": 0,
+      "objectsWaiting": 0,
+      "throttled": false
+    },
+    "counts": {
+      "ok": 1,
+      "stale": 1,
+      "missing": 0
+    },
+    "cache": {
+      "objects": 0,
+      "bytes": 0
+    },
+    "polls": 4,
+    "notModified": 0
+  },
+  "received": 1,
+  "lastGeneration": 7
+}

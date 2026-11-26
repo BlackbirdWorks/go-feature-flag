@@ -170,3 +170,17 @@ broken-query-flag:
       variation: on
   defaultRule:
     variation: off
+bool-flat-meta:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - name: beta-users
+      query: beta eq true
+      variation: on
+  defaultRule:
+    name: everyone
+    variation: off
+  metadata:
+    team: payments
+    tier: gold

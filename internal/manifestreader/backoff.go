@@ -17,21 +17,21 @@ const maxBackoffExp = 30
 
 // BackoffStatus is the backoff state at the end of a round.
 type BackoffStatus struct {
-	// Wait is the wait planned before the next round.
-	Wait time.Duration
+	// Wait is the wait planned before the next round. It is encoded as a number of nanoseconds.
+	Wait time.Duration `json:"wait"`
 	// Failures is the number of consecutive failed manifest polls (an error, a timeout, a 404, a manifest above
 	// the byte limit); a 200 or a 304 resets it. A manifest that was read and rejected is not a failure of the poll.
-	Failures int
+	Failures int `json:"failures"`
 	// ObjectsWaiting is the number of failed objects that are waiting for their next retry.
-	ObjectsWaiting int
+	ObjectsWaiting int `json:"objectsWaiting"`
 	// Throttled tells that the last failure was a throttle: it backs off one step further.
-	Throttled bool
+	Throttled bool `json:"throttled"`
 }
 
 // PollCount is the number of polls with one result.
 type PollCount struct {
-	Result string
-	Count  uint64
+	Result string `json:"result"`
+	Count  uint64 `json:"count"`
 }
 
 // retryState is the schedule of one failed object: the number of failures in a row and the virtual time of the

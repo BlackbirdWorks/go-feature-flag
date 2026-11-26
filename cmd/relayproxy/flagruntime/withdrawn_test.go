@@ -98,7 +98,7 @@ func TestWithdrawnSetsEmitARemovedEventAndFreeTheirKeys(t *testing.T) {
 
 	current := harness.holder.Load()
 
-	_, routed := current.FlagSetByKey("key-a")
+	_, routed := routedSet(current, "key-a")
 	assert.False(t, routed, "the key of a withdrawn flag set is unknown")
 	assert.Equal(t, []flagruntime.WithdrawnSet{{Name: "a", Generation: 2}}, current.Status.Withdrawn)
 
@@ -106,7 +106,7 @@ func TestWithdrawnSetsEmitARemovedEventAndFreeTheirKeys(t *testing.T) {
 		content(3, base.with(objs{setsName: setsObj(t, fset("c", src("f1"), "key-a"), fset("b", src("f1"), "key-b"))})),
 	)
 
-	owner, routed := harness.holder.Load().FlagSetByKey("key-a")
+	owner, routed := routedSet(harness.holder.Load(), "key-a")
 	require.True(t, routed)
 	assert.Equal(t, "c", owner.Name, "the freed key goes to the new flag set")
 }

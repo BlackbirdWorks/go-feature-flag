@@ -260,9 +260,9 @@ func (st *stage) setFor(cand *candidate) *setState {
 
 	switch cand.mode {
 	case modeFrozen:
-		set = frozenSet(old, cand.spec, cand.notes)
+		set = frozenSet(old, cand.spec, cand.notes, st.now)
 	case modePlaceholder:
-		set = placeholderSet(cand.spec, cand.notes)
+		set = placeholderSet(cand.spec, cand.notes, st.now)
 	case modeBuild:
 		set = st.buildSet(cand.spec, cand.notes)
 	}

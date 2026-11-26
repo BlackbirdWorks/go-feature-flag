@@ -2,27 +2,31 @@ package controlsource_test
 
 import (
 	"encoding/json"
-	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
 
 const (
-	keyA      = "key-a"
-	keyB      = "key-b"
-	objA      = "flags-a"
-	objB      = "flags-b"
-	docName   = "sets"
-	objC      = "flags-c"
-	objShared = "shared"
-	secretKey = "canary-5d1c-secret"
+	keyA        = "key-a"
+	keyB        = "key-b"
+	objA        = "flags-a"
+	objB        = "flags-b"
+	docName     = "sets"
+	objC        = "flags-c"
+	objShared   = "shared"
+	secretKey   = "canary-5d1c-secret"
+	secretAdmin = "canary-admin-77aa"
 )
 
 // Content maps every state and reason of a snapshot one to one, shares the bytes and keeps the identity of the
@@ -353,13 +357,62 @@ func TestSource_StatusJoinsAndHidesKeys(t *testing.T) {
 	assert.Equal(t, objB, status.Reader.Failures[0].Name)
 	assert.Equal(t, 1, status.Runtime.FlagSets["a"].APIKeys)
 
-	// the reader status has no JSON tags of its own: it is scanned in its printed form
-	encoded, err := json.Marshal([]any{status.Runtime, status.Round})
+	encoded, err := json.Marshal(status)
 	require.NoError(t, err)
 
-	for _, text := range []string{string(encoded), fmt.Sprintf("%+v", status.Reader)} {
-		assert.NotContains(t, text, secretKey)
+	for _, secret := range []string{secretKey, secretAdmin} {
+		assert.NotContains(t, string(encoded), secret)
 	}
 
 	assert.Contains(t, string(encoded), `"generation":7`)
+}
+
+// The JSON of the joined status is pinned: camelCase names, the reader status, the engine result and the runtime
+// tree, with the same names everywhere. No API key, admin key or object byte is in it (canaries in the flag set
+// keys, the admin keys and the object content).
+func TestSource_StatusJSONGolden(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t)
+	harness.reader.status = manifestreader.Status{
+		Polls:    4,
+		Poll:     manifestreader.PollStatus{At: clocktest.Instant(), Result: manifestreader.PollUpdated},
+		Manifest: manifestreader.ManifestStatus{Outcome: manifestreader.OutcomeAccepted, Generation: 7, Objects: 2},
+		Counts:   manifestreader.Counts{OK: 1, Stale: 1},
+		Failures: []manifestreader.ObjectFailure{{
+			Name: objB, State: manifestreader.StateStale, Reason: manifestreader.ReasonChecksumMismatch,
+			Checksum: "sha256:abcd", Retryable: true,
+		}},
+	}
+
+	harness.startEngine()
+
+	var cfg bootstrap.Config
+
+	require.NoError(t, yaml.Unmarshal([]byte("auth:\n  adminKeys:\n    - "+secretAdmin+"\n"), &cfg))
+	harness.engine.Reload(&cfg)
+	harness.nextRound()
+
+	flags := flagsYAML(1, "f")
+
+	harness.feed(snapshot(7, map[string]manifestreader.ObjectState{
+		objA: flagsObject(append(flags, []byte("# "+secretKey+"\n")...)),
+		docName: setsObject(
+			t,
+			fset("a", []string{objA}, secretKey, secretKey+"-2"),
+			fset("b", []string{objC}, "key-b"),
+		),
+	}))
+
+	got, err := json.Marshal(harness.source.Status())
+	require.NoError(t, err)
+
+	want, err := os.ReadFile("testdata/status.golden.json")
+	require.NoError(t, err)
+
+	assert.JSONEq(t, string(want), string(got))
+
+	for _, secret := range []string{secretKey, secretAdmin} {
+		assert.NotContains(t, string(got), secret)
+	}
 }

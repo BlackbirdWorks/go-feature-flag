@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
@@ -149,6 +150,7 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 
 	fset := &FlagSet{
 		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
+		ModifiedAt: st.now,
 	}
 
 	return &setState{
@@ -162,9 +164,12 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 
 // frozenSet keeps the flags a flag set had when its entry became invalid: the sources are not read again, so a
 // partial list of sources is never served.
-func frozenSet(old *setState, spec *setSpec, notes []Problem) *setState {
-	fset := *old.fs
-	fset.APIKeys = len(spec.keys)
+func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *setState {
+	// the fields are copied one by one: a FlagSet holds a memo that must not be copied
+	fset := &FlagSet{
+		Flags: old.fs.Flags, Name: old.fs.Name, State: old.fs.State, Hash: old.fs.Hash, APIKeys: len(spec.keys),
+		Rejected: old.fs.Rejected, ModifiedAt: now,
+	}
 
 	if fset.State == StateServing {
 		fset.State = StateDegraded
@@ -173,15 +178,15 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem) *setState {
 	status := *old.status
 	status.State, status.APIKeys, status.Problems = fset.State, len(spec.keys), slices.Clone(notes)
 
-	return &setState{spec: spec, fs: &fset, status: &status, inputs: old.inputs, notes: notes, frozen: true}
+	return &setState{spec: spec, fs: fset, status: &status, inputs: old.inputs, notes: notes, frozen: true}
 }
 
 // placeholderSet routes the keys of an invalid entry that never had a valid definition to a flag set that is
 // pending and has no flags, so a valid key reaches the "not available" answer.
-func placeholderSet(spec *setSpec, notes []Problem) *setState {
+func placeholderSet(spec *setSpec, notes []Problem, now time.Time) *setState {
 	return &setState{
 		spec: spec, notes: notes, placeholder: true,
-		fs: &FlagSet{Name: spec.name, State: StatePending, APIKeys: len(spec.keys)},
+		fs: &FlagSet{Name: spec.name, State: StatePending, APIKeys: len(spec.keys), ModifiedAt: now},
 		status: &FlagSetStatus{
 			Name: spec.name, State: StatePending, Sources: spec.sources, Problems: slices.Clone(notes),
 			APIKeys: len(spec.keys),

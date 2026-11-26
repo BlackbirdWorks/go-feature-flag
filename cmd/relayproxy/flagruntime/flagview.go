@@ -1,16 +1,20 @@
 package flagruntime
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
-// Configuration returns the flags of the flag set as the flag configuration endpoint lists them: deep copies, the
-// caller may change them. A name in keys that the flag set does not hold is left out; with no keys every flag is
-// returned. The map is never nil.
+// Configuration returns the flags of the flag set as the flag configuration endpoint lists them. A name in keys that
+// the flag set does not hold is left out; with no keys every flag is returned. The map is new for each call, never
+// nil, and the caller may change it; the flags in it are the flags of the flag set itself, shared with every other
+// flag set that lists the same object and with the next generation, and are READ-ONLY: encode them, do not change
+// them. A caller that must change a flag takes a copy with its DeepCopy method.
 func (f *FlagSet) Configuration(keys []string) map[string]flagdef.Flag {
 	if f == nil {
 		return map[string]flagdef.Flag{}
@@ -19,7 +23,7 @@ func (f *FlagSet) Configuration(keys []string) map[string]flagdef.Flag {
 	if len(keys) == 0 {
 		out := make(map[string]flagdef.Flag, len(f.Flags))
 		for key, flag := range f.Flags {
-			out[key] = flag.DeepCopy()
+			out[key] = flag
 		}
 
 		return out
@@ -29,7 +33,7 @@ func (f *FlagSet) Configuration(keys []string) map[string]flagdef.Flag {
 
 	for _, key := range keys {
 		if flag, ok := f.Flags[key]; ok {
-			out[key] = flag.DeepCopy()
+			out[key] = flag
 		}
 	}
 
@@ -38,38 +42,83 @@ func (f *FlagSet) Configuration(keys []string) map[string]flagdef.Flag {
 
 // FlagChange is the answer of the flag change endpoint: a hash of the flag set and one of every flag.
 type FlagChange struct {
-	// Flags are the hashes of the flags by key.
+	// Flags are the hashes of the flags by key. The map is shared by every call on the same flag set: it is
+	// READ-ONLY.
 	Flags map[string]uint32 `json:"flags"`
 	// Hash is the hash of the whole flag set.
 	Hash uint32 `json:"hash"`
 }
 
-// Change computes the flag change answer, exactly as the version 1 endpoint does: the hashes are those of the JSON
-// encoding of the flags. It reads the flags without copying them. A nil flag set has the hash of the empty set.
+// changeMemo is the memoized answer of [FlagSet.Change], error included.
+type changeMemo struct {
+	err    error
+	change FlagChange
+}
+
+// Change returns the flag change answer: the hashes are those of the JSON encoding of the flags, byte for byte as
+// the version 1 endpoint computes them. A flag set is immutable, so the answer is computed once, by the first
+// call (each flag is encoded once), and every later call returns the same value without allocating; the map of
+// the answer is shared and READ-ONLY. A flag set that a later generation carries over by pointer keeps its memo; a
+// rebuilt one computes its own. A nil flag set has the hash of the empty set.
 func (f *FlagSet) Change() (FlagChange, error) {
-	flags := map[string]flagdef.Flag{}
+	if f == nil {
+		memo := computeChange(nil)
 
-	if f != nil {
-		for key, flag := range f.Flags {
-			flags[key] = flag
+		return memo.change, memo.err
+	}
+
+	if memo := f.change.Load(); memo != nil {
+		return memo.change, memo.err
+	}
+
+	memo := computeChange(f.Flags)
+	if !f.change.CompareAndSwap(nil, memo) {
+		memo = f.change.Load()
+	}
+
+	return memo.change, memo.err
+}
+
+// computeChange encodes every flag once and hashes the encoding of each flag and of the whole table. The table is
+// the JSON object that [json.Marshal] writes for the map: the keys sorted, each followed by the encoding of its flag.
+func computeChange(flags map[string]*flagdef.InternalFlag) *changeMemo {
+	keys := make([]string, 0, len(flags))
+	for key := range flags {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	var (
+		table  bytes.Buffer
+		hashes = make(map[string]uint32, len(keys))
+	)
+
+	table.WriteByte('{')
+
+	for idx, key := range keys {
+		flagJSON, err := json.Marshal(flags[key])
+		if err != nil {
+			return &changeMemo{err: fmt.Errorf("encoding the flag %q: %w", key, err)}
 		}
-	}
 
-	all, err := json.Marshal(flags)
-	if err != nil {
-		return FlagChange{}, fmt.Errorf("computing the hash of the flag set: %w", err)
-	}
-
-	hashes := make(map[string]uint32, len(flags))
-
-	for key, flag := range flags {
-		data, flagErr := json.Marshal(flag)
-		if flagErr != nil {
-			return FlagChange{}, fmt.Errorf("encoding the flag %q: %w", key, flagErr)
+		keyJSON, err := json.Marshal(key)
+		if err != nil {
+			return &changeMemo{err: fmt.Errorf("encoding the flag key %q: %w", key, err)}
 		}
 
-		hashes[key] = evalcore.Hash(string(data))
+		if idx > 0 {
+			table.WriteByte(',')
+		}
+
+		table.Write(keyJSON)
+		table.WriteByte(':')
+		table.Write(flagJSON)
+
+		hashes[key] = evalcore.Hash(string(flagJSON))
 	}
 
-	return FlagChange{Hash: evalcore.Hash(string(all)), Flags: hashes}, nil
+	table.WriteByte('}')
+
+	return &changeMemo{change: FlagChange{Hash: evalcore.Hash(table.String()), Flags: hashes}}
 }

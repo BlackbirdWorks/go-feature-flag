@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,29 +24,40 @@ type equivalenceFile struct {
 	name   string
 	path   string
 	inline string
+	// minFlags is the number of valid flags the file has: the table must not shrink under it.
+	minFlags int
 }
 
 func equivalenceFiles() []equivalenceFile {
-	paths := []string{
-		"testdata/flag-config.yaml", "testdata/flag-config.json", "testdata/flag-config.toml",
-		"testdata/flag-config-rollouts.toml", "testdata/flag-config-scheduled-v0.yaml",
-		"testdata/flag-config-custom-bucketingkey.yaml", "testdata/flag-config-multiline-query.json",
-		"testdata/flag-config-updated.yaml", "testdata/flag-config-2nd-file.yaml", "testdata/flag-config-3rd-file.yaml",
-		"testdata/invalid-flag-config.yaml",
-		"testdata/benchmark/flag-config.yaml", "openfeature/provider_tests/flags.yaml",
-		"testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
-		"testdata/ffclient/all_flags/config_flag/flag-config-with-error.yaml",
-		"cmdhelpers/configfile/testdata/flag.goff.yaml",
+	repo := []equivalenceFile{
+		{path: "testdata/flag-config.yaml", minFlags: 2},
+		{path: "testdata/flag-config.json", minFlags: 2},
+		{path: "testdata/flag-config.toml", minFlags: 2},
+		{path: "testdata/flag-config-rollouts.toml", minFlags: 1},
+		{path: "testdata/flag-config-scheduled-v0.yaml", minFlags: 2},
+		{path: "testdata/flag-config-custom-bucketingkey.yaml", minFlags: 1},
+		{path: "testdata/flag-config-multiline-query.json", minFlags: 1},
+		{path: "testdata/flag-config-updated.yaml", minFlags: 2},
+		{path: "testdata/flag-config-2nd-file.yaml", minFlags: 2},
+		{path: "testdata/flag-config-3rd-file.yaml", minFlags: 7},
+		{path: "testdata/invalid-flag-config.yaml", minFlags: 0}, // every flag of it is rejected, as in version 1
+		{path: "testdata/benchmark/flag-config.yaml", minFlags: 42},
+		{path: "openfeature/provider_tests/flags.yaml", minFlags: 13},
+		{path: "testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml", minFlags: 7},
+		{path: "testdata/ffclient/all_flags/config_flag/flag-config-with-error.yaml", minFlags: 6},
+		{path: "cmdhelpers/configfile/testdata/flag.goff.yaml", minFlags: 2},
 	}
 
-	files := make([]equivalenceFile, 0, len(paths)+2)
-	for _, path := range paths {
-		files = append(files, equivalenceFile{name: path, path: repoRoot + path})
+	files := make([]equivalenceFile, 0, len(repo)+2)
+
+	for _, file := range repo {
+		file.name, file.path = file.path, repoRoot+file.path
+		files = append(files, file)
 	}
 
 	return append(files,
-		equivalenceFile{name: "shapes", path: shapesFile},
-		equivalenceFile{name: "scenarios", inline: loadtest.FlagsYAML()},
+		equivalenceFile{name: "shapes", path: shapesFile, minFlags: 16},
+		equivalenceFile{name: "scenarios", inline: loadtest.FlagsYAML(), minFlags: 48},
 	)
 }
 
@@ -90,6 +102,11 @@ func TestEquivalence_SingleEvaluation(t *testing.T) {
 
 	ctxs := equivalenceContexts()
 
+	var pairs atomic.Int64
+
+	// the parent ends after its parallel subtests: the table as a whole must keep its size
+	t.Cleanup(func() { assert.GreaterOrEqual(t, pairs.Load(), int64(minPairs), "flag and context pairs evaluated") })
+
 	for _, file := range equivalenceFiles() {
 		t.Run(file.name, func(t *testing.T) {
 			t.Parallel()
@@ -100,18 +117,15 @@ func TestEquivalence_SingleEvaluation(t *testing.T) {
 			set := runtimeOf(t, data, formatOf(path))
 			names := flagNamesOf(t, data, formatOf(path))
 
-			evaluated := 0
+			// the flags of the file that the engine accepted: a file that parsed to nothing would pass with no check
+			assert.GreaterOrEqual(t, len(set.Flags), file.minFlags, "valid flags of %s", file.name)
 
 			for _, name := range names {
 				for _, ctx := range ctxs {
 					compareSingle(t, legacy, eval, set, name, ctx)
-
-					evaluated++
+					pairs.Add(1)
 				}
 			}
-
-			assert.Equal(t, len(names)*len(ctxs), evaluated)
-			assert.Positive(t, len(set.Flags)+len(names), "the table is not empty")
 		})
 	}
 }
@@ -119,11 +133,11 @@ func TestEquivalence_SingleEvaluation(t *testing.T) {
 // compareSingle evaluates one flag with every typed call and the raw call, through both, and compares.
 func compareSingle(
 	t *testing.T, legacy *ffclient.GoFeatureFlag, eval *flagruntime.Evaluator, set *flagruntime.FlagSet,
-	name string, ctx ffcontext.EvaluationContext,
+	name string, ctx ffcontext.Context,
 ) {
 	t.Helper()
 
-	label := fmt.Sprintf("%s/%s", name, ctx.GetKey())
+	label := fmt.Sprintf("%s/%s", name, keyOf(ctx))
 
 	for _, def := range []any{nil, "sdk-default", 42, map[string]any{"d": 1}} {
 		want, wantErr := legacy.RawVariation(name, ctx, def)
@@ -188,12 +202,14 @@ func TestEquivalence_FlagStates(t *testing.T) {
 				want := legacy.AllFlagsState(ctx)
 				got := eval.AllFlagsState(set, ctx)
 
-				assert.Equal(t, mustJSON(t, want), mustJSON(t, got), "all flags of %s", ctx.GetKey())
-				assert.Equal(t, want.IsValid(), got.IsValid(), "validity of %s", ctx.GetKey())
+				assert.Equal(t, mustJSON(t, want), mustJSON(t, got), "all flags of %s", keyOf(ctx))
+				assert.Equal(t, want.GetFlags(), got.GetFlags(), "the states of %s, Failed included", keyOf(ctx))
+				assert.Equal(t, want.IsValid(), got.IsValid(), "validity of %s", keyOf(ctx))
 
 				wantSubset := legacy.GetFlagStates(ctx, subset)
 				gotSubset := eval.GetFlagStates(set, ctx, subset)
-				assert.Equal(t, mustJSON(t, wantSubset), mustJSON(t, gotSubset), "listed flags of %s", ctx.GetKey())
+				assert.Equal(t, mustJSON(t, wantSubset), mustJSON(t, gotSubset), "listed flags of %s", keyOf(ctx))
+				assert.Equal(t, wantSubset.GetFlags(), gotSubset.GetFlags(), "listed states of %s", keyOf(ctx))
 				assert.Equal(t, wantSubset.IsValid(), gotSubset.IsValid())
 			}
 		})
@@ -258,7 +274,7 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 		environment string
 	}{
 		{name: "enrichment only"},
-		{name: "enrichment and environment", environment: "prod"},
+		{name: "enrichment and environment", environment: prodEnv},
 	}
 
 	for _, tt := range tests {
@@ -274,7 +290,7 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 				for _, ctx := range equivalenceContexts() {
 					want, wantErr := legacy.RawVariation(name, ctx, nil)
 					got, gotErr := eval.RawVariation(set, name, ctx, nil)
-					assert.Equal(t, want, got, "%s/%s", name, ctx.GetKey())
+					assert.Equal(t, want, got, "%s/%s", name, keyOf(ctx))
 					assert.Equal(t, errText(wantErr), errText(gotErr))
 				}
 			}
@@ -319,6 +335,10 @@ func TestEquivalence_TrackedEvents(t *testing.T) {
 
 			for _, name := range flagNamesOf(t, data, formatOf(path)) {
 				for _, ctx := range equivalenceContexts() {
+					if ctx == nil {
+						continue // an event describes its context: version 1 and the runtime both need one
+					}
+
 					_, _ = legacy.RawVariation(name, ctx, nil)
 					_, _ = eval.RawVariation(set, name, ctx, nil)
 					_, _ = legacy.BoolVariationDetails(name, ctx, false)
