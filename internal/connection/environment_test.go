@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
@@ -238,8 +240,8 @@ func TestFactory_ChainNeedsAValidProcessEnvironment(t *testing.T) {
 
 // TestFactory_DataPlaneIgnoresTheEnvironmentCABundle uses real TLS through the transport the factory builds,
 // against a server signed by CA A, with a hostile AWS_CA_BUNDLE in the process environment. The environment
-// bundle is never trusted by the data plane (S3 requests and the STS calls of assumeRole, which use the same
-// transport), only the CABundleFile of the spec is. For a chain connection the SDK reads AWS_CA_BUNDLE too, for
+// bundle is never trusted by the data plane, only the CABundleFile of the spec is (the STS calls of assumeRole are
+// covered by TestFactory_AssumeRoleHops). For a chain connection the SDK reads AWS_CA_BUNDLE too, for
 // its own credential lookups, and refuses a bundle without certificates. It is serial: see
 // [hermeticAWSEnvironment].
 func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
@@ -247,11 +249,6 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 		Type: connection.CredentialsStatic, AccessKeyID: connection.NewSecret("AKIDSPEC"),
 		SecretAccessKey: connection.NewSecret("spec"),
 	}
-	roleCreds := connection.Credentials{
-		Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, AccessKeyID: connection.NewSecret("AKIDSRC"),
-		SecretAccessKey: connection.NewSecret("src"),
-	}
-
 	tests := []struct {
 		name         string
 		creds        connection.Credentials
@@ -259,7 +256,6 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 		wantErr      string // on the request, empty: it succeeds
 		wantBuildErr string // on the build of the client
 		specBundle   bool   // the spec trusts CA A
-		stsOnServer  bool   // the STS endpoint of the connection is the TLS server
 	}{
 		{
 			name:      "static, environment bundle A is not trusted",
@@ -288,14 +284,6 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			name: "chain, the SDK refuses a garbage environment bundle", creds: connection.Credentials{},
 			envBundle: bundleGarbage, specBundle: true, wantBuildErr: "credentials chain cannot be loaded",
 		},
-		{
-			name: "assumeRole, environment bundle A is not trusted by STS", creds: roleCreds, envBundle: "a",
-			stsOnServer: true, wantErr: unknownAuthority,
-		},
-		{
-			name: "assumeRole, spec bundle A serves STS and S3, environment garbage", creds: roleCreds,
-			envBundle: bundleGarbage, specBundle: true, stsOnServer: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -303,16 +291,7 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			hermeticAWSEnvironment(t)
 
 			caA, caB := newTestCA(t, "CA A"), newTestCA(t, "CA B")
-			srv := caA.startServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodPost { // the STS call
-					w.Header().Set(headerType, "text/xml")
-					_, _ = io.WriteString(w, assumeRoleXML)
-
-					return
-				}
-
-				w.WriteHeader(http.StatusOK)
-			}))
+			srv := caA.startServer(t, okHandler())
 
 			dir := t.TempDir()
 			bundles := map[string][]byte{"a": caA.pem, "b": caB.pem, bundleGarbage: []byte("not a certificate")}
@@ -324,15 +303,10 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			t.Setenv("AWS_ACCESS_KEY_ID", keyChain)
 			t.Setenv("AWS_SECRET_ACCESS_KEY", "chain-secret")
 
-			creds := tt.creds
-			if tt.stsOnServer {
-				creds.STSEndpoint = srv.URL
-			}
-
 			fac := connection.New()
 			require.NoError(t, fac.Set(connC, other(func(spec *connection.S3Spec) {
 				spec.Endpoint = srv.URL
-				spec.Credentials = creds
+				spec.Credentials = tt.creds
 				spec.Retry.MaxAttempts = 1
 
 				if tt.specBundle {
@@ -357,6 +331,121 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			}
 
 			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestFactory_AssumeRoleHops separates the two hops of an assumeRole connection, each against its own TLS
+// server that counts the requests it completed and the TLS handshakes it refused: the STS call, then the S3
+// request. Each case says which hop failed, so a failure of the S3 hop cannot pass for a failure of the STS one.
+// It is serial: see [hermeticAWSEnvironment].
+func TestFactory_AssumeRoleHops(t *testing.T) {
+	tests := []struct {
+		name           string
+		bundle         string // the CAs of the spec bundle: hopSTS, hopS3, "both" or "none"
+		envBundle      string // the CA of the hostile AWS_CA_BUNDLE: hopSTS or garbage
+		wantFailingHop string // hopSTS, hopS3, or "" when both succeed
+		wantSTSRequest int32
+		wantS3Requests int32
+		wantSTSRefused bool // the STS server refused at least one handshake
+		wantS3Refused  bool
+	}{
+		{
+			name: "no bundle: the environment CA of STS is not trusted", bundle: "none", envBundle: hopSTS,
+			wantFailingHop: hopSTS, wantSTSRequest: 0, wantS3Requests: 0, wantSTSRefused: true,
+		},
+		{
+			name: "bundle of STS only: STS answers, S3 is refused", bundle: hopSTS, envBundle: bundleGarbage,
+			wantFailingHop: hopS3, wantSTSRequest: 1, wantS3Requests: 0, wantS3Refused: true,
+		},
+		{
+			name: "bundle of S3 only: STS is refused first", bundle: hopS3, envBundle: bundleGarbage,
+			wantFailingHop: hopSTS, wantSTSRequest: 0, wantS3Requests: 0, wantSTSRefused: true,
+		},
+		{
+			name: "bundle of both: both hops succeed", bundle: "both", envBundle: bundleGarbage,
+			wantFailingHop: "", wantSTSRequest: 1, wantS3Requests: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hermeticAWSEnvironment(t)
+
+			caSTS, caS3 := newTestCA(t, "CA STS"), newTestCA(t, "CA S3")
+
+			sts := caSTS.startCounting(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set(headerType, "text/xml")
+				_, _ = io.WriteString(w, assumeRoleXML)
+			}))
+			s3srv := caS3.startCounting(t, okHandler())
+
+			bundles := map[string][]byte{
+				hopSTS: caSTS.pem, hopS3: caS3.pem, "both": slices.Concat(caSTS.pem, caS3.pem),
+			}
+			dir := t.TempDir()
+			specFile, envFile := filepath.Join(dir, "spec.pem"), filepath.Join(dir, "env.pem")
+			require.NoError(t, os.WriteFile(specFile, bundles[tt.bundle], 0o600))
+
+			envContent := []byte("not a certificate")
+			if tt.envBundle == hopSTS {
+				envContent = caSTS.pem
+			}
+
+			require.NoError(t, os.WriteFile(envFile, envContent, 0o600))
+			t.Setenv("AWS_CA_BUNDLE", envFile)
+
+			fac := connection.New()
+			require.NoError(t, fac.Set(connC, other(func(spec *connection.S3Spec) {
+				spec.Endpoint = s3srv.URL
+				spec.Retry.MaxAttempts = 1
+				spec.Credentials = connection.Credentials{
+					Type: connection.CredentialsAssumeRole, RoleARN: testRoleARN, STSEndpoint: sts.URL,
+					AccessKeyID: connection.NewSecret("AKIDSRC"), SecretAccessKey: connection.NewSecret("src"),
+				}
+
+				if tt.bundle != "none" {
+					spec.CABundleFile = specFile
+				}
+			})))
+
+			client, err := fac.S3(t.Context(), connC)
+			require.NoError(t, err)
+
+			err = headObject(t, client)
+			if tt.wantFailingHop == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, unknownAuthority)
+			}
+
+			// the STS call comes first: if it completed no request, it is the hop that failed
+			failingHop := ""
+
+			switch {
+			case err == nil:
+			case sts.requests.Load() == 0:
+				failingHop = hopSTS
+			default:
+				failingHop = hopS3
+			}
+
+			assert.Equal(t, tt.wantFailingHop, failingHop)
+			assert.Equal(t, tt.wantSTSRequest, sts.requests.Load(), "requests completed by STS")
+			assert.Equal(t, tt.wantS3Requests, s3srv.requests.Load(), "requests completed by S3")
+
+			// the server logs a refused handshake after the client gave up: wait for the log, not for a delay
+			for name, check := range map[string]struct {
+				srv  *countingServer
+				want bool
+			}{hopSTS: {sts, tt.wantSTSRefused}, hopS3: {s3srv, tt.wantS3Refused}} {
+				if check.want {
+					require.Eventually(t, func() bool { return check.srv.refused.Load() > 0 },
+						10*time.Second, 5*time.Millisecond, "%s refused no handshake", name)
+				} else {
+					assert.Equal(t, int32(0), check.srv.refused.Load(), "%s refused a handshake", name)
+				}
+			}
 		})
 	}
 }
