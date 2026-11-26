@@ -384,6 +384,19 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantNone:   []string{secretQuery, secretValue},
 		},
 		{
+			name:       "publish: a malformed flag before --output=json, the usage error is JSON",
+			args:       []string{cmdPublish, ".", "---dry-run", "--output=json"},
+			wantStderr: "bad flag syntax",
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "publish: a malformed flag before --output=text, nothing on stdout",
+			args:       []string{cmdPublish, ".", "---dry-run", "--output=text"},
+			wantStderr: "bad flag syntax",
+			wantExit:   1,
+		},
+		{
 			// "-ho" is two shorthands and "json" is the value of o: Cobra has removed "validate" before pflag reads them.
 			name:       "config: combined shorthand before the subcommand selects json",
 			args:       []string{cmdConfig, "-ho", cmdValidate, fmtJSON, unknownFlag},

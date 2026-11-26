@@ -59,35 +59,68 @@ func RawOutput(failed *cobra.Command, args []string) (string, bool) {
 	return RawOutputIn(failed.Flags(), rest)
 }
 
-// RawOutputIn reads arguments (the command names already removed) with the real parser of pflag, against a throwaway
-// flag set that has the names, shorthands and value rules (NoOptDefVal) of flags and records values instead of
+// RawOutputIn reads arguments (the command names already removed) with the real parser of pflag, against throwaway
+// flag sets that have the names, shorthands and value rules (NoOptDefVal) of flags and record values instead of
 // setting them, and returns the last value of the output flag and whether it was given. Unknown flags are skipped, so
-// an output selection after one still counts; an error that stops pflag (a flag without its value) ends the read,
-// because nothing follows it that pflag would have read. The flag set must have a flag named "output".
+// an output selection after one still counts.
+//
+// pflag stops at the first token it rejects (a malformed flag such as "---x", a flag without its value), and does not
+// say where. So the read goes one token at a time and resumes after any token that is rejected: a token that parses
+// alone is consumed alone; one that needs the next argument (a flag with its value in the next argument) is parsed
+// with it, and that argument is then its value, whatever it looks like; a token that does not parse either way is
+// skipped. "--" ends the flags, as for pflag. At most two parses per argument. The flag set must have a flag named
+// "output".
 func RawOutputIn(flags *pflag.FlagSet, args []string) (string, bool) {
 	if flags == nil || flags.Lookup(outputFlag) == nil {
 		return "", false
 	}
 
-	probe := pflag.NewFlagSet("probe", pflag.ContinueOnError)
-	probe.ParseErrorsAllowlist.UnknownFlags = true
-	probe.SetOutput(io.Discard)
-	probe.Usage = func() {}
+	output := &recorder{}
 
-	var output *recorder
+	newProbe := func() *pflag.FlagSet {
+		probe := pflag.NewFlagSet("probe", pflag.ContinueOnError)
+		probe.ParseErrorsAllowlist.UnknownFlags = true
+		probe.SetOutput(io.Discard)
+		probe.Usage = func() {}
 
-	flags.VisitAll(func(flag *pflag.Flag) {
-		stub := &recorder{}
-		if flag.Name == outputFlag {
-			output = stub
+		flags.VisitAll(func(flag *pflag.Flag) {
+			var value pflag.Value = &recorder{}
+			if flag.Name == outputFlag {
+				value = output
+			}
+
+			probe.AddFlag(&pflag.Flag{
+				Name: flag.Name, Shorthand: flag.Shorthand, NoOptDefVal: flag.NoOptDefVal, Value: value,
+			})
+		})
+
+		return probe
+	}
+
+	// try parses a group of arguments; a group that is rejected leaves no trace in the recorded output.
+	try := func(group []string) bool {
+		saved := *output
+
+		err := newProbe().Parse(group)
+		if err != nil {
+			*output = saved
 		}
 
-		probe.AddFlag(&pflag.Flag{
-			Name: flag.Name, Shorthand: flag.Shorthand, NoOptDefVal: flag.NoOptDefVal, Value: stub,
-		})
-	})
+		return err == nil
+	}
 
-	_ = probe.Parse(args) // an error ends the read: pflag does not go past it either
+	for i := 0; i < len(args); {
+		switch {
+		case args[i] == "--":
+			return output.last, output.set
+		case try(args[i : i+1]):
+			i++
+		case i+1 < len(args) && try(args[i:i+2]):
+			i += 2
+		default:
+			i++ // rejected, with its value or without: skipped, the read resumes after it
+		}
+	}
 
 	return output.last, output.set
 }

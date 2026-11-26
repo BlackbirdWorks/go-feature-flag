@@ -15,13 +15,20 @@ import (
 )
 
 const (
+	combinedO      = "-nvo"
+	bogusValue     = "bogus"
+	flagOutputJSON = "--output=json"
+	badToken       = "---bad"
+	flagConfigLong = "--config"
+	shortJSON      = "-ojson"
+	emptyName      = "--=x"
+	tripleDash     = "---x"
 	groupName      = "config"
 	leafName       = "validate"
 	unknownArg     = "--unknown"
 	shortText      = "-otext"
 	flagEndpoint   = "--endpoint"
 	flagOutput     = "--output"
-	flagOutputJSON = "--output=json"
 	jsonValue      = "json"
 	textValue      = "text"
 	subName        = "sub"
@@ -185,24 +192,27 @@ func outputFlags() *pflag.FlagSet {
 	flags.String("endpoint", "", "")
 	flags.BoolP("dry-run", "n", false, "")
 	flags.BoolP("verbose", "v", false, "")
+	flags.IntP("port", "p", 0, "")
 	flags.StringP("output", "o", textValue, "")
 
 	return flags
 }
 
-func TestRawOutputIn(t *testing.T) {
-	t.Parallel()
+// rawOutputRow is one case of the read of the output flag: the arguments and what the read must return.
+type rawOutputRow struct {
+	name      string
+	wantValue string
+	args      []string
+	wantFound bool
+}
 
-	tests := []struct {
-		name      string
-		wantValue string
-		args      []string
-		wantFound bool
-	}{
+// rawOutputRows are the cases of TestRawOutputIn; they are the seeds of FuzzRawOutput too.
+func rawOutputRows() []rawOutputRow {
+	return []rawOutputRow{
 		{name: "no arguments"},
 		{name: "no output flag", args: []string{pubName, flagEndpoint, "http://x", "-c", "file"}},
 		{name: "short flag", args: []string{pubName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true},
-		{name: "short flag attached", args: []string{"-ojson"}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag attached", args: []string{shortJSON}, wantValue: jsonValue, wantFound: true},
 		{name: "short flag with equals", args: []string{"-o=json"}, wantValue: jsonValue, wantFound: true},
 		{name: "long flag", args: []string{flagOutput, jsonValue}, wantValue: jsonValue, wantFound: true},
 		{name: "long flag with equals", args: []string{flagOutputJSON}, wantValue: jsonValue, wantFound: true},
@@ -225,7 +235,7 @@ func TestRawOutputIn(t *testing.T) {
 		},
 		{
 			name:      "-otext is the value of --config",
-			args:      []string{flagOutput, jsonValue, "--config", shortText, "--not-a-flag"},
+			args:      []string{flagOutput, jsonValue, flagConfigLong, shortText, "--not-a-flag"},
 			wantValue: jsonValue,
 			wantFound: true,
 		},
@@ -248,10 +258,10 @@ func TestRawOutputIn(t *testing.T) {
 			wantValue: jsonValue, wantFound: true,
 		},
 		{
-			name: "combined shorthands ending in o with the value after", args: []string{"-nvo", jsonValue},
+			name: "combined shorthands ending in o with the value after", args: []string{combinedO, jsonValue},
 			wantValue: jsonValue, wantFound: true,
 		},
-		{name: "combined shorthands ending in c take the next argument", args: []string{"-nvc", "-ojson"}},
+		{name: "combined shorthands ending in c take the next argument", args: []string{"-nvc", shortJSON}},
 		{name: "a positional json", args: []string{pubName, jsonValue}},
 		{name: "a positional that looks like a flag value", args: []string{"verify", "-n", jsonValue}},
 		{name: "stops at the double dash", args: []string{pubName, "--", "-o", jsonValue}},
@@ -267,8 +277,83 @@ func TestRawOutputIn(t *testing.T) {
 			wantValue: jsonValue,
 			wantFound: true,
 		},
+		{
+			name:      "a malformed flag before the selection",
+			args:      []string{"---dry-run", flagOutputJSON},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name:      "a flag with an empty name before the selection",
+			args:      []string{emptyName, "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name:      "a lone dash is a positional",
+			args:      []string{"-", "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{name: "a lone dash and nothing else", args: []string{"-"}},
+		{
+			name:      "a malformed token as the value of --output is the value",
+			args:      []string{"--output", tripleDash},
+			wantValue: tripleDash,
+			wantFound: true,
+		},
+		{
+			name:      "a malformed token as the value of another flag is that value",
+			args:      []string{flagConfigLong, tripleDash, "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "a malformed token after the double dash is a positional",
+			args: []string{"--", tripleDash, flagOutputJSON},
+		},
+		{
+			name:      "a malformed token after a selection and the double dash",
+			args:      []string{"-o", textValue, "--", tripleDash},
+			wantValue: textValue,
+			wantFound: true,
+		},
+		{
+			name:      "a malformed token between two selections",
+			args:      []string{"-o", textValue, tripleDash, "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name:      "an invalid value for a typed flag before the selection",
+			args:      []string{"--port", "abc", "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name:      "an invalid value for a typed shorthand before the selection",
+			args:      []string{"-p", "abc", "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "an invalid output value followed by a valid one", args: []string{"-o", bogusValue, "-o", jsonValue},
+			wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name:      "an invalid output value and nothing after it",
+			args:      []string{"-o", bogusValue},
+			wantValue: bogusValue,
+			wantFound: true,
+		},
 		{name: "another flag that starts with -o", args: []string{"-opt"}, wantValue: "pt", wantFound: true},
 	}
+}
+
+func TestRawOutputIn(t *testing.T) {
+	t.Parallel()
+
+	tests := rawOutputRows()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
