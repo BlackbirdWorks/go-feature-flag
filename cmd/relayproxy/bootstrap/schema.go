@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/invopop/jsonschema"
@@ -73,38 +74,87 @@ func restrictNamedMaps(root *jsonschema.Schema) {
 	}
 }
 
-// requireByKind adds the keys that the loader requires for a kind, as if/then conditions on the discriminator.
+// requireByKind adds the keys that the loader requires, and forbids the keys it does not allow, for a kind, as
+// if/then conditions on the discriminator. The key lists of notifiers and credentials come from the validator.
 func requireByKind(root *jsonschema.Schema) {
 	exporters := map[string][]string{
-		ExporterFile: {"outputDir"}, ExporterWebhook: {keyEndpointURL}, ExporterS3: {keyConnection},
-		ExporterKinesis: {keyConnection}, ExporterGoogleStorage: {"bucket"}, ExporterSQS: {keyConnection},
-		ExporterKafka: {keyKafka}, ExporterPubSub: {"projectId", "topic"}, ExporterBigQuery: {"projectId", "datasetId"},
-		ExporterRedshift: {keyConnection, "database"}, ExporterAzure: {"container", "accountName"},
-	}
-	notifiers := map[string][]string{
-		NotifierSlack: {keyWebhookURL}, NotifierMicrosoftTeams: {keyWebhookURL}, NotifierDiscord: {keyWebhookURL},
-		NotifierWebhook: {keyEndpointURL},
-	}
-	credentials := map[string][]string{
-		CredentialsStatic: {keyAccessKeyID, keySecretKey}, CredentialsAssumeRole: {keyRoleARN},
-		CredentialsWebIdentity: {keyRoleARN, keyTokenFile},
+		ExporterFile:          {"outputDir"},
+		ExporterWebhook:       {keyEndpointURL},
+		ExporterS3:            {keyConnection},
+		ExporterKinesis:       {keyConnection},
+		ExporterGoogleStorage: {"bucket"},
+		ExporterSQS:           {keyConnection},
+		ExporterKafka: {
+			keyKafka,
+		},
+		ExporterPubSub:   {keyProjectID, "topic"},
+		ExporterBigQuery: {keyProjectID, "datasetId"},
+		ExporterRedshift: {keyConnection, "database"},
+		ExporterAzure:    {"container", "accountName"},
+		ExporterLog:      nil,
+		ExporterOTel:     nil,
 	}
 
-	addKindConditions(root.Definitions["Exporter"], "kind", exporters)
-	addKindConditions(root.Definitions["Notifier"], "kind", notifiers)
-	addKindConditions(root.Definitions["Credentials"], "type", credentials)
+	exporterDef := root.Definitions["Exporter"]
+
+	for _, kind := range sortedKeys(exporters) {
+		spec, _ := exporterKind(kind)
+		addKindCondition(exporterDef, keyKind, kind, exporters[kind], spec.allowed, commonExporterKeys())
+	}
+
+	notifierDef := root.Definitions["Notifier"]
+
+	for _, kind := range []string{NotifierSlack, NotifierMicrosoftTeams, NotifierDiscord, NotifierWebhook} {
+		allowed, required, _ := notifierKeys(kind)
+		addKindCondition(notifierDef, keyKind, kind, required, allowed, []string{keyKind, keyMeta})
+	}
+
+	credentialsDef := root.Definitions["Credentials"]
+
+	for _, kind := range []string{CredentialsStatic, CredentialsAssumeRole, CredentialsWebIdentity} {
+		allowed, required, _ := credentialKeys(kind)
+		addKindCondition(credentialsDef, keyType, kind, required, allowed, []string{keyType})
+	}
+
+	// an absent, empty or chain type means chain: none of the keys of the other types is allowed
+	props := jsonschema.NewProperties()
+	props.Set(
+		keyType,
+		&jsonschema.Schema{Enum: []any{CredentialsStatic, CredentialsAssumeRole, CredentialsWebIdentity}},
+	)
+
+	credentialsDef.AllOf = append(credentialsDef.AllOf, &jsonschema.Schema{
+		If:   &jsonschema.Schema{Not: &jsonschema.Schema{Properties: props, Required: []string{keyType}}},
+		Then: forbidden(credentialsDef, []string{keyType}),
+	})
 }
 
-func addKindConditions(def *jsonschema.Schema, discriminator string, required map[string][]string) {
-	for _, kind := range sortedKeys(required) {
-		props := jsonschema.NewProperties()
-		props.Set(discriminator, &jsonschema.Schema{Const: kind})
+// addKindCondition adds: when the discriminator is the kind, the required keys are present and the keys that are
+// neither allowed nor common are absent.
+func addKindCondition(def *jsonschema.Schema, discriminator, kind string, required, allowed, common []string) {
+	props := jsonschema.NewProperties()
+	props.Set(discriminator, &jsonschema.Schema{Const: kind})
 
-		def.AllOf = append(def.AllOf, &jsonschema.Schema{
-			If:   &jsonschema.Schema{Properties: props, Required: []string{discriminator}},
-			Then: &jsonschema.Schema{Required: required[kind]},
-		})
+	then := forbidden(def, append(slices.Clone(allowed), common...))
+	then.Required = required
+
+	def.AllOf = append(def.AllOf, &jsonschema.Schema{
+		If:   &jsonschema.Schema{Properties: props, Required: []string{discriminator}},
+		Then: then,
+	})
+}
+
+// forbidden is a schema that rejects every property of the definition that is not in the allowed list.
+func forbidden(def *jsonschema.Schema, allowed []string) *jsonschema.Schema {
+	props := jsonschema.NewProperties()
+
+	for pair := def.Properties.Oldest(); pair != nil; pair = pair.Next() {
+		if !slices.Contains(allowed, pair.Key) {
+			props.Set(pair.Key, jsonschema.FalseSchema)
+		}
 	}
+
+	return &jsonschema.Schema{Properties: props}
 }
 
 // setDurationDefaults sets the defaults of the Duration settings. A property that is a reference keeps no tag
@@ -128,7 +178,7 @@ func setDurationDefaults(root *jsonschema.Schema) {
 func allowEmptyEnums(root *jsonschema.Schema) {
 	for _, key := range [][2]string{
 		{"Listener", "role"}, {"Logging", "level"}, {"Logging", keyFormat}, {"Tracing", "sampler"},
-		{"Credentials", "type"}, {defS3Connection, "requestChecksumCalculation"},
+		{"Credentials", keyType}, {defS3Connection, "requestChecksumCalculation"},
 		{defS3Connection, "responseChecksumValidation"}, {"Exporter", keyFormat},
 	} {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {

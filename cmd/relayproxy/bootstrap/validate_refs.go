@@ -8,7 +8,7 @@ import (
 
 // commonExporterKeys returns the keys that are valid for every exporter kind.
 func commonExporterKeys() []string {
-	return []string{"kind", "meta", "flushInterval", "maxEventInMemory", "eventType"}
+	return []string{keyKind, keyMeta, "flushInterval", "maxEventInMemory", "eventType"}
 }
 
 type exporterSpec struct {
@@ -214,25 +214,31 @@ func (v *validator) headers(path string, headers map[string]Secret) {
 	}
 }
 
-func (v *validator) notifier(path string, notif *Notifier) {
-	var allowed, required []string
-
-	switch notif.Kind {
+// notifierKeys returns the keys a notifier kind allows besides keyKind and keyMeta, and the ones it requires.
+func notifierKeys(kind string) ([]string, []string, bool) {
+	switch kind {
 	case NotifierSlack, NotifierMicrosoftTeams, NotifierDiscord:
-		allowed, required = []string{keyWebhookURL}, []string{keyWebhookURL}
+		return []string{keyWebhookURL}, []string{keyWebhookURL}, true
 	case NotifierWebhook:
-		allowed, required = []string{keyEndpointURL, keySecret, "headers"}, []string{keyEndpointURL}
-	case "":
-		v.fail(path+".kind", ErrMissingValue)
+		return []string{keyEndpointURL, keySecret, "headers"}, []string{keyEndpointURL}, true
+	}
 
-		return
-	default:
-		v.failf(path+".kind", ErrUnknownType, "%q", notif.Kind)
+	return nil, nil, false
+}
+
+func (v *validator) notifier(path string, notif *Notifier) {
+	allowed, required, found := notifierKeys(notif.Kind)
+	if !found {
+		if notif.Kind == "" {
+			v.fail(path+".kind", ErrMissingValue)
+		} else {
+			v.failf(path+".kind", ErrUnknownType, "%q", notif.Kind)
+		}
 
 		return
 	}
 
-	v.allowed(path, reflect.ValueOf(*notif), append([]string{"kind", "meta"}, allowed...), required)
+	v.allowed(path, reflect.ValueOf(*notif), append([]string{keyKind, keyMeta}, allowed...), required)
 
 	v.headers(path, notif.Headers)
 

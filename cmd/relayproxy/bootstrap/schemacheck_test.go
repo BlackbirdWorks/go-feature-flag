@@ -307,6 +307,10 @@ func checkPropertyCount(path string, schema schemaObject, count int) []string {
 }
 
 func (c *schemaChecker) checkProperty(path string, schema schemaObject, known, value any) []string {
+	if allowed, isBool := known.(bool); isBool && !allowed {
+		return []string{path + ": not allowed"}
+	}
+
 	if sub, found := known.(schemaObject); found {
 		return c.check(path, sub, value)
 	}

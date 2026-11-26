@@ -54,7 +54,7 @@ func TestSchemaShape(t *testing.T) {
 		{name: "root has the version key", def: "Config", wantProperty: "version", wantRequired: []string{"version"}},
 		{name: "control plane", def: defMaxManifest, wantProperty: "maxObjects"},
 		{name: "connection is a union", def: "Connection", wantOneOf: 4},
-		{name: "s3 member", def: "S3Connection", wantProperty: "bucket", wantRequired: []string{"type"}},
+		{name: "s3 member", def: "S3Connection", wantProperty: "bucket", wantRequired: []string{typeKey}},
 		{name: "secret reference", def: "Secret", wantProperty: "fromEnv"},
 	}
 
@@ -244,7 +244,7 @@ func TestSchemaDefaults(t *testing.T) {
 		{def: "Timeouts", property: "connect", want: "10s"},
 		{def: "Logging", property: "level", want: "info"},
 		{def: "Metrics", property: "enabled", want: true},
-		{def: "Credentials", property: "type", want: "chain"},
+		{def: "Credentials", property: typeKey, want: "chain"},
 	}
 
 	for _, tcase := range tests {

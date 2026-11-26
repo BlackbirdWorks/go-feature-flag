@@ -54,7 +54,7 @@ const (
 // secretKeys are the keys whose scalar value is a secret or an admin key.
 func secretKeys() []string {
 	return []string{
-		"accessKeyId", "secretAccessKey", "sessionToken", "externalId", "endpointUrl", "webhookUrl", "secret",
+		"accessKeyId", "secretAccessKey", "sessionToken", "externalId", endpointURLKey, webhookURLKey, "secret",
 		"googleCredentials", "accountKey",
 	}
 }
@@ -72,11 +72,17 @@ func isSecretKey(key string) bool {
 // onlyInSecretPositions reports whether the canary appears in the document only as a scalar value of a secret
 // key, an admin key, or a header value. Anywhere else it is an ordinary value that may be printed.
 func onlyInSecretPositions(node *yaml.Node, secretPosition bool, depth int) bool {
-	return secretPositions(node, secretPosition, false, depth)
+	return secretPositions(node, secretPosition, nil, depth)
 }
 
-// secretPositions is onlyInSecretPositions; plain is true below "meta", where every value is printed as is.
-func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) bool {
+// isMetaPath reports whether the path of keys is the metadata of an exporter or a notifier: below it every value
+// is printed as is. A connection, an exporter or a notifier that is merely named meta is not.
+func isMetaPath(trail []string) bool {
+	return len(trail) >= 3 && (trail[0] == "exporters" || trail[0] == "notifiers") && trail[2] == "meta"
+}
+
+// secretPositions is onlyInSecretPositions with the path of keys to the node.
+func secretPositions(node *yaml.Node, secretPosition bool, trail []string, depth int) bool {
 	if node.Kind == yaml.AliasNode {
 		node = node.Alias
 	}
@@ -90,10 +96,10 @@ func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) boo
 	}
 
 	for i, child := range node.Content {
-		childSecret, plainBelow, isKey := secretPosition, plain, false
+		childSecret, childTrail, isKey := secretPosition, trail, false
 
 		if node.Kind == yaml.MappingNode {
-			childSecret, plainBelow, isKey = mappingChild(node, i, secretPosition, plain)
+			childSecret, childTrail, isKey = mappingChild(node, i, secretPosition, trail)
 		}
 
 		if isKey {
@@ -105,7 +111,7 @@ func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) boo
 			continue
 		}
 
-		if !secretPositions(child, childSecret, plainBelow, depth+1) {
+		if !secretPositions(child, childSecret, childTrail, depth+1) {
 			return false
 		}
 	}
@@ -114,17 +120,17 @@ func secretPositions(node *yaml.Node, secretPosition, plain bool, depth int) boo
 }
 
 // mappingChild tells how the i-th node of a mapping is treated: whether it is a key, and for a value whether it
-// is in a secret position and whether everything below it is plain. It returns (secret, plainBelow, isKey).
-func mappingChild(node *yaml.Node, i int, secretPosition, plain bool) (bool, bool, bool) {
+// is in a secret position and its path of keys. It returns (secret, trail, isKey).
+func mappingChild(node *yaml.Node, i int, secretPosition bool, trail []string) (bool, []string, bool) {
 	if i%2 == 0 {
-		return false, plain, true
+		return false, trail, true
 	}
 
 	parentKey := node.Content[i-1].Value
 	child := node.Content[i]
+	secret := !isMetaPath(trail) && (isSecretKey(parentKey) || (secretPosition && child.Kind == yaml.MappingNode))
 
-	return !plain && (isSecretKey(parentKey) || (secretPosition && child.Kind == yaml.MappingNode)),
-		plain || parentKey == "meta", false
+	return secret, append(slices.Clone(trail), parentKey), false
 }
 
 // FuzzParseCanary checks that a sentinel written as a secret value never appears in an error or in the print.
@@ -132,6 +138,9 @@ func FuzzParseCanary(f *testing.F) {
 	for _, seed := range []string{
 		"version: 2\nauth: {adminKeys: [@@, @@]}\n",
 		"version: 2\nexporters:\n  e: {kind: log, meta: {secret: @@}}\n",
+		"version: 2\nconnections:\n  meta: {type: s3, credentials: {type: static, accessKeyId: @@, secretAccessKey: @@}}\n",
+		"version: 2\nnotifiers:\n  meta: {kind: webhook, endpointUrl: @@, secret: @@}\n",
+		"version: 2\nexporters:\n  meta: {kind: webhook, endpointUrl: @@, headers: {A: @@}}\n",
 		"version: 2\nauth: {adminKeys: [{fromEnv: @@}]}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: static, accessKeyId: @@, secretAccessKey: @@}}\n",
 		"version: 2\nconnections:\n  a: {type: s3, credentials: {type: assumeRole, roleArn: r, externalId: @@}}\n",

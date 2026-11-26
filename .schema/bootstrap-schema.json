@@ -142,23 +142,6 @@
                     "if": {
                         "properties": {
                             "type": {
-                                "const": "assumeRole"
-                            }
-                        },
-                        "required": [
-                            "type"
-                        ]
-                    },
-                    "then": {
-                        "required": [
-                            "roleArn"
-                        ]
-                    }
-                },
-                {
-                    "if": {
-                        "properties": {
-                            "type": {
                                 "const": "static"
                             }
                         },
@@ -167,9 +150,38 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "roleArn": false,
+                            "sessionName": false,
+                            "externalId": false,
+                            "tokenFile": false
+                        },
                         "required": [
                             "accessKeyId",
                             "secretAccessKey"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "assumeRole"
+                            }
+                        },
+                        "required": [
+                            "type"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "tokenFile": false,
+                            "accessKeyId": false,
+                            "secretAccessKey": false,
+                            "sessionToken": false
+                        },
+                        "required": [
+                            "roleArn"
                         ]
                     }
                 },
@@ -185,10 +197,45 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "externalId": false,
+                            "accessKeyId": false,
+                            "secretAccessKey": false,
+                            "sessionToken": false
+                        },
                         "required": [
                             "roleArn",
                             "tokenFile"
                         ]
+                    }
+                },
+                {
+                    "if": {
+                        "not": {
+                            "properties": {
+                                "type": {
+                                    "enum": [
+                                        "static",
+                                        "assumeRole",
+                                        "webIdentity"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "type"
+                            ]
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "roleArn": false,
+                            "sessionName": false,
+                            "externalId": false,
+                            "tokenFile": false,
+                            "accessKeyId": false,
+                            "secretAccessKey": false,
+                            "sessionToken": false
+                        }
                     }
                 }
             ],
@@ -248,6 +295,31 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "bucket": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "container",
                             "accountName"
@@ -266,6 +338,35 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "topic": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "projectId",
                             "datasetId"
@@ -284,6 +385,34 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "path": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "outputDir"
                         ]
@@ -301,6 +430,32 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "bucket"
                         ]
@@ -318,6 +473,38 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "kafka"
                         ]
@@ -335,9 +522,131 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "connection"
                         ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "log"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "opentelemetry"
+                            }
+                        },
+                        "required": [
+                            "kind"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        }
                     }
                 },
                 {
@@ -352,6 +661,36 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "datasetId": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "projectId",
                             "topic"
@@ -370,6 +709,31 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false
+                        },
                         "required": [
                             "connection",
                             "database"
@@ -388,6 +752,33 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "connection"
                         ]
@@ -405,6 +796,37 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "secret": false,
+                            "endpointUrl": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "connection"
                         ]
@@ -422,6 +844,36 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "kafka": false,
+                            "clusterIdentifier": false,
+                            "streamName": false,
+                            "format": false,
+                            "filename": false,
+                            "csvTemplate": false,
+                            "parquetCompressionCodec": false,
+                            "path": false,
+                            "outputDir": false,
+                            "logFormat": false,
+                            "tracerName": false,
+                            "container": false,
+                            "bucket": false,
+                            "accountName": false,
+                            "streamArn": false,
+                            "connection": false,
+                            "queueUrl": false,
+                            "projectId": false,
+                            "datasetId": false,
+                            "topic": false,
+                            "tableName": false,
+                            "database": false,
+                            "workgroupName": false,
+                            "dbUser": false,
+                            "secretArn": false,
+                            "googleCredentials": false,
+                            "accountKey": false,
+                            "autoMigrate": false
+                        },
                         "required": [
                             "endpointUrl"
                         ]
@@ -738,7 +1190,7 @@
                     "if": {
                         "properties": {
                             "kind": {
-                                "const": "discord"
+                                "const": "slack"
                             }
                         },
                         "required": [
@@ -746,6 +1198,11 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "endpointUrl": false,
+                            "secret": false
+                        },
                         "required": [
                             "webhookUrl"
                         ]
@@ -763,6 +1220,11 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "endpointUrl": false,
+                            "secret": false
+                        },
                         "required": [
                             "webhookUrl"
                         ]
@@ -772,7 +1234,7 @@
                     "if": {
                         "properties": {
                             "kind": {
-                                "const": "slack"
+                                "const": "discord"
                             }
                         },
                         "required": [
@@ -780,6 +1242,11 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "headers": false,
+                            "endpointUrl": false,
+                            "secret": false
+                        },
                         "required": [
                             "webhookUrl"
                         ]
@@ -797,6 +1264,9 @@
                         ]
                     },
                     "then": {
+                        "properties": {
+                            "webhookUrl": false
+                        },
                         "required": [
                             "endpointUrl"
                         ]

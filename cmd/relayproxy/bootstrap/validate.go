@@ -304,32 +304,36 @@ func (v *validator) jitter(path string, j float64) {
 	}
 }
 
+// credentialKeys returns the keys a credentials type allows besides keyType, and the ones it requires.
+func credentialKeys(kind string) ([]string, []string, bool) {
+	switch kind {
+	case CredentialsChain:
+		return nil, nil, true
+	case CredentialsStatic:
+		return []string{keyAccessKeyID, keySecretKey, "sessionToken"}, []string{keyAccessKeyID, keySecretKey}, true
+	case CredentialsAssumeRole:
+		return []string{keyRoleARN, "sessionName", "externalId"}, []string{keyRoleARN}, true
+	case CredentialsWebIdentity:
+		return []string{keyRoleARN, keyTokenFile, "sessionName"}, []string{keyRoleARN, keyTokenFile}, true
+	}
+
+	return nil, nil, false
+}
+
 func (v *validator) credentials(path string, cred *Credentials) {
 	v.secret(path+".accessKeyId", cred.AccessKeyID)
 	v.secret(path+".secretAccessKey", cred.SecretAccessKey)
 	v.secret(path+".sessionToken", cred.SessionToken)
 	v.secret(path+".externalId", cred.ExternalID)
 
-	var allowed, required []string
-
-	switch cred.Type {
-	case CredentialsChain:
-	case CredentialsStatic:
-		allowed = []string{keyAccessKeyID, keySecretKey, "sessionToken"}
-		required = []string{keyAccessKeyID, keySecretKey}
-	case CredentialsAssumeRole:
-		allowed = []string{keyRoleARN, "sessionName", "externalId"}
-		required = []string{keyRoleARN}
-	case CredentialsWebIdentity:
-		allowed = []string{keyRoleARN, keyTokenFile, "sessionName"}
-		required = []string{keyRoleARN, keyTokenFile}
-	default:
+	allowed, required, found := credentialKeys(cred.Type)
+	if !found {
 		v.failf(path+".type", ErrInvalidValue, "allowed values: chain, static, assumeRole, webIdentity")
 
 		return
 	}
 
-	v.allowed(path, reflect.ValueOf(*cred), append([]string{"type"}, allowed...), required)
+	v.allowed(path, reflect.ValueOf(*cred), append([]string{keyType}, allowed...), required)
 }
 
 // allowed reports the set keys of a struct that are not in the allowed list, and the required keys not set.

@@ -30,7 +30,8 @@ control plane location, listeners, observability and admin keys. It is strict: a
 - A file with only `connections`, or with a `controlPlane` and nothing else optional, is valid. Without `controlPlane`
   the relay runs with no flag sets.
 - The JSON Schema is generated from the Go types: `.schema/bootstrap-schema.json`. It carries the enumerations,
-  ranges, defaults, name patterns and the keys required per kind and per credentials type. An empty string for an enumerated
+  ranges, defaults, name patterns and the keys required, and the keys not allowed, per kind and per credentials type (an absent or empty
+  credentials `type` is `chain`). An empty string for an enumerated
   setting (for example `format: ""`) means "unset" and takes the default. The loader stays the
   authority: some rules (references between sections, uniqueness, host and URL checks) are not in the schema.
 

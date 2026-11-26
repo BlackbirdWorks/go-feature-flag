@@ -24,6 +24,10 @@ const (
 	keyFormat       = "format"
 	defS3Connection = "S3Connection"
 
+	keyMeta = "meta"
+	keyKind = "kind"
+	keyType = "type"
+
 	keyConnection        = "connection"
 	keyEndpointURL       = "endpointUrl"
 	keyGoogleCredentials = "googleCredentials"
