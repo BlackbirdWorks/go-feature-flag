@@ -443,12 +443,11 @@ func TestExistingObjectIsNeverAcceptedOnItsSizeAlone(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErr    error
-		wrap       func(*s3fake.Fake) s3publish.API
-		name       string
-		wantObject string
-		omit       bool
-		corrupt    bool
+		wantErr error
+		wrap    func(*s3fake.Fake) s3publish.API
+		name    string
+		omit    bool
+		corrupt bool
 	}{
 		{name: "no checksum reported: the bytes are hashed and match", omit: true},
 		{
@@ -682,14 +681,19 @@ func TestReplaceInvalidManifest(t *testing.T) {
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Contains(t, err.Error(), tt.wantInErr)
-				assert.Equal(t, []string{"GET " + manifestKey}, fake.Calls())
 				assert.Equal(t, etag, fake.ETag(manifestKey))
+				assert.False(t, tt.wantWrite, "a row with an error writes nothing")
+
+				if tt.wantOnlyGet {
+					assert.Equal(t, []string{"GET " + manifestKey}, fake.Calls(), "the error comes after one read")
+				}
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.True(t, res.Written)
+			assert.Equal(t, tt.wantWrite, res.Written)
+			assert.False(t, tt.wantOnlyGet, "a row that only reads fails")
 			assert.Equal(t, tt.wantGen, res.Generation)
 			assert.Contains(t, fake.Calls(), "PUT "+manifestKey+" if-match="+etag, "still conditional on the ETag read")
 

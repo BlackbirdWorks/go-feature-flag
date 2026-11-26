@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -45,109 +44,72 @@ type JSONErrorOptions struct {
 	RawArgs func() []string
 }
 
-// RawOutput walks raw command-line arguments as pflag does, with the flag definitions of the command, and returns the
-// value of the last occurrence of the output flag (--output, or its shorthand), and whether there was one. Only a real
-// occurrence counts: a known flag that takes a value consumes it (so the "-otext" of "--config -otext" is a value, not
-// an output selection, and so is "--output" as the value of another flag), a boolean flag consumes none, shorthands
-// combine as pflag combines them, an unknown flag consumes nothing, and "--" ends the flags. A flag after an unknown
-// one still counts. The flag set must have a flag named "output"; without one nothing is named.
-func RawOutput(flags *pflag.FlagSet, args []string) (string, bool) {
-	var (
-		last  string
-		found bool
-	)
+// RawOutput returns the value of the last output flag (--output or its shorthand) on a raw command line, and whether
+// there was one. It resolves the command as Cobra does (root.Find on the process arguments), which removes the command
+// names, and then reads what is left with [RawOutputIn], with the flags of the failing command. When Cobra does not
+// resolve the arguments to that command, the whole line is read.
+func RawOutput(failed *cobra.Command, args []string) (string, bool) {
+	rest := args
 
+	target, left, err := failed.Root().Find(args)
+	if err == nil && target == failed {
+		rest = left
+	}
+
+	return RawOutputIn(failed.Flags(), rest)
+}
+
+// RawOutputIn reads arguments (the command names already removed) with the real parser of pflag, against a throwaway
+// flag set that has the names, shorthands and value rules (NoOptDefVal) of flags and records values instead of
+// setting them, and returns the last value of the output flag and whether it was given. Unknown flags are skipped, so
+// an output selection after one still counts; an error that stops pflag (a flag without its value) ends the read,
+// because nothing follows it that pflag would have read. The flag set must have a flag named "output".
+func RawOutputIn(flags *pflag.FlagSet, args []string) (string, bool) {
 	if flags == nil || flags.Lookup(outputFlag) == nil {
 		return "", false
 	}
 
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
+	probe := pflag.NewFlagSet("probe", pflag.ContinueOnError)
+	probe.ParseErrorsAllowlist.UnknownFlags = true
+	probe.SetOutput(io.Discard)
+	probe.Usage = func() {}
 
-		switch {
-		case arg == "--":
-			return last, found
-		case strings.HasPrefix(arg, "--"):
-			used, value, isOutput := longFlag(flags, strings.TrimPrefix(arg, "--"), args[i+1:])
-			i += used
+	var output *recorder
 
-			if isOutput {
-				last, found = value, true
-			}
-		case strings.HasPrefix(arg, "-") && len(arg) > 1:
-			consumed, value, isOutput := shorthandRun(flags, arg[1:], args[i+1:])
-			i += consumed
-
-			if isOutput {
-				last, found = value, true
-			}
-		}
-	}
-
-	return last, found
-}
-
-// longFlag reads one long flag ("name" or "name=value", without the dashes) the way pflag does. It returns how many of
-// the following arguments it used as a value, the value of the output flag, and whether it was the output flag.
-func longFlag(flags *pflag.FlagSet, arg string, following []string) (int, string, bool) {
-	name, value, hasValue := strings.Cut(arg, "=")
-
-	flag := flags.Lookup(name)
-	if flag == nil {
-		return 0, "", false // unknown: pflag stops with an error, nothing is consumed
-	}
-
-	used := 0
-
-	if !hasValue && flag.NoOptDefVal == "" {
-		if len(following) == 0 {
-			return 0, "", false // a flag without its value: pflag fails, nothing is selected
+	flags.VisitAll(func(flag *pflag.Flag) {
+		stub := &recorder{}
+		if flag.Name == outputFlag {
+			output = stub
 		}
 
-		value = following[0]
-		used = 1
-	}
+		probe.AddFlag(&pflag.Flag{
+			Name: flag.Name, Shorthand: flag.Shorthand, NoOptDefVal: flag.NoOptDefVal, Value: stub,
+		})
+	})
 
-	return used, value, name == outputFlag
+	_ = probe.Parse(args) // an error ends the read: pflag does not go past it either
+
+	return output.last, output.set
 }
 
 // outputFlag is the name of the output flag of the commands.
 const outputFlag = "output"
 
-// shorthandRun reads a run of shorthand flags ("vo", "ojson", "o=json") the way pflag does. It returns how many of the
-// following arguments it used as a value, the value of the output flag when the run ended with it, and whether it did.
-func shorthandRun(flags *pflag.FlagSet, run string, following []string) (int, string, bool) {
-	output := flags.Lookup(outputFlag)
-
-	for run != "" {
-		flag := flags.ShorthandLookup(run[:1])
-		if flag == nil {
-			return 0, "", false // unknown: pflag stops with an error, nothing is consumed
-		}
-
-		if flag.NoOptDefVal != "" {
-			run = run[1:] // a boolean flag takes no value
-
-			continue
-		}
-
-		rest := strings.TrimPrefix(run[1:], "=")
-		used := 0
-
-		if len(run) == 1 {
-			if len(following) == 0 {
-				return 0, "", false // a flag without its value: pflag fails, nothing is selected
-			}
-
-			rest = following[0]
-			used = 1
-		}
-
-		return used, rest, flag == output
-	}
-
-	return 0, "", false
+// recorder is a pflag.Value that accepts anything and remembers the last value it was given.
+type recorder struct {
+	last string
+	set  bool
 }
+
+func (r *recorder) String() string { return r.last }
+
+func (r *recorder) Set(value string) error {
+	r.last, r.set = value, true
+
+	return nil
+}
+
+func (*recorder) Type() string { return "string" }
 
 // JSONErrors makes every failure of cmd and of all its subcommands, present and future, follow one mechanism:
 //   - the error always carries an exit code ([ExitError], [ExitFailure] when it has none);
@@ -164,7 +126,7 @@ func JSONErrors(cmd *cobra.Command, opts JSONErrorOptions) {
 		raw.Enabled = func() bool {
 			// A flag the command line names decides, last one wins, even when it says text. The parsed value is only
 			// used when the arguments name no output flag.
-			if value, named := RawOutput(failed.Flags(), rawArgs(opts)); named {
+			if value, named := RawOutput(failed, rawArgs(opts)); named {
 				return value == "json"
 			}
 

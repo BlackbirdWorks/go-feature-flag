@@ -15,6 +15,9 @@ import (
 )
 
 const (
+	groupName      = "config"
+	leafName       = "validate"
+	unknownArg     = "--unknown"
 	shortText      = "-otext"
 	flagEndpoint   = "--endpoint"
 	flagOutput     = "--output"
@@ -178,7 +181,7 @@ func TestMarkReportedKeepsTheErrorAndItsCode(t *testing.T) {
 // the output flag -o.
 func outputFlags() *pflag.FlagSet {
 	flags := pflag.NewFlagSet("publish", pflag.ContinueOnError)
-	flags.StringP("config", "c", "", "")
+	flags.StringP(groupName, "c", "", "")
 	flags.String("endpoint", "", "")
 	flags.BoolP("dry-run", "n", false, "")
 	flags.BoolP("verbose", "v", false, "")
@@ -187,7 +190,7 @@ func outputFlags() *pflag.FlagSet {
 	return flags
 }
 
-func TestRawOutput(t *testing.T) {
+func TestRawOutputIn(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -258,14 +261,105 @@ func TestRawOutput(t *testing.T) {
 		},
 		{name: "a dangling output flag", args: []string{pubName, "-o"}},
 		{name: "a dangling long output flag", args: []string{pubName, flagOutput}},
-		{name: "an unknown shorthand run stops there", args: []string{"-xojson"}},
+		{
+			name:      "an unknown shorthand in a run is skipped as pflag skips it",
+			args:      []string{"-xojson"},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
 		{name: "another flag that starts with -o", args: []string{"-opt"}, wantValue: "pt", wantFound: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			value, found := helper.RawOutput(outputFlags(), tt.args)
+			value, found := helper.RawOutputIn(outputFlags(), tt.args)
+
+			assert.Equal(t, tt.wantValue, value)
+			assert.Equal(t, tt.wantFound, found)
+		})
+	}
+}
+
+// outputTree is root > config (persistent -o output, -v verbose) > validate, like the config group of the CLI.
+func outputTree() (*cobra.Command, *cobra.Command) {
+	root := &cobra.Command{Use: "root", SilenceErrors: true, SilenceUsage: true}
+	group := &cobra.Command{Use: groupName, SilenceErrors: true, SilenceUsage: true}
+	group.PersistentFlags().StringP("output", "o", textValue, "")
+	group.PersistentFlags().BoolP("verbose", "v", false, "")
+	group.PersistentFlags().StringP(groupName, "c", "", "")
+
+	validate := &cobra.Command{
+		Use:           leafName,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Run:           func(*cobra.Command, []string) {},
+	}
+	group.AddCommand(validate)
+	root.AddCommand(group)
+
+	// Cobra merges the persistent flags of the parents into the flags of the command when it parses.
+	validate.Flags().AddFlagSet(group.PersistentFlags())
+
+	return root, validate
+}
+
+// The command names are removed by Cobra before pflag reads the flags, so the scan must start from what is left.
+func TestRawOutputResolvesTheCommandLikeCobra(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantValue string
+		args      []string
+		wantFound bool
+	}{
+		{
+			name:      "combined shorthand before a subcommand",
+			args:      []string{groupName, "-vo", leafName, jsonValue, unknownArg},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "persistent flag before the subcommand, output after it",
+			args: []string{groupName, "-v", leafName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name: "output before the subcommand, an unknown flag after it",
+			args: []string{groupName, "-o", jsonValue, leafName, unknownArg}, wantValue: jsonValue, wantFound: true,
+		},
+		{
+			name:      "a value flag missing its value at the end",
+			args:      []string{groupName, leafName, "-o", jsonValue, "-c"},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{
+			name: "the output flag given twice", args: []string{groupName, leafName, "-o", jsonValue, "-o", textValue},
+			wantValue: textValue, wantFound: true,
+		},
+		{
+			name:      "a later selection after an unknown flag",
+			args:      []string{groupName, leafName, unknownArg, "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{name: "no selection", args: []string{groupName, leafName, unknownArg}},
+		{
+			name:      "arguments that name no command fall back to the failing command",
+			args:      []string{"-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root, validate := outputTree()
+			_ = root
+
+			value, found := helper.RawOutput(validate, tt.args)
 
 			assert.Equal(t, tt.wantValue, value)
 			assert.Equal(t, tt.wantFound, found)
@@ -276,11 +370,11 @@ func TestRawOutput(t *testing.T) {
 func TestRawOutputWithoutAnOutputFlagNamesNothing(t *testing.T) {
 	t.Parallel()
 
-	value, found := helper.RawOutput(pflag.NewFlagSet("none", pflag.ContinueOnError), []string{"-o", jsonValue})
+	value, found := helper.RawOutputIn(pflag.NewFlagSet("none", pflag.ContinueOnError), []string{"-o", jsonValue})
 	assert.Empty(t, value)
 	assert.False(t, found)
 
-	value, found = helper.RawOutput(nil, []string{"-o", jsonValue})
+	value, found = helper.RawOutputIn(nil, []string{"-o", jsonValue})
 	assert.Empty(t, value)
 	assert.False(t, found)
 }

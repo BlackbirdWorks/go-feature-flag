@@ -14,9 +14,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
@@ -238,57 +238,65 @@ func categories() []string {
 	}
 }
 
-// category names what the engine rejects, from the fixed phrases of its message, in the order they appear. A message
-// with none of them is "rejected by the engine".
+// category names what the engine rejects. It walks the chain of wrapped errors, outermost first, and for each layer
+// takes the fixed phrase that is the PREFIX of that layer's own message (the longest one, at most one per layer): the
+// part after it is the wrapped error or a quoted value, and is never searched. A phrase that repeats the one before it
+// (a sentinel wrapped by a layer with the same prefix) is named once. A chain with none of them is "rejected by the
+// engine".
 func category(err error) string {
-	text := err.Error()
+	var out []string
 
-	type hit struct {
-		phrase string
-		at     int
-	}
-
-	var hits []hit
-
-	for _, phrase := range categories() {
-		for from := 0; ; {
-			i := strings.Index(text[from:], phrase)
-			if i < 0 {
-				break
-			}
-
-			hits = append(hits, hit{phrase: phrase, at: from + i})
-			from += i + len(phrase)
+	walk(err, func(layer string) {
+		phrase := prefixPhrase(layer)
+		if phrase != "" && (len(out) == 0 || out[len(out)-1] != phrase) {
+			out = append(out, phrase)
 		}
-	}
-
-	// A longer phrase wins over a shorter one that starts at the same place ("invalid percentage" in "invalid
-	// percentages: the sum"); then they are in the order of the message.
-	slices.SortFunc(hits, func(a, b hit) int {
-		if a.at != b.at {
-			return a.at - b.at
-		}
-
-		return len(b.phrase) - len(a.phrase)
 	})
-
-	var (
-		out  []string
-		upTo int
-	)
-
-	for _, match := range hits {
-		if match.at < upTo {
-			continue
-		}
-
-		out = append(out, match.phrase)
-		upTo = match.at + len(match.phrase)
-	}
 
 	if len(out) == 0 {
 		return "rejected by the engine"
 	}
 
 	return strings.Join(out, ": ")
+}
+
+// walk calls visit with the message of err and then of every error it wraps, depth first, in order.
+func walk(err error, visit func(layer string)) {
+	if err == nil {
+		return
+	}
+
+	visit(err.Error())
+
+	switch wrapper := err.(type) { //nolint:errorlint // the chain is walked on purpose, layer by layer
+	case interface{ Unwrap() []error }:
+		for _, inner := range wrapper.Unwrap() {
+			walk(inner, visit)
+		}
+	case interface{ Unwrap() error }:
+		walk(wrapper.Unwrap(), visit)
+	}
+}
+
+// prefixPhrase returns the longest fixed phrase that the message starts with, followed by the end of the message or by
+// a character that is not a letter or a digit, or "".
+func prefixPhrase(message string) string {
+	best := ""
+
+	for _, phrase := range categories() {
+		if len(phrase) <= len(best) || !strings.HasPrefix(message, phrase) {
+			continue
+		}
+
+		rest := message[len(phrase):]
+		if rest != "" {
+			if r, _ := utf8.DecodeRuneInString(rest); unicode.IsLetter(r) || unicode.IsDigit(r) {
+				continue
+			}
+		}
+
+		best = phrase
+	}
+
+	return best
 }

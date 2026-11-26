@@ -384,6 +384,20 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantNone:   []string{secretQuery, secretValue},
 		},
 		{
+			// "-ho" is two shorthands and "json" is the value of o: Cobra has removed "validate" before pflag reads them.
+			name:       "config: combined shorthand before the subcommand selects json",
+			args:       []string{cmdConfig, "-ho", cmdValidate, fmtJSON, unknownFlag},
+			wantStderr: unknownFlagMsg,
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "config: combined shorthand before the subcommand selects text",
+			args:       []string{cmdConfig, "-ho", cmdValidate, fmtText, unknownFlag},
+			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
 			// pflag reads -otext as the VALUE of --config, so the selection stays json.
 			name:       "publish: -otext is the value of --config, the output stays json",
 			args:       []string{cmdPublish, optOutput, fmtJSON, flagConfig, "-otext", unknownFlag},

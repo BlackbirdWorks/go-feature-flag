@@ -65,15 +65,17 @@ func TestPublishJSONErrorListsTheFlagsInDetails(t *testing.T) {
 	var got struct {
 		Error struct {
 			Code    string   `json:"code"`
-			Message string   `json:"message"`
 			Details []string `json:"details"`
 		} `json:"error"`
 	}
 
 	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
 	assert.Equal(t, "invalid", got.Error.Code)
-	require.Len(t, got.Error.Details, 1)
-	assert.True(t, strings.HasPrefix(got.Error.Details[0], "flag checkout-new: "), got.Error.Details[0])
+	assert.Equal(
+		t,
+		[]string{"flag checkout-new: validating the flag: invalid query: parsing the query"},
+		got.Error.Details,
+	)
 }
 
 func TestJSONErrorGoldenPerExitCode(t *testing.T) {
@@ -319,9 +321,8 @@ func TestUsageFailuresAreJSONInJSONMode(t *testing.T) {
 
 			var got struct {
 				Error struct {
-					Code    string   `json:"code"`
-					Message string   `json:"message"`
-					Details []string `json:"details"`
+					Code    string `json:"code"`
+					Message string `json:"message"`
 				} `json:"error"`
 			}
 
