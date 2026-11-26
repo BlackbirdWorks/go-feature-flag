@@ -73,8 +73,10 @@ during the read is still refused.
 | `VersionID` set | Missing: a file has no versions. Manifests that list a `versionId` for a file connection are not served |
 | Context ended | `error`, retryable, the cause is the context error |
 
-A root that does not exist yet is retryable on purpose: a volume that is mounted late must recover with the normal
-backoff, without a restart of the relay.
+`NewFileStore` itself refuses a root that is not a directory when it is built (a configuration error at start).
+After that, a root that goes away (an unmounted or remounted volume, a directory that is swapped, even one replaced
+by a FIFO, which is never opened) is retryable on purpose: the volume must recover with the normal backoff, without a
+restart of the relay.
 
 The root directory is opened on every call, so a root that is replaced (a remounted volume) is followed, and one that
 disappears is a retryable error until it is back.
@@ -185,7 +187,8 @@ The counts do not depend on the number of objects, flag sets or API keys. The co
   cancel or a deadline stops a read of a large file after the chunk in progress (unit-tested with a context that
   ends during the hashing pass and during the read pass). A network file system that hangs inside a read hangs that
   poll until the call returns.
-- Linux, macOS and the BSDs are the supported platforms. The code builds for Windows, where `os.Root` rules apply:
+- Linux, macOS and the BSDs are the supported platforms (a socket is refused on all of them: the open fails with
+  `ENXIO` on Linux and `EOPNOTSUPP` on macOS and the BSDs). The code builds for Windows, where `os.Root` rules apply:
   names such as `NUL` and `COM1` are refused (as a generic error, never read), symbolic links need a privilege to
   create, and a file that is open for writing may be locked against reading. Permission denial by mode bits does not
   exist on Windows. Plan 9 and `js` are not supported: `os.Root` does not track directories there, so containment
@@ -222,9 +225,10 @@ func TestConformance_MyStore(t *testing.T) {
 
 - A case that needs a capability the backend cannot arrange is reported as unsupported, with the reason, and logged.
   `Run` fails when the fixture declares other waivers than the test passed, so a store cannot drop a guarantee
-  without its test saying so. There is no silent skip.
+  without its test saying so, and every waiver needs a reason. There is no silent skip.
 - Capabilities: `deny`, `transient`, `throttle`, `hang` (a read that does not answer), `hang-body` (an answer whose
-  body stalls), `versions`, `key-validation` (unclean keys are refused), `content-addressed-etag`, `nested-keys`.
+  body stalls), `versions`, `key-validation` (unclean keys are refused), `content-addressed-etag`, `nested-keys`, `reserved-name-chars` (keys with a question mark or a colon; the file
+  store waives it on Windows, where file names cannot contain them).
 - The core cases (no waiver possible) cover: unconditional and conditional reads, a changed object, an unknown ETag,
   missing and missing version, the limit at and one over, zero and negative limits, a conditional read over the limit
   (never a body), the empty object, a large object, key characters (`?`, `#`, `%`, `%2F`, a space and a plus, a
@@ -233,8 +237,11 @@ func TestConformance_MyStore(t *testing.T) {
   change, an ended context, no goroutine left behind, and concurrent reads.
 - Every case is also checked for leaked goroutines: the goroutines of a case carry a pprof label, and when the case
   is over the goroutine profile is read (with a bounded number of yields, no sleeps) and any goroutine of the case
-  that is still there fails it. The idle connection-pool loops of the HTTP transport are not counted. The run as a
-  whole is checked the same way.
+  that is still there fails it. The loops of an idle HTTP connection are not counted; a connection whose response body
+  was left open is. The check runs after the cleanup of the fixture, so a worker the fixture stops is not a leak.
+  The run as a whole is checked the same way. Limit: only goroutines started by a goroutine of the case carry its
+  labels; a worker that the store started before the case is not attributed to it, and the fixture of such a store
+  has to check its workers itself.
 - `storetest.Check(name, fixture)` runs one case with a recording test and returns its failures: the tests of this
   package use it on stores with one defect each (a stale ETag, a constant ETag, an ignored limit, a body with
   "not modified", an ignored context, a truncated body, a leaked goroutine, an aliased slice, and others) to show

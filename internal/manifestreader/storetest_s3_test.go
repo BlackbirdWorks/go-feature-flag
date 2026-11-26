@@ -222,7 +222,7 @@ func TestConformance_S3Store(t *testing.T) {
 	report := storetest.Run(t, "s3", s3Waivers(), s3Fixture)
 
 	assert.Equal(t, map[string]string{
-		"unclean-keys-are-refused": "key-validation: S3 keys are opaque strings; the reader validates them",
+		caseKeyRefusalName: "key-validation: S3 keys are opaque strings; the reader validates them",
 	}, report.Unsupported)
 	assert.ElementsMatch(t, ranCases(report.Unsupported), report.Ran)
 }

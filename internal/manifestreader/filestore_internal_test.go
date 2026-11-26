@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"syscall"
 	"testing"
@@ -15,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var errDisk = errors.New("disk on fire")
+var (
+	errDisk    = errors.New("disk on fire")
+	errEscaped = errors.New(escapeMessage)
+)
 
 // scriptedReader serves data in pieces of at most piece bytes and counts what it served. after runs once the
 // first piece was served; failAt makes the read that would pass that offset fail with errDisk.
@@ -195,6 +199,16 @@ func TestClassifyFileError(t *testing.T) {
 		{name: "stale handle", err: &fsError{syscall.ESTALE}, wantReason: ReasonError, wantRetryable: true},
 		{name: "out of memory", err: &fsError{syscall.ENOMEM}, wantReason: ReasonError, wantRetryable: true},
 		{name: "anything else", err: errDisk, wantReason: ReasonError, wantRetryable: true},
+		{
+			name:       "an I/O error on a file whose name is the escape message",
+			err:        &fs.PathError{Op: "open", Path: "dir/" + escapeMessage + ".json", Err: syscall.EIO},
+			wantReason: ReasonError, wantRetryable: true,
+		},
+		{
+			name:       "the escape error of os.Root, as a path error",
+			err:        &fs.PathError{Op: "openat", Path: "link", Err: errEscaped},
+			wantReason: ReasonDenied, wantIs: ErrOutsideRoot,
+		},
 	}
 
 	for _, tt := range tests {

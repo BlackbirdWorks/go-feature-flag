@@ -1,7 +1,11 @@
 package storetest
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"runtime/pprof"
 	"testing"
 
@@ -58,9 +62,10 @@ func TestExempt_OnlyTheConnectionPoolLoops(t *testing.T) {
 		want  bool
 	}{
 		{
-			group: "1 @ 0x1\n#\t0x2\tnet/http.(*persistConn).readLoop+0x1f\t/usr/lib/go/src/net/http/transport.go:2200",
+			group: "1 @ 0x1\n#\t0x2\tbufio.(*Reader).Peek+0x1\t/b.go:1\n#\t0x3\tnet/http.(*persistConn).readLoop+0x1f\t/t.go:2",
 			want:  true,
 		},
+		{group: "1 @ 0x1\n#\t0x2\tnet/http.(*persistConn).readLoop+0x1f\t/usr/lib/go/src/net/http/transport.go:2300"},
 		{
 			group: "1 @ 0x1\n#\t0x2\tnet/http.(*persistConn).writeLoop+0x1f\t/usr/lib/go/src/net/http/transport.go:2500",
 			want:  true,
@@ -86,7 +91,7 @@ func TestCheck_UnknownCaseAndUnsupportedCase(t *testing.T) {
 	t.Parallel()
 
 	failures, ran := Check("no-such-case", Fixture{})
-	assert.True(t, ran)
+	assert.False(t, ran)
 	assert.Equal(t, []string{"no such case: no-such-case"}, failures)
 
 	failures, ran = Check("denied-is-not-retryable", Fixture{Unsupported: NewWaivers().With(CapDeny, "no")})
@@ -156,6 +161,14 @@ func TestCheckWaivers(t *testing.T) {
 			waivers: NewWaivers().With(CapHang, "a"), declared: NewWaivers().With(CapHang, "b"), wantFailure: true,
 		},
 		{
+			name:    "a waiver without a reason",
+			waivers: NewWaivers().With(CapHang, ""), declared: NewWaivers().With(CapHang, ""), wantFailure: true,
+		},
+		{
+			name:    "a waiver with a blank reason",
+			waivers: NewWaivers().With(CapHang, " \t"), declared: NewWaivers().With(CapHang, " \t"), wantFailure: true,
+		},
+		{
 			name:    "another capability",
 			waivers: NewWaivers().With(CapHang, "a"), declared: NewWaivers().With(CapDeny, "a"), wantFailure: true,
 		},
@@ -172,4 +185,72 @@ func TestCheckWaivers(t *testing.T) {
 			assert.Equal(t, tt.wantFailure, len(rec.failures()) > 0, "%v", rec.failures())
 		})
 	}
+}
+
+// TestLeakedGoroutines_AnOpenResponseBodyIsALeak: a store that returns without closing the body of an answer
+// leaves the connection reader waiting for it, which counts. When the body is closed the connection is idle, and
+// its loops do not count (they belong to the pool of the transport).
+func TestLeakedGoroutines_AnOpenResponseBodyIsALeak(t *testing.T) {
+	t.Parallel()
+
+	finish := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(bytes.Repeat([]byte("a"), 50))
+		_ = http.NewResponseController(w).Flush()
+
+		<-finish
+
+		_, _ = w.Write(bytes.Repeat([]byte("b"), 50))
+	}))
+
+	transport := &http.Transport{}
+	client := &http.Client{Transport: transport}
+
+	defer func() {
+		transport.CloseIdleConnections()
+		server.Close()
+	}()
+
+	runID := newID("body-test")
+
+	var resp *http.Response
+
+	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, "get"), func(ctx context.Context) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, http.NoBody)
+		require.NoError(t, err)
+
+		resp, err = client.Do(req) //nolint:bodyclose // closed below, after the check
+		require.NoError(t, err)
+	})
+
+	leaks := leakedGoroutines(runID, "get")
+	assert.NotEmpty(t, leaks, "the reader of the connection waits for the body")
+
+	close(finish)
+
+	_, err := io.Copy(io.Discard, resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Empty(t, settledLeaks(runID, "get"), "the body was read and closed: the connection is idle")
+}
+
+// TestLeakCheckAfterTheCleanup: the check for leaks is registered before the fixture is made, so that it runs
+// after the cleanup of the fixture, which stops the workers of the store.
+func TestLeakCheckAfterTheCleanup(t *testing.T) {
+	t.Parallel()
+
+	runID := newID("order")
+
+	t.Run("case", func(t *testing.T) {
+		t.Parallel()
+
+		t.Cleanup(func() { checkNoLeak(t, runID, "case") })
+
+		release := blocked(t, runID, "case")
+
+		t.Cleanup(release) // the cleanup of the fixture
+	})
 }

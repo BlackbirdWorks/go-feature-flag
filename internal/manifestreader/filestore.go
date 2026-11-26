@@ -186,7 +186,9 @@ func (s *FileStore) Get(ctx context.Context, req GetRequest) (Object, error) {
 
 // open opens the key under the root without blocking, and returns the file with the size it had.
 func (s *FileStore) open(key string) (*os.File, int64, error) {
-	root, err := os.OpenRoot(s.root)
+	// "/." makes the lookup itself require a directory (ENOTDIR otherwise): a FIFO that took the place of the root
+	// is refused before it is opened, where os.OpenRoot would open it, and wait for a writer.
+	root, err := os.OpenRoot(s.root + string(filepath.Separator) + ".")
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %w", ErrRootUnavailable, err)
 	}
@@ -344,7 +346,7 @@ func classifyFileError(err error) error {
 		return &FetchError{Err: fmt.Errorf("%w: %w", ErrNotRegular, err), Reason: ReasonDenied}
 	case errors.Is(err, fs.ErrPermission), errors.Is(err, syscall.ELOOP):
 		return &FetchError{Err: err, Reason: ReasonDenied}
-	case strings.Contains(err.Error(), escapeMessage):
+	case isEscape(err):
 		// fail closed: if a Go release words the message differently the escape is still refused (os.Root
 		// refuses it), only as a retryable error instead of a denied one. TestFileStore_ContainmentAndSymlinks
 		// pins the text against the real os.Root.
@@ -352,6 +354,19 @@ func classifyFileError(err error) error {
 	}
 
 	return &FetchError{Err: err, Reason: ReasonError, Retryable: true}
+}
+
+// isEscape reports the error [os.Root] returns for a path that leaves the root. It compares the text of each error
+// of the chain exactly, and not the text of the whole error: that one names the path, and a file called
+// "path escapes from parent.json" must not be taken for an escape.
+func isEscape(err error) bool {
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		if current.Error() == escapeMessage {
+			return true
+		}
+	}
+
+	return false
 }
 
 // classifyRoot maps the error of opening the root directory. Only a permission error is final: a root that does

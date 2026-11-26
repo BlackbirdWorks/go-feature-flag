@@ -23,8 +23,6 @@ const (
 	bigLimit = 1 << 22
 	// wait bounds every wait of a case: a missing event fails the case instead of hanging it.
 	wait = 10 * time.Second
-	// shortDeadline is the deadline of the context of a read that hangs. The read is blocked until it ends.
-	shortDeadline = 20 * time.Millisecond
 
 	// The generated contents of the ETag property: a fixed seed, so every run is the same.
 	propertySeed, propertySeed2 = 7, 11
@@ -44,6 +42,34 @@ const (
 	keyThird = "conformance/third.json"
 )
 
+// manualDeadline is a context whose deadline passes when the test says so: it ends with
+// [context.DeadlineExceeded] without a timer and without reading the clock, so "the deadline passes while the
+// store is reading" does not depend on the speed of the machine.
+type manualDeadline struct {
+	context.Context //nolint:containedctx // it wraps a context to change how it ends
+
+	done chan struct{}
+	once sync.Once
+}
+
+func newManualDeadline(parent context.Context) *manualDeadline {
+	return &manualDeadline{Context: parent, done: make(chan struct{})}
+}
+
+func (m *manualDeadline) Done() <-chan struct{} { return m.done }
+
+func (m *manualDeadline) Err() error {
+	select {
+	case <-m.done:
+		return context.DeadlineExceeded
+	default:
+		return m.Context.Err() //nolint:wrapcheck // the error of the wrapped context, as it is
+	}
+}
+
+// expire makes the deadline pass.
+func (m *manualDeadline) expire() { m.once.Do(func() { close(m.done) }) }
+
 func allCases() []contractCase {
 	return []contractCase{
 		{name: "get-unconditional", run: caseGetUnconditional},
@@ -62,6 +88,11 @@ func allCases() []contractCase {
 		{name: "empty-object", run: caseEmptyObject},
 		{name: "large-object-near-the-limit", run: caseLargeObject},
 		{name: "key-characters", run: caseKeyCharacters},
+		{
+			name:  "key-characters-reserved-by-some-file-systems",
+			run:   caseReservedNameChars,
+			needs: []Capability{CapReservedNameChars},
+		},
 		{name: "odd-keys-never-return-content", run: caseOddKeys},
 		{name: "unclean-keys-are-refused", run: caseKeyRefusal, needs: []Capability{CapKeyValidation}},
 		{name: "object-and-child-keys-coexist", run: caseNestedKeys, needs: []Capability{CapNestedKeys}},
@@ -431,13 +462,23 @@ func caseLargeObject(t TB, fixture Fixture) {
 func caseKeyCharacters(t TB, fixture Fixture) {
 	t.Helper()
 
-	keys := []string{
-		"conformance/with space.json", "conformance/ünï/é.json", "conformance/a+b=c&d.json",
+	keyCharacters(t, fixture, []string{
+		"conformance/with space.json", "conformance/\u00fcn\u00ef/\u00e9.json", "conformance/a+b=c&d.json",
 		"conformance/deep/er/est/x.json", "conformance/.hidden", "conformance/dots..in..name", "top-level.json",
-		"conformance/what?.json", "conformance/hash#tag.json", "conformance/percent%.json",
-		"conformance/p%2Fx.json", "conformance/p/x.json", "conformance/a b", "conformance/a+b",
-		".leading-dot", "conformance/%41", "conformance/A",
-	}
+		"conformance/hash#tag.json", "conformance/percent%.json", "conformance/p%2Fx.json", "conformance/p/x.json",
+		"conformance/a b", "conformance/a+b", ".leading-dot", "conformance/%41", "conformance/A",
+	})
+}
+
+// caseReservedNameChars: the characters that some file systems reserve are valid in the keys of others.
+func caseReservedNameChars(t TB, fixture Fixture) {
+	t.Helper()
+
+	keyCharacters(t, fixture, []string{"conformance/what?.json", "conformance/colon:name", "conformance/what.json"})
+}
+
+func keyCharacters(t TB, fixture Fixture, keys []string) {
+	t.Helper()
 
 	for i, key := range keys {
 		mustPut(t, fixture, key, []byte("content-"+strconv.Itoa(i)))
@@ -629,22 +670,27 @@ func caseETagContentAddressed(t TB, fixture Fixture) {
 	}
 }
 
-// caseETagDescribesBytes reads while the object is replaced: every answer pairs bytes with the ETag of exactly
-// those bytes.
+// caseETagDescribesBytes reads while the object is replaced. Whatever the ETags are (a hash, a row version, a
+// generation number), an ETag identifies the bytes it came with: the same ETag never comes with two different
+// contents, and the two contents never share one ETag.
 func caseETagDescribesBytes(t TB, fixture Fixture) {
 	t.Helper()
 
 	contentA, contentB := []byte(`{"version":"A"}`), []byte(`{"version":"B-and-longer"}`)
-	mustPut(t, fixture, "conformance/probe-a", contentA)
-	mustPut(t, fixture, "conformance/probe-b", contentB)
-	etagA := mustGet(t, fixture, "conformance/probe-a", "", bigLimit).ETag
-	etagB := mustGet(t, fixture, "conformance/probe-b", "", bigLimit).ETag
+	// in turn, with no writer at work: the reads of a fixed sequence of contents
+	var seen []manifestreader.Object
 
-	mustPut(t, fixture, keyMain, contentA)
+	for _, content := range [][]byte{contentA, contentB, contentA} {
+		mustPut(t, fixture, keyMain, content)
+		seen = append(seen, mustGet(t, fixture, keyMain, "", bigLimit))
+	}
 
 	const readers, reads, writes = 4, 25, 40
 
-	var group sync.WaitGroup
+	var (
+		group sync.WaitGroup
+		mutex sync.Mutex
+	)
 
 	group.Go(func() {
 		for i := range writes {
@@ -665,16 +711,31 @@ func caseETagDescribesBytes(t TB, fixture Fixture) {
 					return
 				}
 
-				// the ETag of A is not the ETag of B, and each goes with its own bytes
-				assert.True(t,
-					(bytes.Equal(obj.Bytes, contentA) && obj.ETag == etagA) ||
-						(bytes.Equal(obj.Bytes, contentB) && obj.ETag == etagB),
-					"bytes %q came with ETag %s", obj.Bytes, obj.ETag)
+				mutex.Lock()
+
+				seen = append(seen, obj)
+
+				mutex.Unlock()
 			}
 		})
 	}
 
 	group.Wait()
+
+	contentOf := map[string][]byte{}
+
+	for _, obj := range seen {
+		assert.True(t, bytes.Equal(obj.Bytes, contentA) || bytes.Equal(obj.Bytes, contentB), "bytes %q", obj.Bytes)
+
+		known, ok := contentOf[obj.ETag]
+		if !ok {
+			contentOf[obj.ETag] = obj.Bytes
+
+			continue
+		}
+
+		assert.Equal(t, known, obj.Bytes, "the ETag %s came with two different contents", obj.ETag)
+	}
 }
 
 // caseNotAliased: a write after a read does not change the bytes the read returned.
@@ -705,8 +766,8 @@ func caseEndedContext(t TB, fixture Fixture) {
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	expired, stop := context.WithTimeout(t.Context(), -time.Second)
-	defer stop()
+	expired := newManualDeadline(t.Context())
+	expired.expire()
 
 	tests := []struct {
 		ctx     context.Context //nolint:containedctx // the table is the list of contexts
@@ -736,14 +797,14 @@ func caseEndedContext(t TB, fixture Fixture) {
 }
 
 // hungRead starts a read of key that hangs and waits until it does.
-func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan error {
+func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan readResult {
 	t.Helper()
 
-	done := make(chan error, 1)
+	done := make(chan readResult, 1)
 
 	go func() {
-		_, err := get(ctx, fixture, keyMain, "", bigLimit)
-		done <- err
+		obj, err := get(ctx, fixture, keyMain, "", bigLimit)
+		done <- readResult{obj: obj, err: err}
 	}()
 
 	select {
@@ -755,12 +816,21 @@ func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan err
 	return done
 }
 
-func awaitRead(t TB, done <-chan error) error {
+// readResult is what a read returned.
+type readResult struct {
+	err error
+	obj manifestreader.Object
+}
+
+// awaitRead waits for a read whose context ended and checks what it returned: an error, and no object.
+func awaitRead(t TB, done <-chan readResult) error {
 	t.Helper()
 
 	select {
-	case err := <-done:
-		return err
+	case result := <-done:
+		assert.Equal(t, manifestreader.Object{}, result.obj, "a read that ended with its context returns no object")
+
+		return result.err
 	case <-time.After(wait):
 		require.FailNow(t, "the read did not return after its context ended")
 
@@ -775,6 +845,8 @@ func caseCancelWhileReading(t TB, fixture Fixture) {
 
 	hang, err := fixture.Backend.Hang(keyMain)
 	require.NoError(t, err)
+
+	defer hang.Release() // a store that ignores its context must not leave the read hanging
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -798,10 +870,12 @@ func caseDeadlineWhileReading(t TB, fixture Fixture) {
 	hang, err := fixture.Backend.Hang(keyMain)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(t.Context(), shortDeadline)
-	defer cancel()
+	defer hang.Release() // a store that ignores its context must not leave the read hanging
 
+	ctx := newManualDeadline(t.Context())
 	done := hungRead(ctx, t, fixture, hang)
+
+	ctx.expire()
 
 	err = awaitRead(t, done)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -816,6 +890,8 @@ func caseCancelWhileReadingBody(t TB, fixture Fixture) {
 
 	hang, err := fixture.Backend.HangBody(keyMain)
 	require.NoError(t, err)
+
+	defer hang.Release() // a store that ignores its context must not leave the read hanging
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -850,12 +926,14 @@ func caseNoLeakAfterCancel(t TB, fixture Fixture) {
 	hang, err := fixture.Backend.Hang(keyMain)
 	require.NoError(t, err)
 
+	defer hang.Release() // a store that ignores its context must not leave the read hanging
+
 	const reads = 8
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	dones := make([]<-chan error, 0, reads)
+	dones := make([]<-chan readResult, 0, reads)
 	for range reads {
 		dones = append(dones, hungRead(ctx, t, fixture, hang))
 	}

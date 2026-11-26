@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -21,8 +22,9 @@ const (
 	reasonNoThrottle = "a file system does not throttle"
 	reasonNoHang     = "a local read cannot be held: a FIFO is refused, and the context is supplied by the suite " +
 		"(the cancel and deadline paths of the reads are unit-tested in filestore_internal_test.go)"
-	reasonNoVersions = "a file has no versions"
-	reasonNoNested   = "a path cannot be a file and a directory"
+	reasonNoVersions   = "a file has no versions"
+	reasonNoNested     = "a path cannot be a file and a directory"
+	reasonWindowsNames = "Windows file names cannot contain a question mark or a colon"
 )
 
 var errNoSuchFault = errors.New("a real directory cannot arrange this")
@@ -123,13 +125,19 @@ func (b *fileBackend) path(key string) string { return filepath.Join(b.root, fil
 
 // fileWaivers is what the file store does not offer.
 func fileWaivers() storetest.Waivers {
-	return storetest.NewWaivers().
+	waivers := storetest.NewWaivers().
 		With(storetest.CapTransient, reasonNoIOError).
 		With(storetest.CapThrottle, reasonNoThrottle).
 		With(storetest.CapHang, reasonNoHang).
 		With(storetest.CapHangBody, reasonNoHang).
 		With(storetest.CapVersions, reasonNoVersions).
 		With(storetest.CapNestedKeys, reasonNoNested)
+
+	if runtime.GOOS == "windows" {
+		waivers.With(storetest.CapReservedNameChars, reasonWindowsNames)
+	}
+
+	return waivers
 }
 
 func fileFixture(t *testing.T) storetest.Fixture {
@@ -155,18 +163,24 @@ func TestConformance_FileStore(t *testing.T) {
 
 	report := storetest.Run(t, "file", fileWaivers(), fileFixture)
 
-	assert.Equal(t, map[string]string{
+	wantUnsupported := map[string]string{
 		"transient-is-retryable":               "transient: " + reasonNoIOError,
 		"throttled-is-retryable-and-throttled": "throttle: " + reasonNoThrottle,
 		"cancel-while-reading":                 "hang: " + reasonNoHang,
 		"deadline-while-reading":               "hang: " + reasonNoHang,
 		"cancel-leaves-nothing-behind":         "hang: " + reasonNoHang,
-		"cancel-while-reading-the-body":        "hang-body: " + reasonNoHang,
-		"version-id-reads-an-older-version":    "versions: " + reasonNoVersions,
+		caseBodyCancelName:                     "hang-body: " + reasonNoHang,
+		caseVersionsName:                       "versions: " + reasonNoVersions,
 		"object-and-child-keys-coexist":        "nested-keys: " + reasonNoNested,
-	}, report.Unsupported)
+	}
+
+	if runtime.GOOS == "windows" {
+		wantUnsupported["key-characters-reserved-by-some-file-systems"] = "reserved-name-chars: " + reasonWindowsNames
+	}
+
+	assert.Equal(t, wantUnsupported, report.Unsupported)
 	assert.ElementsMatch(t, ranCases(report.Unsupported), report.Ran)
 	assert.Contains(t, report.Ran, "denied-is-not-retryable", "denied runs whoever the process is")
-	assert.Contains(t, report.Ran, "unclean-keys-are-refused")
+	assert.Contains(t, report.Ran, caseKeyRefusalName)
 	assert.Contains(t, report.Ran, "missing-version-is-not-found")
 }

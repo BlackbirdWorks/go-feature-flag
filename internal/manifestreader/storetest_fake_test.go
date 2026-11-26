@@ -13,6 +13,13 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/storetest"
 )
 
+// The names of the cases that the backends waive.
+const (
+	caseVersionsName   = "version-id-reads-an-older-version"
+	caseKeyRefusalName = "unclean-keys-are-refused"
+	caseBodyCancelName = "cancel-while-reading-the-body"
+)
+
 var errFaultArranged = errors.New("the fault arranged by the suite")
 
 // faultyFake is the in-memory fake with the faults of the conformance suite in front of it.
@@ -130,9 +137,9 @@ func TestConformance_Fake(t *testing.T) {
 	report := storetest.Run(t, "fake", fakeWaivers(), fakeFixture)
 
 	assert.Equal(t, map[string]string{
-		"version-id-reads-an-older-version": "versions: the fake keeps one version of an object",
-		"unclean-keys-are-refused":          "key-validation: the fake keys are opaque strings",
-		"cancel-while-reading-the-body":     "hang-body: the fake answers in one step: there is no body to stall in",
+		caseVersionsName:   "versions: the fake keeps one version of an object",
+		caseKeyRefusalName: "key-validation: the fake keys are opaque strings",
+		caseBodyCancelName: "hang-body: the fake answers in one step: there is no body to stall in",
 	}, report.Unsupported)
 	assert.ElementsMatch(t, ranCases(report.Unsupported), report.Ran)
 	require.NotEmpty(t, report.Ran)

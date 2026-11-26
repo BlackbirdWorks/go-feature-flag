@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
@@ -74,5 +75,40 @@ func TestFileStore_SocketIsRefused(t *testing.T) {
 	defer func() { _ = listener.Close() }()
 
 	err = getBounded(t, newFileStoreAt(t, dir), "sock", func() {})
-	wantDenied(t, err, syscall.ENXIO)
+	wantDenied(t, err, manifestreader.ErrNotRegular) // ENXIO on Linux, EOPNOTSUPP on macOS and the BSDs
+}
+
+// TestFileStore_FIFOInPlaceOfTheRootDoesNotBlock: the directory the store was built on is swapped for a FIFO
+// with no writer. Opening it would wait for a writer for ever; the store refuses it as a root that is not there
+// (a retryable error with ErrRootUnavailable) and the next Get works when a directory is back.
+func TestFileStore_FIFOInPlaceOfTheRootDoesNotBlock(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	root := filepath.Join(base, "root")
+	writeTree(t, root, map[string]string{fileA: "content"})
+
+	store := newFileStoreAt(t, root)
+	require.NoError(t, os.Rename(root, filepath.Join(base, "moved")))
+	require.NoError(t, syscall.Mkfifo(root, 0o600))
+
+	err := getBounded(t, store, fileA, func() {
+		file, openErr := os.OpenFile(root, os.O_RDWR, 0)
+		if openErr == nil {
+			_ = file.Close()
+		}
+	})
+
+	var fetchErr *manifestreader.FetchError
+
+	require.ErrorAs(t, err, &fetchErr)
+	assert.Equal(t, manifestreader.ReasonError, fetchErr.Reason)
+	assert.True(t, fetchErr.Retryable)
+	require.ErrorIs(t, err, manifestreader.ErrRootUnavailable)
+
+	// the directory is back
+	require.NoError(t, os.Remove(root))
+	writeTree(t, root, map[string]string{fileA: "content again"})
+
+	assert.Equal(t, []byte("content again"), mustGetFile(t, store, fileA, "").Bytes)
 }

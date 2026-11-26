@@ -33,8 +33,9 @@ type GetRequest struct {
 	ETag string
 	// VersionID selects an object version when not empty.
 	VersionID string
-	// Limit is the most bytes the store may read: it never buffers more. A negative limit is a limit of zero:
-	// only an empty object is returned. Callers that know the size pass it,
+	// Limit is the largest body the store returns: it never returns, nor keeps, more than Limit bytes. A store
+	// may read one byte past it to tell an object of exactly Limit bytes from a larger one. A negative limit is
+	// a limit of zero: only an empty object is returned. Callers that know the size pass it,
 	// so a store can allocate the buffer once.
 	Limit int64
 }

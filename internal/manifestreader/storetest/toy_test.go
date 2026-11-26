@@ -1,10 +1,11 @@
-package manifestreader_test
+package storetest_test
 
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -16,29 +17,32 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/storetest"
 )
 
-// toyStore is a small correct store with one defect that a test switches on. The conformance suite has to fail
-// for every defect: a suite that passes a broken store proves nothing about a good one.
+// toyStore is a small in-memory store that is correct, with one defect that a test can switch on. It has every
+// capability but key validation: the suite runs against it as a store of its own, and the suite has to fail for
+// each defect. A suite that passes a broken store proves nothing about a good one.
 type toyStore struct {
-	objs    map[string][]byte
-	etags   map[string]string
-	faults  map[string]storetest.Fault
-	release chan struct{}
-	defect  string
-	mu      sync.Mutex
+	versions map[string][]toyVersion
+	faults   map[string]storetest.Fault
+	hangs    map[string]*storetest.Hang
+	bodies   map[string]*storetest.Hang
+	etags    map[string]string
+	release  chan struct{}
+	defect   string
+	mu       sync.Mutex
+	nextID   int
+	worker   bool
+	started  bool
+}
+
+type toyVersion struct {
+	id      string
+	content []byte
 }
 
 var (
 	_ manifestreader.ObjectStore = (*toyStore)(nil)
 	_ storetest.Backend          = (*toyStore)(nil)
 )
-
-// toyReason is why the toy waives what it waives.
-const toyReason = "the toy cannot arrange this"
-
-// caseChanged is a case that most defects of the ETag are caught by.
-const caseFollows = "etag-follows-content"
-
-const caseChanged = "conditional-changed-returns-new-body-and-etag"
 
 // The defects.
 const (
@@ -57,11 +61,20 @@ const (
 	defectDeniedRetryable   = "denied is retryable"
 	defectMissingIsEmpty    = "a missing object is an empty one"
 	defectETagOfOldBytes    = "ETag of the previous content with the new bytes"
+	defectPartialOnCancel   = "a cancelled read returns the bytes it had"
+)
+
+// Names of cases that several rows name.
+const (
+	caseChanged = "conditional-changed-returns-new-body-and-etag"
+	caseFollows = "etag-follows-content"
+	caseKeys    = "unclean-keys-are-refused"
 )
 
 func newToy(defect string) *toyStore {
 	return &toyStore{
-		objs: map[string][]byte{}, etags: map[string]string{}, faults: map[string]storetest.Fault{},
+		versions: map[string][]toyVersion{}, faults: map[string]storetest.Fault{},
+		hangs: map[string]*storetest.Hang{}, bodies: map[string]*storetest.Hang{}, etags: map[string]string{},
 		release: make(chan struct{}), defect: defect,
 	}
 }
@@ -72,9 +85,36 @@ func toyETag(content []byte) string {
 	return `"` + hex.EncodeToString(sum[:]) + `"`
 }
 
+func toyWaivers() storetest.Waivers {
+	return storetest.NewWaivers().With(storetest.CapKeyValidation, "the toy keys are opaque")
+}
+
+func toyFixture(defect string) (storetest.Fixture, *toyStore) {
+	toy := newToy(defect)
+
+	return storetest.Fixture{Store: toy, Backend: toy, Unsupported: toyWaivers()}, toy
+}
+
 func (s *toyStore) Get(ctx context.Context, req manifestreader.GetRequest) (manifestreader.Object, error) {
 	if s.defect == defectLeaks {
 		go func() { <-s.release }()
+	}
+
+	hang, body := s.hangsOf(req.Key)
+
+	for _, held := range []*storetest.Hang{hang, body} {
+		if held == nil {
+			continue
+		}
+
+		err := held.Block(ctx)
+		if err != nil && s.defect == defectPartialOnCancel {
+			return manifestreader.Object{Bytes: []byte("part")}, err
+		}
+
+		if err != nil {
+			return manifestreader.Object{}, err
+		}
 	}
 
 	if s.defect != defectIgnoresContext && ctx.Err() != nil {
@@ -84,14 +124,13 @@ func (s *toyStore) Get(ctx context.Context, req manifestreader.GetRequest) (mani
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.faults[req.Key] == storetest.FaultDenied {
-		return manifestreader.Object{}, &manifestreader.FetchError{
-			Reason: manifestreader.ReasonDenied, Retryable: s.defect == defectDeniedRetryable,
-		}
+	failure := s.fault(req.Key)
+	if failure != nil {
+		return manifestreader.Object{}, failure
 	}
 
-	content, ok := s.objs[req.Key]
-	if !ok || (req.VersionID != "" && s.defect != defectIgnoresVersion) {
+	content, ok := s.find(req.Key, req.VersionID)
+	if !ok {
 		if s.defect == defectMissingIsEmpty {
 			return manifestreader.Object{}, nil
 		}
@@ -103,20 +142,41 @@ func (s *toyStore) Get(ctx context.Context, req manifestreader.GetRequest) (mani
 		return manifestreader.Object{}, manifestreader.ErrTooLarge
 	}
 
-	return s.answer(content, s.etags[req.Key], req.ETag)
+	return s.answer(content, s.etagOf(req.Key, req.VersionID, content), req.ETag)
 }
 
 func (s *toyStore) Put(key string, content []byte) error {
+	_, err := s.PutVersion(key, content)
+
+	return err
+}
+
+func (s *toyStore) PutVersion(key string, content []byte) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	old, had := s.objs[key]
+	versions := s.versions[key]
+	had := len(versions) > 0
 
-	switch {
-	case s.defect == defectAliases && had && len(old) == len(content):
+	var old []byte
+	if had {
+		old = versions[len(versions)-1].content
+	}
+
+	s.nextID++
+	id := strconv.Itoa(s.nextID)
+
+	if s.worker && !s.started {
+		// a worker of the store, started by the first write and stopped by the cleanup of the fixture
+		s.started = true
+
+		go func() { <-s.release }()
+	}
+
+	if s.defect == defectAliases && had && len(old) == len(content) {
 		copy(old, content) // the slice a reader holds changes under it
-	default:
-		s.objs[key] = bytes.Clone(content)
+	} else {
+		s.versions[key] = append(versions, toyVersion{id: id, content: bytes.Clone(content)})
 	}
 
 	switch {
@@ -130,7 +190,7 @@ func (s *toyStore) Put(key string, content []byte) error {
 		s.etags[key] = toyETag(content)
 	}
 
-	return nil
+	return id, nil
 }
 
 func (s *toyStore) Overwrite(key string, content []byte) error { return s.Put(key, content) }
@@ -139,7 +199,7 @@ func (s *toyStore) Delete(key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.objs, key)
+	delete(s.versions, key)
 	delete(s.etags, key)
 
 	return nil
@@ -154,10 +214,76 @@ func (s *toyStore) Fail(key string, fault storetest.Fault) error {
 	return nil
 }
 
-func (*toyStore) Hang(string) (*storetest.Hang, error)     { return nil, storetest.ErrUnsupported }
-func (*toyStore) HangBody(string) (*storetest.Hang, error) { return nil, storetest.ErrUnsupported }
+func (s *toyStore) Hang(key string) (*storetest.Hang, error) {
+	hang := storetest.NewHang()
 
-func (*toyStore) PutVersion(string, []byte) (string, error) { return "", storetest.ErrUnsupported }
+	s.mu.Lock()
+	s.hangs[key] = hang
+	s.mu.Unlock()
+
+	return hang, nil
+}
+
+func (s *toyStore) HangBody(key string) (*storetest.Hang, error) {
+	hang := storetest.NewHang()
+
+	s.mu.Lock()
+	s.bodies[key] = hang
+	s.mu.Unlock()
+
+	return hang, nil
+}
+
+func (s *toyStore) hangsOf(key string) (*storetest.Hang, *storetest.Hang) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.hangs[key], s.bodies[key]
+}
+
+func (s *toyStore) fault(key string) error {
+	switch s.faults[key] {
+	case storetest.FaultDenied:
+		return &manifestreader.FetchError{
+			Reason: manifestreader.ReasonDenied, Retryable: s.defect == defectDeniedRetryable,
+		}
+	case storetest.FaultTransient:
+		return &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true}
+	case storetest.FaultThrottled:
+		return &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true, Throttled: true}
+	case storetest.FaultNone:
+	}
+
+	return nil
+}
+
+// find returns the current content of the key, or of the named version.
+func (s *toyStore) find(key, versionID string) ([]byte, bool) {
+	versions := s.versions[key]
+	if len(versions) == 0 {
+		return nil, false
+	}
+
+	if versionID == "" || s.defect == defectIgnoresVersion {
+		return versions[len(versions)-1].content, true
+	}
+
+	for _, version := range versions {
+		if version.id == versionID {
+			return version.content, true
+		}
+	}
+
+	return nil, false
+}
+
+func (s *toyStore) etagOf(key, versionID string, content []byte) string {
+	if versionID == "" {
+		return s.etags[key]
+	}
+
+	return toyETag(content)
+}
 
 // tooLarge applies the limit, as far as the defect of the toy lets it.
 func (s *toyStore) tooLarge(content []byte, limit int64) bool {
@@ -189,22 +315,31 @@ func (s *toyStore) answer(content []byte, etag, held string) (manifestreader.Obj
 	return manifestreader.Object{Bytes: content, ETag: etag}, nil
 }
 
-// toyFixture is the toy with the capabilities it has: it can be denied, and all else the toy waives.
-func toyFixture(defect string) (storetest.Fixture, *toyStore) {
-	toy := newToy(defect)
+// TestSuiteRunsAgainstTheToy runs the whole suite on a store of the package itself: every case but the one that
+// needs key validation runs and passes.
+func TestSuiteRunsAgainstTheToy(t *testing.T) {
+	t.Parallel()
 
-	return storetest.Fixture{
-		Store: toy, Backend: toy,
-		Unsupported: storetest.NewWaivers().
-			With(storetest.CapTransient, toyReason).With(storetest.CapThrottle, toyReason).
-			With(storetest.CapHang, toyReason).With(storetest.CapHangBody, toyReason).
-			With(storetest.CapVersions, toyReason).With(storetest.CapKeyValidation, toyReason),
-	}, toy
+	// The store of the fixture starts a worker, and the cleanup of the fixture stops it: the check for leaks
+	// runs after that cleanup, or every case would fail.
+	report := storetest.Run(t, "toy", toyWaivers(), func(t *testing.T) storetest.Fixture {
+		t.Helper()
+
+		fixture, toy := toyFixture(defectNone)
+		toy.worker = true
+
+		t.Cleanup(func() { close(toy.release) })
+
+		return fixture
+	})
+
+	assert.Equal(t, map[string]string{caseKeys: "key-validation: the toy keys are opaque"}, report.Unsupported)
+	assert.Len(t, report.Ran, len(storetest.CaseNames())-1)
 }
 
-// TestConformanceCatchesBrokenStores is the proof that the suite has teeth: each row is a store with one defect,
-// and the named cases must fail for it. The table is the list of what the suite is known to catch.
-func TestConformanceCatchesBrokenStores(t *testing.T) {
+// TestSuiteCatchesBrokenStores is the proof that the suite has teeth: each row is a store with one defect, and the
+// named cases must fail for it. The table is the list of what the suite is known to catch.
+func TestSuiteCatchesBrokenStores(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -214,16 +349,13 @@ func TestConformanceCatchesBrokenStores(t *testing.T) {
 		wantCases []string
 	}{
 		{
-			name: "the ETag of a rewrite stays the old one", defect: defectStaleETag,
-			wantCases: []string{
-				caseChanged, caseFollows,
-			},
+			name:      "the ETag of a rewrite stays the old one",
+			defect:    defectStaleETag,
+			wantCases: []string{caseChanged, caseFollows},
 		},
 		{
 			name: "the ETag is the same for every content", defect: defectConstantETag,
-			wantCases: []string{
-				caseChanged, caseFollows, "empty-object",
-			},
+			wantCases: []string{caseChanged, caseFollows, "empty-object", "etag-describes-the-bytes-returned"},
 		},
 		{
 			name: "the limit is ignored", defect: defectIgnoresLimit,
@@ -259,7 +391,7 @@ func TestConformanceCatchesBrokenStores(t *testing.T) {
 		},
 		{
 			name: "a version that does not exist is served", defect: defectIgnoresVersion,
-			wantCases: []string{"missing-version-is-not-found"},
+			wantCases: []string{"missing-version-is-not-found", "version-id-reads-an-older-version"},
 		},
 		{
 			name: "a denied read is retryable", defect: defectDeniedRetryable,
@@ -268,6 +400,10 @@ func TestConformanceCatchesBrokenStores(t *testing.T) {
 		{
 			name: "a missing object is an empty one", defect: defectMissingIsEmpty,
 			wantCases: []string{"missing-is-not-found"},
+		},
+		{
+			name: "a cancelled read returns the bytes it had", defect: defectPartialOnCancel,
+			wantCases: []string{"cancel-while-reading", "cancel-while-reading-the-body", "deadline-while-reading"},
 		},
 		{
 			name: "the ETag is the one of the previous bytes", defect: defectETagOfOldBytes,
@@ -283,38 +419,39 @@ func TestConformanceCatchesBrokenStores(t *testing.T) {
 				fixture, toy := toyFixture(tt.defect)
 
 				failures, ran := storetest.Check(name, fixture)
-				require.True(t, ran, "case %s did not run: it needs a capability the toy waives", name)
-				assert.NotEmpty(t, failures, "the case %s did not catch %q", name, tt.defect)
-				assert.Contains(t, strings.Join(failures, "\n"), tt.wantText)
 
 				close(toy.release)
+
+				require.True(t, ran, "case %s did not run", name)
+				assert.NotEmpty(t, failures, "the case %s did not catch %q", name, tt.defect)
+				assert.Contains(t, strings.Join(failures, "\n"), tt.wantText)
 			}
 		})
 	}
 }
 
-// TestConformanceAcceptsAGoodToy guards the table above: the toy without a defect passes every case it can run,
-// so the failures of the other rows come from their defects.
-func TestConformanceAcceptsAGoodToy(t *testing.T) {
+// TestSuiteAcceptsAGoodToy guards the table above: the toy without a defect passes every case, so the failures
+// of the other rows come from their defects.
+func TestSuiteAcceptsAGoodToy(t *testing.T) {
 	t.Parallel()
 
-	ranAny := 0
+	var notRun []string
 
 	for _, name := range storetest.CaseNames() {
 		fixture, toy := toyFixture(defectNone)
 
 		failures, ran := storetest.Check(name, fixture)
+
+		close(toy.release)
+
 		if !ran {
+			notRun = append(notRun, name)
+
 			continue
 		}
 
-		ranAny++
-
 		assert.Empty(t, failures, "case %s failed for a store without a defect", name)
-
-		close(toy.release)
 	}
 
-	// the toy waives the capabilities it cannot arrange: eight cases need one of them
-	assert.Equal(t, len(storetest.CaseNames())-8, ranAny, "all cases but the eight that need a waived capability ran")
+	assert.Equal(t, []string{caseKeys}, notRun, "the one case that needs key validation")
 }

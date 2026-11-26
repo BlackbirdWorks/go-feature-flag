@@ -2,6 +2,7 @@ package storetest
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"maps"
@@ -48,6 +49,9 @@ const (
 	CapContentAddressedETag Capability = "content-addressed-etag"
 	// CapNestedKeys is that an object "a" and an object "a/b" can exist together, as in an object store.
 	CapNestedKeys Capability = "nested-keys"
+	// CapReservedNameChars is that keys can contain characters that some file systems reserve in names (a
+	// question mark, a colon). Windows file names cannot.
+	CapReservedNameChars Capability = "reserved-name-chars"
 )
 
 // Fault is a failure a backend arranges for the reads of a key.
@@ -202,10 +206,10 @@ func CaseNames() []string {
 	return names
 }
 
-// newID returns an id that no other live run has: the address of a fresh allocation. It labels the goroutines of
-// one run (or of one [Check]).
+// newID returns an id that no other run has, live or not: a random one. It labels the goroutines of one run (or
+// of one [Check]).
 func newID(prefix string) string {
-	return fmt.Sprintf("%s#%p", prefix, new(byte))
+	return prefix + "#" + rand.Text()
 }
 
 // Run runs every case against the stores the factory makes, as parallel subtests of t named after backend, and
@@ -229,6 +233,10 @@ func Run(t *testing.T, backend string, waivers Waivers, factory Factory) Report 
 			t.Run(current.name, func(t *testing.T) {
 				t.Parallel()
 
+				// registered first, so that it runs last: after the cleanups of the fixture, which stop the
+				// workers of the store
+				t.Cleanup(func() { checkNoLeak(t, runID, current.name) })
+
 				fixture := factory(t)
 				checkWaivers(t, waivers, &fixture)
 
@@ -246,7 +254,7 @@ func Run(t *testing.T, backend string, waivers Waivers, factory Factory) Report 
 					t.Skipf("UNSUPPORTED by backend %s: %s", backend, reason)
 				}
 
-				runCase(t, runID, &current, fixture)
+				runLabelled(t, runID, &current, fixture)
 			})
 		}
 	})
@@ -258,17 +266,24 @@ func Run(t *testing.T, backend string, waivers Waivers, factory Factory) Report 
 		t.Logf("storetest %s: UNSUPPORTED %s (%s)", backend, name, report.Unsupported[name])
 	}
 
-	assert.Empty(t, settledLeaks(runID, ""), "goroutines of the run are left after all its cases")
+	checkNoLeak(t, runID, "")
 
 	return report
 }
 
-// checkWaivers fails unless the fixture declares exactly the waivers the test of the store passed to [Run].
+// checkWaivers fails unless the fixture declares exactly the waivers the test of the store passed to [Run], and
+// every waiver has a reason.
 func checkWaivers(t TB, waivers Waivers, fixture *Fixture) {
 	t.Helper()
 
 	assert.Equal(t, nilIfEmpty(waivers), nilIfEmpty(fixture.Unsupported),
 		"the fixture declares other waivers than the test of the store")
+
+	for _, declared := range []Waivers{waivers, fixture.Unsupported} {
+		for capability, reason := range declared {
+			assert.NotEmpty(t, strings.TrimSpace(reason), "the waiver of %s has no reason", capability)
+		}
+	}
 }
 
 func nilIfEmpty(m Waivers) Waivers {
@@ -280,8 +295,9 @@ func nilIfEmpty(m Waivers) Waivers {
 }
 
 // Check runs the named case against fixture and returns what it reported as failed, and whether it ran (it does
-// not when the case needs a capability the fixture declares unsupported). It exists so that a test can show that
-// the suite catches a broken store: the case runs on a goroutine of its own, with a recording [TB].
+// not when the name is not a case, or when the case needs a capability the fixture declares unsupported). It exists
+// so that a test can show that the suite catches a broken store: the case runs on a goroutine of its own, with a
+// recording [TB].
 func Check(name string, fixture Fixture) ([]string, bool) {
 	for i := range allCases() {
 		current := allCases()[i]
@@ -300,7 +316,8 @@ func Check(name string, fixture Fixture) ([]string, bool) {
 		go func() {
 			defer close(done)
 
-			runCase(rec, runID, &current, fixture)
+			runLabelled(rec, runID, &current, fixture)
+			checkNoLeak(rec, runID, current.name)
 		}()
 
 		<-done
@@ -309,7 +326,7 @@ func Check(name string, fixture Fixture) ([]string, bool) {
 		return rec.failures(), true
 	}
 
-	return []string{"no such case: " + name}, true
+	return []string{"no such case: " + name}, false
 }
 
 // unsupportedReason is why the fixture cannot run a case that needs these capabilities; empty when it can.
@@ -332,18 +349,20 @@ const (
 	labelCase = "storetest-case"
 )
 
-// runCase runs the case with its goroutines labelled, then checks that none of them is left.
-func runCase(t TB, runID string, current *contractCase, fixture Fixture) {
+// runLabelled runs the case with its goroutines labelled.
+func runLabelled(t TB, runID string, current *contractCase, fixture Fixture) {
 	t.Helper()
 
-	caseID := current.name
-
-	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, caseID), func(context.Context) {
+	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, current.name), func(context.Context) {
 		current.run(t, fixture)
 	})
+}
 
-	leaks := settledLeaks(runID, caseID)
-	assert.Empty(t, leaks, "the case left goroutines behind")
+// checkNoLeak fails when a goroutine of the case (of the whole run when caseID is empty) is left.
+func checkNoLeak(t TB, runID, caseID string) {
+	t.Helper()
+
+	assert.Empty(t, settledLeaks(runID, caseID), "the case left goroutines behind")
 }
 
 // recorder is a [TB] that records instead of failing.
