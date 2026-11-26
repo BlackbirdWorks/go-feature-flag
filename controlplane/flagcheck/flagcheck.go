@@ -12,6 +12,7 @@ package flagcheck
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
@@ -34,12 +35,35 @@ type Error struct {
 	Problems []FlagProblem
 }
 
-// Error implements error. It names the flags and the reasons, never a value of the file that is not part of the
-// engine's message.
+// quoted matches the pieces of an engine message that repeat the content of the file: a scalar quoted in backticks
+// (the decoder shows the start of the value it could not read) and the text of a targeting query, as in
+// `invalid rule "..."`.
+var quoted = regexp.MustCompile("`[^`]*`|invalid rule \"(?:[^\"\\\\]|\\\\.)*\"")
+
+// redact removes from a message of the engine what quotes the content of the file, and keeps where and why it failed.
+func redact(msg string) string {
+	return quoted.ReplaceAllStringFunc(msg, func(match string) string {
+		if strings.HasPrefix(match, "invalid rule") {
+			return "invalid rule"
+		}
+
+		return "`...`"
+	})
+}
+
+// redacted is an error whose text does not quote the file; it still unwraps to the engine's error.
+type redacted struct{ err error }
+
+func (r redacted) Error() string { return redact(r.err.Error()) }
+func (r redacted) Unwrap() error { return r.err }
+
+// Error implements error. It names the flags and the reasons. The text of the engine is kept, except that what
+// quotes the content of the file (a scalar it could not read, the text of a targeting query) is removed, so the
+// message carries no value of the file. Problems[i].Err is the engine's error as it is.
 func (e *Error) Error() string {
 	parts := make([]string, 0, len(e.Problems))
 	for i := range e.Problems {
-		parts = append(parts, fmt.Sprintf("flag %s: %v", e.Problems[i].Flag, e.Problems[i].Err))
+		parts = append(parts, fmt.Sprintf("flag %s: %s", e.Problems[i].Flag, redact(e.Problems[i].Err.Error())))
 	}
 
 	return strings.Join(parts, "; ")
@@ -54,7 +78,7 @@ func (*Error) Is(target error) bool { return target == ErrInvalid }
 func Check(body []byte, format string) error {
 	flags, err := cache.ConvertToFlagStruct(body, format)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalid, err)
+		return fmt.Errorf("%w: %w", ErrInvalid, redacted{err: err})
 	}
 
 	flagErrors := configfile.ValidateFlags(flags)

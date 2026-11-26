@@ -358,10 +358,10 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 		gopherstack.Region,
 		optEndpoint,
 		env.srv.Endpoint,
-		"--prefix",
+		optPrefix,
 		"p",
 		optChannel,
-		"canary",
+		chanCanary,
 	}
 
 	out, err := runCLI(t, env.deps, args...)
@@ -378,17 +378,17 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 		gopherstack.Region,
 		optEndpoint,
 		env.srv.Endpoint,
-		"--prefix",
+		optPrefix,
 		"p",
 		optChannel,
-		"canary",
+		chanCanary,
 	)
 	require.NoError(t, err, out)
 
 	raw := env.get(t, "p/manifests/canary.yaml")
 	manifest, _, err := controlplane.UnmarshalManifest(raw)
 	require.NoError(t, err)
-	assert.Equal(t, "canary", manifest.Channel)
+	assert.Equal(t, chanCanary, manifest.Channel)
 	assert.Equal(t, "control", manifest.Objects[0].Connection)
 	assert.Contains(t, manifest.Objects[0].Key, "p/objects/sha256/")
 }

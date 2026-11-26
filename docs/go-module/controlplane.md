@@ -65,7 +65,7 @@ objects:
 | `objects[].format` | `yaml`, `json` (and `toml` for `flags`) |
 | `objects[].version` | optional integer; 1 (the default) is the headerless flag format; a newer one is an entry problem |
 | `objects[].checksum` | `sha256` and 64 lower-case hex characters |
-| `objects[].size` | bytes, 0 or more; the reader marks an entry below 1 as `invalid-size` and does not request it, and `s3publish` refuses to write one |
+| `objects[].size` | bytes. Size 0 is valid for the format, but the relay reader marks that entry `invalid-size` and skips it (the other entries still load), and `s3publish` refuses to write an empty object. A negative size makes the whole manifest invalid |
 | `objects[].versionId` | optional version id of the store |
 
 ### Flag-set document

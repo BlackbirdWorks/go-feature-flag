@@ -46,7 +46,7 @@ func TestPublishOutput(t *testing.T) {
 		},
 		{
 			name: "text, prefix channel and manifest key", wantGolden: "publish_prefix.txt",
-			args: withTarget(srcDir, "--prefix", "acme", "--channel", "canary", "--connection", "flags-eu"),
+			args: withTarget(srcDir, optPrefix, "acme", "--channel", chanCanary, "--connection", connEU),
 		},
 	}
 	for _, tt := range tests {

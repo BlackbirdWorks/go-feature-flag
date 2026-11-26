@@ -26,6 +26,9 @@ const (
 	opOpen        = "open"
 	optChannel    = "--channel"
 	optEndpoint   = "--endpoint"
+	optPrefix     = "--prefix"
+	chanCanary    = "canary"
+	connEU        = "flags-eu"
 	verifyWord    = "verify"
 	badFile       = "flags/bad.yaml"
 	regionUSEast  = "us-east-1"
@@ -142,7 +145,7 @@ func sourceDirArg(args []string) string {
 
 func takesValue(flag string) bool {
 	switch flag {
-	case "-o", "--output", "-c", "--config", "--bucket", "--prefix", "--region", optEndpoint, optChannel,
+	case "-o", "--output", "-c", "--config", "--bucket", optPrefix, "--region", optEndpoint, optChannel,
 		"--connection", "--manifest-key", "--generation":
 		return true
 	}

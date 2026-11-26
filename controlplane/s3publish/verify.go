@@ -1,11 +1,14 @@
 package s3publish
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
@@ -37,7 +40,9 @@ type Problem struct {
 	Key string
 	// Code is one of the Problem constants, or the controlplane Code of a validation problem.
 	Code string
-	// Detail says more. It never contains the content of a document, so no API key.
+	// Detail says more. The text this package writes never contains the content of a document, so no API key. The
+	// text of an error returned by a Config.Check hook is the hook's own and is reported as given, except that it is
+	// made single-line (control characters and newlines become spaces) and cut to MaxHookDetail characters.
 	Detail string
 }
 
@@ -46,16 +51,25 @@ type Report struct {
 	Channel      string
 	ManifestKey  string
 	ManifestETag string
-	// Problems lists what is wrong, in manifest order.
+	// Problems lists what is wrong, in manifest order (the order of the entries of the manifest, which is by name),
+	// cross-document problems included, each at the position of the entry it belongs to. Problems that belong to no
+	// entry (a channel that is not the expected one) come last.
 	Problems []Problem
 	// Skipped lists the objects of other connections: this client reads one bucket only.
 	Skipped []string
 	// Requests counts the S3 calls this Verify made.
 	Requests   Requests
 	Generation uint64
-	// Checked counts the objects read and compared.
+	// Attempted counts the objects for which a read was attempted (an entry that cannot be requested is not).
+	Attempted int
+	// Checked counts the objects whose bytes were read and compared with the listed size and checksum: Attempted
+	// without the objects that are missing or could not be read.
 	Checked int
 }
+
+// MaxHookDetail is the longest text, in characters, of the error of a Config.Check hook that Verify puts in a
+// Problem.Detail.
+const MaxHookDetail = 200
 
 // OK reports that no problem was found.
 func (r *Report) OK() bool { return len(r.Problems) == 0 }
@@ -80,6 +94,13 @@ type owned struct {
 	doc  *controlplane.FlagSetDocument
 	name string
 	key  string
+	pos  int
+}
+
+// positioned is a problem and the position, in the entries of the manifest, of the entry it belongs to.
+type positioned struct {
+	problem Problem
+	pos     int
 }
 
 func (p *Publisher) check(ctx context.Context) (*Report, error) {
@@ -112,12 +133,10 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 
 	rep.Generation = manifest.Generation
 
-	if manifest.Channel != p.cfg.Channel {
-		rep.Problems = append(rep.Problems, p.manifestProblem(
-			fmt.Sprintf("channel %q, want %q", manifest.Channel, p.cfg.Channel)))
-	}
-
-	var docs []owned
+	var (
+		docs  []owned
+		found []positioned
+	)
 
 	for i := range manifest.Objects {
 		obj := &manifest.Objects[i]
@@ -130,25 +149,41 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 
 		reason := p.entryProblem(obj)
 		if reason != "" {
-			rep.Problems = append(
-				rep.Problems,
-				Problem{Object: obj.Name, Key: obj.Key, Code: ProblemInvalidEntry, Detail: reason},
-			)
+			found = append(found, positioned{pos: i, problem: Problem{
+				Object: obj.Name, Key: obj.Key, Code: ProblemInvalidEntry, Detail: reason,
+			}})
 
 			continue
 		}
 
-		rep.Checked++
+		rep.Attempted++
 
-		problems, doc := p.verifyObject(ctx, obj)
-		rep.Problems = append(rep.Problems, problems...)
+		problems, doc, compared := p.verifyObject(ctx, obj)
+		if compared {
+			rep.Checked++
+		}
+
+		for _, problem := range problems {
+			found = append(found, positioned{pos: i, problem: problem})
+		}
 
 		if doc != nil {
-			docs = append(docs, owned{doc: doc, name: obj.Name, key: obj.Key})
+			docs = append(docs, owned{doc: doc, name: obj.Name, key: obj.Key, pos: i})
 		}
 	}
 
-	rep.Problems = append(rep.Problems, crossProblems(docs, manifest)...)
+	found = append(found, crossProblems(docs, manifest, len(manifest.Objects))...)
+
+	if manifest.Channel != p.cfg.Channel {
+		found = append(found, positioned{pos: len(manifest.Objects), problem: p.manifestProblem(
+			fmt.Sprintf("channel %q, want %q", manifest.Channel, p.cfg.Channel))})
+	}
+
+	slices.SortStableFunc(found, func(a, b positioned) int { return cmp.Compare(a.pos, b.pos) })
+
+	for _, item := range found {
+		rep.Problems = append(rep.Problems, item.problem)
+	}
 
 	return rep, nil
 }
@@ -159,7 +194,7 @@ func (p *Publisher) manifestProblem(detail string) Problem {
 
 // crossProblems validates the flag-set documents together: duplicate flag-set names and API keys across
 // documents, and sources that do not resolve. A problem is attributed to its document by position.
-func crossProblems(docs []owned, manifest *controlplane.Manifest) []Problem {
+func crossProblems(docs []owned, manifest *controlplane.Manifest, noEntry int) []positioned {
 	list := make([]*controlplane.FlagSetDocument, len(docs))
 	for i := range docs {
 		list[i] = docs[i].doc
@@ -172,22 +207,24 @@ func crossProblems(docs []owned, manifest *controlplane.Manifest) []Problem {
 
 	verr, ok := errors.AsType[*controlplane.ValidationError](err)
 	if !ok {
-		return []Problem{{Object: "flag-set documents", Code: ProblemInvalidContent, Detail: err.Error()}}
+		return []positioned{{pos: noEntry, problem: Problem{
+			Object: "flag-set documents", Code: ProblemInvalidContent, Detail: err.Error(),
+		}}}
 	}
 
-	problems := make([]Problem, 0, len(verr.Problems))
+	problems := make([]positioned, 0, len(verr.Problems))
 
 	for i := range verr.Problems {
 		fieldErr := &verr.Problems[i]
-		owner := owned{name: "flag-set documents"}
+		owner := owned{name: "flag-set documents", pos: noEntry}
 
 		if idx, found := documentIndex(fieldErr.Path); found && idx < len(docs) {
 			owner = docs[idx]
 		}
 
-		problems = append(problems, Problem{
+		problems = append(problems, positioned{pos: owner.pos, problem: Problem{
 			Object: owner.name, Key: owner.key, Code: string(fieldErr.Code), Detail: fieldErr.Error(),
-		})
+		}})
 	}
 
 	return problems
@@ -229,9 +266,9 @@ func (p *Publisher) entryProblem(obj *controlplane.ManifestObject) string {
 // verifyObject checks one object and returns its problems and, for a readable flag-set document, the document.
 func (p *Publisher) verifyObject(
 	ctx context.Context, obj *controlplane.ManifestObject,
-) ([]Problem, *controlplane.FlagSetDocument) {
-	problem := func(code, detail string) ([]Problem, *controlplane.FlagSetDocument) {
-		return []Problem{{Object: obj.Name, Key: obj.Key, Code: code, Detail: detail}}, nil
+) ([]Problem, *controlplane.FlagSetDocument, bool) {
+	problem := func(code, detail string, compared bool) ([]Problem, *controlplane.FlagSetDocument, bool) {
+		return []Problem{{Object: obj.Name, Key: obj.Key, Code: code, Detail: detail}}, nil, compared
 	}
 
 	body, _, err := p.read(ctx, obj.Key, obj.VersionID, max(obj.Size, 0))
@@ -240,35 +277,59 @@ func (p *Publisher) verifyObject(
 
 	switch {
 	case isNotFound(err), errors.Is(err, errMissingVersion):
-		return problem(ProblemMissing, "no object under the listed key or version")
+		return problem(ProblemMissing, "no object under the listed key or version", false)
 	case errors.As(err, &opErr) && errors.Is(opErr.Err, errTooLarge):
-		return problem(ProblemSizeMismatch, fmt.Sprintf("larger than the listed %d bytes", obj.Size))
+		return problem(ProblemSizeMismatch, fmt.Sprintf("larger than the listed %d bytes", obj.Size), true)
 	case err != nil:
-		return problem(ProblemUnreadable, err.Error())
+		return problem(ProblemUnreadable, err.Error(), false)
 	}
 
 	if int64(len(body)) != obj.Size {
-		return problem(ProblemSizeMismatch, fmt.Sprintf("%d bytes, listed %d", len(body), obj.Size))
+		return problem(ProblemSizeMismatch, fmt.Sprintf("%d bytes, listed %d", len(body), obj.Size), true)
 	}
 
 	err = controlplane.VerifyChecksum(body, obj.Checksum)
 	if err != nil {
-		return problem(ProblemChecksumMismatch, err.Error())
+		return problem(ProblemChecksumMismatch, err.Error(), true)
 	}
 
 	_, doc, err := validateContent(obj, body)
 	if err != nil {
-		return contentProblems(obj, err), nil
+		return contentProblems(obj, err), nil, true
 	}
 
 	if p.cfg.Check != nil {
 		err = p.cfg.Check(&Object{Name: obj.Name, Kind: obj.Kind, Format: obj.Format, Source: obj.Key, Body: body})
 		if err != nil {
-			return problem(ProblemInvalidContent, err.Error())
+			// The document was decoded: it still takes part in the checks across documents.
+			problems, _, _ := problem(ProblemInvalidContent, hookText(err), true)
+
+			return problems, doc, true
 		}
 	}
 
-	return nil, doc
+	return nil, doc, true
+}
+
+// hookText makes the text of the error of a Config.Check hook fit for a Problem.Detail: one line (a control character
+// or a newline becomes a space) of at most MaxHookDetail characters.
+func hookText(err error) string {
+	text := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+
+		return r
+	}, err.Error())
+
+	text = strings.Join(strings.Fields(text), " ")
+
+	runes := []rune(text)
+	if len(runes) > MaxHookDetail {
+		return string(runes[:MaxHookDetail]) + "…"
+	}
+
+	return text
 }
 
 // contentProblems turns a validation error into problems, with the stable code of each field error.

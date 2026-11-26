@@ -48,7 +48,18 @@ type JSONErrorOptions struct {
 // -o=VALUE, --output VALUE and --output=VALUE decides, and the scan stops at "--". It is a pure scan: it does not
 // know the other flags, so a value that merely equals "json" for another flag does not count.
 func WantsJSON(args []string) bool {
-	wants := false
+	value, _ := RawOutput(args)
+
+	return value == "json"
+}
+
+// RawOutput returns the value of the last output flag in raw command-line arguments, and whether there was one.
+// The rules are those of [WantsJSON].
+func RawOutput(args []string) (string, bool) {
+	var (
+		last  string
+		found bool
+	)
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -57,7 +68,7 @@ func WantsJSON(args []string) bool {
 
 		switch {
 		case arg == "--":
-			return wants
+			return last, found
 		case arg == "-o" || arg == "--output":
 			if i+1 >= len(args) {
 				continue
@@ -75,10 +86,10 @@ func WantsJSON(args []string) bool {
 			continue
 		}
 
-		wants = value == "json"
+		last, found = value, true
 	}
 
-	return wants
+	return last, found
 }
 
 // JSONErrors makes every failure of cmd and of all its subcommands, present and future, follow one mechanism:
@@ -90,12 +101,20 @@ func WantsJSON(args []string) bool {
 // Call it once, on the command that owns the output flag, after its subcommands were added. A command with a
 // --output json flag cannot forget it: the wrap is applied to the whole tree.
 func JSONErrors(cmd *cobra.Command, opts JSONErrorOptions) {
-	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+	cmd.SetFlagErrorFunc(func(failed *cobra.Command, err error) error {
 		// The flags were not parsed to the end: the flag value that was read so far is not reliable.
 		raw := opts
-		raw.Enabled = func() bool { return opts.Enabled() || WantsJSON(rawArgs(opts)) }
+		raw.Enabled = func() bool {
+			// A flag the command line names decides, last one wins, even when it says text. The parsed value is only
+			// used when the arguments name no output flag.
+			if value, named := RawOutput(rawArgs(opts)); named {
+				return value == "json"
+			}
 
-		return reportJSON(c.OutOrStdout(), raw, fmt.Errorf("%w: %w", ErrUsage, err))
+			return opts.Enabled()
+		}
+
+		return reportJSON(failed.OutOrStdout(), raw, fmt.Errorf("%w: %w", ErrUsage, err))
 	})
 
 	wrapTree(cmd, opts)

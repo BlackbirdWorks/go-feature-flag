@@ -37,6 +37,7 @@ func TestVerifyHealthyBucket(t *testing.T) {
 	assert.True(t, rep.OK())
 	assert.Empty(t, rep.Problems)
 	assert.Equal(t, 2, rep.Checked)
+	assert.Equal(t, 2, rep.Attempted)
 	assert.Equal(t, s3publish.Requests{Get: 3}, rep.Requests)
 	assert.Equal(t, uint64(1), rep.Generation)
 	assert.Equal(t, fake.ETag(manifestKey), rep.ManifestETag)
@@ -61,12 +62,12 @@ func TestVerifyReportsEveryProblem(t *testing.T) {
 			name:       "missing object",
 			damage:     func(f *s3fake.Fake, k string) { f.Remove(k) },
 			wantCode:   s3publish.ProblemMissing,
-			wantObject: nameFlags,
+			wantObject: nameFlags, wantChecked: 1,
 		},
 		{
 			name:       "corrupted object of the same size",
 			wantCode:   s3publish.ProblemChecksumMismatch,
-			wantObject: nameFlags,
+			wantObject: nameFlags, wantChecked: 2,
 			damage: func(f *s3fake.Fake, k string) {
 				b, _ := f.Body(k)
 				b[len(b)-2] ^= 0x01
@@ -77,16 +78,16 @@ func TestVerifyReportsEveryProblem(t *testing.T) {
 			name:       "truncated object",
 			damage:     func(f *s3fake.Fake, k string) { b, _ := f.Body(k); f.Seed(k, b[:len(b)-3]) },
 			wantCode:   s3publish.ProblemSizeMismatch,
-			wantObject: nameFlags,
+			wantObject: nameFlags, wantChecked: 2,
 		},
 		{
 			name:       "longer object",
 			damage:     func(f *s3fake.Fake, k string) { b, _ := f.Body(k); f.Seed(k, append(b, "padding"...)) },
 			wantCode:   s3publish.ProblemSizeMismatch,
-			wantObject: nameFlags,
+			wantObject: nameFlags, wantChecked: 2,
 		},
 		{
-			name: "unreadable object", wantCode: s3publish.ProblemUnreadable, wantObject: nameFlags,
+			name: "unreadable object", wantCode: s3publish.ProblemUnreadable, wantObject: nameFlags, wantChecked: 1,
 			damage: func(f *s3fake.Fake, k string) {
 				f.Before = func(call string) error {
 					if call == "GET "+k {
@@ -114,7 +115,8 @@ func TestVerifyReportsEveryProblem(t *testing.T) {
 			assert.Equal(t, tt.wantCode, rep.Problems[0].Code)
 			assert.Equal(t, tt.wantObject, rep.Problems[0].Object)
 			assert.Equal(t, objectKey(t, objects[0].Body), rep.Problems[0].Key)
-			assert.Equal(t, 2, rep.Checked, "the healthy object is still checked")
+			assert.Equal(t, 2, rep.Attempted, "a read was attempted for both objects")
+			assert.Equal(t, tt.wantChecked, rep.Checked, "only the objects that were read are compared")
 		})
 	}
 }
@@ -132,19 +134,20 @@ func TestVerifyUnresolvedSourceAndInvalidContent(t *testing.T) {
 
 	manifest := &controlplane.Manifest{Channel: testChannel, Generation: 3}
 
-	for name, obj := range map[string]struct {
+	for _, obj := range []struct {
+		name string
 		kind string
 		body []byte
 	}{
-		nameFlags: {controlplane.KindFlags, flags},
-		nameSets:  {controlplane.KindFlagSets, sets},
-		"garbage": {controlplane.KindFlags, garbage},
+		{nameFlags, controlplane.KindFlags, flags},
+		{"garbage", controlplane.KindFlags, garbage},
+		{nameSets, controlplane.KindFlagSets, sets},
 	} {
 		key := objectKey(t, obj.body)
 		fake.Seed(key, obj.body)
 
 		manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
-			Name: name, Kind: obj.kind, Connection: testConnection, Key: key, Format: controlplane.FormatYAML,
+			Name: obj.name, Kind: obj.kind, Connection: testConnection, Key: key, Format: controlplane.FormatYAML,
 			Checksum: controlplane.ChecksumOf(obj.body), Size: int64(len(obj.body)),
 		})
 	}
@@ -156,17 +159,20 @@ func TestVerifyUnresolvedSourceAndInvalidContent(t *testing.T) {
 	rep, err := newPublisher(t, fake, nil).Verify(t.Context())
 	require.NoError(t, err)
 
-	got := map[string]string{}
+	type found struct{ object, code string }
+
+	got := make([]found, 0, len(rep.Problems))
 	for _, p := range rep.Problems {
-		got[p.Object] = p.Code
+		got = append(got, found{object: p.Object, code: p.Code})
 		assert.NotContains(t, p.Detail, "canary-api-key-0002")
 	}
 
-	assert.Equal(t, map[string]string{
-		nameSets:  string(controlplane.CodeUnresolvedSource),
-		"garbage": s3publish.ProblemInvalidContent,
-	}, got)
+	assert.Equal(t, []found{
+		{object: nameSets, code: string(controlplane.CodeUnresolvedSource)},
+		{object: "garbage", code: s3publish.ProblemInvalidContent},
+	}, got, "exactly these problems, in manifest order")
 	assert.Equal(t, 3, rep.Checked)
+	assert.Equal(t, 3, rep.Attempted)
 }
 
 func TestVerifyManifestStates(t *testing.T) {

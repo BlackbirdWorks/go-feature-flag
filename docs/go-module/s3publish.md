@@ -118,17 +118,25 @@ A generation of `math.MaxUint64` in the bucket has no successor: a changed publi
    writer created it: the key is checked again and accepted if it matches. The first error cancels the rest.
 5. `PutObject` the manifest, alone and last: `If-Match: <ETag>`, or `If-None-Match: *` when there was none. `412`,
    `409 ConditionalRequestConflict` and `404 NoSuchKey` (manifest deleted) trigger one `GetObject` of the manifest: if it is
-   the manifest we tried to write (same channel, generation and entries), an earlier attempt of ours committed and the
-   result is success with its ETag; otherwise `ErrConflict`.
+   the whole manifest we tried to write (same channel, generation, entries and `createdAt`), an earlier attempt of ours
+   committed and the result is success with its ETag; otherwise `ErrConflict`.
 
 The manifest is YAML, or JSON when the manifest key ends in `.json`.
 
 ## Guarantees
 
 - A manifest in the bucket never lists an object that is not there.
-- Of two publishers that read the same manifest, one write succeeds and the other gets `ErrConflict`.
+- Of two publishers that write different manifests over the same one, exactly one wins and the other gets `ErrConflict`.
+  Two publishers that write the identical whole manifest both succeed: the second finds its own manifest in the bucket
+  (the write is idempotent).
 - The generation strictly increases.
-- A repeat after any error is safe and converges.
+- After `ErrConflict` the caller decides; the library does not retry. With an automatic generation (`Generation` zero) a
+  repeat reads the manifest of the winner and publishes over it with the next generation: the last writer wins, by
+  intent. With an explicit generation the repeat fails until the generation is higher than the winner's. The CLI exits 3
+  and does not retry on its own.
+- Failures of the store: a transient one (a timeout, a 5xx) is safe to repeat, and the repeat converges, because nothing
+  visible changed before the manifest and objects are content-addressed. A permanent one (access denied, a missing
+  bucket) fails the same way again: fix the cause first.
 - Old objects are not deleted: garbage collection is a later change. Objects left by an interrupted publish are harmless.
 - The IAM identity needs `s3:GetObject` (also for `HeadObject`) and `s3:PutObject`; `Verify` of a manifest that pins a
   `versionId` also needs `s3:GetObjectVersion`. Without `s3:ListBucket` S3 answers a missing key with 403 instead of 404
@@ -156,5 +164,14 @@ an entry, but a manifest in the bucket that lists one is a valid manifest to pub
 `Verify` reads the manifest and each object of `Config.Connection` (the pinned `versionId` of an entry, when it has one; an absent
 version is `missing`) and reports `Problem{Object, Key, Code, Detail}`:
 `missing`, `unreadable`, `invalid-entry`, `size-mismatch`, `checksum-mismatch`, `invalid-content`, `manifest-invalid`, or the `controlplane`
-code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. `Detail` never holds
-document content, so no API key. `ErrNoManifest` and `*OperationError` are returned as errors.
+code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. The `Detail` this package writes never holds
+document content, so no API key. The text of an error returned by a `Config.Check` hook is the hook's own: it is reported as
+given, except that it is made single-line (control characters and newlines become spaces) and cut to `MaxHookDetail` (200)
+characters. The engine check of `controlplane/flagcheck` removes what quotes the file (a scalar, the text of a query) from its messages.
+
+`Problems` is in manifest order (the entries are sorted by name), cross-document problems included, each at the position of
+its entry. A problem that belongs to no entry (a channel that is not the expected one, or a failure across documents that
+names none) comes last. `Attempted` counts the objects for which a read was attempted; `Checked` counts the objects whose
+bytes were read and compared with the listed size and checksum, so an object that is missing or unreadable is in `Attempted`
+only. The CLI line "checked N objects" prints `Checked`. A hook that rejects a document does not stop the checks across
+documents: the document still takes part in them. `ErrNoManifest` and `*OperationError` are returned as errors.

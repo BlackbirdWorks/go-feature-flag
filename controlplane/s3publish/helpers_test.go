@@ -92,6 +92,7 @@ const (
 	otherName      = "other"
 	nameDryRun     = "dry run"
 	nameNope       = "nope"
+	nameEmpty      = "empty"
 	nameRival      = "rival"
 	nameOne        = "one"
 	nameTwo        = "two"

@@ -128,7 +128,7 @@ func TestPublishFromBootstrapFileWritesToTheConfiguredManifestKey(t *testing.T) 
 		map[string]string{envKeyID: canaryKeyID},
 	)
 
-	stdout, _, err := rig.run(t, srcDir, optConfig, bootstrapPath, "--prefix", "acme")
+	stdout, _, err := rig.run(t, srcDir, optConfig, bootstrapPath, optPrefix, "acme")
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "published generation 1 (was 0) to manifests/prod/stable.json, channel stable")
@@ -189,7 +189,7 @@ func TestPublishConfigErrors(t *testing.T) {
 		},
 		{
 			name:      "flags that duplicate the file",
-			args:      []string{optConfig, cfgOK, optBucket, "x", optChannel, "canary"},
+			args:      []string{optConfig, cfgOK, optBucket, "x", optChannel, chanCanary},
 			wantCode:  helper.ExitFailure,
 			wantInErr: []string{"--bucket, --channel", "cannot be combined with --config"},
 		},
@@ -232,74 +232,92 @@ func TestPublishWrongConnectionType(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection has the wrong type")
 }
 
-// TestExplicitFlagsReachTheClientTheManifestAndTheKeys: every flag that names a place is used, by what the fake can
-// tell: the spec of the client (region, endpoint, bucket, connection name) and the keys that were written.
+// TestExplicitFlagsReachTheClientTheManifestAndTheKeys: every flag that names a place is used by publish and by
+// verify alike, by what the fake can tell: the spec of the client (region, endpoint, bucket, connection name), the
+// manifest key and the keys that were read or written.
 func TestExplicitFlagsReachTheClientTheManifestAndTheKeys(t *testing.T) {
 	t.Parallel()
 
-	rig := newHarness(t, sourceTree())
-	rig.fake = s3fake.New("custom/m.yaml")
-	rig.fake.Bucket = "other-bucket"
-
-	stdout, _, err := rig.run(
-		t,
-		srcDir,
-		optBucket,
-		"other-bucket",
-		optRegion,
-		"eu-west-1",
-		optEndpoint,
-		"http://localhost:4566",
-		"--prefix",
-		"pfx",
-		optChannel,
-		"canary",
-		"--connection",
-		"flags-eu",
-		"--manifest-key",
-		"custom/m.yaml",
-	)
-	require.NoError(t, err)
-	assert.Contains(t, stdout, "to custom/m.yaml, channel canary")
-
-	require.Len(t, rig.specs, 1)
-	assert.Equal(t, "eu-west-1", rig.specs[0].Region)
-	assert.Equal(t, "http://localhost:4566", rig.specs[0].Endpoint)
-	assert.Equal(t, "other-bucket", rig.specs[0].Bucket)
-	assert.True(t, rig.specs[0].PathStyle, "a custom endpoint is addressed path-style")
-	assert.Equal(t, []string{"flags-eu"}, rig.names)
-
-	body, ok := rig.fake.Body("custom/m.yaml")
-	require.True(t, ok)
-
-	manifest, _, err := controlplane.UnmarshalManifest(body)
-	require.NoError(t, err)
-	assert.Equal(t, "canary", manifest.Channel)
-
-	for i := range manifest.Objects {
-		assert.Equal(t, "flags-eu", manifest.Objects[i].Connection)
-		assert.True(t, strings.HasPrefix(manifest.Objects[i].Key, "pfx/objects/sha256/"), manifest.Objects[i].Key)
+	place := []string{
+		optBucket, "other-bucket", optRegion, "eu-west-1", optEndpoint, "http://localhost:4566", optPrefix, "pfx",
+		optChannel, chanCanary, "--connection", connEU, "--manifest-key", "custom/m.yaml",
 	}
 
-	// verify with the same place reads the same manifest.
-	rig.fake.ResetCalls()
+	tests := []struct {
+		name       string
+		wantStdout string
+		args       []string
+		// wantVerifyReads is set for verify: it reads the manifest and every object of it, and writes nothing.
+		wantVerifyReads bool
+	}{
+		{name: "publish", args: append([]string{srcDir}, place...), wantStdout: "to custom/m.yaml, channel canary"},
+		{
+			name:            "verify",
+			args:            append([]string{verifyWord}, place...),
+			wantStdout:      "manifest custom/m.yaml, channel canary",
+			wantVerifyReads: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, _, err = rig.run(
-		t,
-		verifyWord,
-		optBucket,
-		"other-bucket",
-		optRegion,
-		"eu-west-1",
-		"--prefix",
-		"pfx",
-		optChannel,
-		"canary",
-		"--connection",
-		"flags-eu",
-		"--manifest-key",
-		"custom/m.yaml",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "GET custom/m.yaml", rig.fake.Calls()[0])
+			rig := newHarness(t, sourceTree())
+			rig.fake = s3fake.New("custom/m.yaml")
+			rig.fake.Bucket = "other-bucket"
+
+			if tt.wantVerifyReads {
+				// verify needs a manifest to read: publish it to the same place first.
+				_, _, err := rig.run(t, append([]string{srcDir}, place...)...)
+				require.NoError(t, err)
+
+				rig.specs, rig.names = nil, nil
+				rig.fake.ResetCalls()
+			}
+
+			stdout, _, err := rig.run(t, tt.args...)
+			require.NoError(t, err)
+			assert.Contains(t, stdout, tt.wantStdout)
+
+			require.Len(t, rig.specs, 1)
+			assert.Equal(t, "eu-west-1", rig.specs[0].Region)
+			assert.Equal(t, "http://localhost:4566", rig.specs[0].Endpoint)
+			assert.Equal(t, "other-bucket", rig.specs[0].Bucket)
+			assert.True(t, rig.specs[0].PathStyle, "a custom endpoint is addressed path-style")
+			assert.Equal(t, []string{connEU}, rig.names)
+
+			body, ok := rig.fake.Body("custom/m.yaml")
+			require.True(t, ok)
+
+			manifest, _, err := controlplane.UnmarshalManifest(body)
+			require.NoError(t, err)
+			assert.Equal(t, chanCanary, manifest.Channel)
+
+			keys := make([]string, 0, len(manifest.Objects))
+
+			for i := range manifest.Objects {
+				assert.Equal(t, connEU, manifest.Objects[i].Connection)
+				assert.True(
+					t,
+					strings.HasPrefix(manifest.Objects[i].Key, "pfx/objects/sha256/"),
+					manifest.Objects[i].Key,
+				)
+
+				keys = append(keys, manifest.Objects[i].Key)
+			}
+
+			if !tt.wantVerifyReads {
+				assert.Equal(t, []string{connEU}, rig.names)
+
+				return
+			}
+
+			wantCalls := []string{"GET custom/m.yaml"}
+			for _, key := range keys {
+				wantCalls = append(wantCalls, "GET "+key)
+			}
+
+			assert.Equal(t, wantCalls, rig.fake.Calls(), "the manifest and every object of it, and nothing else")
+		})
+	}
 }

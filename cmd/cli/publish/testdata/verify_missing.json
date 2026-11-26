@@ -4,7 +4,7 @@
   "manifestETag": "\"c9d96062ed3a80e427c1bbc0f8b70f18\"",
   "generation": 1,
   "ok": false,
-  "checked": 2,
+  "checked": 1,
   "skipped": [],
   "requests": {
     "get": 3,

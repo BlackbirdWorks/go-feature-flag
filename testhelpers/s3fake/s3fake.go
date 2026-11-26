@@ -38,7 +38,9 @@ type fakeObject struct {
 
 // Fake is an in-memory bucket with S3 conditional-write semantics. It records every call in order as a string:
 // "GET key", "HEAD key", "PUT key create", "PUT key if-match=<etag>" or "PUT key" (unconditional).
-// It is safe for concurrent use.
+// Its methods are safe for concurrent use. The fields Before, Bucket and OmitChecksums are plain fields: set them
+// before the fake is shared with other goroutines, not while calls are running. A Before hook is called from
+// whichever goroutine makes the call, so it must synchronise any state of its own.
 type Fake struct {
 	objects map[string]*fakeObject
 	// Before runs at the start of every call, outside the lock, with the call string. A non-nil error fails the

@@ -129,6 +129,8 @@ const (
 	cmdConfig      = "config"
 	cmdPublish     = "publish"
 	fmtJSON        = "json"
+	fmtText        = "text"
+	optOutput      = "--output"
 	flagFormat     = "--format"
 	formatYAML     = "yaml"
 )
@@ -323,7 +325,34 @@ func TestWholeProcessStreams(t *testing.T) {
 		},
 		{
 			name:       "publish unknown flag with -o text last wins",
-			args:       []string{cmdPublish, unknownFlag, "-o", fmtJSON, "-o", "text"},
+			args:       []string{cmdPublish, unknownFlag, "-o", fmtJSON, "-o", fmtText},
+			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
+			// Cobra parsed "--output json" before it stopped at the bad flag; the later "text" decides.
+			name:       "publish json parsed, then a bad flag, then text",
+			args:       []string{cmdPublish, optOutput, fmtJSON, unknownFlag, optOutput, fmtText},
+			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
+			name: "publish text parsed, then a bad flag, then json",
+			args: []string{
+				cmdPublish,
+				optOutput,
+				fmtText,
+				unknownFlag,
+				optOutput,
+				fmtJSON,
+			},
+			wantStderr: unknownFlagMsg,
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "config json parsed, then a bad flag, then text",
+			args:       []string{cmdConfig, cmdValidate, "-o", fmtJSON, unknownFlag, "-o", fmtText},
 			wantStderr: unknownFlagMsg,
 			wantExit:   1,
 		},

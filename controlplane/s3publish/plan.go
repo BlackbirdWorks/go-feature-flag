@@ -14,12 +14,17 @@ import (
 
 // plan validates the request and builds the manifest. It makes no S3 call.
 func (p *Publisher) plan(req *Request) (*plan, error) {
+	err := p.checkRequestLimits(req.Objects)
+	if err != nil {
+		return nil, err
+	}
+
 	items := make([]planned, 0, len(req.Objects))
 
 	for i := range req.Objects {
-		item, err := p.plannedObject(&req.Objects[i])
-		if err != nil {
-			return nil, err
+		item, itemErr := p.plannedObject(&req.Objects[i])
+		if itemErr != nil {
+			return nil, itemErr
 		}
 
 		items = append(items, item)
@@ -42,7 +47,7 @@ func (p *Publisher) plan(req *Request) (*plan, error) {
 		}
 	}
 
-	err := p.checkLimits(
+	err = p.checkLimits(
 		manifest.Objects,
 		func(i int) string { return label(items[i].entry.Name, items[i].source) },
 		true,
@@ -67,6 +72,30 @@ func (p *Publisher) plan(req *Request) (*plan, error) {
 	}
 
 	return &plan{manifest: manifest, items: items, warnings: warnings}, nil
+}
+
+// checkRequestLimits refuses, before any body is hashed, a request with too many objects or an object that is empty
+// or over the size limit (a 1 GiB body is refused without being read). The total of the distinct objects needs
+// the checksums, so it is checked after hashing.
+func (p *Publisher) checkRequestLimits(objects []Object) error {
+	if len(objects) > p.cfg.MaxObjects {
+		return fmt.Errorf("%w: %w: %d objects, the limit is %d", ErrInvalid, ErrLimit, len(objects), p.cfg.MaxObjects)
+	}
+
+	for i := range objects {
+		name := label(objects[i].Name, objects[i].Source)
+		size := int64(len(objects[i].Body))
+
+		switch {
+		case size < 1:
+			return fmt.Errorf("%w: %w: %s: size %d, an object must not be empty", ErrInvalid, ErrLimit, name, size)
+		case size > p.cfg.MaxObjectBytes:
+			return fmt.Errorf("%w: %w: %s: size %d bytes is over the limit of %d bytes",
+				ErrInvalid, ErrLimit, name, size, p.cfg.MaxObjectBytes)
+		}
+	}
+
+	return nil
 }
 
 // checkManifestSize refuses a manifest whose marshalled form is over the limit of the reader. It marshals with

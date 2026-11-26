@@ -207,6 +207,39 @@ func TestWantsJSON(t *testing.T) {
 	}
 }
 
+func TestRawOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		wantValue string
+		args      []string
+		wantFound bool
+	}{
+		{name: "no output flag", args: []string{pubName, "--bucket", "b"}},
+		{name: "json", args: []string{"-o", jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "text is a selection too", args: []string{"--output=text"}, wantValue: textValue, wantFound: true},
+		{
+			name:      "the last one wins",
+			args:      []string{"-o", jsonValue, "-o", textValue},
+			wantValue: textValue,
+			wantFound: true,
+		},
+		{name: "not read after the double dash", args: []string{"--", "-o", jsonValue}},
+		{name: "another value is a selection", args: []string{"-o", "yaml"}, wantValue: "yaml", wantFound: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			value, found := helper.RawOutput(tt.args)
+
+			assert.Equal(t, tt.wantValue, value)
+			assert.Equal(t, tt.wantFound, found)
+		})
+	}
+}
+
 func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {
 	t.Parallel()
 

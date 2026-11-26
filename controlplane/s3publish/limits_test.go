@@ -71,13 +71,13 @@ func TestPublishRefusesWhatTheReaderRejects(t *testing.T) {
 			name: "an empty object",
 			objects: []s3publish.Object{
 				{
-					Name:   "empty",
+					Name:   nameEmpty,
 					Kind:   controlplane.KindFlags,
 					Format: controlplane.FormatYAML,
 					Source: "flags/empty.yaml",
 				},
 			},
-			wantInErr: "empty (flags/empty.yaml): size 0, an object must not be empty",
+			wantInErr: nameEmpty + " (flags/empty.yaml): size 0, an object must not be empty",
 		},
 		{
 			name: "the default limit of the reader is 16 MiB",

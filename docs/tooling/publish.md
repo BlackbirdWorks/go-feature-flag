@@ -95,12 +95,18 @@ The output lists names, keys, sizes and counts. It never prints API keys, creden
 Guarantees:
 
 - A reader never sees a manifest that lists an object that is not there: objects are written first and are immutable.
-- Two publishers cannot both win: one conditional write succeeds, the other gets a conflict (exit code 3) and changes nothing
-  visible. A `409 ConditionalRequestConflict` and a manifest deleted in between count as a conflict too. After a failed
-  condition the manifest is read once: if it is the one we tried to write, an earlier attempt of ours committed (the SDK
-  retried a request whose answer was lost) and that is success.
+- Two publishers that write different manifests over the same one cannot both win: exactly one conditional write succeeds,
+  the other gets a conflict (exit code 3) and changes nothing visible. A `409 ConditionalRequestConflict` and a manifest
+  deleted in between count as a conflict too. After a failed condition the manifest is read once: if it is the whole
+  manifest we tried to write (same channel, generation, entries and `createdAt`), an earlier attempt of ours committed (the
+  SDK retried a request whose answer was lost) and that is success. Two publishers that write the identical manifest both
+  succeed.
 - The generation strictly increases. A lower or equal `--generation` is refused.
-- A publish is safe to repeat after any failure.
+- After a conflict (exit 3) the command does not retry: you decide. With no `--generation`, running it again reads the
+  winner's manifest and publishes over it with the next generation, so the last writer wins, by intent. With an explicit
+  `--generation` it fails until the number is higher than the winner's.
+- A transient store failure (a timeout, a 5xx) is safe to repeat: the repeat converges. A permanent one (access denied, a
+  missing bucket) fails the same way again until the cause is fixed.
 - Re-publishing identical documents writes no manifest, not even a new generation, but the listed objects are checked, and
   an object that is missing is uploaded again (the output says so). `--generation` higher than the one in the bucket writes
   a new generation anyway.
@@ -202,6 +208,10 @@ flags as `publish`.
 - Flag files also go through the engine check (below), so a stored file that the relay would not load is `invalid-content`
   even when its size and checksum match. A flag file listed with `format: toml` is accepted as far as the structure goes
   and checked by the engine.
+- The report lists problems in manifest order (entries are sorted by name), cross-document problems at the position of
+  their entry; a problem that belongs to no entry comes last. "checked N objects" (`checked` in JSON) counts the objects
+  whose bytes were read and compared with the listed size and checksum; an object that is missing or cannot be read is a
+  problem and is not counted.
 - A clean report is about the objects of the connection that were read. It does not say anything about the objects that
   are skipped.
 

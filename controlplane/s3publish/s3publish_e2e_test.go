@@ -449,14 +449,14 @@ func TestE2EVerifyFindsCorruptionAndMissingObjects(t *testing.T) {
 	rep, err = pub.Verify(t.Context())
 	require.NoError(t, err)
 
-	codes := map[string]string{}
+	got := make([]string, 0, len(rep.Problems))
 	for _, pr := range rep.Problems {
-		codes[pr.Object] = pr.Code
+		got = append(got, pr.Object+" "+pr.Code)
 	}
 
-	assert.Equal(t, map[string]string{
-		nameFlags: s3publish.ProblemChecksumMismatch, nameSets: s3publish.ProblemMissing,
-	}, codes)
+	assert.ElementsMatch(t, []string{
+		nameFlags + " " + s3publish.ProblemChecksumMismatch, nameSets + " " + s3publish.ProblemMissing,
+	}, got, "exactly these two problems")
 }
 
 func TestE2EPrefixAndJSONManifest(t *testing.T) {

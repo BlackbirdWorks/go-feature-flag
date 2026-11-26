@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -437,7 +438,13 @@ func (p *Publisher) read(ctx context.Context, key, versionID string, limit int64
 
 	etag := aws.ToString(out.ETag)
 
-	body, err := io.ReadAll(io.LimitReader(out.Body, limit+1))
+	// One byte more than the limit tells that the object is over it. The bound is not limit+1 when that would wrap.
+	bound := limit
+	if limit < math.MaxInt64 {
+		bound = limit + 1
+	}
+
+	body, err := io.ReadAll(io.LimitReader(out.Body, bound))
 	if err != nil {
 		return nil, etag, &OperationError{Operation: opGet, Key: key, Err: err}
 	}
@@ -498,12 +505,43 @@ func (p *Publisher) resolveConflict(ctx context.Context, written *controlplane.M
 		return "", conflict
 	}
 
-	if found.Channel == written.Channel && found.Generation == written.Generation &&
-		slices.Equal(found.Objects, written.Objects) {
+	if p.sameManifest(found, written) {
 		return etag, nil
 	}
 
 	return "", conflict
+}
+
+// sameManifest reports whether the manifest in the bucket is the whole manifest we tried to write: the same
+// channel, generation and entries, and the same createdAt (both absent, or the same instant). The manifest we wrote
+// is compared as it reads back, so the form it was serialised in does not matter.
+func (p *Publisher) sameManifest(found, written *controlplane.Manifest) bool {
+	body, _, err := p.marshalManifest(written)
+	if err != nil {
+		return false
+	}
+
+	ours, _, err := controlplane.UnmarshalManifest(body)
+	if err != nil {
+		return false
+	}
+
+	slices.SortStableFunc(
+		ours.Objects,
+		func(a, b controlplane.ManifestObject) int { return strings.Compare(a.Name, b.Name) },
+	)
+
+	return found.Channel == ours.Channel && found.Generation == ours.Generation &&
+		slices.Equal(found.Objects, ours.Objects) && sameInstant(found.CreatedAt, ours.CreatedAt)
+}
+
+// sameInstant compares two optional times: absent equals absent, and times are equal by instant.
+func sameInstant(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return a.Equal(*b)
 }
 
 func contentType(format string) string {

@@ -125,3 +125,49 @@ func TestCheck(t *testing.T) {
 		})
 	}
 }
+
+// The message of an error carries where and why the file is wrong, not a value of the file: neither a scalar the
+// decoder could not read nor the text of a targeting query.
+func TestErrorMessagesDoNotQuoteTheFile(t *testing.T) {
+	t.Parallel()
+
+	const canary = "canary-api-key-0009"
+
+	tests := []struct {
+		name      string
+		body      string
+		format    string
+		wantInMsg string
+	}{
+		{
+			name:      "scalar where a mapping is expected",
+			body:      "f: " + canary + "\n",
+			format:    formatYAML,
+			wantInMsg: "cannot unmarshal",
+		},
+		{
+			name:      "unterminated yaml",
+			body:      canary + ": [unterminated\nflag: {a",
+			format:    formatYAML,
+			wantInMsg: "line 1",
+		},
+		{
+			name:      "query that does not compile",
+			body:      base + "  targeting:\n    - query: '" + canary + " eq ('\n      variation: on\n",
+			format:    formatYAML,
+			wantInMsg: "invalid query",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := flagcheck.Check([]byte(tt.body), tt.format)
+
+			require.ErrorIs(t, err, flagcheck.ErrInvalid)
+			assert.NotContains(t, err.Error(), canary)
+			assert.NotContains(t, err.Error(), "canary-")
+			assert.Contains(t, err.Error(), tt.wantInMsg)
+		})
+	}
+}
