@@ -1,0 +1,30 @@
+disabled-with-metadata:
+  variations:
+    Default: default
+    "On": "on"
+  defaultRule:
+    variation: Default
+  disable: true
+  metadata:
+    owner: team-a
+    links:
+      docs: https://example.com/docs
+enabled-with-metadata:
+  variations:
+    Default: default
+    "On": "on"
+  defaultRule:
+    variation: "On"
+  metadata:
+    owner: team-b
+object-flag:
+  variations:
+    Default:
+      theme: light
+      limits:
+        max: 3
+      tags:
+        - a
+        - b
+  defaultRule:
+    variation: Default

@@ -62,6 +62,8 @@ result, _ := client.BoolVariation("your.feature.key", user, false)
 
 Variation methods take the **flag key**, **user**, and **default value**. The default value is returned if an error occurs (`ffclient` not initialized, wrong variation type, missing flag, etc.). In the example above, if `your.feature.key` does not exist, `result` is `false`—so you always get a usable value.
 
+`JSONVariation` and `JSONArrayVariation` return a copy of the object or array: you can change it freely. `RawVariation` and `AllFlagsState` hand out the stored value itself (the relay proxy only serialises it, so it skips the copy): treat their object and array values as read-only.
+
 ## Variation details
 
 Use the `*VariationDetails` methods to inspect evaluation metadata alongside the value:
