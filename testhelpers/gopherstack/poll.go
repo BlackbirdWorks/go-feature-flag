@@ -82,12 +82,11 @@ func (r *PollReport) record(name string, err error) {
 // the deadline of the whole wait, so a call that is slow does not take the time of the next one, and nothing runs past
 // the deadline. A step cannot share one context across calls by mistake: it has no other way to call.
 type Calls struct {
-	ctx      context.Context //nolint:containedctx // the deadline of the whole wait, for the calls of one step
-	rep      *PollReport
-	perCall  time.Duration
-	interval time.Duration
-	failed   int
-	stopped  bool
+	ctx     context.Context //nolint:containedctx // the deadline of the whole wait, for the calls of one step
+	rep     *PollReport
+	perCall time.Duration
+	failed  int
+	stopped bool
 }
 
 // Do runs fn with its own call context. An error is recorded in the report under name (the operation) and returned.
@@ -99,39 +98,6 @@ func (c *Calls) Do(name string, fn func(ctx context.Context) error) error {
 	if err != nil {
 		c.rep.record(name, err)
 		c.failed++
-	}
-
-	return err
-}
-
-// Retry is Do again, at most attempts times, with the polling interval between two attempts (and never past the
-// deadline of the whole wait). An error for which permanent returns true (a rejected request that will be rejected
-// again) ends it at once; permanent may be nil. It returns nil on success, else the error of the last attempt. Every
-// failed attempt is in the report.
-func (c *Calls) Retry(
-	name string, attempts int, permanent func(error) bool, fn func(ctx context.Context) error,
-) error {
-	var err error
-
-	for attempt := 1; attempt <= attempts; attempt++ {
-		err = c.Do(name, fn)
-		if err == nil {
-			return nil
-		}
-
-		if (permanent != nil && permanent(err)) || attempt == attempts {
-			return err
-		}
-
-		timer := time.NewTimer(c.interval)
-
-		select {
-		case <-c.ctx.Done():
-			timer.Stop()
-
-			return err
-		case <-timer.C:
-		}
 	}
 
 	return err
@@ -154,7 +120,7 @@ func Poll(ctx context.Context, perCall, interval time.Duration, step func(c *Cal
 	rep := &PollReport{}
 
 	for {
-		calls := &Calls{ctx: ctx, rep: rep, perCall: perCall, interval: interval}
+		calls := &Calls{ctx: ctx, rep: rep, perCall: perCall}
 		done := step(calls)
 
 		rep.Polls++

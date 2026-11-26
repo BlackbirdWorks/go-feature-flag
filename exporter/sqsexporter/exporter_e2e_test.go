@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -56,16 +55,9 @@ const (
 	callTimeout     = 10 * time.Second
 )
 
-// deleteAttempts is how many times a delete that failed with an error that may pass is tried.
-const deleteAttempts = 3
-
-// rejected reports an error of the API that the request itself caused (a client fault such as a bad receipt
-// handle) and that the same request will cause again; a throttling is not one.
-func rejected(err error) bool {
-	apiErr, ok := errors.AsType[smithy.APIError](err)
-
-	return ok && apiErr.ErrorFault() == smithy.FaultClient && !strings.Contains(apiErr.ErrorCode(), "Throttl")
-}
+// errDelete is the error of a message that could not be deleted. It carries the code of the API error and not its
+// text, which can repeat the receipt handle.
+var errDelete = errors.New("the message could not be deleted")
 
 // receiveAll polls the queue until want messages were received and deleted. When the deadline passes it fails with
 // what the polling saw: the polls and the last error of the API.
@@ -106,15 +98,23 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 
-			// The same receipt handle is deleted again, a few times, when the error may pass; a rejected handle fails
-			// at once. Either way the test then stops polling and fails with the delete error.
-			deleteErr = calls.Retry("DeleteMessage", deleteAttempts, rejected, func(ctx context.Context) error {
+			// A failed delete fails the test: the polling stops after this step and the test reports the delete
+			// error, whatever the receives would have done afterwards.
+			deleteErr = calls.Do("DeleteMessage", func(ctx context.Context) error {
 				_, delErr := client.DeleteMessage(
 					ctx,
 					&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
 				)
+				if delErr == nil {
+					return nil
+				}
 
-				return delErr
+				code := "no API code"
+				if apiErr, ok := errors.AsType[smithy.APIError](delErr); ok {
+					code = apiErr.ErrorCode()
+				}
+
+				return fmt.Errorf("%w (%s)", errDelete, code)
 			})
 			if deleteErr != nil {
 				calls.Stop()
@@ -128,7 +128,7 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 		return len(got) >= want
 	})
 
-	// The messages are built here, after the polling. A delete that never worked fails with its own error, whatever
+	// The messages are built here, after the polling. A delete that failed fails the test with its own error, whatever
 	// the receives did afterwards.
 	require.NoError(t, deleteErr, "a message could not be deleted: %s", rep)
 	require.Len(t, got, want, "%s", rep)

@@ -164,64 +164,14 @@ func TestPollReportsWhatItSawAndGivesEveryCallItsOwnBound(t *testing.T) {
 			wantDropped:    5,
 		},
 		{
-			name: "a delete that fails twice is retried and then succeeds",
-			step: func(t *testing.T, _ int, c *gopherstack.Calls) bool {
-				t.Helper()
-
-				attempts := 0
-				err := c.Retry(opDelete, 3, nil, func(context.Context) error {
-					attempts++
-					if attempts < 3 {
-						return errBoom
-					}
-
-					return nil
-				})
-				require.NoError(t, err)
-				assert.Equal(t, 3, attempts)
-
-				return true
-			},
-			wantDone:       true,
-			wantExactPolls: 1,
-			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 2}},
-		},
-		{
-			name: "a transient delete error is retried a bounded number of times, then the polling stops with it",
+			name: "a failing delete ends the polling after that step, with the delete error",
 			step: func(t *testing.T, _ int, calls *gopherstack.Calls) bool {
 				t.Helper()
 
-				attempts := 0
-				err := calls.Retry(opDelete, 3, nil, func(context.Context) error {
-					attempts++
+				require.NoError(t, calls.Do(opRecv, work(time.Millisecond)))
 
-					return errBoom
-				})
-				require.ErrorIs(t, err, errBoom, "Retry returns the error of the delete")
-				assert.Equal(t, 3, attempts, "three attempts, not until the deadline")
-
-				calls.Stop()
-
-				return false
-			},
-			wantStopped:    true,
-			wantExactPolls: 1,
-			wantErrors:     []wantError{{op: opDelete, text: textBoom, minCount: 3}},
-		},
-		{
-			name: "a rejected receipt handle fails at once with the delete error",
-			step: func(t *testing.T, _ int, calls *gopherstack.Calls) bool {
-				t.Helper()
-
-				attempts := 0
-				err := calls.Retry(opDelete, 3, func(err error) bool { return errors.Is(err, errBoom) },
-					func(context.Context) error {
-						attempts++
-
-						return errBoom
-					})
-				require.ErrorIs(t, err, errBoom)
-				assert.Equal(t, 1, attempts, "a permanent error is not retried")
+				err := calls.Do(opDelete, fail(errBoom))
+				require.ErrorIs(t, err, errBoom, "Do returns the error of the delete")
 
 				calls.Stop()
 
