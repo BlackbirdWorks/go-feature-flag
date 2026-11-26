@@ -133,6 +133,9 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		attribute.String("flagEvaluation.value", fmt.Sprintf("%v", flagValue.Value)),
 	)
 
+	// The metadata of an evaluation is a map the engine made for this evaluation (never the flag's own, which
+	// the other evaluations and the configuration endpoint read), so the cacheable keys are added to it
+	// without a copy: the hot path must not allocate more.
 	metadata := flagValue.Metadata
 	if flagValue.Cacheable {
 		if metadata == nil {
