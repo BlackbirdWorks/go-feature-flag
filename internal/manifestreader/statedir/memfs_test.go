@@ -233,16 +233,20 @@ type memRoot struct {
 	closed bool
 }
 
-func (r *memRoot) Lock() (func() error, error) {
+func (r *memRoot) Lock() (func() error, bool, error) {
 	r.fsys.noteLockOp(opLock)
 
 	dsk := r.disk()
 	dsk.mu.Lock()
 	defer dsk.mu.Unlock()
 
+	// the lock file of the memory file system is virtual: it exists when a test put it on the disk
+	_, existed := dsk.live[lockName]
+	created := !existed
+
 	if !r.fsys.noLock {
 		if dsk.locked {
-			return nil, statedir.ErrLocked
+			return nil, false, statedir.ErrLocked
 		}
 
 		dsk.locked, r.locked = true, true
@@ -254,7 +258,7 @@ func (r *memRoot) Lock() (func() error, error) {
 		dsk.mu.Lock()
 	}
 
-	return r.unlock, nil
+	return r.unlock, created, nil
 }
 
 func (r *memRoot) Close() error {

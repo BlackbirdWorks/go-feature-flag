@@ -12,11 +12,26 @@ import (
 func TestIsOurTmp_AcceptsWhatNewTmpNameMakes(t *testing.T) {
 	t.Parallel()
 
-	for range 100 {
-		name, err := newTmpName()
-		require.NoError(t, err)
-		assert.True(t, isOurTmp(name), name)
-		assert.Len(t, name, len(tmpPrefix)+2*tmpRandomBytes)
+	tests := []struct {
+		name      string
+		draws     int
+		wantMatch bool
+		wantLen   int
+	}{
+		{name: "a hundred generated names", draws: 100, wantMatch: true, wantLen: len(tmpPrefix) + 2*tmpRandomBytes},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			for range tt.draws {
+				name, err := newTmpName()
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantMatch, isOurTmp(name), name)
+				assert.Len(t, name, tt.wantLen)
+			}
+		})
 	}
 }
 

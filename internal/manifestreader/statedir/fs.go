@@ -47,8 +47,11 @@ type FS interface {
 type Root interface {
 	// Lock takes the exclusive lock of the directory without waiting; it returns [ErrLocked] when it is held. The
 	// lock is released by calling release, which also closes the lock file so that the file can be removed (a file
-	// that is open cannot be removed on every system), by Close, and by the end of the process.
-	Lock() (release func() error, err error)
+	// that is open cannot be removed on every system), by Close, and by the end of the process. created tells that
+	// this call made the lock file (it did not exist when the attempt that took the lock opened it): the lock
+	// operation itself decides, never an earlier look at the directory, because another opener may remove the file
+	// between a look and the lock.
+	Lock() (release func() error, created bool, err error)
 	// ReadFile returns the content of a regular file of at most limit bytes. A missing file is [fs.ErrNotExist],
 	// a name that is not a regular file [ErrNotRegular], a larger file [ErrFileTooLarge]; none of them is opened
 	// past its type and size check, and the read itself is limited.
@@ -312,15 +315,15 @@ type osRoot struct {
 // permission.
 func (r *osRoot) ParentSync() string { return r.parentSync }
 
-func (r *osRoot) Lock() (func() error, error) {
+func (r *osRoot) Lock() (func() error, bool, error) {
 	if r.lock != nil {
-		return r.unlock, nil
+		return r.unlock, false, nil
 	}
 
 	for range lockAttempts {
-		file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, fileMode)
+		file, created, err := r.openLockFile()
 		if err != nil {
-			return nil, wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
+			return nil, false, wrapPermission(fmt.Errorf("statedir: open lock file: %w", err))
 		}
 
 		if r.beforeFlock != nil {
@@ -331,7 +334,7 @@ func (r *osRoot) Lock() (func() error, error) {
 		if err != nil {
 			_ = file.Close()
 
-			return nil, err
+			return nil, false, err
 		}
 
 		if r.atPath(file) {
@@ -341,15 +344,16 @@ func (r *osRoot) Lock() (func() error, error) {
 				r.afterLock()
 			}
 
-			return r.unlock, nil
+			return r.unlock, created, nil
 		}
 
 		// the opener that held this file before us removed it (it was refused): what we locked is not at the path
-		// any more, and a later opener would lock another file. Take the one that is there.
+		// any more, and a later opener would lock another file. Take the one that is there, and decide again
+		// whether this attempt made it.
 		_ = file.Close()
 	}
 
-	return nil, fmt.Errorf("%w: the lock file keeps being replaced", ErrLocked)
+	return nil, false, fmt.Errorf("%w: the lock file keeps being replaced", ErrLocked)
 }
 
 // lockAttempts bounds the tries to lock the file that is at the path.
@@ -486,6 +490,33 @@ func (r *osRoot) Close() error {
 	}
 
 	return nil
+}
+
+// openLockFile creates the lock file exclusively, which is the only way to know that this call made it; when it
+// exists it is opened.
+func (r *osRoot) openLockFile() (*os.File, bool, error) {
+	for range lockAttempts {
+		file, err := r.root.OpenFile(lockFile, os.O_RDWR|os.O_CREATE|os.O_EXCL, fileMode)
+		if err == nil {
+			return file, true, nil
+		}
+
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, false, fmt.Errorf("statedir: %w", err)
+		}
+
+		file, err = r.root.OpenFile(lockFile, os.O_RDWR, fileMode)
+		if err == nil {
+			return file, false, nil
+		}
+
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, false, fmt.Errorf("statedir: %w", err)
+		}
+		// removed between the two calls: create it again
+	}
+
+	return nil, false, fmt.Errorf("%w: the lock file keeps being replaced", ErrLocked)
 }
 
 // atPath tells that the locked file is the file at the path of the lock (the same file, not one that was unlinked

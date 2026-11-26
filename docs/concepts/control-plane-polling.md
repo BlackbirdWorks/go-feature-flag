@@ -14,14 +14,14 @@ manifest invalid).
 
 ## What it does
 
-The relay learns what to serve from one small document, the **manifest**, that an external control plane publishes
-to S3. The manifest lists the source objects (flag objects and flag-set documents) with a sha256 checksum each. The
+The relay will learn what to serve from one small document, the **manifest**, that an external control plane
+publishes to S3 (the relay does not use the reader yet). The manifest lists the source objects (flag objects and flag-set documents) with a sha256 checksum each. The
 manifest reader:
 
 - polls the manifest with one conditional `GetObject` per interval (`If-None-Match` with the ETag it holds);
 - fetches only the objects whose checksum it does not already hold;
 - verifies every object against its listed checksum before serving it;
-- hands the result to the rest of the relay as an immutable **snapshot**.
+- hands the result to the rest of the relay as an immutable **snapshot** (once the relay uses it).
 
 It never lists a bucket and never sends `HeadObject`.
 
@@ -323,8 +323,8 @@ restored object is checked like a fetched one (the listed size, the object limit
   with `ErrParentSync` meanwhile (`New` tries once more itself; `parent-sync` in the disabled status,
   `ParentSync = pending` while a save waits for it). A fresh process cannot know, and treats an existing path as
   flushed. A parent that cannot be opened for the flush because of permissions (write and search, no read) is
-  skipped: the directory is a cache, so persistence stays on, the relay logs once at warn level with the path, and
-  `State.ParentSync` is `skipped`. After a power loss the directory entry itself may then be missing, and the relay
+  skipped: the directory is a cache, so persistence stays on, the caller logs once at warn level with the path, and
+  `State.ParentSync` is `skipped`. After a power loss the directory entry itself may then be missing, and the reader
   starts as on a first run.
 - `Flush` returns when the writer is done with a snapshot: written, failed or replaced. The failure is in the status.
 
@@ -332,7 +332,7 @@ restored object is checked like a fetched one (the listed size, the object limit
 
 | Sentinel | Meaning | What was done to the directory |
 |---|---|---|
-| `ErrUnsafe` | A symbolic link, a file, a world-writable directory, a directory the process cannot read, write or lock, a layout name that is a symbolic link, or a directory with no `VERSION` that holds anything other than our `LOCK` and `.tmp-<number>` files (a volume root with `lost+found`: use a subdirectory) | Nothing |
+| `ErrUnsafe` | A symbolic link, a file, a world-writable directory, a directory the process cannot read, write or lock, a layout name that is a symbolic link, or a directory with no `VERSION` that holds anything other than our `LOCK` and temporary files (`.tmp-` and exactly 16 lower case hex digits) (a volume root with `lost+found`: use a subdirectory) | Nothing |
 | `ErrForeignVersion` | `VERSION` names another layout version | Nothing: not read, not written, not deleted |
 | `ErrLocked` | Another process or store holds the lock | Nothing |
 | `ErrParentSync` | The flush of a parent of a directory that was just created failed (an I/O error): it is retried by the next `Open` | The directory was created |
@@ -375,8 +375,9 @@ restored object is checked like a fetched one (the listed size, the object limit
   bounded reads. Not applied: directory durability, the lock, the removal of a crashed writer's temporary files, and the
   world-writable rule.
 
-**Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
-`ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to
+**Caller policy.** `statedir.OpenOrDisable` is the constructor the relay will use when it switches to config v2
+(nothing in the relay uses the reader or the state directory yet). On `ErrUnsafe`, `ErrLocked`,
+`ErrForeignVersion` (or any other failure to open) the relay will run without a state directory: it will never fail to
 start. The helper logs once at error level and returns hooks that only report the refusal: the status has
 `State.Restore = "disabled"` and `State.DisabledReason` (`unsafe`, `locked`, `foreign-version`, `parent-sync`, `error`), and the
 restore metric shows `result="disabled"`.
@@ -401,7 +402,7 @@ number of series would grow with the manifest (up to 20000 objects) and with eve
 | `semaphore_manifest_state_saves_total` | counter | `result`: `ok`, `partial`, `error` | Writes of the state directory (only with one); `partial` is a write that kept only part of the objects (byte budget) |
 | `semaphore_manifest_state_restore_total` | counter | `result`: `restored`, `partial`, `empty`, `failed`, `disabled` | Restore at start (with a state directory, or `disabled` when it was refused) |
 
-They are not registered by `NewMetrics`: the relay registers them when it runs the reader, so the output of the
+They are not registered by `NewMetrics`: the relay will register them when it runs the reader, so the output of the
 running relay does not change before that.
 
 ## Operations: a replica is behind

@@ -232,10 +232,7 @@ func openOwned( //nolint:ireturn // the FS seam returns an interface
 		return nil, err
 	}
 
-	_, lockErr := root.Lstat(lockFile)
-	created := errors.Is(lockErr, fs.ErrNotExist)
-
-	release, err := root.Lock()
+	release, created, err := root.Lock()
 	if err != nil {
 		_ = root.Close()
 
