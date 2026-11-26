@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/invopop/jsonschema"
 	"github.com/jessevdk/go-flags"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/model/dto"
 )
 
 func main() {
 	var opts struct {
-		SchemaLocation string `description:"Location where the schema will be saved." long:"schema-location" required:"true"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+		SchemaLocation          string `description:"Location where the schema will be saved."                          long:"schema-location"           required:"true"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+		BootstrapSchemaLocation string `description:"Location where the bootstrap file schema will be saved, if given." long:"bootstrap-schema-location"`                 //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 	}
 
 	_, err := flags.Parse(&opts)
@@ -45,6 +48,23 @@ func main() {
 	err = os.WriteFile(opts.SchemaLocation, prettyJSONSchema, 0o600)
 	if err != nil {
 		log.Fatalf("impossible to write jsonschema file to %s: %s", opts.SchemaLocation, err)
+	}
+
+	if opts.BootstrapSchemaLocation == "" {
+		return
+	}
+
+	bootstrapSchema, err := bootstrap.JSONSchema()
+	if err != nil {
+		log.Fatal("impossible to generate the bootstrap jsonschema: ", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger.Info("Writing bootstrap jsonschema", slog.String("path", opts.BootstrapSchemaLocation))
+
+	err = os.WriteFile(opts.BootstrapSchemaLocation, bootstrapSchema, 0o600)
+	if err != nil {
+		log.Fatalf("impossible to write jsonschema file to %s: %s", opts.BootstrapSchemaLocation, err)
 	}
 }
 
