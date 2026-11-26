@@ -707,9 +707,13 @@ func CloneMetadata(metadata map[string]any) map[string]any {
 		return nil
 	}
 
-	cloned, ok := cloneVariationValue(metadata).(map[string]any)
-	if !ok {
-		return metadata
+	// one allocation for the usual metadata (strings, numbers, booleans): only the containers are copied again.
+	cloned := maps.Clone(metadata)
+	for key, val := range cloned {
+		switch val.(type) {
+		case map[string]any, map[any]any, []any:
+			cloned[key] = cloneVariationValue(val)
+		}
 	}
 
 	return cloned

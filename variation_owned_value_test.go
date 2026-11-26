@@ -1,6 +1,8 @@
 package ffclient_test
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
@@ -175,72 +178,217 @@ func TestJSONVariation_ReturnedValueBelongsToTheCaller(t *testing.T) {
 	}
 }
 
-// the metadata of an evaluation belongs to the caller too, on the disabled path as on the others.
-func TestRawVariation_ReturnedMetadataBelongsToTheCaller(t *testing.T) {
+// the metadata of an evaluation belongs to the caller too, on the disabled path and on the type mismatch path:
+// changing what the caller received leaves the flag and the next evaluations as they were.
+func TestVariation_ReturnedMetadataBelongsToTheCaller(t *testing.T) {
 	t.Parallel()
 
-	client := newOwnedValueClient(t)
 	user := ffcontext.NewEvaluationContext("user")
 
-	want := map[string]any{"owner": "team-a"}
+	tests := []struct {
+		evaluate     func(client *ffclient.GoFeatureFlag) (map[string]any, error)
+		wantMetadata map[string]any
+		name         string
+		flagKey      string
+		wantErr      bool
+	}{
+		{
+			name:    "disabled flag",
+			flagKey: "disabled-flag",
+			evaluate: func(client *ffclient.GoFeatureFlag) (map[string]any, error) {
+				res, err := client.RawVariation("disabled-flag", user, nil)
 
-	for range 3 {
-		res, err := client.RawVariation("disabled-flag", user, nil)
-		require.NoError(t, err)
-		assert.Equal(t, want, res.Metadata)
+				return res.Metadata, err
+			},
+			wantMetadata: map[string]any{"owner": "team-a"},
+		},
+		{
+			name:    "type mismatch",
+			flagKey: "object-flag",
+			evaluate: func(client *ffclient.GoFeatureFlag) (map[string]any, error) {
+				res, err := client.BoolVariationDetails("object-flag", user, false)
 
-		res.Metadata["semaphore_cacheable"] = true
-		delete(res.Metadata, "owner")
+				return res.Metadata, err
+			},
+			wantMetadata: map[string]any{"owner": "team-b"},
+			wantErr:      true,
+		},
 	}
 
-	flags, err := client.GetFlagsFromCache()
-	require.NoError(t, err)
-	assert.Equal(t, want, flags["disabled-flag"].GetMetadata())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-// the type mismatch answer carries the metadata of the flag, as a copy.
-func TestVariationDetails_TypeMismatchMetadataBelongsToTheCaller(t *testing.T) {
-	t.Parallel()
+			client := newOwnedValueClient(t)
 
-	client := newOwnedValueClient(t)
-	user := ffcontext.NewEvaluationContext("user")
+			for range 3 {
+				metadata, err := tt.evaluate(client)
+				require.Equal(t, tt.wantErr, err != nil)
+				require.Equal(t, tt.wantMetadata, metadata)
 
-	want := map[string]any{"owner": "team-b"}
+				metadata["semaphore_cacheable"] = true
+				delete(metadata, "owner")
+			}
 
-	for range 3 {
-		res, err := client.BoolVariationDetails("object-flag", user, false)
-		require.Error(t, err)
-		require.Equal(t, want, res.Metadata)
-
-		res.Metadata["semaphore_cacheable"] = true
-		delete(res.Metadata, "owner")
+			flags, err := client.GetFlagsFromCache()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMetadata, flags[tt.flagKey].GetMetadata())
+		})
 	}
-
-	flags, err := client.GetFlagsFromCache()
-	require.NoError(t, err)
-	assert.Equal(t, want, flags["object-flag"].GetMetadata())
 }
 
 // a flag that is not there answers the default value of the caller: nil stays nil.
 func TestJSONVariation_MissingFlagReturnsTheDefault(t *testing.T) {
 	t.Parallel()
 
-	client := newOwnedValueClient(t)
 	user := ffcontext.NewEvaluationContext("user")
 
-	object, err := client.JSONVariation("missing", user, nil)
-	require.Error(t, err)
-	assert.Nil(t, object)
+	tests := []struct {
+		evaluate func(client *ffclient.GoFeatureFlag) (any, error)
+		want     any
+		name     string
+	}{
+		{
+			name: "object, nil default",
+			evaluate: func(client *ffclient.GoFeatureFlag) (any, error) {
+				v, err := client.JSONVariation("missing", user, nil)
 
-	object, err = client.JSONVariation("missing", user, map[string]any{"a": 1})
-	require.Error(t, err)
-	assert.Equal(t, map[string]any{"a": 1}, object)
+				return v, err
+			},
+			want: map[string]any(nil),
+		},
+		{
+			name: "object, default",
+			evaluate: func(client *ffclient.GoFeatureFlag) (any, error) {
+				v, err := client.JSONVariation("missing", user, map[string]any{"a": 1})
 
-	array, err := client.JSONArrayVariation("missing", user, nil)
-	require.Error(t, err)
-	assert.Nil(t, array)
+				return v, err
+			},
+			want: map[string]any{"a": 1},
+		},
+		{
+			name: "array, nil default",
+			evaluate: func(client *ffclient.GoFeatureFlag) (any, error) {
+				v, err := client.JSONArrayVariation("missing", user, nil)
 
-	array, err = client.JSONArrayVariation("missing", user, []any{"a"})
-	require.Error(t, err)
-	assert.Equal(t, []any{"a"}, array)
+				return v, err
+			},
+			want: []any(nil),
+		},
+		{
+			name: "array, default",
+			evaluate: func(client *ffclient.GoFeatureFlag) (any, error) {
+				v, err := client.JSONArrayVariation("missing", user, []any{"a"})
+
+				return v, err
+			},
+			want: []any{"a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.evaluate(newOwnedValueClient(t))
+			require.Error(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// captureExporter keeps the events it exports.
+type captureExporter struct {
+	events []exporter.ExportableEvent
+	mu     sync.Mutex
+}
+
+func (*captureExporter) IsBulk() bool { return true }
+
+func (e *captureExporter) Export(_ context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.events = append(e.events, events...)
+
+	return nil
+}
+
+// the event the exporter keeps and the value the caller received are two copies: changing the result after the
+// evaluation changes neither the cache nor the event that is queued or exported.
+func TestJSONVariation_EventValueIsNotTheValueOfTheCaller(t *testing.T) {
+	t.Parallel()
+
+	user := ffcontext.NewEvaluationContext("user")
+
+	tests := []struct {
+		evaluate  func(client *ffclient.GoFeatureFlag) any
+		mutate    func(t *testing.T, value any)
+		wantEvent any
+		name      string
+	}{
+		{
+			name: "object",
+			evaluate: func(client *ffclient.GoFeatureFlag) any {
+				v, _ := client.JSONVariation("object-flag", user, nil)
+
+				return v
+			},
+			mutate: func(t *testing.T, value any) {
+				t.Helper()
+
+				asMap(t, value)["theme"] = "dark"
+			},
+			wantEvent: map[string]any{
+				"theme":  "light",
+				"limits": map[string]any{"max": 3},
+				"tags":   []any{"a"},
+			},
+		},
+		{
+			name: "array",
+			evaluate: func(client *ffclient.GoFeatureFlag) any {
+				v, _ := client.JSONArrayVariation("array-flag", user, nil)
+
+				return v
+			},
+			mutate: func(t *testing.T, value any) {
+				t.Helper()
+
+				asSlice(t, value)[0] = "z"
+			},
+			wantEvent: []any{"a", map[string]any{"nested": map[string]any{"k": "v"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "flags.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(ownedValueFlags), 0o600))
+
+			exp := &captureExporter{}
+			client, err := ffclient.New(&ffclient.Config{
+				PollingInterval: time.Hour,
+				Retriever:       &fileretriever.Retriever{Path: path},
+				DataExporter:    ffclient.DataExporter{Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: 50},
+			})
+			require.NoError(t, err)
+
+			tt.mutate(t, tt.evaluate(client))
+
+			// closing the client flushes the events.
+			client.Close()
+
+			exp.mu.Lock()
+			defer exp.mu.Unlock()
+
+			require.Len(t, exp.events, 1)
+
+			event, ok := exp.events[0].(*exporter.FeatureEvent)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantEvent, event.Value)
+		})
+	}
 }
