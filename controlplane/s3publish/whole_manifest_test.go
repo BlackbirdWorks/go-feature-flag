@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -232,7 +233,7 @@ func TestHookRejectionKeepsTheDocumentForCrossChecksAndIsBounded(t *testing.T) {
 			hookText:   "line one\nline two\t\x1b[31mred\r\n",
 			wantDetail: "line one line two [31mred",
 		},
-		{name: "long", hookText: long, wantDetail: strings.Repeat("y", s3publish.MaxHookDetail) + "…"},
+		{name: "long", hookText: long, wantDetail: strings.Repeat("y", s3publish.MaxHookDetail-1) + "…"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -294,3 +295,66 @@ func TestHookRejectionKeepsTheDocumentForCrossChecksAndIsBounded(t *testing.T) {
 type hookError struct{ text string }
 
 func (e *hookError) Error() string { return e.text }
+
+// The detail of a hook error is at most MaxHookDetail characters (runes) including the ellipsis of a cut text, and
+// is never cut inside a rune.
+func TestHookDetailLengthIsBoundedInRunes(t *testing.T) {
+	t.Parallel()
+
+	limit := s3publish.MaxHookDetail
+
+	tests := []struct {
+		name       string
+		hookText   string
+		wantSuffix string
+		wantLen    int
+	}{
+		{name: "one under the cap", hookText: strings.Repeat("a", limit-1), wantLen: limit - 1, wantSuffix: "a"},
+		{name: "at the cap", hookText: strings.Repeat("a", limit), wantLen: limit, wantSuffix: "a"},
+		{name: "one over the cap", hookText: strings.Repeat("a", limit+1), wantLen: limit, wantSuffix: "…"},
+		{name: "multi-byte runes at the cut", hookText: strings.Repeat("é", limit+5), wantLen: limit, wantSuffix: "é…"},
+		{
+			name:       "four-byte runes at the cut",
+			hookText:   strings.Repeat("\U0001F600", limit*2),
+			wantLen:    limit,
+			wantSuffix: "\U0001F600…",
+		},
+		{
+			name:       "multi-byte text at the cap is kept",
+			hookText:   strings.Repeat("é", limit),
+			wantLen:    limit,
+			wantSuffix: "é",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := newFake()
+			reject := false
+			pub := newPublisher(t, fake, func(c *s3publish.Config) {
+				c.Check = func(*s3publish.Object) error {
+					if reject {
+						return &hookError{text: tt.hookText}
+					}
+
+					return nil
+				}
+			})
+
+			_, err := pub.Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
+			require.NoError(t, err)
+
+			reject = true
+
+			rep, err := pub.Verify(t.Context())
+			require.NoError(t, err)
+			require.NotEmpty(t, rep.Problems)
+
+			detail := rep.Problems[0].Detail
+			assert.True(t, utf8.ValidString(detail), "no rune is cut")
+			assert.Equal(t, tt.wantLen, utf8.RuneCountInString(detail))
+			assert.True(t, strings.HasSuffix(detail, tt.wantSuffix), "suffix %q", tt.wantSuffix)
+		})
+	}
+}

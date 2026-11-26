@@ -42,7 +42,8 @@ type Problem struct {
 	Code string
 	// Detail says more. The text this package writes never contains the content of a document, so no API key. The
 	// text of an error returned by a Config.Check hook is the hook's own and is reported as given, except that it is
-	// made single-line (control characters and newlines become spaces) and cut to MaxHookDetail characters.
+	// made single-line (control characters and newlines become spaces) and, when longer, cut so that the result, with its
+	// closing "…", is at most MaxHookDetail characters (characters are runes; a rune is never cut).
 	Detail string
 }
 
@@ -67,8 +68,8 @@ type Report struct {
 	Checked int
 }
 
-// MaxHookDetail is the longest text, in characters, of the error of a Config.Check hook that Verify puts in a
-// Problem.Detail.
+// MaxHookDetail is the longest text, in characters (runes), of the error of a Config.Check hook that Verify puts in
+// a Problem.Detail. A text that was cut is at most this long including its closing "…".
 const MaxHookDetail = 200
 
 // OK reports that no problem was found.
@@ -312,7 +313,8 @@ func (p *Publisher) verifyObject(
 }
 
 // hookText makes the text of the error of a Config.Check hook fit for a Problem.Detail: one line (a control character
-// or a newline becomes a space) of at most MaxHookDetail characters.
+// or a newline becomes a space) of at most MaxHookDetail runes, the ellipsis of a cut text included. It never cuts
+// inside a rune.
 func hookText(err error) string {
 	text := strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -326,7 +328,7 @@ func hookText(err error) string {
 
 	runes := []rune(text)
 	if len(runes) > MaxHookDetail {
-		return string(runes[:MaxHookDetail]) + "…"
+		return string(runes[:MaxHookDetail-1]) + "…"
 	}
 
 	return text

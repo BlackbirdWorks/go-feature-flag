@@ -166,7 +166,7 @@ version is `missing`) and reports `Problem{Object, Key, Code, Detail}`:
 `missing`, `unreadable`, `invalid-entry`, `size-mismatch`, `checksum-mismatch`, `invalid-content`, `manifest-invalid`, or the `controlplane`
 code of a validation problem such as `unresolved-source`. Objects of other connections are in `Skipped`. The `Detail` this package writes never holds
 document content, so no API key. The text of an error returned by a `Config.Check` hook is the hook's own: it is reported as
-given, except that it is made single-line (control characters and newlines become spaces) and cut to `MaxHookDetail` (200)
+given, except that it is made single-line (control characters and newlines become spaces) and, when longer, cut so that the result including a closing "…" is at most `MaxHookDetail` (200)
 characters. The engine check of `controlplane/flagcheck` removes what quotes the file (a scalar, the text of a query) from its messages.
 
 `Problems` is in manifest order (the entries are sorted by name), cross-document problems included, each at the position of
