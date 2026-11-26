@@ -323,7 +323,7 @@ restored object is checked like a fetched one (the listed size, the object limit
   with `ErrParentSync` meanwhile (`New` tries once more itself; `parent-sync` in the disabled status,
   `ParentSync = pending` while a save waits for it). A fresh process cannot know, and treats an existing path as
   flushed. A parent that cannot be opened for the flush because of permissions (write and search, no read) is
-  skipped: the directory is a cache, so persistence stays on, the caller logs once at warn level with the path, and
+  skipped: the directory is a cache, so persistence stays on, the store logs once at warn level with the path (through the logger it was given), and
   `State.ParentSync` is `skipped`. After a power loss the directory entry itself may then be missing, and the reader
   starts as on a first run.
 - `Flush` returns when the writer is done with a snapshot: written, failed or replaced. The failure is in the status.
