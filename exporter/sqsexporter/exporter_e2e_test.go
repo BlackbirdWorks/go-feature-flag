@@ -39,17 +39,42 @@ type received struct {
 	emitter string
 }
 
+// pollTimeout bounds one ReceiveMessage call (long poll of one second): a call that hangs is an error of the
+// emulator that the test reports, not a silent wait for the whole deadline.
+const pollTimeout = 10 * time.Second
+
+// receiveAll polls the queue until want messages were received and deleted, and fails with what it saw (polls, empty
+// polls, the last error of the API) when the deadline passes.
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {
 	t.Helper()
 
-	var got []received
-	require.Eventually(t, func() bool {
-		out, err := client.ReceiveMessage(t.Context(), &sqs.ReceiveMessageInput{
+	var (
+		got      []received
+		polls    int
+		empty    int
+		lastErr  error
+		deadline = time.Now().Add(30 * time.Second)
+	)
+
+	for len(got) < want && time.Now().Before(deadline) {
+		polls++
+
+		ctx, cancel := context.WithTimeout(t.Context(), pollTimeout)
+		out, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 			QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
 			MessageAttributeNames: []string{"All"},
 		})
+
+		cancel()
+
 		if err != nil {
-			return false
+			lastErr = err
+
+			continue
+		}
+
+		if len(out.Messages) == 0 {
+			empty++
 		}
 
 		for _, msg := range out.Messages {
@@ -68,9 +93,9 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 			)
 			require.NoError(t, deleteMessageErr)
 		}
+	}
 
-		return len(got) >= want
-	}, 30*time.Second, 100*time.Millisecond, "got %d/%d messages", len(got), want)
+	require.Len(t, got, want, "after %d polls (%d empty), last error: %v", polls, empty, lastErr)
 
 	return got
 }

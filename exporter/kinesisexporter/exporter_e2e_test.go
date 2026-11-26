@@ -23,6 +23,10 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
+// callTimeout bounds one call of the emulator, so that a call that hangs is reported with its error instead of the
+// test waiting for its whole deadline with nothing to show.
+const callTimeout = 10 * time.Second
+
 func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 	t.Helper()
 	name := gopherstack.UniqueName(t, "stream")
@@ -61,14 +65,24 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*e
 		iterators[aws.ToString(shard.ShardId)] = iter.ShardIterator
 	}
 
-	var got []*exporter.FeatureEvent
+	var (
+		got     []*exporter.FeatureEvent
+		lastErr error
+	)
+
 	require.Eventually(t, func() bool {
 		for id, it := range iterators {
+			ctx, cancel := context.WithTimeout(t.Context(), callTimeout)
 			out, getRecordsErr := client.GetRecords(
-				t.Context(),
+				ctx,
 				&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
 			)
+
+			cancel()
+
 			if getRecordsErr != nil {
+				lastErr = getRecordsErr
+
 				return false
 			}
 
@@ -81,7 +95,7 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*e
 		}
 
 		return len(got) >= want
-	}, 30*time.Second, 200*time.Millisecond, "got %d/%d records", len(got), want)
+	}, 30*time.Second, 200*time.Millisecond, "got %d/%d records, last error: %v", len(got), want, lastErr)
 
 	return got
 }
