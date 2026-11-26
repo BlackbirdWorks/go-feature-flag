@@ -1,22 +1,23 @@
 # Command Line
 
-The Semaphore Command Line is a CLI tool to interact with Semaphore in your terminal.
+The Semaphore CLI (`semaphore-cli`) lets you work with Semaphore in your terminal.
 
-It offers a variety of commands to interact with Semaphore, for now the supported commands are:
-- [`evaluate`](evaluate.md) to evaluate feature flags directly in your terminal
-- [`lint`](linter.md) to validate a configuration file format.
-- [`generate`](generate.md) to generate the OpenFeature flag manifest for OpenFeature cli **(experimental)**.
+Supported commands:
+
+- [`evaluate`](evaluate.md): Evaluate feature flags directly in your terminal.
+- [`lint`](linter.md): Validate a flag configuration file format.
+- [`generate`](generate.md): Generate an OpenFeature flag manifest for the OpenFeature CLI **(experimental)**.
 
 ## Install the Command Line
 
 After the first release (see [Releasing](../RELEASING.md)), download `semaphore-cli_<version>_<Os>_<arch>.tar.gz` (`.zip` on Windows)
-from the [GitHub Releases](https://github.com/BlackbirdWorks/semaphore/releases), or use the image
-`ghcr.io/blackbirdworks/semaphore-cli:v<version>` (its entrypoint is `/semaphore-cli`; `semaphore-cli --version` prints the version).
+from [GitHub Releases](https://github.com/BlackbirdWorks/semaphore/releases), or use the container image
+`ghcr.io/blackbirdworks/semaphore-cli:v<version>` (entrypoint `/semaphore-cli`; `semaphore-cli --version` prints the version).
 
 ## Build the Command Line
 
 ```shell
-make build-cli   # binary: out/bin/semaphore-cli
+task build-cli   # binary: out/bin/semaphore-cli
 ```
 
-The docs below call the binary `semaphore-cli`; use `out/bin/semaphore-cli` in the examples.
+The docs below refer to the binary as `semaphore-cli`; substitute `out/bin/semaphore-cli` when running a local build.

@@ -1,34 +1,28 @@
 # OpenTelemetry
 
 ## Overview
+
 Export evaluation events as OpenTelemetry spans.
 
-The OpenTelemetry exporter converts each feature evaluation into an OpenTelemetry span.
-Each span contains attributes with non-sensitive evaluation details such as the flag key,
-the evaluated variation, the evaluation context key and optional metadata.
+Each feature evaluation creates one OpenTelemetry span with attributes for non-sensitive evaluation details such as the flag key, evaluated variation, evaluation context key, and optional metadata.
 
-This exporter is a streaming exporter (not a bulk exporter) and will create one span per
-feature evaluation.
+This is a streaming exporter (not a bulk exporter): it creates one span per feature evaluation.
 
 > [!NOTE]
-> The exporter does not configure an OpenTelemetry SDK/tracer provider for you. You must
-> initialize and configure OpenTelemetry (OTLP/exporter, resource, sampler, etc.) in your
-> application so that spans are exported to your tracing backend.
+> The exporter does not configure an OpenTelemetry SDK or `TracerProvider`. Initialize and configure OpenTelemetry (OTLP exporter, resource, sampler, etc.) in your application so spans reach your tracing backend.
 
 ## Behaviour
 
-- Export mode: streaming — the exporter implements `IsBulk()` returning `false`.
-- For each evaluation it creates a span named `feature_flag.evaluate` and attaches attributes:
+- Export mode: streaming (`IsBulk()` returns `false`).
+- Each evaluation creates a span named `feature_flag.evaluate` with these attributes:
   - `feature_flag.key`, `feature_flag.user_key`, `feature_flag.context_kind`, `feature_flag.variation`, `feature_flag.default`, `feature_flag.version`, `feature_flag.source`
-  - `feature_flag.value` (JSON stringified when available)
+  - `feature_flag.value` (JSON-stringified when available)
   - `feature_flag.metadata.<key>` for each metadata entry
-- If the default value was used, the span status will be set to an error code to signal fallback usage.
+- When the default value is used, the span status is set to an error code to signal fallback usage.
 
-## Configure the GO Module
+## Configure the Go module
 
-To use the exporter in your application with the GO Module, provide an instance of the exporter
-in the `ffclient.Config` `DataExporter.Exporter` field. Optionally override the tracer name
-with `TracerName`.
+Provide an `&opentelemetryexporter.Exporter{}` in `ffclient.Config.DataExporter.Exporter` and optionally override the tracer name with `TracerName`:
 
 ```go
 import (
@@ -36,7 +30,7 @@ import (
     "github.com/blackbirdworks/semaphore/exporter/opentelemetryexporter"
 )
 
-// ... initialize your OpenTelemetry tracer provider here (OTLP, resource, etc.) ...
+// ... initialize your OpenTelemetry TracerProvider here (OTLP, resource, etc.) ...
 
 cfg := ffclient.Config{
     // ... other config ...
@@ -51,19 +45,13 @@ client, _ := ffclient.New(cfg)
 defer client.Close()
 ```
 
-| Field      |    Mandatory     | Description |
-|------------|:----------------:|-------------|
-| `TracerName` | No | Optional: override the OpenTelemetry tracer name. Default is `semaphore`. |
+| Field        | Mandatory | Default     | Description                                      |
+|--------------|:---------:|-------------|--------------------------------------------------|
+| `TracerName` | No        | `semaphore` | Optional override for the OpenTelemetry tracer name. |
 
-## Configure the Relay Proxy
+## Configure the relay proxy
 
-The Relay Proxy supports a per-flagset OpenTelemetry exporter (`kind: opentelemetry`).
-This exporter creates one span per evaluation using the configured `tracerName` and the process-wide
-OpenTelemetry TracerProvider. The relay proxy itself must have OpenTelemetry SDK/exporter configured
-so spans are sent to your collector — you can configure this using the proxy top-level `otel` section
-or environment variables (see relay proxy observability docs).
-
-Example (relay proxy config):
+The relay proxy supports a per-flagset OpenTelemetry exporter (`kind: opentelemetry`) that creates one span per evaluation using `tracerName` and the process-wide OpenTelemetry `TracerProvider`. Configure the relay proxy's own OpenTelemetry SDK/exporter via the top-level `otel` section or environment variables (see the relay proxy observability docs).
 
 ```yaml
 server:
@@ -92,23 +80,16 @@ flagsets:
         tracerName: semaphore
 ```
 
-Include `my-api-key` in your provider configuration or send it in the `X-API-Key: my-api-key` header when making requests to this flag set.
+Include `my-api-key` in your provider configuration or pass `X-API-Key: my-api-key` when making requests to this flagset.
 
 Notes:
 
-- This example uses the default OTLP HTTP/protobuf transport on port `4318`.
-  To use gRPC, set `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` in the relay proxy environment and change the endpoint to your collector's gRPC endpoint (typically port `4317`).
-  The YAML `otel.exporter.otlp.protocol` field does not select the transport.
-- `otel` (top-level) config controls the OpenTelemetry SDK and the OTLP exporter used by the proxy process.
-  Ensure it points to your collector (OTLP endpoint) or export configuration is provided via environment variables.
-- The per-flagset exporter only accepts `tracerName` currently; the exporter re-uses the process global
-  TracerProvider. If you need a per-exporter OTLP endpoint or different SDK settings, we can extend the
-  exporter configuration to include those fields in a follow-up change.
+- This example uses the default OTLP HTTP/protobuf transport on port `4318`. To use gRPC, set `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` in the relay proxy environment and change the endpoint to your collector's gRPC port (typically `4317`). The YAML `otel.exporter.otlp.protocol` field does not select the transport.
+- Top-level `otel` config controls the OpenTelemetry SDK and OTLP exporter used by the proxy process; ensure it points to your collector or is configured via environment variables.
+- The per-flagset exporter currently accepts only `tracerName` and reuses the process-global `TracerProvider`.
 
-## Examples and notes
+## Notes
 
-- Make sure an OpenTelemetry `TracerProvider` is configured before evaluations happen; otherwise
-  spans will not be exported (they will be no-ops).
-- The exporter sets the span timestamp using the original event creation time when available.
-- Because values are JSON-marshalled, very large values may increase span payload size; prefer
-  sending only non-sensitive, compact metadata.
+- Configure an OpenTelemetry `TracerProvider` before evaluations run; otherwise spans are no-ops and will not be exported.
+- The exporter sets the span timestamp from the original event creation time when available.
+- Because values are JSON-marshaled, large values increase span payload size; prefer compact, non-sensitive metadata.

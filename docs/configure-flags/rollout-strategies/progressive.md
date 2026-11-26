@@ -1,30 +1,31 @@
 # Progressive rollout
 
 ## Overview
-A **progressive rollout** refers to a gradual release of a new feature to a subset of users. Instead of making the feature available to everyone at once, it's rolled out incrementally automatically, often starting with a small percentage and gradually increasing it over time.
+
+A **progressive rollout** gradually shifts traffic from an initial variation to a target variation automatically over a configured time window.
 
 ## Define a progressive rollout
-In Semaphore, you can define a progressive rollout by setting the condition of the release ramp for the progressive rollout.
 
-The condition to switch from one variation to another are based on dates and will roll out from `0%` to `100%` within the specified time frame.
+Set `progressiveRollout` with `initial` and `end` states:
 
-To achieve this you will start by configuring the initial state of the flag and the end state of the flag.
-- Before the `initial` date, the flag will return the initial variation
-- Between the `initial` and `end` date, the flag will gradually shift from one variation to the other.
-- After the `end` date, the flag will return the end state variation.
+- **Before `initial.date`:** Returns the `initial` variation.
+- **Between `initial.date` and `end.date`:** Gradually ramps traffic from `initial` to `end` (by default from `0%` to `100%`).
+- **After `end.date`:** Returns the `end` variation (or holds at `end.percentage`).
 
 ## Format
-> [!NOTE]
-> The dates are in the format supported natively by your flag file format.
 
-| Field                             | Description                                                                                                                                          |
-|-----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`initial`**                     | The initial state of this flag.<br/>`variation` is the variation you intend to switch from.<br/>`date` is the date to start the rollout.<br/>        |
-| **`end`**                         | The end state of this flag.<br/>`variation` is the variation you intend to switch to.<br/>`date` is the date when rollout is completed.<br/>         |
-| **`percentage`**<br/>*(optional)* | It represents the ramp of progress, at which level the flag starts (`initial`) and ends (`end`).<br/>**Default: `initial` = `0` and `end` = `100`**. |
+> [!NOTE]
+> Use the native date/time format of your flag file format.
+
+| Field | Description |
+|---|---|
+| `initial` | Starting state: `variation` (starting variation) and `date` (rollout start time). |
+| `end` | Target state: `variation` (target variation) and `date` (rollout completion time). |
+| `percentage` *(optional)* | Starting (`initial`) and ending (`end`) percentage ramp bounds.<br/>**Default: `initial` = `0` and `end` = `100`**. |
 
 ## Example
-Between the `2024-01-01T05:00:00.100Z` and `2024-01-05T05:00:00.100Z`, the flag will gradually shift from `variationA` to `variationB`.
+
+Gradually shifts traffic from `variationA` (`0%`) to `variationB` (`100%`) between `2024-01-01T05:00:00.100Z` and `2024-01-05T05:00:00.100Z`:
 
 ```yaml
 progressive-flag:
@@ -41,14 +42,15 @@ progressive-flag:
         date: 2024-01-05T05:00:00.100Z
 ```
 
-## Advanced: Using the percentage field
-If you intend to partially rollout or keep both features, you can use the `percentage` field to define the ramp of progress.
+## Advanced: Custom `percentage` bounds
+
+Use `percentage` on `initial` and `end` to start at a non-zero split or cap the rollout below `100%`:
 
 ```yaml
     progressiveRollout:
       initial:
         variation: variationA
-        percentage: 20   
+        percentage: 20
         date: 2024-01-01T05:00:00.100Z
       end:
         variation: variationB
@@ -56,7 +58,7 @@ If you intend to partially rollout or keep both features, you can use the `perce
         date: 2024-01-05T05:00:00.100Z
 ```
 
-- Before the `initial` date, the flag will return **variationA for all users**.
-- At the `initial` date, the configured split starts at **20% variationB** and **80% variationA**.
-- Between the `initial` and `end` dates, the share of users receiving variationB gradually increases from **20% to 80%**.
-- At and after the `end` date, the configured split remains at **80% variationB** and **20% variationA**.
+- Before `initial.date`, all users receive **`variationA`**.
+- At `initial.date`, traffic starts at **20% `variationB`** and **80% `variationA`**.
+- Between `initial.date` and `end.date`, **`variationB`** ramps smoothly from **20% to 80%**.
+- At and after `end.date`, traffic stays at **80% `variationB`** and **20% `variationA`**.

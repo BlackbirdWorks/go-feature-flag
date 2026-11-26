@@ -1,14 +1,14 @@
 # Google Cloud Storage
 
 ## Overview
-Retrieves the configuration from a Google Cloud Storage bucket. This retriever is useful when you are using Google Cloud and want to use GCS to store your configuration files.
 
-The [**Google Cloud Storage Retriever**](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/gcstorageretriever/#Retriever) will use the [`google-cloud-storage package`](https://pkg.go.dev/cloud.google.com/go/storage) and [`google-api-options package`](https://pkg.go.dev/google.golang.org/api/option) to access your flag in Google Cloud Storage.
+Load flag configurations from a Google Cloud Storage bucket.
+
+The [**Google Cloud Storage Retriever**](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/gcstorageretriever/#Retriever) uses the [`cloud.google.com/go/storage`](https://pkg.go.dev/cloud.google.com/go/storage) and [`google.golang.org/api/option`](https://pkg.go.dev/google.golang.org/api/option) packages to access your flags in Google Cloud Storage.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Google Cloud Storage retriever, you need to add the following
-configuration to your relay proxy configuration file:
+Add this configuration to your relay proxy config file:
 
 ```yaml
 # ...
@@ -19,36 +19,33 @@ retrievers:
 # ...
 ```
 
-| Field name |   Mandatory   | Type   | Default  | Description                                                                                                     |
-|------------|:-------------:|--------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `kind`     | Yes | string | **none** | Value should be **`googleStorage`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `bucket`   | Yes | string | **none** | This is the name of your Google Storage bucket _(ex: `my-featureflag-bucket`)_.                                 |
-| `object`   | Yes | string | **none** | Path to the file inside the bucket _(ex: `config/flag/my-flags.yaml`)_.                                         |
+| Field name | Mandatory | Type   | Default  | Description |
+|------------|:---------:|--------|----------|-------------|
+| `kind`     | Yes       | string | **none** | Value should be **`googleStorage`**.<br/>_Mandatory field identifying the retriever._ |
+| `bucket`   | Yes       | string | **none** | Name of your Google Cloud Storage bucket _(ex: `my-featureflag-bucket`)_. |
+| `object`   | Yes       | string | **none** | Path to the file inside the bucket _(ex: `config/flag/my-flags.yaml`)_. |
 
 > [!NOTE]
-> If you want to authenticate with Google Cloud, you can use the default environment variable `GOOGLE_APPLICATION_CREDENTIALS` to provide your credentials.
-> We recommend using GCP native authentication methods.
->
-> Check [this documentation for more info](https://cloud.google.com/docs/authentication).
+> Use GCP native authentication or set `GOOGLE_APPLICATION_CREDENTIALS` to authenticate with Google Cloud. See the [GCP authentication docs](https://cloud.google.com/docs/authentication) for details.
 
-## Configure the GO Module
-To configure your GO module to use the Google Cloud Storage retriever, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the retriever to `ffclient.Config{}`:
 
 ```go
 client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &gcstorageretriever.Retriever{
-	    Options: []option.ClientOption{option.WithoutAuthentication()},
-		Bucket: "2093u4pkasjc3",
-		Object: "flags.yaml",
-	}
+        Options: []option.ClientOption{option.WithoutAuthentication()},
+        Bucket:  "2093u4pkasjc3",
+        Object:  "flags.yaml",
+    },
 })
 defer client.Close()
 ```
 
-| Field        |    Mandatory     | Description                                                                                                                                                                     |
-|--------------|:----------------:|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`Bucket`** |  Yes   | The name of your bucket.                                                                                                                                                        |
-| **`Object`** |  Yes   | The name of your object in your bucket.                                                                                                                                         |
-| **`Option`** | No | An instance of `option.ClientOption` that configures your access to Google Cloud. <br/> Check [this documentation for more info](https://cloud.google.com/docs/authentication). |
+| Field         | Mandatory | Description |
+|---------------|:---------:|-------------|
+| **`Bucket`**  | Yes       | Name of your bucket. |
+| **`Object`**  | Yes       | Name of your object in the bucket. |
+| **`Options`** | No        | Slice of `option.ClientOption` (`[]option.ClientOption`) configuring Google Cloud access. See the [GCP authentication docs](https://cloud.google.com/docs/authentication). |

@@ -22,14 +22,14 @@ ones. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 - The rules engine is vendored in-repo (`rules/`, a directory of the root Go module).
 - No WASM / TinyGo build.
-- No bundled provider SDKs: use the standard OpenFeature SDKs with OFREP, and read the docs at [blackbirdworks.github.io/semaphore](https://blackbirdworks.github.io/semaphore/) or in [`docs/`](docs/README.md).
+- No bundled provider SDKs: use the standard OpenFeature SDKs with OFREP, and read the docs at [semaphore.blackbirdworks.dev](https://semaphore.blackbirdworks.dev/) or in [`docs/`](docs/README.md).
 
 ## Quick start
 
-Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`):
+Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`, and [Task](https://taskfile.dev)):
 
 ```shell
-make build-relayproxy        # binary: out/bin/semaphore
+task build-relayproxy        # binary: out/bin/semaphore
 
 cat > flags.yaml <<'YAML'
 new-checkout:
@@ -69,18 +69,18 @@ Then point an OpenFeature OFREP provider at `http://localhost:1031`, see [docs/o
 
 ```shell
 export GOWORK=off
-make build             # relay proxy, cli, jsonschema generator
-make test-unit         # unit tests
-make test-integration  # testcontainers tests (Docker)
-make test-e2e          # end-to-end tests (Docker)
-make lint
+task build             # relay proxy, cli, jsonschema generator
+task test-unit         # unit tests
+task test-integration  # testcontainers tests (Docker)
+task test-e2e          # end-to-end tests (Docker)
+task lint
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
-Read the hosted documentation at [blackbirdworks.github.io/semaphore](https://blackbirdworks.github.io/semaphore/), or browse the plain Markdown index in [docs/README.md](docs/README.md) (covering the relay proxy, flag format, rollouts, retrievers, exporters, notifiers and the Go module).
+Read the hosted documentation at [semaphore.blackbirdworks.dev](https://semaphore.blackbirdworks.dev/), or browse the plain Markdown index in [docs/README.md](docs/README.md) (covering the relay proxy, flag format, rollouts, retrievers, exporters, notifiers and the Go module).
 
 To preview or build the documentation site locally:
 

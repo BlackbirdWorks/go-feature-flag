@@ -4,12 +4,12 @@
 The **relay proxy** loads your flag files from a remote or local source and serves flag evaluations to your
 applications over HTTP ([OFREP](../openfeature/ofrep.md) and the relay proxy API).
 
-This page starts a relay proxy locally with a file retriever.
+This guide starts a local relay proxy using a file retriever.
 
 ## Build
 
 ```shell
-make build-relayproxy   # binary: out/bin/semaphore
+task build-relayproxy   # binary: out/bin/semaphore
 ```
 
 See [installation](install.md) for the other options (Docker, FIPS).
@@ -46,10 +46,10 @@ retrievers:
 ./out/bin/semaphore --config semaphore-proxy.yaml
 ```
 
-What is happening?
-- The relay proxy reads the configuration file and uses the file retriever to load the flags.
-- It polls the file regularly to pick up changes.
-- A set of APIs is available to evaluate the flags (port `1031` by default).
+What this does:
+- Reads `semaphore-proxy.yaml` and loads flags via the file retriever.
+- Polls the file regularly for changes.
+- Exposes evaluation APIs on port `1031` by default.
 
 ## Evaluate a flag
 
@@ -77,5 +77,7 @@ Response:
 
 Without `"beta": true` in the context, the flag returns `false` with reason `DEFAULT`.
 
-Next, connect an application with a standard OpenFeature SDK, see [OFREP](../openfeature/ofrep.md),
-and look at the [configuration reference](configuration.md) for all the options.
+## Next steps
+
+- Connect an application using a standard OpenFeature SDK with [OFREP](../openfeature/ofrep.md).
+- See the [configuration reference](configuration.md) for all available options.

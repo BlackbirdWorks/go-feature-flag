@@ -1,30 +1,32 @@
 # Log
 
 ## Overview
-Export evaluation data inside the application logger.
+
+Export evaluation data to the application logger.
 
 ## Configure the relay proxy
-> [!NOTE]
-> This exporter is set up by default in the relay-proxy.
 
-## Configure the GO Module
-To configure your GO module to use the Log exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+> [!NOTE]
+> This exporter is enabled by default in the relay proxy.
+
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 ```go
-config := ffclient.Config{
+ffConfig := ffclient.Config{
     // ...
-   DataExporter: ffclient.DataExporter{
+    DataExporter: ffclient.DataExporter{
         Exporter: &logsexporter.Exporter{
             LogFormat: "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\"",
         },
     },
     // ...
 }
-client, err := ffclient.New(config)
+client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field name  |    Mandatory     | Default                                                                             | Description                                                                                                                                                                                                                                                                    |
-|-------------|:----------------:|-------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LogFormat` | No | `[{{ .FormattedDate}}] user="{{ .UserKey}}", flag="{{ .Key}}", value="{{ .Value}}"` | <p>LogFormat is the [template](https://golang.org/pkg/text/template/) configuration of the output format of your log.</p><p>You can use all the key from the `exporter.FeatureEvent` + a key called `FormattedDate` that represents the date with the **RFC 3339** Format.</p> |
+| Field name  | Mandatory | Default                                                                             | Description                                                                                                                                                                 |
+|-------------|:---------:|-------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LogFormat` | No        | `[{{ .FormattedDate}}] user="{{ .UserKey}}", flag="{{ .Key}}", value="{{ .Value}}"` | [Go template](https://pkg.go.dev/text/template) for each log line. Supports all fields from `exporter.FeatureEvent` plus `FormattedDate` (**RFC 3339** format).              |

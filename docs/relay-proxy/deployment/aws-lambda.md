@@ -1,12 +1,12 @@
 # AWS Lambda
 
 ## Overview
-The Semaphore relay proxy can easily be launched as an AWS Lambda function.
 
-## How to start the relay proxy as an AWS Lambda function
+The Semaphore relay proxy can run as an AWS Lambda function.
 
-To start Semaphore relay-proxy as a lambda you have to set the option `startAsAwsLambda` in your configuration file to `true`, 
-and you have to set which lambda handler you want to use, by setting the option `awsLambdaAdapter`.
+## Configure AWS Lambda mode
+
+Set `startAsAwsLambda: true` and `awsLambdaAdapter` in your configuration file:
 
 ```yaml
 # ...
@@ -15,9 +15,9 @@ awsLambdaAdapter: APIGatewayV2
 # ...
 ```
 
-## API Gateway Non-Root Path Configuration
+## API Gateway non-root path configuration
 
-If you're deploying your Lambda function behind AWS API Gateway with a non-root path (e.g., `/api/feature-flags/{proxy+}`), you'll need to configure the base path to ensure proper request routing:
+If your Lambda function sits behind AWS API Gateway on a non-root path (e.g., `/api/feature-flags/{proxy+}`), set `awsApiGatewayBasePath` so the proxy strips the prefix before routing:
 
 ```yaml
 # ...
@@ -27,30 +27,23 @@ awsApiGatewayBasePath: "/api/feature-flags"  # Strip this prefix from all reques
 # ...
 ```
 
-**Example scenario:**
-- Your API Gateway route: `/api/feature-flags/{proxy+}`
+**Example:**
+
+- API Gateway route: `/api/feature-flags/{proxy+}`
 - Client request: `https://your-api.amazonaws.com/api/feature-flags/health`
-- With `awsApiGatewayBasePath: "/api/feature-flags"` configured, the request will be processed as `/health`
+- With `awsApiGatewayBasePath: "/api/feature-flags"`, the proxy routes `/health`
 
-This configuration is essential when using API Gateway stages or organizing your APIs with path-based routing.
+| Field name | Mandatory | Type | Default | Description |
+|---|---|---|---|---|
+| `startAsAwsLambda` | Yes | `boolean` | **`false`** | Set to `true` to run the relay proxy as an AWS Lambda function. |
+| `awsLambdaAdapter` | No | `string` | **`APIGatewayV2`** | Used only when `startAsAwsLambda` is `true`. Accepted values: `APIGatewayV2`, `APIGatewayV1`, `ALB`. |
+| `awsApiGatewayBasePath` | No | `string` | **none** | Used only when `startAsAwsLambda` is `true`. Path prefix stripped from incoming requests for non-root API Gateway routes (for example, `/api` or `/dev/feature-flags`). |
 
-| Field name              |    Mandatory     | Type      | Default            | Description                                                                                                                                                                                                                                             |
-|-------------------------|:----------------:|-----------|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **startAsAwsLambda**    |  Yes   | `boolean` | **`false`**        | Set to `true` if you want to start the Semaphore relay proxy as an AWS Lambda                                                                                                                                                                     |
-| **awsLambdaAdapter**    | No | `string`  | **`APIGatewayV2`** | <p>This param is used only if `startAsAwsLambda` is true.</p><p>This parameter allow you to decide which type of AWS lambda handler you wan to use.</p><p>Accepted values are:<ul><li>`APIGatewayV2`</li><li>`APIGatewayV1`</li><li>`ALB`</li></ul></p> |
-| **awsApiGatewayBasePath** | No | `string`  | **none**           | <p>This param is used only if `startAsAwsLambda` is true.</p><p>Specifies the base path prefix for AWS API Gateway deployments when using non-root routes. The relay proxy will strip this base path from incoming requests before processing them.</p><p>Useful when deploying behind paths like `/api` or `/dev/feature-flags`.</p> |
+Once configured, deploy your function in AWS and expose it over HTTP via API Gateway or an Application Load Balancer (ALB).
 
-Once you've updated your configuration file, you can deploy your function in AWS and configure it to be accessible
-via HTTP. This can be achieved by creating an API Gateway or an Application Load Balancer (ALB) and linking it to
-your Lambda function.
+## Lambda binary
 
-By configuring your Semaphore relay proxy to run as an AWS Lambda function, you can take advantage of many
-benefits of serverless computing, including automatic scaling, reduced infrastructure costs, and simplified
-deployment and management.
-
-## Lambda Binary
-
-Build a binary compatible with the AWS `provided.al2023` runtime (arm64) from source:
+Build a binary for the AWS `provided.al2023` runtime (`arm64`) from source:
 
 ```shell
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap ./cmd/relayproxy

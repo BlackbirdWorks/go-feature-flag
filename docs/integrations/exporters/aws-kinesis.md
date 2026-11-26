@@ -1,15 +1,15 @@
 # AWS Kinesis
 
 ## Overview
-Export evaluation data inside a Kafka Kinesis stream.
+
+Export evaluation data to an AWS Kinesis stream.
 
 > [!NOTE]
-> AWS Kinesis is an exporter of type queue, it means that it send events as soon as he receives them it does not work in bulk but in near real time.
+> AWS Kinesis is a streaming (queue-style) exporter: it sends events as soon as it receives them instead of batching them in bulk.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the AWS Kinesis exporter, you need to add the following
-configuration to your relay proxy configuration file:
+Add the following configuration to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -19,41 +19,42 @@ exporters:
 # ...
 ```
 
-| Field name   |    Mandatory     | Type   | Default  | Description                                                                                               |
-|--------------|:----------------:|--------|----------|-----------------------------------------------------------------------------------------------------------|
-| `kind`       |  Yes   | string | **none** | Value should be **`kinesis`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `streamArn`  |  Yes   | string | **none** | The ARN of your kinesis stream.                                                                           |
-| `streamName` | No | string | **none** | The name of your kinesis stream.                                                                          |
+| Field name   | Mandatory | Type   | Default  | Description                                                                                                          |
+|--------------|:---------:|--------|----------|----------------------------------------------------------------------------------------------------------------------|
+| `kind`       | Yes       | string | **none** | Value should be `kinesis`.<br/>_This field is mandatory and describes which exporter you are using._                  |
+| `streamArn`  | Yes       | string | **none** | The ARN of your Kinesis stream. Required unless `streamName` is set.                                                 |
+| `streamName` | No        | string | **none** | The name of your Kinesis stream. Required if `streamArn` is not set.                                                 |
 
-## Configure the GO Module
-To configure your GO module to use the AWS Kinesis exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 ```go
 awsConfig, _ := config.LoadDefaultConfig(context.Background())
-config := ffclient.Config{
-   // ...
-   DataExporter: ffclient.DataExporter{
+ffConfig := ffclient.Config{
+    // ...
+    DataExporter: ffclient.DataExporter{
         // ...
         Exporter: &kinesisexporter.Exporter{
             Settings: kinesisexporter.NewSettings(
                 kinesisexporter.WithStreamName("test-stream"),
-                kinesisexporter.WithPartitionKey("0"),
+                kinesisexporter.WithPartitionKey(func(_ context.Context, _ exporter.ExportableEvent) string {
+                    return "0"
+                }),
                 kinesisexporter.WithExplicitHashKey("0"),
             ),
-            AwsConfig: &config, // aws custom configuration
+            AwsConfig: &awsConfig, // optional custom AWS configuration
         },
-
     },
     // ...
 }
-client, err := ffclient.New(config)
+client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field                   |    Mandatory     | Description                                                                                                                                                                                                                                                                                                                                                  |
-|-------------------------|:----------------:|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `StreamName `           |  Yes   | Name of the Kinesis stream to publish messages to                                                                                                                                                                                                                                                                                                            |
-| `PartitionKey `         | No | Function that takes 'FeatureEvent' as an input and returns calculated string 'Partition Key'. If not specified, then by default string 'default' will be used for all events. Effectively this will assign all events to a single Kinesis shard. There is nothing bad in using single shard, but for performance consideration this field might be utilised. |
-| `ExplicitPartitionKey ` | No | String key to identify which stream shard event data belongs to. Overrides PartitionKey setting                                                                                                                                                                                                                                                              |
-| `AwsConfig `            | No | An instance of `*aws.Config` that holds additional settings connect to AWS                                                                                                                                                                                                                                                                                   |                                                                                                                                         |                                                                                                                                                     |
+| Field             | Mandatory | Description                                                                                                                                                                                                           |
+|-------------------|:---------:|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `StreamName`      | Yes       | Name of the Kinesis stream to publish messages to (set via `WithStreamName`, or set a stream ARN via `WithStreamArn`).                                                                                                |
+| `PartitionKey`    | No        | Function (`func(context.Context, exporter.ExportableEvent) string`) returning the partition key for an event. Defaults to `"default"`, which sends all events to a single shard unless overridden.                   |
+| `ExplicitHashKey` | No        | String key (`WithExplicitHashKey`) identifying the shard hash key for the record. Overrides `PartitionKey` routing.                                                                                                   |
+| `AwsConfig`       | No        | An instance of `*aws.Config` holding additional AWS SDK settings.                                                                                                                                                     |

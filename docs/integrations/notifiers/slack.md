@@ -1,13 +1,10 @@
 # Slack
 
 ## Overview
-Send notifications to a Slack channel.
 
-## About Slack Notifier
-The **Slack** notifier allows you to get notification on your favorite slack channel when an instance of `semaphore` is detecting changes in the configuration file.
+The Slack notifier posts a message to a Slack channel whenever Semaphore detects changes in your flag configuration.
 
-Each notification lists the flags that were created, updated or deleted.
-For an updated flag, every change is described as a short sentence, for example:
+Each message lists created, updated, and deleted flags. Updated flags show one sentence per change:
 
 ```text
 ✏️ Flag "dark-mode" updated
@@ -17,35 +14,33 @@ For an updated flag, every change is described as a short sentence, for example:
 • Default rule now serves `disabled` 50%, `enabled` 50% (was `disabled` 90%, `enabled` 10%)
 ```
 
-A flag shows at most 50 changes, and a last line counts the changes left out.
+Each flag shows at most 50 changes, with a final line counting omitted changes.
 
-## Configure Slack Notification
-1. First, you need to create an incoming webhook on your slack instance.
-*You can follow this [documentation to see how to do it](https://api.slack.com/messaging/webhooks#getting_started)*
-2. Copy your webhook URL.
-It should look like: `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`.
-3. Now you can configure your notifier
+## Create a Slack webhook
+
+1. Create an incoming webhook in your Slack workspace (see the [Slack webhook documentation](https://api.slack.com/messaging/webhooks#getting_started)).
+2. Copy the webhook URL (for example, `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`).
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Slack notifier, you need to add the following
-configuration to your relay proxy configuration file:
+Add the Slack notifier to your relay proxy configuration file:
 
 ```yaml
 # ...
-notifier:
+notifiers:
   - kind: slack
     webhookUrl: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 # ...
 ```
-| Field name   |   Mandatory   | Type   | Default  | Description                                                                                            |
-|--------------|:-------------:|--------|----------|--------------------------------------------------------------------------------------------------------|
-| `kind`       | Yes | string | **none** | **Value should be `slack`**.<br/>_This field is mandatory and describe which retriever you are using._ |
-| `webhookUrl` | Yes | string | **none** | The complete URL of your incoming webhook configured in Slack.                                         |
 
-## Configure the GO Module
-To configure your GO module to use the Slack notifier, you need to add the following
-configuration to your `ffclient.Config{}` object:
+| Field name | Mandatory | Type | Default | Description |
+|---|:---:|---|---|---|
+| `kind` | Yes | string | **none** | Must be `slack`. Identifies the notifier type. |
+| `webhookUrl` | Yes | string | **none** | Full URL of your Slack incoming webhook. |
+
+## Configure the Go module
+
+Add `&slacknotifier.Notifier` to `ffclient.Config.Notifiers`:
 
 ```go
 client, err := ffclient.New(&ffclient.Config{
@@ -60,6 +55,6 @@ client, err := ffclient.New(&ffclient.Config{
 defer client.Close()
 ```
 
-| **Field**         | **Mandatory** | **Description**                         |
-|-------------------|:-------------:|-----------------------------------------|
-| `SlackWebhookURL` | Yes | The complete URL of your slack webhook. |
+| Field | Mandatory | Description |
+|---|:---:|---|
+| `SlackWebhookURL` | Yes | Full URL of your Slack incoming webhook. |

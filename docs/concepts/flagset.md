@@ -2,86 +2,46 @@
 
 ## Overview
 
-A flag set is a collection of related flags. This grouping helps organize feature flags based on their intended use, facilitating easier management and deployment.
+A **flag set** is an isolated group of feature flags with its own configuration, API keys, [retrievers](retriever.md), [exporters](exporter.md), and [notifiers](notifier.md).
 
-## About flag sets
+- **Independent pipelines:** Each flag set configures its own retrievers, exporters, and notifiers.
+- **API key routing:** Requests require an API key, which routes evaluation to the matching flag set (a flag set can have multiple API keys).
+- **Complete isolation:** Flag sets do not inherit flags or settings from one another.
 
-Flag sets are a powerful feature in Semaphore that allows you to organize your feature flags into separate groups, each with its own configuration, API keys, `retrievers`, `exporters`, and `notifiers`.
+## When to use flag sets?
 
-This enables better organization and isolation of flags based on teams, environments, or applications.
-
-### Key characteristics of flag sets:
-
-- 🔧 **Independent configurations**: Each flag set can have its own retrievers, exporters, and notifiers
-- 🔑 **API key-based access**: Accessing to a flag set requires an API key, you can have multiple API keys for a flag set, we are using the API key to route the request to the appropriate flag set.
-- 🏰 **Complete isolation**: There is no inheritance between flag sets - each is completely independent.
-
-## When to use flag sets ?
-
-Flag sets are particularly useful in the following scenarios:
-
-### 🏰 **Flags Isolation**
-
-When different teams need to manage their own flags independently.
-
-- Frontend team manages UI-related feature flags
-- Backend team manages API-related feature flags
-
-Flag sets are particularly useful when you have different teams or applications that need to manage their own flags independently.
-Note that 2 teams can have identical flag name with different purposes without any collision if they are in different flag sets.
-
-### 🖖 **Environment Separation**
-
-When you need separate flags for different environments:
-
-- Development environment with experimental flags
-- Staging environment with pre-production flags
-- Production environment with stable flags
-
-### 🏘️ **Multi-tenant Applications**
-
-When serving multiple customers or organizations:
-
-- Each customer has their own flag set
-- Isolated flag configurations per customer
-- Separate evaluation data tracking
+- **Team isolation:** Let separate teams (such as frontend and backend) manage their own flags independently—even reusing the same flag key without collisions.
+- **Environment separation:** Keep development, staging, and production flags isolated.
+- **Multi-tenant applications:** Give each customer or organization isolated flag configs and separate event tracking.
 
 > [!NOTE]
-> If none of these scenarios apply to you, we recommend you to not use flag sets to keep it simple.
+> If you do not need multi-team, multi-environment, or multi-tenant isolation in a single relay proxy, skip flag sets to keep your setup simple.
 
-## How to access to a specific flag set ?
+## How to access a flag set
 
-To access a specific flag set, you need to include an API key in your evaluation requests. The relay proxy uses this API key to route your request to the appropriate flag set.
+### Using API keys
 
-### **Using API Keys**
+When flag sets are configured, authentication is required on all evaluation requests. Configure each OpenFeature provider with an API key belonging to the target flag set.
 
-When using flag sets, authentication is required for all evaluation requests.  
-To do so, you need to initialize your providers with the correct API key.
+### Request routing
 
-The API key is what we use to route the request to the appropriate flag set, so it is important to use the correct API key for the flag set you want to access.
+1. The relay proxy reads the API key from the `X-API-Key` or `Authorization` header.
+2. It looks up the flag set associated with that key.
+3. The evaluation runs against that flag set's flags and returns the result.
 
-### **How the routing works**
+### Flag change streams
 
-1. **Extract API key**: The relay proxy extracts the API key from the `X-API-Key` or `Authorization` header
-2. **Find flag set**: It looks up which flag set is associated with that API key
-3. **Route request**: The evaluation request is routed to that specific flag set
-4. **Return result**: The evaluation result comes from that flag set's flags
-
-### **Flag change streams**
-
-The flag change streams (WebSocket and SSE) are scoped to the flag set of the API key: a connection only receives the changes of its own flag set, and the API key must be associated to a flag set.
-To watch several flag sets, open one connection per flag set. See [flag change streams](../relay-proxy/endpoints.md#flag-change-streams) for the details.
+WebSocket and SSE flag change streams are scoped to the API key's flag set—a connection receives events only for its own flag set, and the API key must belong to a flag set. Open one connection per flag set to watch multiple sets. See [flag change streams](../relay-proxy/endpoints.md#flag-change-streams).
 
 ## Managing flag sets at runtime
 
-The relay proxy watches its configuration file and applies changes to flag sets **without a restart**:
+The relay proxy watches its configuration file and applies certain flag set changes without a restart:
 
-- ➕ **Adding** a flag set: the new flag set is started immediately and becomes reachable as soon as the file change is detected.
-- ➖ **Removing** a flag set: the flag set is stopped and its API keys stop being accepted.
-- 🔑 **Changing the API keys** of an existing flag set: applied live.
+- **Adding a flag set:** Starts immediately when the file change is detected.
+- **Removing a flag set:** Stops the flag set and rejects its API keys.
+- **Updating API keys:** Applied live to the existing flag set.
 
 > [!WARNING]
-> **Modifying** an existing flag set (its `retrievers`, `exporters`, `notifiers`, `pollingInterval`, …) is **not supported at runtime** — the only exception is its API keys.
-> Any other modification is **ignored** and an error is logged; the change will only take effect the next time the relay proxy is **restarted** (because, on restart, the whole configuration file is loaded from scratch).
+> Modifying any other field on an existing flag set (`retrievers`, `exporters`, `notifiers`, `pollingInterval`, ...) is **not supported at runtime**. The change is ignored with an error log and only takes effect after a relay proxy **restart**.
 >
-> Runtime add/remove only works for flag sets that have an explicit, unique `name`. Flag sets without a name (or named `default`) get a generated name at startup and cannot be managed at runtime.
+> Runtime add/remove only applies to flag sets with an explicit, unique `name`. Flag sets without a name (or named `default`) receive a generated name at startup and cannot be added or removed at runtime.

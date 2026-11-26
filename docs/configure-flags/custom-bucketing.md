@@ -1,16 +1,14 @@
 # Custom Bucketing
 
 ## Overview
-When it comes to splitting the affectation of a flag, the `targetingKey` is usually given a user ID. This key ensures that a user will always be in the same group for each flag.
 
-But sometimes we want to be sure that a group of users will always be in the same group for each flag.
-The `bucketingKey` field in the flag configuration allows you to define a different identifier to be used instead of the `targetingKey`.
+By default, Semaphore hashes `targetingKey` (usually a user ID) to keep each user in the same variation bucket.
 
-This enables you to split users based on a custom identifier, such as a team ID, a company ID, or any other attribute that is common to multiple users.
+Set `bucketingKey` to hash a different context attribute instead—such as `teamId`, `companyId`, or `orgId`—so everyone sharing that attribute receives the same variation when they reach the same percentage rule (users matching different `targeting` rules can still receive different variations).
 
 ## How it works
 
-When evaluating flags, the `targetingKey` is used to build the hash that will allow Semaphore to affect the user to a variation, if a `bucketingKey` is defined, it will be used instead of the `targetingKey`.
+When evaluating a flag, Semaphore hashes `targetingKey` plus the flag name to assign the user to a variation bucket. If `bucketingKey` is set on the flag, Semaphore hashes that attribute instead of `targetingKey`.
 
 ```mermaid
 stateDiagram-v2
@@ -22,18 +20,16 @@ stateDiagram-v2
     Affect&nbsp;bucket --> variation&nbsp;3: 50%
 ```
 
-Since we are using an attribute that is common to multiple users at the same time, we can ensure that all users with the same attribute will always be in the same group.
- 
+Because multiple users share the same attribute value, they all land in the same variation bucket.
 
 > [!WARNING]
-> - If a value in the corresponding `bucketingKey` is not found in the **evaluation context**, the flag rules will not be evaluated, and the SDK will return the default value.
-> - Since the `bucketingKey` is not unique to a user, you can end up with a not uniform distribution of users in the variations depending on the repartition of the `bucketingKey` values.
-> - The bucketing key must be a **string**.
+> - If the `bucketingKey` attribute is missing from the **evaluation context**, flag rules are not evaluated and the SDK returns the default value.
+> - Because `bucketingKey` is shared across users, traffic splits can be uneven if attribute values vary widely in group size.
+> - The `bucketingKey` value must be a **string**.
 
-## Example: Split users based on their team ID
-Let's say you want to rollout a new feature and be sure that all the members of the same team will receive the same variation.
+## Example: Split users by team ID
 
-To achieve this, you can define the `bucketingKey` to be the `teamId` in the flag configuration.
+To ensure every member of the same team receives the same variation, set `bucketingKey: "teamId"`:
 
 ```yaml
 scream-level-feature:
@@ -48,7 +44,7 @@ scream-level-feature:
       high: 50
 ```
 
-With this flag configuration, the `teamId` value will be used for hashing instead of `targetingKey`. The value must be provided to the evaluation context:
+Include `teamId` in the evaluation context:
 
 ```go
 evalCtx := openfeature.NewEvaluationContext(
@@ -60,14 +56,11 @@ evalCtx := openfeature.NewEvaluationContext(
 screamLevel, _ := client.StringValue(context.Background(), "scream-level-feature", "whisper", evalCtx)
 ```
 
-As a result, users who are members of the same team will receive the same flag variation, consistently.  
-A different `bucketingKey` can be used per experiment, though normally you'll only have a handful of possible values.
+All users with the same `teamId` receive the same variation. You can configure a different `bucketingKey` per flag.
 
-## Example: Using nested properties for bucketing
+## Example: Nested properties
 
-Semaphore supports dot notation for accessing nested properties in your evaluation context. This is particularly useful when your context has a hierarchical structure.
-
-For instance, if you want to bucket users based on their company ID, which is nested inside a `company` object:
+Semaphore supports dot notation for accessing nested attributes in the evaluation context, such as `company.id`:
 
 ```yaml
 premium-feature:
@@ -81,7 +74,7 @@ premium-feature:
       disabled: 80
 ```
 
-The evaluation context should include the nested structure:
+Pass the nested structure in the evaluation context:
 
 ```go
 evalCtx := openfeature.NewEvaluationContext(
@@ -97,8 +90,8 @@ evalCtx := openfeature.NewEvaluationContext(
 boolValue, _ := client.BooleanValue(context.Background(), "premium-feature", false, evalCtx)
 ```
 
-In this example, all users from the same company will receive the same feature variation because the bucketing is based on `company.id`.
+All users sharing `company.id` receive the same variation.
 
 > [!TIP]
 > **Deep nesting**
-> You can use multiple levels of nesting, such as `user.profile.role` or `organization.settings.region`, allowing for flexible bucketing strategies based on your data structure.
+> You can reference multiple levels of nesting, such as `user.profile.role` or `organization.settings.region`.

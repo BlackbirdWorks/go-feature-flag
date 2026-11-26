@@ -4,10 +4,10 @@ The long-deprecated user model has been removed.
 
 ## Removed
 
-- The Go package `ffuser` (`ffuser.NewUser`, `ffuser.NewAnonymousUser`, `ffuser.NewUserBuilder`).
-  Use `ffcontext.NewEvaluationContext`, `ffcontext.NewAnonymousEvaluationContext` and
+- Go package `ffuser` (`ffuser.NewUser`, `ffuser.NewAnonymousUser`, `ffuser.NewUserBuilder`).
+  Use `ffcontext.NewEvaluationContext`, `ffcontext.NewAnonymousEvaluationContext`, and
   `ffcontext.NewEvaluationContextBuilder` instead.
-- The legacy `user` field (`key`, `anonymous`, `custom`) in the bodies of the relay proxy endpoints
+- Legacy `user` field (`key`, `anonymous`, `custom`) in request bodies for the relay proxy endpoints
   `POST /v1/feature/{flagKey}/eval` and `POST /v1/allflags`.
 
 ## What to send instead
@@ -24,13 +24,16 @@ The long-deprecated user model has been removed.
 }
 ```
 
-`user.key` becomes `evaluationContext.key`, and `user.custom` becomes `evaluationContext.custom`.
-The old `user.anonymous` flag is no longer a dedicated field: if your targeting rules use `anonymous`,
-send it inside `custom`. OpenFeature SDKs using OFREP or the GO Feature Flag providers already send an
-evaluation context and are not affected.
+- `user.key` becomes `evaluationContext.key`, and `user.custom` becomes `evaluationContext.custom`.
+- `user.anonymous` is no longer a dedicated field: if your targeting rules check `anonymous`, send it inside `custom`.
+- OpenFeature SDKs using OFREP or the GO Feature Flag providers already send `evaluationContext` and are unaffected.
 
 ## Behaviour of a request that still sends `user`
 
-The relay proxy answers `400 Bad Request` with the message
-`assertRequest: the 'user' field is no longer supported, send an 'evaluationContext' instead`.
+The relay proxy returns `400 Bad Request` with:
+
+```text
+assertRequest: the 'user' field is no longer supported, send an 'evaluationContext' instead
+```
+
 The request is never evaluated with an empty context.

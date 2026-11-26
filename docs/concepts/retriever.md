@@ -1,17 +1,14 @@
-# Retriever
+# Retrievers
 
 ## Overview
-In Semaphore, a "**retriever**" is a crucial component responsible for fetching the feature flag configuration data.
-It acts as the source of truth for your flags, loading the configuration from various sources like local files, remote URLs, cloud storage, or even databases.
 
-## How it works ?
+A **retriever** loads your feature flag configuration into Semaphore from a local file, URL, cloud storage bucket, Git repository, Kubernetes ConfigMap, or database.
 
-The retriever is responsible for loading the feature flag configuration from a specified location,
-it polls the source at a regular interval _(you can configure the interval)_ to fetch the latest configuration.
-Once the configuration is loaded, it is used by the core module to evaluate the feature flags.
+## How it works
 
-This simple pattern allows to decouple the feature flag configuration from the core module and to load it from various sources.
-This is why Semaphore supports a variety of retrievers out of the box.
+- On startup and on a configurable `pollingInterval`, the retriever fetches the latest flag file.
+- Loaded flags stay in memory so evaluations never hit external storage on the hot path.
+- Keeping flag storage separate from the evaluation engine lets you swap backends without changing application code.
 
 ## Supported retrievers
 
@@ -27,17 +24,13 @@ This is why Semaphore supports a variety of retrievers out of the box.
 - Bitbucket
 - MongoDB
 - Redis
-- Postgresql
+- PostgreSQL
 
-[Check how to configure the retrievers](../integrations/retrievers/README.md)
+See [Configure retrievers](../integrations/retrievers/README.md) for setup examples.
 
 ## Using multiple retrievers
 
-Sometimes, you might need to store your feature flags in different locations. In such cases, you can configure multiple retrievers to retrieve the flags from different sources within your Semaphore instance.
-
-To set this up, you need to configure the Retrievers field to consume from different retrievers. What this does is that it calls all the retrievers in parallel and applies them in the order you have provided.
+Configure `retrievers` as a list to combine flags from multiple sources. Semaphore fetches them in parallel and merges them in the order listed.
 
 > [!NOTE]
-> Keep in mind that if a flag is defined in multiple retrievers, it can be overridden by a later flag.
->
-> For instance, if you have a flag named `my-feature-flag` in the first file and another flag with the same name in the second file, the second configuration will take precedence.
+> If the same flag key appears in multiple retrievers, the later retriever in the list wins.

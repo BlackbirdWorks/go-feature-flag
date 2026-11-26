@@ -2,44 +2,38 @@
 
 ## Overview
 
-In this page, you will find all the configuration options available for the **relay-proxy**.
-
-The **Semaphore relay-proxy** is highly configurable and can be adapted to your needs.
-Despite that you can start with a minimum configuration and fine tune it later.
+This page documents all configuration options for the Semaphore **relay proxy**.
+You can start with a minimal configuration and add options as needed.
 
 ## Configuration file
 
-The configuration of the **relay proxy** is based on a configuration file that you have to provide.
-This is a `yaml` file and usage is to call it `semaphore-proxy.yaml` but you can name it as you will.
+Configure the relay proxy using a configuration file (conventionally named `semaphore-proxy.yaml`, though any YAML, TOML, or JSON filename works).
 
-You can provide the configuration file with the option `--config=/path_to_your_file.yaml` when launching the relay proxy.
+Pass a custom path with `--config=/path_to_your_file.yaml`:
 
 ```shell
 semaphore --config=/semaphore-proxy.yaml
 ```
 
 > [!NOTE]
-> By default, if you omit the `--config` option, the relay proxy will look for a configuration file named `semaphore-proxy.yaml` in _(int this order)_:
+> When `--config` is omitted, the relay proxy searches for a configuration file in this order:
 >
-> 1. `./` _(the current directory)_
-> 1. `/semaphore/`
-> 1. `/etc/opt/semaphore/`
-> 1. `/goff/` _(legacy)_
-> 1. `/etc/opt/goff/` _(legacy)_
+> 1. `./` _(current directory)_
+> 2. `/semaphore/`
+> 3. `/etc/opt/semaphore/`
+> 4. `/goff/` _(legacy)_
+> 5. `/etc/opt/goff/` _(legacy)_
 >
-> In each folder the extensions `yaml`, `toml`, `json` and `yml` are tried, `semaphore-proxy` first and then the
-> legacy name `goff-proxy` (the name used by GO Feature Flag). When a `goff-proxy` file is used, the relay proxy
-> logs one warning at startup.
->
+> In each directory, it checks extensions `yaml`, `toml`, `json`, and `yml`—trying `semaphore-proxy` first, then the legacy name `goff-proxy` (used by GO Feature Flag). Using a `goff-proxy` file logs one warning at startup.
 
 ## Configuration Patterns
 
-- [One set of feature flags](#getting-started): Use one set of feature flags for all your applications. This is the default way of using Semaphore, it requires a minimum configuration and is easy to setup
-- [Use multiple flag sets](#use-multiple-flag-sets): Separate your feature flags into different flag sets to give ownership to different teams or different usage, useful for multi-tenant applications or when you have different teams.
+- [One set of feature flags](#getting-started): Single flag set for all applications (default, minimal setup).
+- [Use multiple flag sets](#use-multiple-flag-sets): Separate flags into independent flag sets by team, environment, or tenant.
 
 ## Getting Started
 
-The minimum configuration to start the **relay proxy** is to provide where to retrieve your feature flags configuration.
+The only required setting is at least one retriever for your flag configuration:
 
 ```yaml
 retrievers:
@@ -47,73 +41,64 @@ retrievers:
     path: /semaphore/flags.yaml # Location of your feature flag files
 ```
 
-All the other options are optional and can be added to the configuration file to fine-tune the **relay proxy**.
+All other options are optional.
 
 ## Environment variables
-The primary way to configure the relay proxy is through a configuration file, but you can also use environment variables if you prefer.  
-You can override file configurations using environment variables.
 
-**Here are some things to know when you are using environment variables:**
+You can configure or override any file setting using environment variables:
 
-- To set an option, the environment variable should have the same name as the configuration option in uppercase.  
-  For example, to set the `logLevel` option, you can set the `LOGLEVEL` environment variable.
+- Use the configuration option name in uppercase (for example, `logLevel` -> `LOGLEVEL`):
 
   ```shell
   export LOGLEVEL=debug
   ```
 
-- If you want to set a nested field, you can use `_` to separate each field.  
-  For example, to set the `server.port` option, you can set the `SERVER_PORT` environment variable.
+- Separate nested fields with `_` (for example, `server.port` -> `SERVER_PORT`):
 
   ```shell
   export SERVER_PORT=8080
   ```
 
-- If you want to set an array of string, you can add multiple values separated by a comma.
+- Separate string array items with commas:
 
   ```shell
   export AUTHORIZEDKEYS_EVALUATION=my-first-key,my-second-key
   ```
 
-- If you are modifying an array of objects, you can use the index to set the value.
+- Index into object arrays:
 
   ```shell
   export RETRIEVERS_0_KIND=github
   ```
 
 > [!NOTE]
-> The variables above have no prefix. The `SEMAPHORE_` prefix is always accepted too: `SEMAPHORE_SERVER_PORT=8080`
-> sets `server.port`. When the same option is set with and without the prefix, the `SEMAPHORE_` variable wins.
-> Mind that a Kubernetes Service named `semaphore` also injects variables such as `SEMAPHORE_PORT` in the pods of its
-> namespace, set `enableServiceLinks: false` on the pod if you want to keep that namespace of names free.
+> The variables above have no prefix. The `SEMAPHORE_` prefix is always accepted too (`SEMAPHORE_SERVER_PORT=8080` sets `server.port`) and takes precedence when both are set.
+> Note that a Kubernetes Service named `semaphore` injects variables such as `SEMAPHORE_PORT` into pods in its namespace; set `enableServiceLinks: false` on the pod if you want to avoid those variables.
 >
-> If you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy, you can prefix your environment variables.
->
-> You can configure the prefix using the [`envVariablePrefix`](#envvariableprefix) field in your configuration file.
+> To avoid collisions with unrelated environment variables, set [`envVariablePrefix`](#envvariableprefix) in your configuration file.
 
 ## Configuration Options
 
 ### `server`
 
-This is the configuration related to the server behavior of the relay proxy.
-It allows the internal server behaviors such as your execution mode, monitoring port, etc ...
+Configures server execution mode, host, port, and monitoring port.
 
 - option name: `server`
 - type: [`serverConfig`](#type-serverconfig)
 - default: **none**
 - mandatory: No
-- Check the [server configuration types](#type-serverconfig) to have more information about the available options.
+- See [`serverConfig`](#type-serverconfig) for available options.
 
 ### `retrievers`
 
-This is the configuration on how to retrieve the configuration of the files.
+Configures how and where to retrieve flag configuration files.
 
 - option name: `retrievers`
 - type: [`[]retriever`](#type-retriever)
 - default: **none**
 - **mandatory: Yes**
-- You can have multiple retrievers at the same time, check [_"Using multiple retrievers"_](../concepts/retriever.md#using-multiple-retrievers) to see how it works.
-- Configuration of a retriever depends on the one you are choosing. Check the [list of retrievers](../integrations/retrievers/README.md#available-retrievers) and go on the detail page of your choice to configure it.
+- Multiple retrievers can be configured together; see [_"Using multiple retrievers"_](../concepts/retriever.md#using-multiple-retrievers).
+- Options depend on the retriever kind; see the [list of retrievers](../integrations/retrievers/README.md#available-retrievers).
 
 ```yaml
 retrievers:
@@ -126,9 +111,7 @@ retrievers:
 
 ### `startWithRetrieverError`
 
-By default, the **relay proxy** will crash if it is not able to retrieve the flags from the configuration.
-
-If you don't want your relay proxy to crash, you can set `startWithRetrieverError` to true. Until the flag is retrievable the relay proxy will only answer with default values.
+By default, the relay proxy crashes if it fails to retrieve flags at startup. Set `startWithRetrieverError` to `true` to start anyway and return default values until flags become retrievable.
 
 - option name: `startWithRetrieverError`
 - type: **boolean**
@@ -137,9 +120,10 @@ If you don't want your relay proxy to crash, you can set `startWithRetrieverErro
 
 ### `persistentFlagConfigurationFile`
 
-If set, Semaphore will store the flags configuration in this file to be able to serve the flags even if none of the retrievers is available during starting time.
+Local file path used to persist flag configurations so Semaphore can serve flags at startup even if all retrievers are unavailable.
+
 > [!NOTE]
-> By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here, you ensure that Semaphore will always start with a configuration but which can be out-dated.
+> By default, flag configuration is not persisted locally. Setting a persistence file lets Semaphore start with cached (possibly outdated) flags when retrievers are unreachable.
 
 - option name: `persistentFlagConfigurationFile`
 - type: **string**
@@ -149,33 +133,31 @@ If set, Semaphore will store the flags configuration in this file to be able to 
 
 ### `fileFormat`
 
-This is the format of your flag configuration file.
+Format of your flag configuration file.
 
 - option name: `fileFormat`
 - type: **string**
-- Acceptable values are :`yaml`, `json`, `toml`.
+- Acceptable values: `yaml`, `json`, `toml`.
 - default: **`yaml`**
 - mandatory: No
 
 ### `pollingInterval`
 
-This is the time interval **in millisecond** when the relay proxy is reloading the configuration file.  
-It is also the interval of the shared pollers of the flag sets using [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
+Interval **in milliseconds** between configuration reloads. Also used by shared pollers for flag sets with [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
 
 - option name: `pollingInterval`
 - type: **int**
 - default: **`60000`**
-- The minimum time accepted is 1000 millisecond (1 second).
-- If you set a negative value, the polling will be disabled.
+- Minimum accepted value: `1000` milliseconds (1 second).
+- Negative values disable polling.
 - mandatory: No
 
 ### `enablePollingJitter`
 
-Set to true if you want to avoid having true periodicity when retrieving your flags. It is useful to avoid having spike on your flag configuration storage in case your application is starting multiple instance at the same time.  
-It is also used by the shared pollers of the flag sets using [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
+Adds random jitter to polling intervals to prevent traffic spikes on flag storage when multiple instances start simultaneously. Also used by shared pollers for flag sets with [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
 
 > [!NOTE]
-> We ensure a deviation that is maximum ±10% of your polling interval.
+> Deviation is at most ±10% of `pollingInterval`.
 
 - option name: `enablePollingJitter`
 - type: **boolean**
@@ -184,38 +166,28 @@ It is also used by the shared pollers of the flag sets using [`enableSharedPolle
 
 ### `logLevel`
 
-The log level to use for the relay proxy.
-
-Check [_"Logging"_](observability.md#logging) to have more information.
+Log level for the relay proxy (see [Logging](observability.md#logging)).
 
 - option name: `logLevel`
 - type: **string**
 - default: **`info`**
-- Acceptable values are `error`, `warn`, `info`, `debug`.
+- Acceptable values: `error`, `warn`, `info`, `debug`.
 - mandatory: No
-- When in `DEBUG` mode, the relay proxy will log the request body and response body,
-for large payloads this can be a lot of data and can impact the performance this is the reason why we truncate the body if it is larger than **8KiB**.
-
-Setting `logLevel: debug` also enables debug HTTP error responses and [profiling endpoints](profiling.md).
-To enable profiling without debug logging, use [`enablePprof`](#enablepprof).
+- In `debug` mode, the relay proxy logs request and response bodies (truncated beyond **8KiB** to limit performance impact), enables debug HTTP error responses, and enables [profiling endpoints](profiling.md). To enable profiling without debug logging, use [`enablePprof`](#enablepprof).
 
 ### `logFormat`
 
-The format to use for structured logs from the relay proxy.
-
-Check [_"Logging"_](observability.md#logging) to have more information.
+Format for structured logs from the relay proxy (see [Logging](observability.md#logging)).
 
 - option name: `logFormat`
 - type: **string**
 - default: **`json`**
-- Acceptable values are `json` and `logfmt`.
+- Acceptable values: `json`, `logfmt`.
 - mandatory: No
 
 ### `enablePprof`
 
-This param is used to enable **pprof endpoints** if you wish to enable profiling.
-
-Check [_"Profiling"_](profiling.md) to have more information.
+Enables **pprof** profiling endpoints (see [Profiling](profiling.md)).
 
 - option name: `enablePprof`
 - type: **boolean**
@@ -224,14 +196,14 @@ Check [_"Profiling"_](profiling.md) to have more information.
 
 ### `exporters`
 
-Exporters is the configuration used to define how to export the data from Semaphore.
+Configures where evaluation and tracking events are exported.
 
 - option name: `exporters`
 - type: **[[]exporter](#type-exporter)**
 - default: **none**
 - mandatory: No
-- You can have multiple exporters at the same time, it will export the data to all the exporters you have configured in parallel.
-- Configuration of an exporter depends on the one you are choosing. Check the [list of exporters](../integrations/exporters/README.md#available-exporters) and go on the detail page of your choice to configure it.
+- Multiple exporters run in parallel.
+- Options depend on the exporter kind; see the [list of exporters](../integrations/exporters/README.md#available-exporters).
 
 ```yaml
 exporters:
@@ -241,19 +213,20 @@ exporters:
     kafka:
       topic: "semaphore-events"
 ```
+
 ### `notifiers`
 
-Notifiers is the configuration on where to notify a flag changes.
+Configures where flag change notifications are sent.
 
 - option name: `notifiers`
 - type: **[[]notifier](#type-notifier)**
 - default: **none**
 - mandatory: No
-- Configuration of a notifier depends on the one you are choosing. Check the [list of notifiers](../integrations/notifiers/README.md#available-notifiers) and go on the detail page of your choice to configure it.
+- Options depend on the notifier kind; see the [list of notifiers](../integrations/notifiers/README.md#available-notifiers).
 
 ### `disableNotifierOnInit`
 
-If `disableNotifierOnInit` is set to **true**, the relay proxy will not call any notifier when the flags are loaded for the 1st time _(during initialization)_. This is useful if you do not want a Slack/Webhook notification saying that the flags have been added every time you start the proxy.
+When `true`, skips calling notifiers on the initial flag load at startup (avoids notifications on every proxy restart).
 
 - option name: `disableNotifierOnInit`
 - type: **boolean**
@@ -262,18 +235,17 @@ If `disableNotifierOnInit` is set to **true**, the relay proxy will not call any
 
 ### `exporterCleanQueueInterval`
 
-`exporterCleanQueueInterval` is the duration between two cleanings of the exporters' event queue, the cleaning removes the events that every exporter has already processed.
-In [flag set mode](#use-multiple-flag-sets) this value is used by the flag sets that do not set their own [`flagSet.exporterCleanQueueInterval`](#flagsetexportercleanqueueinterval).
+Duration between cleanups of the exporters' event queue; cleanup removes events already processed by every exporter. In [flag set mode](#use-multiple-flag-sets), this applies to flag sets that do not set [`flagSet.exporterCleanQueueInterval`](#flagsetexportercleanqueueinterval).
 
 - option name: `exporterCleanQueueInterval`
 - type: **duration** _(for example `30s` or `2m`)_
 - default: **`1m`**
 - mandatory: No
-- A negative value is rejected when the configuration is loaded.
+- Negative values are rejected when loading configuration.
 
 ### `hideBanner`
 
-`hideBanner` can be used to hide the startup banner.
+Hides the startup banner when `true`.
 
 - option name: `hideBanner`
 - type: **boolean**
@@ -282,7 +254,7 @@ In [flag set mode](#use-multiple-flag-sets) this value is used by the flag sets 
 
 ### `swagger`
 
-Configuration related to the swagger behavior of the relay proxy.
+Configures Swagger UI behavior for the relay proxy.
 
 - option name: `swagger`
 - type: **[swagger](#type-swagger)**
@@ -373,22 +345,17 @@ List of authorized API keys.
 - mandatory: No
 
 > [!TIP]
-> **Runtime updates**: API keys can be updated at runtime without restarting the relay proxy.  
-> When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration.  
-> This works in both default mode and flagset mode.
-> In flagset mode, `authorizedKeys.admin` and the [`apiKeys` of each flag set](#flagsetapikeys) are reloaded.
-> The `authorizedKeys` are replaced in a single step: a request is always checked against either the previous or the new keys.
-> In flag set mode a flag set key is accepted when it is routed to a flag set, and the flag set found at authentication is the one the request uses: a request using a key that is moved or removed during a reload is either served by one of its flag sets or rejected with `401`, never failed half way. The only exception is `/v1/data/collector`, which looks its flag set up again once the body is read, so that the events are never acknowledged to a flag set that was closed meanwhile.
+> **Runtime updates**: API keys can be updated at runtime without restarting the relay proxy.
+> When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration in both default mode and flag set mode (`authorizedKeys.admin` and each flag set's [`apiKeys`](#flagsetapikeys) are reloaded).
+> `authorizedKeys` are swapped atomically: each request checks against either the old or new keys.
+> In flag set mode, a flag set key routes to its flag set at authentication and stays pinned to it for the request: a key moved or removed during reload is either served by one of its flag sets or rejected with `401`, never failing halfway. The only exception is `/v1/data/collector`, which re-resolves its flag set after reading the body so events are never acknowledged to a closed flag set.
 
 ### `evaluationContextEnrichment`
 
-It is a free field that will be merged with the evaluation context sent during the evaluation.
-
-It is useful to add common attributes to all the evaluations, such as a server version, environment, etc.
-These fields will be included in the custom attributes of the evaluation context.
+Arbitrary key-value map merged into the custom attributes of every evaluation context (useful for common metadata like server version or environment).
 
 > [!WARNING]
-> If in the evaluation context you have a field with the same name, it will be overridden by the `evaluationContextEnrichment`.
+> Keys in `evaluationContextEnrichment` override fields with the same name in the incoming evaluation context.
 
 - option name: `evaluationContextEnrichment`
 - type: **object**
@@ -397,9 +364,7 @@ These fields will be included in the custom attributes of the evaluation context
 
 ### `openTelemetryOtlpEndpoint`
 
-Endpoint of your **OpenTelemetry OTLP collector**, used to send traces.
-
-You will be able to forward those traces to your OpenTelemetry solution directly from the collector.
+Endpoint of your **OpenTelemetry OTLP collector** for exporting traces.
 
 - option name: `openTelemetryOtlpEndpoint`
 - type: **string**
@@ -575,23 +540,17 @@ A document with invalid `flagSets` is rejected, an error is logged and the relay
 
 ### `envVariablePrefix`
 
-Prefix for your environment variables.  
-This useful if you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy.
+Prefix for your environment variables, useful to avoid collisions with unrelated environment variables.
 
-If you use this option you will have to prefix all your environment variables with the value you set here. For example if you want to override the port of the relay-proxy and the prefix is `MYAPP_`.
+When set (for example, `MYAPP_`), prefix your environment variables with it:
 
 ```shell
 export MYAPP_SERVER_PORT=8080
 ```
 
-The `SEMAPHORE_` prefix is read in addition to this one, and wins when both are set. A prefix that starts with `GOFF`
-(`GOFF_`, `GOFFPROXY_`, the ones used with GO Feature Flag) keeps working and logs one warning at startup.
+The `SEMAPHORE_` prefix is always read in addition to this prefix and wins when both are set. A prefix starting with `GOFF` (`GOFF_`, `GOFFPROXY_`, used with GO Feature Flag) still works and logs one warning at startup.
 
-Kubernetes injects, in every pod, the variables of the Services of the namespace (`<SERVICE>_SERVICE_HOST`,
-`<SERVICE>_SERVICE_PORT`, `<SERVICE>_PORT=tcp://...`, `<SERVICE>_PORT_<port>_TCP_ADDR`, ...). A Service named
-`semaphore` therefore adds variables that start with `SEMAPHORE_`. The relay proxy ignores the variables that start
-with the prefix and have both the name and the value of a service link, and logs their names (never their values) at the
-debug level. A setting such as `SEMAPHORE_SERVER_PORT=1031` is not affected. Set `enableServiceLinks: false` on your pods to avoid them.
+Kubernetes injects Service variables into pods (`<SERVICE>_SERVICE_HOST`, `<SERVICE>_SERVICE_PORT`, `<SERVICE>_PORT=tcp://...`, `<SERVICE>_PORT_<port>_TCP_ADDR`, ...), so a Service named `semaphore` adds `SEMAPHORE_*` variables. The relay proxy ignores variables that match both the name and value shape of a service link (logging only their names at `debug` level); settings like `SEMAPHORE_SERVER_PORT=1031` are unaffected. Set `enableServiceLinks: false` on your pods to omit them.
 
 - option name: `envVariablePrefix`
 - type: **string**
@@ -639,17 +598,15 @@ This adds `flag_name` labels to the `all_flags_evaluations_with_flag_total` metr
 
 ### type `authorizedKeys`
 
-`authorizedKeys` is an object were it is possible to configure the list of API Keys that are accepted by the relay proxy.
+Configures the API keys accepted by the relay proxy.
 
 #### `authorizedKeys.evaluation`
 
-If set, we will check for each evaluation if an authorized key is provided.
-
-Each request will need to provide one of authorized key inside `X-API-Key` header.
+Restricts evaluation endpoints to requests carrying one of these keys in the `X-API-Key` header.
 
 > [!WARNING]
-> In [flag set mode](#use-multiple-flag-sets) this option is **ignored**: a request is routed to a flag set from its key, so only the [`apiKeys` of the flag sets](#flagsetapikeys) can evaluate flags.
-> A key that is only listed here is rejected with `401` on the evaluation endpoints, and a warning is logged at startup and on each reload.
+> In [flag set mode](#use-multiple-flag-sets), this option is **ignored**: requests route to a flag set by API key, so only the [`apiKeys` of each flag set](#flagsetapikeys) can evaluate flags.
+> A key listed only here returns `401` on evaluation endpoints, and logs a warning at startup and on each reload.
 
 - option name: `evaluation`
 - type: **[]string**
@@ -658,15 +615,13 @@ Each request will need to provide one of authorized key inside `X-API-Key` heade
 
 #### `authorizedKeys.admin`
 
-You need to set API keys in this field if you want to access the `/admin/v1/*` endpoints.
-
-Each request will need to provide one of authorized key inside `X-API-Key` header.
+API keys required in the `X-API-Key` header to access `/admin/v1/*` endpoints.
 
 - option name: `admin`
 - type: **[]string**
 - default: **none**
 - mandatory: No
-- If no api key is configured the endpoint will be unreachable.
+- If no API key is configured, `/admin/v1/*` endpoints are unreachable.
 
 #### Example
 
@@ -683,20 +638,20 @@ authorizedKeys:
 
 ### type `serverConfig`
 
-Configuration related to the server behavior of the relay proxy.
+Configures server behavior of the relay proxy.
 
 #### `server.mode`
 
-The execution mode of the relay proxy, you can choose to start the relay-proxy in different modes depending how you want to call the APIs.
+Execution mode of the relay proxy.
 
 - option name: `mode`
 - type: **string**
-- Acceptable values are :`http`, `lambda`, `unixsocket`.
+- Acceptable values: `http`, `lambda`, `unixsocket`.
 - default: **http**
 - mandatory: No
-- `http`: Start the relay proxy as a HTTP server.  
-  `lambda`: Start the relay proxy as an AWS Lambda handler.  
-  `unixsocket`: Start the relay proxy and listen on a Unix socket, you have to set the `unixSocketPath` field to define where the socket file will be created.
+- `http`: Start the relay proxy as an HTTP server.
+  `lambda`: Start the relay proxy as an AWS Lambda handler.
+  `unixsocket`: Listen on a Unix socket (requires `unixSocketPath`).
 
 #### `server.unixSocketPath`
 
@@ -746,7 +701,7 @@ Behind a TLS terminating proxy or load balancer the HTTP/2 hop is usually handle
 
 If set the monitoring endpoints will be served on this specific port.
 
-Check [_"Use specific port for the monitoring"_](observability.md#use-specific-port-for-the-monitoring) to have more information.
+See [_"Use a dedicated monitoring port"_](observability.md#use-a-dedicated-monitoring-port) for more information.
 
 - option name: `monitoringPort`
 - type: **int**
@@ -756,7 +711,7 @@ Check [_"Use specific port for the monitoring"_](observability.md#use-specific-p
 
 #### `server.awsLambdaAdapter`
 
-This parameter allow you to decide which type of AWS lambda handler you want to use.
+Selects which AWS Lambda event adapter to use.
 
 - option name: `awsLambdaAdapter`
 - type: **string**
@@ -781,11 +736,11 @@ This is useful when deploying behind paths like `/api` or `/dev/feature-flags`.
 
 ### type `retriever`
 
-A [retriever](../concepts/retriever.md) is the component in charge of loading your flag configuration from a remote source.
+A [retriever](../concepts/retriever.md) loads your flag configuration from a local or remote source.
 
 #### `retriever.kind`
 
-Configuring a retriever always start by setting the kind of retriever you want to use. This is the only common param between all the retrievers.
+Selects which retriever to use (the only field common to all retrievers).
 
 - option name: `kind`
 - type: **string**
@@ -793,7 +748,7 @@ Configuring a retriever always start by setting the kind of retriever you want t
 - mandatory: Yes
 
 > [!NOTE]
-> To find the **`kind`** to use for your retriever and the **rest of the options**, check the [list of retrievers](../integrations/retrievers/README.md#available-retrievers) and go on the detail page of your choice to configure it.
+> See the [list of retrievers](../integrations/retrievers/README.md#available-retrievers) and open the corresponding page for each retriever's options.
 >
 > **Available retrievers**:
 >
@@ -809,11 +764,11 @@ Configuring a retriever always start by setting the kind of retriever you want t
 > - [Bitbucket](../integrations/retrievers/bitbucket.md)
 > - [MongoDB](../integrations/retrievers/mongodb.md)
 > - [Redis](../integrations/retrievers/redis.md)
-> - [Postgresql](../integrations/retrievers/postgresql.md)
+> - [PostgreSQL](../integrations/retrievers/postgresql.md)
 
 ### type `exporter`
 
-An [exporter](../concepts/exporter.md) is the component in charge of sending your evaluation data to a remote source.
+An [exporter](../concepts/exporter.md) sends evaluation and tracking events to a destination.
 
 ```yaml
 # ...
@@ -822,9 +777,9 @@ exporters:
     bucket: evaluation-data-bucket
     flushInterval: 10000
 ```
+
 > [!NOTE]
->
-> Every `exporter` has its own configuration, check the [list of exporters](../integrations/exporters/README.md#available-exporters) and go on the detail page of your choice to configure it.
+> See the [list of exporters](../integrations/exporters/README.md#available-exporters) and open the corresponding page for each exporter's options.
 >
 > **Available exporters**:
 >
@@ -974,7 +929,7 @@ See [Sharing S3 requests between flag sets](#sharing-s3-requests-between-flag-se
 
 ### type `notifier`
 
-A [notifier](../concepts/notifier.md) is the component in charge of sending a notification when a flag changes to a remote system.
+A [notifier](../concepts/notifier.md) sends notifications to a remote system when flags change.
 
 ```yaml
 # ...
@@ -987,7 +942,7 @@ notifiers:
 ```
 
 > [!NOTE]
-> Every `notifier` has its own configuration, check the [list of notifiers](../integrations/notifiers/README.md#available-notifiers) and go on the detail page of your choice to configure it.
+> See the [list of notifiers](../integrations/notifiers/README.md#available-notifiers) and open the corresponding page for each notifier's options.
 >
 > **Available notifiers**:
 > - [Slack](../integrations/notifiers/slack.md)
@@ -998,18 +953,18 @@ notifiers:
 
 ### type `studio`
 
-Configuration used to load the flag sets from a remote Studio configuration service.
+Configuration used to load flag sets from a remote Studio configuration service.
 
 #### `studio.url`
 
-URL of the relay proxy configuration served by Studio, only its `flagSets` key is used.
+URL of the relay proxy configuration served by Studio; only its `flagSets` key is used.
 
-The format of the document is detected from the extension of the URL path (`.yaml`, `.json` or `.toml`), the query string is ignored so pre-signed URLs work. Without a known extension, the document is parsed as YAML.
+Format is detected from the URL path extension (`.yaml`, `.json`, or `.toml`), ignoring query strings so pre-signed URLs work. Without a known extension, YAML is assumed.
 
 - option name: `url`
 - type: **string**
 - default: **none**
-- mandatory: No _(Studio is enabled only when it is set)_
+- mandatory: No _(Studio is enabled only when set)_
 
 #### `studio.headers`
 
@@ -1051,13 +1006,11 @@ When [`studio.url`](#studiourl) is unreachable, the flag sets are loaded from th
 
 ### type `swagger`
 
-Configuration related to the swagger behavior of the relay proxy.
+Configures Swagger UI behavior for the relay proxy.
 
 #### `swagger.enabled`
 
-Enables Swagger for testing the APIs directly. The Swagger UI sends its requests to the origin it is served from, behind an ingress or not, so [`swagger.host`](#swaggerhost) is no longer needed.
-
-It will start the swagger server on the same port as the relay proxy and you can access it at `http://<host>:<server.port>/swagger/`.
+Enables Swagger UI at `http://<host>:<server.port>/swagger/`. Swagger UI sends requests to the origin it is served from (even behind an ingress), so [`swagger.host`](#swaggerhost) is no longer needed.
 
 - option name: `enabled`
 - type: **boolean**
@@ -1066,7 +1019,7 @@ It will start the swagger server on the same port as the relay proxy and you can
 
 #### `swagger.host`
 
-Not used any more: the Swagger UI calls the origin of its own page. Kept so that existing configuration files stay valid.
+Unused: Swagger UI calls the origin of its own page. Kept for configuration backward compatibility.
 
 - option name: `host`
 - type: **string**
@@ -1075,11 +1028,11 @@ Not used any more: the Swagger UI calls the origin of its own page. Kept so that
 
 ### type `ofrepEventStream`
 
-Configuration used to advertise the flag-change SSE endpoint in the OFREP bulk evaluation response.
+Configures advertising the flag-change SSE endpoint in the OFREP bulk evaluation response.
 
-When [`ofrepEventStream.baseUrl`](#ofrepeventstreambaseurl) is set, the bulk evaluation response contains an `eventStreams` field pointing to the relay proxy SSE endpoint (`/stream/v1/sse/flag/change`).
+When [`ofrepEventStream.baseUrl`](#ofrepeventstreambaseurl) is set, bulk evaluation responses include an `eventStreams` field pointing to the SSE endpoint (`/stream/v1/sse/flag/change`).
 
-Each time the flag configuration changes, this endpoint sends an ADR-0008 event that tells the provider to re-fetch its evaluations:
+Whenever flag configuration changes, this endpoint emits an ADR-0008 event instructing the provider to re-fetch evaluations:
 
 ```
 id: 1771622898000000000
@@ -1087,17 +1040,17 @@ event: message
 data: {"type":"refetchEvaluation","lastModified":1771622898}
 ```
 
-The stream also sends SSE comment lines, which spec-compliant clients ignore: `: connected` right after the connection is opened, and `: heartbeat` every 30 seconds so that proxies do not close idle connections.
+The stream also sends SSE comment lines ignored by spec-compliant clients: `: connected` on open, and `: heartbeat` every 30 seconds to keep idle connections alive through proxies.
 
-If the OFREP request is authenticated, the API key of the caller is added to the advertised URL as the `apiKey` query parameter, so the provider can open the stream without extra credentials. As required by the ADR, this URL is sensitive and must not be logged or persisted.
+If the OFREP request is authenticated, the caller's API key is appended as the `apiKey` query parameter in the advertised URL so the provider can subscribe without extra credentials. Per the ADR, this URL is sensitive and must not be logged or persisted.
 
 #### `ofrepEventStream.baseUrl`
 
-The public base URL clients should use to reach the relay proxy, for example `https://semaphore.example.com`. The path of the SSE endpoint is appended automatically, so a path prefix is kept (`https://example.com/goff` becomes `https://example.com/semaphore/stream/v1/sse/flag/change`).
+Public base URL clients use to reach the relay proxy (for example `https://semaphore.example.com`). The SSE endpoint path is appended automatically while preserving any path prefix (`https://example.com/semaphore` becomes `https://example.com/semaphore/stream/v1/sse/flag/change`).
 
-When not set, the `eventStreams` field is not added and OFREP providers keep polling. Do not set it when the relay proxy runs as an AWS Lambda, because Lambda cannot stream SSE.
+When unset, `eventStreams` is omitted and OFREP providers continue polling. Do not set this in AWS Lambda mode, as Lambda cannot stream SSE.
 
-It must be an absolute `http` or `https` URL, without query parameters.
+Must be an absolute `http` or `https` URL without query parameters.
 
 - option name: `baseUrl`
 - type: **string**

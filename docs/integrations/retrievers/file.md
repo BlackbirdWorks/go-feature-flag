@@ -1,12 +1,12 @@
 # File
 
 ## Overview
-Fetch the configuration from a local file. This retriever is useful when you want to load the configuration from a file in your file system.
+
+Load flag configurations from a local file on the filesystem.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the File System retriever, you need to add the following
-configuration to your relay proxy configuration file:
+Add this configuration to your relay proxy config file:
 
 ```yaml
 # ...
@@ -16,21 +16,21 @@ retrievers:
 # ...
 ```
 
-| Field name |   Mandatory   | Type   | Default  | Description                                                                                            |
-|------------|:-------------:|--------|----------|--------------------------------------------------------------------------------------------------------|
-| `kind`     | Yes | string | **none** | **Value should be `file`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `path`     | Yes | string | **none** | Absolute path to the flag file on the filesystem where the relay proxy runs _(ex: `/semaphore/my-flags.yaml`)_. In Docker or other containers, this path must exist **inside** the container (see below). |
+| Field name | Mandatory | Type   | Default  | Description |
+|------------|:---------:|--------|----------|-------------|
+| `kind`     | Yes       | string | **none** | **Value should be `file`.**<br/>_Mandatory field identifying the retriever._ |
+| `path`     | Yes       | string | **none** | Path to the flag file on the filesystem where the relay proxy runs _(ex: `/semaphore/my-flags.yaml`)_. In containers, this path must exist **inside** the container (see below). |
 
 ### Docker and containers
 
-The `path` value is resolved in the relay proxy process filesystem. When you run the relay proxy in a container, mount or copy the **flag file** so that path exists inside the container. You must also mount (or otherwise provide) the **relay proxy configuration file** itself (for example the YAML you pass with `-f` or via your image entrypoint): that file is separate from `retrievers[].path`, and both are usually required for the proxy to start and load flags correctly.
+`path` is resolved inside the relay proxy process filesystem. When running in a container, mount or copy the **flag file** so that path exists inside the container. You must also mount or provide the **relay proxy configuration file** itself (for example via `-f` or your image entrypoint); it is separate from `retrievers[].path`, and both are needed for the proxy to start and load flags.
 
-## Configure the GO Module
-To configure your GO module to use the File System retriever, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
+
+Add the retriever to `ffclient.Config{}`:
 
 ```go
-import 	"github.com/blackbirdworks/semaphore/retriever/file"
+import "github.com/blackbirdworks/semaphore/retriever/fileretriever"
 // ...
 client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
@@ -41,6 +41,6 @@ client, err := ffclient.New(&ffclient.Config{
 defer client.Close()
 ```
 
-| Field      |   Mandatory   | Description                               |
-|------------|:-------------:|-------------------------------------------|
-| **`Path`** | Yes | location of your file on the file system. |
+| Field      | Mandatory | Description |
+|------------|:---------:|-------------|
+| **`Path`** | Yes       | Location of your flag file on the filesystem. |

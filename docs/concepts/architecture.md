@@ -1,44 +1,44 @@
 # Architecture
 
 ## Overview
-Semaphore is a feature flagging system that allows you to manage feature flags in your application.  
-The architecture is really simple and efficient with the goal to be easy to use and let you experiment with feature flags in your application as fast as possible.
 
-In most cases you have 1 microservice running the `relay-proxy` and multiple applications running OpenFeature SDKs, nothing else.
+Semaphore has two ways to run:
 
-> [!NOTE]
-> Semaphore can also be run without the `relay-proxy` if you only use the GO Module.
->
-> The relay-proxy is an API layer on top of the GO Module, so it has the same logic inside.
+- **Relay proxy**: a stateless HTTP server used by applications via [OpenFeature SDKs](https://openfeature.dev) and [OFREP](../openfeature/ofrep.md).
+- **Go module**: embed the evaluation engine directly inside a Go service with no separate proxy process.
 
-## Architecture concepts
+Both share the exact same evaluation engine.
+
+```mermaid
+flowchart LR
+    sources["Flag Sources\n(File, S3, Git, K8s, DB)"] --> retrievers["Retrievers\n(Polling / Refresh)"]
+    retrievers --> proxy["Semaphore Relay Proxy\n(In-Memory Cache + Rules Engine)"]
+    apps["Applications\n(OpenFeature SDK + OFREP)"] <-->|"HTTP / OFREP"| proxy
+    proxy --> exporters["Exporters\n(Feature + Tracking Events)"]
+    exporters --> sinks["Analytics & Storage\n(S3, Kafka, OTel, Webhook)"]
+    proxy --> notifiers["Notifiers\n(On Flag Change)"]
+    notifiers --> alerts["Alerts\n(Slack, Discord, Teams, Webhook)"]
+```
+
+## Components
 
 ### OpenFeature SDKs and OFREP
-Semaphore is compatible with [OpenFeature](https://openfeature.dev). Applications use the standard OpenFeature SDK of their language together with a generic
-[OFREP](../openfeature/ofrep.md) (OpenFeature Remote Evaluation Protocol) provider, which talks to the relay proxy over HTTP.
-This repository does not ship language-specific providers.
 
-This is what developers will use to interact with Semaphore in their application.
+Applications use standard [OpenFeature](https://openfeature.dev) SDKs with an [OFREP](../openfeature/ofrep.md) (OpenFeature Remote Evaluation Protocol) provider talking to the relay proxy over HTTP. Semaphore does not ship language-specific providers.
 
-### Relay-Proxy
-The relay-proxy is the only component you have to run in your infrastructure to use Semaphore with the different SDKs.  
-This is a standalone GO binary that you can run in your infrastructure to expose the Semaphore API to your applications.
+### Relay Proxy
 
-> [!NOTE]
-> Want to know more about the relay-proxy? [Check the relay-proxy documentation](../relay-proxy/README.md).
+- Single stateless Go binary with no database dependency.
+- Loads flag files into memory and refreshes them on a configurable interval.
+- See the [Relay Proxy docs](../relay-proxy/README.md) to get started.
 
-The relay-proxy is designed to be simple, lightweight, and stateless. It operates without the need for any databases or complex systems, as it loads feature flag configuration files from a specified location and stores them in memory.
+### Core pipelines
 
-### Internal concepts
-**You have 3 main concepts in Semaphore architecture:**
-- [retrievers](retriever.md): This is the component in charge of fetching the feature flag configuration.
-- [notifiers](notifier.md): This is the component in charge of notifying external systems that a flag configuration has changed.
-- [exporters](exporter.md): This is the component in charge of exporting the flag evaluation results for analytics or monitoring.
+- **[Retrievers](retriever.md)**: fetch flag definitions from local files, object storage, Git, Kubernetes, or databases.
+- **[Notifiers](notifier.md)**: alert external systems (Slack, Discord, Microsoft Teams, webhooks) when flag definitions change.
+- **[Exporters](exporter.md)**: send flag evaluation and tracking events to analytics or monitoring sinks.
 
-Those 3 concepts are the core of Semaphore and allows you to integrate Semaphore in your current ecosystem with a minimum of effort.  
-Every component is designed to be as lightweight as possible and to be easy to configure.
+## Stack
 
-## Technologies
-
-- Semaphore is written in `golang`.
-- The `retrievers`, `notifiers`, and `exporters` are using official libraries to interact with external systems.
+- Written in Go.
+- Retrievers, notifiers, and exporters use official client libraries for each backend.

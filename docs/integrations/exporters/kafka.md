@@ -1,15 +1,15 @@
 # Apache Kafka
 
 ## Overview
-Export evaluation data inside a Kafka topic.
+
+Export evaluation data to a Kafka topic.
 
 > [!NOTE]
-> Apache Kafka is an exporter of type queue, it means that it send events as soon as he receives them it does not work in bulk but in near real time.
+> Apache Kafka is a streaming (queue-style) exporter: it sends events as soon as it receives them instead of batching them in bulk.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Apache Kafka exporter, you need to add the following
-configuration to your relay proxy configuration file:
+Add the following configuration to your relay proxy configuration file:
 
 ```yaml
 # ...
@@ -22,50 +22,49 @@ exporters:
 # ...
 ```
 
-| Field name        |    Mandatory     | Type     | Default           | Description                                                                                                                                                                                                                                                                                                |
-|-------------------|:----------------:|----------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`            |  Yes   | string   | **none**          | **Value should be `kafka`**.<br/>_This field is mandatory and describes which retriever you are using._                                                                                                                                                                                                    |
-| `kafka.topic`     |  Yes   | string   | **none**          | Kafka topic to bind to.                                                                                                                                                                                                                                                                                    |
-| `kafka.addresses` |  Yes   | []string | **none**          | List of bootstrap addresses for the Kafka cluster.                                                                                                                                                                                                                                                         |
-| `kafka.config`    | No | object   | _see description_ | This field allows fine tuning of the Kafka reader. This object should contain the [Sarama configuration](https://pkg.go.dev/github.com/IBM/sarama#Config) that the reader will use. On empty, a sensible default is created using [sarama.NewConfig()](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) |
+| Field name        | Mandatory | Type     | Default           | Description                                                                                                                                                                                                                            |
+|-------------------|:---------:|----------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`            | Yes       | string   | **none**          | Value should be `kafka`.<br/>_This field is mandatory and describes which exporter you are using._                                                                                                                                       |
+| `kafka.topic`     | Yes       | string   | **none**          | Kafka topic to publish to.                                                                                                                                                                                                             |
+| `kafka.addresses` | Yes       | []string | **none**          | List of bootstrap addresses for the Kafka cluster.                                                                                                                                                                                     |
+| `kafka.config`    | No        | object   | _see description_ | Optional [Sarama configuration](https://pkg.go.dev/github.com/IBM/sarama#Config) for fine-tuning the Kafka producer. When omitted, defaults from [`sarama.NewConfig()`](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) are used. |
 
 ### How `kafka.config` is merged with the defaults
-The configuration starts from the defaults of `sarama.NewConfig()` and the values you set in `kafka.config` replace them: a
-setting you provide always wins over the default (for example `Net.DialTimeout`, `Producer.Retry.Max`, `ClientID` or `Version` of the Sarama configuration).
-A setting you leave out keeps the default of Sarama. A zero value (`0`, `""` or `false`) cannot be told from a setting that
-is not set, so it keeps the default too. `Producer.Return.Successes` and `Producer.Return.Errors` are always `true`, the
-exporter needs them.
 
-## Configure the GO Module
-To configure your GO module to use the Apache Kafka exporter, you need to add the following
-configuration to your `ffclient.Config{}` object:
+- Configuration starts from [`sarama.NewConfig()`](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) defaults, and any non-zero value you set in `kafka.config` overrides the default (for example, `Net.DialTimeout`, `Producer.Retry.Max`, `ClientID`, or `Version`).
+- Unset fields keep Sarama's defaults. Zero values (`0`, `""`, or `false`) cannot be distinguished from unset fields, so they also keep the defaults.
+- `Producer.Return.Successes` and `Producer.Return.Errors` are always forced to `true` because the exporter requires them.
+
+## Configure the Go module
+
+Add the following configuration to your `ffclient.Config{}` object:
 
 ```go
-config := ffclient.Config{
-   // ...
-   DataExporter: ffclient.DataExporter{
+ffConfig := ffclient.Config{
+    // ...
+    DataExporter: ffclient.DataExporter{
         // ...
         Exporter: &kafkaexporter.Exporter{
-           Settings: kafkaexporter.Settings{
-              Topic: "semaphore-events",
-              Addresses: []string{"localhost:9092", "cluster2:9092"},
-           },
+            Settings: kafkaexporter.Settings{
+                Topic:     "semaphore-events",
+                Addresses: []string{"localhost:9092", "cluster2:9092"},
+            },
         },
     },
     // ...
 }
-client, err := ffclient.New(config)
+client, err := ffclient.New(ffConfig)
 defer client.Close()
 ```
 
-| Field        |    Mandatory     | Description                                                                                                                                                                                    |
-|--------------|:----------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Format `     |  No   | The format to produce in the topic (only `JSON` is supported for now).                                                                                                                                                         |
-| `Settings ` |  Yes   | A extension of the `*sarama.Config` struct that holds additional settings for the producer, such as timeouts, TLS settings, etc. If not populated, a default will be used by calling `sarama.NewConfig()` |                                                                                                                                         |                                                                                                                                                     |
+| Field      | Mandatory | Description                                                                                                                                                                               |
+|------------|:---------:|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Format`   | No        | Output format for Kafka messages (currently only `JSON` is supported).                                                                                                                    |
+| `Settings` | Yes       | Producer configuration embedding `*sarama.Config` along with `Topic` and `Addresses`. If no `*sarama.Config` is provided, defaults from `sarama.NewConfig()` are used.                    |
 
-In the settings we have the following fields:
+`Settings` fields:
 
-| Field        |    Mandatory     | Description                                                                                                                                                                                    |
-|--------------|:----------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Topic `     |  Yes   | Name of the topic to publish messages                                                                                                                                                          |
-| `Addresses ` |  Yes   | The list of addresses for the Kafka boostrap servers                                                                                                                                           |
+| Field       | Mandatory | Description                                    |
+|-------------|:---------:|------------------------------------------------|
+| `Topic`     | Yes       | Name of the topic to publish messages to.      |
+| `Addresses` | Yes       | List of Kafka bootstrap server addresses.      |

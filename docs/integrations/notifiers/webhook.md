@@ -1,18 +1,15 @@
 # Webhook
 
 ## Overview
-Send notifications to a Webhook in a specific format.
 
-## About Webhook Notifier
-The **Webhook notifier** will perform an HTTP POST request to the specified endpoint everytime a change in the flags is
-detected.
+The Webhook notifier sends an HTTP `POST` request to your endpoint every time Semaphore detects a flag configuration change.
 
-The format of the call is specified in the [format section](#format) and you can [sign the body](#signature) to trust
-the data you are receiving.
+- See [Format](#format) for the JSON payload.
+- See [Signature](#signature) to verify request authenticity.
 
 ## Format
 
-If you have configured a webhook, a `POST` request will be sent to the `EndpointURL` with a body in this format:
+Semaphore sends a `POST` request to `EndpointURL` with the following JSON structure:
 
 ```json
 {
@@ -86,39 +83,36 @@ If you have configured a webhook, a `POST` request will be sent to the `Endpoint
 
 ## Signature
 
-This header **`X-Hub-Signature-256`** is sent if the webhook is configured with a secret. This is the HMAC hex digest of
-the request body, and is generated using the SHA-256 hash function and the secret as the HMAC key.
+When a secret is configured, Semaphore sends the `X-Hub-Signature-256` header containing the SHA-256 HMAC hex digest of the request body signed with `Secret`.
 
-Notifications can be delivered concurrently. Verify each request's signature against that request's
-body using your configured secret.
+Notifications can be delivered concurrently, so always verify each request's signature against that request's body.
 
 > [!CAUTION]
-> The recommendation is to always use the `Secret` and on your API/webook always verify the signature key to be sure that
-> you don't get into a man-in-the-middle attack.
+> Always configure `Secret` and verify `X-Hub-Signature-256` on your webhook endpoint to protect against tampering and man-in-the-middle attacks.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the Webhook notifier, you need to add the following
-configuration to your relay proxy configuration file:
+Add the Webhook notifier to your relay proxy configuration file:
 
 ```yaml
 # ...
-notifier:
+notifiers:
   - kind: webhook
     endpointUrl: "https://example.com/hook"
 # ...
 ```
-| Field name    |    Mandatory    | Type                | Default  | Description                                                                                                                                                                                                                 |
-|---------------|:---------------:|---------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`        |  Yes   | string              | **none** | **Value should be `webhook`**.<br/>_This field is mandatory and describes which retriever you are using._                                                                                                                   |
-| `endpointUrl` |  Yes   | string              | **none** | The complete URL of your API (we will send a POST request to this URL, see [format](#format)                                                       |
-| `secret`      | No | string              | **none** | Secret used to sign your request body and fill the `X-Hub-Signature-256` header.<br/> See [signature section](#signature) for more details. |
-| `meta`        | No | map[string]string   | **none** | Add all the information you want to see in your request.                                                                                                                                                                    |
-| `headers`     | No | map[string][]string | **none** | Add all the headers you want to add while calling the endpoint                                                                                                                                                              |
 
-## Configure the GO Module
-To configure your GO module to use the Webhook notifier, you need to add the following
-configuration to your `ffclient.Config{}` object:
+| Field name | Mandatory | Type | Default | Description |
+|---|:---:|---|---|---|
+| `kind` | Yes | string | **none** | Must be `webhook`. Identifies the notifier type. |
+| `endpointUrl` | Yes | string | **none** | Full URL that receives the `POST` request (see [Format](#format)). |
+| `secret` | No | string | **none** | Secret used to compute the `X-Hub-Signature-256` header (see [Signature](#signature)). |
+| `meta` | No | map[string]string | **none** | Extra key-value pairs included in the `meta` object of the payload. |
+| `headers` | No | map[string][]string | **none** | Extra HTTP headers sent with each webhook request. |
+
+## Configure the Go module
+
+Add `&webhooknotifier.Notifier` to `ffclient.Config.Notifiers`:
 
 ```go
 client, err := ffclient.New(&ffclient.Config{
@@ -126,7 +120,7 @@ client, err := ffclient.New(&ffclient.Config{
     Notifiers: []notifier.Notifier{
         &webhooknotifier.Notifier{
             EndpointURL: "https://example.com/hook",
-            Secret:     "Secret",
+            Secret:      "Secret",
             Meta: map[string]string{
                 "app.name": "my app",
             },
@@ -134,14 +128,15 @@ client, err := ffclient.New(&ffclient.Config{
                 "Authorization": {"Bearer auth_token"},
             },
         },
-    // ...
+        // ...
     },
 })
 defer client.Close()
 ```
-| Field         |    Mandatory     | Description                                                                                                                                                                                                                            |
-|---------------|:----------------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EndpointURL` |  Yes   | The complete URL of your API *(we will send a POST request to this URL, [see format](#format))*                                                                                                                                        |
-| `Secret`      | No | A secret key you can share with your webhook. We will use this key to sign the request *(see [signature section](#signature) for more details)*.                                                                                       |
-| `Meta`        | No | A list of key value that will be added in your request, this is super useful if you want to add information on the current running instance of your app.<br/><br/>**By default the hostname is always added in the meta information.** |
-| `Headers`     | No | The list of Headers to send to the endpoint.                                                                                                                                                                                           |
+
+| Field | Mandatory | Description |
+|---|:---:|---|
+| `EndpointURL` | Yes | Full URL that receives the `POST` request (see [Format](#format)). |
+| `Secret` | No | Secret used to sign the request body and populate `X-Hub-Signature-256` (see [Signature](#signature)). |
+| `Meta` | No | Extra key-value pairs included in the payload's `meta` object. By default, `hostname` is always included. |
+| `Headers` | No | Extra HTTP headers sent with each webhook request. |

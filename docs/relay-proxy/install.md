@@ -2,12 +2,12 @@
 
 ## Build from source
 
-Requires Go (see `go.mod` for the version).
+Requires Go (see `go.mod` for the version) and [Task](https://taskfile.dev).
 
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git
 cd semaphore
-make build-relayproxy   # binary: out/bin/semaphore
+task build-relayproxy   # binary: out/bin/semaphore
 ```
 
 ## Release archives (available after the first release)
@@ -31,12 +31,10 @@ docker run -p 1031:1031 -v $(pwd):/semaphore:ro ghcr.io/blackbirdworks/semaphore
 Until then, build a local image from source:
 
 ```shell
-make build-relayproxy-docker   # image: semaphore:local
+task build-relayproxy-docker   # image: semaphore:local
 ```
 
-The binary is `/usr/local/bin/semaphore` and the image sets it as `ENTRYPOINT`, so the relay proxy starts with no
-arguments and finds its configuration in `/semaphore/` (or the legacy `/goff/`), and arguments are passed
-directly to it. To run something else, override the entrypoint with `--entrypoint`. Pass options as arguments:
+The image sets `/usr/local/bin/semaphore` as `ENTRYPOINT`. With no arguments, it looks for configuration in `/semaphore/` (or legacy `/goff/`); any arguments are passed directly to `semaphore`. Use `--entrypoint` to override it. Pass options as flags:
 
 ```shell
 docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local --config=/cfg/semaphore-proxy.yaml
@@ -48,7 +46,7 @@ If you need FIPS 140 validated cryptography, use the `semaphore-fips` archive or
 of a release, or build the FIPS variant from source:
 
 ```shell
-make build-relayproxy-fips
+task build-relayproxy-fips
 ```
 
 See [FIPS 140-3 mode](advanced-usage.md#fips-140-3-mode) for details on running and verifying it.
@@ -60,8 +58,7 @@ semaphore --version        # also -v; semaphore-cli --version for the CLI
 docker run --rm ghcr.io/blackbirdworks/semaphore:latest --version
 ```
 
-It prints the version, commit, build date, Go version and whether the binary runs in FIPS 140 mode,
-and exits without loading a configuration.
+Prints the version, commit, build date, Go version, and FIPS 140 mode, then exits without loading any configuration.
 
 ## Next steps
 

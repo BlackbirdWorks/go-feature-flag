@@ -1,9 +1,9 @@
 # API endpoints
 
 ## Overview
-The relay-proxy is providing a list of REST endpoints to interact with Semaphore.
 
-Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/api/testdata/openapi.golden.json) to have the most updated list of endpoints.
+The relay proxy exposes REST and streaming endpoints for flag evaluation, tracking, configuration, and monitoring.
+Check the [**OpenAPI specification**](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/api/testdata/openapi.golden.json) for the full, up-to-date schema.
 
 ### Endpoint list
 
@@ -19,53 +19,50 @@ Since we are evolving the relay proxy, the list of endpoints can change, and we 
 | `GET /openfeature/v0/manifest`          | OpenFeature flag manifest.                                             |
 | `POST /admin/v1/flags/validate`         | Validate a flag file.                                                  |
 | `POST /admin/v1/retriever/refresh`      | Force a refresh of the retrievers.                                     |
-| `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when it is set; `/metrics` needs metrics enabled). |
-| `GET /swagger/*`                        | Swagger UI, only with `enableSwagger: true`.                           |
+| `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when set; `/metrics` requires metrics enabled). |
+| `GET /swagger/*`                        | Swagger UI (only when `enableSwagger: true`).                          |
 
-The streams are listed in [Flag change streams](#flag-change-streams).
+Streaming endpoints are listed in [Flag change streams](#flag-change-streams).
 
 ### Swagger
-The relay proxy can expose a [swagger UI](https://swagger.io/tools/swagger-ui/) to test your REST endpoints.
 
-This swagger UI is available at the `/swagger/` endpoint (it redirects to `/swagger/index.html`; the document it displays is `/swagger/openapi.json`) and will show all the available endpoints and the parameters needed. The page loads the Swagger UI scripts from a public CDN, so the browser needs internet access.
+The relay proxy can serve [Swagger UI](https://swagger.io/tools/swagger-ui/) at `/swagger/` (redirects to `/swagger/index.html`, loading `/swagger/openapi.json`) to inspect and test endpoints. Swagger UI loads scripts from a public CDN, so the browser needs internet access.
 
 > [!NOTE]
-> By default, this endpoint is not exposed, you need to have this configuration in your **relay proxy** configuration file:
+> Swagger UI is disabled by default. Enable it in your relay proxy configuration:
 >
 > ```yaml
 > # ...
 > enableSwagger: true
-> host: my-proxy-domain.com # the DNS to access the proxy
+> host: my-proxy-domain.com # DNS host for accessing the proxy
 > ```
->
-> When enabled, you can go to the `/swagger/` endpoint with your browser, and you will have access to the Swagger UI for the relay proxy. 
 
 ## OpenAPI documentation
 
-The OpenAPI 3.1 document is generated from the typed operations the relay proxy registers. With `enableSwagger: true` it is served at `/swagger/openapi.json` (and `/swagger/openapi.yaml`, plus the 3.0 downgrade `/swagger/openapi-3.0.json`). A test compares it with the committed copy `cmd/relayproxy/api/testdata/openapi.golden.json`. The document describes the whole API, the monitoring endpoints included, and it advertises no server: the Swagger UI calls the origin of its page.
+The OpenAPI 3.1 document is generated from the typed operations registered by the relay proxy. With `enableSwagger: true`, it is served at `/swagger/openapi.json` and `/swagger/openapi.yaml` (plus the 3.0 downgrade at `/swagger/openapi-3.0.json`). A test compares it against the committed `cmd/relayproxy/api/testdata/openapi.golden.json`. The document covers the entire API, including monitoring endpoints, and advertises no server so Swagger UI calls the origin of its page.
 
 ## Flag change streams
 
-The relay proxy can push a message to your application each time the flag configuration changes.
+The relay proxy can push notifications to your application whenever the flag configuration changes:
 
 | Transport | Endpoint                        | Notes                                                       |
 |-----------|---------------------------------|-------------------------------------------------------------|
-| WebSocket | `/stream/v1/ws/flag/change`     | Receives the diff of the changed flags.                     |
+| WebSocket | `/stream/v1/ws/flag/change`     | Receives the diff of changed flags.                         |
 | WebSocket | `/ws/v1/flag/change`            | **Deprecated** alias of `/stream/v1/ws/flag/change`.        |
 | SSE       | `/stream/v1/sse/flag/change`    | Receives a `refetchEvaluation` event (OFREP ADR-0008).      |
 
-The API key is passed with the `apiKey` query parameter, for example `ws://localhost:1031/stream/v1/ws/flag/change?apiKey=<your-api-key>`.
+Pass the API key with the `apiKey` query parameter, for example `ws://localhost:1031/stream/v1/ws/flag/change?apiKey=<your-api-key>`.
 
 ### Streams with flag sets
 
-When the relay proxy runs with [flag sets](../concepts/flagset.md), each stream is scoped to a single flag set:
+When running with [flag sets](../concepts/flagset.md), each stream is scoped to a single flag set:
 
-- The connection only receives the changes of the flag set associated to its API key.
-- The API key **must be associated to a flag set**. A missing or unknown key is rejected with `401`, and a valid key that is not associated to any flag set (for example an `authorizedKeys.admin` key) is rejected with `400`, before the WebSocket upgrade.
-- To watch several flag sets, open **one connection per flag set**, each with an API key of that flag set.
+- The connection receives only changes for the flag set associated with its API key.
+- The API key **must belong to a flag set**. A missing or unknown key returns `401`; a valid key not associated with any flag set (such as `authorizedKeys.admin`) returns `400` before the WebSocket upgrade.
+- To watch multiple flag sets, open **one connection per flag set**, each using an API key for that flag set.
 
 > [!WARNING]
-> Older versions of the relay proxy sent the changes of every flag set to every WebSocket client. If you relied on this behavior, open one connection per flag set.
-> If you still use the deprecated `/ws/v1/flag/change` endpoint, it follows the same rules; migrate to `/stream/v1/ws/flag/change` when you update your clients.
+> Older versions sent changes from every flag set to every WebSocket client. Open one connection per flag set if you need multiple sets.
+> The deprecated `/ws/v1/flag/change` endpoint follows the same rules; migrate clients to `/stream/v1/ws/flag/change`.
 
-Without flag sets, nothing changes: every connection receives all flag changes.
+Without flag sets, every connection receives all flag changes.

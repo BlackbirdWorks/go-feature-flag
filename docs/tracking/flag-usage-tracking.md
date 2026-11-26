@@ -2,55 +2,44 @@
 
 ## What it is
 
-**Flag usage tracking** records which flag variation each user received whenever a flag is evaluated.  
-For each evaluation, a **feature** event is recorded and sent to the exporters you have configured.
+**Flag usage tracking** records which variation each user receives whenever a flag is evaluated, emitting a **feature** event to your configured [exporters](../integrations/exporters/README.md).
 
-All flag usage events are sent to the [exporters](../integrations/exporters/README.md) you have configured.
-
-## Why use it
-
-- **Understand how flags are used**: See who saw what variation, power analytics and dashboards, and feed data into A/B or experimentation tools.
-- **Correlate exposures with outcomes**: Essential when you need to link flag evaluations to business metrics or downstream events.
+- **Understand flag usage**: See which variations users receive to power analytics, dashboards, and experimentation tools.
+- **Correlate exposures with outcomes**: Link flag evaluations to downstream business metrics.
 
 ## How it works
 
-Every evaluation performed by the relay-proxy produces an event that the relay-proxy exports to your configured exporters.
-If you use the Go module, the module itself exports the events.
+- **Relay proxy**: Exports a feature event on every evaluation. It also accepts batched events from clients that evaluate locally via `POST /v1/data/collector`.
+- **Go module**: Exports feature events directly through its configured exporters.
 
-The relay-proxy also accepts batched events from clients that evaluate flags locally and report their usage afterwards, through the `POST /v1/data/collector` endpoint.
+## Setup
 
-### Summary
+1. **Enable tracking on your flags**: Set `trackEvents: true` in the flag configuration (or omit it; the default is `true`). See [create flags](../configure-flags/create-flags.md).
+2. **Configure an exporter**: Add at least one exporter for `feature` events (the default event type). See [export evaluation data](../integrations/exporters/README.md).
 
-Flag usage tracking means: _every time someone gets a flag value, record that fact and send it to your chosen destinations._
-
-## What you need to do
-
-1. **Turn on tracking for the flags you care about**: Set `trackEvents: true` in the flag configuration of your feature flag(or omit it; the default is `true`). See [configure your flags](../configure-flags/create-flags.md) for the flag format.
-2. **Configure at least one exporter for evaluation data**: Add a data exporter for feature events (the default event type). See [export evaluation data](../integrations/exporters/README.md) for available exporters and how to configure them for the relay-proxy or GO module.
-
-No code changes are required beyond configuration for the default "feature" event type.
+No application code changes are required for `feature` events.
 
 ## Event format
 
-Each flag-usage event (also called a **feature event**) has the following structure when sent to your exporters:
+Each flag-usage event (**feature event**) has the following fields:
 
-| Field            | Description                                                                                                                                           |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **kind**         | Always `"feature"` for flag usage events.                                                                                                             |
-| **contextKind**  | `"user"` for a known user, or `"anonymousUser"` for an anonymous context.                                                                             |
-| **userKey**      | The targeting key (user or entity identifier) used in the evaluation.                                                                                 |
-| **creationDate** | Unix timestamp (seconds) when the flag was evaluated.                                                                                                 |
-| **key**          | The flag name that was evaluated.                                                                                                               |
-| **variation**    | The variation name returned.                                                                                                                          |
-| **value**        | The resolved value returned to the application.                                                                                                       |
-| **default**      | `true` if the evaluation failed and the default value was returned; otherwise `false`.                                                                |
-| **version**      | Version of the flag configuration (if set).                                                                                                           |
-| **source**       | `"SERVER"` when the evaluation was done in the relay-proxy; `"PROVIDER_CACHE"` when it was served from a client-side cache and later reported to the relay. |
-| **metadata**     | Optional static key-value data added by the client for context.                                                                                     |
+| Field | Description |
+|---|---|
+| `kind` | Always `"feature"` for flag usage events. |
+| `contextKind` | `"user"` for a known user, or `"anonymousUser"` for an anonymous context. |
+| `userKey` | Targeting key (user or entity identifier) used in the evaluation. |
+| `creationDate` | Unix timestamp (seconds) when the flag was evaluated. |
+| `key` | Name of the evaluated flag. |
+| `variation` | Name of the returned variation. |
+| `value` | Resolved value returned to the application. |
+| `default` | `true` if evaluation failed and the default value was returned; otherwise `false`. |
+| `version` | Version of the flag configuration (if set). |
+| `source` | `"SERVER"` when evaluated by the relay proxy; `"PROVIDER_CACHE"` when served from a client-side cache and reported later. |
+| `metadata` | Optional static key-value data added by the client for context. |
 
 ### Example
 
-A minimal feature event in JSON (as sent for example by the [webhook exporter](../integrations/exporters/webhook.md)) looks like:
+A minimal feature event in JSON (for example, as sent by the [webhook exporter](../integrations/exporters/webhook.md)):
 
 ```json
 {
@@ -67,4 +56,4 @@ A minimal feature event in JSON (as sent for example by the [webhook exporter](.
 }
 ```
 
-To combine flag usage with custom business events (e.g. conversions or revenue), use the [OpenFeature Tracking API](tracking-api.md).
+To pair flag exposures with custom business events (such as conversions or revenue), use the [OpenFeature Tracking API](tracking-api.md).

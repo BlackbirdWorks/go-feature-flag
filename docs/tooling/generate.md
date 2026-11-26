@@ -3,22 +3,19 @@
 > [!WARNING]
 > This feature is experimental and may change in the future.
 
-The [OpenFeature cli](https://github.com/open-feature/cli) allow code generation for flag accessors for OpenFeature.  
-This allows to have a type safe way to access your flags in your code based on a flag manifest you can provide to the OpenFeature cli.
+The [OpenFeature CLI](https://github.com/open-feature/cli) generates type-safe flag accessors from a flag manifest.
 
-To generate the OpenFeature flag manifest you can use the `generate manifest` command of the `semaphore-cli`,
-it will generate a flag manifest file compatible with the **`OpenFeature cli`** that you can use.
+Use `semaphore-cli generate manifest` to build an OpenFeature-compatible flag manifest from your Semaphore configuration.
 
 ## Add information to your flags
-To generate the flag manifest you need to provide information about your flags in your configuration file.  
-To do this we leverage the `metadata` field of your flags in your configuration file, to provide information about the flag.
 
-You need to provide 2 fields in the `metadata` to allow the flag to be generated in the flag manifest:
-- `defaultValue`: **(mandatory)** The default value of the flag.
-- `description`: A description of the flag.
+Add a `metadata` block to each flag you want included in the manifest:
+
+- `defaultValue`: **(mandatory)** Default value of the flag.
+- `description`: Description of the flag.
 
 > [!NOTE]
-> If you don't provide a `defaultValue` field in your metadata the flag will be ignored in the flag manifest.
+> Flags without `metadata.defaultValue` are excluded from the generated manifest.
 
 ```yaml
 enableFeatureA:
@@ -45,7 +42,8 @@ usernameMaxLength:
 ```
 
 ## Install the Command Line
-Check the [installation guide](cli.md) to install the `semaphore-cli`.
+
+See the [installation guide](cli.md) to install `semaphore-cli`.
 
 ## Generate the flag manifest
 
@@ -57,13 +55,14 @@ semaphore-cli generate manifest \
   --flag_manifest_destination="<destination_of_your_flag_manifest>"
 ```
 
-| param                         | description                                                                                                                                                            |
-|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--flag_manifest_destination` | (mandatory) The destination where your manifest will be stored.                                                                                                        |
-| `--config`                    | The location of your configuration file. _(if not provided we will search a file named `flags.yaml`_ in one of this directories `./`, `/semaphore/`, `/etc/opt/semaphore/`. |
-| `--format`                    | The format of your configuration flag _(acceptable values:`yaml`, `json`, `toml`)_.<br/>Default: **`yaml`**                                                            |
+| Flag | Description |
+|---|---|
+| `--flag_manifest_destination` | **(mandatory)** Output path where the generated manifest will be written. |
+| `--config` | Location of your configuration file. If omitted, searches for `flags.semaphore.<ext>` (or legacy `flags.goff.<ext>`) in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, and `/etc/opt/goff/`. |
+| `--format` | Format of your configuration file (`yaml`, `json`, or `toml`). Default: `yaml`. |
 
-### Example of flag manifest
+### Example flag manifest
+
 ```json
 {
   "flags": {
@@ -83,47 +82,41 @@ semaphore-cli generate manifest \
 
 ### Option 2: Use the relay proxy endpoint
 
-If you are running the Semaphore relay proxy, you can fetch the flag manifest directly from it
-without needing to generate a local file. The relay proxy exposes a dedicated endpoint:
+If you run the Semaphore relay proxy, fetch the manifest directly from its endpoint instead of generating a local file:
 
 ```
 GET /openfeature/v0/manifest
 ```
 
-The response is fully compatible with the OpenFeature CLI manifest format.
+The response matches the OpenFeature CLI manifest format.
 
 > [!NOTE]
-> Flags without a `defaultValue` in their metadata are excluded from the response, same as when generating locally.
+> Flags without `metadata.defaultValue` are excluded from the response, just like local generation.
 
-You can pull the file directly with the openfeature cli:
+Pull the manifest directly with the OpenFeature CLI:
+
 ```shell
 openfeature pull --provider-url http://localhost:1031
 ```
-If authentication is enabled on your relay proxy, pass your API key via the `Authorization: Bearer <key>` header.
-If authentication is not enabled, no header is needed. The cli can also pass the token:
+
+If authentication is enabled on your relay proxy, pass your API key via the `Authorization: Bearer <key>` header or `--auth-token`:
 
 ```shell
 openfeature pull --provider-url http://localhost:1031 --auth-token secret-token
 ```
 
-## Use the OpenFeature cli to generate the flag accessors
+## Use the OpenFeature CLI to generate the flag accessors
 
-To install the OpenFeature cli you can follow the [installation guide](https://github.com/open-feature/cli) from the repository.
-
-Once you have the OpenFeature cli installed you can use the `generate` command to generate the flag accessors.
-You can provide the manifest either as a local file or directly as a URL pointing to the relay proxy endpoint.
+Install the OpenFeature CLI from the [OpenFeature CLI repository](https://github.com/open-feature/cli), then run `generate` against either your local manifest file or the relay proxy URL:
 
 ```shell
 openfeature generate go
 ```
 
 > [!NOTE]
-> Here the example is using code generation in go, but react, typescript, C# and other languages are supported.
->
-> Refer to the [OpenFeature cli documentation](https://github.com/open-feature/cli) for more information.
+> This example targets Go, but React, TypeScript, C#, and other languages are supported. See the [OpenFeature CLI documentation](https://github.com/open-feature/cli).
 
-As the result of this command, you will have a file with the flag accessors generated based on the flag manifest you provided.
-You will be able to use a type-safe way to access your flags in your code.
+This generates type-safe flag accessors based on your manifest:
 
 ```go
 // Code generated by OpenFeature CLI. DO NOT EDIT.

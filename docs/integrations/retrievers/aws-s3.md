@@ -1,12 +1,12 @@
 # AWS S3
 
 ## Overview
-Retrieves the configuration from an AWS S3 bucket. This retriever is useful when you are using AWS and want to use S3 to store you configuration files. You can point it to a single file (using "item"), or leave "item" out to load a folder of your bucket and merge several flag files into one configuration.
+
+Load flag configurations from an AWS S3 bucket. Point to a single file with `item`, or omit `item` to load and merge multiple flag files from a bucket prefix.
 
 ## Configure the relay proxy
 
-To configure your relay proxy to use the AWS S3 retriever, you need to add the following
-configuration to your relay proxy configuration file:
+Add this configuration to your relay proxy config file:
 
 ```yaml
 # ...
@@ -18,7 +18,7 @@ retrievers:
 ```
 
 > [!NOTE]
-> If you are using the S3 provider, the easiest way to provide credentials is to set environment variables. It will be used by Semaphore to identify to your S3 bucket.
+> Set AWS credentials using standard environment variables so Semaphore can authenticate to your S3 bucket:
 >
 > ```shell
 > export AWS_SECRET_ACCESS_KEY=xxxx
@@ -26,23 +26,20 @@ retrievers:
 > export AWS_DEFAULT_REGION=eu-west-1
 > ```
 
-| Field name |   Mandatory   | Type   | Default  | Description                                                                                          |
-|------------|:-------------:|--------|----------|------------------------------------------------------------------------------------------------------|
-| `kind`     | Yes | string | **none** | **Value should be `s3`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `bucket`   | Yes | string | **none** | This is the name of your S3 bucket _(ex: `my-featureflag-bucket`)_.                                  |
-| `item`     | No | string | **none** | Path to the file inside the bucket _(ex: `config/flag/my-flags.yaml`)_.<br/>_Set it to load one file; leave it out to load a folder, see [Load several files from a folder](#load-several-files-from-a-folder)._ |
-| `prefix`   | No | string | **none** | _Folder mode only._ Key prefix _(ex: `flags/`)_ restricting the files loaded. Empty or `/` is the root of the bucket. |
-| `pattern`  | No | string | **none** | _Folder mode only._ Optional glob matched against the file name only, not the whole path _(ex: `*.yaml`)_, so it can't contain a `/`. If empty, every file is used. |
-| `recursive` | No | bool  | `false`  | _Folder mode only._ If `true`, files in nested "folders" are also loaded, otherwise only the direct children of the prefix. |
+| Field name  | Mandatory | Type   | Default  | Description |
+|-------------|:---------:|--------|----------|-------------|
+| `kind`      | Yes       | string | **none** | **Value should be `s3`.**<br/>_Mandatory field identifying the retriever._ |
+| `bucket`    | Yes       | string | **none** | Name of your S3 bucket _(ex: `my-featureflag-bucket`)_. |
+| `item`      | No        | string | **none** | Path to the file inside the bucket _(ex: `config/flag/my-flags.yaml`)_.<br/>_Set to load one file; omit to load a folder (see [Load several files from a folder](#load-several-files-from-a-folder))._ |
+| `prefix`    | No        | string | **none** | _Folder mode only._ Key prefix _(ex: `flags/`)_ restricting loaded files. Empty or `/` targets the bucket root. |
+| `pattern`   | No        | string | **none** | _Folder mode only._ Optional glob matched against the file name only _(ex: `*.yaml`)_; cannot contain `/`. If empty, every file is used. |
+| `recursive` | No        | bool   | `false`  | _Folder mode only._ If `true`, files in nested "folders" are also loaded; otherwise only direct children of `prefix` are loaded. |
 
-**Set `item` to load a single file, leave it out to load a folder.** `prefix`, `pattern` and `recursive` can only be
-used without `item`.
+**Set `item` to load a single file, or omit it to load a folder.** `prefix`, `pattern`, and `recursive` cannot be used with `item`.
 
 ### Load several files from a folder
 
-When `item` is not set, the retriever lists the objects of the bucket _(restricted by `prefix`, `pattern` and
-`recursive`)_, downloads them and merges the flags into a single flag set. It is useful when several teams publish
-their own flag files to the same bucket without writing to one huge file.
+When `item` is omitted, the retriever lists objects in the bucket _(filtered by `prefix`, `pattern`, and `recursive`)_, downloads them, and merges their flags into a single flag set. This lets multiple teams publish separate flag files to the same bucket.
 
 ```yaml
 retrievers:
@@ -54,70 +51,47 @@ retrievers:
 ```
 
 > [!WARNING]
-> Without `item` **and** without `prefix`, the **root of the bucket** is read _(everything below it with
-> `recursive: true`)_. Set a `pattern` when other files live there. Also beware that a typo in the `item` key
-> silently switches the retriever to folder mode.
+> Without `item` **and** without `prefix`, the **root of the bucket** is read _(everything below it when `recursive: true`)_. Set `pattern` when other files live there. Also beware that a typo in the `item` key silently switches the retriever to folder mode.
 
 How it works:
-- **Format**: it is derived from the file extension _(`.json`, `.yaml`/`.yml`, `.toml`)_. All the files must have the
-  same format, otherwise the retrieval fails with an error naming the offending files. Use `pattern` to select only one
-  format when your prefix contains several. A file with another extension is skipped with a warning in the logs
-  _(once, as long as it stays there)_, it does not make the retrieval fail.
-- **Merge**: the top-level flag keys of every file are merged. If the same flag key is defined in 2 files, the
-  retrieval fails with an error naming the flag and both files.
-- **Polling**: the retriever lists the objects at each poll and only downloads the files whose `ETag` changed (or
-  that are new). An object listed without an `ETag` is downloaded at every poll. The other ones are served from memory.
-- **Deletion**: if a file is removed from the bucket, its flags disappear from the flag set at the next poll. If no
-  file matches, the flag set is empty _(this is not an error, but a warning is logged)_.
-- Keys ending with `/` _(folder markers)_ are ignored. Without `recursive`, only the direct children of the prefix
-  are used.
-- Without `prefix` _(or with `prefix: /`)_ the root of the bucket is used: top-level files only, or the whole bucket
-  with `recursive: true`. Leading `/` of a prefix are trimmed _(`/flags/` is `flags/`)_ because S3 keys never start
-  with a `/`.
-- A trailing `/` is added to the prefix when missing, so `flags` and `flags/` are equivalent and `flags-old/...` is
-  never matched.
-- Empty files are accepted and contribute no flag, whatever their format.
-- Files are parsed exactly like a single `item` file, so any file valid as an `item` is valid in folder mode.
+- **Format**: derived from the file extension _(`.json`, `.yaml`/`.yml`, `.toml`)_. Every matched file must use the same format, or retrieval fails with an error naming the offending files. Use `pattern` to select a single format when a prefix contains multiple formats. Files with unsupported extensions are skipped with a log warning _(logged once while the file remains)_.
+- **Merge**: top-level flag keys from every file are merged. Duplicate flag keys across two files fail retrieval with an error naming the flag and both files.
+- **Polling**: lists objects on each poll and only downloads new files or files whose `ETag` changed. Objects without an `ETag` are downloaded on every poll; unchanged objects are served from memory.
+- **Deletion**: removing a file from the bucket removes its flags on the next poll. Matching zero files produces an empty flag set _(logs a warning, not an error)_.
+- Keys ending with `/` _(folder markers)_ are ignored. Without `recursive`, only direct children of `prefix` are used.
+- Without `prefix` _(or with `prefix: /`)_, the bucket root is used: top-level files only, or the whole bucket with `recursive: true`. Leading `/` characters are trimmed _(`/flags/` becomes `flags/`)_ because S3 keys never start with `/`.
+- A missing trailing `/` is added to `prefix`, so `flags` and `flags/` are equivalent and `flags-old/...` is never matched.
+- Empty files are accepted in any format and contribute no flags.
+- Each file is parsed like a single `item` file, so any valid `item` file is valid in folder mode.
 
 > [!NOTE]
-> **IAM permissions**
-> In folder mode the identity used by Semaphore needs `s3:ListBucket` on the bucket _(`arn:aws:s3:::my-featureflag-bucket`)_
-> in addition to `s3:GetObject` on the objects _(`arn:aws:s3:::my-featureflag-bucket/flags/*`)_.
+> **IAM permissions**: In folder mode, Semaphore needs `s3:ListBucket` on the bucket _(`arn:aws:s3:::my-featureflag-bucket`)_ in addition to `s3:GetObject` on the objects _(`arn:aws:s3:::my-featureflag-bucket/flags/*`)_.
 
-### Compatibility with S3-Compatible Solutions
+### Compatibility with S3-compatible solutions
 
-The S3 retriever also works with S3-compatible object stores such as **MinIO**, Ceph or Garage: keep `kind: s3` and
-point the AWS SDK at your server with `AWS_ENDPOINT_URL_S3`.
+The S3 retriever works with S3-compatible stores such as **MinIO**, Ceph, and Garage: keep `kind: s3` and set `AWS_ENDPOINT_URL_S3` to your server URL.
 
 > [!NOTE]
-> Read the [**MinIO** page](minio.md) for the full setup, including the bucket addressing gotcha you will hit if your
-> endpoint is a hostname rather than an IP address.
+> See the [**MinIO** page](minio.md) for the full setup, including the bucket addressing gotcha when using a hostname instead of an IP address.
 
-## Configure the GO Module
-To configure your GO module to use the AWS S3 retriever, you need to add the following
-configuration to your `ffclient.Config{}` object:
+## Configure the Go module
 
-> [!NOTE]
-> The [**S3 Retriever v2**](https://pkg.go.dev/github.com/blackbirdworks/semaphore@v1.23.1/retriever/s3retrieverv2) will use the [`aws-sdk-go-v2`](https://github.com/aws/aws-sdk-go-v2) to access your flag in an S3 bucket.
->
-> The [**S3 Retriever v1**](https://pkg.go.dev/github.com/blackbirdworks/semaphore@v1.23.1/retriever/s3retriever) will use the deprecated [`aws-sdk-go`](https://github.com/aws/aws-sdk-go) to access your flag in an S3 bucket.
->
-> [AWS has announce end-of-support for AWS SDK for Go v1](https://aws.amazon.com/blogs/developer/announcing-end-of-support-for-aws-sdk-for-go-v1-on-july-31-2025/), and it's recommended to migrate from S3 Retriever v1 to v2.
+Add the retriever to `ffclient.Config{}` using [`s3retrieverv2`](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/s3retrieverv2) (`aws-sdk-go-v2`):
 
 ```go
 awsConfig, _ := config.LoadDefaultConfig(context.Background())
 client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
-        Bucket: "my-featureflag-bucket",
-        Item:   "flag/flags.yaml",
+        Bucket:    "my-featureflag-bucket",
+        Item:      "flag/flags.yaml",
         AwsConfig: &awsConfig,
     },
 })
 defer client.Close()
 ```
 
-To load several files from a folder _(leave `Item` empty)_:
+To load several files from a folder _(omit `Item`)_:
 
 ```go
 Retriever: &s3retrieverv2.Retriever{
@@ -129,11 +103,11 @@ Retriever: &s3retrieverv2.Retriever{
 },
 ```
 
-| Field           | Mandatory     | Description                                                                                                                                                                                    |
-|-----------------|:-------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`Bucket`**    | Yes | The name of your bucket.                                                                                                                                                                       |
-| **`Item`**      | No | The location of your file in the bucket. If not set, the retriever is in folder mode and merges several files (see [above](#load-several-files-from-a-folder)). |
-| **`Prefix`**    | No | _Folder mode only._ Key prefix _(ex: `flags/`)_. Empty or `/` is the root of the bucket. Requires the `s3:ListBucket` permission. |
-| **`Pattern`**   | No | _Folder mode only._ Glob matched against the file name only, it can't contain a `/` _(ex: `*.yaml`)_. |
-| **`Recursive`** | No | _Folder mode only._ If `true`, files in nested "folders" are also loaded. Defaults to `false`. |
-| **`AwsConfig`** | No | An instance of `aws.Config` that configure your access to AWS <br/>*check [this documentation for more info](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html)*.<br/>If not set, `config.LoadDefaultConfig()` is called for you, which reads the standard AWS environment variables and shared config files. |
+| Field           | Mandatory | Description |
+|-----------------|:---------:|-------------|
+| **`Bucket`**    | Yes       | Name of your S3 bucket. |
+| **`Item`**      | No        | Location of your file in the bucket. If omitted, the retriever runs in folder mode and merges files (see [above](#load-several-files-from-a-folder)). |
+| **`Prefix`**    | No        | _Folder mode only._ Key prefix _(ex: `flags/`)_. Empty or `/` targets the bucket root. Requires `s3:ListBucket`. |
+| **`Pattern`**   | No        | _Folder mode only._ Glob matched against the file name only; cannot contain `/` _(ex: `*.yaml`)_. |
+| **`Recursive`** | No        | _Folder mode only._ If `true`, files in nested "folders" are also loaded. Defaults to `false`. |
+| **`AwsConfig`** | No        | `aws.Config` instance configuring AWS access (see the [AWS SDK for Go v2 docs](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/)). If omitted, `config.LoadDefaultConfig()` is called automatically using standard AWS environment variables and shared config files. |
