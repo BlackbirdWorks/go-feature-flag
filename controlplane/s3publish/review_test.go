@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -349,4 +350,84 @@ func TestVerifyAcceptsTOMLFlagFilesTheRelayCanLoad(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, rep.OK(), "valid TOML is not invalid content: %v", rep.Problems)
 	assert.Equal(t, []string{controlplane.FormatTOML}, checked, "the hook (the engine) still looks at it")
+}
+
+func TestAccessDeniedIsAStoreErrorWithAHintAndNeverMeansExistsOrMissing(t *testing.T) {
+	t.Parallel()
+
+	denied := &s3fake.StatusError{Code: "AccessDenied", Status: 403}
+	hint := "lacks s3:ListBucket"
+
+	tests := []struct {
+		check func(t *testing.T, err error, fake *s3fake.Fake)
+		name  string
+		deny  string // the call prefix that answers 403
+	}{
+		{
+			name: "the manifest read: a first publish does not guess that there is none", deny: "GET " + manifestKey,
+			check: func(t *testing.T, err error, fake *s3fake.Fake) {
+				t.Helper()
+				require.ErrorContains(t, err, hint)
+				assert.Equal(t, []string{"GET " + manifestKey}, fake.Calls(), "nothing is written")
+			},
+		},
+		{
+			name: "the check of a new object is not taken for an existing one", deny: "HEAD ",
+			check: func(t *testing.T, err error, fake *s3fake.Fake) {
+				t.Helper()
+				require.ErrorContains(t, err, hint)
+				assert.NotContains(t, strings.Join(fake.Calls(), "\n"), "PUT ")
+				assert.Empty(t, fake.Keys())
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := s3fake.New(manifestKey)
+			failOn(fake, tt.deny, denied)
+
+			_, err := newPublisher(
+				t,
+				fake,
+				nil,
+			).Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
+
+			var op *s3publish.OperationError
+
+			require.ErrorAs(t, err, &op)
+			require.ErrorIs(t, err, denied)
+			require.NotErrorIs(t, err, s3publish.ErrNoManifest)
+			tt.check(t, err, fake)
+		})
+	}
+
+	t.Run("other errors carry no hint", func(t *testing.T) {
+		t.Parallel()
+
+		fake := s3fake.New(manifestKey)
+		failOn(fake, "GET ", s3fake.APIError("ServiceUnavailable"))
+
+		_, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: standardObjects(t, "a")})
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), hint)
+	})
+
+	t.Run("verify reports the object as unreadable with the hint", func(t *testing.T) {
+		t.Parallel()
+
+		fake := s3fake.New(manifestKey)
+		objects := standardObjects(t, "a")
+		seedBucket(t, fake, 1, objects...)
+
+		key := objectKey(t, objects[0].Body)
+		failOn(fake, "GET "+key, denied)
+
+		rep, err := newPublisher(t, fake, nil).Verify(t.Context())
+		require.NoError(t, err)
+		require.Len(t, rep.Problems, 1)
+		assert.Equal(t, s3publish.ProblemUnreadable, rep.Problems[0].Code)
+		assert.Contains(t, rep.Problems[0].Detail, hint)
+	})
 }

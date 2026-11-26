@@ -41,6 +41,11 @@ func isNotFound(err error) bool {
 	return false
 }
 
+// isDenied reports a 403 or an AccessDenied code.
+func isDenied(err error) bool {
+	return errorCode(err) == "AccessDenied" || httpStatus(err) == http.StatusForbidden
+}
+
 // isPrecondition reports a failed condition: 412 PreconditionFailed, or 409 ConditionalRequestConflict that AWS
 // returns when conditional writes race.
 func isPrecondition(err error) bool {

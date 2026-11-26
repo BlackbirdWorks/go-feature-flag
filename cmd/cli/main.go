@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/fips140"
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -24,16 +23,15 @@ var (
 )
 
 func main() {
-	os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(execute(os.Args[1:]))
 }
 
-// execute runs the command line and returns the exit code of the process. The final error line goes to stderr for
-// a command that reports through an exit code (it writes its JSON result on stdout) and to stdout for the others.
-func execute(args []string, stdout, stderr io.Writer) int {
+// execute runs the command line and returns the exit code of the process. Cobra keeps its default routing (its
+// usage and its own errors go to stderr). Only the final error line is routed here: to stderr for a command that
+// reports through an exit code (it writes its JSON result on stdout), to stdout for the others, as before.
+func execute(args []string) int {
 	cmd := initRootCmd()
 	cmd.SetArgs(args)
-	cmd.SetOut(stdout)
-	cmd.SetErr(stderr)
 
 	err := cmd.Execute()
 	if err == nil {
@@ -41,7 +39,7 @@ func execute(args []string, stdout, stderr io.Writer) int {
 	}
 
 	code := helper.ExitCodeOf(err)
-	helper.PrintFatal(helper.FatalPrinter(err, stdout, stderr), func(int) {}, err)
+	helper.PrintFatal(helper.FatalPrinter(err, os.Stdout, os.Stderr), func(int) {}, err)
 
 	return code
 }

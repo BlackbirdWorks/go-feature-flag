@@ -50,7 +50,13 @@ type OperationError struct {
 
 // Error implements error.
 func (e *OperationError) Error() string {
-	return fmt.Sprintf("s3publish: %s %s: %v", e.Operation, e.Key, e.Err)
+	text := fmt.Sprintf("s3publish: %s %s: %v", e.Operation, e.Key, e.Err)
+
+	if (e.Operation == opGet || e.Operation == opHead) && isDenied(e.Err) {
+		text += " (S3 also answers 403 for a key that does not exist when the identity lacks s3:ListBucket on the bucket)"
+	}
+
+	return text
 }
 
 // Unwrap returns the error of the client.

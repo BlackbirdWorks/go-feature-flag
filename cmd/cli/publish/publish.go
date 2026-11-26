@@ -174,11 +174,16 @@ func checkFlags(obj *s3publish.Object) error {
 // reportError writes the JSON error object of a failed command when --output is json, and returns the error. The
 // report of a failed verification is already the output of the command, so it gets no second document.
 func reportError(cmd *cobra.Command, opts *options, err error) error {
-	if err == nil || opts.output != outputJSON || errors.Is(err, errVerify) {
+	if err == nil {
+		return nil
+	}
+
+	err = withCode(err) // every failure carries its exit code, so its final line goes to stderr
+
+	if opts.output != outputJSON || errors.Is(err, errVerify) {
 		return err
 	}
 
-	err = withCode(err)
 	code := helper.ExitCodeOf(err)
 	name := helper.JSONErrorName(code)
 

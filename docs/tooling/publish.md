@@ -136,9 +136,20 @@ names the file and the flag. (The engine accepts percentages that do not sum to 
   call: the manifest would overwrite that object.
 - The `connection` in the manifest must be the control-plane connection name of the relay's bootstrap file. `--config`
   mode takes it from the file and is recommended; in explicit mode `--connection` must equal that name.
-- The identity needs `s3:GetObject` and `s3:PutObject` on the bucket. Add `s3:ListBucket` on the bucket: S3 answers a request
-  for a missing key with `403 AccessDenied` instead of `404 NoSuchKey` when the caller may not list the bucket (this is the
-  documented behaviour of S3), and a 403 makes the first publish of a channel and the checks for absent objects fail.
+- Permissions, from the calls the tool makes (all on the bucket of the connection):
+
+  | Command | Calls | IAM actions |
+  |---|---|---|
+  | `publish` | `GetObject` (manifest, and objects that must be hashed), `HeadObject`, `PutObject` | `s3:GetObject` (also needed by `HeadObject`), `s3:PutObject` |
+  | `publish verify` | `GetObject` | `s3:GetObject`, plus `s3:GetObjectVersion` for a manifest entry that pins a `versionId` |
+  | both | | `s3:ListBucket`, see below |
+
+  No `LIST`, `DELETE` or ACL call is made. `s3:ListBucket` is not called either, but it changes what S3 answers for a key that
+  does not exist: with it S3 answers `404`, without it `403 AccessDenied` (documented S3 behaviour). The tool cannot tell that
+  403 from a real access error, so it never guesses: a missing manifest or a new object without `s3:ListBucket` stops the
+  publish with exit code 4 and a message that says `S3 also answers 403 for a key that does not exist when the identity lacks
+  s3:ListBucket`, and `verify` reports a missing object as `unreadable` with the same note. Nothing is written and nothing is
+  taken for "present". Grant `s3:ListBucket` for the first publish of a channel and for new objects.
 - `caBundleFile` of a connection is not available in `--config` mode yet (the bootstrap file has no such setting): the system
   roots are used.
 
@@ -173,6 +184,19 @@ flags as `publish`.
   and checked by the engine.
 - A clean report is about the objects of the connection that were read. It does not say anything about the objects that
   are skipped.
+
+## Streams
+
+| Mode | stdout | stderr |
+|---|---|---|
+| Success, text | the result | nothing |
+| Success, `-o json` | the result: one JSON document | nothing |
+| Failure, text | nothing | the final `error executing command` line |
+| Failure, `-o json` | one JSON error object (`verify` with problems: its report) | the final `error executing command` line |
+| Usage error of Cobra (unknown root flag) | nothing | its message and the usage text |
+
+Cobra's own messages and usage always go to stderr. The `error executing command` line of `publish` and `config` goes to stderr
+too, so stdout is only ever the result. (The other commands keep that line on stdout.)
 
 ## Exit codes
 
