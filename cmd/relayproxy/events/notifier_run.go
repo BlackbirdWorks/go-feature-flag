@@ -59,6 +59,7 @@ type notifierRun struct {
 
 func newNotifierRun(
 	ctx context.Context, def NotifierDef, name *notifierName, prev *notifierRun, cfg *NotificationsConfig,
+	background *sync.WaitGroup,
 ) *notifierRun {
 	run := &notifierRun{
 		def:      def,
@@ -70,7 +71,7 @@ func newNotifierRun(
 		logger:   cfg.Logger.With(slog.String("notifier", def.Name), slog.String("kind", def.Kind)),
 	}
 
-	go run.loop(context.WithoutCancel(ctx))
+	background.Go(func() { run.loop(context.WithoutCancel(ctx)) })
 
 	return run
 }
@@ -88,6 +89,8 @@ func (r *notifierRun) offer(change flagruntime.Change) {
 // instance it replaces, so that the changes of a flag set reach the notifier in order across a reload.
 func (r *notifierRun) loop(ctx context.Context) {
 	defer close(r.finished)
+	// a run that was cut and finishes later is stopped, whoever waited for it
+	defer r.state.Store(stateStopped)
 
 	if r.prev != nil {
 		select {

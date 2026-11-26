@@ -69,11 +69,18 @@ func (d *Dispatcher) Reload(ctx context.Context, specs Specs) (ReloadSet, error)
 // Events handed over before the swap went to the old exporters and are flushed by their drain; events after it
 // go to the new ones; a batch goes to one set only.
 func (d *Dispatcher) Apply(ctx context.Context, defs []ExporterDef) (ReloadSet, error) {
-	set, leaving, err := d.swapSet(defs)
+	set, leaving, err := d.swapSet(ctx, defs)
 	if err != nil {
 		return ReloadSet{}, err
 	}
 
+	d.finishReload(ctx, &set, leaving)
+
+	return set, nil
+}
+
+// finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
+func (d *Dispatcher) finishReload(ctx context.Context, set *ReloadSet, leaving []*managed) {
 	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.DrainTimeout)
 	defer cancel()
 
@@ -82,13 +89,11 @@ func (d *Dispatcher) Apply(ctx context.Context, defs []ExporterDef) (ReloadSet, 
 			set.Cut = append(set.Cut, res.Name)
 		}
 	}
-
-	return set, nil
 }
 
 // swapSet builds the new set, publishes it and starts the closing of the instances that left, under the
 // lifecycle lock.
-func (d *Dispatcher) swapSet(defs []ExporterDef) (ReloadSet, []*managed, error) {
+func (d *Dispatcher) swapSet(ctx context.Context, defs []ExporterDef) (ReloadSet, []*managed, error) {
 	d.lifecycle.Lock()
 	defer d.lifecycle.Unlock()
 
@@ -96,6 +101,14 @@ func (d *Dispatcher) swapSet(defs []ExporterDef) (ReloadSet, []*managed, error) 
 		return ReloadSet{}, nil, ErrClosed
 	}
 
+	set, leaving := d.swapSetLocked(ctx, defs)
+
+	return set, leaving, nil
+}
+
+// swapSetLocked publishes the new set and starts the closing of the instances that left. The caller holds the
+// lifecycle lock and has checked that the dispatcher is open.
+func (d *Dispatcher) swapSetLocked(ctx context.Context, defs []ExporterDef) (ReloadSet, []*managed) {
 	old := d.state.Load()
 	current := make(map[string]*managed, len(old.active))
 
@@ -148,10 +161,10 @@ func (d *Dispatcher) swapSet(defs []ExporterDef) (ReloadSet, []*managed, error) 
 	d.swap(&dispatchState{active: next, retired: slices.Concat(retired, leaving)})
 
 	for _, inst := range leaving {
-		inst.startClose(&d.background)
+		inst.startClose(ctx, &d.background)
 	}
 
-	return set, leaving, nil
+	return set, leaving
 }
 
 // launch builds and starts the instance of an exporter, and records it under its name.
@@ -172,7 +185,7 @@ func (d *Dispatcher) launch(def *ExporterDef) *managed {
 	mgr := d.cfg.NewManager(def.Name, def.Config, d.cfg.Logger.With(slog.String("exporter", def.Name)))
 	mgr.Start()
 
-	inst := newManaged(def, mgr, entry, d.cfg.HandoffSize, d.cfg.BatchSize)
+	inst := newManaged(def, mgr, entry, d.cfg.HandoffSize, d.cfg.BatchSize, d.cfg.Logger)
 	entry.latest.Store(inst)
 
 	return inst
@@ -296,7 +309,7 @@ func (d *Dispatcher) Shutdown(ctx context.Context) (ShutdownReport, error) {
 
 	for _, inst := range snap.active {
 		inst.state.CompareAndSwap(stateRunning, stateDraining)
-		inst.startClose(&d.background)
+		inst.startClose(ctx, &d.background)
 	}
 
 	results := d.waitClosed(ctx, closing)

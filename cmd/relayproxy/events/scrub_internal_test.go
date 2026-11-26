@@ -15,6 +15,8 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+const secretEight = "abcdefgh"
+
 const encodedMessage = "h [REDACTED]: remote refused"
 
 // echoExporter fails with an error that carries the text it was built with, like an HTTP client that names the
@@ -141,25 +143,28 @@ func TestScrubForms(t *testing.T) {
 	tests := []struct {
 		name    string
 		secrets []string
-		want    int
+		want    []string
 	}{
-		{name: "none", secrets: nil, want: 0},
-		{name: "short ones give nothing", secrets: []string{"1234567"}, want: 0},
-		{name: "a plain 8 character secret", secrets: []string{"abcdefgh"}, want: 3},
+		{name: "none", secrets: nil, want: nil},
+		{name: "short ones give nothing", secrets: []string{"1234567"}, want: nil},
+		{
+			// the raw form (the escapes are the same string) and the base64 forms that differ: standard padded,
+			// standard unpadded; the URL alphabet gives the same strings
+			name: "a plain 8 character secret", secrets: []string{secretEight},
+			want: []string{"YWJjZGVmZ2g=", "YWJjZGVmZ2g", secretEight},
+		},
+		{
+			name: "the longest forms come first", secrets: []string{secretEight, "abcdefghi"},
+			want: []string{"YWJjZGVmZ2g=", "YWJjZGVmZ2hp", "YWJjZGVmZ2g", "abcdefghi", secretEight},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// the raw form (the escapes are the same string) and the base64 forms that differ: standard padded, raw standard
-			assert.Len(t, scrubForms(tt.secrets), tt.want)
+			assert.Equal(t, tt.want, scrubForms(tt.secrets))
 		})
-	}
-
-	forms := scrubForms([]string{"abcdefgh", "abcdefgh-longer-secret"})
-	for i := 1; i < len(forms); i++ {
-		assert.GreaterOrEqual(t, len(forms[i-1]), len(forms[i]), "the longest forms come first")
 	}
 }
 

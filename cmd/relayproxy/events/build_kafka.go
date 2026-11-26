@@ -306,7 +306,8 @@ func applyKafkaProducer(cfg *sarama.Config, spec *bootstrap.KafkaProducer) {
 	}
 
 	if spec.Retry != nil {
-		applyKafkaRetry(&prod.Retry.Max, &prod.Retry.Backoff, spec.Retry)
+		setInt(&prod.Retry.Max, spec.Retry.Max)
+		setDuration(&prod.Retry.Backoff, spec.Retry.Backoff)
 		setInt(&prod.Retry.MaxBufferLength, spec.Retry.MaxBufferLength)
 
 		if spec.Retry.MaxBufferBytes != 0 {

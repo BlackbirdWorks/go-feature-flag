@@ -634,24 +634,40 @@ func TestBuilder_Identity(t *testing.T) {
 		return built[0].Identity
 	}
 
+	rotated := maps.Clone(buildEnv)
+	rotated["SECRET"] = "another-signing-key"
+
+	tests := []struct {
+		env      map[string]string
+		name     string
+		body     string
+		wantSame bool
+	}{
+		{name: "the same spec", body: entry, env: buildEnv, wantSame: true},
+		{name: "a rotated secret, though the spec is the same", body: entry, env: rotated, wantSame: false},
+		{
+			name:     "a changed setting",
+			env:      buildEnv,
+			wantSame: false,
+			body:     "exporters:\n  e: {kind: webhook, endpointUrl: {fromEnv: URL}, secret: {fromEnv: SECRET}, meta: {a: b}}\n",
+		},
+	}
+
 	base := identityOf(t, entry, buildEnv)
 
-	rotated := maps.Clone(buildEnv)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	rotated[envSecret] = "another-signing-key"
+			got := identityOf(t, tt.body, tt.env)
 
-	assert.Equal(t, base, identityOf(t, entry, buildEnv), "the same spec has the same identity")
-	assert.NotEqual(t, base, identityOf(t, entry, rotated), "a rotated secret changes it, though the spec is the same")
-	assert.NotEqual(
-		t,
-		base,
-		identityOf(
-			t,
-			"exporters:\n  e: {kind: webhook, endpointUrl: {fromEnv: URL}, secret: {fromEnv: SECRET}, meta: {a: b}}\n",
-			buildEnv,
-		),
-		"a changed setting changes it",
-	)
+			if tt.wantSame {
+				assert.Equal(t, base, got)
+			} else {
+				assert.NotEqual(t, base, got)
+			}
+		})
+	}
 }
 
 func TestBuilder_IdentityFollowsTheConnection(t *testing.T) {

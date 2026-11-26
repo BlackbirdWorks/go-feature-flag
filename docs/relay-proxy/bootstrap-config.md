@@ -205,7 +205,7 @@ without credentials.
 | `azureBlobStorage` | | `container`, `accountName` | `accountKey` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
 | `opentelemetry` | | | `tracerName` |
 
-`format` is `json` (default for the file, s3, googleStorage and azureBlobStorage kinds), `csv` or `parquet`.
+`format` is `json` (default for the file, s3, googleStorage and azureBlobStorage kinds), `csv` or `parquet`. The `kinesis`, `kafka` and `sqs` kinds accept it as version 1 did but always write JSON (`sqs` also ignores it for its message body): `csv` and `parquet` are valid there and have no effect.
 
 ### Kafka producer settings
 
@@ -222,12 +222,12 @@ Version 1 took any scalar field of the sarama configuration under `kafka.config`
 | `Net.SASL.Password` | `net.sasl.password` (secret) |
 | `Net.SASL.GSSAPI` `AuthType`, `KeyTabPath`, `KerberosConfigPath`, `ServiceName`, `Username`, `Realm`, `DisablePAFXFAST` | `net.sasl.gssapi.authType` (`user` or `keytab`), `keyTabPath`, `kerberosConfigPath`, `serviceName`, `username`, `realm`, `disablePafxfast` |
 | `Net.SASL.GSSAPI.Password` | `net.sasl.gssapi.password` (secret) |
-| `Metadata` `Retry.Max`, `Retry.Backoff`, `RefreshFrequency`, `Full`, `Timeout`, `AllowAutoTopicCreation`, `SingleFlight` | `metadata.retry.max`, `retry.backoff`, `refreshFrequency`, `full`, `timeout`, `allowAutoTopicCreation`, `singleFlight` |
+| `Metadata` `Retry.Max`, `Retry.Backoff` (no buffer limits), `RefreshFrequency`, `Full`, `Timeout`, `AllowAutoTopicCreation`, `SingleFlight` | `metadata.retry.max`, `retry.backoff`, `refreshFrequency`, `full`, `timeout`, `allowAutoTopicCreation`, `singleFlight` |
 | `Producer` `MaxMessageBytes`, `Timeout`, `Idempotent`, `CompressionLevel` | `producer.maxMessageBytes`, `timeout`, `idempotent`, `compressionLevel` |
 | `Producer.RequiredAcks` | `producer.requiredAcks` (`none`, `local`, `all`) |
 | `Producer.Compression` | `producer.compression` (`none`, `gzip`, `snappy`, `lz4`, `zstd`) |
 | `Producer.Partitioner` | `producer.partitioner` (`hash`, `random`, `roundrobin`) |
-| `Producer.Retry` `Max`, `Backoff`, `MaxBufferLength`, `MaxBufferBytes` | `producer.retry.max`, `backoff`, `maxBufferLength`, `maxBufferBytes` |
+| `Producer.Retry` `Max`, `Backoff`, `MaxBufferLength`, `MaxBufferBytes` (the buffer limits only exist here) | `producer.retry.max`, `backoff`, `maxBufferLength`, `maxBufferBytes` |
 | `Producer.Flush` `Bytes`, `Messages`, `Frequency`, `MaxMessages` | `producer.flush.bytes`, `messages`, `frequency`, `maxMessages` |
 | `Producer.Transaction` `ID`, `Timeout`, `Retry.Max`, `Retry.Backoff` | `producer.transaction.id`, `timeout`, `retry.max`, `retry.backoff` |
 

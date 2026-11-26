@@ -77,19 +77,29 @@ func TestRuntime_ReloadErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		prepare func(t *testing.T, runtime *events.Runtime)
 		specs   events.Specs
 		wantErr error
 		name    string
 	}{
 		{
-			name:    "exporter",
+			name:    "an exporter of an unknown kind",
 			specs:   events.Specs{Exporters: map[string]bootstrap.Exporter{"e": {Kind: kindNope}}},
 			wantErr: events.ErrUnknownKind,
 		},
 		{
-			name:    "notifier",
+			name:    "a notifier of an unknown kind",
 			specs:   events.Specs{Notifiers: map[string]bootstrap.Notifier{"n": {Kind: kindNope}}},
 			wantErr: events.ErrUnknownKind,
+		},
+		{
+			name: "after the shutdown", specs: events.Specs{}, wantErr: events.ErrClosed,
+			prepare: func(t *testing.T, runtime *events.Runtime) {
+				t.Helper()
+
+				_, err := runtime.Shutdown(bounded(t))
+				require.NoError(t, err)
+			},
 		},
 	}
 
@@ -102,21 +112,14 @@ func TestRuntime_ReloadErrors(t *testing.T) {
 
 			t.Cleanup(func() { _, _ = runtime.Shutdown(canceled()) })
 
+			if tt.prepare != nil {
+				tt.prepare(t, runtime)
+			}
+
 			_, err := runtime.Reload(context.Background(), tt.specs)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
-
-	t.Run("after the shutdown", func(t *testing.T) {
-		t.Parallel()
-
-		runtime := events.NewRuntime(&events.RuntimeConfig{})
-		_, err := runtime.Shutdown(bounded(t))
-		require.NoError(t, err)
-
-		_, err = runtime.Reload(context.Background(), events.Specs{})
-		require.ErrorIs(t, err, events.ErrClosed)
-	})
 }
 
 func TestRuntime_ErrorsNeverCarrySecrets(t *testing.T) {

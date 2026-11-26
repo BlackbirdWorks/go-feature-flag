@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -104,7 +105,16 @@ connections:
 	}
 
 	require.NoError(t, scanner.Err())
-	assert.Len(t, got, collectors*perCollect)
+
+	wantKeys := eventKeys(collectors * perCollect)
+	gotKeys := make([]string, 0, len(got))
+
+	for key := range got {
+		gotKeys = append(gotKeys, key)
+	}
+
+	slices.Sort(gotKeys)
+	assert.Equal(t, wantKeys, gotKeys)
 
 	for key, n := range got {
 		assert.Equal(t, 1, n, "event %s is in the file once", key)

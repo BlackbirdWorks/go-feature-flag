@@ -87,7 +87,7 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 | notifiers | `slack`, `microsoftteams`, `discord`, `webhook` |
 
 - Defaults (`format`, `filename`, `csvTemplate`, `parquetCompressionCodec`, `logFormat`, `flushInterval`, `maxEventInMemory`) are those of version 1.
-- `format` is accepted for `kinesis`, `kafka` and `sqs` as in version 1 (`sqs` ignores it, as before). `autoMigrate` is accepted for `bigquery`.
+- `format` is accepted for `kinesis`, `kafka` and `sqs` as in version 1, but those kinds always write JSON: `csv` and `parquet` pass validation and have no effect there. `autoMigrate` is accepted for `bigquery`.
 - `kafka` takes the producer settings of version 1 as keys; see [Kafka producer settings](../relay-proxy/bootstrap-config.md#kafka-producer-settings) for the table of v1 fields and v2 keys.
 - `eventType: tracking` is not carried yet: such an exporter is rejected with a typed error.
 - `googleCredentials` of `googleStorage` and `pubsub` is applied as a client option (version 1 ignored it for these kinds).
@@ -103,6 +103,7 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 | `redshift` | `redshift` | the AWS configuration |
 
 - Exporters sharing a connection share one client or configuration: the factory builds it once.
+- When an exporter leaves the set, after its final flush the runtime closes it if it holds resources (the Kafka producer, the Pub/Sub publisher and client, the BigQuery client).
 - An unknown connection, a connection of the wrong type and invalid settings are typed errors that name the entry (`exporters[2] "archive"`).
 
 ## Secrets

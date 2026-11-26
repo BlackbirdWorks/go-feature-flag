@@ -148,23 +148,36 @@ func TestExport_LoadsTheDefaultConfigWithoutOne(t *testing.T) {
 	assert.NotNil(t, exp.AwsConfig, "the configuration that was loaded is kept")
 }
 
-// TestExport_Errors checks the errors before the upload.
+// TestExport_Errors checks the errors before the upload. Each case sets the environment it needs.
 func TestExport_Errors(t *testing.T) {
-	t.Run("the default configuration cannot be loaded", func(t *testing.T) {
-		t.Setenv("AWS_CA_BUNDLE", "/does/not/exist.pem")
+	tests := []struct {
+		client  *s3.Client
+		env     map[string]string
+		name    string
+		wantErr string
+	}{
+		{
+			name:    "the default configuration cannot be loaded",
+			env:     map[string]string{"AWS_CA_BUNDLE": "/does/not/exist.pem"},
+			wantErr: "impossible to init S3 exporter",
+		},
+		{
+			name: "no temporary directory", env: map[string]string{"TMPDIR": "/does/not/exist"},
+			client:  s3.New(s3.Options{Region: testRegion}),
+			wantErr: "create temp dir for S3 export",
+		},
+	}
 
-		exp := &Exporter{Bucket: "b", Format: formatJSON}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
 
-		err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), oneEvent())
-		require.ErrorContains(t, err, "impossible to init S3 exporter")
-	})
+			exp := &Exporter{Bucket: "b", Format: formatJSON, S3Client: tt.client}
 
-	t.Run("no temporary directory", func(t *testing.T) {
-		t.Setenv("TMPDIR", "/does/not/exist")
-
-		exp := &Exporter{S3Client: s3.New(s3.Options{Region: testRegion}), Bucket: "b", Format: formatJSON}
-
-		err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), oneEvent())
-		require.ErrorContains(t, err, "create temp dir for S3 export")
-	})
+			err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), oneEvent())
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }

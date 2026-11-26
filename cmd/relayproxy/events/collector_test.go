@@ -109,6 +109,9 @@ func TestCollector(t *testing.T) {
 	_, err = runtime.Dispatcher.Apply(context.Background(), []events.ExporterDef{def("a", "v2"), def("b", "v1")})
 	require.NoError(t, err)
 
+	// the notifier counts a change after its Notify returned: shutting the worker down waits for it
+	require.NoError(t, runtime.Notifications.Shutdown(bounded(t)))
+
 	metrics := gather(t, runtime)
 
 	wantNames := []string{

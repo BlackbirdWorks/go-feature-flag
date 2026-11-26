@@ -663,3 +663,28 @@ func tapped() (events.NewManagerFunc, chan struct{}) {
 		}
 	}, tap
 }
+
+// eventKeys returns the sorted keys of the events with the identifiers 0 to n-1.
+func eventKeys(n int) []string {
+	all := make([]*exporter.FeatureEvent, 0, n)
+	for i := range n {
+		all = append(all, ev(i))
+	}
+
+	return keys(all)
+}
+
+// addedKeys returns the sorted keys of the flags the diffs added.
+func addedKeys(diffs []notifier.DiffCache) []string {
+	var out []string
+
+	for _, diff := range diffs {
+		for key := range diff.Added {
+			out = append(out, key)
+		}
+	}
+
+	slices.Sort(out)
+
+	return out
+}

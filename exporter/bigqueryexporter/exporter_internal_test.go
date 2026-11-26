@@ -772,11 +772,13 @@ type ensureTableCall struct {
 }
 
 type mockBigQueryClient struct {
+	closeErr         error
 	ensureTableErr   error
 	putErr           error
 	inserters        map[string]*mockInserter
 	putErrByTable    map[string]error
 	ensureTableCalls []ensureTableCall
+	closeCalls       int
 }
 
 func newMockBigQueryClient() *mockBigQueryClient {
@@ -823,8 +825,10 @@ func (m *mockBigQueryClient) EnsureTable(
 	return nil
 }
 
-func (*mockBigQueryClient) Close() error {
-	return nil
+func (m *mockBigQueryClient) Close() error {
+	m.closeCalls++
+
+	return m.closeErr
 }
 
 func (m *mockBigQueryClient) ensureInitialized() {
@@ -853,5 +857,68 @@ func mockNewClientFunc(
 ) func(context.Context, string, ...option.ClientOption) (bigQueryClient, error) {
 	return func(_ context.Context, _ string, _ ...option.ClientOption) (bigQueryClient, error) {
 		return client, nil
+	}
+}
+
+// TestExporter_Close checks that Close closes the client once, that a second call and a never initialised
+// exporter do nothing, and that the error of the client is returned.
+var errClose = errors.New("close failed")
+
+func TestExporter_Close(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr        error
+		client         func() *mockBigQueryClient
+		name           string
+		calls          int
+		wantCloseCalls int
+	}{
+		{
+			name: "an initialised exporter closes its client once", client: newMockBigQueryClient, calls: 2,
+			wantCloseCalls: 1,
+		},
+		{name: "an exporter that never exported has nothing to close", client: nil, calls: 2, wantCloseCalls: 0},
+		{
+			name: "the error of the client is returned",
+			client: func() *mockBigQueryClient {
+				client := newMockBigQueryClient()
+				client.closeErr = errClose
+
+				return client
+			},
+			calls: 1, wantErr: errClose, wantCloseCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exp := &Exporter{}
+
+			var client *mockBigQueryClient
+
+			if tt.client != nil {
+				client = tt.client()
+				exp.client = client
+			}
+
+			var errs []error
+
+			for range tt.calls {
+				errs = append(errs, exp.Close())
+			}
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, errs[0], tt.wantErr)
+			} else {
+				assert.Equal(t, make([]error, tt.calls), errs)
+			}
+
+			if client != nil {
+				assert.Equal(t, tt.wantCloseCalls, client.closeCalls)
+			}
+		})
 	}
 }

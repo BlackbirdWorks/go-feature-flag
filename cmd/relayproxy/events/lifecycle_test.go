@@ -40,7 +40,7 @@ func TestDispatcher_ReloadKeepsUnchangedExporter(t *testing.T) {
 	fac.of("a", 0).waitFor(t, 2)
 
 	assert.Equal(t, 2, fac.count(), "no manager was built by the reload")
-	assert.Equal(t, []string{"flag-0", "flag-1", "flag-2", "flag-3", "flag-4"}, keys(fac.of("a", 0).got()))
+	assert.Equal(t, []string{"flag-0", eventOneKey, eventTwoKey, eventThreeKey, "flag-4"}, keys(fac.of("a", 0).got()))
 	assert.Zero(t, fac.of("a", 0).stopCount(), "the exporter was not stopped")
 }
 
@@ -73,7 +73,14 @@ func TestDispatcher_ReloadKeepsQueuedEventsOfRealManager(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, sink.events, 1, "one flush, the one of the shutdown")
-	assert.Len(t, sink.events[0], 5)
+
+	flushed := make([]string, 0, len(sink.events[0]))
+	for _, event := range sink.events[0] {
+		flushed = append(flushed, event.GetKey())
+	}
+
+	slices.Sort(flushed)
+	assert.Equal(t, eventKeys(5), flushed)
 	assert.Equal(t, uint64(5), disp.Status().Exporters[0].Exported)
 }
 
@@ -101,11 +108,11 @@ func TestDispatcher_ReloadReplacesChangedExporter(t *testing.T) {
 	assert.Zero(t, fac.of("a", 1).stopCount())
 	assert.Equal(
 		t,
-		[]string{"flag-1", "flag-2"},
+		[]string{eventOneKey, eventTwoKey},
 		keys(fac.of("a", 0).got()),
 		"events before the reload went to the old one",
 	)
-	assert.Equal(t, []string{"flag-3"}, keys(fac.of("a", 1).got()), "events after the reload go to the new one")
+	assert.Equal(t, []string{eventThreeKey}, keys(fac.of("a", 1).got()), "events after the reload go to the new one")
 
 	require.NoError(t, disp.WaitDrains(bounded(t)))
 
@@ -587,7 +594,7 @@ func TestDispatcher_ShutdownDrainsAndIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, name := range []string{"a", "b"} {
-		assert.Len(t, fac.of(name, 0).got(), 50, "everything queued was delivered")
+		assert.Equal(t, eventKeys(50), keys(fac.of(name, 0).got()), "everything queued was delivered")
 		assert.Equal(t, 1, fac.of(name, 0).stopCount(), "%s was flushed once", name)
 	}
 
@@ -738,13 +745,18 @@ func TestDispatcher_CollectDuringShutdown(t *testing.T) {
 
 	wg.Wait()
 
-	count := 0
+	acceptedKeys := []string{}
 
-	accepted.Range(func(_, _ any) bool {
-		count++
+	accepted.Range(func(key, _ any) bool {
+		keyString, _ := key.(string)
+		acceptedKeys = append(acceptedKeys, keyString)
 
 		return true
 	})
+
+	slices.Sort(acceptedKeys)
+
+	count := len(acceptedKeys)
 
 	status := disp.Status()
 	total := uint64(collectors * perCollect)
@@ -756,6 +768,6 @@ func TestDispatcher_CollectDuringShutdown(t *testing.T) {
 		uint64(count)+status.Queue.Dropped.QueueFull+status.Queue.Dropped.Shutdown,
 		"every event is accepted or counted",
 	)
-	assert.Len(t, fac.of("a", 0).got(), count, "every accepted event was delivered")
+	assert.Equal(t, acceptedKeys, keys(fac.of("a", 0).got()), "every accepted event was delivered")
 	assert.Zero(t, status.Queue.Length, "nothing is left in the channel")
 }

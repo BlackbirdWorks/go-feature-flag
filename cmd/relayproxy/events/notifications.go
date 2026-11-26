@@ -57,6 +57,8 @@ type Notifications struct {
 	unwatch  func() bool
 	cfg      NotificationsConfig
 	consumer sync.WaitGroup
+	// background counts the goroutines of the notifier instances.
+	background sync.WaitGroup
 	// mu guards the offer of a change (read) against the swap of the set (write).
 	mu sync.RWMutex
 	// lifecycle serialises Start, the swap of Apply and Shutdown. It is not held while waiting for a drain.
@@ -141,10 +143,7 @@ func (n *Notifications) Apply(ctx context.Context, defs []NotifierDef) (ReloadSe
 		return ReloadSet{}, err
 	}
 
-	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), n.cfg.DrainTimeout)
-	defer cancel()
-
-	set.Cut = closeRuns(drainCtx, leaving)
+	n.finishReload(ctx, &set, leaving)
 
 	return set, nil
 }
@@ -161,6 +160,24 @@ func closeRuns(ctx context.Context, runs []*notifierRun) []string {
 	}
 
 	return cut
+}
+
+// WaitDrains waits until every notifier instance that left the set has finished, including the ones whose drain was
+// cut. It returns the error of ctx when that comes first.
+func (n *Notifications) WaitDrains(ctx context.Context) error {
+	finished := make(chan struct{})
+
+	go func() {
+		n.background.Wait()
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err() //nolint:wrapcheck // the context error says it
+	}
 }
 
 // Done is closed when [Notifications.Shutdown] finished.
@@ -258,18 +275,6 @@ func (n *Notifications) broadcast(ctx context.Context, change flagruntime.Change
 	n.cfg.Broadcast(change)
 }
 
-// open reports whether the notifications accept a reload.
-func (n *Notifications) open() error {
-	n.lifecycle.Lock()
-	defer n.lifecycle.Unlock()
-
-	if n.closed {
-		return ErrClosed
-	}
-
-	return nil
-}
-
 func (n *Notifications) swapSet(ctx context.Context, defs []NotifierDef) (ReloadSet, []*notifierRun, error) {
 	n.lifecycle.Lock()
 	defer n.lifecycle.Unlock()
@@ -278,6 +283,14 @@ func (n *Notifications) swapSet(ctx context.Context, defs []NotifierDef) (Reload
 		return ReloadSet{}, nil, ErrClosed
 	}
 
+	set, leaving := n.swapSetLocked(ctx, defs)
+
+	return set, leaving, nil
+}
+
+// swapSetLocked publishes the new set and closes the instances that left. The caller holds the lifecycle lock and
+// has checked that the notifications are open.
+func (n *Notifications) swapSetLocked(ctx context.Context, defs []NotifierDef) (ReloadSet, []*notifierRun) {
 	old := n.state.Load()
 	current := make(map[string]*notifierRun, len(old.active))
 
@@ -329,7 +342,15 @@ func (n *Notifications) swapSet(ctx context.Context, defs []NotifierDef) (Reload
 		run.close()
 	}
 
-	return set, leaving, nil
+	return set, leaving
+}
+
+// finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
+func (n *Notifications) finishReload(ctx context.Context, set *ReloadSet, leaving []*notifierRun) {
+	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), n.cfg.DrainTimeout)
+	defer cancel()
+
+	set.Cut = closeRuns(drainCtx, leaving)
 }
 
 // launch starts the instance of a notifier, after prev (the instance it replaces) in the order of the calls.
@@ -345,7 +366,7 @@ func (n *Notifications) launch(ctx context.Context, def NotifierDef, prev *notif
 		n.names.Store(&updated)
 	}
 
-	run := newNotifierRun(ctx, def, entry, prev, &n.cfg)
+	run := newNotifierRun(ctx, def, entry, prev, &n.cfg, &n.background)
 	entry.latest.Store(run)
 
 	return run

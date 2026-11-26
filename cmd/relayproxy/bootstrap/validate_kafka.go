@@ -33,6 +33,10 @@ func (v *validator) nonNegative(path string, value int64) {
 
 func (v *validator) kafkaRetry(path string, retry *KafkaRetry) {
 	v.nonNegative(path+".max", int64(retry.Max))
+}
+
+func (v *validator) kafkaProducerRetry(path string, retry *KafkaProducerRetry) {
+	v.nonNegative(path+".max", int64(retry.Max))
 	v.nonNegative(path+".maxBufferLength", int64(retry.MaxBufferLength))
 	v.nonNegative(path+".maxBufferBytes", retry.MaxBufferBytes)
 }
@@ -53,7 +57,7 @@ func (v *validator) kafkaProducer(path string, producer *KafkaProducer) {
 	v.nonNegative(path+".maxMessageBytes", int64(producer.MaxMessageBytes))
 
 	if producer.Retry != nil {
-		v.kafkaRetry(path+".retry", producer.Retry)
+		v.kafkaProducerRetry(path+".retry", producer.Retry)
 	}
 
 	if tx := producer.Transaction; tx != nil && tx.Retry != nil {

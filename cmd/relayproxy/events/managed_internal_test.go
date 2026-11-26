@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 
@@ -47,26 +49,33 @@ func (a *asyncManager) QueueEvents(batch []Event) {
 
 func (a *asyncManager) DroppedEvents() int64 { return a.dropped }
 
+// managedCase is a row of [TestNewManaged].
+type managedCase struct {
+	manager     FeatureManager
+	received    func() []string
+	name        string
+	wantKeys    []string
+	wantDropped uint64
+}
+
 // TestNewManaged checks how an instance hands events to its manager: in batches when the manager has
 // QueueEvents, one by one with AddEvent when it has not, and how it reads the drops of the manager.
 func TestNewManaged(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		manager     func() FeatureManager
-		name        string
-		wantBatches int
-		wantAdded   int
-		wantDropped uint64
-	}{
+	async, plain := &asyncManager{dropped: 3}, &plainManager{}
+
+	tests := []managedCase{
 		{
-			name:    "a manager with QueueEvents gets the events in batches",
-			manager: func() FeatureManager { return &asyncManager{dropped: 3} }, wantBatches: 1, wantDropped: 3,
+			name:        "a manager with QueueEvents gets the events in batches",
+			manager:     async,
+			received:    func() []string { return batchKeys(async.batches) },
+			wantKeys:    []string{"1", "2", "3"},
+			wantDropped: 3,
 		},
 		{
-			name:        "a manager without QueueEvents gets them one by one",
-			manager:     func() FeatureManager { return &plainManager{} },
-			wantAdded:   3,
+			name: "a manager without QueueEvents gets them one by one", manager: plain,
+			received: func() []string { return batchKeys([][]Event{plain.added}) }, wantKeys: []string{"1", "2", "3"},
 			wantDropped: 0,
 		},
 	}
@@ -79,37 +88,37 @@ func TestNewManaged(t *testing.T) {
 			entry := &nameEntry{name: "a"}
 			def.wrapper().name = &entry.stats
 
-			mgr := tt.manager()
-			// the batch size is 8 and three events are waiting when the goroutine of the hand-off starts
-			inst := newManaged(&def, mgr, entry, 8, 8)
+			inst := newManaged(&def, tt.manager, entry, 8, 8, slog.New(slog.DiscardHandler))
 			entry.latest.Store(inst)
 
 			inst.offer([]Event{{Key: "1"}, {Key: "2"}, {Key: "3"}})
 
 			var background sync.WaitGroup
 
-			inst.startClose(&background)
+			inst.startClose(context.Background(), &background)
 			background.Wait()
 
-			switch typed := mgr.(type) {
-			case *asyncManager:
-				got := 0
-				for _, batch := range typed.batches {
-					got += len(batch)
-				}
-
-				assert.Equal(t, 3, got)
-				assert.LessOrEqual(t, len(typed.batches), 3)
-				assert.GreaterOrEqual(t, len(typed.batches), tt.wantBatches)
-			case *plainManager:
-				assert.Len(t, typed.added, tt.wantAdded)
-			}
-
+			assert.Equal(t, tt.wantKeys, tt.received())
 			assert.Equal(t, tt.wantDropped, inst.managerDropped())
 			assert.True(t, inst.isFinished())
 			assert.Equal(t, uint64(3), entry.stats.handed.Load())
 		})
 	}
+}
+
+// batchKeys returns the sorted keys of the events of the batches.
+func batchKeys(batches [][]Event) []string {
+	var out []string
+
+	for _, batch := range batches {
+		for _, event := range batch {
+			out = append(out, event.Key)
+		}
+	}
+
+	slices.Sort(out)
+
+	return out
 }
 
 // TestWaitCollectors checks that the shutdown waits for a Collect that is between its check and its send, and
@@ -118,15 +127,26 @@ func TestWaitCollectors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		// act runs while waitCollectors waits (or before it starts, for a context that is done)
+		act          func(disp *Dispatcher, cancel context.CancelFunc)
 		name         string
 		inflight     int64
-		release      bool
-		cancelBefore bool
 		wantInflight int64
 	}{
-		{name: "nothing in flight returns at once", inflight: 0, wantInflight: 0},
-		{name: "waits until the collector is done", inflight: 1, release: true, wantInflight: 0},
-		{name: "a passed deadline stops the wait", inflight: 1, cancelBefore: true, wantInflight: 1},
+		{
+			name:         "nothing in flight returns at once",
+			inflight:     0,
+			act:          func(*Dispatcher, context.CancelFunc) {},
+			wantInflight: 0,
+		},
+		{
+			name: "waits until the collector is done", inflight: 1, wantInflight: 0,
+			act: func(disp *Dispatcher, _ context.CancelFunc) { disp.inflight.Add(-1) },
+		},
+		{
+			name: "a passed deadline stops the wait", inflight: 1, wantInflight: 1,
+			act: func(_ *Dispatcher, cancel context.CancelFunc) { cancel() },
+		},
 	}
 
 	for _, tt := range tests {
@@ -139,10 +159,6 @@ func TestWaitCollectors(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			if tt.cancelBefore {
-				cancel()
-			}
-
 			done := make(chan struct{})
 
 			go func() {
@@ -150,9 +166,7 @@ func TestWaitCollectors(t *testing.T) {
 				close(done)
 			}()
 
-			if tt.release {
-				disp.inflight.Add(-1)
-			}
+			tt.act(disp, cancel)
 
 			<-done
 

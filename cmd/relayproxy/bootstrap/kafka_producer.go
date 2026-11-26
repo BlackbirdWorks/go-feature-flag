@@ -12,19 +12,11 @@ type KafkaMetadata struct {
 	SingleFlight           *bool `json:"singleFlight,omitempty"           yaml:"singleFlight,omitempty"`
 }
 
-// KafkaRetry is a sarama `Retry` block: Max and Backoff (and, for the producer, the buffer limits).
-type KafkaRetry struct {
-	Backoff         *Duration `json:"backoff,omitempty"         yaml:"backoff,omitempty"`
-	MaxBufferBytes  int64     `json:"maxBufferBytes,omitempty"  yaml:"maxBufferBytes,omitempty"`
-	Max             int       `json:"max,omitempty"             yaml:"max,omitempty"`
-	MaxBufferLength int       `json:"maxBufferLength,omitempty" yaml:"maxBufferLength,omitempty"`
-}
-
 // KafkaProducer is sarama `Producer`. `Return.Successes` and `Return.Errors` are always true, as in version 1.
 type KafkaProducer struct {
-	Retry       *KafkaRetry       `json:"retry,omitempty"       yaml:"retry,omitempty"`
-	Flush       *KafkaFlush       `json:"flush,omitempty"       yaml:"flush,omitempty"`
-	Transaction *KafkaTransaction `json:"transaction,omitempty" yaml:"transaction,omitempty"`
+	Retry       *KafkaProducerRetry `json:"retry,omitempty"       yaml:"retry,omitempty"`
+	Flush       *KafkaFlush         `json:"flush,omitempty"       yaml:"flush,omitempty"`
+	Transaction *KafkaTransaction   `json:"transaction,omitempty" yaml:"transaction,omitempty"`
 	// Timeout is sarama `Producer.Timeout`.
 	Timeout *Duration `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	// Idempotent is sarama `Producer.Idempotent`.

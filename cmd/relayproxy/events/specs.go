@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash"
+	"hash/fnv"
 	"maps"
 	"slices"
 	"strconv"
@@ -47,7 +47,7 @@ type identity struct {
 }
 
 func newIdentity(kind string, spec any) (*identity, error) {
-	id := &identity{sum: sha256.New()}
+	id := &identity{sum: fnv.New128a()}
 
 	_, _ = id.sum.Write([]byte(kind + "\n"))
 

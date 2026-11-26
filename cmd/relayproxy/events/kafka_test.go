@@ -336,23 +336,27 @@ func TestKafkaWithoutProducerSettingsKeepsTheSaramaDefaults(t *testing.T) {
 	assert.Nil(t, exp.Settings.Config, "no sarama configuration: the exporter takes the defaults, as in version 1")
 }
 
-func TestKafkaTLS(t *testing.T) {
-	t.Parallel()
+const kafkaTLSFull = "      net: {tls: {enable: true, insecureSkipVerify: true, serverName: broker.example,\n" +
+	"        caFile: /ca.pem, certFile: /cert.pem, keyFile: /key.pem}}\n"
 
-	certPEM, keyPEM := pemPair(t)
-	files := map[string][]byte{
+// pemFiles returns the files of a certificate authority and a client certificate, and a file that is no PEM.
+func pemFiles(tb testing.TB) map[string][]byte {
+	tb.Helper()
+
+	certPEM, keyPEM := pemPair(tb)
+
+	return map[string][]byte{
 		"/ca.pem":   certPEM,
 		"/cert.pem": certPEM,
 		"/key.pem":  keyPEM,
 		"/bad.pem":  []byte("not pem"),
 	}
+}
 
-	exp, def, err := buildKafka(
-		t,
-		"      net: {tls: {enable: true, insecureSkipVerify: true, serverName: broker.example, caFile: /ca.pem,"+
-			" certFile: /cert.pem, keyFile: /key.pem}}\n",
-		files,
-	)
+func TestKafkaTLSSettings(t *testing.T) {
+	t.Parallel()
+
+	exp, _, err := buildKafka(t, kafkaTLSFull, pemFiles(t))
 	require.NoError(t, err)
 
 	tlsCfg := exp.Settings.Net.TLS
@@ -362,23 +366,32 @@ func TestKafkaTLS(t *testing.T) {
 	assert.Equal(t, "broker.example", tlsCfg.Config.ServerName)
 	assert.NotNil(t, tlsCfg.Config.RootCAs)
 	assert.Len(t, tlsCfg.Config.Certificates, 1)
+}
 
-	// the content of the files is part of the identity: a rotated certificate rebuilds the exporter
-	rotatedCert, rotatedKey := pemPair(t)
-	files["/cert.pem"], files["/key.pem"] = rotatedCert, rotatedKey
+// TestKafkaTLSFilesAreInTheIdentity checks that a rotated certificate rebuilds the exporter at the next reload.
+func TestKafkaTLSFilesAreInTheIdentity(t *testing.T) {
+	t.Parallel()
 
-	_, rotated, err := buildKafka(
-		t,
-		"      net: {tls: {enable: true, insecureSkipVerify: true, serverName: broker.example, caFile: /ca.pem,"+
-			" certFile: /cert.pem, keyFile: /key.pem}}\n",
-		files,
-	)
+	files := pemFiles(t)
+
+	_, before, err := buildKafka(t, kafkaTLSFull, files)
 	require.NoError(t, err)
-	assert.NotEqual(t, def.Identity, rotated.Identity)
+
+	files["/cert.pem"], files["/key.pem"] = pemPair(t)
+
+	_, after, err := buildKafka(t, kafkaTLSFull, files)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, before.Identity, after.Identity)
+}
+
+func TestKafkaTLSErrors(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
-		name  string
-		extra string
+		name         string
+		extra        string
+		withoutFiles bool
 	}{
 		{name: "a missing ca file", extra: "      net: {tls: {enable: true, caFile: /missing.pem}}\n"},
 		{name: "a ca file without a certificate", extra: "      net: {tls: {enable: true, caFile: /bad.pem}}\n"},
@@ -394,31 +407,37 @@ func TestKafkaTLS(t *testing.T) {
 			name:  "a key that is not the key of the certificate",
 			extra: "      net: {tls: {enable: true, certFile: /cert.pem, keyFile: /bad.pem}}\n",
 		},
+		{name: "no file reader", extra: "      net: {tls: {enable: true, caFile: /ca.pem}}\n", withoutFiles: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, buildErr := buildKafka(t, tt.extra, files)
-			require.ErrorIs(t, buildErr, events.ErrInvalidSettings)
+			cfg, opts := parseDoc(t, "version: 2\n"+kafkaBase+tt.extra, nil)
+
+			files := pemFiles(t)
+			opts.ReadFile = func(path string) ([]byte, error) {
+				if content, ok := files[path]; ok {
+					return content, nil
+				}
+
+				return nil, os.ErrNotExist
+			}
+
+			if tt.withoutFiles {
+				opts.ReadFile = nil
+			}
+
+			_, err := events.Builder{Secrets: opts}.Exporters(context.Background(), events.SpecsFrom(cfg))
+			require.ErrorIs(t, err, events.ErrInvalidSettings)
 
 			var entry *events.EntryError
 
-			require.ErrorAs(t, buildErr, &entry)
+			require.ErrorAs(t, err, &entry)
 			assert.Equal(t, "k", entry.Name)
 		})
 	}
-
-	t.Run("no file reader", func(t *testing.T) {
-		t.Parallel()
-
-		cfg, opts := parseDoc(t, "version: 2\n"+kafkaBase+"      net: {tls: {enable: true, caFile: /ca.pem}}\n", nil)
-		opts.ReadFile = nil
-
-		_, buildErr := events.Builder{Secrets: opts}.Exporters(context.Background(), events.SpecsFrom(cfg))
-		require.ErrorIs(t, buildErr, events.ErrInvalidSettings)
-	})
 }
 
 func TestKafkaSettingsErrors(t *testing.T) {

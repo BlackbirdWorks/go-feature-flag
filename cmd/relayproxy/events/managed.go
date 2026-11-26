@@ -1,6 +1,9 @@
 package events
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
@@ -14,8 +17,9 @@ import (
 // without blocking, and an instance whose hand-off is full drops (and counts) its own events. The manager may
 // wait (the engine manager waits for room in its store) in the goroutine of its instance only.
 type managed struct {
-	mgr   FeatureManager
-	queue func([]Event)
+	mgr    FeatureManager
+	logger *slog.Logger
+	queue  func([]Event)
 	// in is the hand-off: bounded, closed when the instance leaves the set.
 	in       chan Event
 	consumed chan struct{}
@@ -62,7 +66,9 @@ func stateName(state int32) string {
 }
 
 // newManaged returns an instance and starts the goroutine of its hand-off.
-func newManaged(def *ExporterDef, mgr FeatureManager, entry *nameEntry, handoff, batch int) *managed {
+func newManaged(
+	def *ExporterDef, mgr FeatureManager, entry *nameEntry, handoff, batch int, logger *slog.Logger,
+) *managed {
 	inst := &managed{
 		def:      *def,
 		mgr:      mgr,
@@ -72,6 +78,7 @@ func newManaged(def *ExporterDef, mgr FeatureManager, entry *nameEntry, handoff,
 		consumed: make(chan struct{}),
 		finished: make(chan struct{}),
 		batch:    batch,
+		logger:   logger,
 	}
 
 	if async, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent]); ok {
@@ -165,7 +172,7 @@ func (m *managed) pending() uint64 {
 // startClose closes the hand-off, lets the goroutine of the hand-off deliver what it holds, stops the manager
 // (which flushes it) and folds the counters of the instance in those of its name. It runs once, in the
 // background: the caller waits for [managed.finished] as long as it wants to.
-func (m *managed) startClose(background *sync.WaitGroup) {
+func (m *managed) startClose(ctx context.Context, background *sync.WaitGroup) {
 	m.closeOnce.Do(func() {
 		m.state.CompareAndSwap(stateRunning, stateDraining)
 
@@ -175,6 +182,7 @@ func (m *managed) startClose(background *sync.WaitGroup) {
 			close(m.in)
 			<-m.consumed
 			m.mgr.Stop()
+			m.release(context.WithoutCancel(ctx))
 			m.finalize()
 		})
 	})
@@ -217,5 +225,20 @@ func (m *managed) isFinished() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// release closes the exporter when it holds resources (a producer, a client): the manager flushed it, nothing
+// uses it any more. A failure is logged by class only: its message could carry a secret.
+func (m *managed) release(ctx context.Context) {
+	closer, ok := m.def.Inner.Unseal().(io.Closer)
+	if !ok {
+		return
+	}
+
+	err := closer.Close()
+	if err != nil {
+		m.logger.LogAttrs(ctx, slog.LevelWarn, "closing the exporter failed",
+			slog.String("exporter", m.def.Name), slog.String("class", string(classify(err))))
 	}
 }

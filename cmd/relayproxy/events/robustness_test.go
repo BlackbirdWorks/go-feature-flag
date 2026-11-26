@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
@@ -240,4 +241,60 @@ func TestFlushDurationIsMeasuredWithTheClock(t *testing.T) {
 	assert.GreaterOrEqual(t, got.FlushSeconds, stepSeconds, "a flush lasts at least one step of the clock")
 	assert.InDelta(t, 0, got.FlushSeconds-float64(int(got.FlushSeconds/stepSeconds))*stepSeconds, 1e-9,
 		"and a whole number of steps")
+}
+
+// TestRuntimeShutdownClosesHealthyExportersWhileANotifierIsStuck checks that the two sides shut down at the same
+// time under one deadline: a notifier that holds its deadline does not leave the exporters with a deadline that has
+// passed, so a healthy exporter is closed, not cut.
+func TestRuntimeShutdownClosesHealthyExportersWhileANotifierIsStuck(t *testing.T) {
+	t.Parallel()
+
+	fac := newFactory()
+	fac.stopEntered = make(chan struct{}, 1)
+
+	runtime := events.NewRuntime(&events.RuntimeConfig{NewManager: fac.build})
+	changes := make(chan flagruntime.Change)
+
+	require.NoError(t, runtime.Start(context.Background(), changes))
+
+	stuck := &recordingNotifier{gate: make(chan struct{}), entered: make(chan struct{}, 1)}
+
+	_, err := runtime.Notifications.Apply(context.Background(), []events.NotifierDef{ndef("n", "v1", stuck)})
+	require.NoError(t, err)
+
+	_, err = runtime.Dispatcher.Apply(context.Background(), defs("a"))
+	require.NoError(t, err)
+
+	changes <- change("set", 1)
+
+	await(t, stuck.entered, "the notifier to take its change")
+
+	for i := range 5 {
+		require.True(t, runtime.Collect(ev(i)))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	finished := make(chan events.ShutdownReport, 1)
+
+	go func() {
+		report, _ := runtime.Shutdown(ctx)
+		finished <- report
+	}()
+
+	// the exporter is being closed while the notifier still holds its call, and its close completes
+	await(t, fac.stopEntered, "the exporter to be closed while the notifier is stuck")
+	require.NoError(t, runtime.Dispatcher.WaitDrains(bounded(t)))
+
+	// only now does the deadline pass
+	cancel()
+
+	report := await(t, finished, "the shutdown")
+
+	close(stuck.gate)
+
+	assert.Equal(t, []events.DrainResult{{Name: "a", Kind: "file", Undelivered: 0, Cut: false}}, report.Drained)
+	assert.Equal(t, []string{"flag-0", eventOneKey, eventTwoKey, eventThreeKey, "flag-4"}, keys(fac.of("a", 0).got()))
+	assert.Equal(t, events.Drops{}, report.Dropped)
 }

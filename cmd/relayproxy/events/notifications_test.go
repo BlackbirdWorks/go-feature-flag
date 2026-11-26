@@ -327,10 +327,10 @@ func TestNotifications_Reload(t *testing.T) {
 	await(t, keep.got, "the second change")
 	await(t, newB.got, "the second change")
 
-	assert.Len(t, keep.received(), 2, "the kept notifier is the same one")
-	assert.Len(t, oldB.received(), 1, "the replaced notifier got nothing after the reload")
-	assert.Len(t, gone.received(), 1, "the removed notifier got nothing after the reload")
-	assert.Len(t, newB.received(), 1)
+	assert.Equal(t, []string{"1", "2"}, addedKeys(keep.received()), "the kept notifier is the same one")
+	assert.Equal(t, []string{"1"}, addedKeys(oldB.received()), "the replaced notifier got nothing after the reload")
+	assert.Equal(t, []string{"1"}, addedKeys(gone.received()), "the removed notifier got nothing after the reload")
+	assert.Equal(t, []string{"2"}, addedKeys(newB.received()))
 
 	states := map[string]string{}
 	for _, n := range notes.Status().Notifiers {
@@ -357,14 +357,24 @@ func TestNotifications_ReloadDrainPastDeadline(t *testing.T) {
 
 	await(t, stuck.entered, "the notifier to take a change")
 
+	// a change without a diff is skipped: the consumer takes it only after it dispatched the four before it
+	changes <- flagruntime.Change{FlagSet: "fence"}
+
 	set, err := notes.Apply(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Equal(t, events.ReloadSet{Removed: []string{"stuck"}, Cut: []string{"stuck"}}, set)
 
-	close(stuck.gate)
+	cut := notes.Status().Notifiers[0]
+	assert.Equal(t, events.StateCut, cut.State)
 
-	status := notes.Status().Notifiers[0]
-	assert.Equal(t, events.StateCut, status.State)
+	// the call that hung ends: the instance is stopped, whoever waited for it
+	close(stuck.gate)
+	require.NoError(t, notes.WaitDrains(bounded(t)))
+
+	finished := notes.Status().Notifiers[0]
+	assert.Equal(t, events.StateStopped, finished.State)
+	assert.Equal(t, uint64(1), finished.Delivered, "the call in progress was delivered")
+	assert.Equal(t, uint64(3), finished.Dropped, "the changes queued behind it were dropped and counted")
 }
 
 func TestNotifications_Lifecycle(t *testing.T) {
@@ -404,41 +414,41 @@ func TestNotifications_Lifecycle(t *testing.T) {
 func TestNotifications_ClosedChannelAndContextStopTheConsumer(t *testing.T) {
 	t.Parallel()
 
-	t.Run("channel closed", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		// stop ends the consumer, one way or the other
+		stop func(changes chan flagruntime.Change, cancel context.CancelFunc)
+		name string
+	}{
+		{
+			name: "the channel is closed",
+			stop: func(changes chan flagruntime.Change, _ context.CancelFunc) { close(changes) },
+		},
+		{name: "the context is done", stop: func(_ chan flagruntime.Change, cancel context.CancelFunc) { cancel() }},
+	}
 
-		var notes *events.Notifications
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		changes := make(chan flagruntime.Change)
+			var (
+				notes  *events.Notifications
+				cancel context.CancelFunc
+			)
 
-		label := labeledRun(t, func(ctx context.Context) {
-			notes = events.NewNotifications(&events.NotificationsConfig{})
-			require.NoError(t, notes.Start(ctx, changes))
+			changes := make(chan flagruntime.Change)
+
+			label := labeledRun(t, func(ctx context.Context) {
+				ctx, cancel = context.WithCancel(ctx)
+				notes = events.NewNotifications(&events.NotificationsConfig{})
+				require.NoError(t, notes.Start(ctx, changes))
+			})
+
+			tt.stop(changes, cancel)
+
+			require.NoError(t, notes.Shutdown(bounded(t)))
+			assert.Zero(t, labelled(label))
 		})
-
-		close(changes)
-		require.NoError(t, notes.Shutdown(bounded(t)))
-		assert.Zero(t, labelled(label))
-	})
-
-	t.Run("context done", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			notes  *events.Notifications
-			cancel context.CancelFunc
-		)
-
-		label := labeledRun(t, func(ctx context.Context) {
-			ctx, cancel = context.WithCancel(ctx)
-			notes = events.NewNotifications(&events.NotificationsConfig{})
-			require.NoError(t, notes.Start(ctx, make(chan flagruntime.Change)))
-		})
-
-		cancel()
-		require.NoError(t, notes.Shutdown(bounded(t)))
-		assert.Zero(t, labelled(label))
-	})
+	}
 }
 
 func TestNotifications_ShutdownDeliversWhatIsQueued(t *testing.T) {
@@ -463,7 +473,7 @@ func TestNotifications_ShutdownDeliversWhatIsQueued(t *testing.T) {
 	close(rec.gate)
 	require.NoError(t, await(t, done, "the shutdown"))
 
-	assert.Len(t, rec.received(), 5, "the queued changes were delivered before the notifier stopped")
+	assert.Equal(t, []string{"0", "1", "2", "3", "4"}, addedKeys(rec.received()), "the queued changes were delivered")
 	assert.Equal(t, events.StateStopped, notes.Status().Notifiers[0].State)
 }
 

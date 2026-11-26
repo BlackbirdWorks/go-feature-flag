@@ -1218,7 +1218,7 @@
         "KafkaProducer": {
             "properties": {
                 "retry": {
-                    "$ref": "#/$defs/KafkaRetry"
+                    "$ref": "#/$defs/KafkaProducerRetry"
                 },
                 "flush": {
                     "$ref": "#/$defs/KafkaFlush"
@@ -1271,7 +1271,7 @@
             "additionalProperties": false,
             "type": "object"
         },
-        "KafkaRetry": {
+        "KafkaProducerRetry": {
             "properties": {
                 "backoff": {
                     "$ref": "#/$defs/Duration"
@@ -1283,6 +1283,18 @@
                     "type": "integer"
                 },
                 "maxBufferLength": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "KafkaRetry": {
+            "properties": {
+                "backoff": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "max": {
                     "type": "integer"
                 }
             },

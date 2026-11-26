@@ -40,7 +40,7 @@ func TestDispatcher_SharedManagers(t *testing.T) {
 			assert.Equal(t, 3, fac.count(), "managers built")
 
 			for _, name := range []string{"a", "b", "c"} {
-				assert.Len(t, fac.of(name, 0).got(), flagSets, "events of %s", name)
+				assert.Equal(t, eventKeys(flagSets), keys(fac.of(name, 0).got()), "events of %s", name)
 			}
 		})
 	}
@@ -212,15 +212,30 @@ func TestDispatcher_SlowExporterDelaysNobody(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		wantSlowKeys []string
 		handoff      int
 		sent         int
 		wantOverflow uint64
 		wantQueued   int64
 	}{
 		// the manager holds the first event (BatchSize 1) and the hand-off the next ones
-		{name: "burst far above the hand-off", handoff: 8, sent: 101, wantOverflow: 92, wantQueued: 9},
-		{name: "burst within the hand-off", handoff: 200, sent: 101, wantOverflow: 0, wantQueued: 101},
-		{name: "one event over", handoff: 8, sent: 10, wantOverflow: 1, wantQueued: 9},
+		{
+			name:         "burst far above the hand-off",
+			handoff:      8,
+			sent:         101,
+			wantOverflow: 92,
+			wantQueued:   9,
+			wantSlowKeys: eventKeys(9),
+		},
+		{
+			name:         "burst within the hand-off",
+			handoff:      200,
+			sent:         101,
+			wantOverflow: 0,
+			wantQueued:   101,
+			wantSlowKeys: eventKeys(101),
+		},
+		{name: "one event over", handoff: 8, sent: 10, wantOverflow: 1, wantQueued: 9, wantSlowKeys: eventKeys(9)},
 	}
 
 	for _, tt := range tests {
@@ -275,8 +290,8 @@ func TestDispatcher_SlowExporterDelaysNobody(t *testing.T) {
 			_, err = disp.Shutdown(bounded(t))
 			require.NoError(t, err)
 
-			assert.Len(t, fast.of("b-fast", 0).got(), tt.sent)
-			assert.Len(t, slow.of("a-slow", 0).got(), tt.sent-int(tt.wantOverflow))
+			assert.Equal(t, eventKeys(tt.sent), keys(fast.of("b-fast", 0).got()))
+			assert.Equal(t, tt.wantSlowKeys, keys(slow.of("a-slow", 0).got()), "the events the slow exporter kept")
 
 			final := disp.Status()
 			assertExporterAccounting(t, &final, "after the shutdown")
@@ -365,24 +380,64 @@ func TestDispatcher_CollectAllocatesNothing(t *testing.T) {
 	close(fac.gate)
 }
 
-func TestDispatcher_StartErrors(t *testing.T) {
+func TestDispatcher_LifecycleErrors(t *testing.T) {
 	t.Parallel()
 
-	disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: newFactory().build})
+	start := func(t *testing.T, disp *events.Dispatcher) {
+		t.Helper()
+		require.NoError(t, disp.Start(context.Background()))
+	}
 
-	require.NoError(t, disp.Start(context.Background()))
-	require.ErrorIs(t, disp.Start(context.Background()), events.ErrAlreadyStarted)
+	shutdown := func(t *testing.T, disp *events.Dispatcher) {
+		t.Helper()
+		start(t, disp)
 
-	_, err := disp.Shutdown(bounded(t))
-	require.NoError(t, err)
+		_, err := disp.Shutdown(bounded(t))
+		require.NoError(t, err)
+	}
 
-	require.ErrorIs(t, disp.Start(context.Background()), events.ErrClosed)
+	tests := []struct {
+		prepare func(t *testing.T, disp *events.Dispatcher)
+		act     func(disp *events.Dispatcher) error
+		wantErr error
+		name    string
+	}{
+		{
+			name: "a second Start", prepare: start, wantErr: events.ErrAlreadyStarted,
+			act: func(disp *events.Dispatcher) error { return disp.Start(context.Background()) },
+		},
+		{
+			name: "Start after the shutdown", prepare: shutdown, wantErr: events.ErrClosed,
+			act: func(disp *events.Dispatcher) error { return disp.Start(context.Background()) },
+		},
+		{
+			name: "Apply after the shutdown", prepare: shutdown, wantErr: events.ErrClosed,
+			act: func(disp *events.Dispatcher) error {
+				_, err := disp.Apply(context.Background(), defs("a"))
 
-	_, err = disp.Apply(context.Background(), defs("a"))
-	require.ErrorIs(t, err, events.ErrClosed)
+				return err
+			},
+		},
+		{
+			name: "Reload after the shutdown", prepare: shutdown, wantErr: events.ErrClosed,
+			act: func(disp *events.Dispatcher) error {
+				_, err := disp.Reload(context.Background(), events.Specs{})
 
-	_, err = disp.Reload(context.Background(), events.Specs{})
-	require.ErrorIs(t, err, events.ErrClosed)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			disp := events.NewDispatcher(&events.DispatcherConfig{NewManager: newFactory().build})
+			tt.prepare(t, disp)
+
+			require.ErrorIs(t, tt.act(disp), tt.wantErr)
+		})
+	}
 }
 
 func TestDispatcher_ContextEndShutsDown(t *testing.T) {
@@ -402,7 +457,7 @@ func TestDispatcher_ContextEndShutsDown(t *testing.T) {
 	await(t, disp.Done(), "the shutdown that the end of the context starts")
 
 	assert.Equal(t, 1, fac.of("a", 0).stopCount())
-	assert.Len(t, fac.of("a", 0).got(), 1)
+	assert.Equal(t, []string{eventOneKey}, keys(fac.of("a", 0).got()))
 	assert.False(t, disp.Collect(ev(2)))
 	assert.Equal(t, uint64(1), disp.Status().Queue.Dropped.Shutdown)
 }
