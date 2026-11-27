@@ -224,3 +224,27 @@ func TestTheShutdownBoundOfTheStoreIsFixedByTheFirstCallWhoeverRunsIt(t *testing
 	receive(t, secondDone, &secondErr, "the second Shutdown did not end")
 	require.NoError(t, secondErr)
 }
+
+// A Shutdown with nothing in flight starts no goroutine of its own: the dump of the goroutines, taken as soon as it
+// returns, has none under its label (no wait, no polling).
+func TestShutdownWithNothingInFlightLeavesNoGoroutine(t *testing.T) {
+	t.Parallel()
+
+	res, err := resolver.New(betaStore(), &resolver.Options{})
+	require.NoError(t, err)
+
+	label := "shutdown-idle-" + t.Name() // unique: a goroutine started by Shutdown inherits it
+
+	var shutdownErr error
+
+	pprof.Do(t.Context(), pprof.Labels("test", label), func(ctx context.Context) {
+		shutdownErr = res.Shutdown(ctx)
+	})
+
+	require.NoError(t, shutdownErr)
+
+	var dump bytes.Buffer
+
+	require.NoError(t, pprof.Lookup("goroutine").WriteTo(&dump, 1))
+	assert.NotContains(t, dump.String(), label, "no goroutine of the resolver is left")
+}

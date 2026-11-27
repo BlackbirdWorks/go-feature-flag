@@ -584,6 +584,13 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	r.drainOnce.Do(func() {
 		r.drained = make(chan struct{})
 
+		// no call can enter any more: with none in flight there is nothing to wait for, and no goroutine is started
+		if r.inflight.Load() == 0 {
+			close(r.drained)
+
+			return
+		}
+
 		go func() {
 			r.wg.Wait()
 			close(r.drained)
