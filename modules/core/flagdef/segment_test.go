@@ -22,22 +22,23 @@ const (
 	variantOn  = "on"
 	variantOff = "off"
 
-	keyAlice         = "alice"
-	keyBob           = "bob"
-	planPro          = "pro"
-	planFree         = "free"
-	segBeta          = "beta"
-	segChurned       = "churned"
-	keyCarol         = "carol"
-	segOther         = "other"
-	whereDefaultRule = "defaultRule"
-	segIDs           = "ids"
-	lookupIDsAlice   = "ids:alice"
-	errMsgBadName    = "invalid segment name"
-	errMsgNotAllowed = "not allowed"
-	errMsgBadOnError = "invalid onError"
-	wherePathAttr    = "$.inSegment[0]"
-	queryEqAlice     = `targetingKey eq "alice"`
+	keyAlice           = "alice"
+	keyBob             = "bob"
+	planPro            = "pro"
+	planFree           = "free"
+	segBeta            = "beta"
+	segChurned         = "churned"
+	keyCarol           = "carol"
+	segOther           = "other"
+	whereDefaultRule   = "defaultRule"
+	segIDs             = "ids"
+	lookupIDsAlice     = "ids:alice"
+	errMsgBadName      = "invalid segment name"
+	errMsgBadJSONLogic = "invalid jsonlogic query"
+	errMsgNotAllowed   = "not allowed"
+	errMsgBadOnError   = "invalid onError"
+	wherePathAttr      = "$.inSegment[0]"
+	queryEqAlice       = `targetingKey eq "alice"`
 )
 
 var errStoreDown = errors.New("store down")
@@ -741,7 +742,7 @@ func TestSegmentRuleValidation(t *testing.T) {
 		{
 			name:      "json leaf that jsonlogic rejects",
 			rule:      queryRule("vip", `{"and": [{"inSegment": [{"var": "k"}, "a"]}, {"bogus": [1]}]}`),
-			wantInErr: []string{"$.and[1]", "invalid jsonlogic query"},
+			wantInErr: []string{"$.and[1]", errMsgBadJSONLogic},
 		},
 		{
 			name:      "json attribute var is not a string",
@@ -806,7 +807,7 @@ func TestSegmentRuleValidation(t *testing.T) {
 				assert.Contains(t, err.Error(), want)
 			}
 
-			if !strings.Contains(err.Error(), "invalid jsonlogic query") {
+			if !strings.Contains(err.Error(), errMsgBadJSONLogic) {
 				assert.ErrorIs(t, err, flagdef.ErrInvalidSegment)
 			}
 		})
