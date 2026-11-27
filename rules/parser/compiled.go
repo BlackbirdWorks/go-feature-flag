@@ -31,6 +31,8 @@ const (
 	nodeLogical
 	nodePresent
 	nodeCompare
+	// nodeSegment is a segment() term, see segment.go: it is only evaluated by evalMatch.
+	nodeSegment
 )
 
 type valueKind int
@@ -73,7 +75,9 @@ type compareNode struct {
 	attrPath string
 	path     []string
 	opType   int
-	valKind  valueKind
+	// term is the index of the segment term of a nodeSegment node, in Evaluator.terms.
+	term    int
+	valKind valueKind
 }
 
 func newCompareNode(kind nodeKind, path []string) *compareNode {
@@ -93,6 +97,8 @@ type evalState struct {
 	debugErr error
 	item     map[string]any
 	stack    attrStack
+	// reached is set by the first pass of a rule with segment terms when it reaches a segment term, see evalToSegment.
+	reached bool
 }
 
 // attrStack is the visitor's attribute stack. The first attrStackInline
@@ -205,9 +211,93 @@ func (n *node) eval(state *evalState) bool {
 		return state.leftOp != nil
 	case nodeCompare:
 		return n.cmp.evalCompare(state)
+	case nodeSegment:
+		// unreachable: the rules with segment terms are evaluated by evalMatch, Process refuses them
+		return false
 	default:
 		panic(fmt.Sprintf("unexpected node kind %d", n.kind))
 	}
+}
+
+// evalToSegment is eval for the first pass of a rule with segment terms: two valued, left to right, with the short
+// circuit of eval, exactly as a rule without segment terms is evaluated, and it stops at the first segment term it
+// reaches (state.reached is set, the result is then meaningless).
+func (n *node) evalToSegment(state *evalState) bool {
+	switch n.kind {
+	case nodeParen:
+		result := n.left.evalToSegment(state)
+		if state.reached {
+			return false
+		}
+
+		if n.not {
+			return !result
+		}
+
+		return result
+	case nodeLogical:
+		left := n.left.evalToSegment(state)
+		if state.reached {
+			return false
+		}
+
+		if n.isOr == left { // true or ..., false and ...: the left side decides
+			return left
+		}
+
+		return n.right.evalToSegment(state)
+	case nodeSegment:
+		state.reached = true
+
+		return false
+	case nodePresent, nodeCompare:
+		return n.eval(state)
+	}
+
+	return false
+}
+
+// evalMatch is eval for the second pass of a rule with segment terms: three-valued, left to right. The right side of
+// "and" and "or" is evaluated when the left side does not decide the result, an unknown left side included
+// ("unknown or x" evaluates x, "unknown and x" evaluates x, as Kleene's logic needs it), and is not evaluated when
+// it does ("true or x", "false and x"), as eval does.
+func (n *node) evalMatch(state *evalState, states []SegmentState) Match {
+	switch n.kind {
+	case nodeParen:
+		result := n.left.evalMatch(state, states)
+		if n.not {
+			return result.Not()
+		}
+
+		return result
+	case nodeLogical:
+		decisive, neutral := MatchNo, MatchYes // and
+		if n.isOr {
+			decisive, neutral = MatchYes, MatchNo
+		}
+
+		left := n.left.evalMatch(state, states)
+		if left == decisive {
+			return decisive
+		}
+
+		right := n.right.evalMatch(state, states)
+		if right == decisive {
+			return decisive
+		}
+
+		if left == neutral && right == neutral {
+			return neutral
+		}
+
+		return MatchUnknown
+	case nodeSegment:
+		return states[n.cmp.term].Match()
+	case nodePresent, nodeCompare:
+		return matchOf(n.eval(state))
+	}
+
+	return MatchUnknown
 }
 
 func (n *compareNode) setRight(state *evalState) {
@@ -408,6 +498,55 @@ func compileQuery(tree antlr.ParseTree) *node {
 	return compileTree(tree, &sourceText{})
 }
 
+// compileSegmentQuery is compileQuery for a rule that has segment() terms: it also returns the terms.
+func compileSegmentQuery(
+	tree antlr.ParseTree,
+) (root *node, terms []SegmentTerm, err error) { //nolint:nonamedreturns // recover sets the error
+	seg := &segmentCompiler{}
+
+	defer func() {
+		if info := recover(); info != nil {
+			root, terms, err = nil, nil, fmt.Errorf("%w: %v", errNotCompiled, info)
+		}
+	}()
+
+	root = compileTree(tree, &sourceText{seg: seg})
+	if seg.err != nil {
+		return nil, nil, seg.err
+	}
+
+	return root, seg.terms, nil
+}
+
+// compileSegmentTerm returns the node of a "<attribute> in <marker literal>" comparison, see scanSegments.
+func compileSegmentTerm(seg *segmentCompiler, ctx *CompareExpContext) (*node, bool) {
+	if ctx.op.GetTokenType() != JsonQueryParserIN {
+		return nil, false
+	}
+
+	literal, ok := ctx.Value().(*StringContext)
+	if !ok {
+		return nil, false
+	}
+
+	name, ok := segmentName(getString(literal.GetText()))
+	if !ok {
+		return nil, false
+	}
+
+	path := compileAttrPath(ctx.AttrPath())
+
+	term, err := seg.termFor(name, path)
+	if err != nil {
+		seg.err = err
+	}
+
+	cmpNode := newCompareNode(nodeSegment, path)
+	cmpNode.term = term
+
+	return &cmpNode.node, true
+}
+
 func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 	switch val := tree.(type) {
 	case *ParenExpContext:
@@ -422,6 +561,12 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 	case *PresentExpContext:
 		return &newCompareNode(nodePresent, compileAttrPath(val.AttrPath())).node
 	case *CompareExpContext:
+		if src.seg != nil {
+			if segNode, ok := compileSegmentTerm(src.seg, val); ok {
+				return segNode
+			}
+		}
+
 		cmpNode := newCompareNode(nodeCompare, compileAttrPath(val.AttrPath()))
 		cmpNode.attrPath = val.AttrPath().GetText()
 		cmpNode.opType = val.op.GetTokenType()

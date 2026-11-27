@@ -1,0 +1,11 @@
+f:
+  variations:
+    a: 1
+    b: 2
+  targeting:
+    - name: r
+      query: key in segment("x")
+      onError: ignore
+      variation: b
+  defaultRule:
+    variation: a

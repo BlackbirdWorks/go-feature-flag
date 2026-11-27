@@ -14,6 +14,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 const (
@@ -342,6 +343,7 @@ func getVariation[T model.JSONType](
 			Version:       "",
 			Metadata:      nil,
 			Cacheable:     false,
+			SegmentStatus: segment.StatusNone,
 		}, errSemaphoreIsNotInitialised
 	}
 
@@ -357,6 +359,7 @@ func getVariation[T model.JSONType](
 			Version:       "",
 			Metadata:      nil,
 			Cacheable:     false,
+			SegmentStatus: segment.StatusNone,
 		}, nil
 	}
 
@@ -373,6 +376,7 @@ func getVariation[T model.JSONType](
 			Version:       "",
 			Metadata:      nil,
 			Cacheable:     false,
+			SegmentStatus: segment.StatusNone,
 		}
 		if targetFlag != nil {
 			varResult.TrackEvents = targetFlag.IsTrackEvents()
@@ -387,6 +391,7 @@ func getVariation[T model.JSONType](
 		DefaultSdkValue:             sdkDefaultValue,
 		EvaluationContextEnrichment: client.evaluationEnrichment(),
 		Service:                     client.evaluationService,
+		Segments:                    client.config.SegmentProvider,
 	}
 
 	return evaluation.Evaluate[T](targetFlag, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)

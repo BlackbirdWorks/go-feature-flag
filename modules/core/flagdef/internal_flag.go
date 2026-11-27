@@ -10,6 +10,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
@@ -140,7 +141,7 @@ func (f *InternalFlag) Value(
 		}
 	}
 
-	variationSelection, err := flag.selectVariation(svc, flagName, key, evaluationCtx)
+	variationSelection, err := flag.selectVariation(svc, flagName, key, evaluationCtx, &flagContext)
 	if err != nil {
 		return flagContext.DefaultSdkValue,
 			ResolutionDetails{
@@ -177,6 +178,8 @@ func (f *InternalFlag) Value(
 		RuleName:  ruleName,
 		Cacheable: variationSelection.cacheable,
 		Metadata:  metadata,
+
+		SegmentStatus: variationSelection.segmentStatus,
 	}
 }
 
@@ -261,12 +264,25 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 	// Validate rules
 	err = f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations())
 	if err != nil {
-		return err
+		return wrapSegmentError(err, "defaultRule")
 	}
 
 	evaluators, err := f.validateRules(svc, known)
 	if err != nil {
 		return err
+	}
+
+	err = f.validateScheduledSegments(svc)
+	if err != nil {
+		return err
+	}
+
+	svc.segmentQueries.retain(f.Rules)
+
+	if f.Scheduled != nil {
+		for i := range *f.Scheduled {
+			svc.segmentQueries.retain((*f.Scheduled)[i].Rules)
+		}
 	}
 
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
@@ -431,10 +447,10 @@ func (f *InternalFlag) isCacheable() bool {
 // selectVariation is doing the magic to select the variation that should be used for this specific user
 // to always affect the user to the same segment we are using a hash of the flag name + key.
 func (f *InternalFlag) selectVariation(
-	svc *Service, flagName, key string, ctx ffcontext.Context) (variationSelection, error) {
+	svc *Service, flagName, key string, ctx ffcontext.Context, flagCtx *Context) (variationSelection, error) {
 	hasRule := len(f.GetRules()) != 0
 	// Shared by all the rules below: the context is converted to a map at most once.
-	queryCtx := &queryContext{svc: svc, ctx: ctx}
+	queryCtx := &queryContext{svc: svc, ctx: ctx, segments: flagCtx.Segments, requestContext: flagCtx.RequestContext}
 	defer queryCtx.release()
 	// Check all targeting in order, the first to match will be the one used.
 	if hasRule {
@@ -453,11 +469,13 @@ func (f *InternalFlag) selectVariation(
 			reason := selectEvaluationReason(hasRule, true, target.IsDynamic(), false)
 
 			return variationSelection{
-				name:      variationName,
-				reason:    reason,
-				ruleIndex: &matchedIndex,
-				ruleName:  f.GetRules()[matchedIndex].Name,
-				cacheable: f.isCacheable() && target.ProgressiveRollout == nil,
+				name:          variationName,
+				reason:        reason,
+				ruleIndex:     &matchedIndex,
+				ruleName:      f.GetRules()[matchedIndex].Name,
+				segmentStatus: queryCtx.segmentStatus,
+				cacheable: f.isCacheable() && target.ProgressiveRollout == nil &&
+					queryCtx.segmentStatus == segment.StatusNone,
 			}, err
 		}
 	}
@@ -474,9 +492,11 @@ func (f *InternalFlag) selectVariation(
 	reason := selectEvaluationReason(hasRule, false, f.GetDefaultRule().IsDynamic(), true)
 
 	return variationSelection{
-		name:      variationName,
-		reason:    reason,
-		cacheable: f.isCacheable() && f.GetDefaultRule().ProgressiveRollout == nil,
+		name:          variationName,
+		reason:        reason,
+		segmentStatus: queryCtx.segmentStatus,
+		cacheable: f.isCacheable() && f.GetDefaultRule().ProgressiveRollout == nil &&
+			queryCtx.segmentStatus == segment.StatusNone,
 	}, nil
 }
 
@@ -640,8 +660,10 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 
 		evaluators[i], err = rule.validate(svc, isDefaultRule, f.GetVariations(), knownEvaluator)
 		if err != nil {
-			return nil, err
+			return nil, wrapSegmentError(err, ruleLabel(i, rule))
 		}
+
+		svc.warnUndefinedSegments(rule, i, evaluators[i])
 
 		// Check if we have duplicated rule name
 		if _, ok := ruleNames[rule.GetName()]; ok && rule.GetName() != "" {

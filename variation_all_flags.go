@@ -28,6 +28,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 		DefaultSdkValue:             nil,
 		Service:                     g.evaluationService,
+		Segments:                    g.config.SegmentProvider,
 	}
 
 	// Evaluate only the flags in flagsToEvaluate

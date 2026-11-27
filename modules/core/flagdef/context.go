@@ -1,5 +1,11 @@
 package flagdef
 
+import (
+	"context"
+
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
+)
+
 // Context holds the per-evaluation settings of a flag: the context enrichment, the SDK default value and
 // the Service that owns the evaluation caches.
 type Context struct {
@@ -18,6 +24,17 @@ type Context struct {
 	// here for every evaluation, so that the evaluations share the parsed queries and nothing else
 	// does. It is required: InternalFlag.Value returns an error resolution when it is nil.
 	Service *Service `json:"-"`
+
+	// Segments answers the membership questions of the segment() terms of the rules. Without one, a rule that
+	// depends on a segment has an unknown result (it does not match, unless the rule says onError: match) and the
+	// evaluation reports segment.StatusNotConfigured. The provider is called from the evaluating goroutine.
+	Segments segment.Provider `json:"-"`
+
+	// RequestContext is the context of the request that is evaluated: the membership lookups honour its
+	// cancellation and deadline. Nil means context.Background().
+	//
+	//nolint:containedctx // Value has no context parameter: the context travels with the per-evaluation settings
+	RequestContext context.Context `json:"-"`
 }
 
 // AddIntoEvaluationContextEnrichment adds a key and value to the evaluation context enrichment.

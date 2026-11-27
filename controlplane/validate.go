@@ -477,7 +477,13 @@ func (c *flagCheck) declared(path, name string) {
 // rule checks a rule. partial is set for the rules of a scheduled step: they may leave out what the rule they
 // update already has.
 func (c *flagCheck) rule(path string, rule *Rule, isDefault, partial bool) {
-	if rule == nil || !isDefault && rule.Disable != nil && *rule.Disable {
+	if rule == nil {
+		return
+	}
+
+	if !isDefault && rule.Disable != nil && *rule.Disable {
+		c.onError(path, rule) // the rest of a disabled rule is not checked, its onError is
+
 		return
 	}
 
@@ -485,11 +491,19 @@ func (c *flagCheck) rule(path string, rule *Rule, isDefault, partial bool) {
 		c.outcome(path, rule, isDefault)
 	}
 
+	c.onError(path, rule)
 	c.percentages(path, rule)
 	c.progressive(path+".progressiveRollout", rule.ProgressiveRollout, partial)
 
 	if rule.Percentage == nil && rule.ProgressiveRollout == nil && rule.Variation != nil {
 		c.declared(path+".variation", *rule.Variation)
+	}
+}
+
+// onError checks that the onError of a rule is skip or match.
+func (c *flagCheck) onError(path string, rule *Rule) {
+	if rule.OnError != nil && *rule.OnError != "skip" && *rule.OnError != "match" {
+		c.probs.addf(c.owner, CodeInvalidValue, path+".onError", "must be skip or match, got %q", *rule.OnError)
 	}
 }
 

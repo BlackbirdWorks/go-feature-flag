@@ -19,6 +19,7 @@ new-checkout:
       percentage:
         "off": 0.0
         "on": 100.0
+      onError: match
     - name: ramp
       query: country eq "FR"
       progressiveRollout:

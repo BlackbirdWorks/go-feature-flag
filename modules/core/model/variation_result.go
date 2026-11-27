@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // JSONType contains all acceptable flag value types.
@@ -25,6 +26,8 @@ type VariationResult[T JSONType] struct {
 	Value         T                        `json:"value"`
 	Cacheable     bool                     `json:"cacheable"`
 	Metadata      map[string]any           `json:"metadata,omitempty"`
+	// SegmentStatus is the health of the segment lookups of the evaluation. It is not part of the JSON output.
+	SegmentStatus segment.Status `json:"-"`
 }
 
 // ToJSONStr converts the VariationResult to a JSON string.
@@ -50,4 +53,6 @@ type RawVarResult struct { //nolint:govet // fieldalignment: field order is the 
 	Value         any                      `json:"value"`
 	Cacheable     bool                     `json:"cacheable"`
 	Metadata      map[string]any           `json:"metadata,omitempty"`
+	// SegmentStatus is the health of the segment lookups of the evaluation. It is not part of the JSON output.
+	SegmentStatus segment.Status `json:"-"`
 }

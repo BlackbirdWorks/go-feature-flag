@@ -69,9 +69,12 @@ func NewWithContext(ctx context.Context, given *Config) (*GoFeatureFlag, error) 
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
-		config:            config,
-		evalExporterWg:    sync.WaitGroup{},
-		evaluationService: flagdef.NewService(flagdef.WithLogger(config.serviceLogger())),
+		config:         config,
+		evalExporterWg: sync.WaitGroup{},
+		evaluationService: flagdef.NewService(
+			flagdef.WithLogger(config.serviceLogger()),
+			flagdef.WithSegments(config.Segments),
+		),
 	}
 
 	if config.Offline {

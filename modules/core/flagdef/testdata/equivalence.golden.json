@@ -1,0 +1,5521 @@
+[
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-no-rule-50",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-progressive",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": true,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rollout-scheduled",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "bool-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-no-rule-50",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-progressive",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1.1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rollout-scheduled",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2.2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "float64-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-no-rule-50",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "beta",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-progressive",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "beta",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 1,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rollout-scheduled",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "int-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "beta",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-no-rule-50",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-progressive",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "beta",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "a"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rollout-scheduled",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "k": "b"
+  },
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "json-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "segment",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-no-rule-50",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-progressive",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "beta",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "a"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rollout-scheduled",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "b"
+  ],
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "jsonArr-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "admin",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "beta",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "longName",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "random",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "segment",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-0",
+  "context": "user1",
+  "variant": "B",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "admin",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "beta",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "longName",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "random",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "segment",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-100",
+  "context": "user1",
+  "variant": "A",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "admin",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-no-rule-50",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "longName",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "random",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-progressive",
+  "context": "user1",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "admin",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "beta",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "longName",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "random",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "segment",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "a",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "teamAge",
+  "variant": "A",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rollout-scheduled",
+  "context": "user1",
+  "variant": "B",
+  "reason": "SPLIT",
+  "cacheable": false
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "admin",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "beta",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "empty",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "longName",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "random",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "segment",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "teamAge",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": "b",
+  "file": "testdata/benchmark/flag-config.yaml",
+  "flag": "string-rule-complex",
+  "context": "user1",
+  "variant": "B",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "bar-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-2nd-file.yaml",
+  "flag": "foo-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "admin",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "beta",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "longName",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "random",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "segment",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag0",
+  "context": "user1",
+  "variant": "False",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "random",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": "false",
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag1",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": 2,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "random",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": [
+   "yo",
+   "ya"
+  ],
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag3",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "random",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": {
+   "test": "yo"
+  },
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag4",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": true,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "random",
+  "variant": "True",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag5",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "admin",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "beta",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "longName",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "random",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "segment",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "teamAge",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-3rd-file.yaml",
+  "flag": "test-flag6",
+  "context": "user1",
+  "variant": "False",
+  "reason": "SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "admin",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "beta",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "longName",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "random",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "segment",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "teamAge",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-custom-bucketingkey.yaml",
+  "flag": "my-flag",
+  "context": "user1",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "impossible to find bucketingKey in context: nested key not found: teamId",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "true",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-multiline-query.json",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "false",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "admin",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "beta",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "longName",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "random",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "segment",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "teamAge",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-rollouts.toml",
+  "flag": "rollout-flag",
+  "context": "user1",
+  "variant": "SdkDefault",
+  "reason": "DISABLED",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": false
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-scheduled-v0.yaml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH_SPLIT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config-updated.yaml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "true",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.json",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "true",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/flag-config.toml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": null,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "evaluatedRuleName": "rule1",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false,
+   "description": "this is a simple feature flag",
+   "issue-link": "https://jira.xxx/GOFF-01"
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": null,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "defaultValue": false
+  },
+  "value": false,
+  "file": "testdata/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-2nd-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-1.yaml",
+  "flag": "my-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-3rd-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "empty",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "random",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/config-2.yaml",
+  "flag": "my-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "STATIC",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "metadata": {
+   "evaluatedRuleName": "rule1"
+  },
+  "ruleIndex": 0,
+  "ruleName": "rule1",
+  "value": true,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "random",
+  "variant": "True",
+  "reason": "TARGETING_MATCH",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "initial-flag",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "admin",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "beta",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": null,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "empty",
+  "variant": "SdkDefault",
+  "reason": "ERROR",
+  "errorCode": "TARGETING_KEY_MISSING",
+  "errorMessage": "Error: Empty targeting key",
+  "cacheable": false
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "longName",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "random",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "segment",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "teamAge",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ },
+ {
+  "value": false,
+  "file": "testdata/multiple_files/flag-config.yaml",
+  "flag": "test-flag2",
+  "context": "user1",
+  "variant": "Default",
+  "reason": "DEFAULT",
+  "cacheable": true
+ }
+]
