@@ -70,7 +70,9 @@ type Fixture struct {
 	Provider segment.Provider
 	// Backend arranges faults in the store behind the provider. A provider that has no store to fail (an in-memory
 	// one) leaves it nil: the suite then wraps the provider in a decorator of its own that fails and hangs on
-	// request, so the cases that need a fault still run.
+	// request, so the cases that need a fault still run. That is a limit: the fault comes from the decorator, so
+	// those cases check the answers of the provider when it is healthy and the expectations of the suite, not the
+	// error paths of the provider itself.
 	Backend Backend
 	// Unsupported lists the faults that the backend cannot arrange, with a reason for each: only CapPartial and
 	// CapHang can be waived, and only with a Backend. The run must declare the same waivers (see [Run]).
@@ -186,6 +188,50 @@ type scene struct {
 
 func background() context.Context { return context.Background() }
 
+// msgStuck is the failure of a call that does not return: it is the only text that has it.
+const msgStuck = "a call did not return within the bound"
+
+var errStuck = errors.New("segmenttest: a call did not return within the bound")
+
+// call runs Contains under the bound of the fixture: a provider that deadlocks fails the case instead of the run. The
+// provider gets a copy of the lookups, so a call that never returns cannot write the slice that the case reads; the
+// answers are copied back when the call returns in time. The stuck goroutine is reported by the leak check.
+func (sc *scene) call(ctx context.Context, lookups []segment.Lookup) error {
+	work := slices.Clone(lookups)
+	result := make(chan error, 1)
+
+	var (
+		mu        sync.Mutex
+		abandoned bool
+	)
+
+	go func() {
+		err := sc.fx.Provider.Contains(ctx, work)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if !abandoned {
+			copy(lookups, work)
+		}
+
+		result <- err
+	}()
+
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(sc.bound()):
+		mu.Lock()
+		abandoned = true
+		mu.Unlock()
+
+		sc.assert.Fail(msgStuck)
+
+		return errStuck
+	}
+}
+
 func (sc *scene) bound() time.Duration {
 	if sc.fx.Bound > 0 {
 		return sc.fx.Bound
@@ -237,6 +283,38 @@ func CaseNames() []string {
 // capShutdown is not a fault: the case applies to the providers that implement [segment.Shutdowner].
 const capShutdown Capability = "shutdown"
 
+// outcome is what one case did.
+type outcome struct {
+	unsupported string
+	invalid     string
+	failures    []string
+	ran         bool
+}
+
+// runOne builds a fixture and runs one case on it.
+func runOne(factory Factory, declared Waivers, tcase testCase) outcome {
+	fixture, err := factory(suiteData())
+	if err != nil {
+		return outcome{ran: true, failures: []string{"the factory failed: " + err.Error()}}
+	}
+
+	if problem := checkFixture(&fixture, declared); problem != "" {
+		closeFixture(fixture)
+
+		return outcome{invalid: problem}
+	}
+
+	prepared := prepare(fixture)
+
+	if reason, skip := prepared.skips(tcase); skip {
+		closeFixture(fixture)
+
+		return outcome{unsupported: reason}
+	}
+
+	return outcome{ran: true, failures: runCase(tcase, prepared)} // runCase closes the fixture
+}
+
 // Check runs every case against the providers of the factory and returns the report. It never fails a test.
 // declared is the set of waivers that the caller states for the factory: it must be the one of every fixture.
 func Check(factory Factory, declared Waivers) Report {
@@ -251,37 +329,23 @@ func Check(factory Factory, declared Waivers) Report {
 	}
 
 	for _, tcase := range cases() {
-		fixture, err := factory(suiteData())
-		if err != nil {
+		result := runOne(factory, declared, tcase)
+
+		switch {
+		case result.invalid != "":
+			return Report{
+				Failed:      map[string][]string{},
+				Unsupported: map[string]string{},
+				Invalid:     []string{result.invalid},
+			}
+		case result.unsupported != "":
+			report.Unsupported[tcase.name] = result.unsupported
+		default:
 			report.Ran = append(report.Ran, tcase.name)
-			report.Failed[tcase.name] = []string{"the factory failed: " + err.Error()}
 
-			continue
-		}
-
-		if problem := checkFixture(&fixture, declared); problem != "" {
-			report.Invalid = append(report.Invalid, problem)
-
-			closeFixture(fixture)
-
-			return Report{Failed: map[string][]string{}, Unsupported: map[string]string{}, Invalid: report.Invalid}
-		}
-
-		prepared := prepare(fixture)
-
-		if reason, skip := prepared.skips(tcase); skip {
-			report.Unsupported[tcase.name] = reason
-
-			closeFixture(fixture)
-
-			continue
-		}
-
-		report.Ran = append(report.Ran, tcase.name)
-
-		msgs := runCase(tcase, prepared) // closes the fixture
-		if len(msgs) > 0 {
-			report.Failed[tcase.name] = msgs
+			if len(result.failures) > 0 {
+				report.Failed[tcase.name] = result.failures
+			}
 		}
 	}
 
@@ -380,6 +444,9 @@ func closeFixture(fixture Fixture) {
 // the case, so the leak check finds exactly the ones of this case.
 const labelKey = "segmenttest"
 
+// caseBudget is how many bounds of a call a whole case may take.
+const caseBudget = 6
+
 func runCase(tcase testCase, prep prepared) []string {
 	rep := &reporter{}
 	done := make(chan struct{})
@@ -395,7 +462,21 @@ func runCase(tcase testCase, prep prepared) []string {
 		})
 	}()
 
-	<-done
+	select {
+	case <-done:
+	case <-time.After(caseBudget * prep.bound()):
+		// a case that does not end: report it, release what hangs, and give it a bound to finish
+		rep.Errorf("%s: the case did not finish", msgStuck)
+
+		if prep.fixture.Backend != nil {
+			prep.fixture.Backend.Release()
+		}
+
+		select {
+		case <-done:
+		case <-time.After(prep.bound()):
+		}
+	}
 
 	// the case is over: release what hangs and close the fixture, then every goroutine that it started must end
 	if prep.fixture.Backend != nil {
@@ -445,34 +526,89 @@ func labelled(name string) int {
 
 	_ = pprof.Lookup("goroutine").WriteTo(&dump, 1)
 
-	return strings.Count(dump.String(), fmt.Sprintf("# labels: {%q:%q}", labelKey, name))
+	return countLabelled(dump.String(), name)
 }
 
-// Run checks the factory and fails the test for each case that failed. waivers is the set of faults that the
-// fixtures cannot arrange: it is compared with the Unsupported of every fixture, and a difference fails the run. It
-// logs the cases that a waiver skipped.
+// countLabelled counts, in a goroutine profile (debug level 1), the goroutines that carry the label of the case. A
+// header "N @ ..." stands for N goroutines with the same stack and labels, and the labels line can hold other
+// labels besides ours.
+func countLabelled(dump, name string) int {
+	want := fmt.Sprintf("%q:%q", labelKey, name)
+	total, group := 0, 0
+
+	for line := range strings.SplitSeq(dump, "\n") {
+		if count, _, found := strings.Cut(line, " @ "); found {
+			parsed, err := strconv.Atoi(count)
+			if err == nil {
+				group = parsed
+			}
+
+			continue
+		}
+
+		if strings.HasPrefix(line, "# labels: {") && strings.Contains(line, want) {
+			total += group
+		}
+	}
+
+	return total
+}
+
+// Run runs every case as a subtest of "cases", in parallel, and fails the ones that failed: a filter of `go test
+// -run` selects the cases that run, and only those are built and run. waivers is the set of faults that the fixtures
+// cannot arrange: it is compared with the Unsupported of every fixture, and a difference fails the run. It logs the
+// cases that a waiver skipped, and returns what the cases did.
 func Run(t *testing.T, factory Factory, waivers Waivers) Report {
 	t.Helper()
 
-	report := Check(factory, waivers)
+	report := Report{Failed: map[string][]string{}, Unsupported: map[string]string{}}
 
-	for _, problem := range report.Invalid {
-		assert.Fail(t, "invalid waivers: "+problem)
+	for _, problem := range validateWaivers(waivers) {
+		assert.Fail(t, "invalid waivers: declared waivers: "+problem)
+		report.Invalid = append(report.Invalid, problem)
 	}
 
-	for _, name := range slices.Sorted(maps.Keys(report.Unsupported)) {
-		t.Logf("unsupported: %s (%s)", name, report.Unsupported[name])
+	if len(report.Invalid) > 0 {
+		return report
 	}
 
-	for _, name := range report.Ran {
-		t.Run(name, func(t *testing.T) {
-			t.Helper()
+	var mu sync.Mutex
 
-			for _, msg := range report.Failed[name] {
-				assert.Fail(t, msg)
-			}
-		})
-	}
+	t.Run("cases", func(t *testing.T) {
+		for _, tcase := range cases() {
+			t.Run(tcase.name, func(t *testing.T) {
+				t.Parallel()
+
+				result := runOne(factory, waivers, tcase)
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				switch {
+				case result.invalid != "":
+					assert.Fail(t, "invalid waivers: "+result.invalid)
+					report.Invalid = append(report.Invalid, result.invalid)
+				case result.unsupported != "":
+					t.Logf("unsupported: %s (%s)", tcase.name, result.unsupported)
+
+					report.Unsupported[tcase.name] = result.unsupported
+				default:
+					report.Ran = append(report.Ran, tcase.name)
+
+					for _, msg := range result.failures {
+						assert.Fail(t, msg)
+					}
+
+					if len(result.failures) > 0 {
+						report.Failed[tcase.name] = result.failures
+					}
+				}
+			})
+		}
+	})
+
+	order := CaseNames()
+	slices.SortFunc(report.Ran, func(a, b string) int { return slices.Index(order, a) - slices.Index(order, b) })
 
 	return report
 }
@@ -602,16 +738,16 @@ func casePositions(cas *scene) {
 		lookup(alpha, "shared"), lookup(beta, "absent"),
 	}
 
-	cas.require.NoError(cas.fx.Provider.Contains(background(), lookups))
+	cas.require.NoError(cas.call(background(), lookups))
 	cas.assert.Equal([]segment.State{
 		segment.Member, segment.Member, segment.NotMember, segment.NotMember, segment.Member, segment.NotMember,
-	}, statesOf(lookups))
+	}, statesOf(lookups), "the answers are in the positions of the lookups")
 }
 
 func caseUnknownSegment(cas *scene) {
 	lookups := []segment.Lookup{lookup(ghost, "m1"), lookup(alpha, "m1")}
 
-	_ = cas.fx.Provider.Contains(background(), lookups)
+	cas.require.NoError(cas.call(background(), lookups), "a segment that is not loaded is not a failure of the call")
 
 	cas.assert.Equal(segment.Unknown, lookups[0].State, "a segment the provider does not hold")
 	cas.assert.Equal(segment.Member, lookups[1].State, "the other lookup is answered")
@@ -621,7 +757,7 @@ func caseInputUntouched(cas *scene) {
 	lookups := []segment.Lookup{lookup(alpha, " M1 "), lookup(beta, "only-beta"), lookup(ghost, "x")}
 	want := slices.Clone(lookups)
 
-	_ = cas.fx.Provider.Contains(background(), lookups)
+	_ = cas.call(background(), lookups)
 
 	for i := range lookups {
 		cas.assert.Equal(want[i].Segment, lookups[i].Segment)
@@ -637,7 +773,7 @@ func caseDuplicates(cas *scene) {
 		lookup(alpha, "absent"),
 	}
 
-	cas.require.NoError(cas.fx.Provider.Contains(background(), lookups))
+	cas.require.NoError(cas.call(background(), lookups))
 	cas.assert.Equal(
 		[]segment.State{segment.Member, segment.Member, segment.NotMember, segment.NotMember},
 		statesOf(lookups),
@@ -645,8 +781,8 @@ func caseDuplicates(cas *scene) {
 }
 
 func caseEmptyCall(cas *scene) {
-	cas.require.NoError(cas.fx.Provider.Contains(background(), nil))
-	cas.require.NoError(cas.fx.Provider.Contains(background(), []segment.Lookup{}))
+	cas.require.NoError(cas.call(background(), nil), "an empty call must not fail")
+	cas.require.NoError(cas.call(background(), []segment.Lookup{}), "an empty call must not fail")
 }
 
 func caseLargeBatch(cas *scene) {
@@ -662,19 +798,20 @@ func caseLargeBatch(cas *scene) {
 		}
 	}
 
-	cas.require.NoError(cas.fx.Provider.Contains(background(), lookups))
-	cas.assert.Equal(want, statesOf(lookups))
+	cas.require.NoError(cas.call(background(), lookups))
+	cas.assert.Equal(want, statesOf(lookups), "a large batch is answered in place")
 }
 
+// caseOddIDs: ids that no normalisation (trimming, lowering) can turn into a member are never members.
 func caseOddIDs(cas *scene) {
-	ids := []string{"", " ", "m1\n", "M1", "m1\x00", "ünï", "a\tb", string(make([]byte, oddIDLength))}
+	ids := []string{"", "m1\x00", "ünï", "a\tb", string(make([]byte, oddIDLength))}
 	lookups := make([]segment.Lookup, len(ids))
 
 	for i, id := range ids {
 		lookups[i] = lookup(alpha, id)
 	}
 
-	_ = cas.fx.Provider.Contains(background(), lookups)
+	_ = cas.call(background(), lookups)
 
 	for i := range lookups {
 		cas.assert.NotEqual(segment.Member, lookups[i].State, "an id that is not a member must not be one: %q", ids[i])
@@ -691,7 +828,7 @@ func casePartialFailure(cas *scene) {
 		lookup(beta, "absent"),
 	}
 
-	err := cas.fx.Provider.Contains(background(), lookups)
+	err := cas.call(background(), lookups)
 
 	cas.require.Error(err, "the failure is reported")
 	cas.assert.Equal(segment.Unknown, lookups[1].State, "a failed lookup stays unknown")
@@ -705,22 +842,29 @@ func casePartialFailure(cas *scene) {
 func caseFailure(cas *scene) {
 	cas.fx.Backend.Fail()
 
-	lookups := []segment.Lookup{lookup(alpha, "m1"), lookup(beta, "absent")}
+	// ids that no earlier step asked about, with the states that a caller may have left: a provider that caches
+	// may answer one that it already knows, and a state left in the slice never survives a total outage
+	lookups := []segment.Lookup{
+		{Segment: alpha, ID: "m3", State: segment.Member}, {Segment: beta, ID: "absent", State: segment.NotMember},
+	}
 
-	err := cas.fx.Provider.Contains(background(), lookups)
+	err := cas.call(background(), lookups)
 
-	cas.require.Error(err)
-	cas.assert.Equal([]segment.State{segment.Unknown, segment.Unknown}, statesOf(lookups))
+	cas.require.Error(err, "a total outage must fail the call")
+	cas.assert.Equal(
+		[]segment.State{segment.Unknown, segment.Unknown}, statesOf(lookups),
+		"a total outage must leave the lookups unknown, whatever state they came with",
+	)
 }
 
 func caseRecovers(cas *scene) {
 	cas.fx.Backend.Fail()
-	cas.require.Error(cas.fx.Provider.Contains(background(), []segment.Lookup{lookup(alpha, "m1")}))
+	cas.require.Error(cas.call(background(), []segment.Lookup{lookup(alpha, "m1")}))
 	cas.fx.Backend.Heal()
 
 	lookups := []segment.Lookup{lookup(alpha, "m1")}
 
-	cas.require.NoError(cas.fx.Provider.Contains(background(), lookups))
+	cas.require.NoError(cas.call(background(), lookups), "the provider must answer after the failure is healed")
 	cas.assert.Equal(segment.Member, lookups[0].State)
 }
 
@@ -730,7 +874,7 @@ func caseCtxEndedBefore(cas *scene) {
 
 	lookups := []segment.Lookup{lookup(alpha, "m1"), lookup(alpha, "absent")}
 
-	err := cas.fx.Provider.Contains(ended, lookups)
+	err := cas.call(ended, lookups)
 	if err != nil {
 		cas.assert.Equal([]segment.State{segment.Unknown, segment.Unknown}, statesOf(lookups))
 
@@ -738,7 +882,10 @@ func caseCtxEndedBefore(cas *scene) {
 	}
 
 	// a provider that has the answers at hand may give them, and they must be right
-	cas.assert.Equal([]segment.State{segment.Member, segment.NotMember}, statesOf(lookups))
+	cas.assert.Equal(
+		[]segment.State{segment.Member, segment.NotMember}, statesOf(lookups),
+		"a context that ended is answered rightly or not at all",
+	)
 }
 
 func caseCtxCancelDuring(cas *scene) {
@@ -755,9 +902,15 @@ func caseCtxCancelDuring(cas *scene) {
 	select {
 	case <-entered:
 	case err := <-result:
-		// the provider answered without reaching the store: nothing to cancel
+		// the provider answered without reaching the store (a cache): nothing to cancel, and the answer is right
 		cas.fx.Backend.Release()
 		cas.require.NoError(err)
+		cas.assert.Equal(segment.Member, lookups[0].State, "an answer given before the store was reached must be right")
+
+		return
+	case <-time.After(cas.bound()):
+		cas.fx.Backend.Release()
+		cas.require.Fail(msgStuck)
 
 		return
 	}
@@ -810,7 +963,10 @@ func caseSliceNotRetained(cas *scene) {
 		wg.Go(func() {
 			for range rounds {
 				lookups := []segment.Lookup{lookup(alpha, "m1"), lookup(beta, "only-beta")}
-				cas.require.NoError(cas.fx.Provider.Contains(background(), lookups))
+
+				if !cas.assert.NoError(cas.fx.Provider.Contains(background(), lookups), "a call of a worker failed") {
+					return
+				}
 
 				for i := range lookups {
 					lookups[i] = lookup("x", "y")
@@ -830,14 +986,17 @@ func caseConcurrent(cas *scene) {
 			for round := range rounds {
 				id := "m" + strconv.Itoa((worker*rounds+round)%idSpan)
 				lookups := []segment.Lookup{lookup(alpha, id), lookup(alpha, "shared"), lookup(beta, "absent")}
-				err := cas.fx.Provider.Contains(background(), lookups)
+				err := cas.call(background(), lookups)
 				want := segment.NotMember
 
 				if (worker*rounds+round)%idSpan < largeMembers {
 					want = segment.Member
 				}
 
-				cas.require.NoError(err)
+				if !cas.assert.NoError(err, "a concurrent call failed") {
+					return
+				}
+
 				cas.assert.Equal([]segment.State{want, segment.Member, segment.NotMember}, statesOf(lookups))
 			}
 		})
@@ -846,7 +1005,8 @@ func caseConcurrent(cas *scene) {
 	wg.Wait()
 }
 
-// casePrefilled: a state that the caller left in the slice never survives a failure.
+// casePrefilled: a state that the caller left in the slice never survives the failure of one segment (the total
+// outage is in caseFailure, which needs no partial fault).
 func casePrefilled(cas *scene) {
 	cas.fx.Backend.FailSegment(beta)
 
@@ -855,21 +1015,10 @@ func casePrefilled(cas *scene) {
 		{Segment: beta, ID: "absent", State: segment.NotMember},
 	}
 
-	cas.require.Error(cas.fx.Provider.Contains(background(), partial))
+	cas.require.Error(cas.call(background(), partial))
 	cas.assert.Equal(segment.Unknown, partial[1].State, "a failed lookup keeps the state it came with")
 	cas.assert.Equal(segment.Unknown, partial[2].State, "a failed lookup keeps the state it came with")
 	cas.assert.NotEqual(segment.NotMember, partial[0].State, "an answered lookup is the answer, not what it came with")
-
-	cas.fx.Backend.Heal()
-	cas.fx.Backend.Fail()
-
-	// an id that no earlier step asked about: a provider that caches may answer one that it already knows
-	whole := []segment.Lookup{
-		{Segment: alpha, ID: "m2", State: segment.Member}, {Segment: ghost, ID: "x", State: segment.NotMember},
-	}
-
-	cas.require.Error(cas.fx.Provider.Contains(background(), whole))
-	cas.assert.Equal([]segment.State{segment.Unknown, segment.Unknown}, statesOf(whole))
 }
 
 // caseAfterShutdown: Shutdown is safe to call twice, and a call after it answers nothing.
@@ -879,7 +1028,7 @@ func caseAfterShutdown(cas *scene) {
 
 	lookups := []segment.Lookup{lookup(alpha, "m1"), lookup(alpha, "absent")}
 
-	cas.require.Error(cas.fx.Provider.Contains(background(), lookups))
+	cas.require.Error(cas.call(background(), lookups), "a call after Shutdown must fail")
 	cas.assert.Equal([]segment.State{segment.Unknown, segment.Unknown}, statesOf(lookups))
 }
 
@@ -888,7 +1037,7 @@ func caseLongID(cas *scene) {
 	long := strings.Repeat("m1", longIDRepeats)
 	lookups := []segment.Lookup{lookup(alpha, long), lookup(alpha, "m1")}
 
-	_ = cas.fx.Provider.Contains(background(), lookups)
+	_ = cas.call(background(), lookups)
 
 	cas.assert.NotEqual(segment.Member, lookups[0].State, "an id that is not a member must not be one")
 	cas.assert.Equal(segment.Member, lookups[1].State, "the other lookup is answered")

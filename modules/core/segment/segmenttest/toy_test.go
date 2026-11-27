@@ -19,8 +19,8 @@ import (
 var errToy = errors.New("toy failure")
 
 const (
-	reasonNoStore      = "no store"
-	msgUnexpectedError = "Received unexpected error"
+	reasonNoStore = "no store"
+	msgStuckText  = "a call did not return within the bound"
 )
 
 // The defects of the toy provider. The suite has to fail the named case for each of them: a suite that passes a
@@ -45,6 +45,11 @@ const (
 	defectAnswersClosed   = "answers after Shutdown"
 	defectLongIDMember    = "an id of a hundred kilobytes is a member"
 	defectLeaks           = "leaks a goroutine"
+	defectUnknownSegErr   = "returns an error for a segment it does not hold"
+	defectKeepsOnOutage   = "keeps the state the caller left when the whole store fails"
+	defectFastWrong       = "answers wrongly before it reaches the store"
+	defectStuckLongID     = "deadlocks on an id of a hundred kilobytes"
+	defectStuckBeforeGate = "deadlocks before it reaches the store"
 )
 
 // toy is a correct in-memory provider with one defect that a test switches on.
@@ -138,6 +143,10 @@ func (p *toy) Contains(ctx context.Context, lookups []segment.Lookup) error {
 		return errToy
 	}
 
+	if p.stalls(lookups, cfg) {
+		return p.fastAnswer(lookups, cfg)
+	}
+
 	if len(lookups) == 0 {
 		if p.defect == defectEmptyIsError {
 			return errToy
@@ -215,23 +224,40 @@ func TestSuiteCatchesEachDefect(t *testing.T) {
 		wantCase    string
 		wantMessage string
 	}{
-		{defectReversesStates, segmenttest.CasePositions, "expected: []segment.State{0x2, 0x2, 0x1, 0x1, 0x2, 0x1}"},
+		{defectReversesStates, segmenttest.CasePositions, "the answers are in the positions of the lookups"},
 		{defectAnswersGhost, segmenttest.CaseUnknownSegment, "a segment the provider does not hold"},
+		{
+			defectUnknownSegErr,
+			segmenttest.CaseUnknownSegment,
+			"a segment that is not loaded is not a failure of the call",
+		},
 		{defectChangesID, segmenttest.CaseInputUntouched, `expected: " M1 "`},
 		{defectDuplicates, segmenttest.CaseDuplicates, "actual  : []segment.State{0x2, 0x0, 0x1, 0x1}"},
-		{defectEmptyIsError, segmenttest.CaseEmptyCall, msgUnexpectedError},
-		{defectTruncates, segmenttest.CaseLargeBatch, "Not equal"},
+		{defectEmptyIsError, segmenttest.CaseEmptyCall, "an empty call must not fail"},
+		{defectTruncates, segmenttest.CaseLargeBatch, "a large batch is answered in place"},
 		{defectEmptyIsMember, segmenttest.CaseOddIDs, `an id that is not a member must not be one: ""`},
 		{defectPartialWrong, segmenttest.CasePartialFailure, "a failed lookup stays unknown"},
 		{defectFailureAnswers, segmenttest.CaseFailure, "actual  : []segment.State{0x1, 0x1}"},
-		{defectNeverRecovers, segmenttest.CaseRecovers, msgUnexpectedError},
-		{defectIgnoresEndedCtx, segmenttest.CaseCtxEndedBefore, "actual  : []segment.State{0x2, 0x2}"},
+		{defectKeepsOnOutage, segmenttest.CaseFailure, "actual  : []segment.State{0x2, 0x1}"},
+		{defectNeverRecovers, segmenttest.CaseRecovers, "the provider must answer after the failure is healed"},
+		{
+			defectIgnoresEndedCtx,
+			segmenttest.CaseCtxEndedBefore,
+			"a context that ended is answered rightly or not at all",
+		},
 		{defectIgnoresCtx, segmenttest.CaseCtxCancelDuring, "the call did not return when its context ended"},
+		{defectStuckBeforeGate, segmenttest.CaseCtxCancelDuring, msgStuckText},
+		{
+			defectFastWrong,
+			segmenttest.CaseCtxCancelDuring,
+			"an answer given before the store was reached must be right",
+		},
 		{defectRetainsSlice, segmenttest.CaseSliceNotRetained, "a later call changed a slice that was returned"},
-		{defectRace, segmenttest.CaseConcurrent, msgUnexpectedError},
+		{defectRace, segmenttest.CaseConcurrent, "a concurrent call failed"},
 		{defectKeepsPrefilled, segmenttest.CasePrefilled, "a failed lookup keeps the state it came with"},
-		{defectAnswersClosed, segmenttest.CaseAfterShutdown, "An error is expected but got nil"},
+		{defectAnswersClosed, segmenttest.CaseAfterShutdown, "a call after Shutdown must fail"},
 		{defectLongIDMember, segmenttest.CaseLongID, "an id that is not a member must not be one"},
+		{defectStuckLongID, segmenttest.CaseLongID, msgStuckText},
 		{defectLeaks, segmenttest.CasePositions, "goroutine leak: "},
 	}
 
@@ -461,6 +487,8 @@ func (p *toy) answerOne(look *segment.Lookup, cfg toyConfig) error {
 		return errToy
 	case !held && p.defect == defectAnswersGhost:
 		look.State = segment.NotMember
+	case !held && p.defect == defectUnknownSegErr:
+		return errToy
 	case !held:
 	case set[look.ID] || (p.defect == defectEmptyIsMember && look.ID == "") ||
 		(p.defect == defectLongIDMember && len(look.ID) > 50000):
@@ -569,7 +597,9 @@ func (p *toy) answersEndedContext(ctx context.Context, lookups []segment.Lookup)
 
 // refuses resets the states the way a correct provider does, and tells whether the toy is closed.
 func (p *toy) refuses(lookups []segment.Lookup) bool {
-	if p.defect != defectKeepsPrefilled {
+	keeps := p.defect == defectKeepsPrefilled || (p.defect == defectKeepsOnOutage && p.snapshot().failAll)
+
+	if !keeps {
 		for i := range lookups {
 			lookups[i].State = segment.Unknown
 		}
@@ -580,4 +610,31 @@ func (p *toy) refuses(lookups []segment.Lookup) bool {
 	}
 
 	return p.isClosed() && p.defect != defectAnswersClosed
+}
+
+// stalls applies the defects that block or answer before the store is reached. It returns true when the toy
+// answers fast instead of going on.
+func (p *toy) stalls(lookups []segment.Lookup, cfg toyConfig) bool {
+	if p.defect == defectStuckLongID {
+		for i := range lookups {
+			if len(lookups[i].ID) > 50000 {
+				<-p.leakStop
+			}
+		}
+	}
+
+	if p.defect == defectStuckBeforeGate && cfg.gate != nil {
+		<-p.leakStop
+	}
+
+	return p.defect == defectFastWrong && cfg.gate != nil
+}
+
+// fastAnswer is the defect of a toy that answers wrongly, without an error, when the store is slow.
+func (p *toy) fastAnswer(lookups []segment.Lookup, _ toyConfig) error {
+	for i := range lookups {
+		lookups[i].State = segment.NotMember
+	}
+
+	return nil
 }
