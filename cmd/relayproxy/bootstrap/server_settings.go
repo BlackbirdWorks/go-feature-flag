@@ -1,0 +1,114 @@
+package bootstrap
+
+import (
+	"net/url"
+	"strings"
+)
+
+// The defaults of the validate flags limits, as in version 1.
+const (
+	DefaultValidateJSONBodySize = ByteSize(1 << 20)
+	DefaultValidateYAMLBodySize = ByteSize(64 << 10)
+	DefaultValidateTOMLBodySize = ByteSize(64 << 10)
+)
+
+// The paths of the settings of the server that are checked together.
+const (
+	pathOPSPprof    = "server.ops.pprof.enabled"
+	pathStreamURL   = "server.ofrepEventStream.baseUrl"
+	pathStreamDelay = "server.ofrepEventStream.inactivityDelaySec"
+	pathAnonymous   = "auth.anonymousFlagSet"
+)
+
+// Ops holds the settings of the ops listener (the listener with the role ops).
+type Ops struct {
+	// Pprof serves the Go profiler on the ops listener, never on the api listener.
+	Pprof Pprof `json:"pprof,omitzero" yaml:"pprof,omitempty"`
+}
+
+// Pprof is the profiler endpoint, under /debug/pprof/ of the ops listener.
+type Pprof struct {
+	// Enabled needs a listener with the role ops. Default false.
+	Enabled bool `json:"enabled,omitempty" jsonschema:"default=false" yaml:"enabled,omitempty"`
+}
+
+// OFREPEventStream makes the OFREP bulk evaluation advertise the endpoint of the flag changes (OpenFeature ADR-0008),
+// so that a provider subscribes instead of polling. It is on when BaseURL is set.
+type OFREPEventStream struct {
+	// BaseURL is the public base URL clients use to reach the relay, for example https://flags.example.com: an
+	// absolute http or https URL without credentials, query or fragment. Empty means off.
+	BaseURL string `json:"baseUrl,omitempty" yaml:"baseUrl,omitempty"`
+	// InactivityDelaySec is the delay in seconds after which a client takes the stream as inactive; 0 omits it.
+	InactivityDelaySec int `json:"inactivityDelaySec,omitempty" jsonschema:"minimum=0" yaml:"inactivityDelaySec,omitempty"`
+}
+
+// ValidateFlags are the limits of the body of POST /admin/v1/flags/validate, by format.
+type ValidateFlags struct {
+	// MaxJSONBodySize is the largest JSON body. Default 1MiB.
+	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema:"default=1MiB" yaml:"maxJsonBodySize,omitempty"`
+	// MaxYAMLBodySize is the largest YAML body. Default 64KiB.
+	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxYamlBodySize,omitempty"`
+	// MaxTOMLBodySize is the largest TOML body. Default 64KiB.
+	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxTomlBodySize,omitempty"`
+}
+
+func (f *ValidateFlags) applyDefaults() {
+	f.MaxJSONBodySize = orDefault(f.MaxJSONBodySize, DefaultValidateJSONBodySize)
+	f.MaxYAMLBodySize = orDefault(f.MaxYAMLBodySize, DefaultValidateYAMLBodySize)
+	f.MaxTOMLBodySize = orDefault(f.MaxTOMLBodySize, DefaultValidateTOMLBodySize)
+}
+
+// serverSettings checks the settings of the server that are not listeners. The URL of the event stream may carry
+// credentials: it is never part of an error.
+func (v *validator) serverSettings() {
+	server := &v.cfg.Server
+
+	if server.Ops.Pprof.Enabled && !v.hasOps() {
+		v.failf(pathOPSPprof, ErrInvalidValue, "needs a listener with role %s, pprof is never served on the api listener", RoleOps)
+	}
+
+	stream := server.OFREPEventStream
+
+	if stream.InactivityDelaySec < 0 {
+		v.failf(pathStreamDelay, ErrInvalidValue, "expected zero or more seconds")
+	}
+
+	if stream.BaseURL == "" {
+		return
+	}
+
+	parsed, err := url.Parse(stream.BaseURL)
+
+	switch {
+	case err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "":
+		v.failf(pathStreamURL, ErrInvalidValue, "expected an absolute http or https URL")
+	case parsed.User != nil:
+		v.failf(pathStreamURL, ErrInvalidValue, "credentials in the URL are not allowed")
+	case parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(stream.BaseURL, "?") ||
+		strings.Contains(stream.BaseURL, "#"):
+		v.failf(pathStreamURL, ErrInvalidValue, "a query or a fragment is not allowed")
+	}
+}
+
+func (v *validator) hasOps() bool {
+	for i := range v.cfg.Server.Listeners {
+		if v.cfg.Server.Listeners[i].Role == RoleOps {
+			return true
+		}
+	}
+
+	return false
+}
+
+// anonymousFlagSet checks the name of the flag set that serves the requests without a key. Whether the flag set
+// exists is known to the relay only, per generation.
+func (v *validator) anonymousFlagSet() {
+	name := v.cfg.Auth.AnonymousFlagSet
+	if name == "" {
+		return
+	}
+
+	if !nameRE.MatchString(name) {
+		v.failf(pathAnonymous, ErrInvalidName, "names match %s", nameRE.String())
+	}
+}

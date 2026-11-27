@@ -68,6 +68,17 @@ type viewTable struct {
 	views map[*flagruntime.FlagSet]*view
 }
 
+// viewOf returns the view of a flag set of the table; a nil table has none.
+func (t *viewTable) viewOf(set *flagruntime.FlagSet) (*view, bool) {
+	if t == nil {
+		return nil, false
+	}
+
+	found, ok := t.views[set]
+
+	return found, ok
+}
+
 // FlagSet returns the flag set of the API key.
 //
 //nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
@@ -93,7 +104,7 @@ func (a *Adapter) FlagSetName(apiKey string) (string, error) {
 // IsDefaultFlagSet is false: a core always routes the keys to flag sets.
 func (*Adapter) IsDefaultFlagSet() bool { return false }
 
-// AuthenticationEnabled is true: a core has no anonymous access.
+// AuthenticationEnabled is true: a request needs a key, or else the bootstrap file names an anonymous flag set.
 func (*Adapter) AuthenticationEnabled() bool { return true }
 
 // KeyExists reports whether the key is a flag set key or an admin key.
@@ -145,6 +156,16 @@ func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*
 		views[set] = &view{adapter: a, set: set}
 	}
 
+	if anon := current.Anonymous; anon != nil {
+		if _, ok := views[anon]; !ok {
+			if old, ok := prev.viewOf(anon); ok {
+				views[anon] = old
+			} else {
+				views[anon] = &view{adapter: a, set: anon}
+			}
+		}
+	}
+
 	a.table.Store(&viewTable{rt: current, views: views})
 
 	return views
@@ -153,11 +174,12 @@ func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*
 // lookup routes a key to the view of its flag set. A flag set that is known but not loaded (pending) is routed too:
 // it serves no flags. An admin key, an unknown key and an empty key have no flag set.
 func (a *Adapter) lookup(apiKey string) (*view, error) {
-	if apiKey == "" {
+	current := a.holder.Load()
+
+	// no key: only the anonymous flag set of the file serves the request. A key that is given never comes to it.
+	if apiKey == "" && current.Anonymous == nil {
 		return nil, errNoAPIKey
 	}
-
-	current := a.holder.Load()
 
 	set, route := current.Route(apiKey)
 	if route != flagruntime.RouteFlagSet && route != flagruntime.RoutePending {

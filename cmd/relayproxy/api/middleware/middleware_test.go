@@ -191,6 +191,115 @@ func TestKeyAuth(t *testing.T) {
 	}
 }
 
+// TestKeyAuth_Anonymous checks the requests without a key: they reach the validator with an empty key only when the
+// middleware allows it, and a request that carries a key, right or wrong, never does.
+func TestKeyAuth_Anonymous(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		headers       map[string]string
+		name          string
+		entry         string
+		wantBody      string
+		wantKey       string
+		wantValidated []string
+		wantStatus    int
+		allow         bool
+		anonymousOK   bool
+	}{
+		{
+			name: "no key, anonymous allowed and served", entry: fixtures.KindHTTP, allow: true, anonymousOK: true,
+			wantStatus: http.StatusOK, wantValidated: []string{""},
+		},
+		{
+			name: "no key, anonymous allowed but no flag set", entry: fixtures.KindHTTP, allow: true,
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{""},
+			wantBody: `{"message":"missing value in request header"}` + "\n",
+		},
+		{
+			name: "no key, anonymous not allowed", entry: fixtures.KindHTTP, anonymousOK: true,
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"missing value in request header"}` + "\n",
+		},
+		{
+			name: "a wrong key never falls back to anonymous", entry: fixtures.KindHTTP, allow: true, anonymousOK: true,
+			headers:    map[string]string{xAPIKeyUpper: "bad"},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"}, wantBody: messageUnauthorized + "\n",
+		},
+		{
+			name: "a wrong bearer never falls back to anonymous", entry: fixtures.KindHTTP, allow: true,
+			anonymousOK: true, headers: map[string]string{protocol.HeaderAuthorization: "Bearer bad"},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"},
+			wantBody: `{"message":"authenticating the API key: code=401, message=invalid key"}` + "\n",
+		},
+		{
+			name: "an authorization that is not a bearer never falls back to anonymous", entry: fixtures.KindHTTP,
+			allow: true, anonymousOK: true, headers: map[string]string{protocol.HeaderAuthorization: "Basic good"},
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"invalid value in request header"}` + "\n",
+		},
+		{
+			name: "a good key is validated as it is", entry: fixtures.KindHTTP, allow: true, anonymousOK: true,
+			headers:    map[string]string{xAPIKeyUpper: good},
+			wantStatus: http.StatusOK, wantKey: good, wantValidated: []string{good},
+		},
+		{
+			name: "huma, no key, anonymous served", entry: humaName, allow: true, anonymousOK: true,
+			wantStatus: http.StatusOK, wantValidated: []string{""},
+		},
+		{
+			name: "huma, a wrong key never falls back to anonymous", entry: humaName, allow: true, anonymousOK: true,
+			headers:    map[string]string{xAPIKeyUpper: "bad"},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"}, wantBody: messageUnauthorized + "\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var validated []string
+
+			auth := middleware.NewKeyAuth(middleware.KeyAuthConfig{
+				AllowAnonymous: tt.allow,
+				Validator: func(ctx context.Context, k string) (context.Context, bool) {
+					validated = append(validated, k)
+
+					return context.WithValue(ctx, key{}, k), k == good || (k == "" && tt.anonymousOK)
+				},
+			})
+
+			var (
+				gotKey  string
+				handler http.Handler
+			)
+			if tt.entry == humaName {
+				handler = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
+					gotKey, _ = ctx.Value(key{}).(string)
+
+					return okDocument(ctx, in)
+				}, auth.Huma())
+			} else {
+				handler = auth.HTTP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					gotKey, _ = r.Context().Value(key{}).(string)
+					newOK().ServeHTTP(w, r)
+				}))
+			}
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			rec := serve(handler, req)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Equal(t, tt.wantKey, gotKey)
+			assert.Equal(t, tt.wantValidated, validated)
+
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestVersionHeader(t *testing.T) {
 	t.Parallel()
 

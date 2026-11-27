@@ -39,6 +39,14 @@ type Server struct {
 	Listeners      []Listener `json:"listeners,omitempty"      yaml:"listeners,omitempty"`
 	// Shutdown tunes the stop of the relay after SIGTERM or SIGINT.
 	Shutdown Shutdown `json:"shutdown,omitzero" yaml:"shutdown,omitempty"`
+	// Ops tunes the ops listener.
+	Ops Ops `json:"ops,omitzero" yaml:"ops,omitempty"`
+	// OFREPEventStream advertises the flag change stream in the OFREP bulk evaluation.
+	OFREPEventStream OFREPEventStream `json:"ofrepEventStream,omitzero" yaml:"ofrepEventStream,omitempty"`
+	// ValidateFlags limits the body of the validate flags endpoint.
+	ValidateFlags ValidateFlags `json:"validateFlags,omitzero" yaml:"validateFlags,omitempty"`
+	// HideBanner keeps the banner out of the standard output at start.
+	HideBanner bool `json:"hideBanner,omitempty" yaml:"hideBanner,omitempty"`
 }
 
 // Listener is one address the relay listens on.
@@ -51,8 +59,12 @@ type Listener struct {
 	Protocols []string `json:"protocols,omitempty" jsonschema:"enum=http1,enum=h2c,uniqueItems=true" yaml:"protocols,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
-// Auth holds the admin API keys.
+// Auth holds the admin API keys and the anonymous access.
 type Auth struct {
+	// AnonymousFlagSet names the flag set that serves the requests without an API key: evaluation, bulk, OFREP and
+	// the change streams, never the admin endpoints. A request with a key never falls back to it. Empty (the
+	// default) means every request needs a key.
+	AnonymousFlagSet string `json:"anonymousFlagSet,omitempty" yaml:"anonymousFlagSet,omitempty"`
 	// AdminKeys are plain strings or secret references. They are never printed.
 	AdminKeys []AdminKey `json:"adminKeys,omitempty" yaml:"adminKeys,omitempty"`
 }

@@ -117,6 +117,9 @@ func (rs *routeSet) raw(op *huma.Operation, pattern string, h http.Handler, mws 
 func (s *Server) userKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
 		Skipper: func() bool { return !s.keys.AuthenticationEnabled() },
+		// a request without a key is served by the anonymous flag set of the runtime, when there is one: the
+		// resolver answers "no flag set" for an empty key otherwise.
+		AllowAnonymous: true,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			manager := s.flagSets()
 			if manager == nil || manager.IsDefaultFlagSet() {
@@ -155,12 +158,13 @@ func (s *Server) initRoutes() {
 		routes.api.OpenAPI().Info.Version = s.settings.Version
 	}
 
+	// pprof is served by the ops listener only: with one listener the profiler is not served at all.
 	var monitoring *routeSet
 	if s.settings.MonitoringPort != 0 {
 		monitoring = s.newRouteSet(false)
-		s.addMonitoringRoutes(monitoring)
+		s.addMonitoringRoutes(monitoring, s.settings.Pprof)
 	} else {
-		s.addMonitoringRoutes(routes)
+		s.addMonitoringRoutes(routes, false)
 	}
 
 	s.addAPIRoutes(routes)
@@ -257,9 +261,10 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	register(routes, operationManifest(), cManifest.GetManifest, userAuth.Huma())
 }
 
-// addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics, pprof and, when it is
-// enabled, the Swagger UI. They are served by the monitoring listener when there is one, else by the API listener.
-func (s *Server) addMonitoringRoutes(routes *routeSet) {
+// addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics and, when withPprof is
+// set, the profiler. They are served by the monitoring listener when there is one, else by the API listener, which
+// never serves the profiler.
+func (s *Server) addMonitoringRoutes(routes *routeSet, withPprof bool) {
 	api := routes.api
 
 	register(routes, operationHealth(), controller.NewHealth(s.services.MonitoringService).Handle)
@@ -282,7 +287,7 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 
 	api.OpenAPI().AddOperation(operationPprof())
 
-	if s.settings.Debug || s.settings.Pprof {
+	if withPprof {
 		const prefix = "/debug/pprof"
 		for name, handler := range map[string]http.HandlerFunc{
 			"/{$}":          pprof.Index,
@@ -351,7 +356,7 @@ func OpenAPI() *huma.OpenAPI {
 	s := &Server{settings: documentedSettings(), logger: slog.New(slog.DiscardHandler)}
 	rs := s.newRouteSet(true)
 	s.addAPIRoutes(rs)
-	s.addMonitoringRoutes(rs)
+	s.addMonitoringRoutes(rs, false)
 
 	return rs.api.OpenAPI()
 }

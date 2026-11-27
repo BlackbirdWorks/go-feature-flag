@@ -247,7 +247,9 @@ func run(ctx context.Context, opts *runOptions) int {
 		return 1
 	}
 
-	_, _ = fmt.Fprintf(opts.Stdout, banner+"\n", opts.Build.Version)
+	if !cfg.Server.HideBanner {
+		_, _ = fmt.Fprintf(opts.Stdout, banner+"\n", opts.Build.Version)
+	}
 
 	logger.Slog.LogAttrs(ctx, slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
 

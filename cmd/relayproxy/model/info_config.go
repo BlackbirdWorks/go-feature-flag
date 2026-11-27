@@ -23,6 +23,8 @@ type ConfigInfo struct {
 	Withdrawn []WithdrawnInfo `json:"withdrawn"`
 	// PendingRestart names the settings that changed and need a restart.
 	PendingRestart []string `json:"pendingRestart"`
+	// Anonymous says which flag set serves the requests without an API key; absent when the file names none.
+	Anonymous *AnonymousInfo `json:"anonymous,omitempty"`
 	// Generation is the applied manifest generation, Snapshot the local swap counter.
 	Generation uint64 `json:"generation"`
 	Snapshot   uint64 `json:"snapshot"`
@@ -54,4 +56,11 @@ type StalenessInfo struct {
 type WithdrawnInfo struct {
 	Name       string `json:"name"`
 	Generation uint64 `json:"generation"`
+}
+
+// AnonymousInfo is the flag set that serves the requests without a key, and its state: the state of the flag set, or
+// "missing" while the generation has no flag set of that name.
+type AnonymousInfo struct {
+	FlagSet string `json:"flagSet"`
+	State   string `json:"state"`
 }

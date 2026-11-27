@@ -225,6 +225,16 @@ server:
   shutdown:
     drainDelay: 0s
     timeout: 15s
+  ops:
+    pprof:
+      enabled: true
+  ofrepEventStream:
+    baseUrl: https://flags.example.com
+    inactivityDelaySec: 120
+  validateFlags:
+    maxJsonBodySize: 2MiB
+    maxYamlBodySize: 128KiB
+    maxTomlBodySize: 128KiB
 observability:
   logging:
     level: info
@@ -240,6 +250,7 @@ evaluation:
     region: us-east-1
   environment: production
 auth:
+  anonymousFlagSet: public
   adminKeys:
     - '[REDACTED]'
     - fromEnv: SEMAPHORE_ADMIN_KEY

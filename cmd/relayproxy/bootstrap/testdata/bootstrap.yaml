@@ -4,6 +4,11 @@ server:
   listeners:
     - {name: api, address: ":1031", protocols: [http1, h2c]}
     - {name: ops, address: ":1032", role: ops}
+  hideBanner: false
+  ops:
+    pprof: {enabled: true}
+  ofrepEventStream: {baseUrl: "https://flags.example.com", inactivityDelaySec: 120}
+  validateFlags: {maxJsonBodySize: 2MiB, maxYamlBodySize: 128KiB, maxTomlBodySize: 128KiB}
 observability:
   logging: {level: info, format: json}
   metrics: {enabled: true, legacyNames: false, perFlagLabels: false}
@@ -104,6 +109,7 @@ notifiers:
     endpointUrl: {fromFile: /run/secrets/audit-url}
     secret: {fromFile: /run/secrets/audit-signing}
 auth:
+  anonymousFlagSet: public
   adminKeys:
     - 7d9f1e0c-6a43-4c2e-9d57-0f6b3f0f1a11
     - {fromEnv: SEMAPHORE_ADMIN_KEY}

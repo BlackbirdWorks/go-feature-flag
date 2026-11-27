@@ -20,6 +20,8 @@ type Status struct {
 	Withdrawn []WithdrawnSet `json:"withdrawn"`
 	// PendingRestart names the bootstrap settings that changed but need a restart; the values are never listed.
 	PendingRestart []string `json:"pendingRestart"`
+	// Anonymous says which flag set serves the requests without a key; absent when there is none.
+	Anonymous *AnonymousStatus `json:"anonymous,omitempty"`
 	// LastReload is the round that produced this runtime.
 	LastReload Reload `json:"lastReload"`
 	// Generation is the manifest generation.
@@ -71,4 +73,15 @@ type EntryProblem struct {
 	Code controlplane.Code `json:"code"`
 	// Index is the position in the document.
 	Index int `json:"index"`
+}
+
+// StateMissing is the state of the anonymous flag set that the generation does not hold.
+const StateMissing SetState = "missing"
+
+// AnonymousStatus is the status of the flag set of the requests without a key.
+type AnonymousStatus struct {
+	// FlagSet is the name written in the bootstrap file.
+	FlagSet string `json:"flagSet"`
+	// State is the state of that flag set, or "missing" when the generation has no flag set of that name.
+	State SetState `json:"state"`
 }

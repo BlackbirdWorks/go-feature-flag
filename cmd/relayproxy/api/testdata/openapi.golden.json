@@ -32,6 +32,22 @@
         ],
         "type": "object"
       },
+      "AnonymousInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "flagSet": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "flagSet",
+          "state"
+        ],
+        "type": "object"
+      },
       "CollectEvalDataRequest": {
         "additionalProperties": false,
         "properties": {
@@ -68,6 +84,9 @@
       "ConfigInfo": {
         "additionalProperties": false,
         "properties": {
+          "anonymous": {
+            "$ref": "#/components/schemas/AnonymousInfo"
+          },
           "flagSets": {
             "items": {
               "$ref": "#/components/schemas/FlagSetInfo"

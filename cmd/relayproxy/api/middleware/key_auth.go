@@ -28,6 +28,9 @@ type KeyAuthConfig struct {
 	Validator func(ctx context.Context, key string) (context.Context, bool)
 	// Skipper reports that the requests need no authentication.
 	Skipper func() bool
+	// AllowAnonymous makes the Validator decide a request that carries no key at all: it is called with an empty
+	// key. A request with a key, right or wrong, is never given to it that way.
+	AllowAnonymous bool
 }
 
 // KeyAuth is the middleware that authenticates a request with the API key of its X-API-Key header, or else with
@@ -120,6 +123,12 @@ func (k KeyAuth) authenticate(
 
 	key, err := bearerToken(values(protocol.HeaderAuthorization))
 	if err != nil {
+		if k.cfg.AllowAnonymous && errors.Is(err, errHeaderMissing) {
+			if out, ok := k.cfg.Validator(ctx, ""); ok {
+				return out, nil
+			}
+		}
+
 		return ctx, err
 	}
 

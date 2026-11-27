@@ -25,21 +25,35 @@ func TestPprofEndpointsStarts(t *testing.T) {
 	type test struct {
 		name                string
 		dedicatedMonitoring bool
-		EnablePprof         bool
-		expectedStatusCode  int
+		// checkAPIPort asks the API listener instead of the monitoring one.
+		checkAPIPort       bool
+		EnablePprof        bool
+		expectedStatusCode int
 	}
 
 	tests := []test{
 		{
-			name:               "pprof available in proxy port",
+			name:               "pprof is not served by a relay with one listener",
 			EnablePprof:        true,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusNotFound,
 		},
 		{
-			name:                "pprof available in monitoring port",
+			name:                "pprof is served by the ops listener",
 			EnablePprof:         true,
 			dedicatedMonitoring: true,
 			expectedStatusCode:  http.StatusOK,
+		},
+		{
+			name:                "pprof is not served by the api listener when the ops listener serves it",
+			EnablePprof:         true,
+			dedicatedMonitoring: true,
+			checkAPIPort:        true,
+			expectedStatusCode:  http.StatusNotFound,
+		},
+		{
+			name:                "pprof is off by default on the ops listener",
+			dedicatedMonitoring: true,
+			expectedStatusCode:  http.StatusNotFound,
 		},
 	}
 
@@ -73,7 +87,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			}, logger, opts...)
 
 			portToCheck := port
-			if tt.dedicatedMonitoring {
+			if tt.dedicatedMonitoring && !tt.checkAPIPort {
 				portToCheck = monitoringPort
 			}
 
