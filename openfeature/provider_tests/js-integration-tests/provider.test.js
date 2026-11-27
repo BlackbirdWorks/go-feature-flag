@@ -18,6 +18,7 @@ describe("Provider tests", () => {
     // init Open Feature SDK with GO Feature Flag provider
     const goFeatureFlagProvider = new GoFeatureFlagProvider({
       endpoint: "http://localhost:1031/", // DNS of your instance of relay proxy
+      apiKey: "authorized_token",
     });
     goffClient = OpenFeature.getClient("my-app");
     await OpenFeature.setProviderAndWait("my-app", goFeatureFlagProvider);

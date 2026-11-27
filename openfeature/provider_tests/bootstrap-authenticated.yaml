@@ -1,0 +1,16 @@
+# Relay on port 1032 for the provider tests: the same store and the same key, no evaluation enrichment. The tests
+# against it send a valid, an invalid and an empty API key.
+version: 2
+server:
+  listeners:
+    - {name: api, address: ":1032"}
+observability:
+  logging: {level: info, format: json}
+connections:
+  control: {type: file, path: ./openfeature/provider_tests/store}
+controlPlane:
+  connection: control
+  manifest: {key: manifests/stable.yaml, channel: stable, pollInterval: 1s}
+evaluation:
+  # Upstream providers compare the response metadata strictly: only send the legacy gofeatureflag_cacheable key.
+  disableSemaphoreMetadata: true

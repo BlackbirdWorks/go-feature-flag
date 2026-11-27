@@ -7,7 +7,7 @@ set -e
 wait_relay_proxy () {
   PORT="$1"
   NB_ITERATION=10
-  while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' "localhost:${PORT}/health")" != "200" ]]; do
+  while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' "localhost:${PORT}/readyz")" != "200" ]]; do
     sleep 1
     NB_ITERATION=$((NB_ITERATION - 1))
     if [ ${NB_ITERATION} == "0" ]; then echo "ERROR: relay-proxy ${PORT} is not ready" && exit 123; fi
@@ -15,11 +15,12 @@ wait_relay_proxy () {
 }
 
 # build and launch relay proxies
-# we are launching 2 relay proxies because one is authenticated and the other is not.
+# the two relay proxies serve the same store: the first one enriches the evaluation context, the second one
+# is the target of the API key tests.
 task build-relayproxy
-./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy.yaml &
+./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/bootstrap.yaml &
 RELAY_PROXY_PID=$!
-./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy-authenticated.yaml &
+./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/bootstrap-authenticated.yaml &
 RELAY_PROXY_PID_AUTHENTICATED=$!
 
 # Waiting for the relay proxies to be ready

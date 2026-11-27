@@ -48,7 +48,7 @@ public class ProviderTests {
         userContext.setTargetingKey("d45e303a-38c2-11ed-a261-0242ac120002");
         defaultEvaluationContext = userContext;
 
-        GoFeatureFlagProviderOptions options = GoFeatureFlagProviderOptions.builder().endpoint(relayProxyEndpoint).build();
+        GoFeatureFlagProviderOptions options = GoFeatureFlagProviderOptions.builder().endpoint(relayProxyEndpoint).apiKey("authorized_token").build();
         GoFeatureFlagProvider provider = new GoFeatureFlagProvider(options);
         OpenFeatureAPI.getInstance().setProviderAndWait(provider);
         OpenFeatureAPI api = OpenFeatureAPI.getInstance();

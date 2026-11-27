@@ -1,0 +1,17 @@
+# Relay on port 1031 for the provider tests. The flags are the objects of the file store in ./store (a manifest and
+# the flag-set document, whose API key is authorized_token); flags.yaml is the source of the flags object.
+version: 2
+server:
+  listeners:
+    - {name: api, address: ":1031"}
+observability:
+  logging: {level: info, format: json}
+connections:
+  control: {type: file, path: ./openfeature/provider_tests/store}
+controlPlane:
+  connection: control
+  manifest: {key: manifests/stable.yaml, channel: stable, pollInterval: 1s}
+evaluation:
+  contextEnrichment: {environment: integration-test}
+  # Upstream providers compare the response metadata strictly: only send the legacy gofeatureflag_cacheable key.
+  disableSemaphoreMetadata: true
