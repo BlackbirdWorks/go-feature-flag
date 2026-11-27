@@ -723,12 +723,15 @@ func newRuntime(tb testing.TB, cfg *events.RuntimeConfig) *events.Runtime {
 	return rt
 }
 
-// creatorPrefix starts the "created by" line of a goroutine that the package under test started.
-const creatorPrefix = "created by github.com/blackbirdworks/semaphore/cmd/relayproxy/events."
+// pkgPrefix starts the name of a function of the package under test. The test package has another path
+// (events_test), so its functions do not match.
+const pkgPrefix = "github.com/blackbirdworks/semaphore/cmd/relayproxy/events."
+
+// checkerFrame is the function that takes the goroutine dump: the goroutine that runs it is the checker.
+const checkerFrame = "events_test.leakedGoroutines"
 
 // leakedGoroutines returns the stacks of the goroutines of the package (the workers, the goroutines of the
-// exporters and of the notifiers, the consumers) that are still running. The goroutines of the goroutine
-// dump are classified by their creator: see [leakedIn].
+// exporters and of the notifiers, the consumers) that are still running: see [leakedIn].
 func leakedGoroutines() []string {
 	buf := make([]byte, 1<<20)
 
@@ -746,29 +749,32 @@ func leakedGoroutines() []string {
 	return leakedIn(string(buf))
 }
 
-// leakedIn returns the goroutines of a goroutine dump that the package under test started. A goroutine is the
-// package's when its creator, the "created by" frame, is in the package and is not a test. Its other frames do not
-// matter: a worker that is stuck in a test double (a notifier or a manager of a test) has frames of the test, and
-// is as much a leak as any other. A goroutine that a test started (its creator is in the test) is not one of the
-// package, even when it calls into it.
+// leakedIn returns the goroutines of a goroutine dump that belong to the package under test. A goroutine belongs
+// to the package when any frame of its stack, or its "created by" frame, is a function of the package that is not
+// a test function. So:
+//   - a worker started by [sync.WaitGroup.Go] counts: its stack holds the closure of the package;
+//   - a worker blocked inside a test double that package code called counts: the package frame is below it;
+//   - a goroutine that a test started and that called into the package counts only while it is blocked inside the
+//     package. Once the call returned no frame of the package is left, and it does not count;
+//   - the runtime goroutines, the goroutines of the test framework and the goroutine of the checker do not count.
 func leakedIn(dump string) []string {
 	var leaked []string
 
 	for stack := range strings.SplitSeq(dump, "\n\n") {
-		creator := ""
-
-		for line := range strings.SplitSeq(stack, "\n") {
-			if strings.HasPrefix(line, "created by ") {
-				creator = line
-			}
-		}
-
-		name, found := strings.CutPrefix(creator, creatorPrefix)
-		if !found || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") {
+		if strings.Contains(stack, checkerFrame) {
 			continue
 		}
 
-		leaked = append(leaked, stack)
+		for line := range strings.SplitSeq(stack, "\n") {
+			name, found := strings.CutPrefix(strings.TrimPrefix(line, "created by "), pkgPrefix)
+			if !found || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") {
+				continue
+			}
+
+			leaked = append(leaked, stack)
+
+			break
+		}
 	}
 
 	return leaked

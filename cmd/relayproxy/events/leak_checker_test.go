@@ -14,27 +14,40 @@ import (
 const pkgPath = "github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 
 // TestLeakedIn checks the classification of the leak check on goroutine dumps: a goroutine belongs to the package
-// when the package created it, whatever the frames above are.
+// when a frame of its stack, or its creator, is a function of the package that is not a test.
 func TestLeakedIn(t *testing.T) {
 	t.Parallel()
 
-	workerOnly := "goroutine 11 [chan receive]:\n" + pkgPath + ".(*managed).consume(0xc0)\n\t/x/managed.go:10 +0x1\n" +
-		"created by " + pkgPath + ".(*Dispatcher).launch in goroutine 5\n\t/x/lifecycle.go:20 +0x2"
-	stuckInDouble := "goroutine 12 [chan receive]:\n" +
-		pkgPath + "_test.(*recordingNotifier).Notify(0xc0)\n\t/x/helpers_test.go:370 +0x1\n" +
-		pkgPath + ".(*notifierRun).loop(0xc0)\n\t/x/notifier_run.go:80 +0x2\n" +
-		"created by " + pkgPath + ".(*Notifications).launch in goroutine 5\n\t/x/notifications.go:200 +0x3"
-	stuckInTestManager := "goroutine 13 [chan receive]:\n" +
-		pkgPath + "_test.(*fakeManager).Stop(0xc0)\n\t/x/helpers_test.go:140 +0x1\n" +
-		"created by " + pkgPath + ".(*managed).startClose in goroutine 5\n\t/x/managed.go:180 +0x2"
-	startedByATest := "goroutine 14 [select]:\n" + pkgPath + ".(*Dispatcher).Collect(0xc0)\n\t/x/dispatcher.go:50 +0x1\n" +
-		"created by " + pkgPath + "_test.TestSomething.func1 in goroutine 6\n\t/x/a_test.go:30 +0x2"
-	startedByAnInternalTest := "goroutine 15 [select]:\n" +
-		pkgPath + ".(*Dispatcher).Collect(0xc0)\n\t/x/dispatcher.go:50 +0x1\n" +
-		"created by " + pkgPath + ".TestInternal.func1 in goroutine 6\n\t/x/b_test.go:30 +0x2"
-	runtimeOnly := "goroutine 2 [force gc (idle)]:\nruntime.gopark(0x0)\n\t/go/proc.go:1 +0x1\n" +
-		"created by runtime.init.7 in goroutine 1\n\t/go/proc.go:2 +0x2"
-	noCreator := "goroutine 1 [running]:\nmain.main()\n\t/x/main.go:1 +0x1"
+	const (
+		lifecycle = pkgPath + ".(*Dispatcher)"
+		testFrame = "\n\t/x/a_test.go:30 +0x1\n"
+	)
+
+	frame := func(function string) string { return function + "(0xc0)\n\t/x/f.go:1 +0x1\n" }
+	created := func(function string) string { return "created by " + function + " in goroutine 5\n\t/x/f.go:2 +0x2" }
+	stack := func(header string, lines ...string) string { return header + ":\n" + strings.Join(lines, "") }
+
+	workerOnly := stack("goroutine 11 [chan receive]",
+		frame(pkgPath+".(*managed).consume"), created(lifecycle+".launch"))
+	waitGroupWorker := stack("goroutine 12 [chan receive]",
+		frame(pkgPath+".(*managed).release"), frame(lifecycle+".awaitInstance"),
+		frame(lifecycle+".waitClosed.func1"), created("sync.(*WaitGroup).Go"))
+	stuckInDouble := stack("goroutine 13 [chan receive]",
+		frame(pkgPath+"_test.(*recordingNotifier).Notify"), frame(pkgPath+".(*notifierRun).loop"),
+		created(pkgPath+".(*Notifications).launch"))
+	blockedTestGoroutine := stack("goroutine 14 [select]",
+		frame(pkgPath+".(*Dispatcher).Shutdown"), frame(pkgPath+"_test.TestSomething.func1"),
+		created(pkgPath+"_test.TestSomething"))
+	returnedTestGoroutine := stack("goroutine 15 [select]",
+		frame(pkgPath+"_test.TestSomething.func1"), created(pkgPath+"_test.TestSomething"))
+	testGoroutine := stack("goroutine 16 [chan receive]",
+		frame("testing.(*T).Run"), created("testing.(*T).Run"))
+	internalTestGoroutine := stack("goroutine 17 [select]",
+		frame(pkgPath+".TestInternal.func1"), created(pkgPath+".TestInternal"))
+	runtimeGoroutine := stack("goroutine 2 [force gc (idle)]", frame("runtime.gopark"), created("runtime.init.7"))
+	mainGoroutine := stack("goroutine 1 [running]", frame("main.main"))
+	checker := stack("goroutine 18 [running]",
+		frame(pkgPath+".(*Dispatcher).Status"), frame(pkgPath+"_test.leakedGoroutines"), strings.TrimSpace(testFrame))
 
 	tests := []struct {
 		name        string
@@ -42,31 +55,35 @@ func TestLeakedIn(t *testing.T) {
 		wantHeaders []string
 	}{
 		{name: "empty dump", dump: "", wantHeaders: nil},
-		{name: "a worker of the package", dump: workerOnly, wantHeaders: []string{"goroutine 11"}},
+		{name: "a worker of the package", dump: workerOnly, wantHeaders: []string{"goroutine 11 [chan receive]"}},
 		{
-			name: "a worker stuck inside a notifier of a test", dump: stuckInDouble,
-			wantHeaders: []string{"goroutine 12"},
+			name: "a worker started by WaitGroup.Go, blocked in the drain of an exporter", dump: waitGroupWorker,
+			wantHeaders: []string{"goroutine 12 [chan receive]"},
 		},
 		{
-			name: "a closer stuck inside a manager of a test", dump: stuckInTestManager,
-			wantHeaders: []string{"goroutine 13"},
+			name: "a worker blocked in a test double that the package called", dump: stuckInDouble,
+			wantHeaders: []string{"goroutine 13 [chan receive]"},
 		},
-		{name: "a goroutine that a test started", dump: startedByATest, wantHeaders: nil},
-		{name: "a goroutine that an internal test started", dump: startedByAnInternalTest, wantHeaders: nil},
-		{name: "a runtime goroutine", dump: runtimeOnly, wantHeaders: nil},
-		{name: "the main goroutine", dump: noCreator, wantHeaders: nil},
+		{
+			name: "a goroutine of a test, blocked inside the package", dump: blockedTestGoroutine,
+			wantHeaders: []string{"goroutine 14 [select]"},
+		},
+		{name: "a goroutine of a test that called the package and returned", dump: returnedTestGoroutine},
+		{name: "a goroutine of the test framework", dump: testGoroutine},
+		{name: "a goroutine of an internal test", dump: internalTestGoroutine},
+		{name: "a runtime goroutine", dump: runtimeGoroutine},
+		{name: "the main goroutine", dump: mainGoroutine},
+		{name: "the goroutine of the checker", dump: checker},
 		{
 			name: "a mixed dump",
 			dump: strings.Join([]string{
-				noCreator,
-				runtimeOnly,
-				workerOnly,
-				startedByATest,
-				stuckInDouble,
-				startedByAnInternalTest,
-				stuckInTestManager,
+				mainGoroutine, runtimeGoroutine, workerOnly, returnedTestGoroutine, waitGroupWorker, testGoroutine,
+				checker, stuckInDouble, internalTestGoroutine, blockedTestGoroutine,
 			}, "\n\n"),
-			wantHeaders: []string{"goroutine 11", "goroutine 12", "goroutine 13"},
+			wantHeaders: []string{
+				"goroutine 11 [chan receive]", "goroutine 12 [chan receive]", "goroutine 13 [chan receive]",
+				"goroutine 14 [select]",
+			},
 		},
 	}
 
@@ -76,8 +93,8 @@ func TestLeakedIn(t *testing.T) {
 
 			var got []string
 
-			for _, stack := range leakedIn(tt.dump) {
-				got = append(got, strings.SplitN(stack, " [", 2)[0])
+			for _, found := range leakedIn(tt.dump) {
+				got = append(got, strings.SplitN(found, ":\n", 2)[0])
 			}
 
 			assert.Equal(t, tt.wantHeaders, got)
@@ -104,6 +121,39 @@ func TestLeakCheckSeesAWorkerStuckInANotifier(t *testing.T) {
 
 	stacks := stacksWith(leakedGoroutines(), "recordingNotifier).Notify")
 	assert.NotEmpty(t, stacks, "the worker that is held inside the notifier is a goroutine of the package")
+}
+
+// TestLeakCheckSeesAWorkerOfAWaitGroup leaks a worker that the package starts with [sync.WaitGroup.Go]: a shutdown
+// that waits for an exporter whose close is held. The worker that waits for the exporter is the one reported.
+func TestLeakCheckSeesAWorkerOfAWaitGroup(t *testing.T) {
+	t.Parallel()
+
+	fac := newFactory()
+	fac.stopGate = newGate(t)
+	fac.stopEntered = make(chan struct{}, 1)
+
+	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
+	require.NoError(t, disp.Start(context.Background()))
+
+	_, err := disp.Apply(context.Background(), defs("a"))
+	require.NoError(t, err)
+
+	shutdown := make(chan struct{})
+
+	go func() {
+		defer close(shutdown)
+
+		_, _ = disp.Shutdown(context.Background())
+	}()
+
+	await(t, fac.stopEntered, "the exporter to be closed")
+
+	stacks := stacksWith(leakedGoroutines(), "waitClosed.func1")
+	assert.NotEmpty(t, stacks, "the worker that waits for the held exporter was started by WaitGroup.Go")
+
+	// the exporter is released, so the shutdown ends and the cleanup of the dispatcher does not wait
+	safeClose(fac.stopGate)
+	await(t, shutdown, "the shutdown to end")
 }
 
 func stacksWith(stacks []string, text string) []string {
