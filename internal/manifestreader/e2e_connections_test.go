@@ -3,6 +3,7 @@
 package manifestreader_test
 
 import (
+	"bytes"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -23,7 +24,6 @@ const (
 	connObjects   = "objects"
 	keyIDControl  = "AKIDCONTROL"
 	keyIDObjects  = "AKIDOBJECTS"
-	contentDecoy  = `{"decoy":"the other store"}`
 	contentOnCtrl = `{"beta":"on the control store"}`
 	contentOnObj  = `{"alpha":"on the objects store"}`
 )
@@ -79,8 +79,8 @@ func s3SpecOn(endpoint, bucket, keyID string) *connection.S3Spec {
 
 // TestE2E_ObjectsOnASecondConnectionWithTheSameBucketName reads the manifest from one connection and one of the
 // two objects from a second connection (another emulator, other credentials) whose bucket has the same name.
-// Each store also holds, under the key of the object that lives on the other store, different bytes: an object
-// fetched from the wrong store would fail its checksum.
+// Each store also holds, under the key of the object that lives on the other store, different bytes of the same
+// length: an object fetched from the wrong store passes the size check and fails its checksum.
 func TestE2E_ObjectsOnASecondConnectionWithTheSameBucketName(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +103,8 @@ func TestE2E_ObjectsOnASecondConnectionWithTheSameBucketName(t *testing.T) {
 	manifest.Objects[0].Connection = connObjects
 
 	srvObjects.PutObject(t, bucket, keyOf(t, alpha), []byte(alpha.content))
-	srvObjects.PutObject(t, bucket, keyOf(t, beta), []byte(contentDecoy))
-	srvControl.PutObject(t, bucket, keyOf(t, alpha), []byte(contentDecoy))
+	srvObjects.PutObject(t, bucket, keyOf(t, beta), decoyOf(beta))
+	srvControl.PutObject(t, bucket, keyOf(t, alpha), decoyOf(alpha))
 	srvControl.PutObject(t, bucket, keyOf(t, beta), []byte(beta.content))
 	srvControl.PutObject(t, bucket, manifestKey, mustMarshal(t, manifest))
 
@@ -130,6 +130,7 @@ func TestE2E_ObjectsOnASecondConnectionWithTheSameBucketName(t *testing.T) {
 	assert.Equal(t, uint64(1), snap.Generation)
 	assert.Equal(t, okState(t, alpha), snap.Objects[nameAlpha], "from the objects store, not the control decoy")
 	assert.Equal(t, okState(t, beta), snap.Objects[nameBeta], "from the control store, not the objects decoy")
+	assert.Empty(t, rdr.reader.Status().Failures, "no checksum mismatch: nothing was read from the wrong store")
 
 	hostControl, hostObjects := hostOf(t, srvControl), hostOf(t, srvObjects)
 	pathOf := func(o obj) string { return "/" + bucket + "/" + keyOf(t, o) }
@@ -162,3 +163,6 @@ func hostOf(t *testing.T, srv *gopherstack.Server) string {
 
 	return parsed.Host
 }
+
+// decoyOf returns bytes of the length of item's content, so a decoy is rejected by its checksum and not by its size.
+func decoyOf(item obj) []byte { return bytes.Repeat([]byte("x"), len(item.content)) }
