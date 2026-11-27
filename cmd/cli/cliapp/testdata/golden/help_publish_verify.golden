@@ -1,0 +1,33 @@
+Usage: semaphore-cli publish verify [flags]
+
+Check the manifest and every object it lists in the bucket
+
+Reads the manifest and every listed object of the connection, and checks size,
+checksum, the content of each document, and that every flag-set source resolves.
+It never writes. Exit code 5 when a problem is found.
+
+Flags:
+  -h, --help                   Show context-sensitive help.
+  -v, --version                Print the version and exit
+
+  -c, --config=STRING          bootstrap file whose controlPlane connection is
+                               the target
+      --bucket=STRING          bucket (without --config)
+      --prefix=STRING          key prefix of the objects and of the default
+                               manifest key
+      --region=STRING          AWS region (without --config)
+      --endpoint=STRING        S3 endpoint, for emulators and S3 compatible
+                               stores (without --config)
+      --channel=STRING         channel of the manifest (without --config;
+                               default stable)
+      --connection=STRING      connection name written in the manifest (without
+                               --config; default control)
+      --manifest-key=STRING    manifest key (without --config; default
+                               <prefix>manifests/<channel>.yaml)
+  -o, --output="text"          output format: text or json
+      --generation=0           generation to write (default: the one in the
+                               bucket plus one)
+      --dry-run                plan the publication: the same reads, no write
+      --replace-invalid-manifest
+                               replace a manifest in the bucket that is invalid
+                               or over the limits (needs --generation)

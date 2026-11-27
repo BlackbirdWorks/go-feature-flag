@@ -435,3 +435,80 @@ func TestAPollThatWorksRestoresTheTrueStatus(t *testing.T) {
 	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError, "still missing: the true state")
 	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
 }
+
+// how a holder learns that a segment is missing.
+const (
+	byVersion = "version"
+	byMembers = "members"
+)
+
+func TestASegmentThatComesBackUnderTheSameTokenIsPulled(t *testing.T) {
+	t.Parallel()
+
+	const token = "same"
+
+	tests := []struct {
+		name      string
+		learnedBy string // how the holder learns that the segment is missing: "version" or "members"
+		missing   segment.MissingKey
+		wantGone  segment.State
+	}{
+		{name: "missing by Version, default", learnedBy: byVersion, wantGone: segment.NotMember},
+		{
+			name:      "missing by Version, unknown",
+			learnedBy: byVersion,
+			missing:   segment.MissingUnknown,
+			wantGone:  segment.Unknown,
+		},
+		{name: "missing by Members, default", learnedBy: byMembers, wantGone: segment.NotMember},
+		{
+			name:      "missing by Members, unknown",
+			learnedBy: byMembers,
+			missing:   segment.MissingUnknown,
+			wantGone:  segment.Unknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			gone := &atomic.Bool{}
+			inner := segment.NewMemorySource(nil)
+			inner.PinVersion(segAlpha, token)
+
+			src := reportsMissing{inner: inner, gone: gone}
+			gone.Store(tt.learnedBy == byVersion)
+
+			holder, err := snapshot.New(segAlpha, src, snapshot.Options{Missing: tt.missing})
+			require.NoError(t, err)
+
+			require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing, "learnt as missing")
+			assert.Equal(t, tt.wantGone, holder.Lookup("a"))
+
+			// still missing: a Version that says so pulls nothing; a Version that works asks the members again
+			wantPulls := 0
+			if tt.learnedBy == byMembers {
+				wantPulls = 2
+			}
+
+			require.NoError(t, holder.Refresh(ctx), "already known")
+			assert.Equal(t, wantPulls, inner.Calls(segment.OpMembers), "exact number of member pulls while missing")
+
+			// the segment comes back under the very same token
+			inner.Set(segAlpha, []string{"a"})
+			inner.PinVersion(segAlpha, token)
+			gone.Store(false)
+
+			require.NoError(t, holder.Refresh(ctx))
+			assert.Equal(t, segment.Member, holder.Lookup("a"), "the members are served")
+			assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+			assert.Equal(t, wantPulls+1, inner.Calls(segment.OpMembers))
+
+			// and now that it is present under an unchanged token, nothing is pulled
+			require.NoError(t, holder.Refresh(ctx))
+			assert.Equal(t, wantPulls+1, inner.Calls(segment.OpMembers))
+		})
+	}
+}

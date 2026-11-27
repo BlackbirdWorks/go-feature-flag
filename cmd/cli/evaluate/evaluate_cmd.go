@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf"
 	retrieverinit "github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf/init"
@@ -22,7 +23,8 @@ const (
 	// keyValueParts is the number of parts of a "key:value" or "key=value" argument.
 	keyValueParts = 2
 
-	evaluateCmdExample = `
+	evaluateCmdExample = `Examples:
+
 # Evaluate a specific flag using deprecated flag --config
 evaluate --config ./config.yaml --flag flag1 --ctx '{"targetingKey": "user-123"}'
 
@@ -30,7 +32,7 @@ evaluate --config ./config.yaml --flag flag1 --ctx '{"targetingKey": "user-123"}
 evaluate --kind file --path ./config.yaml --flag flag1 --ctx '{"targetingKey": "user-123"}'
 
 # Evaluate a specific flag using http retriever
-evaluate --kind http --url http://localhost:8080/config.yaml --header 'ContentType: application/json' --header 
+evaluate --kind http --url http://localhost:8080/config.yaml --header 'ContentType: application/json' --header
 'X-Auth=Token' --flag flag1 --ctx '{"targetingKey": "user-123"}'
 
 # Evaluate a specific flag using github retriever
@@ -66,175 +68,172 @@ evaluate --kind azureblob --container my-container --account-name my-account-nam
 
 # Evaluate a specific flag using postgres retriever
 evaluate --kind postgres --table my-table --column my-column:my-column-type --flag flag1
---ctx '{"targetingKey": "user-123"}'
-`
+--ctx '{"targetingKey": "user-123"}'`
 )
 
-type evaluateFlags struct {
-	evalFlagFormat string
-	kind           string
-	evalConfigFile string
-	path           string
-	authToken      string
-	githubToken    string
-	repositorySlug string
-	branch         string
-	baseURL        string
-	bucket         string
-	item           string
-	url            string
-	method         string
-	body           string
-	object         string
-	namespace      string
-	configMap      string
-	key            string
-	uri            string
-	database       string
-	collection     string
-	container      string
-	accountName    string
-	accountKey     string
-	table          string
-	evalFlag       string
-	evalCtx        string
-	headers        []string
-	columns        []string
-	timeout        int64
-	checkMode      bool
+// HelpVars returns the kong interpolation variables used by [Cmd] help tags.
+func HelpVars() kong.Vars {
+	return kong.Vars{
+		"helpEvalFormat":  "Format of your input file (YAML, JSON or TOML)",
+		"helpEvalKind":    "Kind of the configuration file (file, http, redis, gitlab, k8s, ...)",
+		"helpEvalConfig":  "Location of your Semaphore local configuration file",
+		"helpEvalPath":    "Path to your Semaphore configuration file (local or remote)",
+		"helpEvalAuth":    "Authentication token to access your configuration file",
+		"helpEvalGHToken": "Authentication token to access your configuration file on GitHub",
+		"helpEvalRepo":    "Repository slug to access your configuration file on GitHub",
+		"helpEvalBranch":  "Branch to access your configuration file on GitHub",
+		"helpEvalBaseURL": "Base URL of your configuration file on Gitlab",
+		"helpEvalBucket":  "Bucket of your configuration file on S3",
+		"helpEvalItem":    "Item of your configuration file on S3",
+		"helpEvalURL":     "URL of your configuration file on HTTP",
+		"helpEvalMethod":  "HTTP method to access your configuration file on HTTP",
+		"helpEvalBody":    "Http body to access your configuration file on HTTP",
+		"helpEvalHeader":  "HTTP header to access your configuration file on HTTP (may be repeated)",
+		"helpEvalTimeout": "Timeout in seconds to access your configuration file on HTTP",
+		"helpEvalFlag":    "Name of the flag to evaluate, if empty we will return the evaluation of all the flags",
+		"helpEvalCtx":     "Evaluation context in JSON format",
+		"helpEvalCheck":   "Check only mode - returns the configuration of spanned retriever without evaluating",
+		"helpEvalObject":  "Object of your configuration file on GCS",
+		"helpEvalNS":      "Namespace of your configuration file on K8s",
+		"helpEvalCM":      "Config map of your configuration file on K8s",
+		"helpEvalKey":     "Key of your configuration file on K8s",
+		"helpEvalURI":     "URI of your configuration file",
+		"helpEvalDB":      "Database of your configuration file on MongoDB",
+		"helpEvalColl":    "Collection of your configuration file on MongoDB",
+		"helpEvalCont":    "Container of your configuration file on Azure Blob Storage",
+		"helpEvalAcct":    "Account name of your configuration file on Azure Blob Storage",
+		"helpEvalAcctKey": "Account key of your configuration file on Azure Blob Storage",
+		"helpEvalTable":   "Postgres table of your configuration file on Postgres",
+		"helpEvalColumn":  "Postgres column mapping of your configuration file on Postgres (may be repeated)",
+	}
 }
 
-// NewEvaluateCmd returns the command that evaluates a flag for a given context.
-func NewEvaluateCmd() *cobra.Command {
-	// Flag values are local to each command so several commands can exist (and run) at once.
-	flags := &evaluateFlags{}
+// Cmd evaluates feature flags based on configuration and context.
+//
+//nolint:govet // fieldalignment: field order sets kong help flag order
+type Cmd struct {
+	Headers        []string `help:"${helpEvalHeader}"  name:"header"             sep:"none"`
+	Columns        []string `help:"${helpEvalColumn}"  name:"column"             sep:"none"`
+	Format         string   `default:"yaml"            help:"${helpEvalFormat}"  name:"format"       short:"f"`
+	Kind           string   `default:"file"            help:"${helpEvalKind}"    name:"kind"         short:"k"`
+	Config         string   `help:"${helpEvalConfig}"  hidden:""                 name:"config"       short:"c"`
+	Path           string   `help:"${helpEvalPath}"    name:"path"               short:"p"`
+	AuthToken      string   `help:"${helpEvalAuth}"    name:"auth-token"`
+	GithubToken    string   `help:"${helpEvalGHToken}" hidden:""                 name:"github-token"`
+	RepositorySlug string   `help:"${helpEvalRepo}"    name:"repository-slug"`
+	Branch         string   `help:"${helpEvalBranch}"  name:"branch"`
+	BaseURL        string   `help:"${helpEvalBaseURL}" name:"base-url"`
+	Bucket         string   `help:"${helpEvalBucket}"  name:"bucket"`
+	Item           string   `help:"${helpEvalItem}"    name:"item"`
+	URL            string   `help:"${helpEvalURL}"     name:"url"`
+	Method         string   `default:"GET"             help:"${helpEvalMethod}"  name:"method"`
+	Body           string   `help:"${helpEvalBody}"    name:"body"`
+	EvalFlag       string   `help:"${helpEvalFlag}"    name:"flag"`
+	EvalCtx        string   `default:"{}"              help:"${helpEvalCtx}"     name:"ctx"`
+	Object         string   `help:"${helpEvalObject}"  name:"object"`
+	Namespace      string   `default:"default"         help:"${helpEvalNS}"      name:"namespace"`
+	ConfigMap      string   `help:"${helpEvalCM}"      name:"config-map"`
+	Key            string   `help:"${helpEvalKey}"     name:"key"`
+	URI            string   `help:"${helpEvalURI}"     name:"uri"`
+	Database       string   `help:"${helpEvalDB}"      name:"database"`
+	Collection     string   `help:"${helpEvalColl}"    name:"collection"`
+	Container      string   `help:"${helpEvalCont}"    name:"container"`
+	AccountName    string   `help:"${helpEvalAcct}"    name:"account-name"`
+	AccountKey     string   `help:"${helpEvalAcctKey}" name:"account-key"`
+	Table          string   `help:"${helpEvalTable}"   name:"table"`
+	Timeout        int64    `default:"0"               help:"${helpEvalTimeout}" name:"timeout"`
+	CheckMode      bool     `help:"${helpEvalCheck}"   name:"check-mode"`
+}
 
-	evaluateCmd := &cobra.Command{
-		Use:     "evaluate",
-		Short:   "⚙️ Evaluate feature flags based on configuration and context",
-		Example: evaluateCmdExample,
-		Long: "⚙️ Evaluate feature flags based on configuration and context," +
-			" if no specific flag requested it will evaluate all flags",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runEvaluateCmd(cmd, args, flags)
-		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
+// Help returns the detailed examples and description of evaluate for kong's help output.
+func (*Cmd) Help() string {
+	return "⚙️ Evaluate feature flags based on configuration and context," +
+		" if no specific flag requested it will evaluate all flags\n\n" + evaluateCmdExample
+}
+
+// Run executes the evaluate command with injected context and output streams.
+func (c *Cmd) Run(ctx context.Context, streams *helper.Streams) error {
+	if c.Config != "" {
+		_, _ = fmt.Fprintln(streams.Stderr, "Flag --config has been deprecated, Use path instead")
 	}
 
-	registerEvaluateFlags(evaluateCmd, flags)
+	if c.GithubToken != "" {
+		_, _ = fmt.Fprintln(streams.Stderr, "Flag --github-token has been deprecated, Use auth-token instead")
+	}
 
-	return evaluateCmd
+	return runEvaluateCmd(ctx, streams, c)
 }
 
-func registerEvaluateFlags(cmd *cobra.Command, flags *evaluateFlags) {
-	cmd.Flags().StringVarP(&flags.evalFlagFormat,
-		"format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
-	cmd.Flags().StringVarP(&flags.kind,
-		"kind", "k", "file", "Kind of the configuration file (file, http, redis, gitlab, k8s, ...)")
-	cmd.Flags().StringVarP(&flags.evalConfigFile,
-		"config", "c", "", "Location of your Semaphore local configuration file")
-	cmd.Flags().StringVarP(&flags.path, "path", "p", "",
-		"Path to your Semaphore configuration file (local or remote)")
-	cmd.Flags().StringVar(&flags.authToken,
-		"auth-token", "", "Authentication token to access your configuration file")
-	cmd.Flags().StringVar(&flags.githubToken,
-		"github-token", "", "Authentication token to access your configuration file on GitHub")
-	cmd.Flags().StringVar(&flags.repositorySlug,
-		"repository-slug", "", "Repository slug to access your configuration file on GitHub")
-	cmd.Flags().StringVar(&flags.branch,
-		"branch", "", "Branch to access your configuration file on GitHub")
-	cmd.Flags().StringVar(&flags.baseURL,
-		"base-url", "", "Base URL of your configuration file on Gitlab")
-	cmd.Flags().StringVar(&flags.bucket,
-		"bucket", "", "Bucket of your configuration file on S3")
-	cmd.Flags().StringVar(&flags.item,
-		"item", "", "Item of your configuration file on S3")
-	cmd.Flags().StringVar(&flags.url,
-		"url", "", "URL of your configuration file on HTTP")
-	cmd.Flags().StringVar(&flags.method,
-		"method", "GET", "HTTP method to access your configuration file on HTTP")
-	cmd.Flags().StringVar(&flags.body,
-		"body", "", "Http body to access your configuration file on HTTP")
-	cmd.Flags().StringArrayVar(&flags.headers,
-		"header", nil,
-		"HTTP header to access your configuration file on HTTP (may be repeated). "+
-			"See example of `evaluate` command for usages")
-	cmd.Flags().Int64Var(&flags.timeout,
-		"timeout", 0, "Timeout in seconds to access your configuration file on HTTP")
-	cmd.Flags().StringVar(&flags.evalFlag,
-		"flag", "",
-		"Name of the flag to evaluate, if empty we will return the evaluation of all the flags")
-	cmd.Flags().StringVar(&flags.evalCtx,
-		"ctx", "{}", "Evaluation context in JSON format")
-	cmd.Flags().BoolVar(&flags.checkMode,
-		"check-mode", false,
-		"Check only mode - when set, the command will not perform any evaluation and returns "+
-			"the configuration of spanned retriever")
-	cmd.Flags().StringVar(&flags.object,
-		"object", "", "Object of your configuration file on GCS")
-	cmd.Flags().StringVar(&flags.namespace,
-		"namespace", "default", "Namespace of your configuration file on K8s")
-	cmd.Flags().StringVar(&flags.configMap,
-		"config-map", "", "Config map of your configuration file on K8s")
-	cmd.Flags().StringVar(&flags.key,
-		"key", "", "Key of your configuration file on K8s")
-	cmd.Flags().StringVar(&flags.uri,
-		"uri", "", "URI of your configuration file")
-	cmd.Flags().StringVar(&flags.database,
-		"database", "", "Database of your configuration file on MongoDB")
-	cmd.Flags().StringVar(&flags.collection,
-		"collection", "", "Collection of your configuration file on MongoDB")
-	cmd.Flags().StringVar(&flags.container,
-		"container", "", "Container of your configuration file on Azure Blob Storage")
-	cmd.Flags().StringVar(&flags.accountName,
-		"account-name", "", "Account name of your configuration file on Azure Blob Storage")
-	cmd.Flags().StringVar(&flags.accountKey,
-		"account-key", "", "Account key of your configuration file on Azure Blob Storage")
-	cmd.Flags().StringVar(&flags.table,
-		"table", "", "Postgres table of your configuration file on Postgres")
-	cmd.Flags().StringArrayVar(&flags.columns,
-		"column", nil,
-		"Postgres column mapping of your configuration file on Postgres (may be repeated)")
-	_ = cmd.Flags().MarkDeprecated("github-token", "Use auth-token instead")
-	_ = cmd.Flags().MarkDeprecated("config", "Use path instead")
+// Run parses args against [Cmd] and executes flag evaluation with injected context and output streams.
+func Run(ctx context.Context, args []string, streams *helper.Streams) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
+
+	parser, err := kong.New(&runner,
+		kong.Name("evaluate"),
+		kong.Description("⚙️ Evaluate feature flags based on configuration and context"),
+		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
+	)
+	if err != nil {
+		return fmt.Errorf("build evaluate parser: %w", err)
+	}
+
+	kctx, exited, err := helper.Parse(parser, args)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	kctx.BindTo(ctx, (*context.Context)(nil))
+
+	return kctx.Run(streams) //nolint:wrapcheck // Cmd.Run returns user-facing error
 }
 
-func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) error {
-	parsedHeaders := parseHTTPHeaders(flags.headers)
-	parsedColumns := parsePostgresColumns(flags.columns)
+func runEvaluateCmd(ctx context.Context, streams *helper.Streams, flags *Cmd) error {
+	parsedHeaders := parseHTTPHeaders(flags.Headers)
+	parsedColumns := parsePostgresColumns(flags.Columns)
 
-	retrieverPath := flags.path
+	retrieverPath := flags.Path
 	if retrieverPath == "" {
-		retrieverPath = flags.evalConfigFile
+		retrieverPath = flags.Config
 	}
 
 	retrieverConf := retrieverconf.RetrieverConf{
-		Kind:           retrieverconf.RetrieverKind(flags.kind),
-		RepositorySlug: flags.repositorySlug,
-		Branch:         flags.branch,
+		Kind:           retrieverconf.RetrieverKind(flags.Kind),
+		RepositorySlug: flags.RepositorySlug,
+		Branch:         flags.Branch,
 		Path:           retrieverPath,
-		GithubToken:    flags.githubToken, //nolint:staticcheck // backward compatibility for deprecated --github-token flag
-		AuthToken:      flags.authToken,
-		BaseURL:        flags.baseURL,
-		Bucket:         flags.bucket,
-		Item:           flags.item,
-		URL:            flags.url,
-		Timeout:        flags.timeout,
-		HTTPMethod:     flags.method,
-		HTTPBody:       flags.body,
+		GithubToken:    flags.GithubToken, //nolint:staticcheck // backward compatibility for deprecated --github-token flag
+		AuthToken:      flags.AuthToken,
+		BaseURL:        flags.BaseURL,
+		Bucket:         flags.Bucket,
+		Item:           flags.Item,
+		URL:            flags.URL,
+		Timeout:        flags.Timeout,
+		HTTPMethod:     flags.Method,
+		HTTPBody:       flags.Body,
 		HTTPHeaders:    parsedHeaders,
-		Object:         flags.object,
-		Namespace:      flags.namespace,
-		ConfigMap:      flags.configMap,
-		Key:            flags.key,
-		URI:            flags.uri,
-		Database:       flags.database,
-		Collection:     flags.collection,
-		Container:      flags.container,
-		AccountName:    flags.accountName,
-		AccountKey:     flags.accountKey,
-		Table:          flags.table,
+		Object:         flags.Object,
+		Namespace:      flags.Namespace,
+		ConfigMap:      flags.ConfigMap,
+		Key:            flags.Key,
+		URI:            flags.URI,
+		Database:       flags.Database,
+		Collection:     flags.Collection,
+		Container:      flags.Container,
+		AccountName:    flags.AccountName,
+		AccountKey:     flags.AccountKey,
+		Table:          flags.Table,
 		Columns:        parsedColumns,
 	}
 
@@ -248,19 +247,20 @@ func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) err
 		return fmt.Errorf("validating the retriever of the command: %w", err)
 	}
 
-	if flags.checkMode {
-		return runCheck(cmd, &retrieverConf)
+	if flags.CheckMode {
+		return runCheck(streams, &retrieverConf)
 	}
 
-	return runEvaluate(cmd, args, flags.evalFlagFormat, &retrieverConf, flags.evalFlag, flags.evalCtx)
+	return runEvaluate(ctx, streams, flags.Format, &retrieverConf, flags.EvalFlag, flags.EvalCtx)
 }
 
 func runEvaluate(
-	cmd *cobra.Command,
-	_ []string,
+	ctx context.Context,
+	streams *helper.Streams,
 	flagFormat string,
 	retrieverConf *retrieverconf.RetrieverConf,
-	flag, ctx string) error {
+	flag, evalCtx string,
+) error {
 	output := helper.Output{}
 
 	built, err := retrieverinit.Retriever(retrieverConf)
@@ -269,36 +269,26 @@ func runEvaluate(
 	}
 
 	r := built.Retriever
-
 	logger := slog.Default()
 
-	tryInitializeStandardErr := tryInitializeStandard(
-		context.Background(),
-		r,
-		logger,
-	)
-	if tryInitializeStandardErr != nil {
-		return tryInitializeStandardErr
+	initErr := tryInitializeStandard(ctx, r, logger)
+	if initErr != nil {
+		return initErr
 	}
 
-	tryInitializeWithFlagsetErr := tryInitializeWithFlagset(
-		context.Background(),
-		r,
-		logger,
-		stringsx.DefaultFlagSetName,
-	)
-	if tryInitializeWithFlagsetErr != nil {
-		return tryInitializeWithFlagsetErr
+	initErr = tryInitializeWithFlagset(ctx, r, logger, stringsx.DefaultFlagSetName)
+	if initErr != nil {
+		return initErr
 	}
 
 	eval := evaluate{
 		retriever:     r,
 		fileFormat:    flagFormat,
 		flag:          flag,
-		evaluationCtx: ctx,
+		evaluationCtx: evalCtx,
 	}
 
-	result, err := eval.Evaluate()
+	result, err := eval.Evaluate(ctx)
 	if err != nil {
 		return err
 	}
@@ -309,14 +299,16 @@ func runEvaluate(
 	}
 
 	output.Add(string(detailed), helper.DefaultLevel)
-	output.PrintLines(cmd)
+
+	err = output.PrintLines(streams.Stdout, streams.Stderr)
+	if err != nil {
+		return fmt.Errorf("print evaluation output: %w", err)
+	}
 
 	return nil
 }
 
-func runCheck(
-	cmd *cobra.Command,
-	retrieverConf *retrieverconf.RetrieverConf) error {
+func runCheck(streams *helper.Streams, retrieverConf *retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
 	//nolint:musttag,gosec // G117: CLI --check-mode outputs the parsed retriever config as JSON
@@ -326,7 +318,11 @@ func runCheck(
 	}
 
 	output.Add(string(detailed), helper.DefaultLevel)
-	output.PrintLines(cmd)
+
+	err = output.PrintLines(streams.Stdout, streams.Stderr)
+	if err != nil {
+		return fmt.Errorf("print check output: %w", err)
+	}
 
 	return nil
 }

@@ -1,11 +1,14 @@
 package publish
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -15,92 +18,198 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
-// options are the flags of publish and publish verify.
-type options struct {
-	target     targetFlags
-	output     string
-	generation uint64
-	dryRun     bool
-	replace    bool
+// HelpVars returns the kong interpolation variables used by [Cmd] help tags.
+func HelpVars() kong.Vars {
+	return kong.Vars{
+		"helpPubConfig":   "bootstrap file whose controlPlane connection is the target",
+		"helpPubBucket":   "bucket (without --config)",
+		"helpPubPrefix":   "key prefix of the objects and of the default manifest key",
+		"helpPubRegion":   "AWS region (without --config)",
+		"helpPubEndpoint": "S3 endpoint, for emulators and S3 compatible stores (without --config)",
+		"helpPubChannel":  "channel of the manifest (without --config; default stable)",
+		"helpPubConn":     "connection name written in the manifest (without --config; default control)",
+		"helpPubMKey":     "manifest key (without --config; default <prefix>manifests/<channel>.yaml)",
+		"helpOut":         "output format: text or json",
+		"helpPubDryRun":   "plan the publication: the same reads, no write",
+		"helpPubGen":      "generation to write (default: the one in the bucket plus one)",
+		"helpPubReplace":  "replace a manifest in the bucket that is invalid or over the limits (needs --generation)",
+		"helpPubVerify":   "Check the manifest and every object it lists in the bucket",
+	}
 }
 
-// NewPublishCmd returns the publish command with its verify subcommand, wired to the real environment.
-func NewPublishCmd() *cobra.Command { return NewPublishCmdWith(DefaultDeps()) }
+// Cmd publishes flag files and flag-set documents to S3 behind a manifest, and verifies the bucket.
+//
+//nolint:govet // fieldalignment: field order sets kong help flag and command order
+type Cmd struct {
+	Config      string `help:"${helpPubConfig}"   name:"config"                   short:"c"`
+	Bucket      string `help:"${helpPubBucket}"   name:"bucket"`
+	Prefix      string `help:"${helpPubPrefix}"   name:"prefix"`
+	Region      string `help:"${helpPubRegion}"   name:"region"`
+	Endpoint    string `help:"${helpPubEndpoint}" name:"endpoint"`
+	Channel     string `help:"${helpPubChannel}"  name:"channel"`
+	Connection  string `help:"${helpPubConn}"     name:"connection"`
+	ManifestKey string `help:"${helpPubMKey}"     name:"manifest-key"`
+	Output      string `default:"text"            help:"${helpOut}"               name:"output"     short:"o"`
+	Generation  uint64 `default:"0"               help:"${helpPubGen}"            name:"generation"`
+	DryRun      bool   `help:"${helpPubDryRun}"   name:"dry-run"`
+	Replace     bool   `help:"${helpPubReplace}"  name:"replace-invalid-manifest"`
 
-// NewPublishCmdWith returns the publish command with the given dependencies.
-func NewPublishCmdWith(deps Deps) *cobra.Command {
-	opts := &options{}
+	dashVerifyDir bool
 
-	cmd := &cobra.Command{
-		Use:   "publish <dir>",
-		Short: "Publish flag files and flag-set documents to S3 behind a manifest",
-		Long: `Reads the documents of <dir> (flags/*.yaml|yml|json and flagsets/*.yaml|yml|json), validates them,
+	Dir    ApplyCmd  `arg:"" help:"Source directory containing flags/ and flagsets/."`
+	Verify VerifyCmd `cmd:"" help:"${helpPubVerify}"`
+}
+
+// SetDashVerifyDir records whether a bare "verify" directory appeared after "--" so it is not confused with
+// the "verify" subcommand.
+func (c *Cmd) SetDashVerifyDir(enabled bool) { c.dashVerifyDir = enabled }
+
+// RewriteDashVerify rewrites a bare "verify" immediately after the first "--" to "./verify" so Kong dispatches it to
+// the <dir> branch rather than the "verify" subcommand.
+func RewriteDashVerify(args []string) ([]string, bool) {
+	for idx, arg := range args {
+		if arg != "--" {
+			continue
+		}
+
+		if idx+1 < len(args) && args[idx+1] == "verify" {
+			rewritten := slices.Clone(args)
+			rewritten[idx+1] = "./verify"
+
+			return rewritten, true
+		}
+
+		break
+	}
+
+	return args, false
+}
+
+// Help returns the detailed description of publish for kong's help output.
+func (*Cmd) Help() string {
+	return `Reads the documents of <dir> (flags/*.yaml|yml|json and flagsets/*.yaml|yml|json), validates them,
 uploads the objects that are absent under their content-addressed keys, and writes the manifest last with a
 conditional write, so a reader never sees a half-written state.
 
 Where to publish comes from the control-plane connection of a bootstrap file (--config), or from --bucket and
 --region. Exit codes: 0 success, 1 failure or bad usage, 2 invalid documents or configuration, 3 conflict (another
-publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5 the bucket holds a bad state.`,
-		Args:          cobra.ExactArgs(1),
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPublish(cmd, args[0], opts, &deps)
-		},
-	}
-
-	addTargetFlags(cmd, opts)
-	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "plan the publication: the same reads, no write")
-	cmd.Flags().
-		Uint64Var(&opts.generation, "generation", 0, "generation to write (default: the one in the bucket plus one)")
-	cmd.Flags().BoolVar(&opts.replace, "replace-invalid-manifest", false,
-		"replace a manifest in the bucket that is invalid or over the limits (needs --generation)")
-
-	cmd.AddCommand(newVerifyCmd(opts, &deps))
-
-	// One mechanism for every failure of the command and its subcommands (argument and flag errors included).
-	helper.JSONErrors(cmd, helper.JSONErrorOptions{
-		Enabled: func() bool { return opts.output == outputJSON },
-		Details: errorDetails,
-		RawArgs: deps.Args,
-	})
-
-	return cmd
+publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5 the bucket holds a bad state.`
 }
 
-// addTargetFlags registers the flags that say where to publish, and --output, on the command and its children.
-func addTargetFlags(cmd *cobra.Command, opts *options) {
-	flagSet := cmd.PersistentFlags()
-	flagSet.StringVarP(
-		&opts.target.config,
-		"config",
-		"c",
-		"",
-		"bootstrap file whose controlPlane connection is the target",
+func (c *Cmd) targetFlags() targetFlags {
+	return targetFlags{
+		config:      c.Config,
+		bucket:      c.Bucket,
+		prefix:      c.Prefix,
+		region:      c.Region,
+		endpoint:    c.Endpoint,
+		channel:     c.Channel,
+		connection:  c.Connection,
+		manifestKey: c.ManifestKey,
+	}
+}
+
+// ApplyCmd uploads source documents from a directory and writes the manifest.
+type ApplyCmd struct {
+	Dir string `arg:"" help:"Source directory containing flags/ and flagsets/." name:"dir"`
+}
+
+// Run executes the publish operation against ApplyCmd.Dir.
+func (a ApplyCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	dir := a.Dir
+	if parent.dashVerifyDir && dir == "./verify" {
+		dir = "verify"
+	}
+
+	err := helper.ReportJSONError(
+		streams.Stdout,
+		parent.Output == outputJSON,
+		errorDetails,
+		runPublish(ctx, streams, dir, parent, deps),
 	)
-	flagSet.StringVar(&opts.target.bucket, "bucket", "", "bucket (without --config)")
-	flagSet.StringVar(&opts.target.prefix, "prefix", "", "key prefix of the objects and of the default manifest key")
-	flagSet.StringVar(&opts.target.region, "region", "", "AWS region (without --config)")
-	flagSet.StringVar(
-		&opts.target.endpoint,
-		"endpoint",
-		"",
-		"S3 endpoint, for emulators and S3 compatible stores (without --config)",
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+// VerifyCmd checks the manifest and every listed object in the bucket without writing.
+type VerifyCmd struct{}
+
+// Help returns the detailed description of publish verify for kong's help output.
+func (VerifyCmd) Help() string {
+	return `Reads the manifest and every listed object of the connection, and checks size, checksum, the content of
+each document, and that every flag-set source resolves. It never writes. Exit code 5 when a problem is found.`
+}
+
+// Run executes the bucket verification check.
+func (VerifyCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	var err error
+	if parent.DryRun || parent.Generation != 0 || parent.Replace {
+		err = fmt.Errorf("%w: --dry-run, --generation, and --replace-invalid-manifest do not apply to verify",
+			helper.ErrUsage)
+	} else {
+		err = runVerify(ctx, streams, parent, deps)
+	}
+
+	repErr := helper.ReportJSONError(streams.Stdout, parent.Output == outputJSON, errorDetails, err)
+	if repErr != nil {
+		return fmt.Errorf("%w", repErr)
+	}
+
+	return nil
+}
+
+// Run parses args against [Cmd] and executes publish or publish verify with injected context, streams, and deps.
+func Run(ctx context.Context, args []string, streams *helper.Streams, deps Deps) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
+
+	parser, err := kong.New(&runner,
+		kong.Name("publish"),
+		kong.Description("Publish flag files and flag-set documents to S3 behind a manifest"),
+		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
 	)
-	flagSet.StringVar(&opts.target.channel, "channel", "", "channel of the manifest (without --config; default stable)")
-	flagSet.StringVar(
-		&opts.target.connection,
-		"connection",
-		"",
-		"connection name written in the manifest (without --config; default control)",
-	)
-	flagSet.StringVar(
-		&opts.target.manifestKey,
-		"manifest-key",
-		"",
-		"manifest key (without --config; default <prefix>manifests/<channel>.yaml)",
-	)
-	flagSet.StringVarP(&opts.output, "output", "o", outputText, "output format: text or json")
+	if err != nil {
+		return fmt.Errorf("build publish parser: %w", err)
+	}
+
+	parseArgs, dashVerifyDir := RewriteDashVerify(args)
+	runner.Cmd.SetDashVerifyDir(dashVerifyDir)
+
+	kctx, exited, err := helper.Parse(parser, parseArgs)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		if parseErr, ok := errors.AsType[*kong.ParseError](err); ok {
+			val, found := helper.ScanOutputFlag(parseErr.Context.Flags(), args)
+			repErr := helper.ReportJSONError(
+				streams.Stdout,
+				found && val == outputJSON,
+				errorDetails,
+				fmt.Errorf("%w: %w", helper.ErrUsage, err),
+			)
+
+			return fmt.Errorf("%w", repErr)
+		}
+
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	kctx.BindTo(ctx, (*context.Context)(nil))
+
+	//nolint:wrapcheck // subcommand Run already wraps errors and reports JSON
+	return kctx.Run(&runner.Cmd, streams, &deps)
 }
 
 func checkOutput(format string) error {
@@ -111,13 +220,15 @@ func checkOutput(format string) error {
 	return nil
 }
 
-func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error {
-	err := checkOutput(opts.output)
+func runPublish(ctx context.Context, streams *helper.Streams, dir string, opts *Cmd, deps *Deps) error {
+	err := checkOutput(opts.Output)
 	if err != nil {
 		return err
 	}
 
-	tgt, err := resolveTarget(&opts.target, deps)
+	tf := opts.targetFlags()
+
+	tgt, err := resolveTarget(&tf, deps)
 	if err != nil {
 		return withCode(err)
 	}
@@ -129,22 +240,22 @@ func runPublish(cmd *cobra.Command, dir string, opts *options, deps *Deps) error
 
 	tgt.cfg.Check = checkFlags
 
-	pub, err := newPublisher(cmd, tgt, deps)
+	pub, err := newPublisher(ctx, tgt, deps)
 	if err != nil {
 		return withCode(err)
 	}
 
 	created := deps.Now().UTC().Truncate(time.Second)
 
-	res, err := pub.Publish(cmd.Context(), s3publish.Request{
-		Objects: objects, Generation: opts.generation, CreatedAt: &created, DryRun: opts.dryRun,
-		ReplaceInvalidManifest: opts.replace,
+	res, err := pub.Publish(ctx, s3publish.Request{
+		Objects: objects, Generation: opts.Generation, CreatedAt: &created, DryRun: opts.DryRun,
+		ReplaceInvalidManifest: opts.Replace,
 	})
 	if err != nil {
 		return withCode(err)
 	}
 
-	return printResult(cmd.OutOrStdout(), opts.output, res)
+	return printResult(streams.Stdout, opts.Output, res)
 }
 
 // checkFlags validates a flag file with the engine of the relay (the flagcheck package).
@@ -181,18 +292,18 @@ func errorDetails(err error) []string {
 	return details
 }
 
-func newPublisher(cmd *cobra.Command, tgt *target, deps *Deps) (*s3publish.Publisher, error) {
+func newPublisher(ctx context.Context, tgt *target, deps *Deps) (*s3publish.Publisher, error) {
 	var api s3publish.API
 
 	if deps.NewAPI != nil {
-		custom, err := deps.NewAPI(cmd.Context(), tgt.spec, tgt.name)
+		custom, err := deps.NewAPI(ctx, tgt.spec, tgt.name)
 		if err != nil {
 			return nil, err
 		}
 
 		api = custom
 	} else {
-		client, err := newClient(cmd.Context(), deps.ConnectionOptions, tgt)
+		client, err := newClient(ctx, deps.ConnectionOptions, tgt)
 		if err != nil {
 			return nil, err
 		}
@@ -208,45 +319,32 @@ func newPublisher(cmd *cobra.Command, tgt *target, deps *Deps) (*s3publish.Publi
 	return pub, nil
 }
 
-func newVerifyCmd(opts *options, deps *Deps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "verify",
-		Short: "Check the manifest and every object it lists in the bucket",
-		Long: `Reads the manifest and every listed object of the connection, and checks size, checksum, the content of
-each document, and that every flag-set source resolves. It never writes. Exit code 5 when a problem is found.`,
-		Args:          cobra.NoArgs,
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runVerify(cmd, opts, deps)
-		},
-	}
-}
-
-func runVerify(cmd *cobra.Command, opts *options, deps *Deps) error {
-	err := checkOutput(opts.output)
+func runVerify(ctx context.Context, streams *helper.Streams, opts *Cmd, deps *Deps) error {
+	err := checkOutput(opts.Output)
 	if err != nil {
 		return err
 	}
 
-	tgt, err := resolveTarget(&opts.target, deps)
+	tf := opts.targetFlags()
+
+	tgt, err := resolveTarget(&tf, deps)
 	if err != nil {
 		return withCode(err)
 	}
 
 	tgt.cfg.Check = checkFlags
 
-	pub, err := newPublisher(cmd, tgt, deps)
+	pub, err := newPublisher(ctx, tgt, deps)
 	if err != nil {
 		return withCode(err)
 	}
 
-	rep, err := pub.Verify(cmd.Context())
+	rep, err := pub.Verify(ctx)
 	if err != nil {
 		return withCode(err)
 	}
 
-	err = printReport(cmd.OutOrStdout(), opts.output, rep)
+	err = printReport(streams.Stdout, opts.Output, rep)
 	if err != nil {
 		return err
 	}

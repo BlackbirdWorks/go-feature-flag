@@ -1,0 +1,20 @@
+Usage: semaphore-cli config print <file> [flags]
+
+Print the effective bootstrap file: defaults and environment overrides applied,
+secrets redacted
+
+Prints what the relay proxy would run with: the file after the SEMAPHORE_*
+environment overrides and the defaults. Secrets, API keys and admin keys print
+as [REDACTED]; references (fromEnv, fromFile) print as written. --effective is
+required. Exit code 2 when the file is invalid.
+
+Arguments:
+  <file>    Bootstrap file to print.
+
+Flags:
+  -h, --help             Show context-sensitive help.
+  -v, --version          Print the version and exit
+
+  -o, --output="text"    output format: text or json (YAML for print)
+
+      --effective        print the effective configuration (required)

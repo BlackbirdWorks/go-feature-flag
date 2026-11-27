@@ -112,15 +112,9 @@ controlPlane:
 func runCLI(t *testing.T, deps publish.Deps, args ...string) (string, error) {
 	t.Helper()
 
-	cmd := publish.NewPublishCmdWith(deps)
-
 	var out bytes.Buffer
 
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs(args)
-
-	err := cmd.ExecuteContext(t.Context())
+	err := publish.Run(t.Context(), args, &helper.Streams{Stdout: &out, Stderr: &out}, deps)
 
 	return out.String(), err
 }
@@ -178,7 +172,7 @@ func TestE2EPublishDirectoryRepublishAndVerify(t *testing.T) {
 	assert.Equal(t, "stable", manifest.Channel)
 	require.Len(t, manifest.Objects, 2)
 
-	wantBodies := map[string]string{"checkout": e2eFlagsA, "checkout-sets": checkoutSets}
+	wantBodies := map[string]string{"checkout": e2eFlagsA, checkoutSetsFlag: checkoutSets}
 
 	for _, obj := range manifest.Objects {
 		body := env.get(t, obj.Key)
@@ -306,13 +300,14 @@ func TestE2ETwoConcurrentPublishesOneConflicts(t *testing.T) {
 
 	for i, dir := range []string{env.dir, other} {
 		wg.Go(func() {
-			cmd := publish.NewPublishCmdWith(deps)
-
 			var out bytes.Buffer
 
-			cmd.SetOut(&out)
-			cmd.SetArgs([]string{dir, optConfig, env.config})
-			errs[i] = cmd.ExecuteContext(t.Context())
+			errs[i] = publish.Run(
+				t.Context(),
+				[]string{dir, optConfig, env.config},
+				&helper.Streams{Stdout: &out, Stderr: &out},
+				deps,
+			)
 			outs[i] = out.String()
 		})
 	}

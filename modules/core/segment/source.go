@@ -18,7 +18,9 @@ var ErrUnsupportedMode = errors.New("the store does not support the segment mode
 // request path. A token is opaque and only compared for equality; a segment that has no version yet has a fixed token
 // of the store (not an error), so "never bumped" is stable. A store may instead report a segment that does not exist
 // with [ErrSegmentMissing]: that is an answer, not a failure, and a snapshot holder treats it like a stream that
-// reports it. Version must honour ctx and be safe for concurrent use.
+// reports it. A writer that deletes or replaces a segment must change its version: a holder that sees the same token
+// does not pull again, so a deletion under an unchanged token is not seen. Version must honour ctx and be safe for
+// concurrent use.
 type Versioner interface {
 	Version(ctx context.Context, segment string) (string, error)
 }

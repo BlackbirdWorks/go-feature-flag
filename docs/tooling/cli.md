@@ -21,7 +21,7 @@ stdout carries results only; stderr carries every diagnostic.
 | `generate manifest` | `Manifest has been created` | warnings and notes (for example `flag ignored: no default value provided`), the final error line |
 | `publish`, `config` | the result, or with `--output json` exactly one JSON value (see [publish](publish.md#streams)) | the final error line |
 
-- The final `error executing command` line of every command is on stderr, as are Cobra's usage and its own errors.
+- The final `error executing command` line of every command is on stderr, as are usage and parse errors.
 - With `--output json` every failure of `publish` and `config`, argument and flag errors included, writes one JSON error object on
   stdout (a `publish verify` report and a `config validate` report are their own JSON document).
 - Every failure exits with 1, except where a command defines more: `publish` and `config` use 2, 3, 4 and 5 (see
