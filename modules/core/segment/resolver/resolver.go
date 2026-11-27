@@ -552,7 +552,6 @@ func (r *Resolver) Exists(ctx context.Context, names []string) ([]segment.State,
 
 		return existsErr //nolint:wrapcheck // wrapped below
 	})
-
 	if err != nil {
 		return nil, wrapStore(err) // nothing a store that failed or panicked set is trusted
 	}
@@ -861,6 +860,12 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	defer r.confirmNotLoaded(shared.ctx, neutral, now) // after the answers are delivered: it holds nobody back
 
+	deliver(leaders, sub, callErr, now)
+}
+
+// deliver hands the answers of the call to the flights: it gives each waiter its answer, and writes the cache only
+// for the flights that the call still owns.
+func deliver(leaders []leader, sub []segment.Lookup, callErr error, now time.Time) {
 	for i := range leaders {
 		lead := &leaders[i]
 		state := sub[i].State
@@ -922,20 +927,20 @@ func (r *Resolver) disarm(state *callState, hook func(), stop func() bool, fired
 // guard runs a call to the store and turns a panic into ErrProviderPanic: every call that the resolver makes to the
 // store goes through it (Contains, Exists, Init, Shutdown), so a store that panics can never take a worker of the
 // resolver, or the process, down. The value of the panic is not kept.
-func guard(fn func() error) (err error) {
+func guard(run func() error) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = ErrProviderPanic
 		}
 	}()
 
-	return fn()
+	return run()
 }
 
 func (r *Resolver) call(ctx context.Context, sub []segment.Lookup) error {
 	return guard(
 		func() error { return r.inner.Contains(ctx, sub) },
-	) //nolint:wrapcheck // the error of the store is the error of the call
+	)
 }
 
 // segmentResult is how a call went for the lookups of one segment.

@@ -522,6 +522,7 @@ const (
 )
 
 const (
+	testAlice = "alice"
 	testSeg   = "beta"
 	waitBound = 10 * time.Second // a bound for a wait that must not hang, only used when something is wrong
 )
@@ -773,7 +774,7 @@ func TestALookupDoesNotJoinAFlightThatIsPastItsDeadline(t *testing.T) {
 	now := baseTime()
 
 	// the first lookup makes a call that never returns; its caller leaves when the deadline passes
-	first := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	first := []segment.Lookup{{Segment: testSeg, ID: testAlice}}
 	done := make(chan error, 1)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -788,7 +789,7 @@ func TestALookupDoesNotJoinAFlightThatIsPastItsDeadline(t *testing.T) {
 	}
 
 	seg.mu.Lock()
-	stuck := seg.flights["alice"]
+	stuck := seg.flights[testAlice]
 	seg.mu.Unlock()
 
 	require.NotNil(t, stuck)
@@ -805,7 +806,7 @@ func TestALookupDoesNotJoinAFlightThatIsPastItsDeadline(t *testing.T) {
 	}
 
 	// after the cool-down the store has recovered: the next lookup of the same id starts a call of its own
-	retry := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	retry := []segment.Lookup{{Segment: testSeg, ID: testAlice}}
 	require.NoError(t, res.containsAt(context.Background(), retry, now.Add(time.Minute)))
 	assert.Equal(t, []segment.State{segment.Member}, []segment.State{retry[0].State})
 
@@ -874,17 +875,17 @@ func TestADetachedCallWritesNothingToTheCache(t *testing.T) {
 	// the map without a flight for the id
 	stale := &flight{done: make(chan struct{}), epoch: seg.epoch.Load()}
 
-	seg.cache.put("alice", segment.NotMember, baseTime())
+	seg.cache.put(testAlice, segment.NotMember, baseTime())
 
 	res.wg.Add(1)
 	res.inflight.Add(1)
-	res.run(newCall(context.Background(), time.Minute), []leader{{sst: seg, flt: stale, key: "alice"}})
+	res.run(newCall(context.Background(), time.Minute), []leader{{sst: seg, flt: stale, key: testAlice}})
 
 	<-stale.done
 
 	assert.Equal(t, segment.Member, stale.state, "its own waiters get its answer")
 
-	state, hit := seg.cache.get("alice", baseTime())
+	state, hit := seg.cache.get(testAlice, baseTime())
 
 	assert.True(t, hit)
 	assert.Equal(t, segment.NotMember, state, "but the fresher answer of the retry stays in the cache")
@@ -892,13 +893,19 @@ func TestADetachedCallWritesNothingToTheCache(t *testing.T) {
 
 // stuckExists is a store whose Exists ignores its deadline until its gate opens.
 type stuckExists struct {
-	internalStore
-
 	gate    chan struct{}
 	entered chan struct{}
+	store   internalStore
 }
 
-func (s *stuckExists) Exists(_ context.Context, names []string) ([]segment.State, error) {
+func (s *stuckExists) Contains(ctx context.Context, lookups []segment.Lookup) error {
+	return s.store.Contains(ctx, lookups)
+}
+
+func (s *stuckExists) Exists(
+	_ context.Context,
+	names []string,
+) ([]segment.State, error) { //nolint:unparam // the interface returns an error
 	s.entered <- struct{}{}
 
 	<-s.gate
@@ -942,12 +949,12 @@ func TestAStuckExistsCountsAsOverdueAndTripsTheThreshold(t *testing.T) {
 	require.Eventually(t, func() bool { return res.Status().Overdue == 1 }, waitBound, time.Millisecond)
 
 	// the threshold is reached: a lookup that needs a call is refused, and the store is not called
-	lookups := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	lookups := []segment.Lookup{{Segment: testSeg, ID: testAlice}}
 	err := res.containsAt(context.Background(), lookups, baseTime())
 
 	require.ErrorIs(t, err, ErrOverdue)
 	assert.Equal(t, []segment.State{segment.Unknown}, []segment.State{lookups[0].State})
-	assert.Equal(t, 0, store.calls)
+	assert.Equal(t, 0, store.store.calls)
 
 	release()
 

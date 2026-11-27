@@ -125,7 +125,7 @@ func (g *gatedLifecycle) Release() {
 }
 
 func (g *gatedLifecycle) Init(context.Context) error { //nolint:unparam // the interface returns an error
-	g.record("init")
+	g.record(evInit)
 
 	return nil
 }
@@ -134,7 +134,7 @@ func (g *gatedLifecycle) Exists(
 	_ context.Context,
 	names []string,
 ) ([]segment.State, error) { //nolint:unparam // the interface returns an error
-	g.record("exists")
+	g.record(evExists)
 
 	if g.existsEntered != nil {
 		g.existsEntered <- struct{}{}
@@ -168,18 +168,18 @@ func TestInitAndExistsGoThroughTheShutdownAdmission(t *testing.T) {
 		wantEvents []string
 	}{
 		{
-			name:       "Init",
+			name:       nameInit,
 			call:       func(res *resolver.Resolver) error { return res.Init(context.Background()) },
-			wantEvents: []string{"init"},
+			wantEvents: []string{evInit},
 		},
 		{
-			name: "Exists",
+			name: nameExists,
 			call: func(res *resolver.Resolver) error {
 				_, err := res.Exists(context.Background(), []string{segBeta})
 
 				return err
 			},
-			wantEvents: []string{"exists"},
+			wantEvents: []string{evExists},
 		},
 	}
 

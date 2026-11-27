@@ -235,7 +235,7 @@ type existsStore struct {
 func (e existsStore) Exists(
 	_ context.Context,
 	names []string,
-) ([]segment.State, error) { //nolint:unparam // the interface returns an error
+) ([]segment.State, error) {
 	e.mu.Lock()
 	data := e.data
 	e.mu.Unlock()

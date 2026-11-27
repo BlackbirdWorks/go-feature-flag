@@ -554,7 +554,7 @@ func TestLifecycle(t *testing.T) {
 
 	require.NoError(t, res.Shutdown(context.Background()))
 	assert.True(t, res.Status().Closed)
-	assert.Equal(t, []string{"init", "exists", "shutdown"}, full.events)
+	assert.Equal(t, []string{evInit, evExists, evShutdown}, full.events)
 
 	err = res.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)})
 	require.ErrorIs(t, err, resolver.ErrClosed)
@@ -600,13 +600,13 @@ type lifecycleStore struct {
 }
 
 func (l *lifecycleStore) Init(context.Context) error { //nolint:unparam // the interface returns an error
-	l.events = append(l.events, "init")
+	l.events = append(l.events, evInit)
 
 	return nil
 }
 
 func (l *lifecycleStore) Shutdown(context.Context) error { //nolint:unparam // the interface returns an error
-	l.events = append(l.events, "shutdown")
+	l.events = append(l.events, evShutdown)
 
 	return nil
 }
@@ -615,7 +615,7 @@ func (l *lifecycleStore) Exists(
 	_ context.Context,
 	names []string,
 ) ([]segment.State, error) { //nolint:unparam // the interface returns an error
-	l.events = append(l.events, "exists")
+	l.events = append(l.events, evExists)
 
 	out := make([]segment.State, len(names))
 	for i, name := range names {

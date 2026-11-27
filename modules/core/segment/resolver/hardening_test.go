@@ -324,7 +324,7 @@ func TestShutdownIsIdempotent(t *testing.T) {
 
 	require.NoError(t, res.Shutdown(context.Background()))
 	require.NoError(t, res.Shutdown(context.Background()))
-	assert.Equal(t, []string{"shutdown"}, full.events, "the store is shut down once")
+	assert.Equal(t, []string{evShutdown}, full.events, "the store is shut down once")
 
 	plain := newResolver(t, betaStore(), &resolver.Options{})
 
@@ -687,7 +687,7 @@ func TestInitAndExistsErrorsOfTheStoreDoNotShowTheirText(t *testing.T) {
 	initErr := res.Init(context.Background())
 	_, existsErr := res.Exists(context.Background(), []string{segBeta})
 
-	for name, err := range map[string]error{"Init": initErr, "Exists": existsErr} {
+	for name, err := range map[string]error{nameInit: initErr, nameExists: existsErr} {
 		require.Error(t, err, name)
 		require.ErrorIs(t, err, errLeaky, name+": the error of the store is still reachable")
 		assert.Equal(t, "resolver: the call to the store failed", err.Error(), name)
@@ -832,24 +832,27 @@ type panicky struct {
 	panicIn string
 }
 
-func (p panicky) Init(context.Context) error {
-	if p.panicIn == "init" {
+func (p panicky) Init(context.Context) error { //nolint:unparam // the interface returns an error
+	if p.panicIn == evInit {
 		panic(secretID)
 	}
 
 	return nil
 }
 
-func (p panicky) Exists(_ context.Context, names []string) ([]segment.State, error) {
-	if p.panicIn == "exists" {
+func (p panicky) Exists(
+	_ context.Context,
+	names []string,
+) ([]segment.State, error) { //nolint:unparam // the interface returns an error
+	if p.panicIn == evExists {
 		panic(secretID)
 	}
 
 	return make([]segment.State, len(names)), nil
 }
 
-func (p panicky) Shutdown(context.Context) error {
-	if p.panicIn == "shutdown" {
+func (p panicky) Shutdown(context.Context) error { //nolint:unparam // the interface returns an error
+	if p.panicIn == evShutdown {
 		panic(secretID)
 	}
 
@@ -860,11 +863,11 @@ func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		call func(*resolver.Resolver) error
+		name string
 	}{
-		{name: "Init", call: func(res *resolver.Resolver) error { return res.Init(context.Background()) }},
-		{name: "Exists", call: func(res *resolver.Resolver) error {
+		{name: nameInit, call: func(res *resolver.Resolver) error { return res.Init(context.Background()) }},
+		{name: nameExists, call: func(res *resolver.Resolver) error {
 			states, err := res.Exists(context.Background(), []string{segBeta})
 
 			assert.Nil(t, states, "nothing a store that panicked set is trusted")
@@ -898,7 +901,7 @@ func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
 		// beta is not held by the store, so its lookup is unanswered and the resolver asks Exists, which panics
 		store := panicky{
 			fakeStore: &fakeStore{data: members(map[string][]string{segOther: {idAlice}})},
-			panicIn:   "exists",
+			panicIn:   evExists,
 		}
 		res := newResolver(t, store, &resolver.Options{})
 
@@ -930,5 +933,13 @@ func TestARepeatShutdownWithAnEndedContextReturnsTheFinishedResult(t *testing.T)
 		require.NoError(t, res.Shutdown(ended))
 	}
 
-	assert.Equal(t, []string{"shutdown"}, full.events)
+	assert.Equal(t, []string{evShutdown}, full.events)
 }
+
+const (
+	evInit     = "init"
+	evExists   = "exists"
+	evShutdown = "shutdown"
+	nameInit   = "Init"
+	nameExists = "Exists"
+)
