@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
@@ -158,19 +159,10 @@ func takesValue(flag string) bool {
 func (rig *harness) run(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
-	deps := rig.deps
-	deps.Args = func() []string { return args }
-
-	cmd := publish.NewPublishCmdWith(deps)
-
 	var stdout, stderr bytes.Buffer
 
-	cmd.SetOut(&stdout)
-	cmd.SetErr(&stderr)
-	cmd.SetArgs(args)
-
 	before := len(rig.opened)
-	err := cmd.ExecuteContext(t.Context())
+	err := publish.Run(t.Context(), args, &helper.Streams{Stdout: &stdout, Stderr: &stderr}, rig.deps)
 
 	assertOpened(t, sourceDirArg(args), rig.opened[before:], err == nil)
 

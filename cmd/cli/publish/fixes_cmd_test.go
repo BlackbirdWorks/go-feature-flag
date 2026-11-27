@@ -295,19 +295,24 @@ func TestUsageFailuresAreJSONInJSONMode(t *testing.T) {
 		wantInMsg string
 		args      []string
 	}{
-		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 0"},
-		{name: "two directories", args: []string{"a", "b", "-o", jsonFlag}, wantInMsg: "accepts 1 arg(s), received 2"},
+		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: `expected "<dir>"`},
+		{name: "two directories", args: []string{"a", "b", "-o", jsonFlag}, wantInMsg: "unexpected argument b"},
 		{
 			name:      "arguments for verify",
 			args:      []string{verifyWord, "extra", "-o", jsonFlag},
-			wantInMsg: "unknown command",
+			wantInMsg: "unexpected argument extra",
 		},
 		{
 			name:      "a flag value that does not parse",
 			args:      []string{"-o", jsonFlag, srcDir, "--generation", "abc"},
-			wantInMsg: "invalid argument",
+			wantInMsg: "--generation: expected a valid 64 bit uint",
 		},
 		{name: "an unknown flag", args: []string{"-o", jsonFlag, srcDir, "--nope"}, wantInMsg: "unknown flag"},
+		{
+			name:      "dry-run rejected on verify",
+			args:      []string{verifyWord, "--dry-run", "-o", jsonFlag},
+			wantInMsg: "do not apply to verify",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

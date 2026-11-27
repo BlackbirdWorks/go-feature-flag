@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
@@ -72,14 +72,10 @@ func TestOutput_PrintLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
+			var stdout, stderr bytes.Buffer
 
-			cmd := &cobra.Command{}
-			cmd.SetOut(&buf)
-			cmd.SetErr(&buf)
-
-			tt.output.PrintLines(cmd)
-			assert.Equal(t, tt.expected, buf.String())
+			require.NoError(t, tt.output.PrintLines(&stdout, &stderr))
+			assert.Equal(t, tt.expected, stdout.String()+stderr.String())
 		})
 	}
 }

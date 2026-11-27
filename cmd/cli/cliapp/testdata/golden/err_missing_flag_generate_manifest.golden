@@ -1,1 +1,1 @@
-  ERROR   error executing command: required flag(s) "flag_manifest_destination" not set
+  ERROR   error executing command: usage: missing flags: --flag_manifest_destination=STRING

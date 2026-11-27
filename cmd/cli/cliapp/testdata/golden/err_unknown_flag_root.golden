@@ -7,17 +7,18 @@ Flags:
   -v, --version    Print the version and exit
 
 Commands:
-  evaluate [<args> ...] [flags]
+  evaluate [flags]
     ⚙️ Evaluate feature flags based on configuration and context
 
-  lint [<args> ...] [flags]
+  lint [<config_file>] [flags]
     🛑 Lint Semaphore configuration file.
 
-  generate [<args> ...] [flags]
-    🏗️ Generate Semaphore related files
+  generate manifest --flag_manifest_destination=STRING [flags]
+    📄 (experimental) Generate an OpenFeature flag manifest based on your flags
+    configuration.
 
-  publish [<args> ...] [flags]
-    Publish flag files and flag-set documents to S3 behind a manifest
+  publish verify [flags]
+    Check the manifest and every object it lists in the bucket
 
   config validate <file> [flags]
     Check a bootstrap file with the loader of the relay proxy

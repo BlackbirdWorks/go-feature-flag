@@ -1,6 +1,7 @@
 package evaluate_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -46,29 +48,15 @@ func runCmdEvaluateTests(t *testing.T, tests []cmdEvaluateCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
-			require.NoError(t, err)
-			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
-			require.NoError(t, err)
+			var stdOut, stdErr bytes.Buffer
 
-			defer func() {
-				_ = os.Remove(stdOut.Name())
-				_ = os.Remove(stdErr.Name())
-			}()
-
-			cmd := evaluate.NewEvaluateCmd()
-			cmd.SetErr(stdErr)
-			cmd.SetOut(stdOut)
-			cmd.SetArgs(tt.args)
-			err = cmd.Execute()
+			err := evaluate.Run(t.Context(), tt.args, &helper.Streams{Stdout: &stdOut, Stderr: &stdErr})
 			tt.wantErr(t, err)
 
 			if tt.expectedResult != "" {
 				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
 				require.NoError(t, readFileErr)
-				gotContent, readFileErr := os.ReadFile(stdOut.Name())
-				require.NoError(t, readFileErr)
-				assert.JSONEq(t, string(expectedContent), string(gotContent))
+				assert.JSONEq(t, string(expectedContent), stdOut.String())
 			}
 
 			if tt.expectedErr != "" {
@@ -428,6 +416,13 @@ func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
 			wantErr:        assert.NoError,
 			expectedResult: "testdata/res/check-postgres.json",
 		},
+	})
+}
+
+func TestCmdEvaluate_Validation(t *testing.T) {
+	t.Parallel()
+
+	runCmdEvaluateTests(t, []cmdEvaluateCase{
 		{
 			name: "should return an initialization error if postgres uri is invalid",
 			args: []string{
@@ -495,5 +490,32 @@ func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
 			wantErr:     assert.Error,
 			expectedErr: "invalid retriever: no \"bucket\" property found for kind \"s3\"",
 		},
+		{
+			name:    "help exits without error",
+			args:    []string{"--help"},
+			wantErr: assert.NoError,
+		},
+		{
+			name:        "unknown flag returns usage error",
+			args:        []string{"--nope"},
+			wantErr:     assert.Error,
+			expectedErr: "usage: unknown flag --nope",
+		},
+		{
+			name: "deprecated --github-token and malformed headers and columns are handled",
+			args: []string{
+				kindFlag, fixtures.KindFile,
+				pathFlag, fixtures.FlagGoffYAMLPath,
+				"--github-token", "tok",
+				headerFlag, "malformed",
+				columnFlag, "malformed",
+				ctxFlag, targetingKeyUser123,
+				formatFlag, protocol.FormatYAML,
+			},
+			wantErr:        assert.NoError,
+			expectedResult: "testdata/res/all-flag.json",
+		},
 	})
+
+	assert.NotEmpty(t, (&evaluate.Cmd{}).Help())
 }

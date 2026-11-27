@@ -1,10 +1,18 @@
-📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration. ⚠️ note that this is an experimental feature and we may change this command line without warning.
+Usage: semaphore-cli generate manifest --flag_manifest_destination=STRING [flags]
 
-Usage:
-  semaphore-cli generate manifest [flags]
+📄 (experimental) Generate an OpenFeature flag manifest based on your flags
+configuration.
+
+📄 (experimental) Generate an OpenFeature flag manifest based on your flags
+configuration. ⚠️ note that this is an experimental feature and we may change
+this command line without warning.
 
 Flags:
-  -c, --config string                      Location of your Semaphore local configuration file
-      --flag_manifest_destination string   Destination of your flag manifest file. If not provided, the manifest will be printed to the console.
-  -f, --format string                      Format of your input file (YAML, JSON or TOML) (default "yaml")
-  -h, --help[=true|false]                  help for manifest
+  -h, --help             Show context-sensitive help.
+  -v, --version          Print the version and exit
+
+  -f, --format="yaml"    Format of your input file (YAML, JSON or TOML)
+  -c, --config=STRING    Location of your Semaphore local configuration file
+      --flag_manifest_destination=STRING
+                         Destination of your flag manifest file. If not
+                         provided, the manifest will be printed to the console.

@@ -1,36 +1,58 @@
 package generate
 
 import (
-	"errors"
+	"fmt"
+	"maps"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
-var (
-	errNoSubcommandProvided = errors.New("no subcommand provided")
-)
+// HelpVars returns the kong interpolation variables used by [Cmd] and its subcommands.
+func HelpVars() kong.Vars {
+	vars := manifest.HelpVars()
+	maps.Copy(vars, kong.Vars{
+		"helpGenerateManifest": "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration.",
+	})
 
-// NewGenerateCmd returns the command group that generates Semaphore related files.
-func NewGenerateCmd() *cobra.Command {
-	generateCmd := &cobra.Command{
-		Use:   "generate",
-		Short: "🏗️ Generate Semaphore related files",
-		Long:  `🏗️ Generate Semaphore relates files (examples: flag manifest, ...)`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			output := helper.Output{}
-			output.Add("you must specify a subcommand (e.g., manifest)", helper.ErrorLevel)
-			output.PrintLines(cmd)
+	return vars
+}
 
-			return errNoSubcommandProvided
-		},
-		SilenceErrors: true,
-		SilenceUsage:  true,
+// Cmd is the kong command group that generates Semaphore related files.
+type Cmd struct {
+	Manifest manifest.Cmd `cmd:"" help:"${helpGenerateManifest}"`
+}
+
+// Run parses args against [Cmd] and executes the selected subcommand with injected output streams.
+func Run(args []string, streams *helper.Streams) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
 	}
 
-	generateCmd.AddCommand(manifest.NewManifestCmd())
+	parser, err := kong.New(&runner,
+		kong.Name("generate"),
+		kong.Description("🏗️ Generate Semaphore relates files (examples: flag manifest, ...)"),
+		kong.NoDefaultHelp(),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
+	)
+	if err != nil {
+		return fmt.Errorf("build generate parser: %w", err)
+	}
 
-	return generateCmd
+	kctx, exited, err := helper.Parse(parser, args)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	return kctx.Run(streams) //nolint:wrapcheck // subcommand Run returns user-facing error
 }

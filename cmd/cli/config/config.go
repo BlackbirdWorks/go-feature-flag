@@ -14,11 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
 
-// The values of --output and help wrap bound.
+// The values of --output.
 const (
 	outputText = "text"
 	outputJSON = "json"
-	helpWidth  = 80
 )
 
 // HelpVars returns the kong interpolation variables used by [Cmd] help tags.
@@ -44,9 +43,9 @@ func DefaultDeps() Deps { return Deps{LookupEnv: os.LookupEnv, ReadFile: os.Read
 
 // Cmd is the kong command group for validating and printing the version 2 bootstrap file of the relay proxy.
 type Cmd struct {
-	Output   string      `default:"text" help:"${helpConfigOutput}"   name:"output" short:"o"`
-	Validate ValidateCmd `cmd:""         help:"${helpConfigValidate}"`
-	Print    PrintCmd    `cmd:""         help:"${helpConfigPrint}"`
+	Output   helper.OutputFlag `default:"text" help:"${helpConfigOutput}"   name:"output" short:"o"`
+	Validate ValidateCmd       `cmd:""         help:"${helpConfigValidate}"`
+	Print    PrintCmd          `cmd:""         help:"${helpConfigPrint}"`
 }
 
 // ValidateCmd checks a bootstrap file with the loader of the relay proxy.
@@ -63,11 +62,13 @@ shape, not resolved. Exit code 0 when valid, 2 when invalid, 1 on another failur
 
 // Run validates the bootstrap file and writes the result to streams.Stdout.
 func (v ValidateCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	out := string(parent.Output)
+
 	err := helper.ReportJSONError(
 		streams.Stdout,
-		parent.Output == outputJSON,
+		out == outputJSON,
 		nil,
-		runValidate(streams.Stdout, v.File, parent.Output, deps),
+		runValidate(streams.Stdout, v.File, out, deps),
 	)
 	if err != nil {
 		return fmt.Errorf("%w", err)
@@ -91,14 +92,16 @@ defaults. Secrets, API keys and admin keys print as [REDACTED]; references (from
 
 // Run prints the effective bootstrap file to streams.Stdout.
 func (p PrintCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	out := string(parent.Output)
+
 	var err error
 	if !p.Effective {
 		err = fmt.Errorf("%w: --effective is required", helper.ErrUsage)
 	} else {
-		err = runPrint(streams.Stdout, p.File, parent.Output, deps)
+		err = runPrint(streams.Stdout, p.File, out, deps)
 	}
 
-	repErr := helper.ReportJSONError(streams.Stdout, parent.Output == outputJSON, nil, err)
+	repErr := helper.ReportJSONError(streams.Stdout, out == outputJSON, nil, err)
 	if repErr != nil {
 		return fmt.Errorf("%w", repErr)
 	}
@@ -106,27 +109,22 @@ func (p PrintCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
 	return nil
 }
 
-type exitSignal struct {
-	code int
-}
-
 // Run parses args against the config command tree and executes the selected subcommand with injected streams and deps.
 // Running without a subcommand prints config help to streams.Stdout and returns nil.
 func Run(args []string, streams *helper.Streams, deps Deps) error {
-	var cmd Cmd
+	var runner struct {
+		Cmd
 
-	var (
-		exitedCode int
-		exited     bool
-	)
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
 
-	parser, err := kong.New(&cmd,
+	parser, err := kong.New(&runner,
 		kong.Name("config"),
 		kong.Description("Validate and print the version 2 bootstrap file of the relay proxy"),
+		kong.NoDefaultHelp(),
 		kong.Writers(streams.Stdout, streams.Stderr),
-		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helpWidth}),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),
-		kong.Exit(func(code int) { panic(exitSignal{code: code}) }),
 	)
 	if err != nil {
 		return fmt.Errorf("build config parser: %w", err)
@@ -141,29 +139,8 @@ func Run(args []string, streams *helper.Streams, deps Deps) error {
 		return traceCtx.PrintUsage(false) //nolint:wrapcheck // PrintUsage writes directly to stdout
 	}
 
-	var kctx *kong.Context
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				sig, ok := r.(exitSignal)
-				if !ok {
-					panic(r)
-				}
-
-				exitedCode = sig.code
-				exited = true
-			}
-		}()
-
-		kctx, err = parser.Parse(args)
-	}()
-
+	kctx, exited, err := helper.Parse(parser, args)
 	if exited {
-		if exitedCode != 0 {
-			return &helper.ExitError{Err: helper.ErrUsage, Code: exitedCode}
-		}
-
 		return nil
 	}
 
@@ -171,7 +148,8 @@ func Run(args []string, streams *helper.Streams, deps Deps) error {
 		return handleParseError(err, args, streams)
 	}
 
-	return kctx.Run(streams, &deps) //nolint:wrapcheck // subcommand Run already formats and wraps its error
+	//nolint:wrapcheck // subcommand Run already formats and wraps its error
+	return kctx.Run(&runner.Cmd, streams, &deps)
 }
 
 func handleParseError(err error, args []string, streams *helper.Streams) error {

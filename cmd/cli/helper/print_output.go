@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
@@ -47,15 +46,9 @@ func (o *Output) Add(line string, level Level) Output {
 	return *o
 }
 
-// PrintLines writes the collected lines. stdout carries results only: [StatusLevel] and [DefaultLevel] lines go to
-// stdout; every diagnostic ([InfoLevel], [WarnLevel], [ErrorLevel]) goes to stderr.
-func (o *Output) PrintLines(cmd *cobra.Command) {
-	o.PrintLinesTo(cmd.OutOrStdout(), cmd.ErrOrStderr())
-}
-
-// PrintLinesTo writes the collected lines to stdout and stderr. stdout carries results only: [StatusLevel] and
+// PrintLines writes the collected lines to stdout and stderr. stdout carries results only: [StatusLevel] and
 // [DefaultLevel] lines go to stdout; every diagnostic ([InfoLevel], [WarnLevel], [ErrorLevel]) goes to stderr.
-func (o *Output) PrintLinesTo(stdout, stderr io.Writer) {
+func (o *Output) PrintLines(stdout, stderr io.Writer) error {
 	for _, line := range o.Lines {
 		var outputText string
 
@@ -79,9 +72,11 @@ func (o *Output) PrintLinesTo(stdout, stderr io.Writer) {
 
 		_, err := fmt.Fprintln(writer, outputText)
 		if err != nil {
-			PrintFatalAndExit(err)
+			return fmt.Errorf("write output: %w", err)
 		}
 	}
+
+	return nil
 }
 
 // PrintFatalAndExit prints err as an error on stderr and exits the process with the code of the error

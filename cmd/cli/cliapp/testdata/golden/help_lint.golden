@@ -1,8 +1,15 @@
-🛑 Validate Semaphore configuration file, it will return an error if your file is not valid.
+Usage: semaphore-cli lint [<config_file>] [flags]
 
-Usage:
-  semaphore-cli lint <config_file> [flags]
+🛑 Lint Semaphore configuration file.
+
+🛑 Validate Semaphore configuration file, it will return an error if your file is
+not valid.
+
+Arguments:
+  [<config_file>]    Path to your Semaphore configuration file.
 
 Flags:
-  -f, --format string       Format of your input file (YAML, JSON or TOML) (default "yaml")
-  -h, --help[=true|false]   help for lint
+  -h, --help             Show context-sensitive help.
+  -v, --version          Print the version and exit
+
+  -f, --format="yaml"    Format of your input file (YAML, JSON or TOML)

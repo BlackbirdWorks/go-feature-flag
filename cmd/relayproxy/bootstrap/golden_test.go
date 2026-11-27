@@ -41,7 +41,7 @@ func TestExampleContent(t *testing.T) {
 
 	cfg := loadExample(t)
 
-	assert.Len(t, cfg.Connections, 7)
+	assert.Len(t, cfg.Connections, 9)
 	assert.Len(t, cfg.Exporters, 6)
 	assert.Len(t, cfg.Notifiers, 2)
 	assert.Equal(t, "control", cfg.ControlPlane.Connection)

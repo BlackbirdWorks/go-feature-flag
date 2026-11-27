@@ -21,7 +21,7 @@ const (
 	goldenDir                = "testdata/golden"
 	helpRootGolden           = "help_root.golden"
 	helpConfigValidateGolden = "help_config_validate.golden"
-	errUnknownFlagStderr     = "  ERROR   error executing command: unknown flag: --not-a-flag\n"
+	errUnknownFlagStderr     = "  ERROR   error executing command: usage: unknown flag --not-a-flag\n"
 )
 
 func readGolden(t *testing.T, name string) string {
@@ -175,7 +175,7 @@ func TestUsageErrorsGolden(t *testing.T) {
 		{
 			name:       "unknown flag on config print",
 			args:       []string{cmdConfig, cmdPrint, unknownFlag},
-			wantStderr: "  ERROR   error executing command: usage: unknown flag --not-a-flag\n",
+			wantStderr: errUnknownFlagStderr,
 			wantExit:   1,
 		},
 		{
@@ -205,7 +205,7 @@ func TestUsageErrorsGolden(t *testing.T) {
 		{
 			name:       "unknown flag on publish verify",
 			args:       []string{cmdPublish, cmdVerify, unknownFlag},
-			wantStderr: "  ERROR   error executing command: usage: unknown flag: --not-a-flag\n",
+			wantStderr: errUnknownFlagStderr,
 			wantExit:   1,
 		},
 		{
@@ -239,11 +239,10 @@ func TestUsageErrorsGolden(t *testing.T) {
 			wantExit:   1,
 		},
 		{
-			name: "missing subcommand on generate",
-			args: []string{cmdGenerate},
-			wantStderr: "  ERROR   you must specify a subcommand (e.g., manifest)\n" +
-				"  ERROR   error executing command: no subcommand provided\n",
-			wantExit: 1,
+			name:       "missing subcommand on generate",
+			args:       []string{cmdGenerate},
+			wantStderr: "  ERROR   error executing command: usage: expected \"manifest\"\n",
+			wantExit:   1,
 		},
 	}
 

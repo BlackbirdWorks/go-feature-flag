@@ -25,6 +25,7 @@ import (
 const (
 	cmdValidate        = "validate"
 	cmdVerify          = "verify"
+	codeInvalid        = "invalid"
 	codeUsage          = "usage"
 	fatalLine          = "error executing command"
 	unknownFlag        = "--not-a-flag"
@@ -36,6 +37,7 @@ const (
 	fmtText            = "text"
 	flagConfig         = "--config"
 	optOutput          = "--output"
+	optOutputJSON      = "--output=json"
 	flagFormat         = "--format"
 	formatYAML         = "yaml"
 	helperEnv          = "SEMAPHORE_CLI_TEST_HELPER"
@@ -67,8 +69,7 @@ func TestCmdExist(t *testing.T) {
 				cmdEvaluate, flagConfig, "../evaluate/testdata/flag.goff.yaml",
 				"--ctx", `{"targetingKey": "user-123"}`, flagFormat, formatYAML,
 			},
-			wantOut: `Flag --config has been deprecated, Use path instead
-{
+			wantOut: `{
   "simple-flag": {
     "trackEvents": true,
     "variationType": "B",
@@ -385,7 +386,7 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
-			name: "publish unknown flag before --output=json", args: []string{cmdPublish, unknownFlag, "--output=json"},
+			name: "publish unknown flag before --output=json", args: []string{cmdPublish, unknownFlag, optOutputJSON},
 			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
@@ -449,39 +450,46 @@ func TestWholeProcessStreams(t *testing.T) {
 			name:       "publish: a rejected flag file is not repeated, JSON",
 			args:       append([]string{cmdPublish, secretDir, optOutput, fmtJSON}, target...),
 			wantStderr: "invalid query",
-			jsonStdout: "invalid",
+			jsonStdout: codeInvalid,
 			wantExit:   2,
 			wantNone:   []string{secretQuery, secretValue},
 		},
 		{
 			name:       "publish: a malformed flag before --output=json, the usage error is JSON",
-			args:       []string{cmdPublish, ".", "---dry-run", "--output=json"},
-			wantStderr: "bad flag syntax",
+			args:       []string{cmdPublish, ".", "---dry-run", optOutputJSON},
+			wantStderr: "unknown flag ---dry-run",
 			jsonStdout: codeUsage,
 			wantExit:   1,
 		},
 		{
 			name:       "publish: a malformed flag before --output=text, nothing on stdout",
 			args:       []string{cmdPublish, ".", "---dry-run", "--output=text"},
-			wantStderr: "bad flag syntax",
+			wantStderr: "unknown flag ---dry-run",
 			wantExit:   1,
 		},
 		{
 			name:       "publish: -otext is the value of --config, the output stays json",
-			args:       []string{cmdPublish, optOutput, fmtJSON, flagConfig, "-otext", unknownFlag},
+			args:       []string{cmdPublish, optOutput, fmtJSON, "--config=-otext", unknownFlag},
 			wantStderr: unknownFlagMsg,
 			jsonStdout: codeUsage,
 			wantExit:   1,
 		},
 		{
 			name:       "publish: -ojson is the value of --config, the output stays text",
-			args:       []string{cmdPublish, optOutput, fmtText, flagConfig, shortJSON, unknownFlag},
+			args:       []string{cmdPublish, optOutput, fmtText, "--config=-ojson", unknownFlag},
 			wantStderr: unknownFlagMsg,
 			wantExit:   1,
 		},
 		{
+			name:       "config: missing --output value before --output=json",
+			args:       []string{cmdConfig, cmdValidate, "bootstrap.yaml", optOutput, optOutputJSON},
+			wantStderr: "expected value",
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
 			name: "config failure, JSON", args: []string{cmdConfig, cmdPrint, flagEffective, v1File, "-o", fmtJSON},
-			wantStderr: errVersion2Req, jsonStdout: "invalid", wantExit: 2,
+			wantStderr: errVersion2Req, jsonStdout: codeInvalid, wantExit: 2,
 		},
 		{
 			name:       "publish failure, text",
@@ -495,7 +503,7 @@ func TestWholeProcessStreams(t *testing.T) {
 		},
 		{
 			name: "publish usage error, JSON", args: []string{cmdPublish, "-o", fmtJSON},
-			wantStderr: "accepts 1 arg(s)", jsonStdout: codeUsage, wantExit: 1,
+			wantStderr: `expected "<dir>"`, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
 			name: "publish flag error, JSON", args: []string{cmdPublish, "-o", fmtJSON, unknownFlag},
@@ -665,15 +673,41 @@ func TestMainInjectedStreamsAndErrors(t *testing.T) {
 			wantExit:   2,
 		},
 		{
+			name:       "config validate v1 file with --help=false still validates",
+			args:       []string{cmdConfig, cmdValidate, v1File, "--help=false"},
+			wantStderr: errVersion2Req,
+			wantExit:   2,
+		},
+		{
+			name:       "config validate v1 file with --version=false still validates",
+			args:       []string{cmdConfig, cmdValidate, v1File, "--version=false"},
+			wantStderr: errVersion2Req,
+			wantExit:   2,
+		},
+		{
+			name:       "config validate v1 file with -o=json writes JSON report",
+			args:       []string{cmdConfig, cmdValidate, v1File, "-o=json"},
+			wantStdout: `"valid": false`,
+			wantStderr: errVersion2Req,
+			wantExit:   2,
+		},
+		{
+			name:       "config print v1 file with -o=json writes JSON error",
+			args:       []string{cmdConfig, "print", "--effective", v1File, "-o=json"},
+			wantStderr: errVersion2Req,
+			jsonCode:   codeInvalid,
+			wantExit:   2,
+		},
+		{
 			name:       "generate no subcommand",
 			args:       []string{cmdGenerate},
-			wantStderr: "no subcommand provided",
+			wantStderr: `expected "manifest"`,
 			wantExit:   1,
 		},
 		{
 			name:       "publish missing dir json",
 			args:       []string{cmdPublish, "-o", fmtJSON},
-			wantStderr: "accepts 1 arg(s)",
+			wantStderr: `expected "<dir>"`,
 			jsonCode:   codeUsage,
 			wantExit:   1,
 		},
@@ -706,9 +740,12 @@ func TestMainInjectedStreamsAndErrors(t *testing.T) {
 			assert.Equal(t, tt.wantExit, code)
 			assert.Contains(t, cleanErr, tt.wantStderr)
 
-			if tt.jsonCode != "" {
+			switch {
+			case tt.jsonCode != "":
 				assertOneJSON(t, cleanOut, tt.jsonCode)
-			} else {
+			case tt.wantStdout != "":
+				assert.Contains(t, cleanOut, tt.wantStdout)
+			default:
 				assert.Empty(t, cleanOut)
 			}
 		})

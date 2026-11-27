@@ -149,13 +149,20 @@ func (c *schemaChecker) checkOneOf(path string, schema schemaObject, value any) 
 
 func (c *schemaChecker) checkItems(path string, schema schemaObject, value any) []string {
 	list, isList := value.([]any)
-	items, hasItems := schema["items"].(schemaObject)
-
-	if !isList || !hasItems {
+	if !isList {
 		return nil
 	}
 
 	var out []string
+
+	if minItems, found := schema["minItems"].(float64); found && float64(len(list)) < minItems {
+		out = append(out, path+": fewer items than the minimum")
+	}
+
+	items, hasItems := schema["items"].(schemaObject)
+	if !hasItems {
+		return out
+	}
 
 	for i, item := range list {
 		out = append(out, c.check(fmt.Sprintf("%s[%d]", path, i), items, item)...)

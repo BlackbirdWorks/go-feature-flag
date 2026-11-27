@@ -1,52 +1,84 @@
 package manifest
 
 import (
-	"github.com/spf13/cobra"
+	"fmt"
+
+	"github.com/alecthomas/kong"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
-// NewManifestCmd returns the command that generates a flag manifest from a configuration file.
-func NewManifestCmd() *cobra.Command {
-	// Flag values are local to each command so several commands can exist (and run) at once.
-	var (
-		manifestFlagFormat      string
-		manifestConfigFile      string
-		flagManifestDestination string
-	)
-
-	manifestCmd := &cobra.Command{
-		Use:   "manifest",
-		Short: "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration.",
-		Long: "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration. " +
-			"⚠️ note that this is an experimental feature and we may change this command line without warning.",
-
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			m, err := NewManifest(manifestConfigFile, manifestFlagFormat, flagManifestDestination)
-			if err != nil {
-				return err
-			}
-
-			output, err := m.Generate()
-			if err != nil {
-				cmd.SilenceUsage = true
-
-				return err
-			}
-
-			output.PrintLines(cmd)
-
-			return nil
-		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
+// HelpVars returns the kong interpolation variables used by [Cmd] help tags.
+func HelpVars() kong.Vars {
+	return kong.Vars{
+		"helpFormat": "Format of your input file (YAML, JSON or TOML)",
+		"helpCfg":    "Location of your Semaphore local configuration file",
+		"helpDest": "Destination of your flag manifest file. " +
+			"If not provided, the manifest will be printed to the console.",
 	}
-	manifestCmd.Flags().StringVarP(&manifestFlagFormat,
-		"format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
-	manifestCmd.Flags().StringVarP(&manifestConfigFile,
-		"config", "c", "", "Location of your Semaphore local configuration file")
-	manifestCmd.Flags().StringVar(&flagManifestDestination,
-		"flag_manifest_destination", "", "Destination of your flag manifest file. "+
-			"If not provided, the manifest will be printed to the console.")
-	_ = manifestCmd.MarkFlagRequired("flag_manifest_destination")
+}
 
-	return manifestCmd
+// Cmd generates an OpenFeature flag manifest from a flag configuration file.
+type Cmd struct {
+	Format                  string `default:"yaml"     help:"${helpFormat}"             name:"format"   short:"f"`
+	Config                  string `help:"${helpCfg}"  name:"config"                    short:"c"`
+	FlagManifestDestination string `help:"${helpDest}" name:"flag_manifest_destination" required:"true"`
+}
+
+// Help returns the detailed description of generate manifest for kong's help output.
+func (Cmd) Help() string {
+	return "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration. " +
+		"⚠️ note that this is an experimental feature and we may change this command line without warning."
+}
+
+// Run generates the flag manifest and writes diagnostics to streams.
+func (c Cmd) Run(streams *helper.Streams) error {
+	m, err := NewManifest(c.Config, c.Format, c.FlagManifestDestination)
+	if err != nil {
+		return err
+	}
+
+	output, err := m.Generate()
+	if err != nil {
+		return err
+	}
+
+	err = output.PrintLines(streams.Stdout, streams.Stderr)
+	if err != nil {
+		return fmt.Errorf("print manifest output: %w", err)
+	}
+
+	return nil
+}
+
+// Run parses args against [Cmd] and executes manifest generation with injected output streams.
+func Run(args []string, streams *helper.Streams) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
+
+	parser, err := kong.New(&runner,
+		kong.Name("manifest"),
+		kong.Description("📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration."),
+		kong.NoDefaultHelp(),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
+	)
+	if err != nil {
+		return fmt.Errorf("build manifest parser: %w", err)
+	}
+
+	kctx, exited, err := helper.Parse(parser, args)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	return kctx.Run(streams) //nolint:wrapcheck // Cmd.Run preserves original manifest error
 }

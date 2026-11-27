@@ -76,9 +76,9 @@ func execute(ctx context.Context, opts *runOptions) (int, error) {
 		return 0, nil
 	}
 
-	outcome, err := parseCatchingExit(parser, opts.Args)
-	if outcome.exited {
-		return outcome.exitCode, nil
+	kctx, exited, err := helper.Parse(parser, opts.Args)
+	if exited {
+		return 0, nil
 	}
 
 	if err != nil {
@@ -91,49 +91,14 @@ func execute(ctx context.Context, opts *runOptions) (int, error) {
 	pubDeps.LookupEnv = opts.LookupEnv
 	pubDeps.ReadFile = opts.ReadFile
 
-	outcome.ctx.BindTo(ctx, (*context.Context)(nil))
+	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	err = outcome.ctx.Run(&streams, &cfgDeps, &pubDeps)
+	err = kctx.Run(&command.Config, &command.Publish, &streams, &cfgDeps, &pubDeps)
 	if err != nil {
 		return helper.ExitCodeOf(err), err
 	}
 
 	return 0, nil
-}
-
-type parseOutcome struct {
-	ctx      *kong.Context
-	exitCode int
-	exited   bool
-}
-
-func parseCatchingExit(parser *kong.Kong, args []string) (parseOutcome, error) {
-	var (
-		outcome  parseOutcome
-		parseErr error
-	)
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				sig, ok := r.(exitSignal)
-				if !ok {
-					panic(r)
-				}
-
-				outcome.exitCode = sig.code
-				outcome.exited = true
-			}
-		}()
-
-		outcome.ctx, parseErr = parser.Parse(args)
-	}()
-
-	if parseErr != nil {
-		return outcome, fmt.Errorf("%w", parseErr)
-	}
-
-	return outcome, nil
 }
 
 func handleParseError(err error, opts *runOptions) (int, error) {
@@ -142,7 +107,8 @@ func handleParseError(err error, opts *runOptions) (int, error) {
 		return helper.ExitFailure, fmt.Errorf("%w: %w", helper.ErrUsage, err)
 	}
 
-	if enteredConfig(parseErr.Context) {
+	group := jsonErrorGroup(parseErr.Context)
+	if group == configCmdKey {
 		sel := parseErr.Context.Selected()
 		if sel != nil && sel.Name == configCmdKey && strings.HasPrefix(parseErr.Error(), "expected one of ") {
 			printErr := parseErr.Context.PrintUsage(false)
@@ -152,7 +118,9 @@ func handleParseError(err error, opts *runOptions) (int, error) {
 
 			return 0, nil
 		}
+	}
 
+	if group != "" {
 		val, found := helper.ScanOutputFlag(parseErr.Context.Flags(), opts.Args)
 		reportedErr := helper.ReportJSONError(
 			opts.Stdout,
@@ -164,24 +132,30 @@ func handleParseError(err error, opts *runOptions) (int, error) {
 		return helper.ExitCodeOf(reportedErr), reportedErr
 	}
 
-	prevStdout := parseErr.Context.Kong.Stdout
-	parseErr.Context.Kong.Stdout = opts.Stderr
-	_ = parseErr.Context.PrintUsage(false)
-	parseErr.Context.Kong.Stdout = prevStdout
+	if parseErr.Context.Selected() == nil {
+		prevStdout := parseErr.Context.Kong.Stdout
+		parseErr.Context.Kong.Stdout = opts.Stderr
+		_ = parseErr.Context.PrintUsage(false)
+		parseErr.Context.Kong.Stdout = prevStdout
+	}
 
 	return helper.ExitFailure, fmt.Errorf("%w: %w", helper.ErrUsage, err)
 }
 
-func enteredConfig(kctx *kong.Context) bool {
+func jsonErrorGroup(kctx *kong.Context) string {
 	if kctx == nil {
-		return false
+		return ""
 	}
 
-	for _, p := range kctx.Path {
-		if p.Command != nil && p.Command.Name == configCmdKey {
-			return true
+	for _, item := range kctx.Path {
+		if item.Command == nil {
+			continue
+		}
+
+		if item.Command.Name == configCmdKey || item.Command.Name == publishCmdKey {
+			return item.Command.Name
 		}
 	}
 
-	return false
+	return ""
 }

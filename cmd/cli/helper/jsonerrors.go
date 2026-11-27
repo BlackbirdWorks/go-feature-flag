@@ -4,10 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"strings"
+	"unicode/utf8"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
+	"github.com/alecthomas/kong"
+)
+
+const (
+	outputFlag  = "output"
+	outputShort = 'o'
 )
 
 // ErrUsage marks a failure of the command line itself: a missing or extra argument, a flag that does not parse, flags
@@ -22,7 +27,7 @@ func (r *reported) Error() string { return r.err.Error() }
 
 func (r *reported) Unwrap() error { return r.err }
 
-// MarkReported marks err as already written to stdout as the result of the command, so that [JSONErrors] does not
+// MarkReported marks err as already written to stdout as the result of the command, so that [ReportJSONError] does not
 // write an error object for it. It keeps the error and its exit code.
 func MarkReported(err error) error {
 	if err == nil {
@@ -32,177 +37,185 @@ func MarkReported(err error) error {
 	return &reported{err: err}
 }
 
-// JSONErrorOptions say when and how a failure is written as JSON.
-type JSONErrorOptions struct {
-	// Enabled says whether the command line asked for JSON output. It is read when a failure happens.
-	Enabled func() bool
-	// Details lists the individual problems behind an error; it may be nil.
-	Details func(err error) []string
-	// RawArgs returns the arguments of the command line as given (without the program name). A flag that does not
-	// parse stops Cobra before any flag value is known, so JSON mode is then read from these with [RawOutput], in
-	// whatever order the flags came. Nil means os.Args[1:].
-	RawArgs func() []string
-}
-
-// RawOutput returns the value of the last output flag (--output or its shorthand) on a raw command line, and whether
-// there was one. It resolves the command as Cobra does (root.Find on the process arguments), which removes the command
-// names, and then reads what is left with [RawOutputIn], with the flags of the failing command. When Cobra does not
-// resolve the arguments to that command, the whole line is read.
-func RawOutput(failed *cobra.Command, args []string) (string, bool) {
-	rest := args
-
-	target, left, err := failed.Root().Find(args)
-	if err == nil && target == failed {
-		rest = left
+// ReportJSONError ensures err carries an [ExitError] (defaulting to [ExitFailure]) and, when enabled is true and err
+// has not been marked with [MarkReported], writes one JSON error object to stdout before returning err.
+func ReportJSONError(stdout io.Writer, enabled bool, details func(error) []string, err error) error {
+	if err == nil {
+		return nil
 	}
 
-	return RawOutputIn(failed.Flags(), rest)
+	if _, ok := errors.AsType[*ExitError](err); !ok {
+		err = &ExitError{Err: err, Code: ExitFailure}
+	}
+
+	_, done := errors.AsType[*reported](err)
+	if !enabled || done {
+		return err
+	}
+
+	name := JSONErrorName(ExitCodeOf(err))
+	if errors.Is(err, ErrUsage) {
+		name = "usage"
+	}
+
+	var detailList []string
+	if details != nil {
+		detailList = details(err)
+	}
+
+	writeErr := WriteJSONError(stdout, name, err, detailList)
+	if writeErr != nil {
+		return fmt.Errorf("report error: %w", writeErr)
+	}
+
+	return err
 }
 
-// RawOutputIn reads arguments (the command names already removed) with the real parser of pflag, against throwaway
-// flag sets that have the names, shorthands and value rules (NoOptDefVal) of flags and record values instead of
-// setting them, and returns the last value of the output flag and whether it was given. Unknown flags are skipped, so
-// an output selection after one still counts.
-//
-// pflag stops at the first token it rejects (a malformed flag such as "---x", a flag without its value), and does not
-// say where. So the read goes one token at a time and resumes after any token that is rejected: a token that parses
-// alone is consumed alone; one that needs the next argument (a flag with its value in the next argument) is parsed
-// with it, and that argument is then its value, whatever it looks like; a token that does not parse either way is
-// skipped. "--" ends the flags, as for pflag. At most two parses per argument. The flag set must have a flag named
-// "output".
-func RawOutputIn(flags *pflag.FlagSet, args []string) (string, bool) {
-	if flags == nil || flags.Lookup(outputFlag) == nil {
+// ScanOutputFlag scans raw command-line arguments using Kong's flag metadata to find the last value given to --output
+// or -o, even when an unknown or malformed flag stops Kong's parser before --output is reached. Unknown flags and
+// malformed tokens are skipped, "--" stops scanning, and values belonging to known non-boolean flags are consumed so
+// flag-like values (such as "--config=-otext") are not misread.
+func ScanOutputFlag(flags []*kong.Flag, args []string) (string, bool) {
+	longFlags, shortFlags, hasOutput := indexFlags(flags)
+	if !hasOutput {
 		return "", false
 	}
 
-	output := &recorder{}
+	var state outputScan
 
-	newProbe := func() *pflag.FlagSet {
-		probe := pflag.NewFlagSet("probe", pflag.ContinueOnError)
-		probe.ParseErrorsAllowlist.UnknownFlags = true
-		probe.SetOutput(io.Discard)
-		probe.Usage = func() {}
-
-		flags.VisitAll(func(flag *pflag.Flag) {
-			var value pflag.Value = &recorder{}
-			if flag.Name == outputFlag {
-				value = output
-			}
-
-			probe.AddFlag(&pflag.Flag{
-				Name: flag.Name, Shorthand: flag.Shorthand, NoOptDefVal: flag.NoOptDefVal, Value: value,
-			})
-		})
-
-		return probe
-	}
-
-	// try parses a group of arguments; a group that is rejected leaves no trace in the recorded output.
-	try := func(group []string) bool {
-		saved := *output
-
-		err := newProbe().Parse(group)
-		if err != nil {
-			*output = saved
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
 		}
 
-		return err == nil
-	}
+		next := ""
+		hasNext := i+1 < len(args)
 
-	for i := 0; i < len(args); {
+		if hasNext {
+			next = args[i+1]
+		}
+
+		var consumedNext bool
+
+		valueNext := hasNext && (!strings.HasPrefix(next, "-") || next == "-")
+
 		switch {
-		case args[i] == "--":
-			return output.last, output.set
-		case try(args[i : i+1]):
+		case strings.HasPrefix(arg, "--") && len(arg) > 2:
+			consumedNext = scanLongFlag(arg[2:], next, valueNext, longFlags, &state)
+		case strings.HasPrefix(arg, "-") && len(arg) > 1:
+			consumedNext = scanShortFlags(arg[1:], next, valueNext, shortFlags, &state)
+		}
+
+		if consumedNext {
 			i++
-		case i+1 < len(args) && try(args[i:i+2]):
-			i += 2
-		default:
-			i++ // rejected, with its value or without: skipped, the read resumes after it
 		}
 	}
 
-	return output.last, output.set
+	return state.last, state.set
 }
 
-// outputFlag is the name of the output flag of the commands.
-const outputFlag = "output"
-
-// recorder is a pflag.Value that accepts anything and remembers the last value it was given.
-type recorder struct {
+type outputScan struct {
 	last string
 	set  bool
 }
 
-func (r *recorder) String() string { return r.last }
+func indexFlags(flags []*kong.Flag) (map[string]bool, map[rune]bool, bool) {
+	longFlags := make(map[string]bool, len(flags))
+	shortFlags := make(map[rune]bool, len(flags))
+	hasOutput := false
 
-func (r *recorder) Set(value string) error {
-	r.last, r.set = value, true
+	for _, flag := range flags {
+		if flag == nil || flag.Value == nil {
+			continue
+		}
 
-	return nil
+		isBool := flag.IsBool() || flag.IsCounter()
+		longFlags[flag.Name] = isBool
+
+		if flag.Short != 0 {
+			shortFlags[flag.Short] = isBool
+		}
+
+		if flag.Name == outputFlag || flag.Short == outputShort {
+			hasOutput = true
+		}
+	}
+
+	return longFlags, shortFlags, hasOutput
 }
 
-func (*recorder) Type() string { return "string" }
+func scanLongFlag(rest, next string, hasNext bool, longFlags map[string]bool, state *outputScan) bool {
+	name, val, hasEq := strings.Cut(rest, "=")
 
-// JSONErrors makes every failure of cmd and of all its subcommands, present and future, follow one mechanism:
-//   - the error always carries an exit code ([ExitError], [ExitFailure] when it has none);
-//   - an argument-count error and a flag-parse error are usage errors ([ErrUsage]);
-//   - when opts.Enabled() is true, one JSON error object is written to stdout (see [WriteJSONError]), unless the error
-//     was marked with [MarkReported].
-//
-// Call it once, on the command that owns the output flag, after its subcommands were added. A command with a
-// --output json flag cannot forget it: the wrap is applied to the whole tree.
-func JSONErrors(cmd *cobra.Command, opts JSONErrorOptions) {
-	cmd.SetFlagErrorFunc(func(failed *cobra.Command, err error) error {
-		// The flags were not parsed to the end: the flag value that was read so far is not reliable.
-		raw := opts
-		raw.Enabled = func() bool {
-			// A flag the command line names decides, last one wins, even when it says text. The parsed value is only
-			// used when the arguments name no output flag.
-			if value, named := RawOutput(failed, rawArgs(opts)); named {
-				return value == "json"
+	isBool, known := longFlags[name]
+	if !known {
+		return false
+	}
+
+	if name == outputFlag {
+		if hasEq {
+			state.last, state.set = val, true
+
+			return false
+		}
+
+		if hasNext {
+			state.last, state.set = next, true
+
+			return true
+		}
+
+		return false
+	}
+
+	return !isBool && !hasEq && hasNext
+}
+
+func scanShortFlags(shorts, next string, hasNext bool, shortFlags map[rune]bool, state *outputScan) bool {
+	for i := 0; i < len(shorts); {
+		r, size := utf8.DecodeRuneInString(shorts[i:])
+		i += size
+
+		isBool, known := shortFlags[r]
+		if !known {
+			return false
+		}
+
+		tail := shorts[i:]
+
+		if r == outputShort {
+			if after, ok := strings.CutPrefix(tail, "="); ok {
+				state.last, state.set = after, true
+
+				return false
 			}
 
-			return opts.Enabled()
-		}
+			if tail != "" {
+				state.last, state.set = tail, true
 
-		return reportJSON(failed.OutOrStdout(), raw, fmt.Errorf("%w: %w", ErrUsage, err))
-	})
-
-	wrapTree(cmd, opts)
-}
-
-func rawArgs(opts JSONErrorOptions) []string {
-	if opts.RawArgs != nil {
-		return opts.RawArgs()
-	}
-
-	return os.Args[1:]
-}
-
-func wrapTree(cmd *cobra.Command, opts JSONErrorOptions) {
-	if validate := cmd.Args; validate != nil {
-		cmd.Args = func(self *cobra.Command, args []string) error {
-			err := validate(self, args)
-			if err == nil {
-				return nil
+				return false
 			}
 
-			return reportJSON(self.OutOrStdout(), opts, fmt.Errorf("%w: %w", ErrUsage, err))
+			if hasNext {
+				state.last, state.set = next, true
+
+				return true
+			}
+
+			return false
 		}
-	}
 
-	if run := cmd.RunE; run != nil {
-		cmd.RunE = func(c *cobra.Command, args []string) error {
-			return reportJSON(c.OutOrStdout(), opts, run(c, args))
+		if isBool {
+			if strings.HasPrefix(tail, "=") {
+				return false
+			}
+
+			continue
 		}
+
+		return tail == "" && hasNext
 	}
 
-	for _, sub := range cmd.Commands() {
-		wrapTree(sub, opts)
-	}
-}
-
-func reportJSON(stdout io.Writer, opts JSONErrorOptions, err error) error {
-	return ReportJSONError(stdout, opts.Enabled(), opts.Details, err)
+	return false
 }
