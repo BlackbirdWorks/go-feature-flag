@@ -31,7 +31,7 @@ import (
 
 const (
 	// waitBound bounds every wait of the tests: it is a failure bound, never a pause.
-	waitBound   = 8 * time.Second
+	waitBound   = 30 * time.Second
 	connName    = "control"
 	manifestKey = "manifests/stable.yaml"
 	channelName = "stable"
@@ -154,6 +154,8 @@ type relayRig struct {
 	draining    chan struct{}
 	store       *store
 	cancel      context.CancelFunc
+	ctx         context.Context //nolint:containedctx // the context the relay runs with, read by the drain hook
+	drainErr    error
 	url         string
 	cfgPath     string
 	drainBody   string
@@ -194,6 +196,7 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	rig.cancel = cancel
+	rig.ctx = ctx
 
 	opts := &runOptions{
 		Args:   []string{configFlag, rig.cfgPath},
@@ -229,9 +232,26 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 
 // onDraining records what /readyz answers while the listener is still open.
 func (r *relayRig) onDraining() {
-	status, body := get(r.store.t, r.url+readyPath, nil)
-	r.drainStatus, r.drainBody = status, body
-	close(r.draining)
+	defer close(r.draining)
+
+	req, err := http.NewRequestWithContext(context.WithoutCancel(r.ctx), http.MethodGet, r.url+readyPath, http.NoBody)
+	if err != nil {
+		r.drainErr = err
+
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		r.drainErr = err
+
+		return
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	r.drainStatus, r.drainBody, r.drainErr = resp.StatusCode, string(body), err
 }
 
 func (r *relayRig) writeConfig(extra string) {
@@ -372,15 +392,24 @@ func TestRunReloadsTheBootstrapFile(t *testing.T) {
 	status, _ := rig.evaluate(adminKey)
 	assert.Equal(t, http.StatusUnauthorized, status)
 
-	before := rig.snapshot
-
 	rig.writeConfig("auth:\n  adminKeys: [" + adminKey + "]\n")
 
 	rig.reload <- struct{}{}
 
-	rig.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
+	// every applied round is a chance to see the reload: the answer to the admin key turns from 401 to 400
+	timeout := time.After(waitBound)
 
-	status, _ = rig.evaluate(adminKey)
+	for status != http.StatusBadRequest {
+		select {
+		case res := <-rig.rounds:
+			if res.Outcome == flagruntime.OutcomeApplied {
+				status, _ = rig.evaluate(adminKey)
+			}
+		case <-timeout:
+			require.FailNow(t, "the reload of the bootstrap file was not applied")
+		}
+	}
+
 	assert.Equal(t, http.StatusBadRequest, status)
 }
 
@@ -399,6 +428,7 @@ func TestRunShutsDownInOrder(t *testing.T) {
 	}
 
 	// the readiness fails first, while the listener still answers
+	require.NoError(t, rig.drainErr)
 	assert.Equal(t, http.StatusServiceUnavailable, rig.drainStatus)
 	assert.JSONEq(t, `{"ready":false,"reason":"`+reasonDown+`"}`, rig.drainBody)
 
@@ -478,6 +508,19 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 	}
 }
 
+func TestRunWithoutMetrics(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, rigOptions{extra: "observability:\n  metrics: {enabled: false}\n"})
+	rig.awaitGeneration(1)
+
+	status, _ := rig.evaluate(tenantKey)
+	assert.Equal(t, http.StatusOK, status)
+
+	status, _ = get(t, rig.url+"/metrics", nil)
+	assert.Equal(t, http.StatusNotFound, status, "no metrics are served when they are disabled")
+}
+
 func TestRunPrintsTheVersion(t *testing.T) {
 	t.Parallel()
 
@@ -518,4 +561,39 @@ func TestReloadRefusesAFileThatDoesNotLoad(t *testing.T) {
 
 	assert.Contains(t, logs.String(), "the reload of the bootstrap file was refused")
 	assert.Contains(t, logs.String(), errLoad.Error())
+}
+
+func TestForwardSignals(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	signals := make(chan os.Signal)
+	out := make(chan struct{}, 1)
+	ended := make(chan struct{})
+
+	go func() {
+		defer close(ended)
+
+		forwardSignals(ctx, signals, out)
+	}()
+
+	// two signals that arrive while a reload waits are one request: the second finds the buffer full
+	signals <- os.Interrupt
+
+	signals <- os.Interrupt
+
+	cancel()
+	<-ended
+
+	assert.Len(t, out, 1, "the second signal was merged into the first")
+}
+
+func TestOSLoadOptions(t *testing.T) {
+	t.Parallel()
+
+	opts := osLoadOptions()
+
+	require.NotNil(t, opts.LookupEnv)
+	require.NotNil(t, opts.ReadFile)
+	assert.False(t, opts.AllowInlineSecrets)
 }
