@@ -222,3 +222,90 @@ func TestExporter_Export(t *testing.T) {
 		})
 	}
 }
+
+type closableSender struct {
+	err    error
+	closes int
+}
+
+func (*closableSender) SendMessages([]*sarama.ProducerMessage) error { return nil }
+
+func (c *closableSender) Close() error {
+	c.closes++
+
+	return c.err
+}
+
+// TestExporter_Close checks that Close closes the producer once, that a second call, a sender that cannot be
+// closed and a never initialised exporter do nothing, and that the error of the producer is returned.
+var errClose = errors.New("close failed")
+
+func TestExporter_Close(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		sender         func() (MessageSender, *closableSender)
+		wantErr        error
+		name           string
+		calls          int
+		wantCloseCalls int
+	}{
+		{
+			name: "a producer is closed once", calls: 2, wantCloseCalls: 1,
+			sender: func() (MessageSender, *closableSender) {
+				sender := &closableSender{}
+
+				return sender, sender
+			},
+		},
+		{name: "an exporter that never exported has nothing to close", calls: 2},
+		{
+			name: "a sender without Close is left alone", calls: 1,
+			sender: func() (MessageSender, *closableSender) { return &plainSender{}, nil },
+		},
+		{
+			name: "the error of the producer is returned", calls: 1, wantErr: errClose, wantCloseCalls: 1,
+			sender: func() (MessageSender, *closableSender) {
+				sender := &closableSender{err: errClose}
+
+				return sender, sender
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exp := &Exporter{}
+
+			var closable *closableSender
+
+			if tt.sender != nil {
+				exp.sender, closable = tt.sender()
+			}
+
+			var errs []error
+
+			for range tt.calls {
+				errs = append(errs, exp.Close())
+			}
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, errs[0], tt.wantErr)
+			} else {
+				assert.Equal(t, make([]error, tt.calls), errs)
+			}
+
+			if closable != nil {
+				assert.Equal(t, tt.wantCloseCalls, closable.closes)
+			}
+
+			assert.Nil(t, exp.sender, "the producer is dropped: the next Export dials again")
+		})
+	}
+}
+
+type plainSender struct{}
+
+func (*plainSender) SendMessages([]*sarama.ProducerMessage) error { return nil }

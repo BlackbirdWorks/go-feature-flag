@@ -72,6 +72,31 @@ func emptyValueCases() []emptyValueCase {
 			doc: "exporters: {a: {kind: file, outputDir: /tmp, format: \"\"}}",
 			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Format },
 		},
+		{
+			setting: "KafkaSASL.mechanism", wantAccept: true, wantDefault: "",
+			doc: kafkaDoc("net: {sasl: {mechanism: \"\"}}"),
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Kafka.Net.SASL.Mechanism },
+		},
+		{
+			setting: "KafkaGSSAPI.authType", wantAccept: true, wantDefault: "",
+			doc: kafkaDoc("net: {sasl: {gssapi: {authType: \"\"}}}"),
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Kafka.Net.SASL.GSSAPI.AuthType },
+		},
+		{
+			setting: "KafkaProducer.requiredAcks", wantAccept: true, wantDefault: "",
+			doc: kafkaDoc("producer: {requiredAcks: \"\"}"),
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Kafka.Producer.RequiredAcks },
+		},
+		{
+			setting: "KafkaProducer.compression", wantAccept: true, wantDefault: "",
+			doc: kafkaDoc("producer: {compression: \"\"}"),
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Kafka.Producer.Compression },
+		},
+		{
+			setting: "KafkaProducer.partitioner", wantAccept: true, wantDefault: "",
+			doc: kafkaDoc("producer: {partitioner: \"\"}"),
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Kafka.Producer.Partitioner },
+		},
 		{setting: "S3Connection.type", doc: "connections: {a: {type: \"\"}}"},
 		{setting: "KinesisConnection.type", doc: "connections: {a: {type: \"\", stream: s}}"},
 		{setting: "SQSConnection.type", doc: "connections: {a: {type: \"\", queueUrl: \"https://q.example/q\"}}"},
@@ -84,6 +109,11 @@ func emptyValueCases() []emptyValueCase {
 			doc:     "server: {listeners: [{name: api, address: \":1\", protocols: [\"\"]}]}",
 		},
 	}
+}
+
+// kafkaDoc is a document with a kafka exporter and the given extra settings of its kafka block.
+func kafkaDoc(extra string) string {
+	return "exporters: {a: {kind: kafka, kafka: {topic: t, addresses: [\"h:1\"], " + extra + "}}}"
 }
 
 func TestEmptyEnumValues(t *testing.T) {
