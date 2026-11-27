@@ -1,12 +1,12 @@
-# Segments in Redis
+# Segments - dynamic: Redis
 
-Three Go packages serve segments from Redis or Valkey with go-redis (Redis 6.2 or later, Valkey 7.2 or later: the store needs `SMISMEMBER`, and `EVALSHA` or `EVAL` for the atomic mode):
+Three Go packages serve dynamic segments from Redis or Valkey with go-redis (Redis 6.2 or later, Valkey 7.2 or later: the store needs `SMISMEMBER`, and `EVALSHA` or `EVAL` for the atomic mode):
 
 - `modules/core/segment/redissegment`: a `segment.Provider` that reads the members with go-redis. It only reads, so a read-only ACL user is enough (see ACL below).
 - `modules/core/segment/resolver`: a `segment.Provider` that wraps any provider with a cache, coalescing and a circuit breaker for each segment.
 - `modules/core/segment/segmenttest`: the conformance suite of a `segment.Provider`, for the providers that come later.
 
-Looking for the `valkey` type (valkey-go, automatic pipelining)? See [Segments in Valkey](segments-valkey.md) for how to choose between the two types.
+Looking for the `valkey` type (valkey-go, automatic pipelining)? See [Segments - dynamic](segments-dynamic.md) for how to choose between the two types.
 
 See [Segments](segments.md) for the rule syntax and the three answers (member, not member, unknown). The relay proxy does not use these packages yet: the `segments` setting, the connection wiring and the metrics come with the relay wiring (issue 16).
 

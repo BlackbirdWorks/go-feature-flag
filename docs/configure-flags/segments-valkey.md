@@ -1,20 +1,10 @@
-# Segments in Valkey (valkey-go)
+# Segments - dynamic: Valkey
 
-`modules/core/segment/valkeysegment` is a `segment.Provider` for the `valkey` segment type. It reads the members from Valkey (or Redis 6.2 or later) with [valkey-go](https://github.com/valkey-io/valkey-go). It has the same data model, answers and failure classes as the `redis` provider: see [Segments in Redis](segments-redis.md) for the layouts, how to load members, the missing key rule, the ACL and the resolver.
+`modules/core/segment/valkeysegment` is a `segment.Provider` for the `valkey` segment type (a dynamic segment). It reads the members from Valkey (or Redis 6.2 or later) with [valkey-go](https://github.com/valkey-io/valkey-go). It has the same data model, answers and failure classes as the `redis` provider: see [Segments - dynamic: Redis](segments-redis.md) for the layouts, how to load members, the missing key rule, the ACL and the resolver.
 
 ## Which type to choose
 
-| | `redis` ([page](segments-redis.md)) | `valkey` (this page) |
-|---|---|---|
-| Package | `redissegment` | `valkeysegment` |
-| Client | go-redis v9 | valkey-go |
-| One call | one explicit pipeline | one `DoMulti`; the client batches concurrent calls on a connection (automatic pipelining) |
-| `Atomic` script mode | yes | no (no script is sent) |
-| Server | Redis 6.2+, Valkey 7.2+ | Redis 6.2+, Valkey 7.2+ |
-
-- Pick `valkey` for a Valkey store with many concurrent calls: valkey-go merges their writes.
-- Pick `redis` when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
-- Both are read-only and pass the same conformance suite (`segmenttest`) on the same resolver.
+See [Segments - dynamic](segments-dynamic.md) for the comparison of the `redis` and `valkey` types. In short: `valkey` batches concurrent calls on a connection; `redis` has the `Atomic` script mode.
 
 ## Use it
 
