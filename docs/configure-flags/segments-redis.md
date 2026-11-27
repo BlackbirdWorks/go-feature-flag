@@ -6,6 +6,8 @@ Three Go packages serve segments from Redis or Valkey with go-redis (Redis 6.2 o
 - `modules/core/segment/resolver`: a `segment.Provider` that wraps any provider with a cache, coalescing and a circuit breaker for each segment.
 - `modules/core/segment/segmenttest`: the conformance suite of a `segment.Provider`, for the providers that come later.
 
+Looking for the `valkey` type (valkey-go, automatic pipelining)? See [Segments in Valkey](segments-valkey.md) for how to choose between the two types.
+
 See [Segments](segments.md) for the rule syntax and the three answers (member, not member, unknown). The relay proxy does not use these packages yet: the `segments` setting, the connection wiring and the metrics come with the relay wiring (issue 16).
 
 ## Data model
