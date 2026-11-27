@@ -158,7 +158,11 @@ func (f *fakeStore) Release() {
 	defer f.mu.Unlock()
 
 	if f.gate != nil {
-		close(f.gate)
+		select {
+		case <-f.gate: // the test opened it already
+		default:
+			close(f.gate)
+		}
 
 		f.gate = nil
 	}

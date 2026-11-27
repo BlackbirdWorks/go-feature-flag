@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -523,4 +524,85 @@ func TestCallTimeoutDefault(t *testing.T) {
 
 	assert.Equal(t, 2*time.Second, newInternal(t, &internalStore{}, nil).timeout)
 	assert.Equal(t, time.Second, newInternal(t, &internalStore{}, &Options{CallTimeout: time.Second}).timeout)
+}
+
+// signalCtx is a context whose Done is observed: the test learns when someone starts to wait on it.
+type signalCtx struct {
+	context.Context
+
+	waiting chan struct{}
+	once    sync.Once
+}
+
+func (c *signalCtx) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+
+	return c.Context.Done()
+}
+
+func TestOneFlightTimingOutDoesNotCutTheOthersShort(t *testing.T) {
+	t.Parallel()
+
+	expired, cancelExpired := context.WithCancel(context.Background())
+	cancelExpired() // the call of the first flight is past its bound, and its store has not answered
+
+	live := &signalCtx{Context: context.Background(), waiting: make(chan struct{})}
+	slow := &flight{done: make(chan struct{}), call: &call{ctx: expired}}
+	late := &flight{done: make(chan struct{}), call: &call{ctx: live}, state: segment.Member}
+	seg := &segState{name: "beta"}
+
+	pend := []pending{{sst: seg, flt: slow, idx: 0}, {sst: seg, flt: late, idx: 1}}
+	lookups := []segment.Lookup{{Segment: "beta", ID: "a"}, {Segment: "beta", ID: "b"}}
+
+	var accs segAccs
+
+	result := make(chan error, 1)
+
+	go func() { result <- waitFor(context.Background(), lookups, pend, &accs) }()
+
+	select {
+	case <-live.waiting: // waitFor passed the first flight and now waits for the second
+	case err := <-result:
+		require.Fail(t, "waitFor returned before the second flight had its own wait", "%v", err)
+	}
+
+	close(late.done) // the second answers late, inside its bound
+
+	err := <-result
+
+	require.ErrorIs(t, err, ErrWaiting)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(
+		t,
+		[]segment.State{segment.Unknown, segment.Member},
+		[]segment.State{lookups[0].State, lookups[1].State},
+	)
+}
+
+func TestRegisterLooksAtTheCacheAgainUnderTheLock(t *testing.T) {
+	t.Parallel()
+
+	store := &internalStore{}
+	res := newInternal(t, store, &Options{})
+	seg := res.state("beta")
+	now := baseTime()
+
+	// the first look missed; the answer is filled before the lookup is registered
+	seg.cache.put("a", segment.Member, now)
+
+	pend := []pending{{sst: seg, key: "a", idx: 0}}
+
+	var (
+		obs  CallObservation
+		accs segAccs
+	)
+
+	refusal, shared := res.register(context.Background(), pend, now, &obs, &accs)
+
+	require.NoError(t, refusal)
+	assert.Nil(t, shared, "no call is made for an answer that is in the cache")
+	assert.Equal(t, pending{sst: seg, key: "a", hit: true, state: segment.Member}, pend[0])
+	assert.Equal(t, CallObservation{Hits: 1}, obs)
+	assert.Empty(t, seg.flights)
+	assert.Equal(t, 0, store.calls)
 }

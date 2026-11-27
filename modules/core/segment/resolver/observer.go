@@ -23,6 +23,8 @@ const (
 	ReasonOversized
 	// ReasonInvalid means the id is not valid UTF-8 and the segment normalises its ids.
 	ReasonInvalid
+	// ReasonOverdue means too many calls to the store were still running after their timeout.
+	ReasonOverdue
 )
 
 // String implements [fmt.Stringer].
@@ -42,6 +44,8 @@ func (r Reason) String() string {
 		return "oversized"
 	case ReasonInvalid:
 		return "invalid"
+	case ReasonOverdue:
+		return "overdue"
 	}
 
 	return "invalid_reason"

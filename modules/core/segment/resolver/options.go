@@ -27,6 +27,8 @@ const (
 	DefaultBreakerFailures = 5
 	DefaultBreakerCooldown = 10 * time.Second
 	DefaultCallTimeout     = 2 * time.Second
+	// DefaultMaxOverdue is the most shared calls that may be running after their timeout before no new call is made.
+	DefaultMaxOverdue = 8
 	// DefaultMaxIDBytes is the longest id that is looked up: a longer one is left Unknown and never sent to the store.
 	DefaultMaxIDBytes = 512
 )
@@ -128,13 +130,17 @@ type Options struct {
 	// CallTimeout bounds the shared call to the store, which does not depend on the context of any one caller.
 	// Zero means DefaultCallTimeout.
 	CallTimeout time.Duration
+	// MaxOverdue bounds the shared calls that are still running after their call timeout (a store that ignores its
+	// context): while that many are out, no new call is made and the lookups are Unknown with ErrOverdue. Zero means
+	// DefaultMaxOverdue.
+	MaxOverdue int
 	// MaxIDBytes is the longest id, in bytes, that the resolver looks up. A longer id stays Unknown, is not cached
 	// and is not sent to the store. Zero means DefaultMaxIDBytes.
 	MaxIDBytes int
 }
 
 func (o *Options) validate() error {
-	if o.CallTimeout < 0 || o.MaxIDBytes < 0 {
+	if o.CallTimeout < 0 || o.MaxIDBytes < 0 || o.MaxOverdue < 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, errNegative)
 	}
 

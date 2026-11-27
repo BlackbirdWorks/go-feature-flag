@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,6 +26,9 @@ var (
 	ErrWaiting = errors.New("resolver: the context ended while waiting for the store")
 	// ErrClosed is returned after Shutdown: no call reaches the store.
 	ErrClosed = errors.New("resolver: closed")
+	// ErrOverdue is returned when too many calls to the store are running after their timeout: the lookups that needed a
+	// new call are Unknown and the store was not called.
+	ErrOverdue = errors.New("resolver: too many calls to the store are overdue")
 	// ErrShutdown is wrapped by the error of a Shutdown that ended before the calls in flight did.
 	ErrShutdown = errors.New("resolver: shutdown ended before the calls in flight")
 	// ErrProviderPanic is the error of a call to the store that panicked. The value of the panic is not kept.
@@ -46,6 +50,9 @@ func (*StoreError) Error() string { return "resolver: the call to the store fail
 
 // Unwrap returns the error of the store.
 func (e *StoreError) Unwrap() error { return e.Err }
+
+// maxRawFactor: a raw id longer than this many times MaxIDBytes is not even normalised.
+const maxRawFactor = 4
 
 // call is the context of one shared call to the store. It does not depend on the context of the caller that
 // started it, so a caller that leaves does not cancel the others; it keeps the values of that context.
@@ -104,6 +111,7 @@ type Resolver struct {
 	inflight atomic.Int64
 	overdue  atomic.Int64
 	maxID    int
+	maxOver  int
 	admit    sync.RWMutex
 	stopOnce sync.Once
 	mu       sync.Mutex
@@ -135,6 +143,7 @@ func New(inner segment.Provider, opts *Options) (*Resolver, error) {
 
 	res := &Resolver{
 		inner: inner, opts: *opts, observer: opts.Observer, timeout: opts.CallTimeout, maxID: opts.MaxIDBytes,
+		maxOver: opts.MaxOverdue,
 	}
 	if res.timeout == 0 {
 		res.timeout = DefaultCallTimeout
@@ -142,6 +151,10 @@ func New(inner segment.Provider, opts *Options) (*Resolver, error) {
 
 	if res.maxID == 0 {
 		res.maxID = DefaultMaxIDBytes
+	}
+
+	if res.maxOver == 0 {
+		res.maxOver = DefaultMaxOverdue
 	}
 
 	states := make(map[string]*segState, len(opts.Segments))
@@ -176,7 +189,9 @@ type pending struct {
 	key    string
 	gen    uint64
 	idx    int
+	state  segment.State // the answer of the cache, when hit is true
 	leader bool
+	hit    bool
 }
 
 // leader is a lookup that this call sends to the store.
@@ -236,9 +251,10 @@ type decision struct {
 	ok  bool
 }
 
-// waitFor reads the answers of the flights. It leaves when the context of the caller ends, or when the shared call
-// that it waits for passes its own timeout, whether or not the store honours its context. An answer that is
-// already there wins over a context that ended too.
+// waitFor reads the answers of the flights. Each lookup waits for its own flight, until the context of the caller
+// ends or the call of that flight passes its own timeout (whether or not the store honours its context): a flight
+// that times out leaves its lookups Unknown and the others go on waiting for theirs. An answer that is already there
+// wins over a context that ended too.
 func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs *segAccs) error {
 	var firstErr error
 
@@ -248,26 +264,38 @@ func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs
 			continue
 		}
 
-		leave := awaitFlight(ctx, pnd.flt)
-		if leave != nil {
+		verdict, cause := awaitFlight(ctx, pnd.flt)
+
+		switch verdict {
+		case flightAnswered:
+			lookups[pnd.idx].State = pnd.flt.state
+
+			if pnd.flt.err != nil {
+				accs.of(pnd.sst.name).mark(ReasonStore)
+
+				firstErr = firstOf(firstErr, pnd.flt.err)
+			}
+		case flightTimedOut:
+			accs.of(pnd.sst.name).mark(ReasonWaiting)
+
+			firstErr = firstOf(firstErr, fmt.Errorf("%w: %w", ErrWaiting, cause))
+		case callerGone:
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 			keepAnswered(lookups, pend[i+1:])
 
-			return fmt.Errorf("%w: %w", ErrWaiting, leave)
-		}
-
-		lookups[pnd.idx].State = pnd.flt.state
-
-		if pnd.flt.err != nil {
-			accs.of(pnd.sst.name).mark(ReasonStore)
-
-			if firstErr == nil {
-				firstErr = pnd.flt.err
-			}
+			return fmt.Errorf("%w: %w", ErrWaiting, cause)
 		}
 	}
 
 	return firstErr
+}
+
+func firstOf(first, next error) error {
+	if first != nil {
+		return first
+	}
+
+	return next
 }
 
 // keepAnswered sets the lookups whose flights are already done: the caller leaves, and what it has keeps its answer.
@@ -279,28 +307,37 @@ func keepAnswered(lookups []segment.Lookup, rest []pending) {
 	}
 }
 
-// awaitFlight waits for a flight. It returns nil when the flight is done, and otherwise why the caller leaves.
-func awaitFlight(ctx context.Context, flt *flight) error {
-	if isDone(flt) {
-		return nil
-	}
+// flightVerdict is how the wait for one flight ended.
+type flightVerdict uint8
 
-	var leave error
+const (
+	flightAnswered flightVerdict = iota
+	flightTimedOut
+	callerGone
+)
+
+// awaitFlight waits for a flight, and tells how the wait ended and, when it did not end with an answer, why.
+func awaitFlight(ctx context.Context, flt *flight) (flightVerdict, error) {
+	if isDone(flt) {
+		return flightAnswered, nil
+	}
 
 	select {
 	case <-flt.done:
-		return nil
+		return flightAnswered, nil
 	case <-ctx.Done():
-		leave = ctx.Err()
+		if isDone(flt) {
+			return flightAnswered, nil // the answer came together with the end of the context
+		}
+
+		return callerGone, ctx.Err()
 	case <-flt.call.ctx.Done():
-		leave = flt.call.ctx.Err()
-	}
+		if isDone(flt) {
+			return flightAnswered, nil
+		}
 
-	if isDone(flt) {
-		return nil // the answer came together with the end of the context
+		return flightTimedOut, flt.call.ctx.Err()
 	}
-
-	return fmt.Errorf("%w", leave)
 }
 
 func isDone(flt *flight) bool {
@@ -407,12 +444,39 @@ func (r *Resolver) Health() segment.Health {
 	return health
 }
 
+// enter admits a call to the store that is not a lookup (Init, Exists) under the same lock as the lookups: nothing
+// reaches the store once Shutdown has started, and Shutdown waits for the calls that were admitted. The returned
+// function ends the call.
+func (r *Resolver) enter() (func(), error) {
+	r.admit.RLock()
+	defer r.admit.RUnlock()
+
+	if r.closed {
+		return nil, ErrClosed
+	}
+
+	r.wg.Add(1)
+	r.inflight.Add(1)
+
+	return func() {
+		r.inflight.Add(-1)
+		r.wg.Done()
+	}, nil
+}
+
 // Init calls Init of the store when it has one.
 func (r *Resolver) Init(ctx context.Context) error {
 	init, ok := r.inner.(segment.Initializer)
 	if !ok {
 		return nil
 	}
+
+	leave, err := r.enter()
+	if err != nil {
+		return err
+	}
+
+	defer leave()
 
 	return init.Init(ctx) //nolint:wrapcheck // the store's own error
 }
@@ -423,6 +487,13 @@ func (r *Resolver) Exists(ctx context.Context, names []string) ([]segment.State,
 	if !ok {
 		return nil, ErrUnsupported
 	}
+
+	leave, err := r.enter()
+	if err != nil {
+		return nil, err
+	}
+
+	defer leave()
 
 	return existencer.Exists(ctx, names) //nolint:wrapcheck // the store's own error
 }
@@ -482,18 +553,21 @@ func (r *Resolver) state(name string) *segState {
 	return sst
 }
 
-// register joins the flight of each lookup, or opens one when the breaker lets it. It returns true when the
-// breaker of a segment dropped a lookup, and the shared call that the new flights belong to (nil when there is
-// none).
+// register joins the flight of each lookup, or opens one when the breaker lets it. It returns what it refused (the
+// breaker of a segment dropped a lookup, or too many calls are overdue) and the shared call that the new flights
+// belong to (nil when there is none). The cache is looked at again under the lock of the registration: an answer
+// that was filled since the first look costs no second call.
 func (r *Resolver) register(
 	ctx context.Context, pend []pending, now time.Time, obs *CallObservation, accs *segAccs,
-) (bool, *call) {
+) (error, *call) { //nolint:revive // the first is what the call refused, not a failure
 	var memo [4]decision
 
 	decided := memo[:0]
-	shorted := false
 
-	var shared *call
+	var (
+		refusal error
+		shared  *call
+	)
 
 	for i := range pend {
 		pnd := &pend[i]
@@ -514,6 +588,19 @@ func (r *Resolver) register(
 			continue
 		}
 
+		if sst.cache != nil {
+			state, ok := sst.cache.get(pnd.key, now)
+			if ok {
+				sst.mu.Unlock()
+
+				pnd.hit, pnd.state = true, state
+				obs.Hits++
+				acc.hits++
+
+				continue
+			}
+		}
+
 		if now.Before(sst.notLoadedUntil) {
 			sst.mu.Unlock()
 			sst.notLoadedSkips.Add(1)
@@ -521,6 +608,20 @@ func (r *Resolver) register(
 			obs.NotLoaded++
 
 			acc.mark(ReasonNotLoaded)
+
+			continue
+		}
+
+		if int(r.overdue.Load()) >= r.maxOver {
+			sst.mu.Unlock()
+
+			obs.ShortCircuited++
+
+			acc.mark(ReasonOverdue)
+
+			if refusal == nil {
+				refusal = ErrOverdue
+			}
 
 			continue
 		}
@@ -533,7 +634,7 @@ func (r *Resolver) register(
 
 			acc.mark(ReasonCircuitOpen)
 
-			shorted = true
+			refusal = ErrCircuitOpen
 
 			continue
 		}
@@ -551,7 +652,7 @@ func (r *Resolver) register(
 		acc.misses++
 	}
 
-	return shorted, shared
+	return refusal, shared
 }
 
 func newCall(ctx context.Context, timeout time.Duration) *call {
@@ -593,9 +694,12 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 	defer shared.cancel()
 
 	// a store that ignores its context keeps running after the context ended: count it while it does
+	// and it is a failure of the store from the moment it is overdue, not when (if ever) it returns: the breaker
+	// stops the new calls while the stuck ones are still out
 	fired := make(chan struct{})
 	stop := context.AfterFunc(shared.ctx, func() {
 		r.overdue.Add(1)
+		r.settleOverdue(leaders, clock.Now())
 		close(fired)
 	})
 
@@ -614,7 +718,8 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 		callErr = &StoreError{Err: callErr}
 	}
 
-	if !stop() {
+	late := !stop()
+	if late {
 		<-fired
 
 		r.overdue.Add(-1)
@@ -622,7 +727,7 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	now := clock.Now()
 
-	r.settle(leaders, sub, callErr, now)
+	r.settle(leaders, sub, callErr, now, late)
 
 	for i := range leaders {
 		lead := &leaders[i]
@@ -678,7 +783,7 @@ type segmentResult struct {
 // one of its lookups unanswered. When the store replied without error and every lookup of a segment is Unknown, the
 // segment is not loaded: that is neither a success nor a failure of the store, and the segment is not asked again
 // for a while.
-func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error, now time.Time) {
+func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error, now time.Time, late bool) {
 	var results []segmentResult
 
 	for i := range leaders {
@@ -718,9 +823,26 @@ func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error,
 			rememberNotLoaded(res, now)
 		}
 
-		if res.sst.brk != nil {
+		// a call that was overdue was counted as a failure when it became overdue: its late result counts once
+		if res.sst.brk != nil && !late {
 			r.emit(res.sst, res.sst.brk.record(res.gen, verdict, now))
 		}
+	}
+}
+
+// settleOverdue records a failure for each segment of a call that passed its timeout without returning.
+func (r *Resolver) settleOverdue(leaders []leader, now time.Time) {
+	var seen []*segState
+
+	for i := range leaders {
+		sst := leaders[i].sst
+		if sst.brk == nil || slices.Contains(seen, sst) {
+			continue
+		}
+
+		seen = append(seen, sst)
+
+		r.emit(sst, sst.brk.record(leaders[i].gen, outcomeFailure, now))
 	}
 }
 
@@ -757,14 +879,14 @@ func (r *Resolver) containsAt(ctx context.Context, lookups []segment.Lookup, sta
 		return ErrClosed
 	}
 
-	pend, shorted, err := r.prepare(ctx, lookups, start, &obs, &accs)
+	pend, refusal, err := r.prepare(ctx, lookups, start, &obs, &accs)
 
 	r.admit.RUnlock()
 
 	if err == nil && len(pend) > 0 {
 		err = waitFor(ctx, lookups, pend, &accs)
-		if err == nil && shorted {
-			err = ErrCircuitOpen
+		if err == nil && refusal != nil {
+			err = refusal
 		}
 	}
 
@@ -799,9 +921,11 @@ func (r *Resolver) report(lookups []segment.Lookup, obs *CallObservation, accs *
 // prepare answers what the cache has, and sends the rest to the store: it joins the flights that exist, opens the
 // ones that the breaker allows and starts the shared call. It runs under the admission lock, so a call that is
 // started is waited for by Shutdown.
+//
+//nolint:gocognit // one pass over the lookups: guard, normalise, cache, then the flights
 func (r *Resolver) prepare(
 	ctx context.Context, lookups []segment.Lookup, now time.Time, obs *CallObservation, accs *segAccs,
-) ([]pending, bool, error) {
+) ([]pending, error, error) { //nolint:revive // the second is what the call refused, not a failure
 	var pend []pending
 
 	for i := range lookups {
@@ -809,7 +933,9 @@ func (r *Resolver) prepare(
 		acc := accs.of(lookups[i].Segment)
 		acc.lookups++
 
-		if len(lookups[i].ID) > r.maxID {
+		// a guard before the work of normalising: what the store and the cache see is the normalised id, which is
+		// checked below
+		if len(lookups[i].ID) > maxRawFactor*r.maxID {
 			obs.Oversized++
 
 			acc.mark(ReasonOversized)
@@ -822,6 +948,14 @@ func (r *Resolver) prepare(
 			obs.Invalid++
 
 			acc.mark(reason)
+
+			continue
+		}
+
+		if len(key) > r.maxID {
+			obs.Oversized++
+
+			acc.mark(ReasonOversized)
 
 			continue
 		}
@@ -841,7 +975,7 @@ func (r *Resolver) prepare(
 	}
 
 	if len(pend) == 0 {
-		return nil, false, nil
+		return nil, nil, nil
 	}
 
 	// a caller that is gone does not start a call; what the cache had was answered above
@@ -850,15 +984,21 @@ func (r *Resolver) prepare(
 			accs.of(pend[i].sst.name).mark(ReasonWaiting)
 		}
 
-		return nil, false, fmt.Errorf("%w: %w", ErrWaiting, ctx.Err())
+		return nil, nil, fmt.Errorf("%w: %w", ErrWaiting, ctx.Err())
 	}
 
-	shorted, shared := r.register(ctx, pend, now, obs, accs)
+	refusal, shared := r.register(ctx, pend, now, obs, accs)
 	if shared != nil {
 		r.start(shared, pend)
 	}
 
-	return pend, shorted, nil
+	for i := range pend {
+		if pend[i].hit {
+			lookups[pend[i].idx].State = pend[i].state
+		}
+	}
+
+	return pend, refusal, nil
 }
 
 // start runs the shared call of the leaders in pend.

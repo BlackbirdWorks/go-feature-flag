@@ -173,6 +173,31 @@ func TestIDsThatCannotBeLookedUp(t *testing.T) {
 			wantOversized: 1,
 		},
 		{
+			name:          "a raw id far over the limit is not looked up even without normalisation",
+			opts:          &resolver.Options{},
+			ids:           []string{strings.Repeat("a", 3*resolver.DefaultMaxIDBytes)},
+			wantStates:    []segment.State{segment.Unknown},
+			wantCalls:     [][]string{},
+			wantOversized: 1,
+		},
+		{
+			name: "an id that grows when it is lowered is checked at the length that reaches the store",
+			opts: &resolver.Options{Segments: trim},
+			ids: []string{
+				strings.Repeat("\u023a", resolver.DefaultMaxIDBytes/2),
+			}, // 2 bytes each, 3 bytes lowered
+			wantStates:    []segment.State{segment.Unknown},
+			wantCalls:     [][]string{},
+			wantOversized: 1,
+		},
+		{
+			name:       "an id that shrinks when it is trimmed is looked up",
+			opts:       &resolver.Options{Segments: trim},
+			ids:        []string{strings.Repeat(" ", 20) + strings.Repeat("a", resolver.DefaultMaxIDBytes)},
+			wantStates: []segment.State{segment.NotMember},
+			wantCalls:  [][]string{{"beta:" + strings.Repeat("a", resolver.DefaultMaxIDBytes)}},
+		},
+		{
 			name:       "exactly the default is looked up",
 			opts:       &resolver.Options{},
 			ids:        []string{exact},

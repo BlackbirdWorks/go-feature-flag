@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -41,7 +42,11 @@ func TestResolverConforms(t *testing.T) {
 					return segmenttest.Fixture{}, err
 				}
 
-				return segmenttest.Fixture{Provider: res, Backend: store, Close: store.Release}, nil
+				return segmenttest.Fixture{Provider: res, Backend: store, Close: func() {
+					store.Release()
+
+					_ = res.Shutdown(context.Background())
+				}}, nil
 			}, nil)
 		})
 	}

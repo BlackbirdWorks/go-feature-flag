@@ -42,6 +42,22 @@ func newResolver(t *testing.T, store segment.Provider, opts *resolver.Options) *
 	res, err := resolver.New(store, opts)
 	require.NoError(t, err)
 
+	// every resolver of a test is shut down when the test ends, so that no run loop is mid-exit when the leak scan of
+	// TestMain looks: a store that waits on a gate is released first, the wait is bounded
+	t.Cleanup(func() {
+		if releaser, ok := store.(interface{ Release() }); ok {
+			releaser.Release()
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), eventuallyWait)
+		defer cancel()
+
+		assert.NoError(
+			t,
+			res.Shutdown(ctx),
+		) //nolint:testifylint // cleanup: the test goroutine continues to the next cleanup
+	})
+
 	return res
 }
 
