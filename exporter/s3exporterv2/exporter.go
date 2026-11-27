@@ -75,11 +75,10 @@ func (f *Exporter) Export(
 ) error {
 	ctx = internal.ContextOrBackground(ctx)
 
-	if f.s3Uploader == nil {
-		initErr := f.initializeUploader(ctx)
-		if initErr != nil {
-			return initErr
-		}
+	// always through the initialiser: it takes the lock, so s3Uploader is never read while another call writes it
+	initErr := f.initializeUploader(ctx)
+	if initErr != nil {
+		return initErr
 	}
 
 	// Create a temp directory to store the file we will produce
@@ -142,6 +141,12 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 	defer f.initMu.Unlock()
 
 	if f.initDone {
+		return nil
+	}
+
+	if f.s3Uploader != nil { // an uploader that was set up by hand (a test double) is kept
+		f.initDone = true
+
 		return nil
 	}
 

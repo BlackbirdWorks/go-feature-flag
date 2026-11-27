@@ -2,13 +2,20 @@ package s3exporterv2
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 // sequenceLoader returns a loader whose nth call (from 0) fails with steps[n] when it is not nil, and counts its calls.
@@ -113,4 +120,62 @@ func ready(exp *Exporter) bool {
 	defer exp.initMu.Unlock()
 
 	return exp.initDone && exp.s3Uploader != nil
+}
+
+// TestExporter_ConcurrentFirstExportsInitialiseOnce: many first calls of Export at once, through the public path, load
+// the configuration once, share one uploader and all upload (run with -race: no unlocked read of the uploader).
+func TestExporter_ConcurrentFirstExportsInitialiseOnce(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+
+	var puts atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.Copy(io.Discard, r.Body)
+		assert.NoError(t, err)
+
+		if r.Method == http.MethodPut {
+			puts.Add(1)
+		}
+
+		w.Header().Set("ETag", `"abc"`)
+	}))
+	t.Cleanup(srv.Close)
+
+	var loads atomic.Int32
+
+	exp := &Exporter{
+		Bucket: "bucket",
+		loadConfig: func(context.Context) (aws.Config, error) {
+			loads.Add(1)
+
+			return *connectionConfigFor(srv.URL), nil
+		},
+	}
+
+	errs := make([]error, callers)
+
+	var wg sync.WaitGroup
+
+	for i := range callers {
+		wg.Go(func() {
+			errs[i] = exp.Export(t.Context(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
+				&exporter.FeatureEvent{Kind: "feature", Key: "flag-a", UserKey: "user-1", CreationDate: 1617970547},
+			})
+		})
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, make([]error, callers), errs)
+	assert.Equal(t, int32(1), loads.Load(), "one successful initialisation")
+	assert.Equal(t, int32(callers), puts.Load(), "every call uploaded its file")
+}
+
+func connectionConfigFor(endpoint string) *aws.Config {
+	return &aws.Config{
+		Region: "eu-west-1", BaseEndpoint: aws.String(endpoint),
+		Credentials: credentials.NewStaticCredentialsProvider("AKIDCONNECTION", "secret", ""),
+	}
 }
