@@ -22,28 +22,34 @@ import (
 )
 
 const (
-	repoRoot    = "../../../"
-	shapesFile  = "testdata/shapes.yaml"
-	setKey      = "key-equiv"
-	setName     = "equiv"
-	missingKey  = "flag-that-does-not-exist"
-	flagsName   = "flags"
-	planAttr    = "plan"
-	proPlan     = "pro"
-	boolStatic  = "bool-static"
-	kindObject  = "object"
-	kindArray   = "array"
-	nameKey     = "name"
-	orgKey      = "org"
-	prodEnv     = "prod"
-	boolRule    = "bool-rule"
-	objectFlag  = "object-flag"
-	acmeOrg     = "acme"
-	pendingSet  = "pending"
-	freePlan    = "free"
-	mutated     = "mutated"
-	trackedFlag = "bool-tracked"
-	unknownStr  = "unknown"
+	repoRoot        = "../../../"
+	shapesFile      = "testdata/shapes.yaml"
+	setKey          = "key-equiv"
+	setName         = "equiv"
+	missingKey      = "flag-that-does-not-exist"
+	flagsName       = "flags"
+	planAttr        = "plan"
+	proPlan         = "pro"
+	ruleNameKey     = "evaluatedRuleName"
+	listKey         = "list"
+	arrayFlag       = "array-flag"
+	scheduledObject = "scheduled-object-flag"
+	tagsKey         = "tags"
+	namedSet        = "named"
+	boolStatic      = "bool-static"
+	kindObject      = "object"
+	kindArray       = "array"
+	nameKey         = "name"
+	orgKey          = "org"
+	prodEnv         = "prod"
+	boolRule        = "bool-rule"
+	objectFlag      = "object-flag"
+	acmeOrg         = "acme"
+	pendingSet      = "pending"
+	freePlan        = "free"
+	mutated         = "mutated"
+	trackedFlag     = "bool-tracked"
+	unknownStr      = "unknown"
 )
 
 // formatOf is the format of a flag file, by its extension.
@@ -219,3 +225,33 @@ func keyOf(ctx ffcontext.Context) string {
 
 // minPairs is the least number of flag and context pairs the single evaluation table checks.
 const minPairs = 3800
+
+// The kinds of value of a variation, as the audit of the tables names them.
+const (
+	kindBool   = "bool"
+	kindNumber = "number"
+	kindString = "string"
+	kindMap    = "object"
+	kindList   = "array"
+	kindNone   = "none"
+)
+
+// valueKind names the kind of a value: a table row that is named for the kind of its value asserts it with this.
+func valueKind(val any) string {
+	switch val.(type) {
+	case nil:
+		return kindNone
+	case bool:
+		return kindBool
+	case int, int64, float64:
+		return kindNumber
+	case string:
+		return kindString
+	case map[string]any, map[any]any:
+		return kindMap
+	case []any:
+		return kindList
+	default:
+		return "other"
+	}
+}

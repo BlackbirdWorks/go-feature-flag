@@ -32,13 +32,17 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 	before, err := set.Change()
 	require.NoError(t, err)
 
+	// every row says what it is about: the kind of the value and whether the flag has scheduled steps, asserted
 	tests := []struct {
-		call   func() any
-		mutate func(any)
-		name   string
+		call          func() any
+		mutate        func(any)
+		name          string
+		flag          string
+		wantValueKind string
+		wantScheduled bool
 	}{
 		{
-			name: kindObject,
+			name: kindObject, flag: objectFlag, wantValueKind: kindMap,
 			call: func() any {
 				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
 
@@ -46,15 +50,15 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 			},
 			mutate: func(val any) {
 				obj, _ := val.(map[string]any)
-				obj["name"] = mutated
+				obj[nameKey] = mutated
 				nested, _ := obj["nested"].(map[string]any)
 				nested["deep"] = []any{mutated}
 			},
 		},
 		{
-			name: kindArray,
+			name: kindArray, flag: arrayFlag, wantValueKind: kindList,
 			call: func() any {
-				res, _ := eval.JSONArrayVariationDetails(set, "array-flag", ctx, nil)
+				res, _ := eval.JSONArrayVariationDetails(set, arrayFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -68,9 +72,10 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 			},
 		},
 		{
-			name: "scheduled object (the engine copies it already)",
+			name: "scheduled object (the engine copies it already)", flag: scheduledObject,
+			wantValueKind: kindMap, wantScheduled: true,
 			call: func() any {
-				res, _ := eval.JSONVariationDetails(set, "scheduled-object-flag", ctx, nil)
+				res, _ := eval.JSONVariationDetails(set, scheduledObject, ctx, nil)
 
 				return res.Value
 			},
@@ -85,9 +90,15 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			flag, found := set.Flag(tt.flag)
+			require.True(t, found)
+			assert.Equal(t, tt.wantScheduled, flag.Scheduled != nil, "the path of the flag")
+
 			first := mustJSON(t, tt.call())
 
 			val := tt.call()
+			assert.Equal(t, tt.wantValueKind, valueKind(val), "the kind of the value")
+
 			tt.mutate(val)
 
 			assert.NotEqual(t, first, mustJSON(t, val), "the mutation did change the copy")
@@ -115,11 +126,13 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 	flags := []struct {
 		name       string
 		wantReason string
+		// wantNested says that the metadata holds an object or an array (shared with the flag), asserted
+		wantNested bool
 	}{
-		{name: boolRule, wantReason: flagdef.ReasonTargetingMatch},
-		{name: "bool-flat-meta", wantReason: flagdef.ReasonTargetingMatch},
-		{name: "bool-disabled", wantReason: flagdef.ReasonDisabled},
-		{name: objectFlag, wantReason: flagdef.ReasonTargetingMatch},
+		{name: boolRule, wantReason: flagdef.ReasonTargetingMatch, wantNested: true},
+		{name: "bool-flat-meta", wantReason: flagdef.ReasonTargetingMatch, wantNested: false},
+		{name: "bool-disabled", wantReason: flagdef.ReasonDisabled, wantNested: false},
+		{name: objectFlag, wantReason: flagdef.ReasonTargetingMatch, wantNested: true},
 	}
 
 	for _, tt := range flags {
@@ -136,6 +149,7 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 
 			require.NotNil(t, first.Metadata)
 			assert.Equal(t, tt.wantReason, first.Reason, "the path of the evaluation")
+			assert.Equal(t, tt.wantNested, hasNestedContainer(first.Metadata), "the shape of the metadata")
 
 			first.Metadata["added"] = true
 			first.Cacheable = true
@@ -245,7 +259,7 @@ func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 
 				return res
 			},
-			want:   map[string]any{"name": "beta", "nested": map[string]any{"deep": []any{}}},
+			want:   map[string]any{nameKey: "beta", "nested": map[string]any{"deep": []any{}}},
 			change: "name",
 		},
 		{
@@ -364,6 +378,8 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		change   func(val any)
 		name     string
 		wantJSON string
+		// wantNilCount is the number of nil containers that the default of the row holds, asserted on the fixture
+		wantNilCount int
 		// noMismatch: the raw call returns whatever type the flag has, so it has no value of another type
 		noMismatch bool
 	}{
@@ -380,14 +396,15 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 				return res.Value
 			},
 			newGiven: func() any {
-				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, "list": []any{1}}
+				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, listKey: []any{1}}
 			},
 			change: func(val any) {
 				obj, _ := val.(map[string]any)
-				obj["list"] = mutated
+				obj[listKey] = mutated
 			},
-			wantJSON:   `{"items":null,"list":[1],"none":null,"obj":null}`,
-			noMismatch: true,
+			wantJSON:     `{"items":null,"list":[1],"none":null,"obj":null}`,
+			wantNilCount: 2,
+			noMismatch:   true,
 		},
 		{
 			name: "JSONVariationDetails",
@@ -403,13 +420,14 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 				return res.Value
 			},
 			newGiven: func() any {
-				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, "list": []any{1}}
+				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, listKey: []any{1}}
 			},
 			change: func(val any) {
 				obj, _ := val.(map[string]any)
-				obj["list"] = mutated
+				obj[listKey] = mutated
 			},
-			wantJSON: `{"items":null,"list":[1],"none":null,"obj":null}`,
+			wantJSON:     `{"items":null,"list":[1],"none":null,"obj":null}`,
+			wantNilCount: 2,
 		},
 		{
 			name: "JSONArrayVariationDetails",
@@ -429,7 +447,8 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 				arr, _ := val.([]any)
 				arr[3] = mutated
 			},
-			wantJSON: `[null,null,null,[1]]`,
+			wantJSON:     `[null,null,null,[1]]`,
+			wantNilCount: 2,
 		},
 	}
 
@@ -461,6 +480,8 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 				})
 
 				given := entry.newGiven()
+				assert.Equal(t, entry.wantNilCount, countContainers(given, true), "the nil containers of the default")
+
 				result := entry.call(eval, set, reason.flag, given)
 
 				require.Len(t, events, 1, "the evaluation is tracked")
@@ -499,18 +520,32 @@ func TestOwnership_SnapshotKeepsTypesAndNils(t *testing.T) {
 
 	byRef := []string{"kept"}
 
+	// every row says what its name claims, and the test asserts it on the fixture and on the event: the kind of the value
+	// at the top, how many nil containers it holds at any depth, and how many containers are not variation containers
 	tests := []struct {
-		given   func() any
-		name    string
-		wantNil bool
+		given           func() any
+		name            string
+		wantKind        string
+		wantNilCount    int
+		wantPassThrough int
+		wantNil         bool
 	}{
-		{name: "nil map at the top", given: func() any { return map[string]any(nil) }, wantNil: true},
-		{name: "nil any-map at the top", given: func() any { return map[any]any(nil) }, wantNil: true},
-		{name: "nil slice at the top", given: func() any { return []any(nil) }, wantNil: true},
-		{name: "empty map at the top", given: func() any { return map[string]any{} }},
-		{name: "empty slice at the top", given: func() any { return []any{} }},
 		{
-			name: "nils at every depth",
+			name: "nil map at the top", given: func() any { return map[string]any(nil) }, wantNil: true,
+			wantKind: kindMap, wantNilCount: 1,
+		},
+		{
+			name: "nil any-map at the top", given: func() any { return map[any]any(nil) }, wantNil: true,
+			wantKind: kindMap, wantNilCount: 1,
+		},
+		{
+			name: "nil slice at the top", given: func() any { return []any(nil) }, wantNil: true,
+			wantKind: kindList, wantNilCount: 1,
+		},
+		{name: "empty map at the top", given: func() any { return map[string]any{} }, wantKind: kindMap},
+		{name: "empty slice at the top", given: func() any { return []any{} }, wantKind: kindList},
+		{
+			name: "nils at every depth", wantKind: kindMap, wantNilCount: 5,
 			given: func() any {
 				return map[string]any{
 					"a": []any{
@@ -524,7 +559,7 @@ func TestOwnership_SnapshotKeepsTypesAndNils(t *testing.T) {
 			},
 		},
 		{
-			name: "types that are not variation containers pass through",
+			name: "types that are not variation containers pass through", wantKind: kindMap, wantPassThrough: 2,
 			given: func() any {
 				return map[string]any{"s": byRef, "m": map[string]string{"x": "y"}, "n": 1.5, "t": "text"}
 			},
@@ -548,6 +583,23 @@ func TestOwnership_SnapshotKeepsTypesAndNils(t *testing.T) {
 			event := events[0]
 			original := exporter.NewFeatureEvent(
 				ownedContext(), missingKey, given, res.VariationType, res.Failed, res.Version, "SERVER", nil)
+
+			// the fixture and the event are what the row says
+			assert.Equal(t, tt.wantKind, valueKind(given), "the kind of the value at the top")
+			assert.Equal(
+				t,
+				tt.wantNil,
+				reflect.ValueOf(given).IsNil(),
+				"the top container of the fixture is nil or not",
+			)
+			assert.Equal(t, tt.wantNilCount, countContainers(given, true), "the nil containers of the fixture")
+			assert.Equal(t, tt.wantNilCount, countContainers(event.Value, true), "the nil containers of the event")
+			assert.Equal(
+				t,
+				tt.wantPassThrough,
+				countOtherContainers(given),
+				"the containers that are not variation ones",
+			)
 
 			assertSameShape(t, given, event.Value, "event value")
 
@@ -637,4 +689,79 @@ func TestOwnership_NestedNullsInAFlagValueSurviveTheCopy(t *testing.T) {
 
 	assert.JSONEq(t, want, mustJSON(t, raw.Value))
 	assert.JSONEq(t, want, mustJSON(t, typed.Value))
+}
+
+// hasNestedContainer tells whether a metadata map holds an object or an array.
+func hasNestedContainer(metadata map[string]any) bool {
+	for _, val := range metadata {
+		switch val.(type) {
+		case map[string]any, map[any]any, []any:
+			return true
+		}
+	}
+
+	return false
+}
+
+// countContainers counts the nil containers (nilOnly) or all the containers of a value, at any depth, among the
+// variation containers: map[string]any, map[any]any and []any.
+func countContainers(val any, nilOnly bool) int {
+	count := 0
+
+	visit := func(isNil bool) {
+		if !nilOnly || isNil {
+			count++
+		}
+	}
+
+	switch typed := val.(type) {
+	case map[string]any:
+		visit(typed == nil)
+
+		for _, elem := range typed {
+			count += countContainers(elem, nilOnly)
+		}
+	case map[any]any:
+		visit(typed == nil)
+
+		for _, elem := range typed {
+			count += countContainers(elem, nilOnly)
+		}
+	case []any:
+		visit(typed == nil)
+
+		for _, elem := range typed {
+			count += countContainers(elem, nilOnly)
+		}
+	}
+
+	return count
+}
+
+// countOtherContainers counts the maps and slices inside a value that are not variation containers: they are not
+// copied by a snapshot.
+func countOtherContainers(val any) int {
+	count := 0
+
+	switch typed := val.(type) {
+	case map[string]any:
+		for _, elem := range typed {
+			count += countOtherContainers(elem)
+		}
+	case map[any]any:
+		for _, elem := range typed {
+			count += countOtherContainers(elem)
+		}
+	case []any:
+		for _, elem := range typed {
+			count += countOtherContainers(elem)
+		}
+	default:
+		switch reflect.ValueOf(val).Kind() { //nolint:exhaustive // only maps and slices count
+		case reflect.Map, reflect.Slice:
+			count++
+		}
+	}
+
+	return count
 }

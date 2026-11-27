@@ -55,12 +55,21 @@ func TestEvaluator_TrackEventHook(t *testing.T) {
 		wantKind   string
 		wantEvents int
 		withHook   bool
+		// wantFlagTracks is the trackEvents setting of the flag of the row, asserted on the result
+		wantFlagTracks bool
 	}{
-		{name: "tracked flag", flag: trackedFlag, withHook: true, wantEvents: 1, wantKind: "user"},
-		{name: "untracked flag", flag: "bool-untracked", withHook: true, wantEvents: 0},
-		{name: "no hook", flag: trackedFlag, withHook: false, wantEvents: 0},
 		{
-			name: "anonymous by enrichment", flag: trackedFlag, withHook: true, wantEvents: 1,
+			name:           "tracked flag",
+			flag:           trackedFlag,
+			withHook:       true,
+			wantEvents:     1,
+			wantKind:       "user",
+			wantFlagTracks: true,
+		},
+		{name: "untracked flag", flag: "bool-untracked", withHook: true, wantEvents: 0, wantFlagTracks: false},
+		{name: "no hook", flag: trackedFlag, withHook: false, wantEvents: 0, wantFlagTracks: true},
+		{
+			name: "anonymous by enrichment", flag: trackedFlag, withHook: true, wantEvents: 1, wantFlagTracks: true,
 			enrichment: map[string]any{"anonymous": true}, wantKind: "anonymousUser",
 		},
 	}
@@ -80,7 +89,7 @@ func TestEvaluator_TrackEventHook(t *testing.T) {
 
 			res, err := eval.RawVariation(set, tt.flag, ctx, nil)
 			require.NoError(t, err)
-			assert.Equal(t, tt.flag == trackedFlag, res.TrackEvents)
+			assert.Equal(t, tt.wantFlagTracks, res.TrackEvents, "the trackEvents setting of the flag")
 
 			require.Len(t, events, tt.wantEvents)
 
@@ -174,11 +183,17 @@ func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 	tests := []struct {
 		change func(in map[string]any, out map[string]any)
 		name   string
+		// onInput says which side the row changes, and the test asserts that the change took effect on that side
+		onInput bool
 	}{
-		{name: "top level key of the input", change: func(in, _ map[string]any) { in[planAttr] = mutated }},
+		{
+			name:    "top level key of the input",
+			onInput: true,
+			change:  func(in, _ map[string]any) { in[planAttr] = mutated },
+		},
 		{name: "top level key of the output", change: func(_, out map[string]any) { out[planAttr] = mutated }},
 		{
-			name: "nested map of the input",
+			name: "nested map of the input", onInput: true,
 			change: func(in, _ map[string]any) {
 				nested, _ := in[orgKey].(map[string]any)
 				nested["name"] = mutated
@@ -192,16 +207,16 @@ func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 			},
 		},
 		{
-			name: "nested slice of the input",
+			name: "nested slice of the input", onInput: true,
 			change: func(in, _ map[string]any) {
-				tags, _ := in["tags"].([]any)
+				tags, _ := in[tagsKey].([]any)
 				tags[0] = mutated
 			},
 		},
 		{
 			name: "nested slice of the output",
 			change: func(_, out map[string]any) {
-				tags, _ := out["tags"].([]any)
+				tags, _ := out[tagsKey].([]any)
 				tags[0] = mutated
 			},
 		},
@@ -211,22 +226,38 @@ func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			want := map[string]any{planAttr: proPlan, orgKey: map[string]any{nameKey: acmeOrg}, "tags": []any{"a", "b"}}
+			want := map[string]any{
+				planAttr: proPlan,
+				orgKey:   map[string]any{nameKey: acmeOrg},
+				tagsKey:  []any{"a", "b"},
+			}
 			input := map[string]any{
 				planAttr: proPlan,
 				orgKey:   map[string]any{nameKey: acmeOrg},
-				"tags":   []any{"a", "b"},
+				tagsKey:  []any{"a", "b"},
 			}
 
 			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
 				EvaluationContextEnrichment: input,
-				FlagSetEnrichment:           map[string]map[string]any{"named": input},
+				FlagSetEnrichment:           map[string]map[string]any{namedSet: input},
 				Environment:                 prodEnv,
 			})
 
-			tt.change(input, eval.EvaluationContextEnrichment(nil))
+			output := eval.EvaluationContextEnrichment(nil)
+			named := eval.EvaluationContextEnrichment(&flagruntime.FlagSet{Name: namedSet})
+
+			tt.change(input, output)
+
+			// the change took effect on the side the row names (the row is not vacuous), and reached nothing else
+			if tt.onInput {
+				assert.NotEqual(t, want, input, "the input was changed")
+			} else {
+				assert.NotEqual(t, want, output, "the output was changed")
+			}
 
 			assert.Equal(t, want, eval.EvaluationContextEnrichment(nil))
+			assert.Equal(t, want, eval.EvaluationContextEnrichment(&flagruntime.FlagSet{Name: namedSet}))
+			assert.Equal(t, want, named, "the copy that was handed out before the change")
 		})
 	}
 }

@@ -38,6 +38,18 @@ func TestEvaluatorWrapperFramesDoNotAllocate(t *testing.T) {
 	cacheable := model.RawVarResult{Cacheable: true, Metadata: map[string]any{}}
 	notCacheable := model.RawVarResult{Metadata: map[string]any{"a": 1}}
 
+	// the fixtures are what the names of the rows say: no hook on the plain evaluator and a tracked result, a flag
+	// without scheduled steps, a cacheable result that has a metadata map and a not cacheable one that has one too
+	assert.Nil(t, plain.track, "the evaluator of the rows has no hook")
+	assert.True(t, tracked.TrackEvents, "the result of the notify row is tracked")
+	assert.Nil(t, set.Flags["f"].Scheduled, "the flag of the rows has no scheduled steps")
+	assert.True(t, cacheable.Cacheable)
+	assert.NotNil(t, cacheable.Metadata)
+	assert.False(t, notCacheable.Cacheable)
+	assert.NotEmpty(t, notCacheable.Metadata)
+	assert.NotNil(t, eval.perSet["named"], "the per flag set row has an enrichment of its own")
+	assert.Nil(t, plain.perSet, "the default row has none")
+
 	// every row measures a function and keeps what it returned: the result is asserted after the measurement, so the
 	// compiler cannot drop the work, and the answer is checked next to the count. The last row is the control: it
 	// allocates on purpose, and the harness must see it.

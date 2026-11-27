@@ -269,12 +269,16 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 	set := runtimeOf(t, data, formatOf(path))
 	enrichment := map[string]any{planAttr: proPlan, "country": "FR", "region": "eu"}
 
+	// every row says what it must show: the enrichment (the plan of the context is "pro" without the context saying
+	// so) is applied in both rows, the environment only in the second, and the result of each flag is asserted
 	tests := []struct {
-		name        string
-		environment string
+		name         string
+		environment  string
+		wantEnvFlag  bool
+		wantPlanFlag float64
 	}{
-		{name: "enrichment only"},
-		{name: "enrichment and environment", environment: prodEnv},
+		{name: "enrichment only", wantEnvFlag: false, wantPlanFlag: 2.25},
+		{name: "enrichment and environment", environment: prodEnv, wantEnvFlag: true, wantPlanFlag: 2.25},
 	}
 
 	for _, tt := range tests {
@@ -295,6 +299,13 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 				}
 			}
 
+			plain := ffcontext.NewEvaluationContext("plain-user")
+			planFlag, _ := eval.RawVariation(set, "float-flag", plain, nil)
+			envFlag, _ := eval.RawVariation(set, "env-flag", plain, nil)
+
+			assert.InDelta(t, tt.wantPlanFlag, planFlag.Value, 0, "the enrichment is applied")
+			assert.Equal(t, tt.wantEnvFlag, envFlag.Value, "the environment is applied only when it is set")
+
 			assert.Equal(t, legacy.GetEvaluationContextEnrichment(), eval.EvaluationContextEnrichment(set))
 			assert.Equal(t,
 				mustJSON(t, legacy.AllFlagsState(ffcontext.NewEvaluationContext("u"))),
@@ -311,12 +322,14 @@ func TestEquivalence_TrackedEvents(t *testing.T) {
 	set := runtimeOf(t, data, formatOf(path))
 	enrichment := map[string]any{"semaphore": map[string]any{"exporterMetadata": map[string]any{"region": "eu"}}}
 
+	// every row says what the events must carry: the exporter metadata comes from the enrichment, or is absent
 	tests := []struct {
+		wantRegion any
 		enrichment map[string]any
 		name       string
 	}{
-		{name: "no enrichment"},
-		{name: "enrichment that the events read", enrichment: enrichment},
+		{name: "no enrichment", wantRegion: nil},
+		{name: "enrichment that the events read", enrichment: enrichment, wantRegion: "eu"},
 	}
 
 	for _, tt := range tests {
@@ -358,6 +371,7 @@ func TestEquivalence_TrackedEvents(t *testing.T) {
 
 			for idx := range min(len(want), len(got)) {
 				assert.Equal(t, *want[idx], *got[idx], "event %d", idx)
+				assert.Equal(t, tt.wantRegion, got[idx].Metadata["region"], "the exporter metadata of event %d", idx)
 			}
 		})
 	}

@@ -203,3 +203,13 @@ object-null-flag:
       empty: []
   defaultRule:
     variation: a
+env-flag:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - name: in-prod
+      query: env eq "prod"
+      variation: on
+  defaultRule:
+    variation: off

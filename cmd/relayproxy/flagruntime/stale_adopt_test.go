@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/cache"
 )
 
 // stale marks an object stale, keeping its bytes (the reader serves the last good bytes of a stale name).
@@ -31,23 +33,29 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	doc := setsObj(t, fset("s", src(flagsName), keyA))
 
 	tests := []struct {
-		wantValue    any
-		first        objs
-		second       objs
-		name         string
-		wantState    flagruntime.ObjectState
-		wantSetState flagruntime.SetState
-		wantFlags    []string
-		wantParsed   int
+		wantValue        any
+		first            objs
+		second           objs
+		name             string
+		wantState        flagruntime.ObjectState
+		wantSetState     flagruntime.SetState
+		wantFlags        []string
+		wantFirst        inputClaim
+		wantSecond       inputClaim
+		wantParsed       int
+		wantDecodes      bool
+		wantSameChecksum bool
 	}{
 		{
 			name:      "stale with bytes, never loaded",
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantDecodes: true,
 			first:     objs{flagsName: stale(&good), setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectStale, wantSetState: flagruntime.StateDegraded,
 			wantParsed: 2, wantFlags: []string{"f"},
 		},
 		{
-			name: "stale without bytes, never loaded",
+			name:      "stale without bytes, never loaded",
+			wantFirst: inputClaim{flagruntime.ObjectStale, false},
 			first: objs{
 				flagsName: {Kind: flagruntime.KindFlags, Format: "yaml", Checksum: "x", State: flagruntime.ObjectStale},
 				setsName:  doc,
@@ -60,12 +68,15 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 		},
 		{
 			name:      "stale with bytes that do not decode",
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantDecodes: false,
 			first:     objs{flagsName: stale(&broken), setsName: doc},
 			wantValue: nil, wantState: flagruntime.ObjectInvalid, wantSetState: flagruntime.StatePending,
 			wantParsed: 2, wantFlags: []string{},
 		},
 		{
 			name:      "stale with other bytes after a good load keeps the loaded content",
+			wantFirst: inputClaim{flagruntime.ObjectOK, true}, wantSecond: inputClaim{flagruntime.ObjectStale, true},
+			wantDecodes: true, wantSameChecksum: false,
 			first:     objs{flagsName: good, setsName: doc},
 			second:    objs{flagsName: stale(&other), setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectStale, wantSetState: flagruntime.StateDegraded,
@@ -73,6 +84,8 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 		},
 		{
 			name:      "recovery to the same checksum is not parsed again",
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantSecond: inputClaim{flagruntime.ObjectOK, true},
+			wantDecodes: true, wantSameChecksum: true,
 			first:     objs{flagsName: stale(&good), setsName: doc},
 			second:    objs{flagsName: good, setsName: doc},
 			wantValue: 7, wantState: flagruntime.ObjectOK, wantSetState: flagruntime.StateServing,
@@ -83,6 +96,25 @@ func TestStaleObject_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			first := tt.first[flagsName]
+			assertInput(t, "first", &first, tt.wantFirst)
+
+			if tt.wantFirst.bytes {
+				_, decodeErr := cache.ConvertToFlagStruct(tt.first[flagsName].Bytes, tt.first[flagsName].Format)
+				assert.Equal(t, tt.wantDecodes, decodeErr == nil, "the bytes of the first input decode")
+			}
+
+			if tt.second != nil {
+				second := tt.second[flagsName]
+				assertInput(t, "second", &second, tt.wantSecond)
+				assert.Equal(
+					t,
+					tt.wantSameChecksum,
+					tt.first[flagsName].Checksum == tt.second[flagsName].Checksum,
+					"the two inputs have the same checksum",
+				)
+			}
 
 			parsed := 0
 			harness := newRig(t, flagruntime.Hooks{OnParse: func(flagruntime.ParseEvent) { parsed++ }})
@@ -121,28 +153,38 @@ func TestStaleDocument_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	flags := flagsObj(1, "f")
 
 	tests := []struct {
-		first      objs
-		second     objs
-		name       string
-		wantDoc    flagruntime.ObjectState
-		wantSets   []string
-		wantParsed int
+		first            objs
+		second           objs
+		name             string
+		wantDoc          flagruntime.ObjectState
+		wantSets         []string
+		wantFirst        inputClaim
+		wantSecond       inputClaim
+		wantParsed       int
+		wantDecodes      bool
+		wantSameChecksum bool
 	}{
 		{
 			name: "never loaded, readable", first: objs{flagsName: flags, setsName: stale(&doc)},
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantDecodes: true,
 			wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSets: []string{"s"},
 		},
 		{
 			name: "never loaded, not decodable", first: objs{flagsName: flags, setsName: stale(&broken)},
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantDecodes: false,
 			wantDoc: flagruntime.ObjectInvalid, wantParsed: 2, wantSets: []string{},
 		},
 		{
 			name: "loaded: the other bytes are not read", first: objs{flagsName: flags, setsName: doc},
+			wantFirst: inputClaim{flagruntime.ObjectOK, true}, wantSecond: inputClaim{flagruntime.ObjectStale, true},
+			wantDecodes: true, wantSameChecksum: false,
 			second:  objs{flagsName: flags, setsName: stale(&other)},
 			wantDoc: flagruntime.ObjectStale, wantParsed: 2, wantSets: []string{"s"},
 		},
 		{
 			name: "back to ok with the same bytes", first: objs{flagsName: flags, setsName: stale(&doc)},
+			wantFirst: inputClaim{flagruntime.ObjectStale, true}, wantSecond: inputClaim{flagruntime.ObjectOK, true},
+			wantDecodes: true, wantSameChecksum: true,
 			second:  objs{flagsName: flags, setsName: doc},
 			wantDoc: flagruntime.ObjectOK, wantParsed: 2, wantSets: []string{"s"},
 		},
@@ -151,6 +193,23 @@ func TestStaleDocument_AdoptedOnlyWhenNeverLoaded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			first := tt.first[setsName]
+			assertInput(t, "first", &first, tt.wantFirst)
+
+			_, _, decodeErr := controlplane.UnmarshalFlagSet(tt.first[setsName].Bytes)
+			assert.Equal(t, tt.wantDecodes, decodeErr == nil, "the bytes of the first input decode")
+
+			if tt.second != nil {
+				second := tt.second[setsName]
+				assertInput(t, "second", &second, tt.wantSecond)
+				assert.Equal(
+					t,
+					tt.wantSameChecksum,
+					tt.first[setsName].Checksum == tt.second[setsName].Checksum,
+					"the two inputs have the same checksum",
+				)
+			}
 
 			parsed := 0
 			harness := newRig(t, flagruntime.Hooks{OnParse: func(flagruntime.ParseEvent) { parsed++ }})
@@ -197,4 +256,24 @@ func TestStaleObject_RejectedFlagHasNoEarlierDefinitionAfterARestart(t *testing.
 	require.Len(t, rejected, 1)
 	assert.Equal(t, "y", rejected[0].Flag)
 	assert.False(t, rejected[0].Kept)
+}
+
+// inputClaim is what a row says about the input object of one of its steps: the state it is fed in and whether it
+// carries bytes, asserted on the fixture so that a row cannot pass with another input than its name says.
+type inputClaim struct {
+	state flagruntime.ObjectState
+	bytes bool
+}
+
+// assertInput asserts the claim of a row on an input object. An empty state of an object is ok.
+func assertInput(t *testing.T, name string, input *flagruntime.Object, claim inputClaim) {
+	t.Helper()
+
+	state := input.State
+	if state == "" {
+		state = flagruntime.ObjectOK
+	}
+
+	assert.Equal(t, claim.state, state, "%s: the state of the input", name)
+	assert.Equal(t, claim.bytes, len(input.Bytes) > 0, "%s: the input carries bytes", name)
 }

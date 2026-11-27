@@ -36,23 +36,38 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 	eval := flagruntime.NewEvaluator(svc, nil)
 	ctx := ownedContext()
 
-	// every row names its path: the reason of the result and whether the flag has scheduled steps are asserted
+	// every row says what its name claims, and the claim is asserted on the engine's result: the kind of the value, the
+	// exact metadata (none, flat or with nested containers), the reason and the scheduled steps
 	tests := []struct {
+		wantMetadata  map[string]any
 		name          string
 		flag          string
 		wantReason    string
+		wantValueKind string
 		wantScheduled bool
 	}{
-		{name: "scalar, no metadata", flag: boolStatic, wantReason: flagdef.ReasonStatic},
-		{name: "scalar, flat metadata", flag: "bool-flat-meta", wantReason: flagdef.ReasonTargetingMatch},
-		{name: "scalar, nested metadata", flag: boolRule, wantReason: flagdef.ReasonTargetingMatch},
-		{name: "object value", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch},
-		{name: "array value", flag: "array-flag", wantReason: flagdef.ReasonSplit},
+		{name: "scalar, no metadata", flag: boolStatic, wantReason: flagdef.ReasonStatic, wantValueKind: kindBool},
 		{
-			name:          "scheduled object value",
-			flag:          "scheduled-object-flag",
-			wantReason:    flagdef.ReasonStatic,
-			wantScheduled: true,
+			name: "scalar, flat metadata", flag: "bool-flat-meta", wantReason: flagdef.ReasonTargetingMatch,
+			wantValueKind: kindBool,
+			wantMetadata:  map[string]any{ruleNameKey: "beta-users", "team": "payments", "tier": "gold"},
+		},
+		{
+			name: "scalar, nested metadata", flag: boolRule, wantReason: flagdef.ReasonTargetingMatch,
+			wantValueKind: kindBool,
+			wantMetadata: map[string]any{
+				ruleNameKey: "beta-users", "team": "payments", listKey: []any{1, 2, map[string]any{"x": 1}},
+				"owner": map[string]any{nameKey: "ops", tagsKey: []any{"a", "b"}},
+			},
+		},
+		{
+			name: "object value", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch, wantValueKind: kindMap,
+			wantMetadata: map[string]any{ruleNameKey: "pro-rule", "kind": map[string]any{"level": 1}},
+		},
+		{name: "array value", flag: arrayFlag, wantReason: flagdef.ReasonSplit, wantValueKind: kindList},
+		{
+			name: "scheduled object value", flag: scheduledObject, wantReason: flagdef.ReasonStatic,
+			wantValueKind: kindMap, wantScheduled: true,
 		},
 	}
 
@@ -82,6 +97,9 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 		raw := minAllocs(func() { rawRes, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
 
 		assert.Equal(t, tt.wantReason, rawRes.Reason, tt.name)
+		assert.Equal(t, tt.wantValueKind, valueKind(rawRes.Value), "%s: the kind of the value", tt.name)
+		assert.Equal(t, tt.wantMetadata, engineRes.Metadata, "%s: the metadata of the engine", tt.name)
+		assert.Equal(t, tt.wantMetadata, rawRes.Metadata, "%s: the metadata of the evaluator", tt.name)
 		assert.Equal(t, tt.wantScheduled, flag.Scheduled != nil, tt.name)
 		assert.NotEmpty(t, rawRes.VariationType, tt.name)
 		assert.Equal(t, engineRes.Value, rawRes.Value, tt.name)
@@ -106,11 +124,12 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 		engine        func(*flagdef.InternalFlag) any
 		name          string
 		flag          string
+		wantValueKind string
 		copies        bool
 		wantScheduled bool
 	}{
 		{
-			name: kindObject, flag: objectFlag, copies: true,
+			name: kindObject, flag: objectFlag, copies: true, wantValueKind: kindMap,
 			typed: func() any {
 				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
 
@@ -124,31 +143,33 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 			},
 		},
 		{
-			name:   "array",
-			flag:   "array-flag",
-			copies: true,
+			name:          "array",
+			flag:          arrayFlag,
+			copies:        true,
+			wantValueKind: kindList,
 			typed: func() any {
-				res, _ := eval.JSONArrayVariationDetails(set, "array-flag", ctx, nil)
+				res, _ := eval.JSONArrayVariationDetails(set, arrayFlag, ctx, nil)
 
 				return res.Value
 			},
 			engine: func(flag *flagdef.InternalFlag) any {
 				res, _ := evaluation.Evaluate[[]any](
-					flag, "array-flag", ctx, flagdef.Context{Service: svc}, "[]interface{}", nil)
+					flag, arrayFlag, ctx, flagdef.Context{Service: svc}, "[]interface{}", nil)
 
 				return res.Value
 			},
 		},
 		{
-			name: "scheduled object", flag: "scheduled-object-flag", copies: false, wantScheduled: true,
+			name: "scheduled object", flag: scheduledObject, copies: false, wantScheduled: true,
+			wantValueKind: kindMap,
 			typed: func() any {
-				res, _ := eval.JSONVariationDetails(set, "scheduled-object-flag", ctx, nil)
+				res, _ := eval.JSONVariationDetails(set, scheduledObject, ctx, nil)
 
 				return res.Value
 			},
 			engine: func(flag *flagdef.InternalFlag) any {
 				res, _ := evaluation.Evaluate[map[string]any](
-					flag, "scheduled-object-flag", ctx, flagdef.Context{Service: svc}, "map[string]interface{}", nil)
+					flag, scheduledObject, ctx, flagdef.Context{Service: svc}, "map[string]interface{}", nil)
 
 				return res.Value
 			},
@@ -159,6 +180,7 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 		flag, _ := set.Flag(tt.flag)
 
 		assert.Equal(t, tt.wantScheduled, flag.Scheduled != nil, "%s: the path of the flag", tt.name)
+		assert.Equal(t, tt.wantValueKind, valueKind(tt.engine(flag)), "%s: the kind of the value", tt.name)
 		assert.Equal(
 			t,
 			!tt.wantScheduled,
@@ -208,6 +230,12 @@ func TestEvaluator_AllFlagsAllocationsEqualTheEngine(t *testing.T) {
 	got := minAllocs(func() { gotStates = eval.AllFlagsState(set, ctx) })
 
 	assert.Len(t, set.Flags, 100)
+
+	// the flags are what the comment says: no rule and no query, so the pool of the rule engine is never used
+	for key, flag := range set.Flags {
+		assert.Empty(t, flag.Rules, "%s has no targeting rule", key)
+	}
+
 	assert.Equal(t, engineStates.GetFlags(), gotStates.GetFlags())
 	assert.Len(t, gotStates.GetFlags(), 100)
 	assert.InDelta(t, engine, got, 0, "engine alone %v, evaluator %v", engine, got)
@@ -243,11 +271,12 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		flag          string
 		wantReason    string
 		wantErrorCode string
+		wantValueKind string
 		snapshot      bool
 		wantScheduled bool
 	}{
 		{
-			name: "scalar flag", flag: trackedFlag, wantReason: flagdef.ReasonStatic,
+			name: "scalar flag", flag: trackedFlag, wantReason: flagdef.ReasonStatic, wantValueKind: kindBool,
 			run: func(eval *flagruntime.Evaluator) any {
 				res, _ := eval.RawVariation(set, trackedFlag, ctx, nil)
 
@@ -255,7 +284,10 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			},
 		},
 		{
-			name: "object value, raw", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch,
+			name:          "object value, raw",
+			flag:          objectFlag,
+			wantReason:    flagdef.ReasonTargetingMatch,
+			wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
 				res, _ := eval.RawVariation(set, objectFlag, ctx, nil)
 
@@ -263,7 +295,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			},
 		},
 		{
-			name: "typed object", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch,
+			name: "typed object", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
 				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
 
@@ -272,7 +304,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		},
 		{
 			name: "typed scheduled object", flag: "scheduled-tracked-object-flag", snapshot: true,
-			wantReason: flagdef.ReasonStatic, wantScheduled: true,
+			wantReason: flagdef.ReasonStatic, wantScheduled: true, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
 				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ctx, nil)
 
@@ -281,7 +313,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		},
 		{
 			name: "missing flag, typed with a default", flag: missingKey, snapshot: true, def: newDefault(),
-			wantReason: flagdef.ReasonError, wantErrorCode: flagdef.ErrorCodeFlagNotFound,
+			wantReason: flagdef.ReasonError, wantErrorCode: flagdef.ErrorCodeFlagNotFound, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
 				res, _ := eval.JSONVariationDetails(set, missingKey, ctx, newDefault())
 
@@ -296,6 +328,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		assert.Equal(t, tt.wantReason, res.Reason, tt.name)
 		assert.Equal(t, tt.wantErrorCode, res.ErrorCode, tt.name)
 		assert.True(t, res.TrackEvents, "%s: the evaluation is tracked", tt.name)
+		assert.Equal(t, tt.wantValueKind, valueKind(res.Value), "%s: the kind of the value", tt.name)
 
 		if flag, found := set.Flag(tt.flag); found {
 			assert.Equal(t, tt.wantScheduled, flag.Scheduled != nil, "%s: the path of the flag", tt.name)

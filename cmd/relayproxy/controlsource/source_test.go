@@ -41,48 +41,61 @@ func TestContent_MapsEveryState(t *testing.T) {
 	sum := controlplane.ChecksumOf(data)
 
 	tests := []struct {
-		name       string
-		wantState  flagruntime.ObjectState
-		wantReason string
-		in         manifestreader.ObjectState
-		wantBytes  bool
+		name        string
+		wantState   flagruntime.ObjectState
+		wantReason  string
+		wantInState manifestreader.State
+		in          manifestreader.ObjectState
+		wantBytes   bool
 	}{
-		{name: "ok", in: flagsObject(data), wantState: flagruntime.ObjectOK, wantBytes: true},
 		{
-			name:      "stale keeps its bytes and its own checksum",
-			in:        failed(data, manifestreader.StateStale, manifestreader.ReasonChecksumMismatch),
-			wantState: flagruntime.ObjectStale, wantReason: manifestreader.ReasonChecksumMismatch, wantBytes: true,
+			name: "ok", in: flagsObject(data), wantState: flagruntime.ObjectOK, wantBytes: true,
+			wantInState: manifestreader.StateOK,
 		},
 		{
-			name:      "stale because of an error",
-			in:        failed(data, manifestreader.StateStale, "error"),
-			wantState: flagruntime.ObjectStale, wantReason: "error", wantBytes: true,
+			name:        "stale keeps its bytes and its own checksum",
+			wantInState: manifestreader.StateStale,
+			in:          failed(data, manifestreader.StateStale, manifestreader.ReasonChecksumMismatch),
+			wantState:   flagruntime.ObjectStale, wantReason: manifestreader.ReasonChecksumMismatch, wantBytes: true,
 		},
 		{
-			name:      "missing",
-			in:        failed(data, manifestreader.StateMissing, manifestreader.ReasonMissing),
-			wantState: flagruntime.ObjectMissing, wantReason: manifestreader.ReasonMissing,
+			name:        "stale because of an error",
+			wantInState: manifestreader.StateStale,
+			in:          failed(data, manifestreader.StateStale, "error"),
+			wantState:   flagruntime.ObjectStale, wantReason: "error", wantBytes: true,
 		},
 		{
-			name:      "missing, not restored",
-			in:        failed(data, manifestreader.StateMissing, manifestreader.ReasonNotRestored),
-			wantState: flagruntime.ObjectMissing, wantReason: manifestreader.ReasonNotRestored,
+			name:        "missing",
+			wantInState: manifestreader.StateMissing,
+			in:          failed(data, manifestreader.StateMissing, manifestreader.ReasonMissing),
+			wantState:   flagruntime.ObjectMissing, wantReason: manifestreader.ReasonMissing,
 		},
 		{
-			name:      "missing, too large",
-			in:        failed(data, manifestreader.StateMissing, manifestreader.ReasonTooLarge),
-			wantState: flagruntime.ObjectMissing, wantReason: manifestreader.ReasonTooLarge,
+			name:        "missing, not restored",
+			wantInState: manifestreader.StateMissing,
+			in:          failed(data, manifestreader.StateMissing, manifestreader.ReasonNotRestored),
+			wantState:   flagruntime.ObjectMissing, wantReason: manifestreader.ReasonNotRestored,
 		},
 		{
-			name:      "a state this version does not know is missing",
-			in:        failed(data, manifestreader.State("future"), "later"),
-			wantState: flagruntime.ObjectMissing, wantReason: "later", wantBytes: true,
+			name:        "missing, too large",
+			wantInState: manifestreader.StateMissing,
+			in:          failed(data, manifestreader.StateMissing, manifestreader.ReasonTooLarge),
+			wantState:   flagruntime.ObjectMissing, wantReason: manifestreader.ReasonTooLarge,
+		},
+		{
+			name:        "a state this version does not know is missing",
+			wantInState: manifestreader.State("future"),
+			in:          failed(data, manifestreader.State("future"), "later"),
+			wantState:   flagruntime.ObjectMissing, wantReason: "later", wantBytes: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			assert.Equal(t, tt.wantInState, tt.in.State, "the state of the input")
+			assert.Equal(t, tt.in.State != manifestreader.StateMissing, len(tt.in.Bytes) > 0, "the input carries bytes")
 
 			got := controlsource.Content(snapshot(9, map[string]manifestreader.ObjectState{objA: tt.in}))
 
