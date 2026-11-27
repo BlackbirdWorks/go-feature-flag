@@ -287,6 +287,11 @@ tasks:
     cmds:
       - ./openfeature/provider_tests/integration_tests.sh
 
+  ofrep-conformance:
+    desc: Run the OFREP OpenAPI conformance test suite against the relay proxy
+    cmds:
+      - 'CGO_ENABLED=1 GO111MODULE=on GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -v -race -count=1 ./openfeature/provider_tests/ofrep-conformance/...'
+
   coverage:
     desc: Run every test suite with coverage, merge the profiles and report line coverage (needs docker)
     cmds:
