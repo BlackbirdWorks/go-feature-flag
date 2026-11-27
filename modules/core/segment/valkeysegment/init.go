@@ -144,28 +144,22 @@ func (p *Provider) Exists(ctx context.Context, names []string) ([]segment.State,
 // askExists sends the EXISTS of the set segments of names in one DoMulti and fills out. A panic of the client is
 // recovered: out is left all Unknown.
 func (p *Provider) askExists(ctx context.Context, names []string, out []segment.State) (err error) {
-	var (
-		cmds  []valkey.Completed
-		slots []int
-	)
+	asked := 0
 
-	builder := p.client.B()
-
-	for i, name := range names {
+	for _, name := range names {
 		if cfg := p.segs[name]; cfg != nil && cfg.layout == LayoutSet {
-			cmds = append(cmds, builder.Exists().Key(cfg.key).Build())
-			slots = append(slots, i)
+			asked++
 		}
 	}
 
-	if len(cmds) == 0 {
+	if asked == 0 {
 		return nil
 	}
 
 	if ctx.Err() != nil {
 		p.record(ClassCanceled)
 
-		return &LookupError{Class: ClassCanceled, Failed: len(cmds), Total: len(names)}
+		return &LookupError{Class: ClassCanceled, Failed: asked, Total: len(names)}
 	}
 
 	defer func() {
@@ -174,9 +168,20 @@ func (p *Provider) askExists(ctx context.Context, names []string, out []segment.
 
 			clear(out)
 
-			err = &LookupError{Class: ClassUnavailable, Failed: len(cmds), Total: len(names)}
+			err = &LookupError{Class: ClassUnavailable, Failed: asked, Total: len(names)}
 		}
 	}()
+
+	cmds := make([]valkey.Completed, 0, asked)
+	slots := make([]int, 0, asked)
+	builder := p.client.B()
+
+	for i, name := range names {
+		if cfg := p.segs[name]; cfg != nil && cfg.layout == LayoutSet {
+			cmds = append(cmds, builder.Exists().Key(cfg.key).Build())
+			slots = append(slots, i)
+		}
+	}
 
 	callCtx, cancel := p.callContext(ctx)
 	defer cancel()
@@ -208,6 +213,17 @@ func (r *result) readExists(out []segment.State, slots []int, results []valkey.V
 			r.fail(len(results), ClassProtocol)
 
 			return
+		}
+	}
+
+	for i := range results {
+		if results[i].Error() == nil {
+			_, err := flag(results[i])
+			if err != nil { // a reply of the wrong shape: nothing of the call is trusted
+				r.fail(len(results), ClassProtocol)
+
+				return
+			}
 		}
 	}
 

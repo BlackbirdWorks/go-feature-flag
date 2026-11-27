@@ -66,7 +66,7 @@ var (
 	errInvalidMissing    = errors.New("missing key must be unknown or notMember")
 	errInvalidName       = errors.New("invalid segment name")
 	errNegativeBlocking  = errors.New("blocking pipeline is negative")
-	errInvalidPipelining = errors.New("pipelining must be always, auto or off")
+	errInvalidPipelining = errors.New("pipelining must be always or auto")
 	errInvalidLayout     = errors.New("layout must be set or keys")
 )
 

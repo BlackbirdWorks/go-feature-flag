@@ -33,9 +33,14 @@ type fakeClient struct {
 	inner  valkey.Client
 	mutate func([]valkey.ValkeyResult) []valkey.ValkeyResult
 	panics bool
+	panicB bool
 }
 
 func (f *fakeClient) B() valkey.Builder {
+	if f.panicB {
+		panic("client bug")
+	}
+
 	if f.inner != nil {
 		return f.inner.B()
 	}
@@ -82,7 +87,7 @@ func replace(pos int, err error) func([]valkey.ValkeyResult) []valkey.ValkeyResu
 func TestContainsKeepsWhatWasAnswered(t *testing.T) {
 	t.Parallel()
 
-	// commands: 0 SMISMEMBER beta, 1 EXISTS beta, 2 EXISTS flag:alice
+	// commands: 0 EXISTS beta, 1 SMISMEMBER beta, 2 EXISTS flag:alice
 	lookups := func() []segment.Lookup {
 		return []segment.Lookup{lk(segBeta, idAlice), lk(segFlags, idAlice), lk(segBeta, "zed")}
 	}
@@ -110,10 +115,17 @@ func TestContainsKeepsWhatWasAnswered(t *testing.T) {
 		},
 		{
 			name:       "a closing client is unavailable",
-			mutate:     replace(0, valkey.ErrClosing),
+			mutate:     replace(1, valkey.ErrClosing),
 			wantStates: []segment.State{segment.Unknown, segment.Member, segment.Unknown},
 			wantClass:  valkeysegment.ClassUnavailable,
 			wantFailed: 2,
+		},
+		{
+			name:       "a slot without a node is unavailable",
+			mutate:     replace(2, valkey.ErrNoSlot),
+			wantStates: []segment.State{segment.Member, segment.Unknown, segment.NotMember},
+			wantClass:  valkeysegment.ClassUnavailable,
+			wantFailed: 1,
 		},
 		{
 			name:       "a network timeout is a timeout",
@@ -145,7 +157,7 @@ func TestContainsKeepsWhatWasAnswered(t *testing.T) {
 		},
 		{
 			name:       "a failed key check leaves the non-members unknown and keeps the members",
-			mutate:     replace(1, io.EOF),
+			mutate:     replace(0, io.EOF),
 			wantStates: []segment.State{segment.Member, segment.Member, segment.Unknown},
 			wantClass:  valkeysegment.ClassUnavailable,
 			wantFailed: 1,
@@ -288,12 +300,6 @@ func TestAConnectionCutInsideABatch(t *testing.T) {
 			wantStates: []segment.State{segment.Unknown, segment.Unknown, segment.Unknown},
 			wantFailed: 3,
 		},
-		{
-			name:       "off loses the whole batch",
-			pipelining: valkeysegment.PipeliningOff,
-			wantStates: []segment.State{segment.Unknown, segment.Unknown, segment.Unknown},
-			wantFailed: 3,
-		},
 	}
 
 	for _, tt := range tests {
@@ -321,4 +327,19 @@ func TestAConnectionCutInsideABatch(t *testing.T) {
 			assert.Equal(t, map[string]uint64{"unavailable": 1}, counters.Snapshot().Failures)
 		})
 	}
+}
+
+func TestExistsRecoversAPanicOfTheBuilder(t *testing.T) {
+	t.Parallel()
+
+	client := faulty(t, loaded(t), nil)
+	client.panicB = true
+
+	prov, err := valkeysegment.New(client, baseOptions(nil))
+	require.NoError(t, err)
+
+	got, err := prov.Exists(context.Background(), []string{segBeta, segGhost, segFlags})
+
+	assert.Equal(t, &valkeysegment.LookupError{Class: valkeysegment.ClassUnavailable, Failed: 2, Total: 3}, err)
+	assert.Equal(t, []segment.State{segment.Unknown, segment.Unknown, segment.Unknown}, got)
 }

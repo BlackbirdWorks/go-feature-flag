@@ -138,8 +138,8 @@ func cmp(val, def string) string {
 	return val
 }
 
-// Dial creates a valkey-go client from clientOpt and the client settings of opts (Pipelining, ClientSideCache,
-// Retry and BlockingPipeline; their defaults are the safe ones) and returns a Provider that owns it: Close closes
+// Dial creates a valkey-go client from clientOpt and the client settings of opts (Pipelining, Retry and
+// BlockingPipeline; their defaults are the safe ones) and returns a Provider that owns it: Close closes
 // the client. The settings override the same fields of clientOpt: see [Options] for what each one trades.
 func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	if clientOpt == nil {
@@ -151,6 +151,11 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	}
 
 	err := opts.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	err = opts.validateClient()
 	if err != nil {
 		return nil, err
 	}
@@ -177,10 +182,10 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 // buildClientOption returns the valkey-go options that Dial uses: clientOpt with the client settings of opts.
 func buildClientOption(clientOpt *valkey.ClientOption, opts *Options) valkey.ClientOption {
 	owned := *clientOpt
-	owned.DisableCache = !opts.ClientSideCache
+	owned.DisableCache = true // lookups use DoMulti, which is never cached: the resolver caches
 	owned.DisableRetry = !opts.Retry
 	owned.AlwaysPipelining = opts.Pipelining == "" || opts.Pipelining == PipeliningAlways
-	owned.DisableAutoPipelining = opts.Pipelining == PipeliningOff
+	owned.DisableAutoPipelining = false
 	owned.BlockingPipeline = opts.BlockingPipeline
 
 	if owned.BlockingPipeline == 0 {
@@ -318,7 +323,7 @@ func isMalformed(err error) bool {
 func isTransportErr(err error) bool {
 	for _, sentinel := range [...]error{
 		io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, context.Canceled, context.DeadlineExceeded,
-		syscall.ECONNRESET, syscall.EPIPE, valkey.ErrClosing, valkey.ErrNoAddr,
+		syscall.ECONNRESET, syscall.EPIPE, valkey.ErrClosing, valkey.ErrNoAddr, valkey.ErrNoSlot,
 	} {
 		if errors.Is(err, sentinel) {
 			return true
@@ -380,20 +385,47 @@ func (r *result) read(lookups []segment.Lookup, steps []step, results []valkey.V
 		}
 	}
 
+	// a reply of the wrong shape anywhere means that nothing of the call is trusted, as a malformed one does
+	for i, each := range steps {
+		if !shapeOK(&each, results[i]) {
+			r.fail(sent(steps), ClassProtocol)
+
+			return
+		}
+	}
+
 	for i, each := range steps {
 		switch each.kind {
 		case kindKey:
 			r.readKey(&each, lookups, results[i])
 		case kindMembers:
 			var exists *valkey.ValkeyResult
-			if i+1 < len(steps) && steps[i+1].kind == kindSetExists {
-				exists = &results[i+1]
+			if i > 0 && steps[i-1].kind == kindSetExists {
+				exists = &results[i-1]
 			}
 
 			r.readMembers(&each, lookups, results[i], exists)
 		case kindSetExists:
 		}
 	}
+}
+
+// shapeOK tells whether a reply that is not an error has the shape that its command returns. An error reply or a
+// transport error is not a shape problem: it fails its own command only.
+func shapeOK(each *step, res valkey.ValkeyResult) bool {
+	if res.Error() != nil {
+		return true
+	}
+
+	if each.kind == kindMembers {
+		_, err := parseMembers(res, len(each.idx))
+
+		return err == nil
+	}
+
+	_, err := flag(res)
+
+	return err == nil
 }
 
 // sent is the number of lookups that a call put on the wire.
@@ -410,7 +442,7 @@ func sent(steps []step) int {
 }
 
 func flag(res valkey.ValkeyResult) (bool, error) {
-	val, err := res.AsInt64()
+	val, err := res.ToInt64() // an integer reply only: AsInt64 would also read a bulk string
 	if err != nil {
 		return false, err //nolint:wrapcheck // valkey.IsValkeyErr type-asserts the error: it must stay unwrapped
 	}
@@ -424,13 +456,26 @@ func flag(res valkey.ValkeyResult) (bool, error) {
 
 // parseMembers reads the reply of an SMISMEMBER of want ids: a list of that many integers, each 0 or 1.
 func parseMembers(res valkey.ValkeyResult, want int) ([]int64, error) {
-	replies, err := res.AsIntSlice()
+	items, err := res.ToArray()
 	if err != nil {
 		return nil, err //nolint:wrapcheck // valkey.IsValkeyErr type-asserts the error: it must stay unwrapped
 	}
 
-	if len(replies) != want || slices.ContainsFunc(replies, func(v int64) bool { return v != 0 && v != 1 }) {
+	if len(items) != want {
 		return nil, ErrProtocol
+	}
+
+	replies := make([]int64, len(items))
+
+	for pos := range items {
+		replies[pos], err = items[pos].ToInt64() // an integer only: a null or a string is not a reply
+		if err != nil {
+			return nil, ErrProtocol
+		}
+
+		if replies[pos] != 0 && replies[pos] != 1 {
+			return nil, ErrProtocol
+		}
 	}
 
 	return replies, nil
@@ -550,7 +595,13 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 
 	p.stopStore()
 
-	p.Close()
+	if waitErr != nil {
+		// valkey-go can wait for its own timer when it closes a connection of a silent peer: not behind the
+		// deadline of the caller. closeOnce makes the close happen once, and it ends by itself.
+		go p.Close()
+	} else {
+		p.Close()
+	}
 
 	return waitErr
 }
@@ -598,12 +649,14 @@ func (p *Provider) plan(lookups []segment.Lookup, obs *Observation) []step {
 
 	withKeys := make([]step, 0, len(steps)*stepsPerSet)
 
+	// the key check comes first: a set that is created between the two commands is then Unknown or answered by
+	// SMISMEMBER, never a NotMember that matches no state of the set
 	for _, each := range steps {
-		withKeys = append(withKeys, each)
-
 		if each.kind == kindMembers {
 			withKeys = append(withKeys, step{cfg: each.cfg, kind: kindSetExists, idx: each.idx})
 		}
+
+		withKeys = append(withKeys, each)
 	}
 
 	return withKeys

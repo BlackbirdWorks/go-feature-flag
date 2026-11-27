@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	replyOne        = ":1\r\n"
 	segBeta         = "beta"
 	segGhost        = "ghost"
 	segFlags        = "flags"
@@ -518,25 +519,62 @@ func TestContainsContext(t *testing.T) {
 func TestShutdownIsBounded(t *testing.T) {
 	t.Parallel()
 
-	srv := loaded(t)
-	prov := newProvider(t, srv, baseOptions(nil))
-	entered := srv.Hang()
-	errs := make(chan error, 1)
+	tests := []struct {
+		wantErr    error
+		name       string
+		pipelining valkeysegment.Pipelining
+	}{
+		{
+			name:       "always ends the call in flight as canceled",
+			pipelining: valkeysegment.PipeliningAlways,
+			wantErr:    valkeysegment.ErrCanceled,
+		},
+		{
+			name:       "auto ends the call in flight when the client closes",
+			pipelining: valkeysegment.PipeliningAuto,
+			wantErr:    valkeysegment.ErrUnavailable,
+		},
+	}
 
-	go func() { errs <- prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}) }()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	<-entered
+			srv := loaded(t)
+			opts := baseOptions(nil)
+			opts.Pipelining = tt.pipelining
+			prov := newProvider(t, srv, opts)
+			entered := srv.Hang()
+			errs := make(chan error, 1)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Shutdown has no time to wait
+			go func() { errs <- prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}) }()
 
-	require.ErrorIs(t, prov.Shutdown(ctx), context.Canceled, "Shutdown gives up when its context ends")
+			select {
+			case <-entered:
+			case err := <-errs:
+				require.Fail(t, "the call ended before the server got the command", "%v", err)
+			case <-time.After(callTimeout):
+				require.Fail(t, "the server did not get the command")
+			}
 
-	select {
-	case err := <-errs:
-		require.ErrorIs(t, err, valkeysegment.ErrCanceled, "the call in flight was ended by Shutdown")
-	case <-time.After(callTimeout):
-		assert.Fail(t, "the call in flight was not ended by Shutdown")
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel() // Shutdown has no time to wait
+
+			require.ErrorIs(t, prov.Shutdown(ctx), context.Canceled, "Shutdown gives up when its context ends")
+
+			select {
+			case err := <-errs:
+				require.ErrorIs(t, err, tt.wantErr, "the call in flight was ended by Shutdown")
+			case <-time.After(callTimeout):
+				assert.Fail(t, "the call in flight was not ended by Shutdown")
+			}
+
+			// after a Shutdown that timed out the provider is closed for every later call
+			lookups := []segment.Lookup{lk(segBeta, idAlice)}
+
+			require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrClosed)
+			require.ErrorIs(t, prov.Init(context.Background()), valkeysegment.ErrClosed)
+		})
 	}
 }
 
@@ -673,6 +711,14 @@ func TestInit(t *testing.T) {
 			wantExists:  2,
 		},
 		{
+			name:        "EXISTS answers a bulk string",
+			arrange:     func(s *stubServer) { s.answerOnly("exists", "$1\r\n1\r\n") },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
 			name:        "ping answers something else",
 			arrange:     func(s *stubServer) { s.pongWith("+NOPE\r\n") },
 			wantErr:     valkeysegment.ErrProtocol,
@@ -788,16 +834,6 @@ func TestOptionsValidation(t *testing.T) {
 	}{
 		{name: "defaults", opts: &valkeysegment.Options{}},
 		{name: "negative timeout", opts: &valkeysegment.Options{Timeout: -1}, wantErr: "timeout is negative"},
-		{
-			name:    "bad pipelining",
-			opts:    &valkeysegment.Options{Pipelining: "x"},
-			wantErr: `pipelining must be always, auto or off, got "x"`,
-		},
-		{
-			name:    "negative blocking pipeline",
-			opts:    &valkeysegment.Options{BlockingPipeline: -1},
-			wantErr: "blocking pipeline is negative",
-		},
 		{name: "negative max id", opts: &valkeysegment.Options{MaxIDBytes: -1}, wantErr: "max id bytes is negative"},
 		{
 			name:    "bad missing key",
@@ -846,11 +882,173 @@ func TestDialDoesNotUseCachingOrRetryByDefault(t *testing.T) {
 	require.NoError(t, prov.Init(context.Background()))
 	assert.Zero(t, srv.count("client tracking"), "no client-side caching")
 
-	before := srv.count("smismember")
+	before := srv.count("exists")
 
 	srv.Fail()
 
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrUnavailable)
-	assert.Equal(t, 1, srv.count("smismember")-before, "a failed read is not sent again")
+	assert.Equal(
+		t,
+		1,
+		srv.count("exists")-before,
+		"a failed read is not sent again (the key check is the first command)",
+	)
+}
+
+func TestDialValidatesTheClientSettingsAndNewIgnoresThem(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		wantErr string
+		opts    valkeysegment.Options
+	}{
+		{
+			name:    "bad pipelining",
+			opts:    valkeysegment.Options{Pipelining: "off"},
+			wantErr: `pipelining must be always or auto, got "off"`,
+		},
+		{
+			name:    "negative blocking pipeline",
+			opts:    valkeysegment.Options{BlockingPipeline: -1},
+			wantErr: "blocking pipeline is negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := valkeysegment.Dial(loaded(t).clientOption(), &tt.opts)
+
+			require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+			assert.Contains(t, err.Error(), tt.wantErr)
+
+			prov, newErr := valkeysegment.New(&fakeClient{}, &tt.opts)
+
+			require.NoError(t, newErr, "a client that you pass is not configured by these fields")
+			assert.NotNil(t, prov)
+		})
+	}
+}
+
+func TestContainsTrustsNothingOfABatchWithAWrongShape(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		replies    []string
+		lookups    []segment.Lookup
+		wantStates []segment.State
+		wantFailed int
+	}{
+		{
+			name:       "EXISTS 1 then 7 keeps neither",
+			replies:    []string{replyOne, ":7\r\n"},
+			lookups:    []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed")},
+			wantStates: []segment.State{segment.Unknown, segment.Unknown},
+			wantFailed: 2,
+		},
+		{
+			name:       "EXISTS as a bulk string is not an integer",
+			replies:    []string{"$1\r\n1\r\n"},
+			lookups:    []segment.Lookup{lk(segFlags, idAlice)},
+			wantStates: []segment.State{segment.Unknown},
+			wantFailed: 1,
+		},
+		{
+			name:       "a null element of SMISMEMBER is not a 0",
+			replies:    []string{replyOne, "*1\r\n_\r\n"},
+			lookups:    []segment.Lookup{lk(segBeta, "zed")},
+			wantStates: []segment.State{segment.Unknown},
+			wantFailed: 1,
+		},
+		{
+			name:       "a bulk string element of SMISMEMBER is not an integer",
+			replies:    []string{replyOne, "*1\r\n$1\r\n1\r\n"},
+			lookups:    []segment.Lookup{lk(segBeta, idAlice)},
+			wantStates: []segment.State{segment.Unknown},
+			wantFailed: 1,
+		},
+		{
+			name:       "a good SMISMEMBER next to a bad EXISTS keeps neither",
+			replies:    []string{replyOne, "*1\r\n:1\r\n", ":7\r\n"},
+			lookups:    []segment.Lookup{lk(segBeta, idAlice), lk(segFlags, idAlice)},
+			wantStates: []segment.State{segment.Unknown, segment.Unknown},
+			wantFailed: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := loaded(t)
+			prov := newProvider(t, srv, baseOptions(nil))
+
+			require.NoError(t, prov.Init(context.Background()))
+			srv.answerSequence(tt.replies...)
+
+			err := prov.Contains(context.Background(), tt.lookups)
+
+			assert.Equal(t, &valkeysegment.LookupError{
+				Class: valkeysegment.ClassProtocol, Failed: tt.wantFailed, Total: len(tt.lookups),
+			}, err)
+			assert.Equal(t, tt.wantStates, states(tt.lookups))
+		})
+	}
+}
+
+func TestAKeyThatAppearsBetweenTheCheckAndTheLookupIsNeverANonMember(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		replies    []string
+		wantStates []segment.State
+	}{
+		{
+			name:       "created after the key check, the member is a member",
+			replies:    []string{":0\r\n", "*1\r\n:1\r\n"},
+			wantStates: []segment.State{segment.Member},
+		},
+		{
+			name:       "created after the key check, a non-member stays unknown",
+			replies:    []string{":0\r\n", "*1\r\n:0\r\n"},
+			wantStates: []segment.State{segment.Unknown},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := loaded(t)
+			prov := newProvider(t, srv, baseOptions(nil))
+
+			require.NoError(t, prov.Init(context.Background()))
+			srv.answerSequence(tt.replies...)
+
+			lookups := []segment.Lookup{lk(segBeta, "zed")}
+
+			require.NoError(t, prov.Contains(context.Background(), lookups))
+			assert.Equal(t, tt.wantStates, states(lookups))
+		})
+	}
+}
+
+func TestExistsTrustsNothingOfABatchWithAWrongShape(t *testing.T) {
+	t.Parallel()
+
+	srv := loaded(t)
+	prov := newProvider(t, srv, baseOptions(nil))
+
+	require.NoError(t, prov.Init(context.Background()))
+	srv.answerSequence(replyOne, ":7\r\n")
+
+	got, err := prov.Exists(context.Background(), []string{segBeta, segGhost})
+
+	assert.Equal(t, &valkeysegment.LookupError{Class: valkeysegment.ClassProtocol, Failed: 2, Total: 2}, err)
+	assert.Equal(t, []segment.State{segment.Unknown, segment.Unknown}, got)
 }
