@@ -27,6 +27,7 @@ const (
 	versionFlag = "--version"
 	helpFlag    = "--help"
 
+	testVersion   = "v1.2.3"
 	stateDirValue = "/var/s"
 	helpName      = "help"
 
@@ -79,7 +80,7 @@ func TestParseCommandLineHelpAndVersion(t *testing.T) {
 func TestVersionText(t *testing.T) {
 	t.Parallel()
 
-	got := versionText(Build{Version: "v1.2.3"})
+	got := versionText(Build{Version: testVersion})
 	assert.True(t, strings.HasPrefix(got, "semaphore "), got)
 	assert.Contains(t, got, "\nfips140: false\n")
 }
@@ -191,9 +192,8 @@ func TestHelpGolden(t *testing.T) {
 			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
 
 			assert.Equal(t, tt.wantCode, code)
-			// kong wraps the help at the width of the terminal (COLUMNS): the text is compared without its wrapping
-			assert.Equal(t, unwrapped(tt.wantStdout), unwrapped(stdout.String()))
-			assert.Equal(t, unwrapped(tt.wantStderr), unwrapped(stderr.String()))
+			assert.Equal(t, tt.wantStdout, stdout.String())
+			assert.Equal(t, tt.wantStderr, stderr.String())
 		})
 	}
 }
@@ -222,7 +222,7 @@ func TestMain_Process(t *testing.T) {
 
 			var stdout, stderr bytes.Buffer
 
-			code := Main(t.Context(), tt.args, &stdout, &stderr, noEnv, Build{Version: "v1.2.3"})
+			code := Main(t.Context(), tt.args, &stdout, &stderr, noEnv, Build{Version: testVersion})
 
 			assert.Equal(t, tt.wantCode, code)
 			assert.Contains(t, stdout.String(), tt.wantStdout)
@@ -231,5 +231,48 @@ func TestMain_Process(t *testing.T) {
 	}
 }
 
-// unwrapped collapses every run of white space, so that the wrapping of the help does not matter.
-func unwrapped(text string) string { return strings.Join(strings.Fields(text), " ") }
+// Main hands its environment lookup to the loader: SEMAPHORE_CONFIG names the file, and an override variable is
+// applied to it.
+func TestMainForwardsTheEnvironment(t *testing.T) {
+	t.Parallel()
+
+	file := filepath.Join(t.TempDir(), "bootstrap.yaml")
+	require.NoError(t, os.WriteFile(file, []byte(bootstrapDoc(t.TempDir(), "")), 0o600))
+
+	missing := filepath.Join(t.TempDir(), "missing.yaml")
+
+	tests := []struct {
+		env        map[string]string
+		name       string
+		wantStderr string
+	}{
+		{
+			name:       "the file of SEMAPHORE_CONFIG",
+			env:        map[string]string{"SEMAPHORE_CONFIG": missing},
+			wantStderr: missing,
+		},
+		{
+			name:       "an override variable reaches the loader",
+			env:        map[string]string{"SEMAPHORE_CONFIG": file, "SEMAPHORE_LOG_LEVEL": "loud"},
+			wantStderr: "set by environment variable SEMAPHORE_LOG_LEVEL",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderr bytes.Buffer
+
+			lookup := func(name string) (string, bool) {
+				value, ok := tt.env[name]
+
+				return value, ok
+			}
+
+			code := Main(t.Context(), nil, &bytes.Buffer{}, &stderr, lookup, Build{Version: testVersion})
+
+			assert.Equal(t, 1, code)
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+		})
+	}
+}

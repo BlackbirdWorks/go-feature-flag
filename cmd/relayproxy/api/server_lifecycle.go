@@ -270,17 +270,21 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	s.stop()
 
+	// StartWithContext records that it started before it looks at stopRequested, and Shutdown closes stopRequested
+	// before it looks at started: whichever comes second sees the other. A server that never started has nothing to
+	// wait for, and a start that comes later returns at once because stopRequested is closed.
+	if !s.shutdown.started.Load() {
+		return nil
+	}
+
 	select {
 	case <-s.stopped:
 	case <-ctx.Done():
 		s.logger.LogAttrs(
 			context.WithoutCancel(ctx), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
 
-		// the servers close hard as soon as the context is done, which does not wait for the requests; a server
-		// that has not started has nothing to wait for (stopped closes only when StartWithContext returns)
-		if s.shutdown.started.Load() {
-			<-s.stopped
-		}
+		// the servers close hard as soon as the context is done, which does not wait for the requests
+		<-s.stopped
 
 		return fmt.Errorf("%w: %d request(s) in flight: %w", ErrCut, s.shutdown.cutCount(), ctx.Err())
 	}

@@ -1,21 +1,14 @@
 Usage: semaphore [flags]
 
-Semaphore relay proxy: serves feature flags over OFREP from a version 2
-bootstrap file.
+Semaphore relay proxy: serves feature flags over OFREP from a version 2 bootstrap file.
 
 Flags:
-      --state-dir=DIR        controlPlane.stateDir, empty for no state directory
-                             (or SEMAPHORE_STATE_DIR)
-      --config=FILE          Location of the version 2 bootstrap file (or
-                             SEMAPHORE_CONFIG)
-      --log-level=LEVEL      observability.logging.level (or
-                             SEMAPHORE_LOG_LEVEL)
-      --log-format=FORMAT    observability.logging.format (or
-                             SEMAPHORE_LOG_FORMAT)
-      --listen=ADDR          Address of the api listener (or SEMAPHORE_LISTEN)
-      --ops-listen=ADDR      Address of the ops listener (or
-                             SEMAPHORE_OPS_LISTEN)
-      --manifest-key=KEY     controlPlane.manifest.key (or
-                             SEMAPHORE_MANIFEST_KEY)
-  -v, --version              Print the version and exit
-  -h, --help                 Print this help and exit (wins over --version)
+      --state-dir=DIR      controlPlane.stateDir, empty for no state directory (or SEMAPHORE_STATE_DIR)
+      --config=FILE        Location of the version 2 bootstrap file (or SEMAPHORE_CONFIG)
+      --log-level=LEVEL    observability.logging.level (or SEMAPHORE_LOG_LEVEL)
+      --log-format=FORMAT  observability.logging.format (or SEMAPHORE_LOG_FORMAT)
+      --listen=ADDR        Address of the api listener (or SEMAPHORE_LISTEN)
+      --ops-listen=ADDR    Address of the ops listener (or SEMAPHORE_OPS_LISTEN)
+      --manifest-key=KEY   controlPlane.manifest.key (or SEMAPHORE_MANIFEST_KEY)
+  -v, --version            Print the version and exit
+  -h, --help               Print this help and exit (wins over --version)
