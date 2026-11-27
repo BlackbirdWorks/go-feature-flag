@@ -29,6 +29,7 @@ const (
 	inHeader    = "header"
 	inQuery     = "query"
 	typeString  = "string"
+	typeObject  = "object"
 	contentJSON = "application/json"
 	etagExample = `Etag: "117-0193435c612c50d93b798619d9464856263dbf9f"`
 )
@@ -332,6 +333,44 @@ func operationMetrics() *huma.Operation {
 			},
 		},
 	}
+}
+
+func probeOperation(id, path, summary, description string) *huma.Operation {
+	return &huma.Operation{
+		OperationID: id, Method: http.MethodGet, Path: path, Summary: summary, Tags: []string{tagMonitoring},
+		Description: description,
+		Responses: map[string]*huma.Response{
+			statusKey(http.StatusOK): {
+				Description: "OK",
+				Content:     map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{Type: typeObject}}},
+			},
+			statusKey(http.StatusServiceUnavailable): {
+				Description: "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}",
+				Content:     map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{Type: typeObject}}},
+			},
+		},
+	}
+}
+
+func operationLivez() *huma.Operation {
+	op := probeOperation("livez", "/livez", "Liveness",
+		"200 `{\"live\": true}` while the process serves. It never depends on the control plane or any flag set. "+
+			"Served by the config v2 runtime. No API key.")
+	delete(op.Responses, statusKey(http.StatusServiceUnavailable))
+
+	return op
+}
+
+func operationReadyz() *huma.Operation {
+	return probeOperation("readyz", "/readyz", "Readiness",
+		"200 `{\"ready\": true, \"state\": \"empty|serving|degraded\"}` when the relay is able to serve, else 503 "+
+			"with a reason. Once ready the relay stays ready until shutdown. Served by the config v2 runtime. No API key.")
+}
+
+func operationStartupz() *huma.Operation {
+	return probeOperation("startupz", "/startupz", "Startup",
+		"200 once the bootstrap snapshot is applied, else 503 `{\"ready\": false, \"reason\": \"starting\"}`. "+
+			"Served by the config v2 runtime. No API key.")
 }
 
 func operationPprof() *huma.Operation {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -53,6 +55,48 @@ type Status struct {
 	Events events.Status `json:"events"`
 	// Source is the status of the reader, the engine and the running runtime.
 	Source controlsource.Status `json:"source"`
+	// Reloads counts the rounds of the engine by outcome since the core was built.
+	Reloads ReloadStats `json:"reloads"`
+	// ShuttingDown is true from the first call of [Core.Shutdown].
+	ShuttingDown bool `json:"shuttingDown"`
+}
+
+// ReloadStats counts the rounds of the engine (the bootstrap round, every manifest generation and every reload of
+// the file) by outcome.
+type ReloadStats struct {
+	// LastSuccess is the time of the last applied round, zero when none was applied.
+	LastSuccess time.Time `json:"lastSuccess"`
+	// Applied, Rejected and Ignored count the rounds by outcome.
+	Applied  uint64 `json:"applied"`
+	Rejected uint64 `json:"rejected"`
+	Ignored  uint64 `json:"ignored"`
+}
+
+// reloadCounter keeps the [ReloadStats] with atomics: the engine goroutine writes, Status reads.
+type reloadCounter struct {
+	applied, rejected, ignored atomic.Uint64
+	lastSuccess                atomic.Int64
+}
+
+func (r *reloadCounter) record(res flagruntime.RoundResult) {
+	switch res.Outcome {
+	case flagruntime.OutcomeApplied:
+		r.lastSuccess.Store(clock.Now().UnixNano())
+		r.applied.Add(1)
+	case flagruntime.OutcomeRejected:
+		r.rejected.Add(1)
+	case flagruntime.OutcomeIgnored:
+		r.ignored.Add(1)
+	}
+}
+
+func (r *reloadCounter) stats() ReloadStats {
+	stats := ReloadStats{Applied: r.applied.Load(), Rejected: r.rejected.Load(), Ignored: r.ignored.Load()}
+	if nano := r.lastSuccess.Load(); nano != 0 {
+		stats.LastSuccess = time.Unix(0, nano).UTC()
+	}
+
+	return stats
 }
 
 type phase uint8
@@ -88,6 +132,7 @@ type Core struct {
 	shutdownErr error
 
 	stateDisabled string
+	reloads       reloadCounter
 
 	// mu guards phase and cancel: the one place the lifecycle is decided.
 	mu sync.Mutex
@@ -111,5 +156,8 @@ func (c *Core) Collect(event events.Event) bool { return c.events.Collect(event)
 
 // Status returns a snapshot of the status. It reads atomics and immutable values and never blocks.
 func (c *Core) Status() Status {
-	return Status{StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status()}
+	return Status{
+		StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status(),
+		Reloads: c.reloads.stats(), ShuttingDown: c.shutdownStarted.Load(),
+	}
 }

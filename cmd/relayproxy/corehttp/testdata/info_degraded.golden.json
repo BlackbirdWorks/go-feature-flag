@@ -1,0 +1,80 @@
+{
+  "config": {
+    "lastReload": {
+      "outcome": "applied",
+      "code": "applied",
+      "detail": "",
+      "generation": 3
+    },
+    "staleness": {
+      "ageSeconds": 0
+    },
+    "reloads": {
+      "applied": 4,
+      "ignored": 0,
+      "rejected": 0
+    },
+    "flagSets": [
+      {
+        "name": "shaky",
+        "state": "degraded",
+        "problems": [
+          {
+            "code": "source-degraded",
+            "subject": "flags-bad",
+            "reason": "runtime: decode: decoding the flags: yaml: line 1: did not find expected ',' or ']'"
+          }
+        ],
+        "flags": 9,
+        "apiKeys": 1,
+        "rejected": 0
+      },
+      {
+        "name": "tenant",
+        "state": "ready",
+        "problems": [],
+        "flags": 9,
+        "apiKeys": 1,
+        "rejected": 0
+      }
+    ],
+    "objects": [
+      {
+        "name": "flags-a",
+        "kind": "flags",
+        "state": "ok",
+        "checksumHeld": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
+        "checksumListed": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
+        "flags": 9,
+        "rejected": 0
+      },
+      {
+        "name": "flags-bad",
+        "kind": "flags",
+        "state": "invalid",
+        "reason": "runtime: decode: decoding the flags: yaml: line 1: did not find expected ',' or ']'",
+        "checksumHeld": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
+        "flags": 9,
+        "rejected": 0
+      },
+      {
+        "name": "sets",
+        "kind": "flagSets",
+        "state": "ok",
+        "checksumHeld": "da4326466c7c4952b0946c043846921fbddf3d4095d348bba5959e199692af2c",
+        "checksumListed": "da4326466c7c4952b0946c043846921fbddf3d4095d348bba5959e199692af2c",
+        "flags": 2,
+        "rejected": 0
+      }
+    ],
+    "withdrawn": [
+      {
+        "name": "gone",
+        "generation": 3
+      }
+    ],
+    "pendingRestart": [],
+    "generation": 3,
+    "snapshot": 4
+  }
+}

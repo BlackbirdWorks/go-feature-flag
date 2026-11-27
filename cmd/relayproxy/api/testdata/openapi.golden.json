@@ -65,6 +65,86 @@
         ],
         "type": "object"
       },
+      "ConfigInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "flagSets": {
+            "items": {
+              "$ref": "#/components/schemas/FlagSetInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastRejected": {
+            "$ref": "#/components/schemas/ReloadInfo"
+          },
+          "lastReload": {
+            "$ref": "#/components/schemas/ReloadInfo"
+          },
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/ObjectInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pendingRestart": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "reloads": {
+            "additionalProperties": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "snapshot": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "staleness": {
+            "$ref": "#/components/schemas/StalenessInfo"
+          },
+          "withdrawn": {
+            "items": {
+              "$ref": "#/components/schemas/WithdrawnInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lastReload",
+          "staleness",
+          "reloads",
+          "flagSets",
+          "objects",
+          "withdrawn",
+          "pendingRestart",
+          "generation",
+          "snapshot"
+        ],
+        "type": "object"
+      },
       "DiffCache": {
         "additionalProperties": false,
         "properties": {
@@ -272,6 +352,47 @@
         },
         "type": "object"
       },
+      "FlagSetInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "apiKeys": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "flags": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/ProblemInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "rejected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "problems",
+          "flags",
+          "apiKeys",
+          "rejected"
+        ],
+        "type": "object"
+      },
       "FlagState": {
         "additionalProperties": false,
         "properties": {
@@ -379,6 +500,9 @@
             ],
             "format": "date-time",
             "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/ConfigInfo"
           },
           "flagsets": {
             "additionalProperties": {
@@ -643,6 +767,92 @@
         ],
         "type": "object"
       },
+      "ObjectInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "checksumHeld": {
+            "type": "string"
+          },
+          "checksumListed": {
+            "type": "string"
+          },
+          "flags": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rejected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "state",
+          "checksumHeld",
+          "checksumListed",
+          "flags",
+          "rejected"
+        ],
+        "type": "object"
+      },
+      "ProblemInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReloadInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "code",
+          "detail",
+          "generation"
+        ],
+        "type": "object"
+      },
       "RetrieverRefreshResponse": {
         "additionalProperties": false,
         "properties": {
@@ -652,6 +862,45 @@
         },
         "required": [
           "refreshed"
+        ],
+        "type": "object"
+      },
+      "StalenessInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "ageSeconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "lastConfirmed": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessfulReload": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ageSeconds"
+        ],
+        "type": "object"
+      },
+      "WithdrawnInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "generation"
         ],
         "type": "object"
       }
@@ -891,6 +1140,28 @@
           }
         },
         "summary": "Info",
+        "tags": [
+          "Monitoring"
+        ]
+      }
+    },
+    "/livez": {
+      "get": {
+        "description": "200 `{\"live\": true}` while the process serves. It never depends on the control plane or any flag set. Served by the config v2 runtime. No API key.",
+        "operationId": "livez",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Liveness",
         "tags": [
           "Monitoring"
         ]
@@ -1165,6 +1436,70 @@
         "summary": "GetManifest is a GET endpoint to return the flags configured in Semaphore.",
         "tags": [
           "OpenFeature Manisfest API"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "description": "200 `{\"ready\": true, \"state\": \"empty|serving|degraded\"}` when the relay is able to serve, else 503 with a reason. Once ready the relay stays ready until shutdown. Served by the config v2 runtime. No API key.",
+        "operationId": "readyz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "Monitoring"
+        ]
+      }
+    },
+    "/startupz": {
+      "get": {
+        "description": "200 once the bootstrap snapshot is applied, else 503 `{\"ready\": false, \"reason\": \"starting\"}`. Served by the config v2 runtime. No API key.",
+        "operationId": "startupz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
+          }
+        },
+        "summary": "Startup",
+        "tags": [
+          "Monitoring"
         ]
       }
     },
