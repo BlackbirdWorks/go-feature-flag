@@ -8,6 +8,10 @@ For now it supports the following commands:
 - `evaluate` to evaluate feature flags directly in your terminal
 - `lint` to validate a configuration file format.
 - `generate manifest` to create an OpenFeature flag manifest.
+- `publish` to publish flag files and flag-set documents to S3 behind a manifest (`publish verify` checks the bucket).
+- `config validate` and `config print --effective` to check the version 2 bootstrap file of the relay.
+
+See [publish](../../docs/tooling/publish.md) and [config](../../docs/tooling/config.md).
 
 ## How to build the cli
 

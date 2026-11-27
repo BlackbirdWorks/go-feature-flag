@@ -34,6 +34,11 @@ const (
 	DefaultFetchConcurrency = 4
 	// MaxFetchConcurrency is the largest accepted number of concurrent object downloads.
 	MaxFetchConcurrency = 16
+	// DefaultBackoffMax caps the wait after consecutive failures, and the retry cadence of a failing object.
+	DefaultBackoffMax = 5 * time.Minute
+	// DefaultFetchSpread bounds the random delay before the object fetches of a new generation (and it is
+	// bounded by the poll interval).
+	DefaultFetchSpread = 5 * time.Second
 	// maxStartPhase bounds the random delay before the first round.
 	maxStartPhase = 5 * time.Second
 )
@@ -56,15 +61,15 @@ type Config struct {
 	// Channel is the expected channel of the manifest; a manifest of another channel is rejected. Empty
 	// accepts any channel.
 	Channel string
-	// PollInterval is the time between two rounds, before jitter; at least [MinPollInterval].
-	PollInterval time.Duration
+	// MaxObjects is the largest number of objects a manifest may list; a bigger manifest is rejected whole.
+	MaxObjects int
 	// JitterFraction spreads the interval by +/- this fraction (0.1 is +/-10 %). Zero selects the default; it
 	// must be in [0, 1). Set DisableJitter to poll at exactly the interval.
 	JitterFraction float64
 	// RequestTimeout bounds every request of the reader: the manifest GET and each object GET.
 	RequestTimeout time.Duration
-	// MaxObjects is the largest number of objects a manifest may list; a bigger manifest is rejected whole.
-	MaxObjects int
+	// PollInterval is the time between two rounds, before jitter; at least [MinPollInterval].
+	PollInterval time.Duration
 	// MaxManifestBytes bounds the manifest download. Decoding a 20000 entry manifest costs about 190 ms and
 	// 144 MB of allocations (measured with the controlplane decoder), and a hostile manifest near the cap can
 	// allocate far more before it is rejected: the cap is what bounds that cost. A larger body is refused
@@ -81,8 +86,19 @@ type Config struct {
 	MaxTotalBytes int64
 	// FetchConcurrency is the number of concurrent object downloads, at most [MaxFetchConcurrency].
 	FetchConcurrency int
-	// DisableJitter turns the jitter off (and with it the random start phase).
+	// BackoffMax caps the exponential backoff after consecutive failed manifest polls, the retry interval of a
+	// failing object, and is the fixed retry cadence of an object that failed for good. Default
+	// [DefaultBackoffMax]; it is never below the poll interval.
+	BackoffMax time.Duration
+	// FetchSpread bounds the random delay a replica waits before it fetches the objects of a new generation (a
+	// generation that replaces a held one: a cold start with no content does not wait). Default
+	// [DefaultFetchSpread]; never above the poll interval.
+	FetchSpread time.Duration
+	// DisableJitter turns the jitter off (and with it the random start phase). The full jitter of the backoff and
+	// the fetch spreading keep using the jitter source.
 	DisableJitter bool
+	// DisableFetchSpread fetches the objects of a new generation at once.
+	DisableFetchSpread bool
 }
 
 func (c *Config) withDefaults() error {
@@ -99,6 +115,8 @@ func (c *Config) withDefaults() error {
 	c.MaxTotalBytes = cmp.Or(c.MaxTotalBytes, DefaultMaxTotalBytes)
 	c.FetchConcurrency = cmp.Or(c.FetchConcurrency, DefaultFetchConcurrency)
 	c.JitterFraction = cmp.Or(c.JitterFraction, DefaultJitterFraction)
+	c.BackoffMax = max(cmp.Or(c.BackoffMax, DefaultBackoffMax), c.PollInterval)
+	c.FetchSpread = min(cmp.Or(c.FetchSpread, DefaultFetchSpread), c.PollInterval)
 
 	if c.DisableJitter {
 		c.JitterFraction = 0
@@ -114,7 +132,8 @@ func validKey(key string) bool {
 
 func (c *Config) validateLimits() error {
 	if c.PollInterval < 0 || c.RequestTimeout < 0 || c.MaxObjects < 0 || c.MaxManifestBytes < 0 ||
-		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 {
+		c.MaxObjectBytes < 0 || c.MaxTotalBytes < 0 || c.FetchConcurrency < 0 || c.BackoffMax < 0 ||
+		c.FetchSpread < 0 {
 		return fmt.Errorf("%w: a limit is negative", ErrInvalidConfig)
 	}
 
@@ -162,6 +181,18 @@ type Restored struct {
 	// Objects are the saved verified objects. The reader hashes them: a corrupted one is simply not found by
 	// its checksum and fetched again.
 	Objects [][]byte
+	// Stale lists the names that were served from earlier content when the state was saved: the reader gives
+	// each of them that content (found in Objects by its checksum) as its last good one, so after the restart the
+	// name is stale with the same bytes, not missing.
+	Stale []StaleObject
+}
+
+// StaleObject is the entry a name was served from when it was stale: the content is in [Restored.Objects].
+type StaleObject struct {
+	Name     string
+	Kind     string
+	Format   string
+	Checksum controlplane.Checksum
 }
 
 // Persist is what a [Hooks.Save] call gets after a snapshot was published. Every field is read-only and
@@ -174,16 +205,19 @@ type Persist struct {
 	Manifest []byte
 }
 
-// Hooks are the seams the state directory of a later change uses. Every field is optional. A hook runs on the
+// Hooks are the seams the state directory (package statedir) plugs into. Every field is optional. A hook runs on the
 // polling goroutine and must not block. A panic in a hook is recovered, logged once per hook, counted in
 // [Status.HookPanics], and polling goes on. The arguments of Save and OnRound are read-only: do not change them
 // and do not keep them without copying.
 type Hooks struct {
 	// Restore is called once when [Reader.Run] starts. It returns [ErrNothingRestored] when nothing was saved.
 	Restore func() (*Restored, error)
-	// Save is called after every published snapshot.
+	// Save is called after every published snapshot. It must return quickly: a state directory queues the write.
 	Save func(Persist)
-	// OnRound is called at the end of every round with the new status.
+	// StateStatus is called every time the status is made (a restore and each live round) and returns the state
+	// of the persistence behind Save and Restore, for [Status.State]. It must not block.
+	StateStatus func() StateStatus
+	// OnRound is called at the end of every live poll round with the new status (not by the restore).
 	OnRound func(*Status)
 }
 

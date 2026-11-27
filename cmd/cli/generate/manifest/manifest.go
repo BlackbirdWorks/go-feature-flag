@@ -84,7 +84,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		return output, err
 	}
 
-	return output.Add("🎉 Manifest has been created", helper.InfoLevel), nil
+	return output.Add("🎉 Manifest has been created", helper.StatusLevel), nil
 }
 
 // toJSON will convert the definitions to a JSON string.
