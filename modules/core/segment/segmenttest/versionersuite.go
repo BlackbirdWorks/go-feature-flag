@@ -44,19 +44,7 @@ const (
 func RunVersioner(t *testing.T, factory VersionerFactory) {
 	t.Helper()
 
-	cases := []struct {
-		run  func(*testing.T, VersionerFixture)
-		name string
-	}{
-		{verStable, CaseVerStable},
-		{verMoves, CaseVerMoves},
-		{verPerSegment, CaseVerPerSegment},
-		{verAbsent, CaseVerAbsent},
-		{verCtxEnded, CaseVerCtxEnded},
-		{verConcurrency, CaseVerConcurrency},
-	}
-
-	for _, tcase := range cases {
+	for _, tcase := range versionerCases() {
 		t.Run(tcase.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -72,7 +60,60 @@ func RunVersioner(t *testing.T, factory VersionerFactory) {
 	}
 }
 
-func verStable(t *testing.T, fix VersionerFixture) {
+// CheckVersioner runs the same cases without a [testing.T] and returns the failures of each case that failed, by case
+// name. It is how the suite is tested against deliberately broken versioners.
+func CheckVersioner(factory VersionerFactory) map[string][]string {
+	failed := map[string][]string{}
+
+	for _, tcase := range versionerCases() {
+		rep := &reporter{}
+
+		fixture, err := factory()
+		if err != nil {
+			failed[tcase.name] = []string{"the factory failed: " + err.Error()}
+
+			continue
+		}
+
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+
+			tcase.run(rep, fixture)
+		}()
+
+		<-done
+
+		if fixture.Close != nil {
+			fixture.Close()
+		}
+
+		if rep.failed {
+			failed[tcase.name] = rep.failures
+		}
+	}
+
+	return failed
+}
+
+type versionerCase struct {
+	run  func(caseT, VersionerFixture)
+	name string
+}
+
+func versionerCases() []versionerCase {
+	return []versionerCase{
+		{verStable, CaseVerStable},
+		{verMoves, CaseVerMoves},
+		{verPerSegment, CaseVerPerSegment},
+		{verAbsent, CaseVerAbsent},
+		{verCtxEnded, CaseVerCtxEnded},
+		{verConcurrency, CaseVerConcurrency},
+	}
+}
+
+func verStable(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	require.NoError(t, fix.Seed("alpha", []string{"a"}))
@@ -87,7 +128,7 @@ func verStable(t *testing.T, fix VersionerFixture) {
 	}
 }
 
-func verMoves(t *testing.T, fix VersionerFixture) {
+func verMoves(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -104,7 +145,7 @@ func verMoves(t *testing.T, fix VersionerFixture) {
 	assert.NotEqual(t, before, after)
 }
 
-func verPerSegment(t *testing.T, fix VersionerFixture) {
+func verPerSegment(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -122,7 +163,7 @@ func verPerSegment(t *testing.T, fix VersionerFixture) {
 	assert.Equal(t, alpha, alphaAfter, "a write to beta does not move the version of alpha")
 }
 
-func verAbsent(t *testing.T, fix VersionerFixture) {
+func verAbsent(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -145,7 +186,7 @@ func verAbsent(t *testing.T, fix VersionerFixture) {
 	assert.NotEqual(t, first, created, "creating the segment moves it off the absent token")
 }
 
-func verCtxEnded(t *testing.T, fix VersionerFixture) {
+func verCtxEnded(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	require.NoError(t, fix.Seed("alpha", []string{"a"}))
@@ -157,7 +198,7 @@ func verCtxEnded(t *testing.T, fix VersionerFixture) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func verConcurrency(t *testing.T, fix VersionerFixture) {
+func verConcurrency(t caseT, fix VersionerFixture) {
 	t.Helper()
 
 	require.NoError(t, fix.Seed("alpha", []string{"a"}))

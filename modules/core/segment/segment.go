@@ -187,6 +187,8 @@ func NewCatalog(defs ...Definition) (*Catalog, error) {
 	catalog := &Catalog{defs: make(map[string]Definition, len(defs))}
 
 	for _, def := range defs {
+		def.Version = def.Version.clone() // the catalog owns its copy: the caller's spec stays the caller's
+
 		err := def.Validate()
 		if err != nil {
 			return nil, err
@@ -209,6 +211,7 @@ func (c *Catalog) Lookup(name string) (Definition, bool) {
 	}
 
 	def, ok := c.defs[name]
+	def.Version = def.Version.clone() // a copy: the caller cannot change the catalog through it
 
 	return def, ok
 }

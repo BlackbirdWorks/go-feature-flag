@@ -20,7 +20,9 @@ func TestMemorySourceSnapshotSuite(t *testing.T) {
 	segmenttest.RunSnapshotSource(t, func() (segmenttest.SnapshotFixture, error) {
 		src := segment.NewMemorySource(nil)
 
-		return segmenttest.SnapshotFixture{Source: src, Seed: seedOf(src)}, nil
+		return segmenttest.SnapshotFixture{
+			Source: src, Seed: seedOf(src), Remove: removeOf(src),
+		}, nil
 	})
 }
 

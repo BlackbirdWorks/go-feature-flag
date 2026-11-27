@@ -15,7 +15,7 @@ type entry struct {
 	prev    *entry
 	next    *entry
 	key     string
-	version string // the segment version the answer was fetched under
+	gen     uint64 // the generation of the segment version the answer was fetched under
 	state   segment.State
 }
 
@@ -46,8 +46,10 @@ func (shd *shard) pushFront(ent *entry) {
 
 // cache is a bounded LRU of the answers of one segment, with a TTL for members and one for non members.
 type cache struct {
-	version     atomic.Pointer[string] // the current version of the segment, nil until one is learned
-	shards      []*shard
+	version atomic.Pointer[string] // the current version token, nil until one is learned (for status)
+	shards  []*shard
+	// gen is the generation: bumped on every change of the token, so a token that comes back is new
+	gen         atomic.Uint64
 	seed        maphash.Seed
 	ttl         time.Duration
 	negativeTTL time.Duration
@@ -73,7 +75,7 @@ func newCache(opts SegmentOptions) *cache {
 	return cch
 }
 
-// current returns the version that new entries are stamped with and that old ones must match. It does not allocate.
+// current returns the version token, empty when none was learned. It does not allocate.
 func (c *cache) current() string {
 	if p := c.version.Load(); p != nil {
 		return *p
@@ -82,14 +84,16 @@ func (c *cache) current() string {
 	return ""
 }
 
-// setVersion makes the entries of any other version misses, without touching them: they age out of the LRU. It
-// reports whether the version changed.
+// setVersion starts a new generation when the token differs from the current one: the entries of every earlier
+// generation become misses, without being touched, and age out of the LRU. A token that comes back is a new
+// generation too, so its old entries never revive. It reports whether the token changed.
 func (c *cache) setVersion(token string) bool {
 	if c.current() == token {
 		return false
 	}
 
 	c.version.Store(&token)
+	c.gen.Add(1)
 
 	return true
 }
@@ -102,7 +106,7 @@ func (c *cache) shardOf(key string) *shard {
 func (c *cache) get(key string, now time.Time) (segment.State, bool) {
 	shd := c.shardOf(key)
 
-	cur := c.current()
+	cur := c.gen.Load()
 
 	shd.mu.Lock()
 	defer shd.mu.Unlock()
@@ -112,7 +116,7 @@ func (c *cache) get(key string, now time.Time) (segment.State, bool) {
 		return segment.Unknown, false
 	}
 
-	if ent.version != cur {
+	if ent.gen != cur {
 		return segment.Unknown, false // fetched under another version: a miss, the entry ages out
 	}
 
@@ -141,13 +145,13 @@ func (c *cache) put(key string, state segment.State, now time.Time) {
 	}
 
 	shd := c.shardOf(key)
-	cur := c.current()
+	cur := c.gen.Load()
 
 	shd.mu.Lock()
 	defer shd.mu.Unlock()
 
 	if ent := shd.m[key]; ent != nil {
-		ent.state, ent.expires, ent.version = state, now.Add(ttl), cur
+		ent.state, ent.expires, ent.gen = state, now.Add(ttl), cur
 		ent.unlink()
 		shd.pushFront(ent)
 
@@ -160,7 +164,7 @@ func (c *cache) put(key string, state segment.State, now time.Time) {
 		delete(shd.m, oldest.key)
 	}
 
-	ent := &entry{key: key, state: state, expires: now.Add(ttl), version: cur}
+	ent := &entry{key: key, state: state, expires: now.Add(ttl), gen: cur}
 	shd.m[key] = ent
 	shd.pushFront(ent)
 }

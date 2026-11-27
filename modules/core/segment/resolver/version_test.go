@@ -212,3 +212,100 @@ func TestVersionedCacheHitAllocatesNothing(t *testing.T) {
 	}), "a hit under a version")
 	assert.Equal(t, segment.Member, lookups[0].State)
 }
+
+func TestAReturnToAnEarlierVersionDoesNotReviveItsEntries(t *testing.T) {
+	t.Parallel()
+
+	src := segment.NewMemorySource(map[string][]string{segAlphaName: {"a"}})
+	res := versioned(t, src, segAlphaName)
+
+	res.SetVersion(segAlphaName, "A")
+	assert.Equal(t, segment.Member, ask(t, res), "cached under A")
+
+	assert.True(t, res.SetVersion(segAlphaName, "B"), "no lookup under B")
+	src.Set(segAlphaName, []string{"other"})
+	assert.True(t, res.SetVersion(segAlphaName, "A"), "back to A is a new generation")
+
+	assert.Equal(t, segment.NotMember, ask(t, res), "the entry of the first A is a miss, the store says not a member")
+	assert.Equal(t, 2, src.Calls(segment.OpContains))
+}
+
+// slowVersioner waits inside Version until the test releases it, then returns its token.
+type slowVersioner struct {
+	started chan struct{}
+	release chan struct{}
+	token   string
+}
+
+func (s *slowVersioner) Version(context.Context, string) (string, error) {
+	close(s.started)
+	<-s.release
+
+	return s.token, nil
+}
+
+func TestANewerVersionSetDuringARefreshWins(t *testing.T) {
+	t.Parallel()
+
+	res := versioned(t, segment.NewMemorySource(nil), segAlphaName)
+	slow := &slowVersioner{started: make(chan struct{}), release: make(chan struct{}), token: "stale"}
+
+	var (
+		wait sync.WaitGroup
+		got  error
+	)
+
+	wait.Go(func() { got = res.RefreshVersions(context.Background(), slow) })
+
+	<-slow.started
+	assert.True(t, res.SetVersion(segAlphaName, "pushed"))
+	close(slow.release)
+	wait.Wait()
+
+	require.NoError(t, got)
+	assert.Equal(
+		t,
+		"pushed",
+		res.Status().Segments[segAlphaName].Version,
+		"the version read before the push is dropped",
+	)
+}
+
+func TestRefreshVersionsIsAdmittedLikeALookup(t *testing.T) {
+	t.Parallel()
+
+	src := segment.NewMemorySource(nil)
+	res := versioned(t, src, segAlphaName)
+	slow := &slowVersioner{started: make(chan struct{}), release: make(chan struct{}), token: "v1"}
+
+	var (
+		wait sync.WaitGroup
+		got  error
+	)
+
+	wait.Go(func() { got = res.RefreshVersions(context.Background(), slow) })
+
+	<-slow.started
+
+	ended, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(
+		t,
+		res.Shutdown(ended),
+		resolver.ErrShutdown,
+		"shutdown waits for the step in flight, bounded by its context",
+	)
+
+	require.ErrorIs(
+		t,
+		res.RefreshVersions(context.Background(), src),
+		resolver.ErrClosed,
+		"refused once shutdown started",
+	)
+	assert.Equal(t, 0, src.Calls(segment.OpVersion), "the refused step did not reach the versioner")
+
+	close(slow.release)
+	wait.Wait()
+	require.NoError(t, got)
+	require.NoError(t, res.Shutdown(context.Background()), "nothing in flight any more")
+}

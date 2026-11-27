@@ -99,3 +99,14 @@ func (d Definition) validateModeVersion() error {
 
 	return nil
 }
+
+// clone returns an owned copy of the spec, nil for nil.
+func (v *VersionSpec) clone() *VersionSpec {
+	if v == nil {
+		return nil
+	}
+
+	owned := *v
+
+	return &owned
+}

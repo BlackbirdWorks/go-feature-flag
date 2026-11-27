@@ -1057,3 +1057,6 @@ func caseLongID(cas *scene) {
 	cas.assert.NotEqual(segment.Member, lookups[0].State, "an id that is not a member must not be one")
 	cas.assert.Equal(segment.Member, lookups[1].State, "the other lookup is answered")
 }
+
+// Helper implements the testing interface of the cases of the snapshot and versioner suites.
+func (*reporter) Helper() {}

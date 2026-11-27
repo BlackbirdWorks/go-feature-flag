@@ -20,8 +20,8 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 | Memory | the whole set (guarded by a maximum of members and bytes) | the LRU only (the least of the two modes) |
 | Freshness | as of the last pull; the relay polls the version and pulls again only when it changed | as of the version of the cached entry; entries of another version are misses, and the time-to-live is the fallback |
 | Change detection | version token, compared for equality | the same version token, learned off the request path |
-| Store down | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
-| Segment missing in the store | unknown, never an empty set | unknown |
+| Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
+| Segment missing in the store (the store answered) | the old set is dropped and lookups are unknown, never an empty set; it is served again when the segment comes back (a store that cannot hold an empty set reports one with no members as missing) | unknown |
 
 - A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay will run it when it builds a generation.
 - A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h).

@@ -166,6 +166,7 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 		wantErr   error
 		name      string
 		wantClass snapshot.Class
+		wantVer   string
 		opts      snapshot.Options
 	}{
 		{
@@ -177,7 +178,7 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 			wantErr: errBoom, wantClass: snapshot.ClassRead,
 		},
 		{name: "segment missing", setup: func(s *segment.MemorySource) { s.Delete("alpha") },
-			wantErr: segment.ErrSegmentMissing, wantClass: snapshot.ClassMissing},
+			wantErr: segment.ErrSegmentMissing, wantClass: snapshot.ClassMissing, wantVer: segment.AbsentVersion},
 		{
 			name: "too many members", opts: snapshot.Options{MaxMembers: 2},
 			wantErr: segment.ErrTooManyMembers, wantClass: snapshot.ClassTooLarge,
@@ -201,20 +202,67 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 			require.NoError(t, err)
 			require.ErrorIs(t, holder.Refresh(context.Background()), tt.wantErr)
 
-			assert.Equal(t, snapshot.Status{LastError: tt.wantClass}, holder.Status())
+			assert.Equal(t, snapshot.Status{Version: tt.wantVer, LastError: tt.wantClass}, holder.Status())
 			assert.Equal(t, segment.Unknown, holder.Lookup("a"))
 		})
 	}
 }
 
-func TestDuplicatesDoNotCountAgainstTheGuard(t *testing.T) {
+// repeats is a source that emits every member several times, as SSCAN may.
+type repeats struct{ members []string }
+
+func (repeats) Version(context.Context, string) (string, error) { return "v1", nil }
+
+func (r repeats) Members(context.Context, string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		for range 3 {
+			for _, member := range r.members {
+				if !yield(member, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// The guard counts distinct members and the bytes of distinct members: a repeat costs nothing.
+func TestTheGuardCountsDistinctMembersOfTheStream(t *testing.T) {
 	t.Parallel()
 
-	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a", "a", "a", "b"}})
-	holder, err := snapshot.New(segAlpha, src, snapshot.Options{MaxMembers: 2})
-	require.NoError(t, err)
-	require.NoError(t, holder.Refresh(context.Background()))
-	assert.Equal(t, 2, holder.Status().Members)
+	tests := []struct {
+		wantErr     error
+		name        string
+		opts        snapshot.Options
+		wantMembers int
+	}{
+		{name: "two distinct members, limit two", opts: snapshot.Options{MaxMembers: 2}, wantMembers: 2},
+		{
+			name:    "two distinct members, limit one",
+			opts:    snapshot.Options{MaxMembers: 1},
+			wantErr: segment.ErrTooManyMembers,
+		},
+		{name: "two bytes, limit two bytes", opts: snapshot.Options{MaxBytes: 2}, wantMembers: 2},
+		{name: "two bytes, limit one byte", opts: snapshot.Options{MaxBytes: 1}, wantErr: segment.ErrMembersTooLarge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			holder, err := snapshot.New(segAlpha, repeats{members: []string{"a", "b"}}, tt.opts)
+			require.NoError(t, err)
+
+			err = holder.Refresh(context.Background())
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMembers, holder.Status().Members, "six rows, two members")
+		})
+	}
 }
 
 func TestAnUnchangedVersionClearsTheLastError(t *testing.T) {
