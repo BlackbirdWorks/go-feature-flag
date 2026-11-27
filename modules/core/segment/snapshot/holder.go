@@ -199,7 +199,7 @@ func (h *Holder) Refresh(ctx context.Context) error {
 	}
 
 	set, class, err := h.pull(ctx)
-	if class == ClassMissing {
+	if class == ClassMissing && ctx.Err() == nil {
 		return h.markMissing(cur, version, err)
 	}
 

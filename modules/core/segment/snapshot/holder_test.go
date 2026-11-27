@@ -3,6 +3,7 @@ package snapshot_test
 import (
 	"context"
 	"iter"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -511,4 +512,92 @@ func TestASegmentThatComesBackUnderTheSameTokenIsPulled(t *testing.T) {
 			assert.Equal(t, wantPulls+1, inner.Calls(segment.OpMembers))
 		})
 	}
+}
+
+// emptyToken reports a segment missing while gone is set, and a version that is the valid empty token otherwise.
+type emptyToken struct {
+	inner *segment.MemorySource
+	gone  *atomic.Bool
+}
+
+func (e emptyToken) Version(context.Context, string) (string, error) {
+	if e.gone.Load() {
+		return "", segment.ErrSegmentMissing
+	}
+
+	return "", nil
+}
+
+func (e emptyToken) Members(ctx context.Context, name string) iter.Seq2[string, error] {
+	return e.inner.Members(ctx, name)
+}
+
+func TestAMissingVersionThenTheEmptyTokenIsPulled(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	gone := &atomic.Bool{}
+	inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+
+	holder, err := snapshot.New(segAlpha, emptyToken{inner: inner, gone: gone}, snapshot.Options{})
+	require.NoError(t, err)
+
+	gone.Store(true)
+	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
+
+	gone.Store(false)
+	require.NoError(t, holder.Refresh(ctx))
+	assert.Equal(
+		t,
+		segment.Member,
+		holder.Lookup("a"),
+		"the empty token of an existing segment is not the missing state",
+	)
+	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+	assert.Equal(t, 1, inner.Calls(segment.OpMembers))
+}
+
+// switchable serves a set, and from the moment trip is set its stream ends the context and then reports the segment
+// missing, as a source that ignores its context would.
+type switchable struct {
+	cancel  context.CancelFunc
+	trip    *atomic.Bool
+	version *atomic.Int64
+}
+
+func (s switchable) Version(context.Context, string) (string, error) {
+	return strconv.FormatInt(s.version.Load(), 10), nil
+}
+
+func (s switchable) Members(context.Context, string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		if s.trip.Load() {
+			s.cancel()
+			yield("", segment.ErrSegmentMissing)
+
+			return
+		}
+
+		yield("a", nil)
+	}
+}
+
+func TestAMissingResultAfterTheContextEndedKeepsTheLastKnownGood(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	src := switchable{cancel: cancel, trip: &atomic.Bool{}, version: &atomic.Int64{}}
+
+	holder, err := snapshot.New(segAlpha, src, snapshot.Options{})
+	require.NoError(t, err)
+	require.NoError(t, holder.Refresh(ctx))
+	require.Equal(t, segment.Member, holder.Lookup("a"))
+
+	src.trip.Store(true)
+	src.version.Store(1) // the version moved: the members are pulled
+
+	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+	assert.Equal(t, snapshot.ClassCanceled, holder.Status().LastError, "the cancel decides, not the missing answer")
+	assert.Equal(t, segment.Member, holder.Lookup("a"), "the last known good is kept")
 }

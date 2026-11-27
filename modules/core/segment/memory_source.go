@@ -89,11 +89,16 @@ func (m *MemorySource) Delete(name string) {
 }
 
 // PinVersion sets the version token of a segment without touching its members (the way a writer bumps a version
-// key). An empty token unpins: the segment gets a fresh counter version (or the absent one when it does not exist).
+// key). The reserved AbsentVersion is remapped to another token for an existing segment. An empty token unpins: the
+// segment gets a fresh counter version (or the absent one when it does not exist).
 func (m *MemorySource) PinVersion(name, token string) {
 	m.mu.Lock()
 	switch {
 	case token != "":
+		if token == AbsentVersion && m.sets[name] != nil {
+			token += "-pinned" // the absent token is reserved for a segment that does not exist
+		}
+
 		m.versions[name] = token
 		m.pinned[token] = struct{}{}
 	case m.sets[name] != nil:
@@ -205,6 +210,10 @@ func (m *MemorySource) Members(ctx context.Context, name string) iter.Seq2[strin
 			}
 
 			yielded++
+		}
+
+		if midAfter >= 0 && yielded == midAfter {
+			yield("", midErr) // the failure after the last member, or on an empty set
 		}
 	}
 }

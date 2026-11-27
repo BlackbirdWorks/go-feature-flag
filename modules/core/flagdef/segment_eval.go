@@ -235,9 +235,7 @@ func (s *Service) definesSegment(name string) bool {
 		return true
 	}
 
-	_, ok := s.segments.Lookup(name)
-
-	return ok
+	return s.segments.Has(name)
 }
 
 // lookupSegments sends the lookups to the provider and returns the health of the call: StatusHealthy when every
@@ -318,12 +316,7 @@ func (q *queryContext) callProvider(ctx context.Context, lookups []segment.Looku
 
 // failurePolicy applies the failure policy of the segment name to an unanswered lookup.
 func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.SegmentState {
-	def, ok := s.segments.Lookup(name)
-	if !ok {
-		return state
-	}
-
-	return parser.SegmentState(def.Resolve(segment.State(state)))
+	return parser.SegmentState(s.segments.ResolveFor(name, segment.State(state)))
 }
 
 // attributeID returns the value of the attribute at path as the identifier to look up. Strings are used as they
