@@ -2,7 +2,6 @@ package semaphore_test
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -12,14 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
@@ -85,24 +82,8 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			t.Parallel()
 
 			// Create config for default mode (no flagsets)
-			conf := config.Config{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + configurationFlagsYaml,
-				},
-				Exporter: &config.ExporterConf{
-					Kind: config.LogExporter,
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
+			cfg := mock.LogExporter(mock.FileConfig(testdataDir + configurationFlagsYaml))
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
@@ -197,41 +178,10 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			t.Parallel()
 
 			// Create config for flagset mode
-			conf := config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						Name: "flagset1",
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: retrieverconf.FileRetriever,
-							Path: configFlagsLocation,
-						},
-						Exporter: &config.ExporterConf{
-							Kind: config.LogExporter,
-						},
-						APIKeys: []string{flagset1ApiKey},
-					},
-					{
-						Name: "flagset2",
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: retrieverconf.FileRetriever,
-							Path: configFlagsLocation2,
-						},
-						Exporter: &config.ExporterConf{
-							Kind: config.LogExporter,
-						},
-						APIKeys: []string{"flagset2-api-key"},
-					},
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
+			flagsetManager := mock.NewNamed(t,
+				mock.Named{Name: "flagset1", APIKeys: []string{flagset1ApiKey}, Config: mock.LogExporter(mock.FileConfig(configFlagsLocation))},
+				mock.Named{Name: "flagset2", APIKeys: []string{"flagset2-api-key"}, Config: mock.LogExporter(mock.FileConfig(configFlagsLocation2))},
 			)
-			require.NoError(t, err, impossibleToCreateFlagset)
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
 
@@ -280,31 +230,13 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			metricName + " 1\n"
 	)
 
-	conf := config.Config{
-		FlagSets: []config.FlagSet{
-			{
-				Name: "flagset1",
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + configurationFlagsYaml,
-				},
-				APIKeys: []string{flagset1ApiKey},
-			},
-		},
-	}
-	flagsetManager, err := service.NewFlagsetManager(
-		&conf,
-		slog.New(slog.DiscardHandler),
-		[]notifier.Notifier{},
-		nil,
-		nil,
+	flagsetManager := mock.NewNamed(t,
+		mock.Named{Name: "flagset1", APIKeys: []string{flagset1ApiKey}, Config: mock.FileConfig(testdataDir + configurationFlagsYaml)},
 	)
-	require.NoError(t, err, impossibleToCreateFlagset)
-	t.Cleanup(func() { flagsetManager.Close() })
 
 	tests := []struct {
 		name           string
-		flagsetManager service.FlagsetManager
+		flagsetManager service.FlagSetResolver
 		requestBody    string
 		apiKey         string
 		wantStatusCode int

@@ -23,9 +23,7 @@ const (
 	applicationYaml = "application/yaml"
 )
 
-var (
-	errReadFailure = errors.New("read failure")
-)
+var errReadFailure = errors.New("read failure")
 
 const (
 	jsonBodyLimit = 1 << 20

@@ -3,7 +3,6 @@ package semaphore_test
 import (
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,14 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
@@ -173,24 +169,8 @@ func Test_flag_eval_Handler(t *testing.T) {
 			t.Parallel()
 
 			// Create config for default mode
-			conf := config.Config{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: configFlagsLocation,
-				},
-				Exporter: &config.ExporterConf{
-					Kind: config.LogExporter,
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
+			cfg := mock.LogExporter(mock.FileConfig(configFlagsLocation))
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			flagEval := controller.NewFlagEval(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
@@ -279,21 +259,8 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := config.Config{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: configFlagsLocation,
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 

@@ -22,13 +22,11 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
@@ -37,6 +35,7 @@ import (
 
 const (
 	adminKey                          = "admin-key"
+	contextTargetingKeyUserOne        = `{"context":{"targetingKey":"user-1"}}`
 	bearerTest                        = "Bearer test"
 	contextTargetingKeySomeKey        = `{ "context":{"targetingKey":"some-key"}}`
 	contextTargetingKeySomeKeyCompact = `{"context":{"targetingKey":"some-key"}}`
@@ -63,11 +62,30 @@ func newTestLogger(t *testing.T) *cmdlog.Logger {
 	return cmdlog.NewDefault()
 }
 
+// testConf is what a server test configures: the settings of the HTTP layer, the API keys and the flag sets.
+type testConf struct {
+	flags *mock.FlagSets
+	// live, when set, is the source of the API keys instead of keys: the test replaces them while the server runs.
+	live     *mock.LiveKeys
+	settings api.Settings
+	keys     mock.Keys
+}
+
+// newDefaultFlags serves fixtures.FlagConfigYAMLParentPath as the only flag set; the notifiers hear its changes.
+func newDefaultFlags(tb testing.TB, notifiers []notifier.Notifier) *mock.FlagSets {
+	tb.Helper()
+
+	cfg := mock.FileConfig(fixtures.FlagConfigYAMLParentPath)
+	cfg.Notifiers = notifiers
+
+	return mock.NewDefault(tb, &cfg)
+}
+
 // newTestServer builds a server whose fatal errors (a failed bind, ...) fail the test and end the goroutine of
 // the server, instead of calling [os.Exit], which would take the whole test binary down and silently skip the
 // remaining tests. Every test server is built with it.
 func newTestServer(
-	t *testing.T, conf *config.Config, services *service.Services, logger *slog.Logger, opts ...api.Option,
+	t *testing.T, conf *testConf, services *service.Services, logger *slog.Logger, opts ...api.Option,
 ) api.Server {
 	t.Helper()
 
@@ -82,7 +100,23 @@ func newTestServer(
 		runtime.Goexit()
 	}
 
-	return apiwire.New(conf, services, logger, append([]api.Option{api.WithExit(exit)}, opts...)...)
+	all := append([]api.Option{api.WithExit(exit)}, opts...)
+
+	svc := *services
+	if conf.flags != nil {
+		all = append(all, api.WithFlagSetResolver(conf.flags))
+
+		if svc.MonitoringService == nil {
+			svc.MonitoringService = mock.NewMonitoring(conf.flags)
+		}
+	}
+
+	var keys service.KeySource = conf.keys
+	if conf.live != nil {
+		keys = conf.live
+	}
+
+	return api.New(&conf.settings, service.NewAPIKeysFrom(keys), &svc, logger, all...)
 }
 
 // waitForServer blocks until the server accepts connections on baseURL. Binding a listener is
@@ -109,17 +143,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	t.Parallel()
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 	log := newTestLogger(t)
 
@@ -137,16 +162,14 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	defer wsService.Close() // close all the open connections
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -190,18 +213,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	listener, port := testhelpers.ListenLocal(t)
 	monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode:           config.ServerModeHTTP,
-			Port:           port,
-			MonitoringPort: monitoringPort,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port, MonitoringPort: monitoringPort},
 	}
 	log := newTestLogger(t)
 
@@ -219,16 +232,14 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	defer wsService.Close() // close all the open connections
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	srv := newTestServer(t,
@@ -307,18 +318,9 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	t.Parallel()
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
-		AuthorizedKeys: config.APIKeys{
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
+		keys: mock.Keys{
 			Admin:      nil,
 			Evaluation: []string{fixtures.PlaceholderTest},
 		},
@@ -339,16 +341,14 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	defer wsService.Close() // close all the open connections
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -403,17 +403,8 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	t.Parallel()
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 	log := newTestLogger(t)
 
@@ -423,14 +414,12 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -449,25 +438,15 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, proxyConf.Version, response.Header.Get(xGofeatureflagVersion))
+	assert.Equal(t, proxyConf.settings.Version, response.Header.Get(xGofeatureflagVersion))
 }
 
 func Test_VersionHeader_Disabled(t *testing.T) {
 	t.Parallel()
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
-		DisableVersionHeader: true,
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port, DisableVersionHeader: true},
 	}
 	log := newTestLogger(t)
 
@@ -477,14 +456,12 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -520,17 +497,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.PlaceholderTest}},
+				configAPIKeys: &mock.Keys{Evaluation: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.PlaceholderTest}},
+				configAPIKeys: &mock.Keys{Admin: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusOK,
 			},
 			{
 				name: "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{
+				configAPIKeys: &mock.Keys{
 					Evaluation: []string{fixtures.PlaceholderTest},
 					Admin:      []string{fixtures.PlaceholderTest},
 				},
@@ -569,17 +546,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.PlaceholderTest}},
+				configAPIKeys: &mock.Keys{Evaluation: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.PlaceholderTest}},
+				configAPIKeys: &mock.Keys{Admin: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusOK,
 			},
 			{
 				name: "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{
+				configAPIKeys: &mock.Keys{
 					Evaluation: []string{fixtures.PlaceholderTest},
 					Admin:      []string{fixtures.PlaceholderTest},
 				},
@@ -612,7 +589,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 }
 
 type authMiddlewareTestCase struct {
-	configAPIKeys *config.APIKeys
+	configAPIKeys *mock.Keys
 	name          string
 	want          int // http status code
 }
@@ -631,24 +608,12 @@ func runAuthMiddlewareTests(
 		t.Run(tt.name, func(t *testing.T) {
 			listener, port := testhelpers.ListenLocal(t)
 
-			proxyConf := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: fixtures.FlagConfigYAMLParentPath,
-					},
-				},
-				Server: config.Server{
-					Mode: config.ServerModeHTTP,
-					Port: port,
-				},
-				DisableVersionHeader: true,
+			proxyConf := &testConf{
+				settings: api.Settings{Mode: api.ServerModeHTTP, Port: port, DisableVersionHeader: true},
 			}
 			if tt.configAPIKeys != nil {
-				proxyConf.AuthorizedKeys = *tt.configAPIKeys
+				proxyConf.keys = *tt.configAPIKeys
 			}
-
-			proxyConf.ForceReloadAPIKeys()
 
 			log := newTestLogger(t)
 
@@ -658,14 +623,12 @@ func runAuthMiddlewareTests(
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
 
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, nil)
+			proxyConf.flags = flagsetManager
 
 			services := service.Services{
-				MonitoringService: service.NewMonitoring(flagsetManager),
-				WebsocketService:  wsService,
-				FlagsetManager:    flagsetManager,
-				Metrics:           metricsV2,
+				WebsocketService: wsService,
+				Metrics:          metricsV2,
 			}
 
 			s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -718,17 +681,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode:           config.ServerModeUnixSocket,
-			UnixSocketPath: socketPath,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath},
 	}
 	log := newTestLogger(t)
 
@@ -746,16 +700,14 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	defer wsService.Close()
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog)
@@ -824,18 +776,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode:           config.ServerModeUnixSocket,
-			UnixSocketPath: socketPath,
-			MonitoringPort: monitoringPort,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath, MonitoringPort: monitoringPort},
 	}
 	log := newTestLogger(t)
 
@@ -853,16 +795,14 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	defer wsService.Close()
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithMonitoringListener(monitoringLn))
@@ -930,18 +870,9 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode:           config.ServerModeUnixSocket,
-			UnixSocketPath: socketPath,
-		},
-		AuthorizedKeys: config.APIKeys{
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath},
+		keys: mock.Keys{
 			Admin:      nil,
 			Evaluation: []string{fixtures.PlaceholderTest},
 		},
@@ -962,16 +893,14 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	defer wsService.Close()
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog)
@@ -1049,7 +978,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		configAPIKeys *config.APIKeys
+		configAPIKeys *mock.Keys
 		endpoint      string
 		method        string
 		body          string
@@ -1065,7 +994,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Evaluation endpoint - with valid key",
-			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
+			configAPIKeys: &mock.Keys{Evaluation: []string{"test-key"}},
 			endpoint:      httpUnixOfrepV,
 			method:        http.MethodPost,
 			body:          contextTargetingKeySomeKeyCompact,
@@ -1074,7 +1003,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Evaluation endpoint - without key (should fail)",
-			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
+			configAPIKeys: &mock.Keys{Evaluation: []string{"test-key"}},
 			endpoint:      httpUnixOfrepV,
 			method:        http.MethodPost,
 			body:          contextTargetingKeySomeKeyCompact,
@@ -1083,7 +1012,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Admin endpoint - with valid admin key",
-			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
+			configAPIKeys: &mock.Keys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
 			method:        http.MethodPost,
 			authHeader:    "Bearer admin-key",
@@ -1091,7 +1020,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Admin endpoint - without admin key (should fail)",
-			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
+			configAPIKeys: &mock.Keys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
 			method:        http.MethodPost,
 			authHeader:    "",
@@ -1099,7 +1028,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Admin validate endpoint - with valid admin key",
-			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
+			configAPIKeys: &mock.Keys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
 			method:        http.MethodPost,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
@@ -1108,7 +1037,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 		{
 			name:          "Admin validate endpoint - without admin key (should fail)",
-			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
+			configAPIKeys: &mock.Keys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
 			method:        http.MethodPost,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
@@ -1128,23 +1057,12 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-%d.sock", index))
 
-			proxyConf := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: fixtures.FlagConfigYAMLParentPath,
-					},
-				},
-				Server: config.Server{
-					Mode:           config.ServerModeUnixSocket,
-					UnixSocketPath: socketPath,
-				},
+			proxyConf := &testConf{
+				settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath},
 			}
 			if tt.configAPIKeys != nil {
-				proxyConf.AuthorizedKeys = *tt.configAPIKeys
+				proxyConf.keys = *tt.configAPIKeys
 			}
-
-			proxyConf.ForceReloadAPIKeys()
 
 			log := newTestLogger(t)
 
@@ -1154,14 +1072,12 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
 
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, nil)
+			proxyConf.flags = flagsetManager
 
 			services := service.Services{
-				MonitoringService: service.NewMonitoring(flagsetManager),
-				WebsocketService:  wsService,
-				FlagsetManager:    flagsetManager,
-				Metrics:           metricsV2,
+				WebsocketService: wsService,
+				Metrics:          metricsV2,
 			}
 
 			s := newTestServer(t, proxyConf, &services, log.Slog)
@@ -1246,19 +1162,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 
-			proxyConf := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: fixtures.FlagConfigYAMLParentPath,
-					},
-				},
-				Server: config.Server{
-					Mode:           config.ServerModeUnixSocket,
-					UnixSocketPath: socketPath,
-				},
-				DisableVersionHeader: tt.disableVersionHeader,
-				Version:              "test-version-1.0.0",
+			proxyConf := &testConf{
+				settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath, DisableVersionHeader: tt.disableVersionHeader, Version: "test-version-1.0.0"},
 			}
 
 			log := newTestLogger(t)
@@ -1269,14 +1174,12 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
 
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, nil)
+			proxyConf.flags = flagsetManager
 
 			services := service.Services{
-				MonitoringService: service.NewMonitoring(flagsetManager),
-				WebsocketService:  wsService,
-				FlagsetManager:    flagsetManager,
-				Metrics:           metricsV2,
+				WebsocketService: wsService,
+				Metrics:          metricsV2,
 			}
 
 			s := newTestServer(t, proxyConf, &services, log.Slog)
@@ -1325,17 +1228,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	t.Cleanup(cancel)
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 
 	log := newTestLogger(t)
@@ -1348,16 +1242,14 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{
 		prometheusNotifier,
-	}, nil, wsService)
-	require.NoError(t, err)
+	})
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}
 
 	s := newTestServer(t, proxyConf, &services, log.Slog, api.WithListener(listener))
@@ -1452,30 +1344,19 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	// The server serves on a listener that stays bound from the start: the server closing it is what frees the port.
 	listener, port := testhelpers.ListenLocal(t)
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 
 	testLogger := newTestLogger(t)
 
 	wsService := stream.NewWebsocketService()
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, testLogger.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
+		WebsocketService: wsService,
 	}
 
 	srv := newTestServer(t, proxyConf, &services, testLogger.Slog, api.WithListener(listener))
@@ -1540,27 +1421,16 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	port := tcpAddr.Port
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 
 	testLogger := newTestLogger(t)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, testLogger.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	proxyConf.flags = flagsetManager
 
 	services := service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  stream.NewWebsocketService(),
-		FlagsetManager:    flagsetManager,
+		WebsocketService: stream.NewWebsocketService(),
 	}
 	srv := newTestServer(t, proxyConf, &services, testLogger.Slog, api.WithListener(listener))
 

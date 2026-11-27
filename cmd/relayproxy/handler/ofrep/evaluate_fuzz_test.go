@@ -2,7 +2,6 @@ package ofrep_test
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,12 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -37,15 +34,9 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		f.Add("", string(content), true)
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(&config.Config{
-		PollingInterval: 10000,
-		FileFormat:      protocol.FormatYAML,
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-		},
-	}, slog.New(slog.DiscardHandler), nil, nil, nil)
-	require.NoError(f, err)
-	f.Cleanup(flagsetManager.Close)
+	cfg := mock.FileConfig(configFlagsLocation)
+	cfg.FileFormat = protocol.FormatYAML
+	flagsetManager := mock.NewDefault(f, &cfg)
 
 	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
 	mux := http.NewServeMux()

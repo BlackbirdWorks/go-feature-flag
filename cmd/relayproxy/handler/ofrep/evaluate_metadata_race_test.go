@@ -2,7 +2,6 @@ package ofrep_test
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,12 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
@@ -100,16 +97,9 @@ func TestEvaluate_DoesNotWriteIntoTheCachedFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagsetManager, err := service.NewFlagsetManager(&config.Config{
-				PollingInterval: 10000,
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: retrieverconf.FileRetriever, Path: metadataFlagsLocation},
-				},
-			}, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, failedToCreateFlagset)
-
-			defer flagsetManager.Close()
+			cfg := mock.FileConfig(metadataFlagsLocation)
+			cfg.FileFormat = protocol.FormatYAML
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			evalCtrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
 			configCtrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})

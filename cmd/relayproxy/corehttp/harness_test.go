@@ -18,14 +18,11 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
@@ -102,48 +99,6 @@ func serve(tb testing.TB, srv *api.Server) string {
 	tb.Cleanup(ts.Close)
 
 	return ts.URL
-}
-
-// newV1Manager is the v1 flag set manager of flagsYAML, with a file retriever.
-func newV1Manager(tb testing.TB) (*config.Config, *service.FlagsetManagerImpl) {
-	tb.Helper()
-
-	path := filepath.Join(tb.TempDir(), "flags.yaml")
-	require.NoError(tb, os.WriteFile(path, []byte(flagsYAML), 0o600))
-
-	conf := &config.Config{
-		FlagSets: []config.FlagSet{{
-			Name: setName, APIKeys: []string{tenantKey},
-			Retriever: &retrieverconf.RetrieverConf{Kind: retrieverconf.FileRetriever, Path: path},
-		}},
-		AuthorizedKeys: config.APIKeys{Admin: []string{adminKey}},
-	}
-	conf.ForceReloadAPIKeys()
-
-	manager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-	require.NoError(tb, err)
-	tb.Cleanup(manager.Close)
-
-	return conf, manager
-}
-
-// newV1 serves flagsYAML from the v1 relay behind the same handlers.
-func newV1(tb testing.TB) string {
-	tb.Helper()
-
-	conf, manager := newV1Manager(tb)
-	logger := slog.New(slog.DiscardHandler)
-
-	metrics, err := metric.NewMetrics()
-	require.NoError(tb, err)
-
-	srv := api.New(&api.Settings{}, service.NewAPIKeys(conf), &service.Services{
-		MonitoringService: service.NewMonitoring(manager),
-		FlagsetManager:    manager,
-		Metrics:           metrics,
-	}, logger)
-
-	return serve(tb, &srv)
 }
 
 // tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.

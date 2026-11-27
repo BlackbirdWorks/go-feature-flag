@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
@@ -31,16 +30,11 @@ func (m *namedManager) FlagSetName(apiKey string) (string, error) {
 func TestStreamAuthorizer(t *testing.T) {
 	t.Parallel()
 
-	authenticated := func() *config.Config {
-		c := &config.Config{AuthorizedKeys: config.APIKeys{Evaluation: []string{"valid-api-key"}}}
-		c.ForceReloadAPIKeys()
-
-		return c
-	}
+	authenticated := func() mock.Keys { return mock.Keys{Evaluation: []string{"valid-api-key"}} }
 
 	tests := []struct {
-		manager     service.FlagsetManager
-		conf        *config.Config
+		manager     service.FlagSetResolver
+		conf        mock.Keys
 		name        string
 		query       string
 		wantBody    string
@@ -48,22 +42,30 @@ func TestStreamAuthorizer(t *testing.T) {
 		exposeError bool
 	}{
 		{name: "valid apiKey", conf: authenticated(), query: "?apiKey=valid-api-key", wantStatus: http.StatusOK},
-		{name: "invalid apiKey", conf: authenticated(), query: "?apiKey=nope", wantStatus: http.StatusUnauthorized,
-			wantBody: messageUnauthorized + "\n"},
-		{name: "invalid apiKey, debug", conf: authenticated(), query: "?apiKey=nope", exposeError: true,
-			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized","error":"Unauthorized"}` + "\n"},
-		{name: "authentication disabled", conf: &config.Config{}, wantStatus: http.StatusOK},
-		{name: "flag set key", conf: authenticated(), query: "?apiKey=k",
-			manager: &namedManager{names: map[string]string{"k": "t"}}, wantStatus: http.StatusOK},
-		{name: "unknown flag set key", conf: authenticated(), query: "?apiKey=k",
+		{
+			name: "invalid apiKey", conf: authenticated(), query: "?apiKey=nope", wantStatus: http.StatusUnauthorized,
+			wantBody: messageUnauthorized + "\n",
+		},
+		{
+			name: "invalid apiKey, debug", conf: authenticated(), query: "?apiKey=nope", exposeError: true,
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized","error":"Unauthorized"}` + "\n",
+		},
+		{name: "authentication disabled", conf: mock.Keys{}, wantStatus: http.StatusOK},
+		{
+			name: "flag set key", conf: authenticated(), query: "?apiKey=k",
+			manager: &namedManager{names: map[string]string{"k": "t"}}, wantStatus: http.StatusOK,
+		},
+		{
+			name: "unknown flag set key", conf: authenticated(), query: "?apiKey=k",
 			manager: &namedManager{}, wantStatus: http.StatusUnauthorized,
-			wantBody: messageUnauthorized + "\n"},
+			wantBody: messageUnauthorized + "\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := middleware.StreamAuthorizer(service.NewAPIKeys(tt.conf), tt.manager, tt.exposeError)(newOK())
+			h := middleware.StreamAuthorizer(service.NewAPIKeysFrom(tt.conf), tt.manager, tt.exposeError)(newOK())
 			rec := serve(h, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream"+tt.query, nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 
@@ -79,10 +81,9 @@ func TestStreamAuthorizer(t *testing.T) {
 func TestStreamAuthorizerObservesReload(t *testing.T) {
 	t.Parallel()
 
-	conf := &config.Config{AuthorizedKeys: config.APIKeys{Evaluation: []string{"old-key"}}}
-	conf.ForceReloadAPIKeys()
+	conf := mock.NewLiveKeys(mock.Keys{Evaluation: []string{"old-key"}})
 
-	h := middleware.StreamAuthorizer(service.NewAPIKeys(conf), nil, false)(newOK())
+	h := middleware.StreamAuthorizer(service.NewAPIKeysFrom(conf), nil, false)(newOK())
 	status := func(key string) int {
 		return serve(h, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream?apiKey="+key, nil)).Code
 	}
@@ -90,13 +91,13 @@ func TestStreamAuthorizerObservesReload(t *testing.T) {
 	assert.Equal(t, http.StatusOK, status("old-key"))
 	assert.Equal(t, http.StatusUnauthorized, status("new-key"))
 
-	conf.ReplaceAPIKeys(config.APIKeys{Evaluation: []string{"new-key"}})
+	conf.Replace(mock.Keys{Evaluation: []string{"new-key"}})
 
 	assert.Equal(t, http.StatusUnauthorized, status("old-key"))
 	assert.Equal(t, http.StatusOK, status("new-key"))
 
 	// authentication switched off by the reload: every request is accepted.
-	conf.ReplaceAPIKeys(config.APIKeys{})
+	conf.Replace(mock.Keys{})
 
 	assert.Equal(t, http.StatusOK, status("old-key"))
 }

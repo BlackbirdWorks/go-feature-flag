@@ -13,12 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -31,19 +30,11 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Parallel()
 
 	listener, port := testhelpers.ListenLocal(t)
-	proxyConf := &config.Config{
-		FlagSets: []config.FlagSet{{
-			Name:      "tenant",
-			APIKeys:   []string{"flagset-key"},
-			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
-		}},
-		AuthorizedKeys: config.APIKeys{
-			Evaluation: []string{"authorized-evaluation-key"},
-			Admin:      []string{adminKey},
-		},
-		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
+	// in flag set mode only the keys of the flag sets evaluate: authorized-evaluation-key is not one of them
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
+		keys:     mock.Keys{Evaluation: []string{"flagset-key"}, Admin: []string{adminKey}},
 	}
-	proxyConf.ForceReloadAPIKeys()
 
 	log := newTestLogger(t)
 
@@ -52,16 +43,14 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, sseService, wsService)
-	require.NoError(t, err)
-	t.Cleanup(flagsetManager.Close)
+	proxyConf.flags = mock.NewNamed(t, mock.Named{
+		Name: "tenant", APIKeys: []string{"flagset-key"}, Config: mock.FileConfig(fixtures.FlagConfigYAMLParentPath),
+	})
 
 	srv := newTestServer(t, proxyConf, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		SSEService:        sseService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           &metric.Metrics{},
+		WebsocketService: wsService,
+		SSEService:       sseService,
+		Metrics:          &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 
@@ -82,10 +71,14 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	}{
 		{name: "ofrep single", method: http.MethodPost, path: ofrepEvaluateTestFlag, body: evalBody},
 		{name: "ofrep bulk", method: http.MethodPost, path: fixtures.OFREPEvaluateFlagsPath, body: evalBody},
-		{name: "eval", method: http.MethodPost, path: v1FeatureTest,
-			body: `{"evaluationContext":{"key":"user-1"},"defaultValue":false}`},
-		{name: "allflags", method: http.MethodPost, path: v1Allflags,
-			body: `{"evaluationContext":{"key":"user-1"}}`},
+		{
+			name: "eval", method: http.MethodPost, path: v1FeatureTest,
+			body: `{"evaluationContext":{"key":"user-1"},"defaultValue":false}`,
+		},
+		{
+			name: "allflags", method: http.MethodPost, path: v1Allflags,
+			body: `{"evaluationContext":{"key":"user-1"}}`,
+		},
 		{name: "flag configuration", method: http.MethodPost, path: v1FlagConfiguration, body: `{}`},
 		{name: "flag change", method: http.MethodGet, path: v1FlagChange},
 		{name: "data collector", method: http.MethodPost, path: v1DataCollector, body: emptyEventsBody},

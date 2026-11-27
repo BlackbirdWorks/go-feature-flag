@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
@@ -18,11 +17,8 @@ import (
 func BenchmarkUserKeyAuthFlagSet(b *testing.B) {
 	const apiKey = "tenant-key"
 
-	conf := &config.Config{FlagSets: []config.FlagSet{{Name: "tenant", APIKeys: []string{apiKey}}}}
-	conf.ForceReloadAPIKeys()
-
 	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"tenant": {}}}
-	srv := newBenchServer(conf, &service.Services{FlagsetManager: manager})
+	srv := &Server{keys: service.NewAPIKeysFrom(mock.Keys{Evaluation: []string{apiKey}}), resolver: manager}
 
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 	handler := srv.userKeyAuth().HTTP()(next)
@@ -37,8 +33,4 @@ func BenchmarkUserKeyAuthFlagSet(b *testing.B) {
 		handler.ServeHTTP(rec, req)
 		require.Equal(b, http.StatusOK, rec.Code)
 	}
-}
-
-func newBenchServer(conf *config.Config, services *service.Services) *Server {
-	return &Server{keys: service.NewAPIKeys(conf), services: *services}
 }

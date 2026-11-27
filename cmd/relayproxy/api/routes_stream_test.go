@@ -15,11 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -37,37 +36,29 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	listener, port := testhelpers.ListenLocal(t)
-	cfg := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
+	cfg := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, []notifier.Notifier{})
+	cfg.flags = flagsetManager
 
 	sseService := stream.NewSSEService()
 	defer sseService.Close()
 
 	apiServer := newTestServer(t, cfg, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  stream.NewWebsocketService(),
-		SSEService:        sseService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           &metric.Metrics{},
+		WebsocketService: stream.NewWebsocketService(),
+		SSEService:       sseService,
+		Metrics:          &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 
 	go apiServer.StartWithContext(context.Background())
 	defer apiServer.Stop(context.Background())
 
-	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.ServerPort(logger)))
+	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.settings.Port))
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
-		fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)), http.NoBody)
+		fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.settings.Port), http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -136,6 +127,18 @@ func changeFlagUntilFrame(t *testing.T, path, flagName string, frames <-chan str
 	}
 }
 
+// wsNotifier forwards the changes of a flag set to the websocket service, as the relay does for each flag set.
+type wsNotifier struct {
+	service stream.WebsocketService
+	flagset string
+}
+
+func (n wsNotifier) Notify(diff notifier.DiffCache) error {
+	n.service.BroadcastFlagChanges(n.flagset, diff)
+
+	return nil
+}
+
 func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	t.Parallel()
 
@@ -146,49 +149,37 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	writeFlagFile(t, tenantAFile, flagTenantA, "initial")
 	writeFlagFile(t, tenantBFile, flagTenantB, "initial")
 
-	flagset := func(name, apiKey, path string) config.FlagSet {
-		return config.FlagSet{
-			Name:            name,
-			APIKeys:         []string{apiKey},
-			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: path}},
-			PollingInterval: 200,
-		}
-	}
-	listener, port := testhelpers.ListenLocal(t)
-	cfg := &config.Config{
-		FlagSets: []config.FlagSet{
-			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
-			flagset("tenant-b", "tenant-B-api-key", tenantBFile),
-		},
-		AuthorizedKeys: config.APIKeys{Admin: []string{"admin-api-key"}},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-			Port: port,
-		},
-	}
-	cfg.ForceReloadAPIKeys()
-
 	logger := slog.New(slog.DiscardHandler)
-
 	wsService := stream.NewWebsocketService()
 
 	t.Cleanup(func() { wsService.Close() })
 
-	flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, wsService)
-	require.NoError(t, err)
-	t.Cleanup(func() { flagsetManager.Close() })
+	flagset := func(name, apiKey, path string) mock.Named {
+		cfg := mock.FileConfig(path)
+		cfg.PollingInterval = 200 * time.Millisecond
+		cfg.Notifiers = []notifier.Notifier{wsNotifier{service: wsService, flagset: name}}
+
+		return mock.Named{Name: name, APIKeys: []string{apiKey}, Config: cfg}
+	}
+	listener, port := testhelpers.ListenLocal(t)
+	cfg := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
+		keys:     mock.Keys{Evaluation: []string{"tenant-A-api-key", "tenant-B-api-key"}, Admin: []string{"admin-api-key"}},
+		flags: mock.NewNamed(t,
+			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
+			flagset("tenant-b", "tenant-B-api-key", tenantBFile),
+		),
+	}
 
 	apiServer := newTestServer(t, cfg, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           &metric.Metrics{},
+		WebsocketService: wsService,
+		Metrics:          &metric.Metrics{},
 	}, logger, api.WithListener(listener))
 	go apiServer.StartWithContext(context.Background())
 
 	t.Cleanup(func() { apiServer.Stop(context.Background()) })
-	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.ServerPort(logger)))
-	wsURL := fmt.Sprintf("ws://localhost:%d", cfg.ServerPort(logger))
+	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.settings.Port))
+	wsURL := fmt.Sprintf("ws://localhost:%d", cfg.settings.Port)
 
 	endpoints := []struct {
 		name string

@@ -25,8 +25,10 @@ func TestNewEventStream(t *testing.T) {
 		{name: "https URL", baseURL: "https://example.com", delay: 60, wantEnabled: true},
 		{name: "http URL with a path prefix", baseURL: "http://example.com/goff/", wantEnabled: true},
 		{name: "URL with a port", baseURL: "https://example.com:8443", wantEnabled: true},
-		{name: "negative delay", baseURL: "https://example.com", delay: -1,
-			wantErr: ofrep.ErrEventStreamInactivityDelay, wantMessage: "got -1"},
+		{
+			name: "negative delay", baseURL: "https://example.com", delay: -1,
+			wantErr: ofrep.ErrEventStreamInactivityDelay, wantMessage: "got -1",
+		},
 		{name: "negative delay without base URL", delay: -5, wantErr: ofrep.ErrEventStreamInactivityDelay},
 		{name: "not a URL", baseURL: "://nope", wantErr: ofrep.ErrEventStreamBaseURL},
 		{name: "relative URL", baseURL: "/stream", wantErr: ofrep.ErrEventStreamBaseURL},

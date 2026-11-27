@@ -2,7 +2,6 @@ package mock
 
 import (
 	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
@@ -54,9 +53,5 @@ func (m *MockFlagsetManager) IsDefaultFlagSet() bool {
 }
 
 func (m *MockFlagsetManager) Close() {
-	// nothing to do
-}
-
-func (m *MockFlagsetManager) OnConfigChange(_ *config.Config) {
 	// nothing to do
 }

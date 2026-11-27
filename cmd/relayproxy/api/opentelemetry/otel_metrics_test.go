@@ -11,8 +11,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // metricNames collects the metrics of the reader and returns their names.
@@ -37,24 +35,19 @@ func TestInitMetrics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		conf         *config.Config
+		conf         opentelemetry.Settings
 		name         string
 		wantProvider bool
 	}{
 		{
 			name:         "configured",
-			conf:         &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"},
+			conf:         opentelemetry.Settings{OTLPEndpoint: "http://localhost:4318"},
 			wantProvider: true,
 		},
-		{name: "not configured", conf: &config.Config{}},
+		{name: "not configured", conf: opentelemetry.Settings{}},
 		{
 			name: "disabled by the SDK setting",
-			conf: func() *config.Config {
-				c := &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}
-				c.OtelConfig.SDK.Disabled = true
-
-				return c
-			}(),
+			conf: opentelemetry.Settings{OTLPEndpoint: "http://localhost:4318", SDKDisabled: true},
 		},
 	}
 	for _, tt := range tests {
@@ -63,8 +56,7 @@ func TestInitMetrics(t *testing.T) {
 
 			reader := sdkmetric.NewManualReader()
 			svc := opentelemetry.NewOtelService(opentelemetry.WithMetricReader(reader))
-			telemetry := apiwire.Telemetry(tt.conf)
-			require.NoError(t, svc.InitMetrics(t.Context(), &telemetry))
+			require.NoError(t, svc.InitMetrics(t.Context(), &tt.conf))
 
 			if !tt.wantProvider {
 				assert.Nil(t, svc.MeterProvider(), "nothing is created when OpenTelemetry is not configured")
