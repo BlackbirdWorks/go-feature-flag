@@ -862,6 +862,8 @@ func TestRunHelpAndUsage(t *testing.T) {
 		{name: "long help", args: []string{"--help"}, wantStdout: true},
 		{name: "short help", args: []string{"-h"}, wantStdout: true},
 		{name: "unknown flag", args: []string{unknownFlag}, wantCode: exitUsage},
+		{name: "unknown flag after --version", args: []string{versionFlag, unknownFlag}, wantCode: exitUsage},
+		{name: "unknown flag before --version", args: []string{unknownFlag, versionFlag}, wantCode: exitUsage},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -29,6 +29,30 @@ func TestCommittedSchemaIsCurrent(t *testing.T) {
 	assert.Equal(t, string(want), string(got), "the committed schema is stale: run the jsonschema-generator")
 }
 
+// The description of contextEnrichment lists every kind of value that the loader accepts: a comma in the tag of the
+// field must not cut it.
+func TestSchemaDescribesTheContextEnrichmentValues(t *testing.T) {
+	t.Parallel()
+
+	raw, err := bootstrap.JSONSchema()
+	require.NoError(t, err)
+
+	var doc struct {
+		Defs map[string]struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+			} `json:"properties"`
+		} `json:"$defs"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	description := doc.Defs["Evaluation"].Properties["contextEnrichment"].Description
+	for _, kind := range []string{"strings", "integers", "finite numbers", "booleans", "lists", "mappings with string keys"} {
+		assert.Contains(t, description, kind)
+	}
+}
+
 func TestSchemaShape(t *testing.T) {
 	t.Parallel()
 

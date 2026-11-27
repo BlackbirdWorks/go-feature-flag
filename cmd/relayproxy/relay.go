@@ -72,15 +72,18 @@ func osLoadOptions() bootstrap.LoadOptions {
 // is the request to stop (SIGTERM): the readiness fails first, then the streams and the listeners close, then the
 // core drains. A file that is not valid, or is not version 2, starts nothing.
 func run(ctx context.Context, opts *runOptions) int {
-	if versionRequested(opts.Args) {
-		_, _ = fmt.Fprint(opts.Stdout, versionText())
-
-		return 0
-	}
-
 	logger := cmdlog.NewDefault(cmdlog.WithWriter(opts.Stderr))
 
+	// the command line is parsed strictly first: --version does not excuse an unknown flag
 	overrides, err := overridesFrom(opts.Args)
+	if err == nil || errors.Is(err, pflag.ErrHelp) {
+		if versionRequested(opts.Args) {
+			_, _ = fmt.Fprint(opts.Stdout, versionText())
+
+			return 0
+		}
+	}
+
 	if errors.Is(err, pflag.ErrHelp) {
 		_, _ = fmt.Fprint(opts.Stdout, usageText())
 
