@@ -118,6 +118,8 @@ func (w *walker) walk(path string, node *yaml.Node, t reflect.Type) {
 	}
 
 	switch {
+	case t.Kind() == reflect.Interface:
+		w.walkAny(path, node, t)
 	case t.Kind() == reflect.Struct:
 		w.walkStruct(path, node, t)
 	case t.Kind() == reflect.Map:
@@ -295,6 +297,39 @@ func (w *walker) walkStruct(path string, node *yaml.Node, t reflect.Type) {
 		}
 
 		w.walk(child, valNode, info.typ)
+	}
+}
+
+// walkAny walks a value of a free-form setting (the context enrichment): scalars, mappings with string keys and lists,
+// at any depth up to maxDepth. Keys are still checked for duplicates.
+func (w *walker) walkAny(path string, node *yaml.Node, t reflect.Type) {
+	switch node.Kind { //nolint:exhaustive // scalars need no check, aliases were resolved by walk
+	case yaml.MappingNode:
+		seen := map[string]bool{}
+
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			keyNode, valNode := node.Content[i], node.Content[i+1]
+			child := join(path, keyNode.Value)
+			w.pos[child] = keyNode.Line
+
+			switch {
+			case keyNode.Kind != yaml.ScalarNode || keyNode.Tag != tagStr:
+				w.failf(child, keyNode.Line, ErrInvalidValue, "expected a string key")
+			case seen[keyNode.Value]:
+				w.failf(child, keyNode.Line, ErrDuplicateName, "name written twice")
+			default:
+				seen[keyNode.Value] = true
+
+				w.walk(child, valNode, t)
+			}
+		}
+	case yaml.SequenceNode:
+		for i, item := range node.Content {
+			child := path + "[" + strconv.Itoa(i) + "]"
+			w.pos[child] = item.Line
+
+			w.walk(child, item, t)
+		}
 	}
 }
 
