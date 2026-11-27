@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
@@ -43,9 +42,10 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 // newCompiledQuery compiles raw without memoizing it: the validation of a flag compiles the queries it checks with
 // it, so that a query that is replaced by a reload does not stay in the Service.
 func newCompiledQuery(raw string) *compiledQuery {
-	trimmed := evalcore.StrTrim(raw)
+	format := queryFormatOf(raw)
+	trimmed := trimmedQueryOf(raw, format)
 
-	compiled := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
+	compiled := &compiledQuery{trimmed: trimmed, format: format}
 	if compiled.format == JSONLogicQueryFormat {
 		var rule any
 		if json.Unmarshal([]byte(compiled.trimmed), &rule) == nil {
