@@ -48,12 +48,12 @@ type cachedSummary struct {
 	sum    *summary
 }
 
-func (c *summaries) of(st *flagruntime.Status) *summary {
-	if st == nil {
+func (c *summaries) of(status *flagruntime.Status) *summary {
+	if status == nil {
 		return &summary{flagSets: map[string]int{}, objects: map[string]int{}}
 	}
 
-	if cached := c.last.Load(); cached != nil && cached.status == st {
+	if cached := c.last.Load(); cached != nil && cached.status == status {
 		return cached.sum
 	}
 
@@ -61,7 +61,7 @@ func (c *summaries) of(st *flagruntime.Status) *summary {
 
 	sum := &summary{flagSets: map[string]int{}, objects: map[string]int{}}
 
-	for name, set := range st.FlagSets {
+	for name, set := range status.FlagSets {
 		state := setLabel(set.State)
 		sum.flagSets[state]++
 
@@ -70,7 +70,7 @@ func (c *summaries) of(st *flagruntime.Status) *summary {
 		}
 	}
 
-	for name, obj := range st.Objects {
+	for name, obj := range status.Objects {
 		state := string(obj.State)
 		sum.objects[state]++
 
@@ -93,7 +93,7 @@ func (c *summaries) of(st *flagruntime.Status) *summary {
 	slices.SortFunc(sum.badSets, byName)
 	slices.SortFunc(sum.badObject, byName)
 
-	c.last.Store(&cachedSummary{status: st, sum: sum})
+	c.last.Store(&cachedSummary{status: status, sum: sum})
 
 	return sum
 }

@@ -53,10 +53,10 @@ type Status struct {
 	StateDirDisabled string `json:"stateDirDisabled,omitempty"`
 	// Events is the status of the exporters and notifiers.
 	Events events.Status `json:"events"`
-	// Source is the status of the reader, the engine and the running runtime.
-	Source controlsource.Status `json:"source"`
 	// Reloads counts the rounds of the engine by outcome since the core was built.
 	Reloads ReloadStats `json:"reloads"`
+	// Source is the status of the reader, the engine and the running runtime.
+	Source controlsource.Status `json:"source"`
 	// ShuttingDown is true from the first call of [Core.Shutdown].
 	ShuttingDown bool `json:"shuttingDown"`
 }

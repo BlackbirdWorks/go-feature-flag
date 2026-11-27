@@ -3,7 +3,6 @@
     "lastReload": {
       "outcome": "applied",
       "code": "applied",
-      "detail": "",
       "generation": 3
     },
     "staleness": {
@@ -21,8 +20,7 @@
         "problems": [
           {
             "code": "source-degraded",
-            "subject": "flags-bad",
-            "reason": "runtime: decode: decoding the flags: yaml: line 1: did not find expected ',' or ']'"
+            "subject": "flags-bad"
           }
         ],
         "flags": 9,
@@ -52,7 +50,6 @@
         "name": "flags-bad",
         "kind": "flags",
         "state": "invalid",
-        "reason": "runtime: decode: decoding the flags: yaml: line 1: did not find expected ',' or ']'",
         "checksumHeld": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
         "flags": 9,
         "rejected": 0

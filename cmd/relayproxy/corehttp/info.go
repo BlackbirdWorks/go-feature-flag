@@ -8,6 +8,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
@@ -24,71 +25,72 @@ func (monitoring) Health() model.HealthResponse { return model.HealthResponse{In
 // Info lists the flag sets with the date of their last change (the fields of v1) and the state of the runtime. It
 // works with zero flag sets.
 func (m monitoring) Info() (model.InfoResponse, error) {
-	rt := m.holder.Load()
-	dates := make(map[string]time.Time, len(rt.FlagSets))
+	current := m.holder.Load()
+	dates := make(map[string]time.Time, len(current.FlagSets))
 
 	var latest time.Time
 
-	for name, set := range rt.FlagSets {
+	for name, set := range current.FlagSets {
 		dates[name] = set.ModifiedAt
 		if set.ModifiedAt.After(latest) {
 			latest = set.ModifiedAt
 		}
 	}
 
-	cfg := configInfo(m.src.Status(), clock.Now())
+	status := m.src.Status()
+	cfg := configInfo(&status, clock.Now())
 
 	return model.InfoResponse{Flagsets: dates, LatestCacheRefresh: &latest, Config: &cfg}, nil
 }
 
-func configInfo(st relaycore.Status, now time.Time) model.ConfigInfo {
+func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	info := model.ConfigInfo{
 		Reloads: map[string]uint64{
-			string(flagruntime.OutcomeApplied):  st.Reloads.Applied,
-			string(flagruntime.OutcomeRejected): st.Reloads.Rejected,
-			string(flagruntime.OutcomeIgnored):  st.Reloads.Ignored,
+			string(flagruntime.OutcomeApplied):  status.Reloads.Applied,
+			string(flagruntime.OutcomeRejected): status.Reloads.Rejected,
+			string(flagruntime.OutcomeIgnored):  status.Reloads.Ignored,
 		},
 		FlagSets: []model.FlagSetInfo{}, Objects: []model.ObjectInfo{}, Withdrawn: []model.WithdrawnInfo{},
 		PendingRestart: []string{},
-		Staleness:      staleness(st, now),
+		Staleness:      staleness(status, now),
 	}
 
-	round := st.Source.Round
-	rt := st.Source.Runtime
+	round := status.Source.Round
+	current := status.Source.Runtime
 
-	if rt == nil {
+	if current == nil {
 		info.LastReload = reloadInfo(&round.Reload)
 
 		return info
 	}
 
-	info.Generation, info.Snapshot = rt.Generation, rt.Snapshot
-	info.LastReload = reloadInfo(&rt.LastReload)
-	info.PendingRestart = append(info.PendingRestart, rt.PendingRestart...)
+	info.Generation, info.Snapshot = current.Generation, current.Snapshot
+	info.LastReload = reloadInfo(&current.LastReload)
+	info.PendingRestart = append(info.PendingRestart, current.PendingRestart...)
 
 	switch {
 	case round.Outcome == flagruntime.OutcomeRejected:
 		rejected := reloadInfo(&round.Reload)
 		info.LastRejected = &rejected
-	case rt.LastRejected != nil:
-		rejected := reloadInfo(rt.LastRejected)
+	case current.LastRejected != nil:
+		rejected := reloadInfo(current.LastRejected)
 		info.LastRejected = &rejected
 	}
 
-	listed := map[string]string{}
-	for _, failure := range st.Source.Reader.Failures {
-		listed[failure.Name] = failure.Checksum
+	failures := map[string]manifestreader.ObjectFailure{}
+	for _, failure := range status.Source.Reader.Failures {
+		failures[failure.Name] = failure
 	}
 
-	for _, set := range rt.FlagSets {
+	for _, set := range current.FlagSets {
 		info.FlagSets = append(info.FlagSets, flagSetInfo(set))
 	}
 
-	for _, obj := range rt.Objects {
-		info.Objects = append(info.Objects, objectInfo(obj, listed))
+	for _, obj := range current.Objects {
+		info.Objects = append(info.Objects, objectInfo(obj, failures))
 	}
 
-	for _, w := range rt.Withdrawn {
+	for _, w := range current.Withdrawn {
 		info.Withdrawn = append(info.Withdrawn, model.WithdrawnInfo{Name: w.Name, Generation: w.Generation})
 	}
 
@@ -99,18 +101,18 @@ func configInfo(st relaycore.Status, now time.Time) model.ConfigInfo {
 }
 
 func reloadInfo(r *flagruntime.Reload) model.ReloadInfo {
-	return model.ReloadInfo{Outcome: string(r.Outcome), Code: r.Code, Detail: r.Detail, Generation: r.Generation}
+	return model.ReloadInfo{Outcome: string(r.Outcome), Code: r.Code, Generation: r.Generation}
 }
 
-func staleness(st relaycore.Status, now time.Time) model.StalenessInfo {
+func staleness(status *relaycore.Status, now time.Time) model.StalenessInfo {
 	var out model.StalenessInfo
 
-	if sync := st.Source.Reader.LastSync; !sync.IsZero() {
+	if sync := status.Source.Reader.LastSync; !sync.IsZero() {
 		out.LastConfirmed = &sync
 		out.AgeSeconds = max(0, now.Sub(sync).Seconds())
 	}
 
-	if ok := st.Reloads.LastSuccess; !ok.IsZero() {
+	if ok := status.Reloads.LastSuccess; !ok.IsZero() {
 		out.LastSuccessfulReload = &ok
 	}
 
@@ -124,22 +126,24 @@ func flagSetInfo(set *flagruntime.FlagSetStatus) model.FlagSetInfo {
 	}
 
 	for _, p := range set.Problems {
-		out.Problems = append(out.Problems, model.ProblemInfo{Code: string(p.Code), Subject: p.Subject, Reason: p.Reason})
+		out.Problems = append(out.Problems, model.ProblemInfo{Code: string(p.Code), Subject: p.Subject})
 	}
 
 	return out
 }
 
-func objectInfo(obj *flagruntime.ObjectStatus, listed map[string]string) model.ObjectInfo {
+func objectInfo(obj *flagruntime.ObjectStatus, failures map[string]manifestreader.ObjectFailure) model.ObjectInfo {
 	// the listed checksum is known for an object that failed to load, and equals the held one when it is ok; for
 	// the other states (invalid, pending) the status does not carry it
-	want, failed := listed[obj.Name]
+	failure, failed := failures[obj.Name]
+	want, reason := failure.Checksum, failure.Reason
+
 	if !failed && obj.State == flagruntime.ObjectOK {
 		want = obj.Checksum
 	}
 
 	return model.ObjectInfo{
-		Name: obj.Name, Kind: obj.Kind, State: string(obj.State), Reason: obj.Reason,
+		Name: obj.Name, Kind: obj.Kind, State: string(obj.State), Reason: reason,
 		ChecksumHeld: obj.Checksum, ChecksumListed: want, Flags: obj.Flags, Rejected: len(obj.Rejected),
 	}
 }

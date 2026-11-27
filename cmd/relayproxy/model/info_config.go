@@ -27,10 +27,12 @@ type ConfigInfo struct {
 }
 
 // ReloadInfo is the result of one round.
+//
+// The free text of a round (the detail) is not served: it can quote the content of an object. The code is a closed
+// reason; the detail is in the logs.
 type ReloadInfo struct {
 	Outcome    string `json:"outcome"`
 	Code       string `json:"code"`
-	Detail     string `json:"detail"`
 	Generation uint64 `json:"generation"`
 }
 
@@ -42,37 +44,6 @@ type StalenessInfo struct {
 	LastSuccessfulReload *time.Time `json:"lastSuccessfulReload,omitempty"`
 	// AgeSeconds is the time since LastConfirmed, 0 when there was none.
 	AgeSeconds float64 `json:"ageSeconds"`
-}
-
-// FlagSetInfo is the state of one flag set: ready, degraded or pending.
-type FlagSetInfo struct {
-	Name     string        `json:"name"`
-	State    string        `json:"state"`
-	Problems []ProblemInfo `json:"problems"`
-	Flags    int           `json:"flags"`
-	APIKeys  int           `json:"apiKeys"`
-	Rejected int           `json:"rejected"`
-}
-
-// ProblemInfo is a reported problem of a flag set.
-type ProblemInfo struct {
-	Code    string `json:"code"`
-	Subject string `json:"subject,omitempty"`
-	Reason  string `json:"reason"`
-}
-
-// ObjectInfo is the state of one source object: ok, stale, missing, pending or invalid.
-type ObjectInfo struct {
-	Name  string `json:"name"`
-	Kind  string `json:"kind"`
-	State string `json:"state"`
-	// Reason is the last error or the reason the object is not ok.
-	Reason string `json:"reason,omitempty"`
-	// ChecksumHeld is the checksum of the content served, ChecksumListed the one the manifest lists.
-	ChecksumHeld   string `json:"checksumHeld"`
-	ChecksumListed string `json:"checksumListed,omitempty"`
-	Flags          int    `json:"flags"`
-	Rejected       int    `json:"rejected"`
 }
 
 // WithdrawnInfo is a flag set removed by the publisher.

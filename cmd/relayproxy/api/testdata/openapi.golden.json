@@ -802,7 +802,6 @@
           "kind",
           "state",
           "checksumHeld",
-          "checksumListed",
           "flags",
           "rejected"
         ],
@@ -814,16 +813,12 @@
           "code": {
             "type": "string"
           },
-          "reason": {
-            "type": "string"
-          },
           "subject": {
             "type": "string"
           }
         },
         "required": [
-          "code",
-          "reason"
+          "code"
         ],
         "type": "object"
       },
@@ -831,9 +826,6 @@
         "additionalProperties": false,
         "properties": {
           "code": {
-            "type": "string"
-          },
-          "detail": {
             "type": "string"
           },
           "generation": {
@@ -848,7 +840,6 @@
         "required": [
           "outcome",
           "code",
-          "detail",
           "generation"
         ],
         "type": "object"
@@ -1462,7 +1453,7 @@
                 }
               }
             },
-            "description": "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
+            "description": "Not ready: {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
           }
         },
         "summary": "Readiness",
@@ -1494,7 +1485,7 @@
                 }
               }
             },
-            "description": "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
+            "description": "Not ready: {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}"
           }
         },
         "summary": "Startup",

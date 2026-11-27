@@ -1,0 +1,77 @@
+# Probes and observability of the config v2 runtime
+
+The HTTP server that `corehttp.New` builds on a config v2 core serves the probes below on the same listener as
+`/health` and `/info` (the monitoring listener when there is one, else the API listener). They need no API key and never
+contain a key, a secret or the bytes of an object. The v1 server is unchanged: it does not serve `/readyz` or `/startupz`.
+
+## Endpoints
+
+| Endpoint | 200 | 503 |
+| --- | --- | --- |
+| `/livez` | `{"live": true}` while the process serves. Never depends on the control plane or a flag set. | never |
+| `/readyz` | `{"ready": true, "state": "empty"}` (or `serving`, `degraded`) | `{"ready": false, "reason": "starting"}` (or `waiting-for-manifest`, `shutting-down`) |
+| `/startupz` | `{"ready": true}` once the bootstrap snapshot is applied | `{"ready": false, "reason": "starting"}` |
+| `/health` | `{"initialized": true}`, always, as in v1 | never |
+| `/info` | the v1 fields plus a `config` section | never |
+
+## Readiness rules
+
+- The relay is **not ready** until the bootstrap snapshot is applied (`starting`) and the first manifest outcome is
+  known (`waiting-for-manifest`): a manifest applied, even one that lists zero objects, or the verified copy of the state
+  directory. Without a manifest and without a state copy the relay retries with backoff and stays up.
+- Once ready the relay **stays ready** through any later S3 or manifest outage and serves the last known good content.
+  Staleness shows in `/info` and the metrics, never in `/readyz`.
+- A relay with zero flag sets is ready (`empty`). A stale or missing object, a rejected flag, or a flag set that is
+  degraded or pending makes the state `degraded`, never unready.
+- With a state directory a restart during an outage is ready at once.
+- `shutting-down` is answered first on shutdown, before the listeners close: call `Readiness.BeginShutdown()` on
+  SIGTERM, then stop the server, then call `Core.Shutdown`. `Core.Shutdown` also flips the probe by itself.
+
+Reasons (closed list): `starting`, `waiting-for-manifest`, `shutting-down`. States of a 200: `empty`, `serving`, `degraded`.
+
+## `/info` config section
+
+`config` holds: `generation` (applied manifest generation), `snapshot`, `lastReload` and `lastRejected` (outcome, code,
+generation), `reloads` (rounds by outcome), `staleness` (last confirmation by the control plane, last successful
+reload, age in seconds), `flagSets` (state `ready`, `degraded` or `pending`, problems, flags, number of API keys,
+rejected flags), `objects` (state, reason, checksum held and listed), `withdrawn` and `pendingRestart`.
+The free text of a failure (the detail of a round, the text of a problem) is not served, because it can quote the content
+of an object: `/info` shows closed codes, and the text is in the logs. It works with zero flag sets.
+
+## Metrics
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `semaphore_config_generation` | `layer` (`applied`, `received`) | generation served, and the last generation handed to the engine |
+| `semaphore_config_snapshot` | | local swap counter |
+| `semaphore_config_reload_total` | `result` (`applied`, `rejected`, `ignored`) | reconcile rounds |
+| `semaphore_config_last_success_timestamp_seconds` | | Unix time of the last applied round, 0 when none |
+| `semaphore_config_age_seconds` | | seconds since the control plane last confirmed the manifest |
+| `semaphore_resource_count` | `kind` (`flagset`, `object`), `state` | resources by state, always exported |
+| `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
+| `semaphore_config_pending_restart` | | settings that changed and need a restart |
+
+The generation of the manifest the reader holds, the S3 requests and the exporters have their own metrics
+(`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).
+
+Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per
+scrape, and a scrape evaluates no flag: its cost does not grow with the number of flags per flag set.
+Per-flag-set series exist only for flag sets that are not ready.
+
+## Kubernetes
+
+```yaml
+startupProbe:
+  httpGet: {path: /startupz, port: 1031}
+  periodSeconds: 2
+  failureThreshold: 60
+livenessProbe:
+  httpGet: {path: /livez, port: 1031}
+  periodSeconds: 10
+readinessProbe:
+  httpGet: {path: /readyz, port: 1031}
+  periodSeconds: 5
+```
+
+Use `/livez` for the liveness probe: it never fails because the control plane is down, so a storage outage does not
+restart the relay.

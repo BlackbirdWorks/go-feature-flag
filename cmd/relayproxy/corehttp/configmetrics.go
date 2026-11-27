@@ -1,7 +1,7 @@
 package corehttp
 
 import (
-	"fmt"
+	"strconv"
 
 	prom "github.com/prometheus/client_golang/prometheus"
 
@@ -24,6 +24,9 @@ const (
 // maxNamedResources caps the series of semaphore_resource_status: one per resource that is not ready, the first
 // ones by name. The counts in semaphore_resource_count are never capped.
 const maxNamedResources = 100
+
+// nanosPerSecond converts a Unix time in nanoseconds to seconds.
+const nanosPerSecond = 1e9
 
 // MetricNames are the metrics this collector exports.
 func MetricNames() []string {
@@ -51,61 +54,67 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 	desc := func(name, help string, labels ...string) *prom.Desc { return prom.NewDesc(name, help, labels, nil) }
 
 	return &ConfigCollector{
-		src: src, sums: &summaries{},
+		src:  src,
+		sums: &summaries{},
 		generation: desc(metricGeneration, "Config generation by layer: applied (served) and received (handed to the "+
 			"engine).", "layer"),
-		snapshot: desc(metricSnapshot, "Local counter of the swaps of the runtime."),
-		reloads: desc(metricReloads, "Reconcile rounds by result: applied, rejected, ignored.", "result"),
+		snapshot:    desc(metricSnapshot, "Local counter of the swaps of the runtime."),
+		reloads:     desc(metricReloads, "Reconcile rounds by result: applied, rejected, ignored.", "result"),
 		lastSuccess: desc(metricLastSuccess, "Unix time of the last applied round; 0 when none."),
-		age: desc(metricAge, "Seconds since the control plane last confirmed the held manifest; absent before the "+
-			"first confirmation. It never makes the relay unready."),
+		age: desc(
+			metricAge,
+			"Seconds since the control plane last confirmed the manifest.",
+		),
 		counts: desc(metricResources, "Resources by kind (flagset, object) and state.", "kind", "state"),
 		named: desc(metricResource, "1 for a resource that is not ready, by kind and name; at most "+
-			fmt.Sprint(maxNamedResources)+" per kind.", "kind", "name", "state"),
+			strconv.Itoa(maxNamedResources)+" per kind.", "kind", "name", "state"),
 		pending: desc(metricPending, "Settings that changed in the bootstrap file and need a restart."),
 	}
 }
 
 // Describe implements [prom.Collector].
-func (c *ConfigCollector) Describe(ch chan<- *prom.Desc) {
-	for _, d := range []*prom.Desc{c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending} {
-		ch <- d
+func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
+	for _, d := range []*prom.Desc{
+		c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending,
+	} {
+		out <- d
 	}
 }
 
 // Collect implements [prom.Collector].
-func (c *ConfigCollector) Collect(ch chan<- prom.Metric) {
-	st := c.src.Status()
+func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
+	status := c.src.Status()
 	gauge := func(d *prom.Desc, v float64, labels ...string) {
-		ch <- prom.MustNewConstMetric(d, prom.GaugeValue, v, labels...)
+		out <- prom.MustNewConstMetric(d, prom.GaugeValue, v, labels...)
 	}
 	counter := func(d *prom.Desc, v float64, labels ...string) {
-		ch <- prom.MustNewConstMetric(d, prom.CounterValue, v, labels...)
+		out <- prom.MustNewConstMetric(d, prom.CounterValue, v, labels...)
 	}
 
-	rt := st.Source.Runtime
-	sum := c.sums.of(rt)
+	current := status.Source.Runtime
+	sum := c.sums.of(current)
 
 	var applied, snapshot, pending float64
-	if rt != nil {
-		applied, snapshot, pending = float64(rt.Generation), float64(rt.Snapshot), float64(len(rt.PendingRestart))
+	if current != nil {
+		applied, snapshot, pending = float64(current.Generation), float64(current.Snapshot),
+			float64(len(current.PendingRestart))
 	}
 
 	gauge(c.generation, applied, "applied")
-	gauge(c.generation, float64(st.Source.LastGeneration), "received")
+	gauge(c.generation, float64(status.Source.LastGeneration), "received")
 	gauge(c.snapshot, snapshot)
-	counter(c.reloads, float64(st.Reloads.Applied), string(flagruntime.OutcomeApplied))
-	counter(c.reloads, float64(st.Reloads.Rejected), string(flagruntime.OutcomeRejected))
-	counter(c.reloads, float64(st.Reloads.Ignored), string(flagruntime.OutcomeIgnored))
+	counter(c.reloads, float64(status.Reloads.Applied), string(flagruntime.OutcomeApplied))
+	counter(c.reloads, float64(status.Reloads.Rejected), string(flagruntime.OutcomeRejected))
+	counter(c.reloads, float64(status.Reloads.Ignored), string(flagruntime.OutcomeIgnored))
 
 	last := 0.0
-	if !st.Reloads.LastSuccess.IsZero() {
-		last = float64(st.Reloads.LastSuccess.UnixNano()) / 1e9
+	if !status.Reloads.LastSuccess.IsZero() {
+		last = float64(status.Reloads.LastSuccess.UnixNano()) / nanosPerSecond
 	}
 
 	gauge(c.lastSuccess, last)
 
-	if sync := st.Source.Reader.LastSync; !sync.IsZero() {
+	if sync := status.Source.Reader.LastSync; !sync.IsZero() {
 		gauge(c.age, max(0, clock.Now().Sub(sync).Seconds()))
 	}
 

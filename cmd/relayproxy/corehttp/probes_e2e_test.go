@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
@@ -145,6 +146,8 @@ func TestProbes_StateDirRestoreWithStoreDownIsReady(t *testing.T) {
 	second := newV2With(t, v2Options{stateDir: stateDir, cold: true, dir: filepath.Join(t.TempDir(), "empty")})
 	second.awaitGeneration(t, 1)
 	second.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
+	assert.Equal(t, manifestreader.RestoreRestored, second.core.Status().Source.Reader.State.Restore)
+	assert.Equal(t, uint64(1), second.core.Status().Source.Runtime.Generation)
 }
 
 func TestInfo_CompatAndZeroFlagSets(t *testing.T) {
@@ -241,7 +244,7 @@ func TestMetricsAndInfo_AfterScriptedReloads(t *testing.T) {
 
 	now := float64(clock.Now().UnixNano()) / 1e9
 	want := fmt.Sprintf(`
-# HELP semaphore_config_age_seconds Seconds since the control plane last confirmed the held manifest; absent before the first confirmation. It never makes the relay unready.
+# HELP semaphore_config_age_seconds Seconds since the control plane last confirmed the manifest.
 # TYPE semaphore_config_age_seconds gauge
 semaphore_config_age_seconds 0
 # HELP semaphore_config_generation Config generation by layer: applied (served) and received (handed to the engine).
@@ -274,7 +277,7 @@ semaphore_resource_count{kind="object",state="pending"} 0
 semaphore_resource_count{kind="object",state="stale"} 0
 `, now)
 
-	assert.NoError(t, testutil.GatherAndCompare(rig.metrics.Registry, strings.NewReader(want),
+	require.NoError(t, testutil.GatherAndCompare(rig.metrics.Registry, strings.NewReader(want),
 		"semaphore_config_age_seconds", "semaphore_config_generation",
 		"semaphore_config_last_success_timestamp_seconds", "semaphore_config_pending_restart",
 		"semaphore_config_reload_total", "semaphore_config_snapshot", "semaphore_resource_count",
@@ -287,7 +290,7 @@ semaphore_resource_count{kind="object",state="stale"} 0
 	require.NotNil(t, info.Config)
 	require.NotNil(t, info.Config.LastRejected)
 	assert.Equal(t, model.ReloadInfo{
-		Outcome: "rejected", Code: flagruntime.CodeVetoed, Detail: info.Config.LastRejected.Detail, Generation: 3,
+		Outcome: "rejected", Code: flagruntime.CodeVetoed, Generation: 3,
 	}, *info.Config.LastRejected)
 	assert.Equal(t, map[string]uint64{"applied": 3, "rejected": 1, "ignored": 0}, info.Config.Reloads)
 	assert.Equal(t, uint64(2), info.Config.Generation)

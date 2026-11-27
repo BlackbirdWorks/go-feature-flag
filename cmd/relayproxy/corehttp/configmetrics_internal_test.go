@@ -22,31 +22,31 @@ type staticStatus struct {
 func (s *staticStatus) Status() relaycore.Status { return *s.st.Load() }
 
 // bigStatus is a runtime of n flag sets with flagsPerSet flags each; every 500th flag set is degraded.
-func bigStatus(n, flagsPerSet int) *flagruntime.Status {
-	st := &flagruntime.Status{
+func bigStatus(count, flagsPerSet int) *flagruntime.Status {
+	status := &flagruntime.Status{
 		Snapshot: 2, Generation: 1,
-		FlagSets: make(map[string]*flagruntime.FlagSetStatus, n),
+		FlagSets: make(map[string]*flagruntime.FlagSetStatus, count),
 		Objects:  map[string]*flagruntime.ObjectStatus{"o": {Name: "o", State: flagruntime.ObjectOK}},
 	}
 
-	for i := range n {
+	for i := range count {
 		state := flagruntime.StateServing
 		if i%500 == 0 {
 			state = flagruntime.StateDegraded
 		}
 
 		name := fmt.Sprintf("set-%05d", i)
-		st.FlagSets[name] = &flagruntime.FlagSetStatus{Name: name, State: state, Flags: flagsPerSet}
+		status.FlagSets[name] = &flagruntime.FlagSetStatus{Name: name, State: state, Flags: flagsPerSet}
 	}
 
-	return st
+	return status
 }
 
-func collector(rt *flagruntime.Status) (*ConfigCollector, *staticStatus) {
+func collector(current *flagruntime.Status) *ConfigCollector {
 	src := &staticStatus{}
-	src.st.Store(&relaycore.Status{Source: controlsource.Status{Runtime: rt}})
+	src.st.Store(&relaycore.Status{Source: controlsource.Status{Runtime: current}})
 
-	return NewConfigCollector(src), src
+	return NewConfigCollector(src)
 }
 
 // TestConfigCollector_ScrapeCost pins that the series of a scrape follow the problems and never the flags, and that a
@@ -69,7 +69,7 @@ func TestConfigCollector_ScrapeCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			col, _ := collector(bigStatus(tt.sets, tt.flagsPerSet))
+			col := collector(bigStatus(tt.sets, tt.flagsPerSet))
 
 			reg := prom.NewPedanticRegistry()
 			require.NoError(t, reg.Register(col))
@@ -91,13 +91,14 @@ func TestConfigCollector_ScrapeCost(t *testing.T) {
 func TestConfigCollector_NamedSeriesAreCapped(t *testing.T) {
 	t.Parallel()
 
-	rt := bigStatus(1, 1)
+	current := bigStatus(1, 1)
+
 	for i := range 300 {
 		name := fmt.Sprintf("bad-%03d", i)
-		rt.FlagSets[name] = &flagruntime.FlagSetStatus{Name: name, State: flagruntime.StatePending}
+		current.FlagSets[name] = &flagruntime.FlagSetStatus{Name: name, State: flagruntime.StatePending}
 	}
 
-	col, _ := collector(rt)
+	col := collector(current)
 
 	// 5 gauges + 3 reloads + 3 flag set counts + 5 object counts = 16, plus the cap for the degraded flag sets
 	assert.Equal(t, 16+maxNamedResources, testutil.CollectAndCount(col))
@@ -107,7 +108,7 @@ func TestConfigCollector_NamedSeriesAreCapped(t *testing.T) {
 func TestConfigCollector_NoRuntime(t *testing.T) {
 	t.Parallel()
 
-	col, _ := collector(nil)
+	col := collector(nil)
 
 	assert.Equal(t, 16, testutil.CollectAndCount(col))
 }

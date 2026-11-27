@@ -270,16 +270,20 @@ func (rig *v2) awaitGeneration(tb testing.TB, gen uint64) {
 }
 
 // newV2 serves flagsYAML from a core on a directory, behind the HTTP server of the core.
-func newV2(tb testing.TB) *v2 { return newV2With(tb, v2Options{}) }
+func newV2(tb testing.TB) *v2 {
+	tb.Helper()
+
+	return newV2With(tb, v2Options{})
+}
 
 // v2Options shape a v2 rig: a state directory, and a cold start (nothing is published, so the first poll finds no
 // manifest). dir is the store directory; empty makes a new one.
 type v2Options struct {
-	stateDir string
-	dir      string
-	cold     bool
 	// beforeSwap vetoes a candidate runtime (a rejected round); nil lets every candidate through.
 	beforeSwap func(*flagruntime.Runtime) error
+	stateDir   string
+	dir        string
+	cold       bool
 }
 
 // newV2With is [newV2] with options.
@@ -326,7 +330,8 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
-		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\nauth:\n  adminKeys: [" + adminKey + "]\n"
+		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n" +
+		"auth:\n  adminKeys: [" + adminKey + "]\n"
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
 	require.NoError(tb, err)

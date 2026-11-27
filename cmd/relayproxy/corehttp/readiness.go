@@ -67,53 +67,58 @@ func (r *Readiness) BeginShutdown() { r.shutting.Store(true) }
 
 // Ready answers /readyz.
 func (r *Readiness) Ready() (int, model.ReadyResponse) {
-	st := r.src.Status()
-	if r.shutting.Load() || st.ShuttingDown {
-		return http.StatusServiceUnavailable, model.ReadyResponse{Reason: ReasonShuttingDown}
+	status := r.src.Status()
+	if r.shutting.Load() || status.ShuttingDown {
+		return http.StatusServiceUnavailable, notReady(ReasonShuttingDown)
 	}
 
-	rt := st.Source.Runtime
-	if rt != nil && rt.Snapshot > 0 {
+	current := status.Source.Runtime
+	if current != nil && current.Snapshot > 0 {
 		r.started.Store(true)
 	}
 
-	if rt != nil && rt.Generation > 0 {
+	if current != nil && current.Generation > 0 {
 		r.everReady.Store(true)
 	}
 
 	switch {
 	case r.everReady.Load():
-		return http.StatusOK, model.ReadyResponse{Ready: true, State: r.state(st)}
+		return http.StatusOK, model.ReadyResponse{Ready: true, State: r.state(&status), Reason: ""}
 	case r.started.Load():
-		return http.StatusServiceUnavailable, model.ReadyResponse{Reason: ReasonWaitingForManifest}
+		return http.StatusServiceUnavailable, notReady(ReasonWaitingForManifest)
 	}
 
-	return http.StatusServiceUnavailable, model.ReadyResponse{Reason: ReasonStarting}
+	return http.StatusServiceUnavailable, notReady(ReasonStarting)
 }
 
 // Started answers /startupz: 200 once the bootstrap snapshot is applied, and from then on.
 func (r *Readiness) Started() (int, model.ReadyResponse) {
-	rt := r.src.Status().Source.Runtime
-	if rt != nil && rt.Snapshot > 0 {
+	current := r.src.Status().Source.Runtime
+	if current != nil && current.Snapshot > 0 {
 		r.started.Store(true)
 	}
 
 	if r.started.Load() {
-		return http.StatusOK, model.ReadyResponse{Ready: true}
+		return http.StatusOK, model.ReadyResponse{Ready: true, State: "", Reason: ""}
 	}
 
-	return http.StatusServiceUnavailable, model.ReadyResponse{Reason: ReasonStarting}
+	return http.StatusServiceUnavailable, notReady(ReasonStarting)
 }
 
-func (r *Readiness) state(st relaycore.Status) string {
-	sum := r.sums.of(st.Source.Runtime)
+func (r *Readiness) state(status *relaycore.Status) string {
+	current := status.Source.Runtime
+	sum := r.sums.of(current)
 
 	switch {
-	case st.Source.Runtime == nil || len(st.Source.Runtime.FlagSets) == 0:
+	case current == nil || len(current.FlagSets) == 0:
 		return ReadyEmpty
 	case len(sum.badSets) > 0 || len(sum.badObject) > 0:
 		return ReadyDegraded
 	}
 
 	return ReadyServing
+}
+
+func notReady(reason string) model.ReadyResponse {
+	return model.ReadyResponse{Ready: false, State: "", Reason: reason}
 }

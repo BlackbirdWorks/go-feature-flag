@@ -14,6 +14,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 )
 
+const (
+	bodyStarted  = `{"ready":true}`
+	bodyEmpty    = `{"ready":true,"state":"empty"}`
+	bodyDegraded = `{"ready":true,"state":"degraded"}`
+)
+
 // fakeStatus is a core status the test changes between the questions.
 type fakeStatus struct {
 	st atomic.Pointer[relaycore.Status]
@@ -21,18 +27,18 @@ type fakeStatus struct {
 
 func (f *fakeStatus) Status() relaycore.Status { return *f.st.Load() }
 
-func (f *fakeStatus) set(st relaycore.Status) { f.st.Store(&st) }
+func (f *fakeStatus) set(status *relaycore.Status) { f.st.Store(status) }
 
 func runtimeStatus(snapshot, generation uint64, sets map[string]*flagruntime.FlagSetStatus,
 	objects map[string]*flagruntime.ObjectStatus,
-) relaycore.Status {
-	return relaycore.Status{Source: controlsource.Status{Runtime: &flagruntime.Status{
+) *relaycore.Status {
+	return &relaycore.Status{Source: controlsource.Status{Runtime: &flagruntime.Status{
 		Snapshot: snapshot, Generation: generation, FlagSets: sets, Objects: objects,
 	}}}
 }
 
-func serving(name string) map[string]*flagruntime.FlagSetStatus {
-	return map[string]*flagruntime.FlagSetStatus{name: {Name: name, State: flagruntime.StateServing}}
+func serving() map[string]*flagruntime.FlagSetStatus {
+	return map[string]*flagruntime.FlagSetStatus{"a": {Name: "a", State: flagruntime.StateServing}}
 }
 
 // TestReadiness walks the state machine through every transition and every reason, with the exact answers.
@@ -40,13 +46,13 @@ func TestReadiness(t *testing.T) {
 	t.Parallel()
 
 	type step struct {
+		status       *relaycore.Status
 		name         string
-		status       relaycore.Status
-		beginStop    bool
-		wantReadyz   int
 		wantReadyBod string
-		wantStartz   int
 		wantStartBod string
+		wantReadyz   int
+		wantStartz   int
+		beginStop    bool
 	}
 
 	const (
@@ -65,56 +71,56 @@ func TestReadiness(t *testing.T) {
 		steps []step
 	}{
 		{"cold start without manifest then manifest", []step{
-			{name: "no runtime", status: relaycore.Status{}, wantReadyz: 503, wantReadyBod: notReadyStarting,
+			{name: "no runtime", status: &relaycore.Status{}, wantReadyz: 503, wantReadyBod: notReadyStarting,
 				wantStartz: 503, wantStartBod: notReadyStarting},
 			{name: "empty runtime", status: runtimeStatus(0, 0, nil, nil), wantReadyz: 503,
 				wantReadyBod: notReadyStarting, wantStartz: 503, wantStartBod: notReadyStarting},
 			{name: "bootstrap applied", status: runtimeStatus(1, 0, nil, nil), wantReadyz: 503,
-				wantReadyBod: notReadyWaiting, wantStartz: 200, wantStartBod: `{"ready":true}`},
+				wantReadyBod: notReadyWaiting, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "manifest with zero objects", status: runtimeStatus(2, 1, nil, nil), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"empty"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
-			{name: "one flag set", status: runtimeStatus(3, 2, serving("a"), okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+				wantReadyBod: bodyEmpty, wantStartz: 200, wantStartBod: bodyStarted},
+			{name: "one flag set", status: runtimeStatus(3, 2, serving(), okObject), wantReadyz: 200,
+				wantReadyBod: bodyServing, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 		{"state directory restore is ready at once", []step{
-			{name: "restored generation", status: runtimeStatus(1, 7, serving("a"), okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+			{name: "restored generation", status: runtimeStatus(1, 7, serving(), okObject), wantReadyz: 200,
+				wantReadyBod: bodyServing, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 		{"degraded and stale content never goes unready", []step{
-			{name: "serving", status: runtimeStatus(2, 1, serving("a"), okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
-			{name: "stale object", status: runtimeStatus(2, 1, serving("a"), staleObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"degraded"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+			{name: "serving", status: runtimeStatus(2, 1, serving(), okObject), wantReadyz: 200,
+				wantReadyBod: bodyServing, wantStartz: 200, wantStartBod: bodyStarted},
+			{name: "stale object", status: runtimeStatus(2, 1, serving(), staleObject), wantReadyz: 200,
+				wantReadyBod: bodyDegraded, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "degraded set", status: runtimeStatus(2, 1, degradedSet, okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"degraded"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+				wantReadyBod: bodyDegraded, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "pending set", status: runtimeStatus(2, 1, pendingSet, okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"degraded"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+				wantReadyBod: bodyDegraded, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "everything gone", status: runtimeStatus(2, 1, nil, nil), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"empty"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+				wantReadyBod: bodyEmpty, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 		{"once ready it stays ready", []step{
-			{name: "ready", status: runtimeStatus(2, 1, serving("a"), okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
-			{name: "generation reads zero again", status: runtimeStatus(2, 0, serving("a"), okObject),
-				wantReadyz: 200, wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200,
-				wantStartBod: `{"ready":true}`},
-			{name: "no runtime reads again", status: relaycore.Status{}, wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"empty"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
+			{name: "ready", status: runtimeStatus(2, 1, serving(), okObject), wantReadyz: 200,
+				wantReadyBod: bodyServing, wantStartz: 200, wantStartBod: bodyStarted},
+			{name: "generation reads zero again", status: runtimeStatus(2, 0, serving(), okObject),
+				wantReadyz: 200, wantReadyBod: bodyServing, wantStartz: 200,
+				wantStartBod: bodyStarted},
+			{name: "no runtime reads again", status: &relaycore.Status{}, wantReadyz: 200,
+				wantReadyBod: bodyEmpty, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 		{"shutdown is first", []step{
-			{name: "ready", status: runtimeStatus(2, 1, serving("a"), okObject), wantReadyz: 200,
-				wantReadyBod: `{"ready":true,"state":"serving"}`, wantStartz: 200, wantStartBod: `{"ready":true}`},
-			{name: "begin shutdown", status: runtimeStatus(2, 1, serving("a"), okObject), beginStop: true,
-				wantReadyz: 503, wantReadyBod: notReadyStop, wantStartz: 200, wantStartBod: `{"ready":true}`},
+			{name: "ready", status: runtimeStatus(2, 1, serving(), okObject), wantReadyz: 200,
+				wantReadyBod: bodyServing, wantStartz: 200, wantStartBod: bodyStarted},
+			{name: "begin shutdown", status: runtimeStatus(2, 1, serving(), okObject), beginStop: true,
+				wantReadyz: 503, wantReadyBod: notReadyStop, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 		{"shutdown before anything", []step{
-			{name: "begin shutdown", status: relaycore.Status{}, beginStop: true, wantReadyz: 503,
+			{name: "begin shutdown", status: &relaycore.Status{}, beginStop: true, wantReadyz: 503,
 				wantReadyBod: notReadyStop, wantStartz: 503, wantStartBod: notReadyStarting},
 		}},
 		{"the core shutting down", []step{
-			{name: "core shutdown", status: relaycore.Status{ShuttingDown: true,
-				Source: runtimeStatus(2, 1, serving("a"), okObject).Source}, wantReadyz: 503,
-				wantReadyBod: notReadyStop, wantStartz: 200, wantStartBod: `{"ready":true}`},
+			{name: "core shutdown", status: &relaycore.Status{ShuttingDown: true,
+				Source: runtimeStatus(2, 1, serving(), okObject).Source}, wantReadyz: 503,
+				wantReadyBod: notReadyStop, wantStartz: 200, wantStartBod: bodyStarted},
 		}},
 	}
 
@@ -123,28 +129,28 @@ func TestReadiness(t *testing.T) {
 			t.Parallel()
 
 			src := &fakeStatus{}
-			src.set(relaycore.Status{})
+			src.set(&relaycore.Status{})
 
 			ready := corehttp.NewReadiness(src)
 
-			for _, st := range tt.steps {
-				src.set(st.status)
+			for _, stp := range tt.steps {
+				src.set(stp.status)
 
-				if st.beginStop {
+				if stp.beginStop {
 					ready.BeginShutdown()
 				}
 
 				code, body := ready.Ready()
 				got, err := json.Marshal(body)
-				require.NoError(t, err, st.name)
-				assert.Equal(t, st.wantReadyz, code, st.name)
-				assert.JSONEq(t, st.wantReadyBod, string(got), st.name)
+				require.NoError(t, err, stp.name)
+				assert.Equal(t, stp.wantReadyz, code, stp.name)
+				assert.JSONEq(t, stp.wantReadyBod, string(got), stp.name)
 
 				code, body = ready.Started()
 				got, err = json.Marshal(body)
-				require.NoError(t, err, st.name)
-				assert.Equal(t, st.wantStartz, code, st.name)
-				assert.JSONEq(t, st.wantStartBod, string(got), st.name)
+				require.NoError(t, err, stp.name)
+				assert.Equal(t, stp.wantStartz, code, stp.name)
+				assert.JSONEq(t, stp.wantStartBod, string(got), stp.name)
 			}
 		})
 	}

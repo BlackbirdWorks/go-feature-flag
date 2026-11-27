@@ -342,11 +342,11 @@ func probeOperation(id, path, summary, description string) *huma.Operation {
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK): {
 				Description: "OK",
-				Content:     map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{Type: typeObject}}},
+				Content:     map[string]*huma.MediaType{contentJSON: {Schema: &huma.Schema{Type: typeObject}}},
 			},
 			statusKey(http.StatusServiceUnavailable): {
-				Description: "Not ready: the body is {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}",
-				Content:     map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{Type: typeObject}}},
+				Description: "Not ready: {\"ready\": false, \"reason\": \"starting|waiting-for-manifest|shutting-down\"}",
+				Content:     map[string]*huma.MediaType{contentJSON: {Schema: &huma.Schema{Type: typeObject}}},
 			},
 		},
 	}
