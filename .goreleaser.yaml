@@ -51,17 +51,6 @@ builds:
       - amd64
       - arm64
 
-  # Build an AWS lambda compatible binary
-  - id: semaphore-lambda
-    main: ./cmd/relayproxy
-    binary: bootstrap
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - arm64
-
 archives:
   - id: semaphore
     formats: [tar.gz]
@@ -112,12 +101,6 @@ archives:
       - NOTICE
       - rules/LICENSE
       - internal/koanfhttpprovider/LICENSE
-
-  - id: semaphore-lambda
-    name_template: "semaphore-aws-lambda_{{ .Version }}"
-    formats: zip
-    ids:
-      - semaphore-lambda
 
 checksum:
   name_template: "checksums.txt"
