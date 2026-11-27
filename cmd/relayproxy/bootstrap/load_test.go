@@ -104,7 +104,7 @@ func TestParseErrors(t *testing.T) {
 			doc: "version: 2\nserver:\n  listeners:\n    - {name: api, address: \":1\"}\n" +
 				"    - {name: ops, address: \":1\", role: ops}\n",
 			wantErr:  bootstrap.ErrDuplicateName,
-			wantPath: "server.listeners[1].address",
+			wantPath: pathListener1Address,
 			wantLine: 5,
 		},
 		{

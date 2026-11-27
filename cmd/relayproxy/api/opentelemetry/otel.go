@@ -67,8 +67,8 @@ func isDisabled(cfg *Settings) bool {
 }
 
 // ExportEnvironment gives the OTLP endpoint and the sampler of the configuration to the OpenTelemetry SDK, which
-// reads them from OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_TRACES_SAMPLER (a variable that is set wins). It changes the environment of the process, so it belongs to the
-// startup wiring (main): call it once, before Init.
+// reads them from OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_TRACES_SAMPLER (a variable that is set wins). It changes
+// the environment of the process, so it belongs to the startup wiring (main): call it once, before Init.
 func ExportEnvironment(cfg *Settings) {
 	if isDisabled(cfg) {
 		return

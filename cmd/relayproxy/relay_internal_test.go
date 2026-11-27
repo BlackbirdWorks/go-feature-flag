@@ -170,20 +170,13 @@ type relayRig struct {
 }
 
 type rigOptions struct {
-	// extra is appended to the bootstrap file.
-	extra string
-	// manifestKey replaces the manifest key of the file.
-	manifestKey string
-	// port, when set, makes the relay bind the address of its file (no injected listener) on that port.
-	port string
-	// flags are added to the command line.
-	flags []string
-	// stateFS replaces the file system of the state directory.
-	stateFS statedir.FS
-	// shutdownTimeout bounds the shutdown of the relay.
+	stateFS         statedir.FS
+	extra           string
+	manifestKey     string
+	port            string
+	flags           []string
 	shutdownTimeout time.Duration
-	// watchDrain records the readiness at the start of the shutdown.
-	watchDrain bool
+	watchDrain      bool
 }
 
 func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
@@ -795,10 +788,11 @@ type heldFS struct {
 	once    sync.Once
 }
 
+//nolint:ireturn // implements the FS seam, which returns an interface
 func (h *heldFS) Open(dir string) (statedir.Root, error) {
 	root, err := h.FS.Open(dir)
 	if err != nil {
-		return nil, err //nolint:wrapcheck // a test double passes the error of the real file system
+		return nil, err
 	}
 
 	return &heldRoot{Root: root, held: h}, nil
@@ -814,7 +808,7 @@ func (r *heldRoot) Rename(oldname, newname string) error {
 	r.held.once.Do(func() { close(r.held.entered) })
 	<-r.held.release
 
-	return r.Root.Rename(oldname, newname) //nolint:wrapcheck // a test double passes the error of the real file system
+	return r.Root.Rename(oldname, newname)
 }
 
 // A state write that does not finish must not keep the process from exiting: the shutdown is bounded, says so, and

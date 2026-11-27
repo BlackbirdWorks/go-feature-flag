@@ -304,7 +304,10 @@ func TestInstall(t *testing.T) {
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
-const otelTracesSampler = "OTEL_TRACES_SAMPLER"
+const (
+	otelTracesSampler = "OTEL_TRACES_SAMPLER"
+	samplerAlwaysOff  = "always_off"
+)
 
 // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads.
 func TestExportEnvironment(t *testing.T) {
@@ -347,9 +350,14 @@ func TestExportEnvironment_Sampler(t *testing.T) {
 		current string
 		wantEnv string
 	}{
-		{name: "the sampler of the file is exported", sampler: "always_off", wantEnv: "always_off"},
+		{name: "the sampler of the file is exported", sampler: samplerAlwaysOff, wantEnv: samplerAlwaysOff},
 		{name: "a ratio sampler is exported", sampler: "parentbased_traceidratio", wantEnv: "parentbased_traceidratio"},
-		{name: "the variable of the operator wins", sampler: "always_off", current: "always_on", wantEnv: "always_on"},
+		{
+			name:    "the variable of the operator wins",
+			sampler: samplerAlwaysOff,
+			current: "always_on",
+			wantEnv: "always_on",
+		},
 		{name: "jaeger_remote is not exported", sampler: "jaeger_remote", wantEnv: ""},
 		{name: "no sampler exports nothing", wantEnv: ""},
 	}
