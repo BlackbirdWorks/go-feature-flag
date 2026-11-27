@@ -171,7 +171,7 @@ func (d *Dispatcher) swapSetLocked(ctx context.Context, defs []ExporterDef) (Rel
 	d.swap(&dispatchState{active: next, retired: slices.Concat(retired, leaving)})
 
 	for _, inst := range leaving {
-		inst.startClose(ctx, &d.background)
+		inst.startClose(ctx)
 	}
 
 	return set, leaving
@@ -326,11 +326,14 @@ func (d *Dispatcher) Shutdown(ctx context.Context) (ShutdownReport, error) {
 
 	for _, inst := range snap.active {
 		inst.state.CompareAndSwap(stateRunning, stateDraining)
-		inst.startClose(ctx, &d.background)
+		inst.startClose(ctx)
 	}
 
-	results := d.waitClosed(ctx, closing)
+	// the draining instances are published as retired before they are waited for: a WaitDrains that runs
+	// meanwhile waits for them too
 	d.swap(&dispatchState{retired: slices.Concat(snap.retired, snap.active)})
+
+	results := d.waitClosed(ctx, closing)
 
 	report := ShutdownReport{Drained: results, Dropped: d.Status().Queue.Dropped}
 	for _, res := range results {

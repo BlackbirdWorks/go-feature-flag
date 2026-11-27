@@ -94,7 +94,7 @@ func (r *Runtime) Reload(
 // Shutdown shuts down the notification worker and the dispatcher within the deadline of ctx.
 func (r *Runtime) Shutdown(
 	ctx context.Context,
-) (ShutdownReport, error) { //nolint:unparam // the report is read by the callers outside this package
+) (ShutdownReport, error) {
 	// both sides shut down at the same time, under the same deadline: a notifier that holds its deadline must not
 	// leave the exporters with a deadline that has passed
 	var notErr error

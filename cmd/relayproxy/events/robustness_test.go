@@ -257,7 +257,7 @@ func TestRuntimeShutdownClosesHealthyExportersWhileANotifierIsStuck(t *testing.T
 
 	require.NoError(t, runtime.Start(context.Background(), changes))
 
-	stuck := &recordingNotifier{gate: make(chan struct{}), entered: make(chan struct{}, 1)}
+	stuck := &recordingNotifier{gate: newGate(t), entered: make(chan struct{}, 1)}
 
 	_, err := runtime.Notifications.Apply(context.Background(), []events.NotifierDef{ndef("n", "v1", stuck)})
 	require.NoError(t, err)

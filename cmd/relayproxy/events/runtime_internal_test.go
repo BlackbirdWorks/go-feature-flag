@@ -59,7 +59,7 @@ func TestRuntimeOverlappingReloadsLeaveOneConfiguration(t *testing.T) {
 	t.Parallel()
 
 	opts := reloadOptions()
-	gate := make(chan struct{})
+	gate := newGate(t)
 	entered := make(chan struct{}, 4)
 
 	var (
@@ -84,7 +84,7 @@ func TestRuntimeOverlappingReloadsLeaveOneConfiguration(t *testing.T) {
 	runtime := NewRuntime(&RuntimeConfig{NewManager: newManager, Builder: Builder{Secrets: opts}})
 	require.NoError(t, runtime.Start(context.Background(), nil))
 
-	t.Cleanup(func() { _, _ = runtime.Shutdown(context.Background()) })
+	shutdownOnCleanup(t, runtime)
 
 	specsOf := func(generation string) Specs {
 		cfg, err := bootstrap.Parse([]byte(reloadDoc(generation)), nil, opts)
@@ -188,10 +188,8 @@ func TestInstanceReleasesItsExporterAfterTheFinalFlush(t *testing.T) {
 
 			inst := newManaged(&def, &loggingManager{log: log}, entry, 8, 8, slog.New(slog.DiscardHandler))
 
-			var background sync.WaitGroup
-
-			inst.startClose(context.Background(), &background)
-			background.Wait()
+			inst.startClose(context.Background())
+			<-inst.finished
 
 			log.mu.Lock()
 			defer log.mu.Unlock()
@@ -269,7 +267,11 @@ func TestRuntimeReloadDrainsRunAtTheSameTime(t *testing.T) {
 
 			changes := make(chan flagruntime.Change)
 			require.NoError(t, runtime.Start(context.Background(), changes))
-			t.Cleanup(func() { _, _ = runtime.Shutdown(context.Background()) })
+			shutdownOnCleanup(t, runtime)
+
+			// the gates are opened when the test ends, whatever its outcome. The cleanups run in the reverse order,
+			// so they are opened before the runtime is shut down. Nothing can fail between the runtime and this line.
+			openOnCleanup(t, tt.exporterGate, tt.notifierGate)
 
 			log := &orderLog{}
 			oldN := &gatedNotifier{gate: tt.notifierGate, entered: make(chan struct{}, 1), label: "old-", log: log}

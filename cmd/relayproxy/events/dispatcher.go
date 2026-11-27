@@ -104,8 +104,6 @@ type Dispatcher struct {
 	cfg     DispatcherConfig
 	report  ShutdownReport
 	workers sync.WaitGroup
-	// background counts the closing goroutines of the instances.
-	background sync.WaitGroup
 
 	accepted       atomic.Uint64
 	dropFull       atomic.Uint64
@@ -218,21 +216,18 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 }
 
 // WaitDrains waits until every exporter that left the set has finished closing, including the ones whose drain
-// was cut. It returns the error of ctx when that comes first.
+// was cut, and the ones a shutdown is closing. The exporters that are still in the set are not waited for. It
+// returns the error of ctx when that comes first.
 func (d *Dispatcher) WaitDrains(ctx context.Context) error {
-	finished := make(chan struct{})
-
-	go func() {
-		d.background.Wait()
-		close(finished)
-	}()
-
-	select {
-	case <-finished:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err() //nolint:wrapcheck // the context error says it
+	for _, inst := range d.state.Load().retired {
+		select {
+		case <-inst.finished:
+		case <-ctx.Done():
+			return ctx.Err() //nolint:wrapcheck // the context error says it
+		}
 	}
+
+	return nil
 }
 
 // Status returns a snapshot of the queue and of the exporters, without blocking on anything slower than a

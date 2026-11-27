@@ -198,8 +198,11 @@ func (n *Notifications) Shutdown(ctx context.Context) error {
 		run.close()
 	}
 
-	closeRuns(ctx, slices.Concat(snap.active, snap.retired))
+	// the draining runs are published as retired before they are waited for: a WaitDrains that runs meanwhile
+	// waits for them too
 	n.swap(&notifyState{retired: slices.Concat(snap.retired, snap.active)})
+
+	closeRuns(ctx, slices.Concat(snap.active, snap.retired))
 
 	return nil
 }

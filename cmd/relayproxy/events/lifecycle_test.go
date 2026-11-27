@@ -222,7 +222,7 @@ func TestDispatcher_CutDrainReconcilesWhenTheExporterFinishesLate(t *testing.T) 
 			t.Parallel()
 
 			fac := newFactory()
-			fac.stopGate = make(chan struct{})
+			fac.stopGate = newGate(t)
 
 			disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Nanosecond})
 			require.NoError(t, disp.Start(context.Background()))
@@ -285,7 +285,7 @@ func TestDispatcher_CutDrainReconcilesWhenTheExporterFinishesLate(t *testing.T) 
 func TestDispatcher_CutDrainWithTheEngineManager(t *testing.T) {
 	t.Parallel()
 
-	gate := make(chan struct{})
+	gate := newGate(t)
 	slow := &gatedExporter{gate: gate}
 
 	newManager, tap := tapped()
@@ -370,7 +370,7 @@ func TestDispatcher_CancelledReloadDoesNotCutTheDrains(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	fac.stopGate = make(chan struct{})
+	fac.stopGate = newGate(t)
 	fac.stopEntered = make(chan struct{}, 1)
 
 	disp := startDispatcher(t, fac, &events.DispatcherConfig{DrainTimeout: time.Hour})
@@ -398,7 +398,7 @@ func TestDispatcher_ShutdownDoesNotWaitForAReload(t *testing.T) {
 	t.Parallel()
 
 	fac := newFactory()
-	fac.stopGate = make(chan struct{})
+	fac.stopGate = newGate(t)
 	fac.stopEntered = make(chan struct{}, 1)
 
 	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build, DrainTimeout: time.Hour})
@@ -638,7 +638,7 @@ func TestDispatcher_ShutdownPastDeadlineCutsTheFlushAndReconcilesLater(t *testin
 	t.Parallel()
 
 	fac := newFactory()
-	fac.stopGate = make(chan struct{})
+	fac.stopGate = newGate(t)
 
 	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
 	require.NoError(t, disp.Start(context.Background()))
@@ -769,4 +769,94 @@ func TestDispatcher_CollectDuringShutdown(t *testing.T) {
 	)
 	assert.Equal(t, acceptedKeys, keys(fac.of("a", 0).got()), "every accepted event was delivered")
 	assert.Zero(t, status.Queue.Length, "nothing is left in the channel")
+}
+
+// TestDispatcher_WaitDrainsSeesTheDrainOfAShutdown holds an exporter in its close while the dispatcher shuts down,
+// and calls WaitDrains meanwhile: it waits for that close, and returns the error of its context when the context
+// ends first.
+func TestDispatcher_WaitDrainsSeesTheDrainOfAShutdown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		ctx          func() context.Context
+		beforeResult func(release func())
+		wantErr      error
+		name         string
+		wantOrder    []string
+	}{
+		{
+			name: "the close ends first", ctx: context.Background, wantErr: nil,
+			beforeResult: func(release func()) { release() },
+			wantOrder:    []string{"gate-released", "wait-returned"},
+		},
+		{
+			name: "the context ends first", ctx: canceled, wantErr: context.Canceled,
+			beforeResult: func(func()) {},
+			wantOrder:    []string{"wait-returned", "gate-released"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu    sync.Mutex
+				order []string
+			)
+
+			record := func(entry string) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				order = append(order, entry)
+			}
+
+			fac := newFactory()
+			fac.stopGate = newGate(t)
+			fac.stopEntered = make(chan struct{}, 1)
+
+			disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
+			require.NoError(t, disp.Start(context.Background()))
+
+			_, err := disp.Apply(context.Background(), defs("a"))
+			require.NoError(t, err)
+
+			go func() { _, _ = disp.Shutdown(context.Background()) }()
+
+			// the exporter is being closed, and its Stop holds
+			await(t, fac.stopEntered, "the exporter to be closed")
+
+			var once sync.Once
+
+			release := func() {
+				once.Do(func() {
+					record("gate-released")
+					close(fac.stopGate)
+				})
+			}
+
+			result := make(chan error, 1)
+			waitCtx := tt.ctx()
+
+			go func() {
+				waitErr := disp.WaitDrains(waitCtx)
+
+				record("wait-returned")
+
+				result <- waitErr
+			}()
+
+			tt.beforeResult(release)
+
+			require.ErrorIs(t, await(t, result, "WaitDrains"), tt.wantErr)
+
+			release()
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			assert.Equal(t, tt.wantOrder, order)
+		})
+	}
 }

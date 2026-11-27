@@ -80,14 +80,19 @@ func TestNotifications_ReloadKeepsTheOrderOfAFlagSet(t *testing.T) {
 	t.Parallel()
 
 	log := &orderLog{}
-	oldN := &gatedNotifier{gate: make(chan struct{}), entered: make(chan struct{}, 1), label: "old-", log: log}
+	oldN := &gatedNotifier{gate: newGate(t), entered: make(chan struct{}, 1), label: "old-", log: log}
 	newN := &gatedNotifier{got: make(chan struct{}, 8), label: "new-", log: log}
 
 	notes := NewNotifications(&NotificationsConfig{QueueSize: 8})
 	changes := make(chan flagruntime.Change)
 
 	require.NoError(t, notes.Start(context.Background(), changes))
-	t.Cleanup(func() { _ = notes.Shutdown(context.Background()) })
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		_ = notes.Shutdown(ctx)
+	})
 
 	_, err := notes.Apply(context.Background(), []NotifierDef{NewNotifierDef("n", "webhook", "v1", oldN)})
 	require.NoError(t, err)
@@ -134,4 +139,129 @@ func TestNotifications_ReloadKeepsTheOrderOfAFlagSet(t *testing.T) {
 
 	assert.Equal(t, []string{"old-0", "old-1", "old-fence", "new-2"}, log.order,
 		"the changes in order, across the reload: the old instance drains before the new one is called")
+}
+
+// TestNotificationsWaitDrainsSeesTheDrainOfAShutdown holds a notifier in its drain while the notifications shut
+// down, and calls WaitDrains meanwhile: it waits for that drain, and returns the error of its context when the
+// context ends first.
+func TestNotificationsWaitDrainsSeesTheDrainOfAShutdown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		ctx          func() context.Context
+		beforeResult func(release func())
+		wantErr      error
+		name         string
+		wantOrder    []string
+	}{
+		{
+			name: "the drain ends first", ctx: context.Background,
+			beforeResult: func(release func()) { release() },
+			wantErr:      nil, wantOrder: []string{"gate-released", "wait-returned"},
+		},
+		{
+			name: "the context ends first",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				return ctx
+			},
+			beforeResult: func(func()) {},
+			wantErr:      context.Canceled, wantOrder: []string{"wait-returned", "gate-released"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			log := &orderLog{}
+			stuck := &gatedNotifier{gate: newGate(t), entered: make(chan struct{}, 1), label: "n-", log: &orderLog{}}
+
+			notes := NewNotifications(&NotificationsConfig{})
+			changes := make(chan flagruntime.Change)
+
+			require.NoError(t, notes.Start(context.Background(), changes))
+
+			var once sync.Once
+
+			release := func() {
+				once.Do(func() {
+					log.add("gate-released")
+					close(stuck.gate)
+				})
+			}
+
+			// registered before anything can fail: the notifier is released and the notifications are stopped
+			t.Cleanup(func() {
+				release()
+
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				defer cancel()
+
+				_ = notes.Shutdown(ctx)
+			})
+
+			_, err := notes.Apply(context.Background(), []NotifierDef{NewNotifierDef("n", "webhook", "v1", stuck)})
+			require.NoError(t, err)
+
+			changes <- addedChange("0")
+
+			await(t, stuck.entered, "the notifier to take its change")
+
+			go func() { _ = notes.Shutdown(context.Background()) }()
+
+			// the shutdown published the notifier as draining
+			waitUntil(
+				t,
+				func() bool { return len(notes.state.Load().retired) > 0 },
+				"the shutdown to publish its drains",
+			)
+
+			result := make(chan error, 1)
+			waitCtx := tt.ctx()
+
+			go func() {
+				waitErr := notes.WaitDrains(waitCtx)
+
+				log.add("wait-returned")
+
+				result <- waitErr
+			}()
+
+			tt.beforeResult(release)
+
+			select {
+			case got := <-result:
+				require.ErrorIs(t, got, tt.wantErr)
+			case <-time.After(20 * time.Second):
+				require.FailNow(t, "timed out waiting for WaitDrains")
+			}
+
+			release()
+
+			log.mu.Lock()
+			defer log.mu.Unlock()
+
+			assert.Equal(t, tt.wantOrder, log.order)
+		})
+	}
+}
+
+// waitUntil waits for a condition on the internal state that has no channel to wait on: it yields the processor
+// between two checks, and the wait is bounded by a failure timeout.
+func waitUntil(t *testing.T, cond func() bool, what string) {
+	t.Helper()
+
+	deadline := time.After(20 * time.Second)
+
+	for !cond() {
+		select {
+		case <-deadline:
+			require.FailNow(t, "timed out waiting for "+what)
+		default:
+			runtime.Gosched()
+		}
+	}
 }

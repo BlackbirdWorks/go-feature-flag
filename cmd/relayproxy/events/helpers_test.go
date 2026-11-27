@@ -274,7 +274,7 @@ func startDispatcher(tb testing.TB, fac *factory, cfg *events.DispatcherConfig) 
 	disp := events.NewDispatcher(cfg)
 
 	require.NoError(tb, disp.Start(context.Background()))
-	tb.Cleanup(func() { _, _ = disp.Shutdown(canceled()) })
+	cleanupBounded(tb, func() { _, _ = disp.Shutdown(canceled()) })
 
 	return disp
 }
@@ -696,7 +696,7 @@ func newDispatcher(tb testing.TB, cfg *events.DispatcherConfig) *events.Dispatch
 
 	disp := events.NewDispatcher(cfg)
 
-	tb.Cleanup(func() { _, _ = disp.Shutdown(canceled()) })
+	cleanupBounded(tb, func() { _, _ = disp.Shutdown(canceled()) })
 
 	return disp
 }
@@ -707,7 +707,7 @@ func newNotifications(tb testing.TB, cfg *events.NotificationsConfig) *events.No
 
 	notes := events.NewNotifications(cfg)
 
-	tb.Cleanup(func() { _ = notes.Shutdown(canceled()) })
+	cleanupBounded(tb, func() { _ = notes.Shutdown(canceled()) })
 
 	return notes
 }
@@ -718,15 +718,17 @@ func newRuntime(tb testing.TB, cfg *events.RuntimeConfig) *events.Runtime {
 
 	rt := events.NewRuntime(cfg)
 
-	tb.Cleanup(func() { _, _ = rt.Shutdown(canceled()) })
+	cleanupBounded(tb, func() { _, _ = rt.Shutdown(canceled()) })
 
 	return rt
 }
 
+// creatorPrefix starts the "created by" line of a goroutine that the package under test started.
+const creatorPrefix = "created by github.com/blackbirdworks/semaphore/cmd/relayproxy/events."
+
 // leakedGoroutines returns the stacks of the goroutines of the package (the workers, the goroutines of the
-// exporters and of the notifiers, the consumers) that are still running. The stacks of the tests are not the
-// goroutines of the package, so a goroutine that has a frame of a test is left out. The goroutines of an exporter
-// that was cut end when its gate opens: the caller gives them time.
+// exporters and of the notifiers, the consumers) that are still running. The goroutines of the goroutine
+// dump are classified by their creator: see [leakedIn].
 func leakedGoroutines() []string {
 	buf := make([]byte, 1<<20)
 
@@ -741,16 +743,32 @@ func leakedGoroutines() []string {
 		buf = make([]byte, 2*len(buf))
 	}
 
+	return leakedIn(string(buf))
+}
+
+// leakedIn returns the goroutines of a goroutine dump that the package under test started. A goroutine is the
+// package's when its creator, the "created by" frame, is in the package and is not a test. Its other frames do not
+// matter: a worker that is stuck in a test double (a notifier or a manager of a test) has frames of the test, and
+// is as much a leak as any other. A goroutine that a test started (its creator is in the test) is not one of the
+// package, even when it calls into it.
+func leakedIn(dump string) []string {
 	var leaked []string
 
-	for stack := range strings.SplitSeq(string(buf), "\n\n") {
-		ours := strings.Contains(stack, "semaphore/cmd/relayproxy/events.(*")
-		fromTest := strings.Contains(stack, "events_test.") || strings.Contains(stack, "events.Test") ||
-			strings.Contains(stack, "testing.")
+	for stack := range strings.SplitSeq(dump, "\n\n") {
+		creator := ""
 
-		if ours && !fromTest {
-			leaked = append(leaked, stack)
+		for line := range strings.SplitSeq(stack, "\n") {
+			if strings.HasPrefix(line, "created by ") {
+				creator = line
+			}
 		}
+
+		name, found := strings.CutPrefix(creator, creatorPrefix)
+		if !found || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") {
+			continue
+		}
+
+		leaked = append(leaked, stack)
 	}
 
 	return leaked
@@ -795,3 +813,46 @@ func plainFactory(tb testing.TB, cfg *bootstrap.Config, opts bootstrap.LoadOptio
 
 // noSecrets is a reader of secrets that reads none: every reference is unresolved.
 func noSecrets(bootstrap.LoadOptions) bootstrap.LoadOptions { return bootstrap.LoadOptions{} }
+
+// safeClose closes a gate that may be closed already.
+func safeClose(gate chan struct{}) {
+	defer func() { _ = recover() }()
+
+	close(gate)
+}
+
+// newGate returns a gate that blocks the workers of a test until the test opens it. It is opened when the test
+// ends, whatever the outcome, so that a failure cannot leave a worker blocked: register it before anything that
+// can fail. The test opens it with safeClose, or close if it opens it only once.
+func newGate(tb testing.TB) chan struct{} {
+	tb.Helper()
+
+	gate := make(chan struct{})
+
+	tb.Cleanup(func() { safeClose(gate) })
+
+	return gate
+}
+
+// cleanupBounded runs a shutdown when the test ends and waits for it for a bounded time. A shutdown that waits
+// for a worker held on a gate cannot hang the test: the gates are opened by their own cleanups, which run after
+// this one, and the shutdown then ends by itself.
+func cleanupBounded(tb testing.TB, shutdown func()) {
+	tb.Helper()
+
+	tb.Cleanup(func() {
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+
+			shutdown()
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			tb.Log("the shutdown is held; it ends when the gates of the test are opened")
+		}
+	})
+}

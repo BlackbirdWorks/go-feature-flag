@@ -241,7 +241,7 @@ func TestDispatcher_SlowExporterDelaysNobody(t *testing.T) {
 			t.Parallel()
 
 			slow, fast := newFactory(), newFactory()
-			slow.gate = make(chan struct{})
+			slow.gate = newGate(t)
 			slow.entered = make(chan struct{}, 1)
 
 			// one dispatcher, two exporters: the factory gives the gated manager to "a-slow" only
@@ -306,7 +306,7 @@ func TestDispatcher_SlowExporterWithTheEngineManager(t *testing.T) {
 
 	const burst = 300_000
 
-	gate := make(chan struct{})
+	gate := newGate(t)
 	slow := &gatedExporter{gate: gate}
 	fast := &nopExporter{}
 
@@ -365,7 +365,7 @@ func TestDispatcher_NoExporterCostsNothing(t *testing.T) {
 //nolint:paralleltest // testing.AllocsPerRun panics in a parallel test
 func TestDispatcher_CollectAllocatesNothing(t *testing.T) {
 	fac := newFactory()
-	fac.gate = make(chan struct{})
+	fac.gate = newGate(t)
 
 	disp := startDispatcher(t, fac, &events.DispatcherConfig{QueueSize: 1 << 16})
 

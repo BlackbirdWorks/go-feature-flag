@@ -172,11 +172,11 @@ func (m *managed) pending() uint64 {
 // startClose closes the hand-off, lets the goroutine of the hand-off deliver what it holds, stops the manager
 // (which flushes it) and folds the counters of the instance in those of its name. It runs once, in the
 // background: the caller waits for [managed.finished] as long as it wants to.
-func (m *managed) startClose(ctx context.Context, background *sync.WaitGroup) {
+func (m *managed) startClose(ctx context.Context) {
 	m.closeOnce.Do(func() {
 		m.state.CompareAndSwap(stateRunning, stateDraining)
 
-		background.Go(func() {
+		go func() {
 			defer close(m.finished)
 
 			close(m.in)
@@ -184,7 +184,7 @@ func (m *managed) startClose(ctx context.Context, background *sync.WaitGroup) {
 			m.mgr.Stop()
 			m.release(context.WithoutCancel(ctx))
 			m.finalize()
-		})
+		}()
 	})
 }
 

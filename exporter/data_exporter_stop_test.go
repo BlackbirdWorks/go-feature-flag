@@ -98,6 +98,14 @@ func TestDataExporter_StopJoinsThePeriodicWorker(t *testing.T) {
 	t.Parallel()
 
 	store := &stopStore{gate: make(chan struct{}), entered: make(chan struct{}, 1)}
+
+	// the gate opens when the test ends, whatever its outcome, so that a failure cannot leave the worker held
+	var openOnce sync.Once
+
+	openGate := func() { openOnce.Do(func() { close(store.gate) }) }
+
+	t.Cleanup(openGate)
+
 	waiting := make(chan struct{})
 	logger := slog.New(signalHandler{signal: waiting, once: &sync.Once{}, text: "waiting for the periodic flush"})
 
@@ -141,7 +149,7 @@ func TestDataExporter_StopJoinsThePeriodicWorker(t *testing.T) {
 	default:
 	}
 
-	close(store.gate)
+	openGate()
 
 	select {
 	case <-stopped:
@@ -149,10 +157,11 @@ func TestDataExporter_StopJoinsThePeriodicWorker(t *testing.T) {
 		require.FailNow(t, "timed out waiting for Stop to return")
 	}
 
+	// the worker signals its exit after it released Stop, so the signal is waited for, with a bound
 	select {
 	case <-workerDone:
-	default:
-		assert.Fail(t, "the periodic worker was still running when Stop returned")
+	case <-time.After(20 * time.Second):
+		require.FailNow(t, "timed out waiting for the periodic worker to exit")
 	}
 
 	assert.Equal(t,

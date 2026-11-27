@@ -93,10 +93,8 @@ func TestNewManaged(t *testing.T) {
 
 			inst.offer([]Event{{Key: "1"}, {Key: "2"}, {Key: "3"}})
 
-			var background sync.WaitGroup
-
-			inst.startClose(context.Background(), &background)
-			background.Wait()
+			inst.startClose(context.Background())
+			<-inst.finished
 
 			assert.Equal(t, tt.wantKeys, tt.received())
 			assert.Equal(t, tt.wantDropped, inst.managerDropped())
