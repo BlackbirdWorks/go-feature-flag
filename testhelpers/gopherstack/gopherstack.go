@@ -84,6 +84,13 @@ func Start(ctx context.Context) (*Server, error) {
 		return &Server{Endpoint: endpoint}, nil
 	}
 
+	return StartIsolated(ctx)
+}
+
+// StartIsolated always starts a new container, ignoring GOPHERSTACK_ENDPOINT, so that a test can have a second
+// emulator whose buckets are not those of the shared one (the same bucket name then names two distinct stores).
+// The caller removes it with [Server.Terminate].
+func StartIsolated(ctx context.Context) (*Server, error) {
 	image := Image
 	if v := os.Getenv(EnvImage); v != "" {
 		image = v

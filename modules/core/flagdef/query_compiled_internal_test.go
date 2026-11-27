@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	keyEqAbc  = `key eq "abc"`
-	varKeyAbc = `{"==": [{"var": "key"}, "abc"]}`
+	multiLineVarKeyAbc = "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
+	keyEqAbc           = `key eq "abc"`
+	varKeyAbc          = `{"==": [{"var": "key"}, "abc"]}`
 )
 
 func TestService_CompiledQuery(t *testing.T) {
@@ -31,8 +32,9 @@ func TestService_CompiledQuery(t *testing.T) {
 			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
 		},
 		{
-			name: "multi-line jsonlogic", raw: "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}",
-			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
+			name: "multi-line jsonlogic", raw: multiLineVarKeyAbc,
+			wantTrimmed: multiLineVarKeyAbc, wantFormat: JSONLogicQueryFormat,
+			wantDecoded: true,
 		},
 		{
 			name: "invalid json", raw: `{"==": [{"var": "key"}, "abc"]`,
@@ -72,8 +74,8 @@ func TestService_CompiledQueryIsOwnedByTheService(t *testing.T) {
 func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 	t.Parallel()
 
-	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
-	trimmed := varKeyAbc
+	query := multiLineVarKeyAbc
+	trimmed := query // a JsonLogic query is compiled as written
 
 	tests := []struct {
 		name           string
@@ -114,6 +116,42 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 				return true
 			})
 			assert.Equal(t, tt.wantStoredSize, count)
+		})
+	}
+}
+
+func TestQueryFormatIsTheSameForValidationCompilationAndEvaluation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		query string
+		want  QueryFormat
+	}{
+		{name: "rules", query: keyEqAbc, want: NikunjyQueryFormat},
+		{name: "jsonlogic", query: varKeyAbc, want: JSONLogicQueryFormat},
+		{name: "multi-line jsonlogic", query: multiLineVarKeyAbc, want: JSONLogicQueryFormat},
+		{
+			name:  "newline in a json string",
+			query: "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}",
+			want:  NikunjyQueryFormat,
+		},
+		{
+			name:  "operands on consecutive lines",
+			query: "{\"in\": [{\"var\": \"n\"}, [1\n2]]}",
+			want:  NikunjyQueryFormat,
+		},
+		{name: "blank", query: "", want: NikunjyQueryFormat},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := Rule{Query: &tt.query}
+
+			assert.Equal(t, tt.want, r.GetQueryFormat(), "validation")
+			assert.Equal(t, tt.want, newCompiledQuery(tt.query).format, "compilation")
+			assert.Equal(t, tt.want, NewService().compiledQuery(tt.query).format, "evaluation")
 		})
 	}
 }
