@@ -53,16 +53,12 @@ func TestCutRequestsAreCountedPerServer(t *testing.T) {
 	}
 
 	for _, url := range urls {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+		require.NoError(t, err)
+
 		running.Go(func() {
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
-			assert.NoError(t, err)
-
-			if err != nil {
-				return
-			}
-
-			resp, err := http.DefaultClient.Do(req)
-			if err == nil {
+			resp, doErr := http.DefaultClient.Do(req)
+			if doErr == nil {
 				_ = resp.Body.Close() // the request is cut: an error is the expected outcome
 			}
 		})

@@ -398,5 +398,7 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 
 	<-rig.finished
 
-	assert.Zero(t, goroutinesOf(rig.label), "no goroutine of the relay is left")
+	// a goroutine that signalled its end may still be returning: wait, bounded, until none is left
+	assert.Eventually(t, func() bool { return goroutinesOf(rig.label) == 0 }, waitBound, time.Millisecond,
+		"goroutines of the relay are left")
 }
