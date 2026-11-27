@@ -1,0 +1,13 @@
+Prints what the relay proxy would run with: the file after the SEMAPHORE_* environment overrides and the
+defaults. Secrets, API keys and admin keys print as [REDACTED]; references (fromEnv, fromFile) print as written.
+--effective is required. Exit code 2 when the file is invalid.
+
+Usage:
+  semaphore-cli config print --effective <file> [flags]
+
+Flags:
+      --effective[=true|false]   print the effective configuration (required)
+  -h, --help[=true|false]        help for print
+
+Global Flags:
+  -o, --output string   output format: text or json (YAML for print) (default "text")

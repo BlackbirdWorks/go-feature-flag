@@ -1,0 +1,8 @@
+🛑 Validate Semaphore configuration file, it will return an error if your file is not valid.
+
+Usage:
+  semaphore-cli lint <config_file> [flags]
+
+Flags:
+  -f, --format string       Format of your input file (YAML, JSON or TOML) (default "yaml")
+  -h, --help[=true|false]   help for lint
