@@ -14,10 +14,10 @@ import (
 
 // evalAllocs is the allocations of one evaluation of a rule over the segment "beta" with the given definition, in its
 // cheapest run among several single runs, so a stray allocation of the runtime does not decide the result.
-func evalAllocs(t *testing.T, def segment.Definition) (float64, string) {
+func evalAllocs(t *testing.T, def *segment.Definition) (float64, string) {
 	t.Helper()
 
-	catalog, err := segment.NewCatalog(def)
+	catalog, err := segment.NewCatalog(*def)
 	require.NoError(t, err)
 
 	svc := flagdef.NewService(flagdef.WithSegments(catalog))
@@ -50,12 +50,12 @@ func evalAllocs(t *testing.T, def segment.Definition) (float64, string) {
 //
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestAVersionedSegmentAllocatesNothingExtraInAnEvaluation(t *testing.T) {
-	plain := segment.Definition{Name: "beta", Type: segment.TypeRedis, OnError: segment.OnErrorMember}
+	plain := segment.Definition{Name: ctxBeta, Type: segment.TypeRedis, OnError: segment.OnErrorMember}
 	versioned := plain
 	versioned.Version = &segment.VersionSpec{Key: "seg:beta:version"}
 
-	plainAllocs, plainVariant := evalAllocs(t, plain)
-	versionedAllocs, versionedVariant := evalAllocs(t, versioned)
+	plainAllocs, plainVariant := evalAllocs(t, &plain)
+	versionedAllocs, versionedVariant := evalAllocs(t, &versioned)
 
 	assert.Equal(t, plainVariant, versionedVariant, "the same answer")
 	assert.InDelta(t, plainAllocs, versionedAllocs, 0, "a versioned segment adds no allocation to the evaluation")
