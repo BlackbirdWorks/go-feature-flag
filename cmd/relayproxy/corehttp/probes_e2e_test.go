@@ -239,13 +239,20 @@ var errVeto = errors.New("vetoed by the test")
 func TestMetricsAndInfo_AfterScriptedReloads(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, v2Options{beforeSwap: func(candidate *flagruntime.Runtime) error {
+	// a cold start: the bootstrap round ends alone before the first manifest. On a warm start the engine could take the
+	// file and the first manifest in one round (it is latest-wins), and the count of applied rounds below would be
+	// 2 or 3 depending on the scheduling.
+	rig := newV2With(t, v2Options{cold: true, beforeSwap: func(candidate *flagruntime.Runtime) error {
 		if candidate.Generation == 3 {
 			return errVeto
 		}
 
 		return nil
 	}})
+	rig.publish(t)
+	rig.tick(t)
+	rig.awaitGeneration(t, 1)
+
 	rig.publish(t)
 	rig.tick(t)
 	rig.awaitGeneration(t, 2)
