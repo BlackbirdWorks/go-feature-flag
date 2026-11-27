@@ -1,4 +1,4 @@
-package valkeysegment
+package redissegment
 
 import (
 	"errors"
@@ -54,27 +54,27 @@ func (c Class) String() string {
 
 var (
 	// ErrCanceled is wrapped by a LookupError of ClassCanceled.
-	ErrCanceled = errors.New("valkey segment: context ended")
+	ErrCanceled = errors.New("redis segment: context ended")
 	// ErrTimeout is wrapped by a LookupError of ClassTimeout.
-	ErrTimeout = errors.New("valkey segment: timeout")
+	ErrTimeout = errors.New("redis segment: timeout")
 	// ErrUnavailable is wrapped by a LookupError of ClassUnavailable.
-	ErrUnavailable = errors.New("valkey segment: store unavailable")
+	ErrUnavailable = errors.New("redis segment: store unavailable")
 	// ErrServer is wrapped by a LookupError of ClassServer.
-	ErrServer = errors.New("valkey segment: store returned an error")
+	ErrServer = errors.New("redis segment: store returned an error")
 	// ErrProtocol is wrapped by a LookupError of ClassProtocol.
-	ErrProtocol = errors.New("valkey segment: unexpected reply")
+	ErrProtocol = errors.New("redis segment: unexpected reply")
 
 	// ErrInvalidOptions is wrapped by the errors of options that are not valid.
-	ErrInvalidOptions = errors.New("valkey segment: invalid options")
+	ErrInvalidOptions = errors.New("redis segment: invalid options")
 	// ErrClosed is returned by a call after Shutdown.
-	ErrClosed = errors.New("valkey segment: closed")
+	ErrClosed = errors.New("redis segment: closed")
 	// ErrContextTimeoutDisabled is wrapped by the error of New for a go-redis client without ContextTimeoutEnabled.
-	ErrContextTimeoutDisabled = errors.New("valkey segment: the client must set ContextTimeoutEnabled")
+	ErrContextTimeoutDisabled = errors.New("redis segment: the client must set ContextTimeoutEnabled")
 	// ErrSocketDeadlineDisabled is wrapped by the error of New and Dial for a go-redis client whose read or write
 	// timeout is disabled: the socket then has no deadline, whatever the context says.
-	ErrSocketDeadlineDisabled = errors.New("valkey segment: the client must not disable its read and write timeouts")
+	ErrSocketDeadlineDisabled = errors.New("redis segment: the client must not disable its read and write timeouts")
 	// ErrNilClient is returned when the client is nil.
-	ErrNilClient = errors.New("valkey segment: nil client")
+	ErrNilClient = errors.New("redis segment: nil client")
 
 	errNegativeTimeout = errors.New("timeout must not be negative")
 	errNegativeMaxID   = errors.New("max id bytes must not be negative")
@@ -96,7 +96,7 @@ type LookupError struct {
 
 // Error implements error.
 func (e *LookupError) Error() string {
-	return fmt.Sprintf("valkey segment: %s: %d of %d lookups failed", e.Class, e.Failed, e.Total)
+	return fmt.Sprintf("redis segment: %s: %d of %d lookups failed", e.Class, e.Failed, e.Total)
 }
 
 // Unwrap returns the sentinel of the class, so [errors.Is] with ErrTimeout works.

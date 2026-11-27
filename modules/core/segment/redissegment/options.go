@@ -1,4 +1,4 @@
-package valkeysegment
+package redissegment
 
 import (
 	"fmt"

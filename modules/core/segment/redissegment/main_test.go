@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ func ownedGoroutines(dump string) []string {
 
 	for goroutine := range strings.SplitSeq(dump, "\n\n") {
 		for line := range strings.SplitSeq(goroutine, "\n") {
-			if strings.Contains(line, "/segment/valkeysegment/") && strings.Contains(line, ".go:") &&
+			if strings.Contains(line, "/segment/redissegment/") && strings.Contains(line, ".go:") &&
 				!strings.Contains(line, "_test.go") {
 				owned = append(owned, strings.TrimSpace(line))
 

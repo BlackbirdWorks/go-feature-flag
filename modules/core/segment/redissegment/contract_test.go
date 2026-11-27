@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
 // faultBackend arranges the faults of the conformance suite in front of the fake store.
@@ -76,10 +76,10 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 
 	layouts := []struct {
 		name   string
-		layout valkeysegment.Layout
+		layout redissegment.Layout
 	}{
-		{name: "set layout", layout: valkeysegment.LayoutSet},
-		{name: nameKeysLayout, layout: valkeysegment.LayoutKeys},
+		{name: "set layout", layout: redissegment.LayoutSet},
+		{name: nameKeysLayout, layout: redissegment.LayoutKeys},
 	}
 
 	for _, tt := range layouts {
@@ -88,11 +88,11 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 
 			segmenttest.Run(t, func(data segmenttest.Data) (segmenttest.Fixture, error) {
 				store := &fakeStore{sets: map[string]map[string]bool{}, keys: map[string]bool{}}
-				segs := map[string]valkeysegment.SegmentOptions{}
+				segs := map[string]redissegment.SegmentOptions{}
 
 				for name, ids := range data {
-					if tt.layout == valkeysegment.LayoutSet {
-						segs[name] = valkeysegment.SegmentOptions{Key: "seg:{" + name + "}"}
+					if tt.layout == redissegment.LayoutSet {
+						segs[name] = redissegment.SegmentOptions{Key: "seg:{" + name + "}"}
 						store.sets["seg:{"+name+"}"] = map[string]bool{}
 
 						for _, id := range ids {
@@ -102,8 +102,8 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 						continue
 					}
 
-					segs[name] = valkeysegment.SegmentOptions{
-						Layout: valkeysegment.LayoutKeys,
+					segs[name] = redissegment.SegmentOptions{
+						Layout: redissegment.LayoutKeys,
 						Key:    "seg:" + name + ":",
 					}
 
@@ -112,7 +112,7 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 					}
 				}
 
-				prov, err := valkeysegment.New(store, &valkeysegment.Options{Segments: segs, Atomic: true})
+				prov, err := redissegment.New(store, &redissegment.Options{Segments: segs, Atomic: true})
 				if err != nil {
 					return segmenttest.Fixture{}, err
 				}

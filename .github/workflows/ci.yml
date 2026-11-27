@@ -319,13 +319,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - name: Pre-pull the gopherstack and Valkey images
+      - name: Pre-pull the gopherstack, Valkey and Redis images
         run: |
-          # The gopherstack tag is the single source of truth in the test helper. The Valkey image is the one of the
-          # segment provider tests (modules/core/segment/valkeysegment).
+          # The gopherstack tag is the single source of truth in the test helper. The Valkey and Redis images are the ones of the
+          # segment provider tests (modules/core/segment/redissegment).
           image=$(sed -n 's/^[[:space:]]*Image = "\(.*\)"$/\1/p' testhelpers/gopherstack/gopherstack.go)
           [[ -n "$image" ]] || { echo "::error::cannot read the gopherstack image"; exit 1; }
-          .github/ci-scripts/pull-images.sh "$image" docker.io/valkey/valkey:8-alpine
+          .github/ci-scripts/pull-images.sh "$image" docker.io/valkey/valkey:8-alpine docker.io/redis:7-alpine
       - name: Run e2e tests with the race detector
         run: |
           mkdir -p test-logs coverage
