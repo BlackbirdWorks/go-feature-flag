@@ -52,7 +52,7 @@ Semaphore's native query engine lives in `rules/` and is derived from [`nikunjy/
 
 - Operators are case-insensitive (for example, `eq` or `EQ`).
 - Combine expressions with logical `AND` and `OR`.
-- A query can span lines: the lines are joined with a space, so two lines never merge into one token.
+- A query can span lines: the lines are joined with a space, so two lines never merge into one token. A line break inside a quoted value becomes exactly one space.
 
 Comparison operators (`a`, `b` denote equivalent aliases):
 

@@ -224,7 +224,7 @@ func (r *Rule) isQueryValid(svc *Service, defaultRule bool) error {
 // validateQuery is isQueryValid. It also returns the evaluator of a nikunjy query.
 func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator, error) {
 	if defaultRule {
-		if r.Query != nil && hasSegmentTerm(r.GetTrimmedQuery()) {
+		if r.Query != nil && hasSegmentTerm(r.GetQuery()) {
 			return nil, errSegmentInDefaultRule
 		}
 

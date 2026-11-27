@@ -61,6 +61,26 @@ func TestStrTrim(t *testing.T) {
 			want:  "[1, 2]",
 		},
 		{
+			name:  "line break after an opening bracket inside quotes is one space",
+			input: "\"a[\nb\"",
+			want:  "\"a[ b\"",
+		},
+		{
+			name:  "line break after a letter inside quotes is one space",
+			input: "\"ab\n  cd\"",
+			want:  "\"ab cd\"",
+		},
+		{
+			name:  "line break before a comma inside quotes is one space",
+			input: "\"a\n,b\"",
+			want:  "\"a ,b\"",
+		},
+		{
+			name:  "escaped quote does not close the value",
+			input: "\"a\\\"\nb\"\nc",
+			want:  "\"a\\\" b\" c",
+		},
+		{
 			name:  "mixed leading spaces",
 			input: "   hello\nworld",
 			want:  helloworld,

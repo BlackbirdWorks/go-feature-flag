@@ -119,3 +119,39 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 		})
 	}
 }
+
+func TestQueryFormatIsTheSameForValidationCompilationAndEvaluation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		query string
+		want  QueryFormat
+	}{
+		{name: "rules", query: keyEqAbc, want: NikunjyQueryFormat},
+		{name: "jsonlogic", query: varKeyAbc, want: JSONLogicQueryFormat},
+		{name: "multi-line jsonlogic", query: multiLineVarKeyAbc, want: JSONLogicQueryFormat},
+		{
+			name:  "newline in a json string",
+			query: "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}",
+			want:  NikunjyQueryFormat,
+		},
+		{
+			name:  "operands on consecutive lines",
+			query: "{\"in\": [{\"var\": \"n\"}, [1\n2]]}",
+			want:  NikunjyQueryFormat,
+		},
+		{name: "blank", query: "", want: NikunjyQueryFormat},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := Rule{Query: &tt.query}
+
+			assert.Equal(t, tt.want, r.GetQueryFormat(), "validation")
+			assert.Equal(t, tt.want, newCompiledQuery(tt.query).format, "compilation")
+			assert.Equal(t, tt.want, NewService().compiledQuery(tt.query).format, "evaluation")
+		})
+	}
+}

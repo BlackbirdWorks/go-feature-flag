@@ -11,6 +11,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
+const newlineInString = "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}"
+
 const consecutiveOperands = "{\"in\": [{\"var\": \"n\"}, [1\n2]]}"
 
 func multilineFlag(query string, scheduled bool) *flagdef.InternalFlag {
@@ -59,7 +61,20 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 		},
 		{
 			name: "jsonlogic string literal containing a newline is rejected", wantValid: false,
-			query: "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}",
+			query: newlineInString,
+		},
+		{
+			name:      "jsonlogic string literal containing a newline is rejected at load in a scheduled step",
+			wantValid: false, scheduled: true,
+			query: newlineInString,
+		},
+		{
+			name: "nikunjy line break after a bracket inside quotes is one space", wantValid: true, wantValue: "a",
+			query: "key in [\"x\", \"ab[\nc\", \"abc\"]",
+		},
+		{
+			name: "nikunjy line break after a letter inside quotes is one space", wantValid: true, wantValue: "a",
+			query: "key eq \"a b\nc\" or key eq \"abc\"",
 		},
 		{
 			name: "jsonlogic multi-line in a scheduled step", wantValid: true, wantValue: "a", scheduled: true,
@@ -78,7 +93,7 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 		{
 			name:     "jsonlogic string literal containing a newline is not evaluated as joined text",
 			evalOnly: true, n: 1, wantValid: true, wantValue: "b",
-			query: "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}",
+			query: newlineInString,
 		},
 		{
 			name: "nikunjy operator and operand on consecutive lines", wantValid: true, wantValue: "a",
