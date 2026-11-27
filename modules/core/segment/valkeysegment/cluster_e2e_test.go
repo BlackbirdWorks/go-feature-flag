@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -101,10 +102,20 @@ func startCluster(t *testing.T) *redis.ClusterClient {
 
 	t.Cleanup(func() { _ = client.Close() })
 
+	// every node agrees that the cluster is up and a write goes through
 	require.Eventually(t, func() bool {
-		info, infoErr := client.ClusterInfo(ctx).Result()
+		var down atomic.Int32
 
-		return infoErr == nil && strings.Contains(info, "cluster_state:ok")
+		shardErr := client.ForEachShard(ctx, func(ctx context.Context, shard *redis.Client) error {
+			info, infoErr := shard.ClusterInfo(ctx).Result()
+			if infoErr != nil || !strings.Contains(info, "cluster_state:ok") {
+				down.Add(1)
+			}
+
+			return nil
+		})
+
+		return shardErr == nil && down.Load() == 0 && client.Set(ctx, "cluster:probe", "1", 0).Err() == nil
 	}, 60*time.Second, 100*time.Millisecond)
 
 	return client

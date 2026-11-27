@@ -26,6 +26,7 @@ import (
 func seed(
 	t *testing.T,
 	srv *server,
+	tag string,
 	data segmenttest.Data,
 	layout valkeysegment.Layout,
 ) map[string]valkeysegment.SegmentOptions {
@@ -36,7 +37,7 @@ func seed(
 
 	for name, ids := range data {
 		if layout == valkeysegment.LayoutSet {
-			key := "contract:{" + name + "}"
+			key := "contract:" + tag + ":{" + name + "}"
 			segs[name] = valkeysegment.SegmentOptions{Key: key}
 
 			require.NoError(t, srv.client.Del(ctx, key).Err())
@@ -51,7 +52,7 @@ func seed(
 			continue
 		}
 
-		prefix := "contract:" + name + ":"
+		prefix := "contract:" + tag + ":" + name + ":"
 		segs[name] = valkeysegment.SegmentOptions{Layout: valkeysegment.LayoutKeys, Key: prefix}
 
 		for _, id := range ids {
@@ -66,6 +67,8 @@ func TestE2EConformance(t *testing.T) {
 	t.Parallel()
 
 	srv := startServer(t)
+
+	var cases atomic.Int64
 
 	tests := []struct {
 		name   string
@@ -88,7 +91,13 @@ func TestE2EConformance(t *testing.T) {
 				caseSrv.client = caseSrv.newClient(t, srv.address)
 
 				opts := tt.opts
-				opts.Segments = seed(t, caseSrv, data, tt.layout)
+				opts.Segments = seed(
+					t,
+					caseSrv,
+					strconv.FormatInt(cases.Add(1), 10),
+					data,
+					tt.layout,
+				) // a key space of its own: the cases run in parallel
 
 				prov, err := valkeysegment.New(caseSrv.client, opts)
 				if err != nil {
