@@ -10,6 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // ErrFlagNotPresent is wrapped by the error of an evaluation of a flag that the flag set does not hold. Its
@@ -294,6 +295,7 @@ func variation[T model.JSONType](
 			Version:       eval.missing.version,
 			Metadata:      nil,
 			Cacheable:     false,
+			SegmentStatus: segment.StatusNone,
 		}, fmt.Errorf("flag %v %w", flagKey, ErrFlagNotPresent)
 	}
 
