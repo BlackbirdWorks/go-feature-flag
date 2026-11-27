@@ -97,6 +97,7 @@ type segState struct {
 	epoch          atomic.Uint64
 	joined         atomic.Uint64 // the lookups that joined the flight of another caller
 	notLoadedSkips atomic.Uint64 // the lookups not asked because the segment was found not loaded
+	existsBusy     bool          // an existence check of the segment is in flight (under mu)
 }
 
 // normalize returns the key of an id. An id that is not valid UTF-8 has no key when the segment normalises: the
@@ -116,26 +117,27 @@ func (s *segState) normalize(id string) (string, Reason) {
 // Resolver is a [segment.Provider] with a cache, coalescing and a breaker in front of another provider. It is safe
 // for concurrent use.
 type Resolver struct {
-	observer   Observer
-	stopErr    error
-	inner      segment.Provider
-	drained    chan struct{}
-	states     atomic.Pointer[map[string]*segState]
-	beforeStop func(*call)
-	stopDone   chan struct{}
-	opts       Options
-	wg         sync.WaitGroup
-	inflight   atomic.Int64
-	maxID      int
-	maxOver    int
-	timeout    time.Duration
-	overdue    atomic.Int64
-	rawLimit   int
-	admit      sync.RWMutex
-	stopOnce   sync.Once
-	drainOnce  sync.Once
-	mu         sync.Mutex
-	closed     bool
+	observer      Observer
+	stopErr       error
+	inner         segment.Provider
+	drained       chan struct{}
+	states        atomic.Pointer[map[string]*segState]
+	beforeStop    func(*call)
+	stopDone      chan struct{}
+	opts          Options
+	wg            sync.WaitGroup
+	inflight      atomic.Int64
+	maxID         int
+	maxOver       int
+	timeout       time.Duration
+	shutdownGrace time.Duration
+	overdue       atomic.Int64
+	rawLimit      int
+	admit         sync.RWMutex
+	stopOnce      sync.Once
+	drainOnce     sync.Once
+	mu            sync.Mutex
+	closed        bool
 }
 
 var (
@@ -168,6 +170,8 @@ func New(inner segment.Provider, opts *Options) (*Resolver, error) {
 	if res.timeout == 0 {
 		res.timeout = DefaultCallTimeout
 	}
+
+	res.shutdownGrace = orDuration(opts.ShutdownGrace, DefaultShutdownGrace)
 
 	if res.maxID == 0 {
 		res.maxID = DefaultMaxIDBytes
@@ -601,7 +605,9 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 
 			// not under the context of this caller: another caller may be waiting for the result, and each caller is
 			// bounded by its own context below
-			shutdownCtx := context.WithoutCancel(ctx)
+			shutdownCtx, cancel := r.shutdownContext(ctx)
+			defer cancel()
+
 			r.stopErr = guard(func() error { return stopper.Shutdown(shutdownCtx) })
 		}()
 	})
@@ -618,6 +624,21 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return fmt.Errorf("%w: the shutdown of the store did not finish: %w", ErrShutdown, ctx.Err())
 	}
+}
+
+// shutdownContext is the context of the Shutdown of the store: it does not end when the context of the caller does
+// (another caller may wait for the result), it ends ShutdownGrace after the deadline of the first caller, or
+// ShutdownGrace after the start when that context has no deadline, so a store that stops only on cancellation
+// does not stay pending for ever.
+func (r *Resolver) shutdownContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	base := context.WithoutCancel(ctx)
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return context.WithTimeout(base, r.shutdownGrace)
+	}
+
+	return context.WithDeadline(base, deadline.Add(r.shutdownGrace))
 }
 
 // state returns the state of a segment, and creates it with the default settings the first time a segment that
@@ -1039,21 +1060,59 @@ func (r *Resolver) confirmNotLoaded(ctx context.Context, neutral []*segmentResul
 		return
 	}
 
-	names := make([]string, len(neutral))
-	for i, res := range neutral {
-		names[i] = res.sst.name
+	// at most one check in flight per segment: a lookup that finds one running skips its own, so a store that hangs
+	// in Exists leaves one overdue check for the segment, not one for each lookup. The check ends when the store
+	// returns, not at its deadline.
+	claimed := make([]*segmentResult, 0, len(neutral))
+	names := make([]string, 0, len(neutral))
+
+	for _, res := range neutral {
+		if res.sst.claimExists() {
+			claimed = append(claimed, res)
+			names = append(names, res.sst.name)
+		}
+	}
+
+	if len(claimed) == 0 {
+		return
 	}
 
 	answers, err := r.existsCall(ctx, existencer, names)
-	if err != nil || len(answers) != len(neutral) {
+
+	for _, res := range claimed {
+		res.sst.releaseExists()
+	}
+
+	if err != nil || len(answers) != len(claimed) {
 		return // an unsuccessful check (an error, a panic, a timeout) says nothing about the segments
 	}
 
-	for i, res := range neutral {
+	for i, res := range claimed {
 		if answers[i] == segment.NotMember {
 			rememberNotLoaded(res, now)
 		}
 	}
+}
+
+// claimExists reports whether the caller may run the existence check of the segment: false when one is in flight.
+func (s *segState) claimExists() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.existsBusy {
+		return false
+	}
+
+	s.existsBusy = true
+
+	return true
+}
+
+// releaseExists ends the claim of claimExists.
+func (s *segState) releaseExists() {
+	s.mu.Lock()
+	s.existsBusy = false
+	s.mu.Unlock()
 }
 
 // existsCall asks the store through Exists under the call timeout, with the same accounting as a lookup: a check that

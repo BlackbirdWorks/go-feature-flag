@@ -863,18 +863,34 @@ func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		call func(*resolver.Resolver) error
-		name string
+		call            func(*resolver.Resolver) ([]segment.State, error)
+		wantErr         error
+		name            string
+		wantNoSecretErr string
+		wantStates      []segment.State
 	}{
-		{name: nameInit, call: func(res *resolver.Resolver) error { return res.Init(context.Background()) }},
-		{name: nameExists, call: func(res *resolver.Resolver) error {
-			states, err := res.Exists(context.Background(), []string{segBeta})
-
-			assert.Nil(t, states, "nothing a store that panicked set is trusted")
-
-			return err
-		}},
-		{name: "Shutdown", call: func(res *resolver.Resolver) error { return res.Shutdown(context.Background()) }},
+		{
+			name: nameInit,
+			call: func(res *resolver.Resolver) ([]segment.State, error) {
+				return nil, res.Init(context.Background())
+			},
+			wantErr: resolver.ErrProviderPanic, wantNoSecretErr: secretID,
+		},
+		{
+			name: nameExists,
+			call: func(res *resolver.Resolver) ([]segment.State, error) {
+				return res.Exists(context.Background(), []string{segBeta})
+			},
+			wantErr: resolver.ErrProviderPanic, wantNoSecretErr: secretID,
+			wantStates: nil, // nothing a store that panicked set is trusted
+		},
+		{
+			name: "Shutdown",
+			call: func(res *resolver.Resolver) ([]segment.State, error) {
+				return nil, res.Shutdown(context.Background())
+			},
+			wantErr: resolver.ErrProviderPanic, wantNoSecretErr: secretID,
+		},
 	}
 
 	for _, tt := range tests {
@@ -888,10 +904,11 @@ func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
 			)
 			require.NoError(t, newErr)
 
-			err := tt.call(res)
+			got, err := tt.call(res)
 
-			require.ErrorIs(t, err, resolver.ErrProviderPanic)
-			assert.NotContains(t, err.Error(), secretID, "the value of the panic is not kept")
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantStates, got)
+			assert.NotContains(t, err.Error(), tt.wantNoSecretErr, "the value of the panic is not kept")
 		})
 	}
 
