@@ -600,7 +600,7 @@ func TestDispatcher_ShutdownDrainsAndIsIdempotent(t *testing.T) {
 	assert.Len(t, report.Drained, 2)
 	assert.Zero(t, report.Undelivered)
 	assert.Equal(t, events.Drops{}, report.Dropped)
-	assert.Zero(t, labelled(label), "no goroutine is left")
+	assertNoLabelled(t, label, "no goroutine is left")
 
 	// late events are dropped and counted, never queued, and nothing panics
 	assert.False(t, disp.Collect(ev(99)))
@@ -611,7 +611,7 @@ func TestDispatcher_ShutdownDrainsAndIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, report, again, "the second call reports the first")
 	assert.Equal(t, 1, fac.of("a", 0).stopCount(), "and flushes nothing again")
-	assert.Zero(t, labelled(label))
+	assertNoLabelled(t, label, "no goroutine is left after the second call")
 }
 
 func TestDispatcher_ShutdownWithoutStartDropsTheQueue(t *testing.T) {

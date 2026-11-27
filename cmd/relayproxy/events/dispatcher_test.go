@@ -79,7 +79,7 @@ func TestDispatcher_GoroutinesDoNotGrowWithFlagSets(t *testing.T) {
 
 			_, err := disp.Shutdown(bounded(t))
 			require.NoError(t, err)
-			assert.Equal(t, 0, labelled(label), "goroutines after the shutdown")
+			assertNoLabelled(t, label, "goroutines after the shutdown")
 		})
 	}
 }

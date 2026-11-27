@@ -2,6 +2,7 @@ package events_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const pkgPath = "github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
@@ -49,11 +51,24 @@ func TestLeakedIn(t *testing.T) {
 	checker := stack("goroutine 18 [running]",
 		frame(pkgPath+".(*Dispatcher).Status"), frame(pkgPath+"_test.leakedGoroutines"), strings.TrimSpace(testFrame))
 
+	// a dump that the runtime wrote (go1.27.4) while Dispatcher.Shutdown waited for an exporter whose close was held:
+	// the worker that sync.WaitGroup.Go started, the goroutine of the shutdown that waits for it, and the closer
+	// that is held inside the manager of a test. The goroutine of the test, of the test framework and the
+	// runtime are in the dump as well.
+	captured, err := os.ReadFile("testdata/waitclosed_dump.txt")
+	require.NoError(t, err)
+
 	tests := []struct {
 		name        string
 		dump        string
 		wantHeaders []string
 	}{
+		{
+			name: "a dump of a shutdown that waits for a held exporter", dump: string(captured),
+			wantHeaders: []string{
+				"goroutine 35 [select]", "goroutine 23 [sync.WaitGroup.Wait]", "goroutine 34 [chan receive]",
+			},
+		},
 		{name: "empty dump", dump: "", wantHeaders: nil},
 		{name: "a worker of the package", dump: workerOnly, wantHeaders: []string{"goroutine 11 [chan receive]"}},
 		{
@@ -108,7 +123,7 @@ func TestLeakCheckSeesAWorkerStuckInANotifier(t *testing.T) {
 	t.Parallel()
 
 	gate := newGate(t)
-	stuck := &recordingNotifier{gate: gate, entered: make(chan struct{}, 1)}
+	stuck := &leakProbeNotifier{gate: gate, entered: make(chan struct{}, 1)}
 
 	notes, changes := startNotifications(t, &events.NotificationsConfig{})
 
@@ -119,41 +134,11 @@ func TestLeakCheckSeesAWorkerStuckInANotifier(t *testing.T) {
 
 	await(t, stuck.entered, "the notifier to take its change")
 
-	stacks := stacksWith(leakedGoroutines(), "recordingNotifier).Notify")
-	assert.NotEmpty(t, stacks, "the worker that is held inside the notifier is a goroutine of the package")
-}
+	stacks := stacksWith(leakedGoroutines(), "leakProbeNotifier).Notify")
+	assert.Len(t, stacks, 1, "the worker that is held inside the notifier is a goroutine of the package")
 
-// TestLeakCheckSeesAWorkerOfAWaitGroup leaks a worker that the package starts with [sync.WaitGroup.Go]: a shutdown
-// that waits for an exporter whose close is held. The worker that waits for the exporter is the one reported.
-func TestLeakCheckSeesAWorkerOfAWaitGroup(t *testing.T) {
-	t.Parallel()
-
-	fac := newFactory()
-	fac.stopGate = newGate(t)
-	fac.stopEntered = make(chan struct{}, 1)
-
-	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: fac.build})
-	require.NoError(t, disp.Start(context.Background()))
-
-	_, err := disp.Apply(context.Background(), defs("a"))
-	require.NoError(t, err)
-
-	shutdown := make(chan struct{})
-
-	go func() {
-		defer close(shutdown)
-
-		_, _ = disp.Shutdown(context.Background())
-	}()
-
-	await(t, fac.stopEntered, "the exporter to be closed")
-
-	stacks := stacksWith(leakedGoroutines(), "waitClosed.func1")
-	assert.NotEmpty(t, stacks, "the worker that waits for the held exporter was started by WaitGroup.Go")
-
-	// the exporter is released, so the shutdown ends and the cleanup of the dispatcher does not wait
-	safeClose(fac.stopGate)
-	await(t, shutdown, "the shutdown to end")
+	// the notifier is released, so the cleanup of the notifications does not wait
+	safeClose(gate)
 }
 
 func stacksWith(stacks []string, text string) []string {
@@ -166,4 +151,22 @@ func stacksWith(stacks []string, text string) []string {
 	}
 
 	return out
+}
+
+// leakProbeNotifier is a notifier that only this test uses: its Notify frame is in the stack of the worker that this
+// test holds, and in no other goroutine, so the test finds its own worker among the goroutines of the process.
+type leakProbeNotifier struct {
+	gate    chan struct{}
+	entered chan struct{}
+}
+
+func (p *leakProbeNotifier) Notify(notifier.DiffCache) error {
+	select {
+	case p.entered <- struct{}{}:
+	default:
+	}
+
+	<-p.gate
+
+	return nil
 }

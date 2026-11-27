@@ -326,6 +326,14 @@ func labelled(value string) int {
 	return total
 }
 
+// assertNoLabelled asserts that no goroutine carries the label. A goroutine ends a moment after the signal that its
+// owner waited for (a deferred close runs before the goroutine returns), so the count is waited for, bounded.
+func assertNoLabelled(tb testing.TB, label, msg string) {
+	tb.Helper()
+
+	assert.Eventually(tb, func() bool { return labelled(label) == 0 }, 20*time.Second, time.Millisecond, msg)
+}
+
 var labelSeq atomic.Int64 //nolint:gochecknoglobals // a counter of test labels
 
 // labeledRun runs fn under a unique label and returns the label value.

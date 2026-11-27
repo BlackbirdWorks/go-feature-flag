@@ -403,7 +403,7 @@ func TestNotifications_Lifecycle(t *testing.T) {
 	require.NoError(t, notes.Shutdown(bounded(t)))
 	require.NoError(t, notes.Shutdown(bounded(t)), "the second call does nothing")
 	<-notes.Done()
-	assert.Zero(t, labelled(label), "no goroutine is left")
+	assertNoLabelled(t, label, "no goroutine is left")
 
 	require.ErrorIs(t, notes.Start(context.Background(), changes), events.ErrClosed)
 
