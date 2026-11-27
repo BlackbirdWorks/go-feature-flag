@@ -2,6 +2,7 @@ package relaycore
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -176,6 +177,17 @@ func (c *Core) Holder() *flagruntime.Holder { return c.holder }
 
 // Evaluator returns the evaluator of the flag sets. The events of the flags that track them reach the exporters.
 func (c *Core) Evaluator() *flagruntime.Evaluator { return c.eval }
+
+// Refresh polls the control plane now, through the loop that polls on schedule, and returns what the poll found.
+// Calls that arrive together share one poll, and ctx bounds the wait for it.
+func (c *Core) Refresh(ctx context.Context) (manifestreader.RefreshResult, error) {
+	result, err := c.reader.Refresh(ctx)
+	if err != nil {
+		return result, fmt.Errorf("refresh: %w", err)
+	}
+
+	return result, nil
+}
 
 // Collect hands an event to the exporters, the way the evaluator does for the events of the flags that track them.
 // It reports whether the event was accepted. The event belongs to the exporters from the call: the caller must not

@@ -874,8 +874,22 @@
       "RetrieverRefreshResponse": {
         "additionalProperties": false,
         "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
           "refreshed": {
             "type": "boolean"
+          },
+          "result": {
+            "type": "string"
           }
         },
         "required": [
@@ -1052,7 +1066,7 @@
     },
     "/admin/v1/retriever/refresh": {
       "post": {
-        "description": "This endpoint is used to force the refresh of the flags in the cache.\nThis endpoint is used when you know explicitly that a flag has changed, and you want to trigger\nthe collection of the new versions.",
+        "description": "This endpoint is used to force the refresh of the flags in the cache.\nThe relay polls the control plane at once, through the poll of its schedule: calls that arrive together\nshare one poll. The answer tells what the poll found: its result, the generation the relay holds and\nwhether the poll changed it. A failed poll is an answer with its reason, not an error of the request.\nOnly an admin key may call it.",
         "operationId": "retrieverRefresh",
         "responses": {
           "200": {
@@ -1094,6 +1108,26 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
           }
         },
         "security": [

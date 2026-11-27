@@ -2,6 +2,7 @@ package semaphore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 // ForceFlagsRefresh is the controller of the endpoint that forces the refresh of the flags in the cache.
@@ -22,7 +24,16 @@ type ForceFlagsRefresh struct {
 
 // RetrieverRefreshResponse is the response of the refresh endpoint.
 type RetrieverRefreshResponse struct {
+	// Result is the result of the poll: "updated", "not_modified", "not_found", "too_large" or "error".
+	Result string `json:"result,omitempty"`
+	// Reason is the class of a failed poll.
+	Reason string `json:"reason,omitempty"`
+	// Generation is the generation of the manifest the relay holds after the poll.
+	Generation uint64 `json:"generation,omitempty"`
+	// Refreshed says that the poll reached the control plane (the manifest was read or confirmed).
 	Refreshed bool `json:"refreshed"`
+	// Changed says that the poll found another generation than the one held before it.
+	Changed bool `json:"changed,omitempty"`
 }
 
 // RetrieverRefreshInput is the request of the refresh endpoint.
@@ -46,6 +57,10 @@ func NewForceFlagsRefresh(flagsetManager service.FlagSetResolver, metrics *metri
 func (h *ForceFlagsRefresh) Handle(ctx context.Context, input *RetrieverRefreshInput) (*RetrieverRefreshOutput, error) {
 	h.metrics.IncForceRefresh()
 
+	if refresher, ok := h.flagsetManager.(service.Refresher); ok {
+		return h.refresh(ctx, refresher)
+	}
+
 	unsupported, ok := h.flagsetManager.(service.RefreshUnsupported)
 	if ok {
 		return nil, fmt.Errorf("refreshing on request: %w",
@@ -63,5 +78,33 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, input *RetrieverRefreshI
 	forceRefreshStatus := flagset.ForceRefresh()
 	span.SetAttributes(attribute.Bool("retrieverRefresh.refreshed", forceRefreshStatus))
 
-	return &RetrieverRefreshOutput{Body: RetrieverRefreshResponse{Refreshed: forceRefreshStatus}}, nil
+	return &RetrieverRefreshOutput{
+		Body: RetrieverRefreshResponse{
+			Refreshed:  forceRefreshStatus,
+			Result:     "",
+			Reason:     "",
+			Generation: 0,
+			Changed:    false,
+		},
+	}, nil
+}
+
+// refresh polls the control plane now. The answer says what the poll found; a poll that failed is an answer, not an
+// error of the request.
+func (*ForceFlagsRefresh) refresh(ctx context.Context, refresher service.Refresher) (*RetrieverRefreshOutput, error) {
+	outcome, err := refresher.Refresh(ctx)
+
+	switch {
+	case errors.Is(err, service.ErrNotPolling):
+		return nil, fmt.Errorf("refreshing on request: %w",
+			helper.NewHTTPError(http.StatusServiceUnavailable, service.ErrNotPolling.Error()))
+	case err != nil:
+		return nil, fmt.Errorf("refreshing on request: %w",
+			helper.NewHTTPError(http.StatusGatewayTimeout, "the request ended before the poll did"))
+	}
+
+	return &RetrieverRefreshOutput{Body: RetrieverRefreshResponse{
+		Result: outcome.Result, Reason: outcome.Reason, Generation: outcome.Generation, Changed: outcome.Changed,
+		Refreshed: outcome.Result == manifestreader.PollUpdated || outcome.Result == manifestreader.PollNotModified,
+	}}, nil
 }

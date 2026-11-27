@@ -442,9 +442,14 @@ func operationRefresh() *huma.Operation {
 		Summary: "This endpoint is used to force the refresh of the flags in the cache.", Tags: []string{tagAdmin},
 		Security: securityAuthorization(),
 		Description: "This endpoint is used to force the refresh of the flags in the cache.\n" +
-			"This endpoint is used when you know explicitly that a flag has changed, and you want to trigger\n" +
-			"the collection of the new versions.",
-		Errors: []int{http.StatusBadRequest, http.StatusInternalServerError, http.StatusNotImplemented},
+			"The relay polls the control plane at once, through the poll of its schedule: calls that arrive together\n" +
+			"share one poll. The answer tells what the poll found: its result, the generation the relay holds and\n" +
+			"whether the poll changed it. A failed poll is an answer with its reason, not an error of the request.\n" +
+			"Only an admin key may call it.",
+		Errors: []int{
+			http.StatusBadRequest, http.StatusInternalServerError, http.StatusNotImplemented,
+			http.StatusServiceUnavailable, http.StatusGatewayTimeout,
+		},
 	}
 }
 

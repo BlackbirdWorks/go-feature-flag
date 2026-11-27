@@ -105,16 +105,46 @@ func TestSettingsFrom(t *testing.T) {
 	}
 }
 
-func TestRefreshIsNotSupported(t *testing.T) {
+// The refresh endpoint polls the control plane at once, through the poll of the schedule, and says what it found. Only
+// an admin key may ask.
+func TestRefreshPollsNow(t *testing.T) {
 	t.Parallel()
 
 	rig := newV2(t)
 
-	status, _, body := do(t, http.MethodPost, rig.url+pathRefresh, "", keyHeader(adminKey))
+	tests := []struct {
+		name       string
+		key        string
+		wantBody   string
+		wantStatus int
+		publish    bool
+	}{
+		{
+			name: "a new generation", publish: true, key: adminKey, wantStatus: http.StatusOK,
+			wantBody: `{"result":"updated","generation":2,"refreshed":true,"changed":true}`,
+		},
+		{
+			name: "nothing new", key: adminKey, wantStatus: http.StatusOK,
+			wantBody: `{"result":"not_modified","generation":2,"refreshed":true}`,
+		},
+		{
+			name:       "a flag set key",
+			key:        tenantKey,
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   `{"message":"Unauthorized"}`,
+		},
+	}
 
-	assert.Equal(t, http.StatusNotImplemented, status)
-	assert.JSONEq(t, `{"message":"refresh on request is not supported: the relay polls the control plane manifest"}`,
-		string(body))
+	for _, tt := range tests {
+		if tt.publish {
+			rig.publish(t)
+		}
+
+		status, _, body := do(t, http.MethodPost, rig.url+pathRefresh, "", keyHeader(tt.key))
+
+		assert.Equal(t, tt.wantStatus, status, tt.name)
+		assert.JSONEq(t, tt.wantBody, string(body), tt.name)
+	}
 }
 
 // The settings of the file reach the HTTP layer: the profiler, the advertised event stream and the validate limits.

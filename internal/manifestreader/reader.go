@@ -41,6 +41,7 @@ type Reader struct {
 	retry      map[string]*retryState
 	routes     map[string]string
 	snaps      chan *Snapshot
+	refresh    *refresher
 	logged     map[string]string
 	hookPanics map[string]uint64
 	held       *held
@@ -141,6 +142,7 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 		jitter:     defaultJitter,
 		reqCtx:     withTimeout,
 		snaps:      make(chan *Snapshot, 1),
+		refresh:    newRefresher(),
 		cache:      map[string][]byte{},
 		names:      map[string]*nameState{},
 		logged:     map[string]string{},
@@ -193,6 +195,7 @@ func (r *Reader) Run(ctx context.Context) error {
 	}
 
 	defer close(r.snaps)
+	defer close(r.refresh.stopped)
 
 	r.restore(ctx)
 
@@ -204,13 +207,18 @@ func (r *Reader) Run(ctx context.Context) error {
 	}
 
 	for {
+		before := r.Status().Manifest.Generation
+
 		r.round(ctx)
 
 		if ctx.Err() != nil {
 			return nil
 		}
 
-		if r.sleep(ctx, r.wait) != nil {
+		r.refresh.complete(r.roundResult(before))
+
+		_, err := r.sleepOrRefresh(ctx, r.wait)
+		if err != nil {
 			return nil
 		}
 	}

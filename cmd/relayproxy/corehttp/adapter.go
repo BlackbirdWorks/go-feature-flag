@@ -15,6 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
@@ -36,6 +37,8 @@ type Source interface {
 	Status() relaycore.Status
 	// Collect hands a feature event to the exporters.
 	Collect(event events.Event) bool
+	// Refresh polls the control plane now.
+	Refresh(ctx context.Context) (manifestreader.RefreshResult, error)
 }
 
 // Adapter implements the seam of the HTTP layer on a core: it finds the flag set of an API key in the current runtime
@@ -44,6 +47,7 @@ type Adapter struct {
 	holder  *flagruntime.Holder
 	eval    *flagruntime.Evaluator
 	collect func(events.Event) bool
+	refresh func(context.Context) (manifestreader.RefreshResult, error)
 	// table is the flag set views of the runtime that was last served: a view is made once per flag set, so
 	// resolving a key does not allocate.
 	table atomic.Pointer[viewTable]
@@ -52,14 +56,14 @@ type Adapter struct {
 }
 
 var (
-	_ service.FlagSetResolver    = (*Adapter)(nil)
-	_ service.KeySource          = (*Adapter)(nil)
-	_ service.RefreshUnsupported = (*Adapter)(nil)
+	_ service.FlagSetResolver = (*Adapter)(nil)
+	_ service.KeySource       = (*Adapter)(nil)
+	_ service.Refresher       = (*Adapter)(nil)
 )
 
 // NewAdapter returns the adapter of a core.
 func NewAdapter(src Source) *Adapter {
-	return &Adapter{holder: src.Holder(), eval: src.Evaluator(), collect: src.Collect}
+	return &Adapter{holder: src.Holder(), eval: src.Evaluator(), collect: src.Collect, refresh: src.Refresh}
 }
 
 // viewTable holds the views of the flag sets of one runtime.
@@ -121,9 +125,20 @@ func (a *Adapter) AdminKeyExists(apiKey string) bool {
 	return route == flagruntime.RouteAdmin
 }
 
-// RefreshUnsupported is the reason the refresh endpoint answers 501: the manifest reader has no trigger.
-func (*Adapter) RefreshUnsupported() string {
-	return "refresh on request is not supported: the relay polls the control plane manifest"
+// Refresh polls the control plane now, through the poll of the schedule.
+func (a *Adapter) Refresh(ctx context.Context) (service.RefreshOutcome, error) {
+	result, err := a.refresh(ctx)
+	if err != nil {
+		if errors.Is(err, manifestreader.ErrNotPolling) {
+			return service.RefreshOutcome{}, fmt.Errorf("%w: %w", service.ErrNotPolling, err)
+		}
+
+		return service.RefreshOutcome{}, fmt.Errorf("refreshing: %w", err)
+	}
+
+	return service.RefreshOutcome{
+		Result: result.Poll.Result, Reason: result.Poll.Reason, Generation: result.Generation, Changed: result.Changed,
+	}, nil
 }
 
 // views returns the views of the flag sets of the runtime. A flag set that did not change keeps its pointer across
