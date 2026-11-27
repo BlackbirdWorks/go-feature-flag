@@ -205,6 +205,10 @@ func (srv *server) commandCalls(tb testing.TB, name string) int64 {
 func e2eProvider(t *testing.T, srv *server, opts *valkeysegment.Options) *valkeysegment.Provider {
 	t.Helper()
 
+	if opts == nil {
+		opts = &valkeysegment.Options{}
+	}
+
 	if opts.Segments == nil {
 		opts.Segments = map[string]valkeysegment.SegmentOptions{
 			segBeta: {}, "flags": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},

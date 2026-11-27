@@ -90,7 +90,12 @@ func TestE2EConformance(t *testing.T) {
 				caseSrv.pipelines = &caseSrv.fault.count
 				caseSrv.client = caseSrv.newClient(t, srv.address)
 
-				opts := tt.opts
+				opts := &valkeysegment.Options{}
+
+				if tt.opts != nil {
+					*opts = *tt.opts
+				}
+
 				opts.Segments = seed(
 					t,
 					caseSrv,
@@ -383,6 +388,7 @@ func TestE2EResolverCachesAndCoalescesOnARealServer(t *testing.T) {
 
 	before := srv.pipelines.Load()
 	entered := srv.fault.Hang()
+	t.Cleanup(srv.fault.Release) // a failed assertion must not leave the callers waiting
 
 	const callers = 8
 

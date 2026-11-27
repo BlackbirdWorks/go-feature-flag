@@ -132,6 +132,10 @@ func keyOf(args []any) string {
 		pos = 3
 	}
 
+	if len(args) <= pos {
+		return "" // a command without a key, such as the probe of Init
+	}
+
 	key, _ := args[pos].(string)
 
 	return key
