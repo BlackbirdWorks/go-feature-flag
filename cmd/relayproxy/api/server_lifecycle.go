@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -138,7 +139,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		defer wg.Wait()
 	}
 
-	address := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.Port)
+	address := net.JoinHostPort(s.settings.Host, strconv.Itoa(s.settings.Port))
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy ...",
 		slog.String("address", address),
@@ -222,7 +223,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
-	addressMonitoring := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.MonitoringPort)
+	addressMonitoring := net.JoinHostPort(s.settings.Host, strconv.Itoa(s.settings.MonitoringPort))
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
