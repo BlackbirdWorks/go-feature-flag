@@ -4,6 +4,8 @@ package valkeysegment_test
 
 import (
 	"context"
+	"errors"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -33,60 +35,165 @@ type server struct {
 	container *testcontainerredis.RedisContainer
 	client    *redis.Client
 	pipelines *atomic.Int64
+	fault     *faultHook
+	address   string
 }
 
-// pipelineCounter counts the pipelines that the client sends: one pipeline is one round trip.
-type pipelineCounter struct{ cnt *atomic.Int64 }
+var errInjected = errors.New("injected store failure")
 
-func (pipelineCounter) DialHook(next redis.DialHook) redis.DialHook { return next }
+// faultHook counts the pipelines that the client sends (one pipeline is one round trip) and injects the faults of
+// the conformance suite between the client and the real server.
+type faultHook struct {
+	gate    chan struct{}
+	entered chan struct{}
+	failSeg map[string]bool
+	count   atomic.Int64
+	mu      sync.Mutex
+	failed  bool
+}
 
-func (pipelineCounter) ProcessHook(next redis.ProcessHook) redis.ProcessHook { return next }
+func (*faultHook) DialHook(next redis.DialHook) redis.DialHook { return next }
 
-func (c pipelineCounter) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+func (*faultHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook { return next }
+
+func (h *faultHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return func(ctx context.Context, cmds []redis.Cmder) error {
-		c.cnt.Add(1)
+		h.count.Add(1)
 
-		return next(ctx, cmds)
+		h.mu.Lock()
+		gate, entered, failed := h.gate, h.entered, h.failed
+		failSeg := maps.Clone(h.failSeg)
+		h.mu.Unlock()
+
+		if entered != nil {
+			entered <- struct{}{}
+		}
+
+		if gate != nil {
+			select {
+			case <-gate:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		if failed {
+			return errInjected
+		}
+
+		err := next(ctx, cmds)
+
+		for _, cmd := range cmds {
+			args := cmd.Args()
+			if len(args) < 2 {
+				continue
+			}
+
+			key := keyOf(args)
+			for seg := range failSeg {
+				if strings.Contains(key, seg) {
+					cmd.SetErr(errInjected)
+				}
+			}
+		}
+
+		return err
 	}
 }
 
-func startServer(t *testing.T) *server {
-	t.Helper()
+func (h *faultHook) Fail() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.failed = true
+}
+
+func (h *faultHook) FailSegment(name string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.failSeg == nil {
+		h.failSeg = map[string]bool{}
+	}
+
+	h.failSeg[name] = true
+}
+
+func (h *faultHook) Hang() <-chan struct{} {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.gate, h.entered = make(chan struct{}), make(chan struct{}, 64)
+
+	return h.entered
+}
+
+func (h *faultHook) Release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.gate != nil {
+		close(h.gate)
+
+		h.gate = nil
+	}
+}
+
+func (h *faultHook) Heal() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.failed = false
+	h.failSeg = nil
+}
+
+func startServer(tb testing.TB) *server {
+	tb.Helper()
 
 	ctx := context.Background()
 
 	container, err := testcontainerredis.Run(ctx, valkeyImage)
-	testcontainers.CleanupContainer(t, container)
-	require.NoError(t, err)
+	testcontainers.CleanupContainer(tb, container)
+	require.NoError(tb, err)
 
 	address, err := container.Endpoint(ctx, "")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
-	pipelines := &atomic.Int64{}
+	hook := &faultHook{}
+	srv := &server{container: container, fault: hook, pipelines: &hook.count, address: address}
+	srv.client = srv.newClient(tb, address)
+
+	return srv
+}
+
+// newClient returns a client of the address with the fault hook, closed at the end of the test.
+func (srv *server) newClient(tb testing.TB, address string) *redis.Client {
+	tb.Helper()
+
 	client := redis.NewClient(&redis.Options{
 		Addr:        address,
 		MaxRetries:  -1,
 		DialTimeout: time.Second,
 		ReadTimeout: time.Second,
 	})
-	client.AddHook(pipelineCounter{cnt: pipelines})
-	t.Cleanup(func() { _ = client.Close() })
+	client.AddHook(srv.fault)
+	tb.Cleanup(func() { _ = client.Close() })
 
-	return &server{container: container, client: client, pipelines: pipelines}
+	return client
 }
 
-func (srv *server) commandCalls(t *testing.T, name string) int64 {
-	t.Helper()
+func (srv *server) commandCalls(tb testing.TB, name string) int64 {
+	tb.Helper()
 
 	info, err := srv.client.Info(context.Background(), "commandstats").Result()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	for line := range strings.SplitSeq(info, "\n") {
 		prefix := "cmdstat_" + name + ":calls="
 		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), prefix); ok {
 			calls, _, _ := strings.Cut(rest, ",")
 			parsed, parseErr := strconv.ParseInt(calls, 10, 64)
-			require.NoError(t, parseErr)
+			require.NoError(tb, parseErr)
 
 			return parsed
 		}
@@ -117,13 +224,13 @@ func TestE2EContains(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice, "carol").Err())
-	require.NoError(t, srv.client.Set(ctx, "flag:alice", "1", 0).Err())
+	require.NoError(t, srv.client.Set(ctx, keyFlagAlice, "1", 0).Err())
 
 	tests := []struct {
 		name       string
-		opts       valkeysegment.Options
 		lookups    []segment.Lookup
 		wantStates []segment.State
+		opts       valkeysegment.Options
 	}{
 		{
 			name:       "member and not member",
@@ -146,7 +253,7 @@ func TestE2EContains(t *testing.T) {
 			wantStates: []segment.State{segment.NotMember},
 		},
 		{
-			name:       "keys layout",
+			name:       nameKeysLayout,
 			lookups:    []segment.Lookup{lk("flags", idAlice), lk("flags", "zed")},
 			wantStates: []segment.State{segment.Member, segment.NotMember},
 		},

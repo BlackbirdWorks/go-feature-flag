@@ -16,19 +16,24 @@ import (
 )
 
 const (
-	carolID       = "carol"
-	segChurned    = "churned"
-	segBeta       = "beta"
-	segGhost      = "ghost"
-	idAlice       = "alice"
-	cmdSMIsMember = "smismember"
-	cmdExists     = "exists"
-	flagPrefix    = "flag:"
-	msgProtocol1  = "valkey segment: protocol: 1 of 1 lookups failed"
-	keyBeta       = "semaphore:segment:{beta}"
-	keyChurned    = "semaphore:segment:{churned}"
-	cmdBeta       = "smismember " + keyBeta
-	existsBeta    = "exists " + keyBeta
+	cmdExistsFlagAlice = "exists flag:alice"
+	keyFlagAlice       = "flag:alice"
+	segGone            = "gone"
+	nameKeysLayout     = "keys layout"
+	carolID            = "carol"
+	segChurned         = "churned"
+	segBeta            = "beta"
+	segGhost           = "ghost"
+	idAlice            = "alice"
+	cmdSMIsMember      = "smismember"
+	cmdExists          = "exists"
+	cmdEval            = "eval"
+	flagPrefix         = "flag:"
+	msgProtocol1       = "valkey segment: protocol: 1 of 1 lookups failed"
+	keyBeta            = "semaphore:segment:{beta}"
+	keyChurned         = "semaphore:segment:{churned}"
+	cmdBeta            = "smismember " + keyBeta
+	existsBeta         = "exists " + keyBeta
 )
 
 var (
@@ -82,16 +87,16 @@ func TestContainsAnswers(t *testing.T) {
 				keyBeta:    {idAlice: true, carolID: true},
 				keyChurned: {carolID: true},
 			},
-			keys: map[string]bool{"flag:alice": true},
+			keys: map[string]bool{keyFlagAlice: true},
 		}
 	}
 
 	tests := []struct {
 		name         string
-		opts         valkeysegment.Options
 		lookups      []segment.Lookup
 		wantStates   []segment.State
 		wantCommands [][]string
+		opts         valkeysegment.Options
 	}{
 		{
 			name:       "member and not member of one set in one command",
@@ -163,7 +168,7 @@ func TestContainsAnswers(t *testing.T) {
 			lookups:    []segment.Lookup{lk("f", idAlice), lk("f", "zed")},
 			wantStates: []segment.State{segment.Member, segment.NotMember},
 			wantCommands: [][]string{
-				{"exists flag:alice", "exists flag:zed"},
+				{cmdExistsFlagAlice, "exists flag:zed"},
 			},
 		},
 		{
@@ -187,7 +192,7 @@ func TestContainsAnswers(t *testing.T) {
 			lookups:    []segment.Lookup{lk("f", idAlice), lk(segBeta, idAlice)},
 			wantStates: []segment.State{segment.Member, segment.Member},
 			wantCommands: [][]string{
-				{cmdBeta + " alice", existsBeta, "exists flag:alice"},
+				{cmdBeta + " alice", existsBeta, cmdExistsFlagAlice},
 			},
 		},
 		{
@@ -480,7 +485,7 @@ func TestContainsReplyFailures(t *testing.T) {
 		{
 			name: "keys layout error on one id",
 			store: &fakeStore{
-				keys: map[string]bool{"flag:alice": true},
+				keys: map[string]bool{keyFlagAlice: true},
 				reply: func(args []any) *fakeReply {
 					if args[1] == "flag:zed" {
 						return &fakeReply{err: errDial}

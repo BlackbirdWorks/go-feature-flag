@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -35,6 +36,10 @@ type Provider struct {
 	segs     map[string]*segmentConfig
 	missing  MissingKey
 	timeout  time.Duration
+	lastFail atomic.Uint32
+	ready    atomic.Bool
+	closed   atomic.Bool
+	atomicTx bool
 }
 
 var _ segment.Provider = (*Provider)(nil)
@@ -61,6 +66,7 @@ func New(client Client, opts Options) (*Provider, error) {
 		observer: opts.Observer,
 		timeout:  opts.Timeout,
 		missing:  opts.MissingKey,
+		atomicTx: opts.Atomic,
 	}
 	if prov.timeout == 0 {
 		prov.timeout = DefaultTimeout
@@ -124,10 +130,11 @@ func (p *Provider) Close() error {
 
 // group is the lookups of one set segment in one call.
 type group struct {
-	cfg     *segmentConfig
-	members *redis.Cmd
-	exists  *redis.Cmd
-	idx     []int
+	cfg      *segmentConfig
+	members  *redis.Cmd
+	exists   *redis.Cmd
+	idx      []int
+	scripted bool
 }
 
 // keyStep is one lookup of a keys segment.
@@ -204,6 +211,7 @@ func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error
 
 	obs := Observation{Lookups: len(lookups)}
 	err := p.lookup(ctx, lookups, scr, &obs)
+	p.record(obs.Failure)
 
 	obs.Duration = clock.Now().Sub(started)
 
@@ -212,6 +220,329 @@ func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error
 	}
 
 	return err
+}
+
+// result accumulates the outcome of the commands of one call.
+type result struct {
+	ctx      context.Context //nolint:containedctx // the scratch of one call, never stored
+	callCtx  context.Context //nolint:containedctx // the scratch of one call, never stored
+	execErr  error
+	answered int
+	failed   int
+	class    Class
+}
+
+func (r *result) fail(n int, class Class) {
+	r.failed += n
+	r.noteClass(class)
+}
+
+// noteClass keeps the most severe class (the lowest value that is not none).
+func (r *result) noteClass(class Class) {
+	if r.class == ClassNone || class < r.class {
+		r.class = class
+	}
+}
+
+// cmdErr returns the error of a command, or the pipeline error when the command has no reply.
+func (r *result) cmdErr(cmd *redis.Cmd) error {
+	if cmd == nil {
+		return ErrProtocol
+	}
+
+	err := cmd.Err()
+	if err != nil {
+		return fmt.Errorf("valkey segment: reply: %w", err)
+	}
+
+	if cmd.Val() == nil {
+		if r.execErr != nil {
+			return fmt.Errorf("valkey segment: pipeline: %w", r.execErr)
+		}
+
+		return ErrProtocol
+	}
+
+	return nil
+}
+
+func (r *result) classify(err error) Class {
+	switch {
+	case r.ctx.Err() != nil:
+		return ClassCanceled
+	case errors.Is(err, ErrProtocol):
+		return ClassProtocol
+	case errors.Is(err, context.Canceled):
+		return ClassCanceled
+	case errors.Is(err, context.DeadlineExceeded), r.callCtx.Err() != nil:
+		return ClassTimeout
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return ClassTimeout
+	}
+
+	if _, ok := errors.AsType[redis.Error](err); ok {
+		return ClassServer
+	}
+
+	return ClassUnavailable
+}
+
+// readInt returns the 0 or 1 of an integer reply.
+func readInt(reply any) (int64, bool) {
+	val, ok := reply.(int64)
+	if !ok || val < 0 || val > 1 {
+		return 0, false
+	}
+
+	return val, true
+}
+
+// Script is the Lua script of an atomic call (see Options.Atomic) for one set: it answers the existence of the key,
+// then 1 or 0 for each id, in one atomic step on the node that holds the key. It reads one key, so it runs on a
+// cluster, and it has no limit on the number of ids as SMISMEMBER through unpack would.
+const Script = `local out = {redis.call('EXISTS', KEYS[1])}
+for i = 1, #ARGV do out[i + 1] = redis.call('SISMEMBER', KEYS[1], ARGV[i]) end
+return out`
+
+// keyCheck is what the EXISTS of a set key says.
+type keyCheck struct {
+	known  bool // false when the key was not checked or the check failed
+	exists bool
+}
+
+// checkKey reads the EXISTS of the key of a set. With MissingNotMember a missing key is an empty segment, so the
+// key counts as checked and existing: a non-member is a non-member whatever the key.
+func (r *result) checkKey(grp *group) keyCheck {
+	if grp.exists == nil {
+		return keyCheck{known: true, exists: true}
+	}
+
+	err := r.cmdErr(grp.exists)
+	if err != nil {
+		r.noteClass(r.classify(err))
+
+		return keyCheck{}
+	}
+
+	val, valid := readInt(grp.exists.Val())
+	if !valid {
+		r.noteClass(ClassProtocol)
+
+		return keyCheck{}
+	}
+
+	return keyCheck{known: true, exists: val == 1}
+}
+
+func (r *result) readGroup(grp *group, lookups []segment.Lookup) {
+	err := r.cmdErr(grp.members)
+	if err != nil {
+		r.fail(len(grp.idx), r.classify(err))
+
+		return
+	}
+
+	replies, ok := grp.members.Val().([]any)
+	want := len(grp.idx)
+
+	if grp.scripted {
+		want++ // the first reply of the script is the key check
+	}
+
+	if !ok || len(replies) != want {
+		r.fail(len(grp.idx), ClassProtocol)
+
+		return
+	}
+
+	for _, reply := range replies {
+		if _, valid := readInt(reply); !valid {
+			r.fail(len(grp.idx), ClassProtocol)
+
+			return
+		}
+	}
+
+	// A member is certain whatever the key check says. A non-member needs the key to exist.
+	var check keyCheck
+
+	if grp.scripted {
+		exists, _ := readInt(replies[0])
+		check = keyCheck{known: true, exists: exists == 1}
+		replies = replies[1:]
+	} else {
+		check = r.checkKey(grp)
+	}
+
+	r.assign(grp, replies, check, lookups)
+}
+
+// assign sets the state of the lookups of a group from the replies and the key check.
+func (r *result) assign(grp *group, replies []any, check keyCheck, lookups []segment.Lookup) {
+	for pos, reply := range replies {
+		val, _ := readInt(reply)
+
+		switch {
+		case val == 1:
+			lookups[grp.idx[pos]].State = segment.Member
+			r.answered++
+		case check.known && check.exists:
+			lookups[grp.idx[pos]].State = segment.NotMember
+			r.answered++
+		case check.known:
+			// the key is missing: the segment is not loaded, the lookup stays unknown
+		default:
+			r.failed++
+		}
+	}
+}
+
+func (r *result) readKey(step *keyStep, lookups []segment.Lookup) {
+	err := r.cmdErr(step.cmd)
+	if err != nil {
+		r.fail(1, r.classify(err))
+
+		return
+	}
+
+	val, ok := readInt(step.cmd.Val())
+	if !ok {
+		r.fail(1, ClassProtocol)
+
+		return
+	}
+
+	if val == 1 {
+		lookups[step.idx].State = segment.Member
+	} else {
+		lookups[step.idx].State = segment.NotMember
+	}
+
+	r.answered++
+}
+
+// Status is a snapshot of the health of the provider.
+type Status struct {
+	// LastFailure is the class of the failure of the last call, ClassNone when it succeeded.
+	LastFailure Class
+	// Ready is true once Init or a call succeeded.
+	Ready bool
+	// Closed is true after Shutdown.
+	Closed bool
+}
+
+// Status returns a snapshot of the health of the provider.
+func (p *Provider) Status() Status {
+	return Status{
+		LastFailure: Class(p.lastFail.Load()), //nolint:gosec // G115: only record stores a Class
+		Ready:       p.ready.Load(),
+		Closed:      p.closed.Load(),
+	}
+}
+
+// ErrInit is wrapped, with the sentinel of the class, by the error of Init.
+var ErrInit = errors.New("valkey segment: init failed")
+
+// Init checks that the store answers (a PING under the timeout of the provider). A provider needs no Init to
+// work; the relay calls it to report the state of the store at the start.
+func (p *Provider) Init(ctx context.Context) error {
+	callCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	pipe := p.client.Pipeline()
+	cmd := pipe.Do(callCtx, "ping")
+	_, execErr := pipe.Exec(callCtx)
+
+	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+
+	err := res.cmdErr(cmd)
+	if err != nil {
+		class := res.classify(err)
+		p.record(class)
+
+		return fmt.Errorf("%w: %w", ErrInit, (&LookupError{Class: class}).Unwrap())
+	}
+
+	p.record(ClassNone)
+
+	return nil
+}
+
+// Shutdown closes the client when the provider owns it (see Dial) and marks the provider closed.
+func (p *Provider) Shutdown(_ context.Context) error {
+	p.closed.Store(true)
+
+	return p.Close()
+}
+
+// Exists tells whether the segments are loaded: Member when the key of a set exists, NotMember when it does not,
+// Unknown for a segment of the keys layout (it has no single key) or one that is not configured, or when the
+// store could not answer. A failure returns a *LookupError and leaves the states of the answered names.
+func (p *Provider) Exists(ctx context.Context, names []string) ([]segment.State, error) {
+	out := make([]segment.State, len(names))
+	if len(names) == 0 {
+		return out, nil
+	}
+
+	callCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	pipe := p.client.Pipeline()
+	cmds := make([]*redis.Cmd, len(names))
+	asked := 0
+
+	for i, name := range names {
+		cfg := p.segs[name]
+		if cfg == nil || cfg.layout != LayoutSet {
+			continue
+		}
+
+		cmds[i] = pipe.Do(callCtx, "exists", cfg.keyAny)
+		asked++
+	}
+
+	if asked == 0 {
+		return out, nil
+	}
+
+	_, execErr := pipe.Exec(callCtx)
+	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+
+	for i, cmd := range cmds {
+		if cmd == nil {
+			continue
+		}
+
+		err := res.cmdErr(cmd)
+		if err != nil {
+			res.fail(1, res.classify(err))
+
+			continue
+		}
+
+		val, valid := readInt(cmd.Val())
+		if !valid {
+			res.fail(1, ClassProtocol)
+
+			continue
+		}
+
+		out[i] = segment.NotMember
+		if val == 1 {
+			out[i] = segment.Member
+		}
+	}
+
+	if res.failed > 0 {
+		p.record(res.class)
+
+		return out, &LookupError{Class: res.class, Failed: res.failed, Total: len(names)}
+	}
+
+	return out, nil
 }
 
 func (p *Provider) lookup(ctx context.Context, lookups []segment.Lookup, scr *plan, obs *Observation) error {
@@ -297,7 +628,14 @@ func (p *Provider) queue(ctx context.Context, pipe redis.Pipeliner, lookups []se
 		grp := &scr.groups[i]
 
 		start := len(scr.args)
-		scr.args = append(scr.args, "smismember", grp.cfg.keyAny)
+
+		if p.atomicTx && p.missing == MissingUnknown {
+			// one command that checks the key and the ids together, atomically, and that a cluster routes by its key
+			scr.args = append(scr.args, "eval", Script, 1, grp.cfg.keyAny)
+			grp.scripted = true
+		} else {
+			scr.args = append(scr.args, "smismember", grp.cfg.keyAny)
+		}
 
 		for _, idx := range grp.idx {
 			scr.args = append(scr.args, lookups[idx].ID)
@@ -305,7 +643,7 @@ func (p *Provider) queue(ctx context.Context, pipe redis.Pipeliner, lookups []se
 
 		grp.members = pipe.Do(ctx, scr.take(start)...)
 
-		if p.missing == MissingUnknown {
+		if p.missing == MissingUnknown && !grp.scripted {
 			start = len(scr.args)
 			scr.args = append(scr.args, "exists", grp.cfg.keyAny)
 			grp.exists = pipe.Do(ctx, scr.take(start)...)
@@ -322,178 +660,11 @@ func (p *Provider) queue(ctx context.Context, pipe redis.Pipeliner, lookups []se
 	}
 }
 
-// result accumulates the outcome of the commands of one call.
-type result struct {
-	ctx      context.Context //nolint:containedctx // the scratch of one call, never stored
-	callCtx  context.Context //nolint:containedctx // the scratch of one call, never stored
-	execErr  error
-	answered int
-	failed   int
-	class    Class
-}
+// record keeps the outcome of the last call for Status.
+func (p *Provider) record(failure Class) {
+	p.lastFail.Store(uint32(failure))
 
-func (r *result) fail(n int, class Class) {
-	r.failed += n
-	r.noteClass(class)
-}
-
-// noteClass keeps the most severe class (the lowest value that is not none).
-func (r *result) noteClass(class Class) {
-	if r.class == ClassNone || class < r.class {
-		r.class = class
+	if failure == ClassNone {
+		p.ready.Store(true)
 	}
-}
-
-// cmdErr returns the error of a command, or the pipeline error when the command has no reply.
-func (r *result) cmdErr(cmd *redis.Cmd) error {
-	if cmd == nil {
-		return ErrProtocol
-	}
-
-	err := cmd.Err()
-	if err != nil {
-		return fmt.Errorf("valkey segment: reply: %w", err)
-	}
-
-	if cmd.Val() == nil {
-		if r.execErr != nil {
-			return fmt.Errorf("valkey segment: pipeline: %w", r.execErr)
-		}
-
-		return ErrProtocol
-	}
-
-	return nil
-}
-
-func (r *result) classify(err error) Class {
-	switch {
-	case r.ctx.Err() != nil:
-		return ClassCanceled
-	case errors.Is(err, ErrProtocol):
-		return ClassProtocol
-	case errors.Is(err, context.Canceled):
-		return ClassCanceled
-	case errors.Is(err, context.DeadlineExceeded), r.callCtx.Err() != nil:
-		return ClassTimeout
-	}
-
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return ClassTimeout
-	}
-
-	if _, ok := errors.AsType[redis.Error](err); ok {
-		return ClassServer
-	}
-
-	return ClassUnavailable
-}
-
-// readInt returns the 0 or 1 of an integer reply.
-func readInt(reply any) (int64, bool) {
-	val, ok := reply.(int64)
-	if !ok || val < 0 || val > 1 {
-		return 0, false
-	}
-
-	return val, true
-}
-
-// keyCheck is what the EXISTS of a set key says.
-type keyCheck struct {
-	known  bool // false when the key was not checked or the check failed
-	exists bool
-}
-
-// checkKey reads the EXISTS of the key of a set. With MissingNotMember a missing key is an empty segment, so the
-// key counts as checked and existing: a non-member is a non-member whatever the key.
-func (r *result) checkKey(grp *group) keyCheck {
-	if grp.exists == nil {
-		return keyCheck{known: true, exists: true}
-	}
-
-	err := r.cmdErr(grp.exists)
-	if err != nil {
-		r.noteClass(r.classify(err))
-
-		return keyCheck{}
-	}
-
-	val, valid := readInt(grp.exists.Val())
-	if !valid {
-		r.noteClass(ClassProtocol)
-
-		return keyCheck{}
-	}
-
-	return keyCheck{known: true, exists: val == 1}
-}
-
-func (r *result) readGroup(grp *group, lookups []segment.Lookup) {
-	err := r.cmdErr(grp.members)
-	if err != nil {
-		r.fail(len(grp.idx), r.classify(err))
-
-		return
-	}
-
-	replies, ok := grp.members.Val().([]any)
-	if !ok || len(replies) != len(grp.idx) {
-		r.fail(len(grp.idx), ClassProtocol)
-
-		return
-	}
-
-	for _, reply := range replies {
-		if _, valid := readInt(reply); !valid {
-			r.fail(len(grp.idx), ClassProtocol)
-
-			return
-		}
-	}
-
-	// A member is certain whatever the key check says. A non-member needs the key to exist.
-	check := r.checkKey(grp)
-
-	for pos, reply := range replies {
-		val, _ := readInt(reply)
-
-		switch {
-		case val == 1:
-			lookups[grp.idx[pos]].State = segment.Member
-			r.answered++
-		case check.known && check.exists:
-			lookups[grp.idx[pos]].State = segment.NotMember
-			r.answered++
-		case check.known:
-			// the key is missing: the segment is not loaded, the lookup stays unknown
-		default:
-			r.failed++
-		}
-	}
-}
-
-func (r *result) readKey(step *keyStep, lookups []segment.Lookup) {
-	err := r.cmdErr(step.cmd)
-	if err != nil {
-		r.fail(1, r.classify(err))
-
-		return
-	}
-
-	val, ok := readInt(step.cmd.Val())
-	if !ok {
-		r.fail(1, ClassProtocol)
-
-		return
-	}
-
-	if val == 1 {
-		lookups[step.idx].State = segment.Member
-	} else {
-		lookups[step.idx].State = segment.NotMember
-	}
-
-	r.answered++
 }

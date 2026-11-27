@@ -58,6 +58,11 @@ type Options struct {
 	KeyPrefix string
 	// MissingKey is what a missing set key means. Empty means MissingUnknown.
 	MissingKey MissingKey
+	// Atomic answers each set segment with one Lua script (EVAL) that checks the key and the ids in one atomic
+	// step, instead of SMISMEMBER and EXISTS in the pipeline. A set that is deleted while the call runs is then
+	// seen whole or not at all. It does not apply to MissingNotMember, which has no key check, nor to the keys
+	// layout. Swapping a set with RENAME needs no Atomic: the key never disappears.
+	Atomic bool
 	// Timeout bounds one call, under the deadline of the caller. Zero means DefaultTimeout.
 	Timeout time.Duration
 }

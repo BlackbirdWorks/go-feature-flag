@@ -110,8 +110,37 @@ func (p *fakePipe) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	return nil, nil
 }
 
+// evalAnswer plays Script: the existence of the key, then the answer for each id.
+func (f *fakeStore) evalAnswer(args []any) any {
+	key, _ := args[3].(string)
+	out := []any{int64(0)}
+
+	if _, ok := f.sets[key]; ok {
+		out[0] = int64(1)
+	}
+
+	for _, id := range args[4:] {
+		s, _ := id.(string)
+		if f.sets[key][s] {
+			out = append(out, int64(1))
+		} else {
+			out = append(out, int64(0))
+		}
+	}
+
+	return out
+}
+
 func (f *fakeStore) answer(args []any) any {
 	name, _ := args[0].(string)
+	if len(args) < 2 {
+		return "PONG"
+	}
+
+	if name == cmdEval {
+		return f.evalAnswer(args)
+	}
+
 	key, _ := args[1].(string)
 
 	switch name {
@@ -129,6 +158,8 @@ func (f *fakeStore) answer(args []any) any {
 		}
 
 		return out
+	case "ping":
+		return "PONG"
 	case cmdExists:
 		if _, ok := f.sets[key]; ok || f.keys[key] {
 			return int64(1)
