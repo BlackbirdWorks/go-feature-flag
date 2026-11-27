@@ -161,7 +161,7 @@ func TestExporter_ConcurrentFirstExportsInitialiseOnce(t *testing.T) {
 	for i := range callers {
 		wg.Go(func() {
 			errs[i] = exp.Export(t.Context(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
-				&exporter.FeatureEvent{Kind: "feature", Key: "flag-a", UserKey: "user-1", CreationDate: 1617970547},
+				&exporter.FeatureEvent{Kind: kindFeature, Key: "flag-a", UserKey: "user-1", CreationDate: 1617970547},
 			})
 		})
 	}

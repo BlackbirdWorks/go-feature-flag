@@ -16,6 +16,8 @@ const regionChain = "from-the-chain"
 
 const regionConnection = "from-the-connection"
 
+const kindFeature = "feature"
+
 var errNoChain = errors.New("the default chain is down")
 
 // TestExporter_ConfigurationSource pins where the AWS configuration comes from: a configuration that is given (the
