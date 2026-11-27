@@ -169,6 +169,10 @@ func setDurationDefaults(root *jsonschema.Schema) {
 		{"Retry", "maxBackoff"}: DefaultMaxBackoff, {"Exporter", "flushInterval"}: DefaultFlushInterval,
 	}
 
+	if prop, ok := root.Definitions["Manifest"].Properties.Get("pollInterval"); ok {
+		prop.Description = "The loader also requires at least 1s; the schema cannot express that on a duration string."
+	}
+
 	for key, value := range defaults {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
 			prop.Default = Duration(value).String()

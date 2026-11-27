@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
@@ -193,4 +194,42 @@ func TestNewPublishCmdIsWiredToTheRealEnvironment(t *testing.T) {
 		deps.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
 		"the clock of the repository",
 	)
+}
+
+const pollFile = "/poll.yaml"
+
+// The polling bounds are a check of the relay: publish and verify read only the destination of the file.
+func TestPublishAndVerifyIgnoreTheReaderPollingBounds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		setting string
+		verify  bool
+	}{
+		{name: "publish, sub-second interval", setting: "pollInterval: 500ms"},
+		{name: "publish, jitter of one", setting: "jitter: 1"},
+		{name: "verify, sub-second interval", setting: "pollInterval: 500ms", verify: true},
+		{name: "verify, jitter of one", setting: "jitter: 1", verify: true},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			file := "version: 2\nconnections:\n  control: {type: s3, region: us-east-1, bucket: acme}\n" +
+				"controlPlane:\n  connection: control\n  manifest: {key: manifests/stable.yaml, " + tcase.setting + "}\n"
+			rig := newHarness(t, sourceTree())
+			rig.withFiles(map[string]string{pollFile: file}, nil)
+
+			args := []string{srcDir, optConfig, pollFile, "--dry-run"}
+			if tcase.verify {
+				args = []string{verifyWord, optConfig, pollFile}
+			}
+
+			_, _, err := rig.run(t, args...)
+			require.NotErrorIs(t, err, bootstrap.ErrInvalidValue)
+			require.Len(t, rig.specs, 1, "the destination was resolved and the factory asked for a client")
+		})
+	}
 }

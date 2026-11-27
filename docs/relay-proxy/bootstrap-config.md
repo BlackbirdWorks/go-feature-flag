@@ -136,7 +136,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `connection` | string | required | name of an `s3` connection that sets a `bucket`, or of a `file` connection |
 | `manifest.key` | string | required (or `SEMAPHORE_MANIFEST_KEY`) | S3: an object key without a leading slash. File: a clean relative path below the directory (no `./`, no `..`, not absolute) |
 | `manifest.channel` | string | `stable` | the expected channel name, not blank |
-| `manifest.pollInterval` | duration | `60s` | at least `1s`; overrides the connection's `poll.interval` |
+| `manifest.pollInterval` | duration | `60s` | at least `1s` (checked by the loader and `config validate`, not by the JSON Schema; `publish` does not check it); overrides the connection's `poll.interval` |
 | `manifest.jitter` | number | `0.1` | 0 up to, not including, 1 |
 | `manifest.maxObjects` | integer | `20000` | 1 or more |
 | `stateDir` | string | none | a directory path |

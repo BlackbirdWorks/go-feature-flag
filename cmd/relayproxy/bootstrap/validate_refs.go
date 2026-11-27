@@ -275,19 +275,7 @@ func (v *validator) controlPlane() {
 		v.failf("controlPlane.manifest.channel", ErrInvalidValue, "expected a channel name")
 	}
 
-	if !(*manifest.Jitter >= 0 && *manifest.Jitter < manifestreader.MaxJitterFraction) {
-		v.failf("controlPlane.manifest.jitter", ErrInvalidValue, "expected a number from 0 up to, not including, %v",
-			manifestreader.MaxJitterFraction)
-	}
-
-	if time.Duration(*manifest.PollInterval) < manifestreader.MinPollInterval {
-		v.failf(
-			"controlPlane.manifest.pollInterval",
-			ErrInvalidValue,
-			"expected at least %s",
-			manifestreader.MinPollInterval,
-		)
-	}
+	v.pollingBounds(manifest)
 
 	v.manifestKey(conn, ok, manifest.Key)
 
@@ -308,5 +296,23 @@ func (v *validator) manifestKey(conn Connection, found bool, key string) {
 		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a clean relative path below the directory")
 	case conn.S3 != nil && !manifestreader.ValidKey(key):
 		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a bucket key without a leading slash")
+	}
+}
+
+// pollingBounds checks the interval and the jitter against what the manifest reader accepts, so that every file that
+// validates builds a relay. Tools that only read the destination skip it ([LoadOptions.SkipRelayChecks]).
+func (v *validator) pollingBounds(manifest Manifest) {
+	if v.opts.SkipRelayChecks {
+		return
+	}
+
+	if !(*manifest.Jitter >= 0 && *manifest.Jitter < manifestreader.MaxJitterFraction) {
+		v.failf("controlPlane.manifest.jitter", ErrInvalidValue, "expected a number from 0 up to, not including, %v",
+			manifestreader.MaxJitterFraction)
+	}
+
+	if time.Duration(*manifest.PollInterval) < manifestreader.MinPollInterval {
+		v.failf("controlPlane.manifest.pollInterval", ErrInvalidValue, "expected at least %s",
+			manifestreader.MinPollInterval)
 	}
 }

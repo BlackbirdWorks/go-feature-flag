@@ -80,6 +80,11 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 		deps.TuneReader(rcfg)
 	}
 
+	err = checkPolling(rcfg)
+	if err != nil {
+		return err
+	}
+
 	//nolint:contextcheck // the state directory opens without a context
 	state, hooks, reason := openStateDir(plane, rcfg, deps, c.log)
 	c.state, c.stateDisabled = state, reason

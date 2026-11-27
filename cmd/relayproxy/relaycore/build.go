@@ -106,3 +106,16 @@ func openStateDir(
 		MaxBytes:         rcfg.MaxTotalBytes,
 	})
 }
+
+// checkPolling checks the polling settings against the bounds of the reader, so that the error names the setting.
+func checkPolling(rcfg *manifestreader.Config) error {
+	if rcfg.PollInterval != 0 && rcfg.PollInterval < manifestreader.MinPollInterval {
+		return &BuildError{Path: "controlPlane.manifest.pollInterval", Err: manifestreader.ErrInvalidConfig}
+	}
+
+	if rcfg.JitterFraction < 0 || rcfg.JitterFraction >= manifestreader.MaxJitterFraction {
+		return &BuildError{Path: "controlPlane.manifest.jitter", Err: manifestreader.ErrInvalidConfig}
+	}
+
+	return nil
+}

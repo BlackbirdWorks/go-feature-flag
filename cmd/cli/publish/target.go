@@ -110,7 +110,7 @@ func targetFromFlags(flags *targetFlags) (*target, error) {
 }
 
 func targetFromConfig(flags *targetFlags, deps *Deps) (*target, error) {
-	opts := bootstrap.LoadOptions{LookupEnv: deps.LookupEnv, ReadFile: deps.ReadFile}
+	opts := bootstrap.LoadOptions{LookupEnv: deps.LookupEnv, ReadFile: deps.ReadFile, SkipRelayChecks: true}
 
 	cfg, err := bootstrap.Load(&bootstrap.Overrides{Config: flags.config}, opts)
 	if err != nil {

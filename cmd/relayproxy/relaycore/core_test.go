@@ -154,7 +154,22 @@ func TestNewErrors(t *testing.T) {
 			},
 			env:      hook,
 			wantErr:  manifestreader.ErrInvalidConfig,
-			wantPath: "controlPlane.manifest",
+			wantPath: "controlPlane.manifest.pollInterval",
+		},
+		{
+			name: "jitter the reader refuses",
+			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
+				cfg := parse(t, fileDoc(dir, ""), secretOptions(nil))
+				one := manifestreader.MaxJitterFraction
+				cfg.ControlPlane.Manifest.Jitter = &one
+
+				return cfg
+			},
+			env:      hook,
+			wantErr:  manifestreader.ErrInvalidConfig,
+			wantPath: "controlPlane.manifest.jitter",
 		},
 		{
 			name: "exporters that do not build",
