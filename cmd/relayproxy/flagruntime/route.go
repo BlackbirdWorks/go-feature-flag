@@ -72,7 +72,7 @@ func (r Route) Err() error {
 // is no weaker than the map lookup of version 1. No key is copied, logged or put in an error.
 func (r *Runtime) Route(key string) (*FlagSet, Route) {
 	if key == "" {
-		return nil, RouteUnknown
+		return r.routeAnonymous()
 	}
 
 	if fs, ok := r.ByKey[key]; ok {

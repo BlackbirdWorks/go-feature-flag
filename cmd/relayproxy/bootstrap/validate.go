@@ -54,6 +54,8 @@ func (c *Config) validate(pos positions, sources map[string]string, opts LoadOpt
 	check := &validator{pos: pos, sources: sources, opts: opts, cfg: c}
 
 	check.server()
+	check.serverSettings()
+	check.anonymousFlagSet()
 	check.observability()
 	check.adminKeys()
 

@@ -5,16 +5,18 @@ import "time"
 // ConfigInfo is what /info says about the config v2 runtime. It never holds an API key, an admin key, a secret or the
 // bytes of an object.
 type ConfigInfo struct {
+	// LastRejected is the most recent rejected round, kept until a later applied round supersedes it; absent then.
+	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
+	// Reloads counts the rounds by outcome: applied, rejected, ignored.
+	Reloads map[string]uint64 `json:"reloads"`
+	// Anonymous says which flag set serves the requests without an API key; absent when the file names none.
+	Anonymous *AnonymousInfo `json:"anonymous,omitempty"`
+	// Staleness says how long ago the held configuration was last confirmed by the control plane.
+	Staleness StalenessInfo `json:"staleness"`
 	// LastReload is the most recent round of any outcome.
 	LastReload ReloadInfo `json:"lastReload"`
 	// LastApplied is the most recent applied round.
 	LastApplied ReloadInfo `json:"lastApplied"`
-	// LastRejected is the most recent rejected round, kept until a later applied round supersedes it; absent then.
-	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
-	// Staleness says how long ago the held configuration was last confirmed by the control plane.
-	Staleness StalenessInfo `json:"staleness"`
-	// Reloads counts the rounds by outcome: applied, rejected, ignored.
-	Reloads map[string]uint64 `json:"reloads"`
 	// FlagSets are the flag sets by name.
 	FlagSets []FlagSetInfo `json:"flagSets"`
 	// Objects are the source objects by name.
@@ -54,4 +56,11 @@ type StalenessInfo struct {
 type WithdrawnInfo struct {
 	Name       string `json:"name"`
 	Generation uint64 `json:"generation"`
+}
+
+// AnonymousInfo is the flag set that serves the requests without a key, and its state: the state of the flag set, or
+// "missing" while the generation has no flag set of that name.
+type AnonymousInfo struct {
+	FlagSet string `json:"flagSet"`
+	State   string `json:"state"`
 }

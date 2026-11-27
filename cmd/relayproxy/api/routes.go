@@ -117,6 +117,9 @@ func (rs *routeSet) raw(op *huma.Operation, pattern string, h http.Handler, mws 
 func (s *Server) userKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
 		Skipper: func() bool { return !s.keys.AuthenticationEnabled() },
+		// a request without a key is served by the anonymous flag set of the runtime, when there is one: the
+		// resolver answers "no flag set" for an empty key otherwise.
+		AllowAnonymous: true,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			manager := s.flagSets()
 			if manager == nil || manager.IsDefaultFlagSet() {
@@ -136,7 +139,8 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 
 func (s *Server) adminKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
-		Skipper: nil,
+		Skipper:        nil,
+		AllowAnonymous: false,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			return ctx, s.keys.AdminKeyExists(key)
 		},
@@ -155,12 +159,13 @@ func (s *Server) initRoutes() {
 		routes.api.OpenAPI().Info.Version = s.settings.Version
 	}
 
+	// pprof is served by the ops listener only: with one listener the profiler is not served at all.
 	var monitoring *routeSet
 	if s.settings.MonitoringPort != 0 {
 		monitoring = s.newRouteSet(false)
-		s.addMonitoringRoutes(monitoring)
+		s.addMonitoringRoutes(monitoring, s.settings.Pprof)
 	} else {
-		s.addMonitoringRoutes(routes)
+		s.addMonitoringRoutes(routes, false)
 	}
 
 	s.addAPIRoutes(routes)
@@ -211,42 +216,63 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.flagSets())
 
 	// /v1: the evaluation API
-	op := operationAllFlags(api)
+	op := optionalKey(userAuth, operationAllFlags(api))
 	routes.raw(op, "/v1/allflags", helper.Handle(cAllFlags.Handler, debug), userAuth.HTTP())
-	op = operationFlagEval(api)
+	op = optionalKey(userAuth, operationFlagEval(api))
 	routes.raw(op, "/v1/feature/{flagKey}/eval", helper.Handle(cFlagEval.Handler, debug), userAuth.HTTP())
 
-	collector := operationCollector()
+	collector := optionalKey(userAuth, operationCollector())
 	controller.BodyOpts(collector, s.readTimeout)
 	register(routes, collector, cEvalDataCollector.Handle, userAuth.Huma())
 	setRequestBody(api, collector.OperationID, jsonBody(api,
 		"List of flag evaluation that be passed to the data exporter", true, model.CollectEvalDataRequest{}))
 
-	register(routes, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(), middleware.ETagHuma())
+	register(
+		routes,
+		optionalKey(userAuth, operationFlagChange()),
+		cFlagChangeAPI.Handle,
+		userAuth.Huma(),
+		middleware.ETagHuma(),
+	)
 
-	configuration := operationFlagConfiguration()
+	configuration := optionalKey(userAuth, operationFlagConfiguration())
 	controller.BodyOpts(configuration, s.readTimeout)
 	register(routes, configuration, cFlagConfiguration.Handle, userAuth.Huma(), middleware.ETagHuma())
 	setRequestBody(api, configuration.OperationID, jsonBody(api,
 		"List of flags to get the configuration from.", false, controller.FlagConfigurationRequest{}))
 
 	// /ofrep/v1: OpenFeature Remote Evaluation Protocol
-	routes.raw(operationOFREPBulk(api), "/ofrep/v1/evaluate/flags", helper.Handle(cFlagEvalOFREP.BulkEvaluate, debug),
-		middleware.ETag(), userAuth.HTTP())
-	routes.raw(operationOFREPEval(api), "/ofrep/v1/evaluate/flags/{flagKey}",
+	routes.raw(
+		optionalKey(userAuth, operationOFREPBulk(api)),
+		"/ofrep/v1/evaluate/flags",
+		helper.Handle(cFlagEvalOFREP.BulkEvaluate, debug),
+		middleware.ETag(),
+		userAuth.HTTP(),
+	)
+	routes.raw(optionalKey(userAuth, operationOFREPEval(api)), "/ofrep/v1/evaluate/flags/{flagKey}",
 		helper.Handle(cFlagEvalOFREP.Evaluate, debug), userAuth.HTTP())
 
 	// /stream/v1: the streams of flag changes, and the legacy websocket alias
 	authorize := middleware.StreamAuthorizer(s.keys, s.flagSets(), debug)
 	routes.raw(
-		operationWebsocket(api, false),
+		optionalKey(userAuth, operationWebsocket(api, false)),
 		"/stream/v1/ws/flag/change",
 		helper.Handle(cWsFlagChange.Handler, debug),
 		authorize,
 	)
-	routes.raw(operationSSE(api), "/stream/v1/sse/flag/change", helper.Handle(cSSEFlagChange.Handler, debug), authorize)
-	routes.raw(operationWebsocket(api, true), "/ws/v1/flag/change", helper.Handle(cWsFlagChange.LegacyHandler, debug),
-		authorize, middleware.DeprecatedAlias("/stream/v1/ws/flag/change"))
+	routes.raw(
+		optionalKey(userAuth, operationSSE(api)),
+		"/stream/v1/sse/flag/change",
+		helper.Handle(cSSEFlagChange.Handler, debug),
+		authorize,
+	)
+	routes.raw(
+		optionalKey(userAuth, operationWebsocket(api, true)),
+		"/ws/v1/flag/change",
+		helper.Handle(cWsFlagChange.LegacyHandler, debug),
+		authorize,
+		middleware.DeprecatedAlias("/stream/v1/ws/flag/change"),
+	)
 
 	// /admin/v1
 	register(routes, operationRefresh(), cRetrieverRefresh.Handle, adminAuth.Huma())
@@ -254,12 +280,13 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 		adminAuth.HTTP())
 
 	// /openfeature/v0
-	register(routes, operationManifest(), cManifest.GetManifest, userAuth.Huma())
+	register(routes, optionalKey(userAuth, operationManifest()), cManifest.GetManifest, userAuth.Huma())
 }
 
-// addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics, pprof and, when it is
-// enabled, the Swagger UI. They are served by the monitoring listener when there is one, else by the API listener.
-func (s *Server) addMonitoringRoutes(routes *routeSet) {
+// addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics and, when withPprof is
+// set, the profiler. They are served by the monitoring listener when there is one, else by the API listener, which
+// never serves the profiler.
+func (s *Server) addMonitoringRoutes(routes *routeSet, withPprof bool) {
 	api := routes.api
 
 	register(routes, operationHealth(), controller.NewHealth(s.services.MonitoringService).Handle)
@@ -282,7 +309,7 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 
 	api.OpenAPI().AddOperation(operationPprof())
 
-	if s.settings.Debug || s.settings.Pprof {
+	if withPprof {
 		const prefix = "/debug/pprof"
 		for name, handler := range map[string]http.HandlerFunc{
 			"/{$}":          pprof.Index,
@@ -351,7 +378,7 @@ func OpenAPI() *huma.OpenAPI {
 	s := &Server{settings: documentedSettings(), logger: slog.New(slog.DiscardHandler)}
 	rs := s.newRouteSet(true)
 	s.addAPIRoutes(rs)
-	s.addMonitoringRoutes(rs)
+	s.addMonitoringRoutes(rs, false)
 
 	return rs.api.OpenAPI()
 }

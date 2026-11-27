@@ -20,26 +20,12 @@ Check the [**OpenAPI specification**](https://github.com/BlackbirdWorks/semaphor
 | `POST /admin/v1/flags/validate`         | Validate a flag file.                                                  |
 | `POST /admin/v1/retriever/refresh`      | Force a refresh of the retrievers.                                     |
 | `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when set; `/metrics` requires metrics enabled). |
-| `GET /swagger/*`                        | Swagger UI (only when `enableSwagger: true`).                          |
 
 Streaming endpoints are listed in [Flag change streams](#flag-change-streams).
 
-### Swagger
-
-The relay proxy can serve [Swagger UI](https://swagger.io/tools/swagger-ui/) at `/swagger/` (redirects to `/swagger/index.html`, loading `/swagger/openapi.json`) to inspect and test endpoints. Swagger UI loads scripts from a public CDN, so the browser needs internet access.
-
-> [!NOTE]
-> Swagger UI is disabled by default. Enable it in your relay proxy configuration:
->
-> ```yaml
-> # ...
-> enableSwagger: true
-> host: my-proxy-domain.com # DNS host for accessing the proxy
-> ```
-
 ## OpenAPI documentation
 
-The OpenAPI 3.1 document is generated from the typed operations registered by the relay proxy. With `enableSwagger: true`, it is served at `/swagger/openapi.json` and `/swagger/openapi.yaml` (plus the 3.0 downgrade at `/swagger/openapi-3.0.json`). A test compares it against the committed `cmd/relayproxy/api/testdata/openapi.golden.json`. The document covers the entire API, including monitoring endpoints, and advertises no server so Swagger UI calls the origin of its page.
+The OpenAPI 3.1 document is generated from the typed operations registered by the relay proxy. The relay does not serve Swagger UI or the document at runtime. The document is committed as `cmd/relayproxy/api/testdata/openapi.golden.json` and a test compares it with the operations the relay registers. The document covers the entire API, including monitoring endpoints, and advertises no server.
 
 ## Flag change streams
 

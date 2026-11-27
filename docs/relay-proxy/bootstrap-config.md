@@ -19,7 +19,7 @@ control plane location, listeners, observability and admin keys. It is strict: a
   validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
   cleartext on the `api` listener.
 - `observability.logging.format: text` writes logfmt lines.
-- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` apply live; every other change is kept out and named in
+- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` and `auth.anonymousFlagSet` apply live; every other change is kept out and named in
   `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
   refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
   is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
@@ -134,10 +134,27 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
 | `server.shutdown.drainDelay` | duration | `0s` (no delay) | `0s` to `10m` |
 | `server.shutdown.timeout` | duration | `15s` | positive, at most `10m` |
+| `server.hideBanner` | bool | `false` | keeps the banner out of the standard output at start |
+| `server.ops.pprof.enabled` | bool | `false` | needs a listener with the role `ops` |
+| `server.ofrepEventStream.baseUrl` | string | none (off) | absolute `http` or `https` URL, no credentials, query or fragment |
+| `server.ofrepEventStream.inactivityDelaySec` | integer | `0` (not advertised) | zero or more |
+| `server.validateFlags.maxJsonBodySize` | size | `1MiB` | a size string such as `2MiB`, `64KiB` or `1500B`; `0B` means the default |
+| `server.validateFlags.maxYamlBodySize` | size | `64KiB` | as above |
+| `server.validateFlags.maxTomlBodySize` | size | `64KiB` | as above |
 
 - With no listener, the relay has one `api` listener on `:1031`.
 - At least one listener has the role `api`. Names and addresses are unique.
 - The shutdown settings are described in [Shutdown](#shutdown).
+- `server.ops.pprof.enabled` serves the Go profiler under `/debug/pprof/` on the `ops` listener and never on the `api`
+  listener; see [Profiling](profiling.md). With no `ops` listener the validation refuses it.
+- `server.ofrepEventStream.baseUrl` is the public base URL clients use to reach the relay. When it is set, the OFREP bulk
+  evaluation advertises the flag change stream (`/stream/v1/sse/flag/change`) in `eventStreams`, with the API key of the
+  caller in the URL, so that a provider subscribes instead of polling. `inactivityDelaySec` is the delay after which a
+  client takes the stream as inactive; `0` leaves it out.
+- `server.validateFlags.*` limit the body of `POST /admin/v1/flags/validate` by format. A larger body gets a `413`.
+- A change of `server.ops`, `server.ofrepEventStream`, `server.validateFlags` or `server.hideBanner` on `SIGHUP` is listed
+  in `pendingRestart` (`server.ops`, ...) and applies after a restart. The version header is always sent, and there is no
+  Swagger UI: the OpenAPI document of the relay is enough.
 
 ## Shutdown
 
@@ -188,6 +205,19 @@ A change of `evaluation` needs a restart (it is listed in `pendingRestart` after
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `adminKeys` | list | empty | plain strings or `{fromEnv: NAME}` / `{fromFile: PATH}` |
+| `anonymousFlagSet` | string | empty (every request needs a key) | the name of a flag set |
+
+`auth.anonymousFlagSet` names the flag set that serves the requests **without** an API key: the evaluation, the bulk
+evaluation, OFREP, the flag change and the streams, everything a key of that flag set can do, and never the admin
+endpoints. It is off by default. Use it for a relay that only the trusted network can reach.
+
+- A request **with** a key behaves as it does without the setting: a wrong key is still `401`, it never falls back to
+  the anonymous flag set.
+- The flag set does not have to exist when the relay starts. While the current generation does not hold it, a request
+  without a key gets the answer of a key whose flag set is not available (a single evaluation says `FLAG_NOT_FOUND`, a
+  bulk evaluation is valid and empty), `/info` shows `"anonymous": {"flagSet": "<name>", "state": "missing"}` and the
+  relay logs a warning once per generation. It starts serving on the reload that publishes it, with no restart.
+- A change of the setting applies on `SIGHUP` with no restart, like `adminKeys`.
 
 ### `controlPlane`
 
@@ -365,6 +395,11 @@ server:
   listeners:
     - {name: api, address: ":1031", protocols: [http1, h2c]}
     - {name: ops, address: ":1032", role: ops}
+  hideBanner: false
+  ops:
+    pprof: {enabled: true}
+  ofrepEventStream: {baseUrl: "https://flags.example.com", inactivityDelaySec: 120}
+  validateFlags: {maxJsonBodySize: 2MiB, maxYamlBodySize: 128KiB, maxTomlBodySize: 128KiB}
 observability:
   logging: {level: info, format: json}
   metrics: {enabled: true, legacyNames: false, perFlagLabels: false}
@@ -465,6 +500,7 @@ notifiers:
     endpointUrl: {fromFile: /run/secrets/audit-url}
     secret: {fromFile: /run/secrets/audit-signing}
 auth:
+  anonymousFlagSet: public
   adminKeys:
     - 7d9f1e0c-6a43-4c2e-9d57-0f6b3f0f1a11
     - {fromEnv: SEMAPHORE_ADMIN_KEY}

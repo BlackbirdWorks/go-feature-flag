@@ -24,6 +24,10 @@ const (
 	SettingObservability     = "observability"
 	SettingEvaluation        = "evaluation"
 	SettingSegments          = "segments"
+	SettingServerOps         = "server.ops"
+	SettingServerEventStream = "server.ofrepEventStream"
+	SettingServerValidate    = "server.validateFlags"
+	SettingServerHideBanner  = "server.hideBanner"
 )
 
 // ResolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
@@ -45,7 +49,7 @@ func ResolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[st
 }
 
 // pendingRestart lists the settings of cfg that differ from the ones the process started with. Only names are
-// listed: a value may be a secret. Auth.AdminKeys is not compared: it applies live.
+// listed: a value may be a secret. Auth.AdminKeys and Auth.AnonymousFlagSet are not compared: they apply live.
 func pendingRestart(base, cfg *bootstrap.Config) []string {
 	var out []string
 
@@ -59,6 +63,10 @@ func pendingRestart(base, cfg *bootstrap.Config) []string {
 	add(!reflect.DeepEqual(base.Server.Listeners, cfg.Server.Listeners), SettingServerListeners)
 	add(base.Server.UnixSocketPath != cfg.Server.UnixSocketPath, SettingServerUnixSocket)
 	add(!reflect.DeepEqual(base.Server.Shutdown, cfg.Server.Shutdown), SettingServerShutdown)
+	add(!reflect.DeepEqual(base.Server.Ops, cfg.Server.Ops), SettingServerOps)
+	add(!reflect.DeepEqual(base.Server.OFREPEventStream, cfg.Server.OFREPEventStream), SettingServerEventStream)
+	add(!reflect.DeepEqual(base.Server.ValidateFlags, cfg.Server.ValidateFlags), SettingServerValidate)
+	add(base.Server.HideBanner != cfg.Server.HideBanner, SettingServerHideBanner)
 	add(!reflect.DeepEqual(base.Connections, cfg.Connections), SettingConnections)
 
 	switch {
