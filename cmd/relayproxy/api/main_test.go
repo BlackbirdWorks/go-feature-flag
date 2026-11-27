@@ -1,5 +1,3 @@
-//go:build !docker
-
 package api_test
 
 import (
