@@ -157,8 +157,8 @@ func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*
 	}
 
 	if anon := current.Anonymous; anon != nil {
-		if _, ok := views[anon]; !ok {
-			if old, ok := prev.viewOf(anon); ok {
+		if _, held := views[anon]; !held {
+			if old, reused := prev.viewOf(anon); reused {
 				views[anon] = old
 			} else {
 				views[anon] = &view{adapter: a, set: anon}

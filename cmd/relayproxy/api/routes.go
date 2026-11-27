@@ -139,7 +139,8 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 
 func (s *Server) adminKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
-		Skipper: nil,
+		Skipper:        nil,
+		AllowAnonymous: false,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			return ctx, s.keys.AdminKeyExists(key)
 		},

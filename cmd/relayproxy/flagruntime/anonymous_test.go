@@ -13,6 +13,8 @@ import (
 
 const (
 	anonLive    = "live"
+	anonOther   = "other"
+	anonOn      = "auth: {anonymousFlagSet: live}\n"
 	anonWarning = "the anonymous flag set is not in the generation"
 )
 
@@ -24,7 +26,7 @@ func anonContent(t *testing.T, generation uint64) *flagruntime.Content {
 		flagsName: flagsObj(1, "f"),
 		setsName: setsObj(t,
 			fset(anonLive, src(flagsName), keyA),
-			fset("other", src(flagsName), "key-other"),
+			fset(anonOther, src(flagsName), "key-other"),
 			fset(pendingSet, src("nope"), "key-pending")),
 	})
 }
@@ -35,31 +37,33 @@ func TestRoute_Anonymous(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantStatus    *flagruntime.AnonymousStatus
 		name          string
 		bootstrap     string
 		key           string
 		wantSet       string
 		wantRoute     flagruntime.Route
-		wantStatus    *flagruntime.AnonymousStatus
 		wantErrNilSet bool
 	}{
 		{
-			name: "a request without a key and no anonymous flag set is unknown", bootstrap: "auth: {adminKeys: [admin-2]}\n",
-			wantRoute: flagruntime.RouteUnknown, wantErrNilSet: true,
+			name:          "a request without a key and no anonymous flag set is unknown",
+			bootstrap:     "auth: {adminKeys: [admin-2]}\n",
+			wantRoute:     flagruntime.RouteUnknown,
+			wantErrNilSet: true,
 		},
 		{
 			name: "a request without a key is served by the anonymous flag set", key: "",
-			bootstrap: "auth: {anonymousFlagSet: live}\n", wantSet: anonLive, wantRoute: flagruntime.RouteFlagSet,
+			bootstrap: anonOn, wantSet: anonLive, wantRoute: flagruntime.RouteFlagSet,
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: anonLive, State: flagruntime.StateServing},
 		},
 		{
 			name: "a wrong key is unknown even when there is an anonymous flag set", key: "wrong-key",
-			bootstrap: "auth: {anonymousFlagSet: live}\n", wantRoute: flagruntime.RouteUnknown, wantErrNilSet: true,
+			bootstrap: anonOn, wantRoute: flagruntime.RouteUnknown, wantErrNilSet: true,
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: anonLive, State: flagruntime.StateServing},
 		},
 		{
 			name: "a key of a flag set is served by its own flag set", key: "key-other",
-			bootstrap: "auth: {anonymousFlagSet: live}\n", wantSet: "other", wantRoute: flagruntime.RouteFlagSet,
+			bootstrap: anonOn, wantSet: anonOther, wantRoute: flagruntime.RouteFlagSet,
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: anonLive, State: flagruntime.StateServing},
 		},
 		{
@@ -69,13 +73,13 @@ func TestRoute_Anonymous(t *testing.T) {
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: anonLive, State: flagruntime.StateServing},
 		},
 		{
-			name: "an anonymous flag set that is not available answers as a pending flag set",
+			name:      "an anonymous flag set that is not available answers as a pending flag set",
 			bootstrap: "auth: {anonymousFlagSet: " + pendingSet + "}\n", wantSet: pendingSet,
 			wantRoute:  flagruntime.RoutePending,
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: pendingSet, State: flagruntime.StatePending},
 		},
 		{
-			name: "an anonymous flag set that the generation does not hold answers as a pending flag set",
+			name:      "an anonymous flag set that the generation does not hold answers as a pending flag set",
 			bootstrap: "auth: {anonymousFlagSet: later}\n", wantSet: "later", wantRoute: flagruntime.RoutePending,
 			wantStatus: &flagruntime.AnonymousStatus{FlagSet: "later", State: flagruntime.StateMissing},
 		},

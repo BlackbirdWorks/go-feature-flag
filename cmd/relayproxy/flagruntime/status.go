@@ -74,14 +74,3 @@ type EntryProblem struct {
 	// Index is the position in the document.
 	Index int `json:"index"`
 }
-
-// StateMissing is the state of the anonymous flag set that the generation does not hold.
-const StateMissing SetState = "missing"
-
-// AnonymousStatus is the status of the flag set of the requests without a key.
-type AnonymousStatus struct {
-	// FlagSet is the name written in the bootstrap file.
-	FlagSet string `json:"flagSet"`
-	// State is the state of that flag set, or "missing" when the generation has no flag set of that name.
-	State SetState `json:"state"`
-}

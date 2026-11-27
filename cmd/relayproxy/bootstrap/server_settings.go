@@ -1,9 +1,6 @@
 package bootstrap
 
-import (
-	"net/url"
-	"strings"
-)
+import "strings"
 
 // The defaults of the validate flags limits, as in version 1.
 const (
@@ -39,17 +36,17 @@ type OFREPEventStream struct {
 	// absolute http or https URL without credentials, query or fragment. Empty means off.
 	BaseURL string `json:"baseUrl,omitempty" yaml:"baseUrl,omitempty"`
 	// InactivityDelaySec is the delay in seconds after which a client takes the stream as inactive; 0 omits it.
-	InactivityDelaySec int `json:"inactivityDelaySec,omitempty" jsonschema:"minimum=0" yaml:"inactivityDelaySec,omitempty"`
+	InactivityDelaySec int `json:"inactivityDelaySec,omitempty" jsonschema:"minimum=0" yaml:"inactivityDelaySec,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
 // ValidateFlags are the limits of the body of POST /admin/v1/flags/validate, by format.
 type ValidateFlags struct {
 	// MaxJSONBodySize is the largest JSON body. Default 1MiB.
-	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema:"default=1MiB" yaml:"maxJsonBodySize,omitempty"`
+	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema:"default=1MiB" yaml:"maxJsonBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// MaxYAMLBodySize is the largest YAML body. Default 64KiB.
-	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxYamlBodySize,omitempty"`
+	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxYamlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// MaxTOMLBodySize is the largest TOML body. Default 64KiB.
-	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxTomlBodySize,omitempty"`
+	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxTomlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
 func (f *ValidateFlags) applyDefaults() {
@@ -58,17 +55,20 @@ func (f *ValidateFlags) applyDefaults() {
 	f.MaxTOMLBodySize = orDefault(f.MaxTOMLBodySize, DefaultValidateTOMLBodySize)
 }
 
-// serverSettings checks the settings of the server that are not listeners. The URL of the event stream may carry
-// credentials: it is never part of an error.
+// serverSettings checks the settings of the server that are not listeners.
 func (v *validator) serverSettings() {
 	server := &v.cfg.Server
 
 	if server.Ops.Pprof.Enabled && !v.hasOps() {
-		v.failf(pathOPSPprof, ErrInvalidValue, "needs a listener with role %s, pprof is never served on the api listener", RoleOps)
+		v.failf(pathOPSPprof, ErrInvalidValue,
+			"needs a listener with role %s, pprof is never served on the api listener", RoleOps)
 	}
 
-	stream := server.OFREPEventStream
+	v.eventStream(&server.OFREPEventStream)
+}
 
+// eventStream checks the event stream. The URL may carry credentials: it is never part of an error.
+func (v *validator) eventStream(stream *OFREPEventStream) {
 	if stream.InactivityDelaySec < 0 {
 		v.failf(pathStreamDelay, ErrInvalidValue, "expected zero or more seconds")
 	}
@@ -77,15 +77,11 @@ func (v *validator) serverSettings() {
 		return
 	}
 
-	parsed, err := url.Parse(stream.BaseURL)
+	before := len(v.errs)
 
-	switch {
-	case err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "":
-		v.failf(pathStreamURL, ErrInvalidValue, "expected an absolute http or https URL")
-	case parsed.User != nil:
-		v.failf(pathStreamURL, ErrInvalidValue, "credentials in the URL are not allowed")
-	case parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(stream.BaseURL, "?") ||
-		strings.Contains(stream.BaseURL, "#"):
+	v.httpURL(pathStreamURL, stream.BaseURL)
+
+	if len(v.errs) == before && strings.ContainsAny(stream.BaseURL, "?#") {
 		v.failf(pathStreamURL, ErrInvalidValue, "a query or a fragment is not allowed")
 	}
 }

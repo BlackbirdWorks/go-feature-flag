@@ -19,9 +19,12 @@ const (
 	infoPath          = "/info"
 	bannerText        = "Semaphore Relay Proxy"
 	bulkBody          = `{"context":{"targetingKey":"u"}}`
+	headerAPIKey      = "X-Api-Key"
+	headerContentType = "Content-Type"
+	mimeJSON          = "application/json"
 )
 
-func jsonHeader() http.Header { return http.Header{"Content-Type": {"application/json"}} }
+func jsonHeader() http.Header { return http.Header{headerContentType: {mimeJSON}} }
 
 // applyReload hands the file that is on disk to the relay and waits for the round that applies it.
 func (r *relayRig) applyReload(t *testing.T) {
@@ -29,13 +32,14 @@ func (r *relayRig) applyReload(t *testing.T) {
 
 	before := r.snapshot
 	r.reload <- struct{}{}
+
 	r.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
 }
 
 func (r *relayRig) infoAnonymous(t *testing.T) string {
 	t.Helper()
 
-	status, body := get(t, r.url+infoPath, nil)
+	status, body := get(t, r.url+infoPath, http.Header{"Accept": {mimeJSON}})
 	require.Equal(t, http.StatusOK, status)
 
 	_, after, found := strings.Cut(body, `"anonymous":`)
@@ -78,7 +82,7 @@ func TestRunServesTheAnonymousFlagSet(t *testing.T) {
 	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, "{}", http.Header{})
 	assert.Equal(t, http.StatusUnauthorized, status, "an anonymous request never reaches the admin endpoints")
 
-	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, "{}", http.Header{"X-Api-Key": {tenantKey}})
+	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, "{}", http.Header{headerAPIKey: {tenantKey}})
 	assert.Equal(t, http.StatusUnauthorized, status, "the key of a flag set is no admin key")
 
 	assert.JSONEq(t, `{"flagSet":"tenant","state":"serving"}`, rig.infoAnonymous(t))
@@ -146,14 +150,14 @@ const opsListeners = "server:\n  listeners:\n    - {name: api, address: \":1031\
 	"    - {name: ops, address: \":1032\", role: ops}\n"
 
 // startWithOps starts a relay from a file with an api and an ops listener; the ops listener is open from the start.
-func startWithOps(t *testing.T, extra string) (rig *relayRig, opsURL string) {
+func startWithOps(t *testing.T, extra string) (*relayRig, string) {
 	t.Helper()
 
 	ops, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ops.Close() })
 
-	rig = startRelay(t, &rigOptions{
+	rig := startRelay(t, &rigOptions{
 		extra:         opsListeners + extra,
 		serverOptions: []api.Option{api.WithMonitoringListener(ops)},
 	})
@@ -177,7 +181,12 @@ func TestRunServesPprofOnTheOpsListenerOnly(t *testing.T) {
 			name: "enabled", extra: "  ops: {pprof: {enabled: true}}\n",
 			wantOps: http.StatusOK, wantAPI: http.StatusNotFound, wantOpsProbe: http.StatusOK,
 		},
-		{name: "off by default", wantOps: http.StatusNotFound, wantAPI: http.StatusNotFound, wantOpsProbe: http.StatusOK},
+		{
+			name:         "off by default",
+			wantOps:      http.StatusNotFound,
+			wantAPI:      http.StatusNotFound,
+			wantOpsProbe: http.StatusOK,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,19 +219,34 @@ func TestRunAppliesTheStreamAndValidateSettings(t *testing.T) {
 	rig.awaitGeneration(1)
 
 	status, body := doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody,
-		http.Header{"X-Api-Key": {tenantKey}, "Content-Type": {"application/json"}})
+		http.Header{headerAPIKey: {tenantKey}, headerContentType: {mimeJSON}})
 	assert.Equal(t, http.StatusOK, status)
-	assert.Contains(t, body, `"eventStreams":[{"type":"sse","url":"https://flags.example.com/stream/v1/sse/flag/change?apiKey=`+
-		tenantKey+`","inactivityDelaySec":45}]`)
+	assert.Contains(
+		t,
+		body,
+		`"eventStreams":[{"type":"sse","url":"https://flags.example.com/stream/v1/sse/flag/change?apiKey=`+
+			tenantKey+`","inactivityDelaySec":45}]`,
+	)
 
 	status, body = doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody, jsonHeader())
 	assert.Equal(t, http.StatusOK, status)
-	assert.Contains(t, body, `"eventStreams":[{"type":"sse","url":"https://flags.example.com/stream/v1/sse/flag/change",`+
-		`"inactivityDelaySec":45}]`, "an anonymous client gets the URL without a key")
+	assert.Contains(
+		t,
+		body,
+		`"eventStreams":[{"type":"sse","url":"https://flags.example.com/stream/v1/sse/flag/change",`+
+			`"inactivityDelaySec":45}]`,
+		"an anonymous client gets the URL without a key",
+	)
 
-	headers := http.Header{"X-Api-Key": {adminKey}, "Content-Type": {"application/json"}}
+	headers := http.Header{headerAPIKey: {adminKey}, headerContentType: {mimeJSON}}
 
-	status, body = doRequest(t, http.MethodPost, rig.url+adminValidatePath, `{"x":"`+strings.Repeat("a", 2<<10)+`"}`, headers)
+	status, body = doRequest(
+		t,
+		http.MethodPost,
+		rig.url+adminValidatePath,
+		`{"x":"`+strings.Repeat("a", 2<<10)+`"}`,
+		headers,
+	)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, status)
 	assert.JSONEq(t, `{"message":"request body too large (max 1.0 KiB for json)"}`, body)
 

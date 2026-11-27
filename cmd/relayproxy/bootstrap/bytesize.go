@@ -33,7 +33,7 @@ func (b *ByteSize) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%w: expected a positive size such as \"64KiB\"", ErrInvalidByteSize)
 	}
 
-	*b = ByteSize(v) //nolint:gosec // bounded above
+	*b = ByteSize(v)
 
 	return nil
 }

@@ -191,6 +191,8 @@ func TestKeyAuth(t *testing.T) {
 	}
 }
 
+const badKey = "bad"
+
 // TestKeyAuth_Anonymous checks the requests without a key: they reach the validator with an empty key only when the
 // middleware allows it, and a request that carries a key, right or wrong, never does.
 func TestKeyAuth_Anonymous(t *testing.T) {
@@ -222,13 +224,13 @@ func TestKeyAuth_Anonymous(t *testing.T) {
 		},
 		{
 			name: "a wrong key never falls back to anonymous", entry: fixtures.KindHTTP, allow: true, anonymousOK: true,
-			headers:    map[string]string{xAPIKeyUpper: "bad"},
-			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"}, wantBody: messageUnauthorized + "\n",
+			headers:    map[string]string{xAPIKeyUpper: badKey},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{badKey}, wantBody: messageUnauthorized + "\n",
 		},
 		{
 			name: "a wrong bearer never falls back to anonymous", entry: fixtures.KindHTTP, allow: true,
-			anonymousOK: true, headers: map[string]string{protocol.HeaderAuthorization: "Bearer bad"},
-			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"},
+			anonymousOK: true, headers: map[string]string{protocol.HeaderAuthorization: "Bearer " + badKey},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{badKey},
 			wantBody: `{"message":"authenticating the API key: code=401, message=invalid key"}` + "\n",
 		},
 		{
@@ -247,8 +249,8 @@ func TestKeyAuth_Anonymous(t *testing.T) {
 		},
 		{
 			name: "huma, a wrong key never falls back to anonymous", entry: humaName, allow: true, anonymousOK: true,
-			headers:    map[string]string{xAPIKeyUpper: "bad"},
-			wantStatus: http.StatusUnauthorized, wantValidated: []string{"bad"}, wantBody: messageUnauthorized + "\n",
+			headers:    map[string]string{xAPIKeyUpper: badKey},
+			wantStatus: http.StatusUnauthorized, wantValidated: []string{badKey}, wantBody: messageUnauthorized + "\n",
 		},
 	}
 	for _, tt := range tests {

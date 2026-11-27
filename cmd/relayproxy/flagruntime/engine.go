@@ -270,9 +270,9 @@ type bootPlan struct {
 	admin map[string]struct{}
 	// anonymous is the name of the flag set that serves the requests without a key, empty for none.
 	anonymous string
-	pending []string
-	res     Reload
-	apply   bool
+	pending   []string
+	res       Reload
+	apply     bool
 }
 
 // round runs one reconcile round for the inputs it was woken with.

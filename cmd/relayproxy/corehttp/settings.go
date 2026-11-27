@@ -37,9 +37,12 @@ func SettingsFrom(cfg *bootstrap.Config, version string) (api.Settings, error) {
 		},
 	}
 
-	stream, err := ofrep.NewEventStream(cfg.Server.OFREPEventStream.BaseURL, cfg.Server.OFREPEventStream.InactivityDelaySec)
-	if err != nil {
-		return api.Settings{}, fmt.Errorf("server.ofrepEventStream: %w", err)
+	stream, streamErr := ofrep.NewEventStream(
+		cfg.Server.OFREPEventStream.BaseURL,
+		cfg.Server.OFREPEventStream.InactivityDelaySec,
+	)
+	if streamErr != nil {
+		return api.Settings{}, fmt.Errorf("server.ofrepEventStream: %w", streamErr)
 	}
 
 	settings.OfrepEventStream = stream
@@ -101,19 +104,19 @@ func splitAddress(address string) (string, int, error) {
 
 // validateFlagsLimits returns the limits of the validate flags endpoint; a limit the file does not set is zero, which
 // the endpoint reads as its default.
-func validateFlagsLimits(v *bootstrap.ValidateFlags) controller.ValidateFlagsLimits {
+func validateFlagsLimits(file *bootstrap.ValidateFlags) controller.ValidateFlagsLimits {
 	var limits controller.ValidateFlagsLimits
 
-	if v.MaxJSONBodySize != nil {
-		limits.MaxJSONBodySize = int64(*v.MaxJSONBodySize)
+	if file.MaxJSONBodySize != nil {
+		limits.MaxJSONBodySize = int64(*file.MaxJSONBodySize)
 	}
 
-	if v.MaxYAMLBodySize != nil {
-		limits.MaxYAMLBodySize = int64(*v.MaxYAMLBodySize)
+	if file.MaxYAMLBodySize != nil {
+		limits.MaxYAMLBodySize = int64(*file.MaxYAMLBodySize)
 	}
 
-	if v.MaxTOMLBodySize != nil {
-		limits.MaxTOMLBodySize = int64(*v.MaxTOMLBodySize)
+	if file.MaxTOMLBodySize != nil {
+		limits.MaxTOMLBodySize = int64(*file.MaxTOMLBodySize)
 	}
 
 	return limits

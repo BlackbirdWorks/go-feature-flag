@@ -10,8 +10,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 )
 
 const roleAPI = "api"
@@ -129,12 +129,13 @@ func TestSettingsFromServerSettings(t *testing.T) {
 	jsonLimit, yamlLimit := bootstrap.ByteSize(2<<20), bootstrap.ByteSize(100*kib)
 
 	apiOnly := bootstrap.Listener{Name: roleAPI, Address: ":1031", Role: bootstrap.RoleAPI}
+
 	tests := []struct {
-		name       string
 		server     bootstrap.Server
+		name       string
+		wantLimits controller.ValidateFlagsLimits
 		wantPprof  bool
 		wantStream bool
-		wantLimits controller.ValidateFlagsLimits
 		wantErr    bool
 	}{
 		{name: "nothing set", server: bootstrap.Server{Listeners: []bootstrap.Listener{apiOnly}}},
@@ -159,7 +160,8 @@ func TestSettingsFromServerSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "limits set", wantLimits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2 << 20, MaxYAMLBodySize: 100 * kib},
+			name:       "limits set",
+			wantLimits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2 << 20, MaxYAMLBodySize: 100 * kib},
 			server: bootstrap.Server{
 				Listeners:     []bootstrap.Listener{apiOnly},
 				ValidateFlags: bootstrap.ValidateFlags{MaxJSONBodySize: &jsonLimit, MaxYAMLBodySize: &yamlLimit},

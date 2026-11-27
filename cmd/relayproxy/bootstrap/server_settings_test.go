@@ -25,14 +25,14 @@ func TestServerSettings(t *testing.T) {
 		name          string
 		doc           string
 		wantErr       string
-		wantPprof     bool
-		wantHide      bool
 		wantStreamURL string
+		wantAnonymous string
 		wantDelay     int
 		wantJSON      int64
 		wantYAML      int64
 		wantTOML      int64
-		wantAnonymous string
+		wantPprof     bool
+		wantHide      bool
 	}{
 		{
 			name: "defaults", doc: settingsBase,
@@ -56,7 +56,7 @@ func TestServerSettings(t *testing.T) {
 		{
 			name:    "an unknown key under ops",
 			doc:     settingsBase + "server:\n  ops: {pprof: {enable: true}}\n",
-			wantErr: "unknown key",
+			wantErr: bootstrap.ErrUnknownKey.Error(),
 		},
 		{
 			name:    "an anonymous flag set that is not a name",
@@ -66,12 +66,12 @@ func TestServerSettings(t *testing.T) {
 		{
 			name:    "a stream URL that is not http",
 			doc:     settingsBase + "server:\n  ofrepEventStream: {baseUrl: \"ftp://flags.example.com\"}\n",
-			wantErr: "server.ofrepEventStream.baseUrl (line 8): invalid value: expected an absolute http or https URL",
+			wantErr: "server.ofrepEventStream.baseUrl (line 8): invalid value: expected an http or https URL",
 		},
 		{
 			name:    "a stream URL with credentials",
 			doc:     settingsBase + "server:\n  ofrepEventStream: {baseUrl: \"https://user:pw@flags.example.com\"}\n",
-			wantErr: "credentials in the URL are not allowed",
+			wantErr: "credentials in the URL are not allowed, use a secret reference",
 		},
 		{
 			name:    "a stream URL with a query",
