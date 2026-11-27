@@ -34,14 +34,17 @@ type stubServer struct {
 	conns    map[net.Conn]struct{}
 	gate     chan struct{}
 	entered  chan struct{}
+	only     string // when set, garbage applies to this command only
 	garbage  string // the reply to SMISMEMBER and EXISTS when set: bytes written as they are
 	pong     string // the reply to PING when set
 	noCmd    string // the name of a command that the server refuses with an error reply
 	wg       sync.WaitGroup
 	mu       sync.Mutex
 	writes   atomic.Int64 // writes of the client side connections, see clientOption
+	allow    int          // data commands still answered before the connection is cut, when cutting
 	stopOnce sync.Once
 	failed   bool
+	cutting  bool // see CutAfter
 }
 
 func newStubServer(tb testing.TB) *stubServer {
@@ -63,6 +66,14 @@ func newStubServer(tb testing.TB) *stubServer {
 	tb.Cleanup(srv.stop)
 
 	return srv
+}
+
+// CutAfter makes the server answer n more data commands completely and then drop the connection at the next one.
+func (s *stubServer) CutAfter(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.cutting, s.allow = true, n
 }
 
 // Fail makes the server drop the connection at every command until Heal.
@@ -128,12 +139,38 @@ func (s *stubServer) answer(raw string) {
 	s.garbage = raw
 }
 
+// answerOnly is answer for one command.
+func (s *stubServer) answerOnly(name, raw string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.only, s.garbage = name, raw
+}
+
 // pongWith makes the server reply to PING with these bytes.
 func (s *stubServer) pongWith(raw string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.pong = raw
+}
+
+// cutNow tells whether this command is the one that the connection is cut at.
+func (s *stubServer) cutNow() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.cutting {
+		return false
+	}
+
+	if s.allow == 0 {
+		return true
+	}
+
+	s.allow--
+
+	return false
 }
 
 func (s *stubServer) addr() string { return s.ln.Addr().String() }
@@ -229,6 +266,8 @@ func (s *stubServer) serve(conn net.Conn) {
 
 		reply, keep := s.handle(conn, args)
 		if !keep {
+			_ = writer.Flush() // the replies of the commands before the cut were complete
+
 			return
 		}
 
@@ -260,6 +299,20 @@ func boolInt(flag bool) int {
 	}
 
 	return 0
+}
+
+// hold tells the test that a command arrived and waits while the server is hung.
+func hold(entered chan<- struct{}, gate <-chan struct{}) {
+	if entered != nil {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+	}
+
+	if gate != nil {
+		<-gate
+	}
 }
 
 // handshake answers the commands that valkey-go sends when it opens a connection. CLIENT is counted by its
@@ -295,23 +348,19 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 	s.mu.Lock()
 	s.counts[strings.ToLower(name)]++
 	gate, entered, failed, garbage, noCmd, pong := s.gate, s.entered, s.failed, s.garbage, s.noCmd, s.pong
+	only := s.only
 	s.mu.Unlock()
 
-	if entered != nil {
-		select {
-		case entered <- struct{}{}:
-		default:
-		}
-	}
-
-	if gate != nil {
-		<-gate
-	}
+	hold(entered, gate)
 
 	if failed {
 		_ = conn.Close()
 
 		return "", false
+	}
+
+	if s.cutNow() {
+		return "", false // serve flushes the replies before this command, then closes the connection
 	}
 
 	if strings.EqualFold(noCmd, name) {
@@ -326,7 +375,7 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 
 		return "+PONG\r\n", true
 	case "SMISMEMBER", "EXISTS":
-		if garbage != "" {
+		if garbage != "" && (only == "" || strings.EqualFold(only, name)) {
 			return garbage, true
 		}
 

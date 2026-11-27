@@ -14,9 +14,13 @@
 // returns a *[LookupError] that names the class and the counts only, never an id, a key or an address. A reply that
 // is not the one the command returns, or a stream that cannot be parsed, means no answer of the call is kept.
 //
-// valkey-go watches the deadline of a call that is alone on its connection, not its cancel: a call ends at
-// Options.Timeout at the latest, and is reported as canceled when the context of the caller ended.
+// [Dial] makes the client pipeline in the background even for a call that is alone on its connection
+// (AlwaysPipelining). That path ends a call when the context ends, and keeps the replies that were read when the
+// connection fails inside a batch (the others are Unknown with the transport class). valkey-go's synchronous path
+// does neither: it loses the whole batch on a failure and sees only the deadline, not a cancel. A client passed to
+// [New] must be created the same way, see [Client].
 //
 // Shutdown stops new calls (they return [ErrClosed]), waits for the calls in flight until its own context ends,
-// and then closes the client when the provider owns it ([Dial]), which ends the calls still in flight.
+// and then ends them: the call in flight returns the canceled class. It also closes the client when the provider
+// owns it ([Dial]).
 package valkeysegment

@@ -260,3 +260,22 @@ func TestAnErrorAfterTheCallTimeoutIsATimeout(t *testing.T) {
 	assert.Equal(t, &valkeysegment.LookupError{Class: valkeysegment.ClassTimeout, Failed: 1, Total: 1}, err)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 }
+
+func TestAConnectionCutInsideABatchKeepsTheAnsweredReplies(t *testing.T) {
+	t.Parallel()
+
+	// the server answers the first command completely, then drops the connection before the second
+	srv := loaded(t)
+	counters := &valkeysegment.Counters{}
+	prov := newProvider(t, srv, baseOptions(counters))
+
+	require.NoError(t, prov.Init(context.Background()))
+	srv.CutAfter(1)
+
+	lookups := []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed"), lk(segFlags, idAlice)}
+	err := prov.Contains(context.Background(), lookups)
+
+	assert.Equal(t, &valkeysegment.LookupError{Class: valkeysegment.ClassUnavailable, Failed: 2, Total: 3}, err)
+	assert.Equal(t, []segment.State{segment.Member, segment.Unknown, segment.Unknown}, states(lookups))
+	assert.Equal(t, map[string]uint64{"unavailable": 1}, counters.Snapshot().Failures)
+}
