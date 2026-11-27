@@ -386,7 +386,11 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 	rig.awaitGeneration(1)
 	assert.Positive(t, goroutinesOf(rig.label), "the relay runs goroutines under the label")
 
-	// the workers of the two streams (websocket and SSE) keep the label that started them
+	// the workers of the two streams (websocket and SSE) keep the label that started them: wait until both entered
+	// their run loops, then count
+	started := <-rig.started
+	require.NoError(t, started.streams.AwaitStarted(t.Context()))
+
 	assert.Equal(t, 2, goroutinesRunning(rig.label, "(*lane).run"), "the stream workers carry the label")
 
 	rig.cancel()

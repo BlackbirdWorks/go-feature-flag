@@ -202,8 +202,10 @@ func (s *Server) listenOn(ctx context.Context, address string, given net.Listene
 // connections get gracefulShutdownTimeout to complete. With h2c, HTTP/2 over cleartext (prior knowledge) is served
 // next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
 func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, serverName string) error {
+	counter := &requestCounter{}
+
 	srv := &http.Server{
-		Handler:  s.shutdown.counting(h),
+		Handler:  counter.wrap(h),
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
 		// ReadTimeout is a defence against slow clients (gosec G112). There is no WriteTimeout: the streams
 		// (SSE, websocket) are long-lived.
@@ -237,7 +239,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 		err := srv.Shutdown(shutdownCtx)
 		if err != nil {
 			// the shutdown context ended: the requests still in flight are cut
-			cut := int(s.shutdown.inFlight.Load())
+			cut := int(counter.inFlight.Load())
 			_ = srv.Close()
 
 			s.shutdown.addCut(cut)

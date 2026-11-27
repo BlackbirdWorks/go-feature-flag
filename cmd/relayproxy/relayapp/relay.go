@@ -47,6 +47,8 @@ type runOptions struct {
 	// OnDraining is called with the context of the shutdown once the readiness answers shutting-down and before the
 	// drain delay starts.
 	OnDraining func(ctx context.Context)
+	// OnStarted is called with the relay once its parts run; a test uses it to reach them.
+	OnStarted func(*relay)
 	// Force delivers the second stop signal: when it is closed during the shutdown, the shutdown context is
 	// cancelled and the relay stops hard.
 	Force <-chan struct{}
@@ -360,6 +362,10 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		rel.loops.Wait()
 		close(rel.loopsDone)
 	}()
+
+	if opts.OnStarted != nil {
+		opts.OnStarted(rel)
+	}
 
 	return rel, nil
 }

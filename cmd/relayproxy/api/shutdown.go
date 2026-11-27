@@ -20,8 +20,6 @@ type shutdownState struct {
 	started atomic.Bool
 	// serving is true once the initialisation of [Server.StartWithContext] ended: the servers answer a stop then.
 	serving atomic.Bool
-	// inFlight is the number of requests being served, on every server.
-	inFlight atomic.Int64
 }
 
 // context returns the context given to [Server.Shutdown]; without one (the server is stopped by its own context) the
@@ -38,11 +36,17 @@ func (st *shutdownState) context(parent context.Context) (context.Context, conte
 func (st *shutdownState) addCut(n int)  { st.cut.Add(int64(n)) }
 func (st *shutdownState) cutCount() int { return int(st.cut.Load()) }
 
-// counting wraps the handler of a server with the count of the requests in flight.
-func (st *shutdownState) counting(next http.Handler) http.Handler {
+// requestCounter counts the requests that one server is serving: every listener has its own, so that a request is
+// counted once.
+type requestCounter struct {
+	inFlight atomic.Int64
+}
+
+// wrap returns the handler with the count of the requests in flight.
+func (c *requestCounter) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		st.inFlight.Add(1)
-		defer st.inFlight.Add(-1)
+		c.inFlight.Add(1)
+		defer c.inFlight.Add(-1)
 
 		next.ServeHTTP(w, r)
 	})

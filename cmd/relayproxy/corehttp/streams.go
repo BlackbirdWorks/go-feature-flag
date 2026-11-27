@@ -18,6 +18,9 @@ import (
 // dropped.
 const DefaultMaxPending = 1024
 
+// ErrNotStarted is returned by [Streams.AwaitStarted] when ctx ended before the workers started.
+var ErrNotStarted = errors.New("corehttp: the stream workers did not start")
+
 // ErrNotStopped is returned by [Streams.Close] when a stream service did not finish its last delivery before the
 // context ended. The worker ends, and closes its service, as soon as that delivery returns.
 var ErrNotStopped = errors.New("corehttp: the stream workers did not stop")
@@ -121,12 +124,27 @@ func (s *Streams) Close(ctx context.Context) error {
 	return nil
 }
 
+// AwaitStarted returns once the two workers entered their run loops, or when ctx ends first.
+func (s *Streams) AwaitStarted(ctx context.Context) error {
+	for _, l := range s.lane {
+		select {
+		case <-l.started:
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %w", ErrNotStarted, ctx.Err())
+		}
+	}
+
+	return nil
+}
+
 // lane is the bounded queue and the worker of one stream service.
 type lane struct {
 	pending map[string]*flagruntime.Change
 	wake    chan struct{}
 	stop    chan struct{}
 	done    chan struct{}
+	// started is closed when the worker entered its run loop.
+	started chan struct{}
 	send    func(*flagruntime.Change)
 	onExit  func()
 	order   []string
@@ -139,7 +157,7 @@ type lane struct {
 func startLane(labels context.Context, label string, limit int, send func(*flagruntime.Change), onExit func()) *lane {
 	queue := &lane{
 		pending: make(map[string]*flagruntime.Change), wake: make(chan struct{}, 1), stop: make(chan struct{}),
-		done: make(chan struct{}), send: send, onExit: onExit, limit: limit,
+		done: make(chan struct{}), started: make(chan struct{}), send: send, onExit: onExit, limit: limit,
 	}
 
 	go pprof.Do(
@@ -207,6 +225,8 @@ func (l *lane) next() (*flagruntime.Change, bool) {
 }
 
 func (l *lane) run() {
+	close(l.started)
+
 	defer close(l.done)
 	defer l.onExit()
 

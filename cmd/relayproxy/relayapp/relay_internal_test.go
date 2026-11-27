@@ -165,6 +165,7 @@ type relayRig struct {
 	timeoutEnd  chan context.CancelFunc
 	timeoutFor  chan time.Duration
 	force       chan struct{}
+	started     chan *relay
 	label       string
 	store       *store
 	cancel      context.CancelFunc
@@ -210,7 +211,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		draining: make(chan struct{}),
 		// the shutdown timeout never ends by itself: the test ends it through the cancel function it receives
 		timeoutEnd: make(chan context.CancelFunc, 1), timeoutFor: make(chan time.Duration, 1),
-		force: make(chan struct{}), label: t.Name(),
+		force: make(chan struct{}), label: t.Name(), started: make(chan *relay, 1),
 	}
 	rig.store.publish(1)
 	rig.manifestKey = ropts.manifestKey
@@ -218,6 +219,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 
 	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() }) // the relay closes it when it serves; a failed bind never does
 
 	rig.url = "http://" + listener.Addr().String()
 
@@ -264,6 +266,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		},
 		ServerOptions: serverOpts,
 		Force:         rig.force,
+		OnStarted:     func(r *relay) { rig.started <- r },
 		DrainWait:     ropts.drainWait,
 		WithTimeout: func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
 			bounded, endTimeout := context.WithCancel(parent)
