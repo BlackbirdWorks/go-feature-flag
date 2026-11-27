@@ -86,7 +86,17 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Bu
 
 	reload := make(chan struct{}, 1)
 
-	go forwardSignals(ctx, hup, reload)
+	// the forwarder ends with its own context and is joined before Main returns
+	fwdCtx, stopForward := context.WithCancel(ctx)
+
+	var forwarder sync.WaitGroup
+
+	forwarder.Go(func() { forwardSignals(fwdCtx, hup, reload) })
+
+	defer func() {
+		stopForward()
+		forwarder.Wait()
+	}()
 
 	return run(ctx, &runOptions{
 		Args: args, Stdout: stdout, Stderr: stderr, Build: build, Load: osLoadOptions(), Reload: reload,
