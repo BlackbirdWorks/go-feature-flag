@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"","reason":"DISABLED","errorCode":"","value":7,"cacheable":true}

@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"enabled","failed":false,"version":"","reason":"TARGETING_MATCH","errorCode":"","value":true,"cacheable":true,"metadata":{"defaultValue":false,"description":"a boolean","evaluatedRuleName":"vip","team":"core"}}

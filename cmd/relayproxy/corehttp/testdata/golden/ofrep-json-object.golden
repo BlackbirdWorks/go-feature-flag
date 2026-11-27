@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"json-flag","value":{"items":[1,2],"name":"on","nested":{"deep":true}},"reason":"STATIC","variant":"on","metadata":{"gofeatureflag_cacheable":true,"semaphore_cacheable":true}}

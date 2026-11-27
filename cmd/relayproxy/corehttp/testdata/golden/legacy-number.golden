@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"high","failed":false,"version":"","reason":"TARGETING_MATCH","errorCode":"","value":42,"cacheable":true,"metadata":{"evaluatedRuleName":"big"}}

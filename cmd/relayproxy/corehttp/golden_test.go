@@ -1,7 +1,10 @@
 package corehttp_test
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -167,7 +170,7 @@ func authCases() []equivCase {
 	}
 }
 
-// allCases are the requests that both servers answer. There is no allowance: v1 and v2 answer them identically.
+// allCases are the requests of the golden test.
 func allCases() []equivCase { return append(evalCases(), authCases()...) }
 
 // contractHeaders are the response headers that are part of the contract.
@@ -175,40 +178,75 @@ func contractHeaders() []string {
 	return []string{contentType, "Etag", "Last-Modified", "Cache-Control", "Www-Authenticate", "Allow", "Vary"}
 }
 
-// TestEquivalence_V1V2 serves the same flags from a v1 relay and from a v2 core, with the same handlers, and asks both
-// the same questions. The status, the contract headers and the JSON body must be identical, a difference needs an
-// allowance with its reason.
-func TestEquivalence_V1V2(t *testing.T) {
+// goldenUpdate is the environment variable that rewrites the golden files instead of comparing with them.
+const goldenUpdate = "GOLDEN_UPDATE"
+
+// goldenName is the file name of a case: the characters that are not safe in a file name become dashes.
+func goldenName(name string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			return r
+		}
+
+		return '-'
+	}, name) + ".golden"
+}
+
+// render is the golden form of an answer: the status, the contract headers and the body.
+func render(status int, header http.Header, body []byte) string {
+	var out strings.Builder
+
+	fmt.Fprintf(&out, "status: %d\n", status)
+
+	for _, name := range contractHeaders() {
+		for _, value := range header.Values(name) {
+			fmt.Fprintf(&out, "%s: %s\n", name, value)
+		}
+	}
+
+	out.WriteString("\n")
+	out.Write(body)
+
+	return out.String()
+}
+
+// TestGolden_Server serves the flags from a v2 core and asks it every question of the table. The status, the contract
+// headers and the body of each answer are pinned in testdata/golden: they are the answers that the relay gave before
+// the first version of the configuration went away, so a change of the wire contract shows in the review.
+// GOLDEN_UPDATE=1 rewrites the files.
+func TestGolden_Server(t *testing.T) {
 	t.Parallel()
 
-	v1URL := newV1(t)
-	v2URL := newV2(t).url
+	url := newV2(t).url
 
 	for _, tt := range allCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			status1, header1, body1 := do(t, tt.method, v1URL+tt.path, tt.body, tt.headers)
-			status2, header2, body2 := do(t, tt.method, v2URL+tt.path, tt.body, tt.headers)
+			status, header, body := do(t, tt.method, url+tt.path, tt.body, tt.headers)
 
 			expected, found := expectations()[tt.name]
 			require.True(t, found, "a case needs its expectation")
-			assert.Equal(t, expected.status, status1, "v1 status")
-			assert.Contains(t, string(body1), expected.body, "v1 body")
-			assert.Equal(t, status1, status2, "status")
+			assert.Equal(t, expected.status, status, "status")
+			assert.Contains(t, string(body), expected.body, "body")
 
-			for _, name := range contractHeaders() {
-				assert.Equal(t, header1.Values(name), header2.Values(name), name)
+			got := render(status, header, body)
+			path := filepath.Join("testdata", "golden", goldenName(tt.name))
+
+			if os.Getenv(goldenUpdate) != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+				require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
 			}
 
-			assert.Equal(t, string(body1), string(body2), "body")
+			want, err := os.ReadFile(path)
+			require.NoError(t, err, "missing golden file, run with GOLDEN_UPDATE=1")
+			assert.Equal(t, string(want), got)
 		})
 	}
 }
 
-// expectation is what a case must answer, on both servers: a row that is named for a property (disabled, scheduled,
-// bucket, ...) must show it, so a missing fixture or a changed default fails the row instead of passing as an equal
-// error on both sides.
+// expectation is what a case must answer, by the server: a row that is named for a property (disabled, scheduled,
+// bucket, ...) must show it, so a missing fixture or a changed default fails the row instead of passing as an error.
 type expectation struct {
 	// body is a text that the body contains.
 	body   string
@@ -295,8 +333,8 @@ func expectations() map[string]expectation {
 	}
 }
 
-// TestEquivalence_ExpectationsCoverTheCases keeps the table of expectations and the table of cases the same list.
-func TestEquivalence_ExpectationsCoverTheCases(t *testing.T) {
+// TestGolden_ExpectationsCoverTheCases keeps the table of expectations and the table of cases the same list.
+func TestGolden_ExpectationsCoverTheCases(t *testing.T) {
 	t.Parallel()
 
 	wants := expectations()

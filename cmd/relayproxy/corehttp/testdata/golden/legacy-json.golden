@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"on","failed":false,"version":"","reason":"STATIC","errorCode":"","value":{"items":[1,2],"name":"on","nested":{"deep":true}},"cacheable":true}
