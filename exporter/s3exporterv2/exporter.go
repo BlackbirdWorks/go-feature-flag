@@ -62,7 +62,9 @@ type Exporter struct {
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3#Options
 	S3ClientOptions []func(*s3.Options)
-	init            sync.Once
+	// initMu guards the initialisation, which is retried by the next call until it has succeeded.
+	initMu   sync.Mutex
+	initDone bool
 }
 
 // Export is saving a collection of events in a file.
@@ -136,31 +138,34 @@ func (*Exporter) IsBulk() bool {
 }
 
 func (f *Exporter) initializeUploader(ctx context.Context) error {
-	var initErr error
+	f.initMu.Lock()
+	defer f.initMu.Unlock()
 
-	f.init.Do(func() {
-		if f.S3Client != nil {
-			f.s3Uploader = transfermanager.New(f.S3Client)
+	if f.initDone {
+		return nil
+	}
 
-			return
+	if f.S3Client != nil {
+		f.s3Uploader = transfermanager.New(f.S3Client)
+		f.initDone = true
+
+		return nil
+	}
+
+	if f.AwsConfig == nil {
+		cfg, err := f.defaultConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("impossible to init S3 exporter: %w", err)
 		}
 
-		if f.AwsConfig == nil {
-			cfg, err := f.defaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
+		f.AwsConfig = &cfg
+	}
 
-				return
-			}
+	client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
+	f.s3Uploader = transfermanager.New(client)
+	f.initDone = true
 
-			f.AwsConfig = &cfg
-		}
-
-		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
-		f.s3Uploader = transfermanager.New(client)
-	})
-
-	return initErr
+	return nil
 }
 
 // uploadFile uploads a single file to S3 and closes the file handle before

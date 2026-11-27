@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const regionChain = "from-the-chain"
+
 const regionConnection = "from-the-connection"
 
 var errNoChain = errors.New("the default chain is down")
@@ -37,7 +39,7 @@ func TestExporter_ConfigurationSource(t *testing.T) {
 			wantRegion: regionConnection, wantLoads: 0, wantGivenAs: true,
 		},
 		{
-			name: "without a configuration the default chain is loaded once", wantRegion: "from-the-chain",
+			name: "without a configuration the default chain is loaded once", wantRegion: regionChain,
 			wantLoads: 1,
 		},
 		{
@@ -57,7 +59,7 @@ func TestExporter_ConfigurationSource(t *testing.T) {
 			exp := newConfigTestExporter(tt.given, func(context.Context) (aws.Config, error) {
 				loads.Add(1)
 
-				return aws.Config{Region: "from-the-chain"}, tt.loadErr
+				return aws.Config{Region: regionChain}, tt.loadErr
 			})
 
 			err := exp.initClient(t.Context())

@@ -97,7 +97,9 @@ type Exporter struct {
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/kinesis#Options
 	KinesisOptions []func(*kinesis.Options)
-	init           sync.Once
+	// initMu guards the initialisation, which is retried by the next call until it has succeeded.
+	initMu   sync.Mutex
+	initDone bool
 }
 
 // PartitionKeyFunc returns the partition key of an evaluation event.
@@ -351,32 +353,35 @@ func (*Exporter) IsBulk() bool {
 }
 
 func (e *Exporter) initializeProducer(ctx context.Context) error {
-	var initErr error
+	e.initMu.Lock()
+	defer e.initMu.Unlock()
 
-	e.init.Do(func() {
-		if e.Settings == nil {
-			e.Settings = NewSettings()
+	if e.initDone {
+		return nil
+	}
+
+	if e.Settings == nil {
+		e.Settings = NewSettings()
+	}
+
+	if e.AwsConfig == nil {
+		cfg, err := e.defaultConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("impossible to init Kinesis exporter: %w", err)
 		}
 
-		if e.AwsConfig == nil {
-			cfg, err := e.defaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
+		e.AwsConfig = &cfg
+	}
 
-				return
-			}
-
-			e.AwsConfig = &cfg
+	if e.sender == nil {
+		e.sender = &DefaultKinesisSender{
+			kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
 		}
+	}
 
-		if e.sender == nil {
-			e.sender = &DefaultKinesisSender{
-				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
-			}
-		}
-	})
+	e.initDone = true
 
-	return initErr
+	return nil
 }
 
 // sendChunk sends one PutRecords call and retries only the records Kinesis rejected.

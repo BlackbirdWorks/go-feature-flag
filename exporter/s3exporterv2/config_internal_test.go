@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const regionChain = "from-the-chain"
+
 const regionConnection = "from-the-connection"
 
 var errNoChain = errors.New("the default chain is down")
@@ -38,7 +40,7 @@ func TestExporter_ConfigurationSource(t *testing.T) {
 			wantRegion: regionConnection, wantLoads: 0, wantGivenAs: true,
 		},
 		{
-			name: "without a configuration the default chain is loaded once", wantRegion: "from-the-chain",
+			name: "without a configuration the default chain is loaded once", wantRegion: regionChain,
 			wantLoads: 1,
 		},
 		{
@@ -58,7 +60,7 @@ func TestExporter_ConfigurationSource(t *testing.T) {
 			exp := newConfigTestExporter(tt.given, func(context.Context) (aws.Config, error) {
 				loads.Add(1)
 
-				return aws.Config{Region: "from-the-chain"}, tt.loadErr
+				return aws.Config{Region: regionChain}, tt.loadErr
 			})
 
 			err := exp.initializeUploader(t.Context())
@@ -89,18 +91,39 @@ func newConfigTestExporter(given *aws.Config, load func(context.Context) (aws.Co
 func TestExporter_GivenClientNeverLoadsAConfiguration(t *testing.T) {
 	t.Parallel()
 
-	var loads atomic.Int32
+	tests := []struct {
+		config        *aws.Config
+		name          string
+		wantLoads     int32
+		wantConfigNil bool
+	}{
+		{name: "a client alone", wantLoads: 0, wantConfigNil: true},
+		{
+			name: "a client wins over a configuration", config: &aws.Config{Region: regionConnection},
+			wantLoads: 0, wantConfigNil: false,
+		},
+	}
 
-	client := s3.New(s3.Options{Region: regionConnection})
-	exp := &Exporter{S3Client: client, loadConfig: func(context.Context) (aws.Config, error) {
-		loads.Add(1)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		return aws.Config{}, errNoChain
-	}}
+			var loads atomic.Int32
 
-	require.NoError(t, exp.initializeUploader(t.Context()))
+			exp := &Exporter{
+				S3Client: s3.New(s3.Options{Region: regionConnection}), AwsConfig: tt.config,
+				loadConfig: func(context.Context) (aws.Config, error) {
+					loads.Add(1)
 
-	assert.Equal(t, int32(0), loads.Load(), "the default chain is not loaded")
-	assert.Nil(t, exp.AwsConfig, "no configuration is made up")
-	assert.NotNil(t, exp.s3Uploader)
+					return aws.Config{}, errNoChain
+				},
+			}
+
+			require.NoError(t, exp.initializeUploader(t.Context()))
+
+			assert.Equal(t, tt.wantLoads, loads.Load(), "the default chain is not loaded")
+			assert.Equal(t, tt.wantConfigNil, exp.AwsConfig == nil)
+			assert.NotNil(t, exp.s3Uploader)
+		})
+	}
 }

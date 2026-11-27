@@ -35,7 +35,9 @@ type Exporter struct {
 	// QueueURL is the URL of your SQS queue
 	// (mandatory)
 	QueueURL string
-	init     sync.Once
+	// initMu guards the initialisation, which is retried by the next call until it has succeeded.
+	initMu   sync.Mutex
+	initDone bool
 }
 
 // Export is sending SQS event for each events received.
@@ -44,23 +46,13 @@ func (f *Exporter) Export(
 	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
-	if f.AwsConfig == nil {
-		cfg, err := f.defaultConfig(ctx)
-		if err != nil {
-			return fmt.Errorf("impossible to init SQS exporter: %w", err)
-		}
-
-		f.AwsConfig = &cfg
+	initErr := f.initialize(ctx)
+	if initErr != nil {
+		return initErr
 	}
 
 	if f.QueueURL == "" {
 		return errImpossibleToInitSQS
-	}
-
-	if f.sqsService == nil {
-		f.init.Do(func() {
-			f.sqsService = sqs.NewFromConfig(*f.AwsConfig)
-		})
 	}
 
 	for _, event := range events {
@@ -98,6 +90,34 @@ type SQSSendMessageAPI interface {
 	SendMessage(ctx context.Context,
 		params *sqs.SendMessageInput,
 		optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
+}
+
+// initialize loads the configuration when none was given and builds the SQS service; it is retried by the next call
+// until it has succeeded.
+func (f *Exporter) initialize(ctx context.Context) error {
+	f.initMu.Lock()
+	defer f.initMu.Unlock()
+
+	if f.initDone {
+		return nil
+	}
+
+	if f.AwsConfig == nil {
+		cfg, err := f.defaultConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("impossible to init SQS exporter: %w", err)
+		}
+
+		f.AwsConfig = &cfg
+	}
+
+	if f.sqsService == nil {
+		f.sqsService = sqs.NewFromConfig(*f.AwsConfig)
+	}
+
+	f.initDone = true
+
+	return nil
 }
 
 // defaultConfig loads the configuration of the default AWS chain; it is only reached by an exporter that is used as
