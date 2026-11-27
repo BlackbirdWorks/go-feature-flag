@@ -56,6 +56,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	// listeners close. Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers below.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	go func() {
 		select {
 		case <-s.stopRequested:

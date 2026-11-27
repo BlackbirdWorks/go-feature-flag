@@ -13,6 +13,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 )
 
+const roleAPI = "api"
+
 func listeners(l ...bootstrap.Listener) bootstrap.Config {
 	return bootstrap.Config{Server: bootstrap.Server{Listeners: l}}
 }
@@ -20,7 +22,7 @@ func listeners(l ...bootstrap.Listener) bootstrap.Config {
 func TestSettingsFrom(t *testing.T) {
 	t.Parallel()
 
-	withTelemetry := listeners(bootstrap.Listener{Name: "api", Address: "127.0.0.1:8080", Role: bootstrap.RoleAPI,
+	withTelemetry := listeners(bootstrap.Listener{Name: roleAPI, Address: "127.0.0.1:8080", Role: bootstrap.RoleAPI,
 		Protocols: []string{bootstrap.ProtocolHTTP1, bootstrap.ProtocolH2C}})
 	withTelemetry.Observability.Metrics.LegacyNames = true
 	withTelemetry.Observability.Tracing = bootstrap.Tracing{OTLPEndpoint: "collector:4317", ServiceName: "svc",
@@ -35,7 +37,7 @@ func TestSettingsFrom(t *testing.T) {
 	}{
 		{
 			name: "one api listener",
-			cfg:  listeners(bootstrap.Listener{Name: "api", Address: ":1031", Role: bootstrap.RoleAPI}),
+			cfg:  listeners(bootstrap.Listener{Name: roleAPI, Address: ":1031", Role: bootstrap.RoleAPI}),
 			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Port: 1031,
 				Telemetry: opentelemetry.Settings{Version: "v"}},
 		},
@@ -50,7 +52,7 @@ func TestSettingsFrom(t *testing.T) {
 		{
 			name: "api and ops on one host",
 			cfg: listeners(
-				bootstrap.Listener{Name: "api", Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
+				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "0.0.0.0:2", Role: bootstrap.RoleOps}),
 			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Host: "0.0.0.0", Port: 1, MonitoringPort: 2,
 				Telemetry: opentelemetry.Settings{Version: "v"}},
@@ -58,7 +60,7 @@ func TestSettingsFrom(t *testing.T) {
 		{
 			name: "ops on another host",
 			cfg: listeners(
-				bootstrap.Listener{Name: "api", Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
+				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "127.0.0.1:2", Role: bootstrap.RoleOps}),
 			wantErr: true,
 		},

@@ -43,15 +43,16 @@ func NewForceFlagsRefresh(flagsetManager service.FlagSetResolver, metrics *metri
 // Handle forces the refresh of the flags in the cache: it triggers the retrievers to get the latest version of the
 // flags. It is used when you know explicitly that a flag has changed, and you want to trigger the collection of
 // the new version.
-func (h *ForceFlagsRefresh) Handle(ctx context.Context, in *RetrieverRefreshInput) (*RetrieverRefreshOutput, error) {
+func (h *ForceFlagsRefresh) Handle(ctx context.Context, input *RetrieverRefreshInput) (*RetrieverRefreshOutput, error) {
 	h.metrics.IncForceRefresh()
 
 	unsupported, ok := h.flagsetManager.(service.RefreshUnsupported)
 	if ok {
-		return nil, helper.NewHTTPError(http.StatusNotImplemented, unsupported.RefreshUnsupported())
+		return nil, fmt.Errorf("refreshing on request: %w",
+			helper.NewHTTPError(http.StatusNotImplemented, unsupported.RefreshUnsupported()))
 	}
 
-	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, input.APIKey())
 	if httpErr != nil {
 		return nil, fmt.Errorf("getting the flag set of the refresh: %w", httpErr)
 	}

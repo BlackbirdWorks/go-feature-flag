@@ -1,8 +1,8 @@
 package main
 
 import (
-	"crypto/fips140"
 	"context"
+	"crypto/fips140"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +24,9 @@ import (
 // streams.
 const shutdownTimeout = 15 * time.Second
 
+// stopSteps is the number of steps of the shutdown that can fail.
+const stopSteps = 2
+
 // errMetricsSetup is wrapped by the error of the metrics that can not be set up.
 var errMetricsSetup = errors.New("impossible to initialize the prometheus metrics")
 
@@ -32,10 +35,12 @@ type runOptions struct {
 	// Stdout receives the version and the banner, Stderr the logs.
 	Stdout io.Writer
 	Stderr io.Writer
-	// Reload asks for a reload of the bootstrap file (SIGHUP).
-	Reload <-chan struct{}
 	// OnDraining is called once the readiness answers shutting-down and before the listeners close.
 	OnDraining func()
+	// Reload asks for a reload of the bootstrap file (SIGHUP).
+	Reload <-chan struct{}
+	// Load reads the file and the environment.
+	Load bootstrap.LoadOptions
 	// Deps are the injected dependencies of the core (a test scheduler, a state directory file system); the logger,
 	// the metrics registry, the secrets and the broadcast of the streams are set by [run].
 	Deps relaycore.Deps
@@ -43,8 +48,6 @@ type runOptions struct {
 	Args []string
 	// ServerOptions are added to the options of the API server (a test gives it its listeners).
 	ServerOptions []api.Option
-	// Load reads the file and the environment.
-	Load bootstrap.LoadOptions
 	// ShutdownTimeout bounds the shutdown, [shutdownTimeout] when zero.
 	ShutdownTimeout time.Duration
 }
@@ -73,14 +76,14 @@ func run(ctx context.Context, opts *runOptions) int {
 
 	cfg, err := bootstrap.Load(overrides, opts.Load)
 	if err != nil {
-		logFatal(logger.Slog, "configuration error", cmdlog.Err(err))
+		logFatal(ctx, logger.Slog, "configuration error", cmdlog.Err(err))
 
 		return 1
 	}
 
 	err = logger.Update(logFormat(cfg.Observability.Logging.Format), cfg.Observability.Logging.Level)
 	if err != nil {
-		logFatal(logger.Slog, "configuration error", cmdlog.Err(err))
+		logFatal(ctx, logger.Slog, "configuration error", cmdlog.Err(err))
 
 		return 1
 	}
@@ -91,7 +94,7 @@ func run(ctx context.Context, opts *runOptions) int {
 
 	rel, err := start(ctx, cfg, logger.Slog, opts)
 	if err != nil {
-		logFatal(logger.Slog, "impossible to start Semaphore", cmdlog.Err(err))
+		logFatal(ctx, logger.Slog, "impossible to start Semaphore", cmdlog.Err(err))
 
 		return 1
 	}
@@ -109,24 +112,24 @@ func logFormat(format string) string {
 }
 
 // logFatal logs the message at the fatal level.
-func logFatal(logger *slog.Logger, msg string, attrs ...slog.Attr) {
-	logger.LogAttrs(context.Background(), cmdlog.LevelFatal, "fatal error in relay proxy",
+func logFatal(ctx context.Context, logger *slog.Logger, msg string, attrs ...slog.Attr) {
+	logger.LogAttrs(ctx, cmdlog.LevelFatal, "fatal error in relay proxy",
 		append([]slog.Attr{slog.String("reason", msg)}, attrs...)...)
 }
 
 // relay is a started relay: the core, the streams and the HTTP server.
 type relay struct {
-	core    *relaycore.Core
-	streams *corehttp.Streams
-	ready   *corehttp.Readiness
-	server  *api.Server
-	log     *slog.Logger
 	// failed is closed when the core or a listener failed after the start.
-	failed chan struct{}
-	// loops ends when the core and the server returned.
-	loops     sync.WaitGroup
-	failOnce  sync.Once
+	failed    chan struct{}
 	runCancel context.CancelFunc
+	core      *relaycore.Core
+	streams   *corehttp.Streams
+	ready     *corehttp.Readiness
+	server    *api.Server
+	log       *slog.Logger
+	// loops ends when the core and the server returned.
+	loops    sync.WaitGroup
+	failOnce sync.Once
 }
 
 // start builds the core, the streams and the server from the file and starts them. The core and the server run until
@@ -148,7 +151,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		}
 	}
 
-	streams := corehttp.NewStreams()
+	streams := corehttp.NewStreams() //nolint:contextcheck // the stream workers outlive the context of the start
 	deps := opts.Deps
 	deps.Logger = logger
 	deps.Secrets = opts.Load
@@ -164,6 +167,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 	core, err := relaycore.New(runCtx, cfg, &deps)
 	if err != nil {
 		cancel()
+
 		_ = streams.Close(runCtx)
 
 		return nil, fmt.Errorf("core: %w", err)
@@ -177,11 +181,16 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 
 	serverOpts := append([]api.Option{api.WithGlobalTelemetry(), api.WithExit(rel.fail)}, opts.ServerOptions...)
 
-	server, err := corehttp.New(core, &corehttp.Config{
+	serverCfg := &corehttp.Config{
 		Settings: &settings, Logger: logger, Streams: streams, Metrics: metrics, Readiness: rel.ready,
-	}, serverOpts...)
+	}
+
+	server, err := corehttp.New( //nolint:contextcheck // Stop ends the server, not a context
+		core,
+		serverCfg,
+		serverOpts...)
 	if err != nil {
-		rel.stopAll(ctx, opts)
+		_ = rel.stopAll(ctx, opts)
 
 		return nil, fmt.Errorf("server: %w", err)
 	}
@@ -234,8 +243,12 @@ func (r *relay) reload(ctx context.Context, load func() (*bootstrap.Config, erro
 	}
 
 	if err != nil {
-		r.log.LogAttrs(ctx, slog.LevelError, "the reload of the bootstrap file was refused, the relay keeps its settings",
-			cmdlog.Err(err))
+		r.log.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"the reload of the bootstrap file was refused, the relay keeps its settings",
+			cmdlog.Err(err),
+		)
 
 		return
 	}
@@ -263,7 +276,7 @@ func (r *relay) stopAll(ctx context.Context, opts *runOptions) error {
 
 	r.log.LogAttrs(stopCtx, slog.LevelInfo, "Stopping API server")
 
-	var errs []error
+	errs := make([]error, 0, stopSteps)
 
 	errs = append(errs, r.streams.Close(stopCtx))
 

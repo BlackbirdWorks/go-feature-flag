@@ -18,6 +18,7 @@ func TestMain(m *testing.M) {
 
 const (
 	configXYaml = "--config=/x.yaml"
+	configFlag  = "--config"
 	versionFlag = "--version"
 )
 
@@ -70,7 +71,7 @@ func TestConfigFlagSet(t *testing.T) {
 		},
 		{
 			name:       "config value starting with a dash is a value",
-			args:       []string{"--config", "-version.yaml"},
+			args:       []string{configFlag, "-version.yaml"},
 			wantConfig: "-version.yaml",
 		},
 		{name: "version", args: []string{versionFlag}, wantVersion: true},

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -143,21 +144,20 @@ func bootstrapDoc(dir, extra string) string {
 
 // relayRig is a relay started by run on a file store, with its listener open from the start.
 type relayRig struct {
-	store    *store
-	sched    *tickScheduler
-	rounds   chan flagruntime.RoundResult
-	reload   chan struct{}
-	done     chan int
-	finished chan struct{}
-	stderr   *syncBuffer
-	stdout   *bytes.Buffer
-	cancel   context.CancelFunc
-	url      string
-	cfgPath  string
-	draining chan struct{}
-	// ranOnDraining is what the OnDraining hook saw of the readiness.
-	drainStatus int
+	stderr      *syncBuffer
+	stdout      *bytes.Buffer
+	rounds      chan flagruntime.RoundResult
+	reload      chan struct{}
+	done        chan int
+	finished    chan struct{}
+	sched       *tickScheduler
+	draining    chan struct{}
+	store       *store
+	cancel      context.CancelFunc
+	url         string
+	cfgPath     string
 	drainBody   string
+	drainStatus int
 	snapshot    uint64
 }
 
@@ -196,7 +196,7 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 	rig.cancel = cancel
 
 	opts := &runOptions{
-		Args:   []string{"--config", rig.cfgPath},
+		Args:   []string{configFlag, rig.cfgPath},
 		Stdout: rig.stdout, Stderr: rig.stderr,
 		Load:   bootstrap.LoadOptions{ReadFile: os.ReadFile},
 		Reload: rig.reload,
@@ -205,7 +205,7 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 			TuneReader: func(cfg *manifestreader.Config) {
 				cfg.DisableFetchSpread = true
 			},
-			Hooks:     flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
+			Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
 		},
 		ServerOptions: []api.Option{api.WithListener(listener)},
 	}
@@ -302,9 +302,7 @@ func doRequest(t *testing.T, method, url, body string, headers http.Header) (int
 	req, err := http.NewRequestWithContext(t.Context(), method, url, strings.NewReader(body))
 	require.NoError(t, err)
 
-	for name, values := range headers {
-		req.Header[name] = values
-	}
+	maps.Copy(req.Header, headers)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -336,7 +334,10 @@ func (r *relayRig) evaluate(key string) (int, any) {
 func TestRunServesAFileStore(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\nevaluation:\n  environment: test\n"})
+	rig := startRelay(
+		t,
+		rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\nevaluation:\n  environment: test\n"},
+	)
 	rig.awaitGeneration(1)
 
 	status, body := get(t, rig.url+readyPath, nil)
@@ -374,7 +375,9 @@ func TestRunReloadsTheBootstrapFile(t *testing.T) {
 	before := rig.snapshot
 
 	rig.writeConfig("auth:\n  adminKeys: [" + adminKey + "]\n")
+
 	rig.reload <- struct{}{}
+
 	rig.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
 
 	status, _ = rig.evaluate(adminKey)
@@ -432,8 +435,8 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 	tests := []struct {
 		name     string
 		doc      string
-		args     []string
 		wantErr  string
+		args     []string
 		wantCode int
 	}{
 		{name: "a version 1 file", doc: "retrievers:\n  - kind: file\n    path: flags.yaml\n", wantCode: 1,
@@ -459,7 +462,7 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "bootstrap.yaml")
 				require.NoError(t, os.WriteFile(path, []byte(tt.doc), 0o600))
 
-				args = []string{"--config", path}
+				args = []string{configFlag, path}
 			}
 
 			var stderr syncBuffer

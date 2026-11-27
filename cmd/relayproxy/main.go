@@ -58,6 +58,11 @@ Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
 func main() {
+	os.Exit(runProcess())
+}
+
+// runProcess runs the relay until a signal ends it and returns the exit code.
+func runProcess() int {
 	// SIGTERM and SIGINT end the process in order, SIGHUP reloads the bootstrap file.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -69,15 +74,13 @@ func main() {
 
 	go forwardSignals(ctx, hup, reload)
 
-	code := run(ctx, &runOptions{
+	return run(ctx, &runOptions{
 		Args:   os.Args[1:],
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Load:   osLoadOptions(),
 		Reload: reload,
 	})
-	stop()
-	os.Exit(code)
 }
 
 // forwardSignals turns every signal of in into a reload request: requests that arrive while one waits are merged.
