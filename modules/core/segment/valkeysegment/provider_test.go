@@ -475,27 +475,44 @@ func TestContainsContext(t *testing.T) {
 		assert.Equal(t, valkeysegment.Status{LastFailure: valkeysegment.ClassTimeout}, prov.Status())
 	})
 
-	t.Run("the cancel of the caller ends a hung call", func(t *testing.T) {
-		t.Parallel()
+	cancelTests := []struct {
+		name    string
+		lookups int
+	}{
+		{name: "the cancel of the caller ends a hung call", lookups: 1},
+		{name: "the cancel ends a batch above the blocking pipeline threshold of valkey-go", lookups: 2100},
+	}
 
-		srv := loaded(t)
-		prov := newProvider(t, srv, baseOptions(nil)) // the 5 s call timeout: only the cancel can end the call in time
-		entered := srv.Hang()
-		ctx, cancel := context.WithCancel(context.Background())
-		errs := make(chan error, 1)
+	for _, tt := range cancelTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		go func() { errs <- prov.Contains(ctx, []segment.Lookup{lk(segBeta, idAlice)}) }()
+			srv := loaded(t)
+			opts := baseOptions(nil)
+			opts.Timeout = time.Hour // only the cancel can end the call
+			prov := newProvider(t, srv, opts)
+			entered := srv.Hang()
+			ctx, cancel := context.WithCancel(context.Background())
+			errs := make(chan error, 1)
+			lookups := make([]segment.Lookup, tt.lookups)
 
-		<-entered
-		cancel()
+			for i := range lookups {
+				lookups[i] = lk(segFlags, "id"+strconv.Itoa(i))
+			}
 
-		select {
-		case err := <-errs:
-			require.ErrorIs(t, err, valkeysegment.ErrCanceled)
-		case <-time.After(callTimeout):
-			assert.Fail(t, "the call did not end after the cancel")
-		}
-	})
+			go func() { errs <- prov.Contains(ctx, lookups) }()
+
+			<-entered
+			cancel()
+
+			select {
+			case err := <-errs:
+				require.ErrorIs(t, err, valkeysegment.ErrCanceled)
+			case <-time.After(callTimeout):
+				assert.Fail(t, "the call did not end after the cancel")
+			}
+		})
+	}
 }
 
 func TestShutdownIsBounded(t *testing.T) {

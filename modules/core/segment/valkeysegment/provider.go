@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"slices"
 	"strings"
@@ -139,7 +140,8 @@ func cmp(val, def string) string {
 
 // Dial creates a valkey-go client from the options and returns a Provider that owns it: Close closes the client.
 // It sets, whatever the options say: DisableCache (no client-side caching: the provider only reads and the resolver
-// caches), AlwaysPipelining (a connection that fails inside a batch keeps the replies already read, see [Client])
+// caches), AlwaysPipelining (a connection that fails inside a batch keeps the replies already read, see [Client]),
+// BlockingPipeline (no batch is moved to a dedicated connection, where a cancel waits)
 // and DisableRetry (a failed read is not sent again behind the back of the call timeout).
 func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	if clientOpt == nil {
@@ -150,6 +152,7 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	owned.DisableCache = true
 	owned.DisableRetry = true
 	owned.AlwaysPipelining = true
+	owned.BlockingPipeline = math.MaxInt // a batch of any size stays on the pipelined connection, see doc.go
 	owned.DisableAutoPipelining = false
 
 	client, err := valkey.NewClient(owned)

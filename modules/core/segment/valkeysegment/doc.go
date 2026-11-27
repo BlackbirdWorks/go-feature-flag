@@ -18,7 +18,13 @@
 // (AlwaysPipelining). That path ends a call when the context ends, and keeps the replies that were read when the
 // connection fails inside a batch (the others are Unknown with the transport class). valkey-go's synchronous path
 // does neither: it loses the whole batch on a failure and sees only the deadline, not a cancel. A client passed to
-// [New] must be created the same way, see [Client].
+// [New] must be created the same way, see [Client]. [Dial] also raises ClientOption.BlockingPipeline: valkey-go moves
+// a batch of 2000 commands or more to a dedicated connection, where a cancel waits for the connection to close.
+//
+// Limits: a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine, which
+// ends the process. valkey-go does this on every connection that pipelines in the background, which any concurrent
+// load starts, so it is a property of the library and not of AlwaysPipelining. The go-redis provider (type redis)
+// drops such a connection and returns an error: use it when the store sits behind a proxy that you do not trust.
 //
 // Shutdown stops new calls (they return [ErrClosed]), waits for the calls in flight until its own context ends,
 // and then ends them: the call in flight returns the canceled class. It also closes the client when the provider
