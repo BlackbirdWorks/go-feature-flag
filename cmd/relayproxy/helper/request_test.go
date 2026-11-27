@@ -10,6 +10,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -59,7 +60,7 @@ func TestFlagSet(t *testing.T) {
 
 	tests := []struct {
 		manager     *mock.MockFlagsetManager
-		wantFlagSet *ffclient.GoFeatureFlag
+		wantFlagSet service.FlagSet
 		name        string
 		wantMessage string
 		wantCode    int
@@ -82,7 +83,7 @@ func TestFlagSet(t *testing.T) {
 			t.Parallel()
 
 			var (
-				got *ffclient.GoFeatureFlag
+				got service.FlagSet
 				err *helper.HTTPError
 			)
 			if tt.manager == nil {

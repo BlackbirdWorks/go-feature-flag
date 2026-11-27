@@ -13,6 +13,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
@@ -51,7 +52,7 @@ func TestRequestFlagSet(t *testing.T) {
 
 	tests := []struct {
 		manager      *mock.MockFlagsetManager
-		wantFlagSet  *ffclient.GoFeatureFlag
+		wantFlagSet  service.FlagSet
 		name         string
 		authenticate bool
 		wantErr      bool

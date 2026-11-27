@@ -53,18 +53,11 @@ const (
 // FlagsetManager is the interface for managing flagsets.
 // It is used to retrieve the flagset linked to the API Key.
 type FlagsetManager interface {
-	// FlagSet returns the flag set linked to the API Key
-	FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error)
-	// FlagSetName returns the name of the flagset linked to the API Key.
-	// In default mode it returns the default flagset name, with flagsets it returns an
-	// error if the API Key is empty or not linked to a flagset.
-	FlagSetName(apiKey string) (string, error)
+	FlagSetResolver
 	// AllFlagSets returns all flag sets of the flagset manager
 	AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error)
 	// Default returns the default flagset
 	Default() *ffclient.GoFeatureFlag
-	// IsDefaultFlagSet returns true if the manager is in default mode (no flagsets configured)
-	IsDefaultFlagSet() bool
 	// Close closes the flagset manager
 	Close()
 	// OnConfigChange is called when the configuration changes
@@ -277,7 +270,9 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 }
 
 // FlagSet is returning the flag set linked to the API Key.
-func (m *FlagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+func (m *FlagsetManagerImpl) FlagSet(apiKey string) (FlagSet, error) {
 	if m.mode == flagsetManagerModeFlagsets {
 		if apiKey == "" {
 			return nil, errNoAPIKeyProvided

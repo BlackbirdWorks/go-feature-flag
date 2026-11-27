@@ -117,7 +117,7 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
 		Skipper: func() bool { return !s.keys.AuthenticationEnabled() },
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
-			manager := s.services.FlagsetManager
+			manager := s.flagSets()
 			if manager == nil || manager.IsDefaultFlagSet() {
 				return ctx, s.keys.KeyExists(key)
 			}
@@ -188,26 +188,26 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 	debug := s.settings.Debug
 
 	// the controllers
-	cAllFlags := controller.NewAllFlags(s.services.FlagsetManager, s.services.Metrics)
-	cFlagEval := controller.NewFlagEval(s.services.FlagsetManager, s.services.Metrics)
+	cAllFlags := controller.NewAllFlags(s.flagSets(), s.services.Metrics)
+	cFlagEval := controller.NewFlagEval(s.flagSets(), s.services.Metrics)
 	cFlagEvalOFREP := ofrep.NewOFREPEvaluate(
-		s.services.FlagsetManager,
+		s.flagSets(),
 		s.services.Metrics,
 		s.settings.OfrepEventStream,
 		ofrep.WithLegacyMetadataOnly(s.settings.DisableSemaphoreMetadata),
 	)
-	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics)
-	cEvalDataCollector := controller.NewCollectEvalData(s.services.FlagsetManager, s.services.Metrics)
-	cRetrieverRefresh := controller.NewForceFlagsRefresh(s.services.FlagsetManager, s.services.Metrics)
+	cManifest := manifest.NewManifest(s.flagSets(), s.services.Metrics)
+	cEvalDataCollector := controller.NewCollectEvalData(s.flagSets(), s.services.Metrics)
+	cRetrieverRefresh := controller.NewForceFlagsRefresh(s.flagSets(), s.services.Metrics)
 	cValidateFlags := controller.NewValidateFlags(
 		s.settings.Version,
 		s.services.Metrics,
 		s.settings.ValidateFlags,
 	)
-	cFlagChangeAPI := controller.NewAPIFlagChange(s.services.FlagsetManager, s.services.Metrics)
-	cFlagConfiguration := controller.NewAPIFlagConfiguration(s.services.FlagsetManager, s.services.Metrics)
-	cWsFlagChange := controller.NewWsFlagChange(s.services.WebsocketService, s.services.FlagsetManager)
-	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.services.FlagsetManager)
+	cFlagChangeAPI := controller.NewAPIFlagChange(s.flagSets(), s.services.Metrics)
+	cFlagConfiguration := controller.NewAPIFlagConfiguration(s.flagSets(), s.services.Metrics)
+	cWsFlagChange := controller.NewWsFlagChange(s.services.WebsocketService, s.flagSets())
+	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.flagSets())
 
 	// /v1: the evaluation API
 	op := operationAllFlags(api)
@@ -236,7 +236,7 @@ func (s *Server) addAPIRoutes(routes *routeSet) {
 		helper.Handle(cFlagEvalOFREP.Evaluate, debug), userAuth.HTTP())
 
 	// /stream/v1: the streams of flag changes, and the legacy websocket alias
-	authorize := middleware.StreamAuthorizer(s.keys, s.services.FlagsetManager, debug)
+	authorize := middleware.StreamAuthorizer(s.keys, s.flagSets(), debug)
 	routes.raw(
 		operationWebsocket(api, false),
 		"/stream/v1/ws/flag/change",

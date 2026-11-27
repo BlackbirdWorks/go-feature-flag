@@ -104,6 +104,11 @@ func (c *Core) Holder() *flagruntime.Holder { return c.holder }
 // Evaluator returns the evaluator of the flag sets. The events of the flags that track them reach the exporters.
 func (c *Core) Evaluator() *flagruntime.Evaluator { return c.eval }
 
+// Collect hands an event to the exporters, the way the evaluator does for the events of the flags that track them.
+// It reports whether the event was accepted. The event belongs to the exporters from the call: the caller must not
+// change it afterwards.
+func (c *Core) Collect(event events.Event) bool { return c.events.Collect(event) }
+
 // Status returns a snapshot of the status. It reads atomics and immutable values and never blocks.
 func (c *Core) Status() Status {
 	return Status{StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status()}

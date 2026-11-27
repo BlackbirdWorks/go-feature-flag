@@ -22,12 +22,12 @@ var (
 
 // FlagEval is the controller for the /v1/feature/{flagKey}/eval endpoint.
 type FlagEval struct {
-	flagsetMngr service.FlagsetManager
+	flagsetMngr service.FlagSetResolver
 	metrics     *metric.Metrics
 }
 
 // NewFlagEval initializes the controller for the /v1/feature/{flagKey}/eval endpoint.
-func NewFlagEval(flagsetMngr service.FlagsetManager, metrics *metric.Metrics) *FlagEval {
+func NewFlagEval(flagsetMngr service.FlagSetResolver, metrics *metric.Metrics) *FlagEval {
 	return &FlagEval{
 		flagsetMngr: flagsetMngr,
 		metrics:     metrics,
