@@ -354,6 +354,7 @@ func TestBreakerThroughTheResolver(t *testing.T) {
 				}
 
 				assert.Equal(t, stp.wantStates, states(stp.lookups))
+				waitIdle(t, res)
 			}
 
 			assert.Equal(t, tt.wantCalls, tt.store.callList())

@@ -383,6 +383,8 @@ func TestASegmentThatIsNotLoadedIsNotAskedAgainForAWhile(t *testing.T) {
 
 		require.NoError(t, res.Contains(context.Background(), lookups))
 		assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
+
+		waitIdle(t, res) // the check of the segment follows the answers
 	}
 
 	assert.Equal(
@@ -486,6 +488,7 @@ func TestObserverSeesTheReasons(t *testing.T) {
 
 			if tt.prepare != nil {
 				tt.prepare(res)
+				waitIdle(t, res)
 			}
 
 			_ = res.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)})
@@ -756,4 +759,175 @@ func TestEveryShutdownCallerIsBoundedByItsOwnContext(t *testing.T) {
 		require.Fail(t, "the first Shutdown returned before the store did", "%v", err)
 	default:
 	}
+}
+
+// gatedExists answers Exists, like existsStore, but only once its gate opens (it ignores its context).
+type gatedExists struct {
+	existsStore
+
+	gate    chan struct{}
+	entered chan struct{}
+}
+
+func (g gatedExists) Exists(ctx context.Context, names []string) ([]segment.State, error) {
+	g.entered <- struct{}{}
+
+	<-g.gate
+
+	return g.existsStore.Exists(ctx, names)
+}
+
+func TestASlowExistsOfOneSegmentDoesNotHoldBackTheAnswersOfAnother(t *testing.T) {
+	t.Parallel()
+
+	gate := make(chan struct{})
+	store := gatedExists{
+		existsStore: existsStore{&fakeStore{data: members(map[string][]string{segBeta: {idAlice}})}},
+		gate:        gate, entered: make(chan struct{}, 1),
+	}
+	res := newResolver(t, store, &resolver.Options{})
+
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
+
+	// gamma is not held by the store: its lookup stays Unknown, and the check of the segment is slow
+	lookups := []segment.Lookup{lk(segGamma, idAlice), lk(segBeta, idAlice)}
+	returned := make(chan error, 1)
+
+	go func() { returned <- res.Contains(context.Background(), lookups) }()
+
+	select {
+	case err := <-returned:
+		require.NoError(t, err)
+	case <-time.After(eventuallyWait):
+		require.Fail(t, "the answers were held back by the check of the other segment")
+	}
+
+	assert.Equal(t, []segment.State{segment.Unknown, segment.Member}, states(lookups))
+
+	// the check starts after the answers are out, and is still waiting on its gate
+	select {
+	case <-store.entered:
+	case <-time.After(eventuallyWait):
+		require.Fail(t, "the check of the unanswered segment never started")
+	}
+
+	close(gate)
+	waitIdle(t, res)
+
+	again := []segment.Lookup{lk(segGamma, idAlice)}
+	require.NoError(t, res.Contains(context.Background(), again))
+	assert.Equal(t, uint64(1), res.Status().Segments[segGamma].NotLoaded, "the check said the segment is not loaded")
+}
+
+// panicky is a store that panics in the method that it is told to.
+type panicky struct {
+	*fakeStore
+
+	panicIn string
+}
+
+func (p panicky) Init(context.Context) error {
+	if p.panicIn == "init" {
+		panic(secretID)
+	}
+
+	return nil
+}
+
+func (p panicky) Exists(_ context.Context, names []string) ([]segment.State, error) {
+	if p.panicIn == "exists" {
+		panic(secretID)
+	}
+
+	return make([]segment.State, len(names)), nil
+}
+
+func (p panicky) Shutdown(context.Context) error {
+	if p.panicIn == "shutdown" {
+		panic(secretID)
+	}
+
+	return nil
+}
+
+func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		call func(*resolver.Resolver) error
+	}{
+		{name: "Init", call: func(res *resolver.Resolver) error { return res.Init(context.Background()) }},
+		{name: "Exists", call: func(res *resolver.Resolver) error {
+			states, err := res.Exists(context.Background(), []string{segBeta})
+
+			assert.Nil(t, states, "nothing a store that panicked set is trusted")
+
+			return err
+		}},
+		{name: "Shutdown", call: func(res *resolver.Resolver) error { return res.Shutdown(context.Background()) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			res := newResolver(
+				t,
+				panicky{fakeStore: betaStore(), panicIn: strings.ToLower(tt.name)},
+				&resolver.Options{},
+			)
+
+			err := tt.call(res)
+
+			require.ErrorIs(t, err, resolver.ErrProviderPanic)
+			assert.NotContains(t, err.Error(), secretID, "the value of the panic is not kept")
+		})
+	}
+
+	t.Run("the check that follows an unanswered lookup", func(t *testing.T) {
+		t.Parallel()
+
+		// beta is not held by the store, so its lookup is unanswered and the resolver asks Exists, which panics
+		store := panicky{
+			fakeStore: &fakeStore{data: members(map[string][]string{segOther: {idAlice}})},
+			panicIn:   "exists",
+		}
+		res := newResolver(t, store, &resolver.Options{})
+
+		for range 2 {
+			lookups := []segment.Lookup{lk(segBeta, idAlice)}
+
+			require.NoError(t, res.Contains(context.Background(), lookups))
+			assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
+
+			waitIdle(t, res)
+		}
+
+		assert.Equal(t, [][]string{{callAlice}, {callAlice}}, store.callList(), "nothing was remembered from the panic")
+	})
+}
+
+func TestARepeatShutdownWithAnEndedContextReturnsTheFinishedResult(t *testing.T) {
+	t.Parallel()
+
+	full := &lifecycleStore{fakeStore: betaStore()}
+	res := newResolver(t, full, &resolver.Options{})
+
+	require.NoError(t, res.Shutdown(context.Background()))
+
+	ended, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	for range 20 { // both cases of the select are ready: the finished one must always win
+		require.NoError(t, res.Shutdown(ended))
+	}
+
+	assert.Equal(t, []string{"shutdown"}, full.events)
 }

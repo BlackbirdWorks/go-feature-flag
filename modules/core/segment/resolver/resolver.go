@@ -526,7 +526,7 @@ func (r *Resolver) Init(ctx context.Context) error {
 
 	defer leave()
 
-	return wrapStore(init.Init(ctx))
+	return wrapStore(guard(func() error { return init.Init(ctx) }))
 }
 
 // Exists asks the store whether the segments are loaded. It returns ErrUnsupported when the store cannot tell.
@@ -543,9 +543,21 @@ func (r *Resolver) Exists(ctx context.Context, names []string) ([]segment.State,
 
 	defer leave()
 
-	states, err := existencer.Exists(ctx, names)
+	var states []segment.State
 
-	return states, wrapStore(err)
+	err = guard(func() error {
+		var existsErr error
+
+		states, existsErr = existencer.Exists(ctx, names)
+
+		return existsErr //nolint:wrapcheck // wrapped below
+	})
+
+	if err != nil {
+		return nil, wrapStore(err) // nothing a store that failed or panicked set is trusted
+	}
+
+	return states, nil
 }
 
 // Shutdown stops accepting calls, waits for the calls to the store that are in flight (until ctx ends), and calls
@@ -588,9 +600,15 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 		go func() {
 			defer close(r.stopDone)
 
-			r.stopErr = stopper.Shutdown(ctx)
+			r.stopErr = guard(func() error { return stopper.Shutdown(ctx) })
 		}()
 	})
+
+	select {
+	case <-r.stopDone: // finished already: that wins over a context that ended too
+		return r.stopErr
+	default:
+	}
 
 	select {
 	case <-r.stopDone:
@@ -818,7 +836,12 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	callErr := r.call(shared.ctx, sub)
 
-	late := r.disarm(state, shared, stop, fired)
+	var hook func()
+	if r.beforeStop != nil {
+		hook = func() { r.beforeStop(shared) }
+	}
+
+	late := r.disarm(state, hook, stop, fired)
 
 	if errors.Is(callErr, ErrProviderPanic) {
 		// a store that panicked is not trusted: nothing it set counts
@@ -833,8 +856,7 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	neutral := r.settle(leaders, sub, callErr, now, late)
 
-	// before the answers are delivered, so that a caller that comes back at once sees the memory
-	r.confirmNotLoaded(shared.ctx, neutral, now)
+	defer r.confirmNotLoaded(shared.ctx, neutral, now) // after the answers are delivered: it holds nobody back
 
 	for i := range leaders {
 		lead := &leaders[i]
@@ -852,12 +874,15 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 		lead.sst.mu.Lock()
 
-		// delete the flight only if the map still holds this one: Invalidate may have detached it
-		if lead.sst.flights[lead.key] == lead.flt {
+		// The call writes the cache only while it still owns its flight, checked under the lock of the write. A flight
+		// that Invalidate or an expired deadline detached has been replaced (or has been replaced and finished): its
+		// late result settles its own waiters and writes nothing, so it cannot overwrite a fresher answer.
+		owned := lead.sst.flights[lead.key] == lead.flt
+		if owned {
 			delete(lead.sst.flights, lead.key)
 		}
 
-		if lead.sst.cache != nil && lead.sst.epoch.Load() == lead.flt.epoch {
+		if owned && lead.sst.cache != nil && lead.sst.epoch.Load() == lead.flt.epoch {
 			lead.sst.cache.put(lead.key, state, now)
 		}
 
@@ -870,14 +895,14 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 // disarm ends the deadline of a shared call after the store returned, and tells whether the deadline had fired first.
 // The decision is taken under the lock of the state: a return that comes first makes the deadline callback record
 // nothing, a deadline that comes first makes the late return count for nothing.
-func (r *Resolver) disarm(state *callState, shared *call, stop func() bool, fired <-chan struct{}) bool {
+func (r *Resolver) disarm(state *callState, hook func(), stop func() bool, fired <-chan struct{}) bool {
 	state.mu.Lock()
 	state.returned = !state.overdue
 	late := state.overdue
 	state.mu.Unlock()
 
-	if r.beforeStop != nil {
-		r.beforeStop(shared)
+	if hook != nil {
+		hook()
 	}
 
 	if !stop() {
@@ -891,14 +916,23 @@ func (r *Resolver) disarm(state *callState, shared *call, stop func() bool, fire
 	return late
 }
 
-func (r *Resolver) call(ctx context.Context, sub []segment.Lookup) (err error) {
+// guard runs a call to the store and turns a panic into ErrProviderPanic: every call that the resolver makes to the
+// store goes through it (Contains, Exists, Init, Shutdown), so a store that panics can never take a worker of the
+// resolver, or the process, down. The value of the panic is not kept.
+func guard(fn func() error) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = ErrProviderPanic
 		}
 	}()
 
-	return r.inner.Contains(ctx, sub) //nolint:wrapcheck // the store's own error is the call's error
+	return fn()
+}
+
+func (r *Resolver) call(ctx context.Context, sub []segment.Lookup) error {
+	return guard(
+		func() error { return r.inner.Contains(ctx, sub) },
+	) //nolint:wrapcheck // the error of the store is the error of the call
 }
 
 // segmentResult is how a call went for the lookups of one segment.
@@ -1002,12 +1036,9 @@ func (r *Resolver) confirmNotLoaded(ctx context.Context, neutral []*segmentResul
 		names[i] = res.sst.name
 	}
 
-	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.timeout)
-	defer cancel()
-
-	answers, err := existencer.Exists(callCtx, names)
+	answers, err := r.existsCall(ctx, existencer, names)
 	if err != nil || len(answers) != len(neutral) {
-		return
+		return // an unsuccessful check (an error, a panic, a timeout) says nothing about the segments
 	}
 
 	for i, res := range neutral {
@@ -1015,6 +1046,49 @@ func (r *Resolver) confirmNotLoaded(ctx context.Context, neutral []*segmentResul
 			rememberNotLoaded(res, now)
 		}
 	}
+}
+
+// existsCall asks the store through Exists under the call timeout, with the same accounting as a lookup: a check that
+// ignores its deadline counts as overdue until it returns, so it counts toward MaxOverdue, and it is guarded against
+// a panic.
+func (r *Resolver) existsCall(
+	ctx context.Context, existencer segment.Existencer, names []string,
+) ([]segment.State, error) {
+	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.timeout)
+	defer cancel()
+
+	state := &callState{}
+	fired := make(chan struct{})
+	stop := context.AfterFunc(callCtx, func() {
+		defer close(fired)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+
+		if state.returned {
+			return
+		}
+
+		state.overdue = true
+
+		r.overdue.Add(1)
+	})
+
+	var answers []segment.State
+
+	err := guard(func() error {
+		var existsErr error
+
+		answers, existsErr = existencer.Exists(callCtx, names)
+
+		return existsErr //nolint:wrapcheck // only its being nil is looked at
+	})
+
+	if late := r.disarm(state, nil, stop, fired); late {
+		return nil, ErrWaiting // an answer that came after the deadline says nothing
+	}
+
+	return answers, err
 }
 
 // rememberNotLoaded makes the segment skip the store for the negative TTL, unless Invalidate ran meanwhile.

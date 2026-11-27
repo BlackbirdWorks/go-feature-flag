@@ -862,3 +862,101 @@ func TestTheErrorOfALookupCarriesEveryCause(t *testing.T) {
 		})
 	}
 }
+
+func TestADetachedCallWritesNothingToTheCache(t *testing.T) {
+	t.Parallel()
+
+	store := &internalStore{} // every lookup is a member
+	res := newInternal(t, store, &Options{})
+	seg := res.state(testSeg)
+
+	// the call below was detached when its deadline expired; a retry cached a fresher answer, finished, and left
+	// the map without a flight for the id
+	stale := &flight{done: make(chan struct{}), epoch: seg.epoch.Load()}
+
+	seg.cache.put("alice", segment.NotMember, baseTime())
+
+	res.wg.Add(1)
+	res.inflight.Add(1)
+	res.run(newCall(context.Background(), time.Minute), []leader{{sst: seg, flt: stale, key: "alice"}})
+
+	<-stale.done
+
+	assert.Equal(t, segment.Member, stale.state, "its own waiters get its answer")
+
+	state, hit := seg.cache.get("alice", baseTime())
+
+	assert.True(t, hit)
+	assert.Equal(t, segment.NotMember, state, "but the fresher answer of the retry stays in the cache")
+}
+
+// stuckExists is a store whose Exists ignores its deadline until its gate opens.
+type stuckExists struct {
+	internalStore
+
+	gate    chan struct{}
+	entered chan struct{}
+}
+
+func (s *stuckExists) Exists(_ context.Context, names []string) ([]segment.State, error) {
+	s.entered <- struct{}{}
+
+	<-s.gate
+
+	return make([]segment.State, len(names)), nil
+}
+
+func TestAStuckExistsCountsAsOverdueAndTripsTheThreshold(t *testing.T) {
+	t.Parallel()
+
+	store := &stuckExists{gate: make(chan struct{}), entered: make(chan struct{}, 1)}
+	res := newInternal(t, store, &Options{MaxOverdue: 1, Default: SegmentOptions{NoCache: true, NoBreaker: true}})
+	res.timeout = time.Nanosecond // the deadline of the check has passed when it starts
+
+	seg := res.state(testSeg)
+	neutral := []*segmentResult{{sst: seg, flt: &flight{epoch: seg.epoch.Load()}}}
+	finished := make(chan struct{})
+
+	go func() {
+		defer close(finished)
+
+		res.confirmNotLoaded(context.Background(), neutral, baseTime())
+	}()
+
+	release := func() {
+		select {
+		case <-store.gate:
+		default:
+			close(store.gate)
+		}
+	}
+
+	t.Cleanup(release)
+
+	select {
+	case <-store.entered:
+	case <-time.After(waitBound):
+		require.Fail(t, "the check never reached the store")
+	}
+
+	require.Eventually(t, func() bool { return res.Status().Overdue == 1 }, waitBound, time.Millisecond)
+
+	// the threshold is reached: a lookup that needs a call is refused, and the store is not called
+	lookups := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	err := res.containsAt(context.Background(), lookups, baseTime())
+
+	require.ErrorIs(t, err, ErrOverdue)
+	assert.Equal(t, []segment.State{segment.Unknown}, []segment.State{lookups[0].State})
+	assert.Equal(t, 0, store.calls)
+
+	release()
+
+	select {
+	case <-finished:
+	case <-time.After(waitBound):
+		require.Fail(t, "the check did not return once the store did")
+	}
+
+	assert.Equal(t, 0, res.Status().Overdue, "the check is not overdue any more")
+	assert.True(t, seg.notLoadedUntil.IsZero(), "an answer that came after the deadline does not count")
+}

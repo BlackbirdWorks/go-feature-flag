@@ -7,7 +7,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
 var (
@@ -248,4 +251,11 @@ func (e existsStore) Exists(
 	}
 
 	return out, nil
+}
+
+// waitIdle waits until the shared calls of the resolver, and the checks that follow them, are over.
+func waitIdle(t *testing.T, res *resolver.Resolver) {
+	t.Helper()
+
+	require.Eventually(t, func() bool { return res.Status().Running == 0 }, eventuallyWait, eventuallyTick)
 }
