@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"regexp"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,21 +28,28 @@ import (
 // capability but key validation: the suite runs against it as a store of its own, and the suite has to fail for
 // each defect. A suite that passes a broken store proves nothing about a good one.
 type toyStore struct {
-	versions map[string][]toyVersion
-	faults   map[string]storetest.Fault
-	hangs    map[string]*storetest.Hang
-	bodies   map[string]*storetest.Hang
-	etags    map[string]string
-	release  chan struct{}
-	defect   string
-	mu       sync.Mutex
-	nextID   int
-	worker   bool
-	started  bool
+	versions         map[string][]toyVersion
+	faults           map[string]storetest.Fault
+	hangs            map[string]*storetest.Hang
+	bodies           map[string]*storetest.Hang
+	etags            map[string]string
+	release          chan struct{}
+	admit            chan struct{}
+	defect           string
+	nextID           int
+	mu               sync.Mutex
+	worker           bool
+	started          bool
+	generationETags  bool
+	nilEmpty         bool
+	ctxWorker        bool
+	notModifiedFirst bool
+	literalETags     bool
 }
 
 type toyVersion struct {
 	id      string
+	etag    string // the ETag of this version for a toy with generation numbers
 	content []byte
 }
 
@@ -65,6 +75,8 @@ const (
 	defectDeniedRetryable   = "denied is retryable"
 	defectMissingIsEmpty    = "a missing object is an empty one"
 	defectETagOfOldBytes    = "ETag of the previous content with the new bytes"
+	defectLeaksAndFails     = "leaks a goroutine and fails the read"
+	defectLeaksUnderOwnDo   = "leaks a goroutine started under its own pprof.Do from the request context"
 	defectPartialOnCancel   = "a cancelled read returns the bytes it had"
 	defectServesStale       = "keeps serving the first content after a later write"
 	defectOneShotDeadline   = "sets a one-shot deadline from the first Deadline() and ignores Done"
@@ -90,6 +102,7 @@ const (
 	caseChanged   = "conditional-changed-returns-new-body-and-etag"
 	caseFollows   = "etag-follows-content"
 	caseKeys      = "unclean-keys-are-refused"
+	caseGetUncond = "get-unconditional"
 	caseDescribes = "etag-describes-the-bytes-returned"
 )
 
@@ -118,53 +131,25 @@ func toyFixture(defect string) (storetest.Fixture, *toyStore) {
 }
 
 func (s *toyStore) Get(ctx context.Context, req manifestreader.GetRequest) (manifestreader.Object, error) {
-	if s.defect == defectLeaks {
-		go func() { <-s.release }()
+	s.startWorkers(ctx)
+
+	if s.defect == defectLeaksAndFails {
+		return manifestreader.Object{}, &manifestreader.FetchError{Reason: manifestreader.ReasonError, Retryable: true}
 	}
 
-	hang, body := s.hangsOf(req.Key)
-
-	for _, held := range []*storetest.Hang{hang, body} {
-		if held == nil {
-			continue
-		}
-
-		err := s.block(ctx, held)
-		if err != nil && s.defect == defectPartialOnCancel {
-			return manifestreader.Object{Bytes: []byte("part")}, err
-		}
-
-		if err != nil {
-			return manifestreader.Object{}, err
-		}
+	release, err := s.admitRead(ctx)
+	if err != nil {
+		return manifestreader.Object{}, err
 	}
 
-	if s.defect != defectIgnoresContext && ctx.Err() != nil {
-		return manifestreader.Object{}, ctx.Err()
+	defer release()
+
+	obj, err := s.waitHangs(ctx, req.Key)
+	if err != nil {
+		return obj, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	failure := s.fault(req.Key)
-	if failure != nil {
-		return manifestreader.Object{}, failure
-	}
-
-	content, ok := s.find(req.Key, req.VersionID)
-	if !ok {
-		if s.defect == defectMissingIsEmpty {
-			return manifestreader.Object{}, nil
-		}
-
-		return manifestreader.Object{}, manifestreader.ErrNotFound
-	}
-
-	if s.tooLarge(content, req.Limit) {
-		return manifestreader.Object{}, manifestreader.ErrTooLarge
-	}
-
-	return s.answer(content, s.etagOf(req.Key, req.VersionID, content), req.ETag)
+	return s.lookup(ctx, req)
 }
 
 func (s *toyStore) Put(key string, content []byte) error {
@@ -202,7 +187,9 @@ func (s *toyStore) PutVersion(key string, content []byte) (string, error) {
 	if s.defect == defectAliases && had && len(old) == len(content) {
 		copy(old, content) // the slice a reader holds changes under it
 	} else {
-		s.versions[key] = append(versions, toyVersion{id: id, content: bytes.Clone(content)})
+		s.versions[key] = append(versions, toyVersion{
+			id: id, etag: s.generation(len(versions)), content: bytes.Clone(content),
+		})
 	}
 
 	s.updateETag(key, had, old, content)
@@ -251,17 +238,89 @@ func (s *toyStore) HangBody(key string) (*storetest.Hang, error) {
 	return hang, nil
 }
 
-// updateETag sets the ETag of the key after a write, as far as the defect of the toy lets it.
-func (s *toyStore) updateETag(key string, had bool, old, content []byte) {
+// lookup answers the read from the versions of the key.
+func (s *toyStore) lookup(ctx context.Context, req manifestreader.GetRequest) (manifestreader.Object, error) {
+	if s.defect != defectIgnoresContext && ctx.Err() != nil {
+		return manifestreader.Object{}, ctx.Err()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	failure := s.fault(req.Key)
+	if failure != nil {
+		return manifestreader.Object{}, failure
+	}
+
+	version, ok := s.find(req.Key, req.VersionID)
+	if !ok {
+		if s.defect == defectMissingIsEmpty {
+			return manifestreader.Object{}, nil
+		}
+
+		return manifestreader.Object{}, manifestreader.ErrNotFound
+	}
+
+	etag := s.etagOf(req.Key, req.VersionID, &version)
+
+	if s.notModifiedFirst && req.ETag != "" && req.ETag == etag {
+		return manifestreader.Object{}, manifestreader.ErrNotModified
+	}
+
+	if s.tooLarge(version.content, req.Limit) {
+		return manifestreader.Object{}, manifestreader.ErrTooLarge
+	}
+
+	return s.answer(version.content, etag, req.ETag)
+}
+
+// waitHangs holds the read in the hangs of the key. A toy with the partial defect returns the bytes it had.
+func (s *toyStore) waitHangs(ctx context.Context, key string) (manifestreader.Object, error) {
+	hang, body := s.hangsOf(key)
+
+	for _, held := range []*storetest.Hang{hang, body} {
+		if held == nil {
+			continue
+		}
+
+		err := s.block(ctx, held)
+		if err != nil && s.defect == defectPartialOnCancel {
+			return manifestreader.Object{Bytes: []byte("part")}, err
+		}
+
+		if err != nil {
+			return manifestreader.Object{}, err
+		}
+	}
+
+	return manifestreader.Object{}, nil
+}
+
+// admitRead takes the one slot of a toy that admits one read at a time; the queue ends with the context.
+func (s *toyStore) admitRead(ctx context.Context) (func(), error) {
+	if s.admit == nil {
+		return func() {}, nil
+	}
+
+	select {
+	case s.admit <- struct{}{}:
+		return func() { <-s.admit }, nil
+	case <-ctx.Done():
+		return func() {}, fmt.Errorf("toy queue: %w", ctx.Err())
+	}
+}
+
+// startWorkers starts the goroutines that some toys leave behind, or that end with the context.
+func (s *toyStore) startWorkers(ctx context.Context) {
 	switch {
-	case s.defect == defectConstantETag:
-		s.etags[key] = `"constant"`
-	case s.defect == defectStaleETag && had:
-		// the ETag of the first content stays
-	case s.defect == defectETagOfOldBytes && had:
-		s.etags[key] = toyETag(old)
-	default:
-		s.etags[key] = toyETag(content)
+	case s.defect == defectLeaks, s.defect == defectLeaksAndFails:
+		go func() { <-s.release }()
+	case s.defect == defectLeaksUnderOwnDo:
+		pprof.Do(ctx, pprof.Labels("toy", "own"), func(context.Context) {
+			go func() { <-s.release }()
+		})
+	case s.ctxWorker:
+		go func() { <-ctx.Done() }()
 	}
 }
 
@@ -288,32 +347,63 @@ func (s *toyStore) fault(key string) error {
 	return nil
 }
 
-// find returns the current content of the key, or of the named version.
-func (s *toyStore) find(key, versionID string) ([]byte, bool) {
+// find returns the current version of the key, or the named one.
+func (s *toyStore) find(key, versionID string) (toyVersion, bool) {
 	versions := s.versions[key]
 	if len(versions) == 0 {
-		return nil, false
+		return toyVersion{}, false
 	}
 
 	if versionID == "" || s.defect == defectIgnoresVersion {
-		return versions[len(versions)-1].content, true
+		return versions[len(versions)-1], true
 	}
 
 	for _, version := range versions {
 		if version.id == versionID {
-			return version.content, true
+			return version, true
 		}
 	}
 
-	return nil, false
+	return toyVersion{}, false
 }
 
-func (s *toyStore) etagOf(key, versionID string, content []byte) string {
+func (s *toyStore) etagOf(key, versionID string, version *toyVersion) string {
 	if versionID == "" {
 		return s.etags[key]
 	}
 
-	return toyETag(content)
+	if s.generationETags || s.literalETags {
+		return version.etag
+	}
+
+	return toyETag(version.content)
+}
+
+// generation is the ETag of the n-th version of a key (from zero) for the toys with generation numbers. The first
+// ones of a toy with literal ETags are words that other cases use as made-up tokens.
+func (s *toyStore) generation(index int) string {
+	words := []string{`"stale"`, `"not-an-etag"`, `"0000000000000000"`}
+	if s.literalETags && index < len(words) {
+		return words[index]
+	}
+
+	return `"gen-` + strconv.Itoa(index+1) + `"`
+}
+
+// updateETag sets the ETag of the key after a write, as far as the defect of the toy lets it.
+func (s *toyStore) updateETag(key string, had bool, old, content []byte) {
+	switch {
+	case s.defect == defectConstantETag:
+		s.etags[key] = `"constant"`
+	case s.defect == defectStaleETag && had:
+		// the ETag of the first content stays
+	case s.defect == defectETagOfOldBytes && had:
+		s.etags[key] = toyETag(old)
+	case s.generationETags || s.literalETags:
+		s.etags[key] = s.generation(len(s.versions[key]) - 1)
+	default:
+		s.etags[key] = toyETag(content)
+	}
 }
 
 // tooLarge applies the limit, as far as the defect of the toy lets it.
@@ -341,6 +431,10 @@ func (s *toyStore) answer(content []byte, etag, held string) (manifestreader.Obj
 
 	if s.defect == defectTruncates && len(content) > 0 {
 		content = content[:len(content)-1]
+	}
+
+	if s.nilEmpty && len(content) == 0 {
+		content = nil
 	}
 
 	return manifestreader.Object{Bytes: content, ETag: etag}, nil
@@ -409,109 +503,113 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 	tests := []struct {
 		name   string
 		defect string
-		// wants names each case that must fail for the defect and a fragment of the failure it must produce. A
-		// failure of the setup of the case (the read did not reach the backend) is not the failure of the defect.
+		// wants names each case that must fail for the defect and the identifier of the assertion it must fail
+		// on. The identifier occurs once in the source of the suite (TestFailureIdentifiersAreUnique), so no other
+		// failure of the case can satisfy the row, and a failure of the setup of the case does not either.
 		wants []caseWant
-		// within is the bound of the waits of the cases, for a store that fails by never answering (0: the default)
+		// within is the bound of the waits for a read to return after its context ended, for a store that fails
+		// by never answering (0: the default)
 		within time.Duration
 	}{
 		{
 			name: "the ETag of a rewrite stays the old one", defect: defectStaleETag,
-			wants: []caseWant{{caseChanged, textNotModified}, {caseFollows, textBytesBecame}},
+			wants: []caseWant{{caseChanged, idChanged}, {caseFollows, idFollows}},
 		},
 		{
 			name: "the ETag is the same for every content", defect: defectConstantETag,
 			wants: []caseWant{
-				{caseChanged, textNotModified}, {caseFollows, textBytesBecame},
-				{"empty-object", "the empty object has an ETag of its own"}, {caseDescribes, textTwoContents},
+				{caseChanged, idChanged}, {caseFollows, idFollows},
+				{"empty-object", "[empty-etag-differs]"}, {caseDescribes, idTwoContents},
 			},
 		},
 		{
 			name: "the limit is ignored", defect: defectIgnoresLimit,
 			wants: []caseWant{
-				{"limit-at-and-one-over", "one under"}, {"limit-zero-and-negative", "limit 0, one byte"},
-				{"empty-object", "one byte over a limit of zero"},
+				{"limit-at-and-one-over", "[limit-boundary-too-large]"},
+				{"limit-zero-and-negative", idNonPositive}, {"empty-object", "[empty-limit-zero-too-large]"},
 			},
 		},
 		{
 			name: "a negative limit lets everything through", defect: defectNegativeLimit,
-			wants: []caseWant{{"limit-zero-and-negative", "limit -1, one byte"}},
+			wants: []caseWant{{"limit-zero-and-negative", idNonPositive}},
 		},
 		{
-			name: "any ETag is answered with not-modified", defect: defectNotModifiedAlways,
-			wants: []caseWant{{"unknown-etag-returns-the-object", textNotModified}, {caseChanged, textNotModified}},
+			name:   "any ETag is answered with not-modified",
+			defect: defectNotModifiedAlways,
+			wants: []caseWant{
+				{"unknown-etag-returns-the-object", "[unknown-etag-returns-object]"},
+				{caseChanged, idChanged},
+			},
 		},
 		{
 			name: "a body comes with the not-modified answer", defect: defectBodyWithNotMod,
 			wants: []caseWant{
-				{"conditional-unchanged-is-not-modified", textBodyWithNotModified},
-				{"etag-is-stable-for-unchanged-content", textBodyWithNotModified},
+				{"conditional-unchanged-is-not-modified", idNoObject},
+				{"etag-is-stable-for-unchanged-content", idNoObject},
 			},
 		},
 		{
 			name: "the context is ignored", defect: defectIgnoresContext,
-			wants: []caseWant{{"ended-context-is-an-error", "in chain but got nil"}},
+			wants: []caseWant{{"ended-context-is-an-error", "[ended-context-error]"}},
 		},
 		{
-			name:   "the body is one byte short",
-			defect: defectTruncates,
-			wants: []caseWant{
-				{"get-unconditional", "the body of an unconditional read"},
-				{caseChanged, "the new body"},
-			},
+			name: "the body is one byte short", defect: defectTruncates,
+			wants: []caseWant{{caseGetUncond, "[unconditional-body]"}, {caseChanged, "[changed-new-body]"}},
 		},
 		{
 			name: "every Get leaves a goroutine", defect: defectLeaks,
-			wants: []caseWant{{"gets-leave-no-goroutine-behind", textLeak}, {"get-unconditional", textLeak}},
+			wants: []caseWant{{"gets-leave-no-goroutine-behind", idLeak}, {caseGetUncond, idLeak}},
 		},
 		{
-			name:   "returned bytes are overwritten by a later Put",
-			defect: defectAliases,
-			wants: []caseWant{
-				{"returned-bytes-are-not-aliased", "bytes already returned were changed by a later write"},
-			},
+			name: "every Get leaves a goroutine and fails, so that the case ends at once", defect: defectLeaksAndFails,
+			wants: []caseWant{{caseGetUncond, idLeak}},
+		},
+		{
+			name:   "a goroutine started under the pprof.Do of the store from the request context",
+			defect: defectLeaksUnderOwnDo,
+			wants:  []caseWant{{caseGetUncond, idLeak}},
+		},
+		{
+			name: "returned bytes are overwritten by a later Put", defect: defectAliases,
+			wants: []caseWant{{"returned-bytes-are-not-aliased", "[bytes-not-aliased]"}},
 		},
 		{
 			name: "a version that does not exist is served", defect: defectIgnoresVersion,
 			wants: []caseWant{
-				{"missing-version-is-not-found", "in chain but got nil"},
-				{"version-id-reads-an-older-version", "the older version is read after the overwrite"},
+				{"missing-version-is-not-found", "[missing-version-not-found]"},
+				{"version-id-reads-an-older-version", "[older-version-bytes]"},
 			},
 		},
 		{
 			name: "a denied read is retryable", defect: defectDeniedRetryable,
-			wants: []caseWant{{"denied-is-not-retryable", "Retryable"}},
+			wants: []caseWant{{"denied-is-not-retryable", "[fault-retryable]"}},
 		},
 		{
 			name: "a missing object is an empty one", defect: defectMissingIsEmpty,
-			wants: []caseWant{{"missing-is-not-found", "never written"}},
+			wants: []caseWant{{"missing-is-not-found", "[missing-never-written]"}},
 		},
 		{
 			name:   "a store copies the first Deadline() into a one-shot deadline and ignores Done",
 			defect: defectOneShotDeadline,
 			wants: []caseWant{
-				{"deadline-while-reading", textNoReturn}, {"cancel-while-reading", textNoReturn},
+				{"deadline-while-reading", idNoReturn}, {"cancel-while-reading", idNoReturn},
 			},
 			within: shortBound,
 		},
 		{
-			name:   "a store keeps serving the first content after a later write",
-			defect: defectServesStale,
-			wants: []caseWant{
-				{caseDescribes, "the read that follows a write sees the write"},
-				{caseChanged, textNotModified},
-			},
+			name: "a store keeps serving the first content after a later write", defect: defectServesStale,
+			wants: []caseWant{{caseDescribes, "[read-after-write]"}, {caseChanged, idChanged}},
 		},
 		{
 			name: "a cancelled read returns the bytes it had", defect: defectPartialOnCancel,
 			wants: []caseWant{
-				{"cancel-while-reading", textNoObject}, {"cancel-while-reading-the-body", textNoObject},
-				{"deadline-while-reading", textNoObject},
+				{"cancel-while-reading", idNoObject}, {"cancel-while-reading-the-body", idNoObject},
+				{"deadline-while-reading", idNoObject},
 			},
 		},
 		{
 			name: "the ETag is the one of the previous bytes", defect: defectETagOfOldBytes,
-			wants: []caseWant{{caseDescribes, textTwoContents}, {caseFollows, textBytesBecame}},
+			wants: []caseWant{{caseDescribes, idTwoContents}, {caseFollows, idFollows}},
 		},
 	}
 
@@ -533,7 +631,7 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 				assert.NotContains(
 					t,
 					text,
-					textSetup,
+					idSetup,
 					"the case %s failed in its setup, not for %q",
 					want.name,
 					tt.defect,
@@ -543,24 +641,57 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 	}
 }
 
-// caseWant is a case that must fail for a defect, with a fragment of its failure.
+// caseWant is a case that must fail for a defect, with the identifier of the assertion it must fail on.
 type caseWant struct {
 	name string
 	text string
 }
 
-// Fragments of the failures that the rows look for.
+// Identifiers that several rows use.
 const (
-	textNotModified         = "manifestreader: not modified"
-	textBytesBecame         = "bytes became"
-	textTwoContents         = "came with two different contents"
-	textBodyWithNotModified = "expected: manifestreader.Object{ETag:\"\", Bytes:[]uint8(nil)}"
-	textLeak                = "left goroutines behind"
-	textNoReturn            = "the read did not return after its context ended"
-	textNoObject            = "a read that ended with its context returns no object"
-	// textSetup is the failure of a case whose read never reached the store: no row accepts it.
-	textSetup = "the read did not reach the backend"
+	idChanged     = "[changed-read-after-rewrite]"
+	idFollows     = "[follows-rewrite-seen]"
+	idTwoContents = "[etag-two-contents]"
+	idNonPositive = "[limit-nonpositive-too-large]"
+	idNoObject    = "[failed-read-no-object]"
+	idLeak        = "[left-goroutines-behind]"
+	idNoReturn    = "[read-did-not-return]"
+	// idSetup is the failure of a case whose read never reached the store: no row accepts it.
+	idSetup = "[read-did-not-enter]"
 )
+
+// TestFailureIdentifiersAreUnique: the identifier a row looks for occurs once in the source of the suite, in the
+// assertion it names. A fragment of ordinary text (or of the text of testify) could also come from another
+// failure of the case, so no row uses one.
+func TestFailureIdentifiersAreUnique(t *testing.T) {
+	t.Parallel()
+
+	var builder strings.Builder
+
+	for _, name := range []string{"cases.go", "storetest.go"} {
+		data, err := os.ReadFile(name)
+		require.NoError(t, err)
+
+		builder.Write(data)
+	}
+
+	source := builder.String()
+
+	ids := map[string]bool{idSetup: true}
+
+	table, err := os.ReadFile("toy_test.go")
+	require.NoError(t, err)
+
+	for _, match := range regexp.MustCompile(`"(\[[a-z0-9-]+\])"`).FindAllStringSubmatch(string(table), -1) {
+		ids[match[1]] = true
+	}
+
+	require.NotEmpty(t, ids)
+
+	for id := range ids {
+		assert.Equal(t, 1, strings.Count(source, id), "the identifier %s occurs once in the suite", id)
+	}
+}
 
 // TestSuiteAcceptsAGoodToy guards the table above: the toy without a defect passes every case, so the failures
 // of the other rows come from their defects.
@@ -586,4 +717,84 @@ func TestSuiteAcceptsAGoodToy(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{caseKeys}, notRun, "the one case that needs key validation")
+}
+
+// TestSuiteAcceptsConformingToys: stores that the suite must not reject, each with a property that an earlier
+// version of a case assumed away: ETags that are per-key generation numbers, an empty object returned as nil
+// bytes, a backend that admits one read at a time with a queue the context ends, and a worker per read that ends
+// with the context. Every case that the store does not waive runs and passes.
+func TestSuiteAcceptsConformingToys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		configure   func(*toyStore)
+		name        string
+		wantNotRun  []string
+		waiveHashed bool
+	}{
+		{
+			name: "ETags are per-key generation numbers", configure: func(s *toyStore) { s.generationETags = true },
+			waiveHashed: true, wantNotRun: []string{"etag-is-content-addressed", caseKeys},
+		},
+		{
+			name: "the empty object is nil bytes", configure: func(s *toyStore) { s.nilEmpty = true },
+			wantNotRun: []string{caseKeys},
+		},
+		{
+			name: "one read at a time with a queue that the context ends",
+			configure: func(s *toyStore) {
+				s.admit = make(chan struct{}, 1)
+			},
+			wantNotRun: []string{caseKeys},
+		},
+		{
+			name: "a worker per read that ends with the context", configure: func(s *toyStore) { s.ctxWorker = true },
+			wantNotRun: []string{caseKeys},
+		},
+		{
+			name: "the first ETags of a key are words that other cases use as made-up tokens",
+			configure: func(s *toyStore) {
+				s.literalETags = true
+				s.notModifiedFirst = true
+			},
+			waiveHashed: true, wantNotRun: []string{"etag-is-content-addressed", caseKeys},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				notRun []string
+				failed []string
+			)
+
+			for _, name := range storetest.CaseNames() {
+				fixture, toy := toyFixture(defectNone)
+				tt.configure(toy)
+
+				if tt.waiveHashed {
+					fixture.Unsupported = toyWaivers().With(storetest.CapContentAddressedETag, "the ETags are generation numbers")
+				}
+
+				failures, ran := storetest.Check(name, fixture)
+
+				close(toy.release)
+
+				if !ran {
+					notRun = append(notRun, name)
+
+					continue
+				}
+
+				if len(failures) > 0 {
+					failed = append(failed, name+": "+strings.Join(failures, "\n"))
+				}
+			}
+
+			assert.Empty(t, failed, "cases that failed for a conforming store")
+			assert.Equal(t, tt.wantNotRun, notRun)
+		})
+	}
 }

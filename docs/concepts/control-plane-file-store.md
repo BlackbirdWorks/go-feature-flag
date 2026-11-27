@@ -165,7 +165,8 @@ An update writes a new timestamped directory, renames a new `..data` link over t
 directory. The store follows these links (all relative and inside the mount), so `manifest.yaml` resolves to the files of
 the current directory. The swap is atomic: a read sees the old directory or the new one. A read that started on the old
 directory just before it was removed can find the file missing; that poll is a failed poll and the next one succeeds.
-Remember that kubelet updates a mounted ConfigMap with a delay of up to about a minute, that a ConfigMap is limited to
+Remember that a mounted ConfigMap is updated after a delay that depends on the kubelet synchronization period and on
+the propagation of its cache (there is no fixed bound), that a ConfigMap is limited to
 1 MiB, and that a `subPath` mount never updates: mount the whole directory.
 
 ## Request budget
@@ -279,6 +280,10 @@ func TestConformance_MyStore(t *testing.T) {
   package use it on stores with one defect each (a stale ETag, a constant ETag, an ignored limit, a body with
   "not modified", an ignored context, a truncated body, a leaked goroutine, an aliased slice, and others) to show
   that the suite fails for each.
+- - The suite assumes only what the contract says. It accepts any ETag scheme (hashes, row versions, per-key generation
+  numbers), the empty object returned as nil or empty bytes, a backend that admits one read at a time, a store that
+  answers a current ETag before it looks at the size, and a store that lets an abandoned request finish after its
+  context ended. `Check` is used on stores of exactly these kinds in the tests of the suite, which must pass them.
 - The suite runs today against the in-memory fake, the file store and the S3 store (the last one with the `docker`
   build tag, on the emulator).
 

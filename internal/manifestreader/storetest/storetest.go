@@ -114,6 +114,13 @@ func (h *Hang) Block(ctx context.Context) error {
 	case <-ctx.Done():
 		return fmt.Errorf("storetest: hang: %w", ctx.Err())
 	case <-h.released:
+		// a context that has ended wins, whatever select picked: a read that ignores its context is not excused
+		// by a release that came at the same time
+		err := ctx.Err()
+		if err != nil {
+			return fmt.Errorf("storetest: hang: %w", err)
+		}
+
 		return nil
 	}
 }
@@ -325,12 +332,17 @@ func CheckWithin(name string, fixture Fixture, bound time.Duration) ([]string, b
 		go func() {
 			defer close(done)
 
+			// deferred, so that it also runs when a failed require ends the case with runtime.Goexit; the context
+			// of the test ends first, as it does for a testing.T, so that a worker that waits for it can stop
+			defer func() {
+				rec.stop()
+				checkNoLeak(rec, runID, current.name)
+			}()
+
 			runLabelled(rec, runID, &current, fixture)
-			checkNoLeak(rec, runID, current.name)
 		}()
 
 		<-done
-		rec.stop()
 
 		return rec.failures(), true
 	}
@@ -362,16 +374,30 @@ const (
 func runLabelled(t TB, runID string, current *contractCase, fixture Fixture) {
 	t.Helper()
 
-	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, current.name), func(context.Context) {
-		current.run(t, fixture)
+	pprof.Do(t.Context(), pprof.Labels(labelRun, runID, labelCase, current.name), func(ctx context.Context) {
+		// the case code gets the labelled context: a goroutine that a store starts from it, even under a pprof.Do
+		// of its own, carries the labels
+		current.run(labelledTB{TB: t, ctx: ctx}, fixture)
 	})
 }
+
+// labelledTB is the test of a case with the context that carries the labels of the case. The wait bound of the
+// test is kept.
+type labelledTB struct {
+	TB
+
+	ctx context.Context //nolint:containedctx // it is the context of the test, as testing.T.Context is
+}
+
+func (l labelledTB) Context() context.Context { return l.ctx }
+
+func (l labelledTB) waitBound() time.Duration { return waitBound(l.TB) }
 
 // checkNoLeak fails when a goroutine of the case (of the whole run when caseID is empty) is left.
 func checkNoLeak(t TB, runID, caseID string) {
 	t.Helper()
 
-	assert.Empty(t, settledLeaks(runID, caseID), "the case left goroutines behind")
+	assert.Empty(t, settledLeaks(runID, caseID), "[left-goroutines-behind] the case left goroutines behind")
 }
 
 // recorder is a [TB] that records instead of failing.

@@ -25,8 +25,9 @@ import (
 //
 // A goroutine that ends needs a moment to be gone (a cancelled request closes its connection, the connection
 // goroutine sees it). The check does not sleep and does not read a clock: it reads the profile, yields the
-// processor a bounded number of times, and reads it again, up to settleRounds times. A leak costs that bound
-// (about half a second); a case without one is done after the first read or two.
+// processor yieldsPerRound times, and reads it again, up to settleRounds times. A leak costs that bound (about half a
+// second); a case without one is done after the first read or two. A store whose goroutines need more than that to
+// end (they wait for a real network round trip, say) has to finish them before the call returns.
 //
 // What does not count: the reader and writer goroutines of an open keep-alive HTTP connection. They belong to the
 // connection pool of the transport, which outlives any request, and they are created by whichever case dialled

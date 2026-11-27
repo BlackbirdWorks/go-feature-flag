@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -58,25 +59,13 @@ func newManualDeadline(parent context.Context) *manualDeadline {
 
 func (m *manualDeadline) Done() <-chan struct{} { return m.done }
 
-// The seconds since the epoch that Deadline reports before and after the deadline passes.
-const (
-	deadlineLongPast = 1
-	deadlineFarAhead = 1 << 40
-)
+// deadlineInstant is the one deadline the context reports for its whole life, as a context must: a fixed instant,
+// far ahead. The test signals that the deadline has passed through Done and Err, as a timer would, and a store that
+// copies Deadline() once into an I/O deadline and ignores Done never sees it.
+const deadlineInstant = 1 << 40
 
-// Deadline implements [context.Context], consistent with Done and Err.
-//
-// A store that hands the deadline to the I/O it starts (a connection deadline, an HTTP client) sees a deadline far
-// ahead until the test expires the context, and one long past after. They are fixed instants, so the context
-// reads no clock.
-func (m *manualDeadline) Deadline() (time.Time, bool) {
-	select {
-	case <-m.done:
-		return time.Unix(deadlineLongPast, 0), true
-	default:
-		return time.Unix(deadlineFarAhead, 0), true
-	}
-}
+// Deadline implements [context.Context]: the same result on every call.
+func (*manualDeadline) Deadline() (time.Time, bool) { return time.Unix(deadlineInstant, 0), true }
 
 func (m *manualDeadline) Err() error {
 	select {
@@ -146,21 +135,36 @@ func allCases() []contractCase {
 	}
 }
 
-func get(ctx context.Context, fixture Fixture, key, etag string, limit int64) (manifestreader.Object, error) {
-	obj, err := fixture.Store.Get(ctx, manifestreader.GetRequest{Key: key, ETag: etag, Limit: limit})
+// get reads and, for every error, also checks that no object came with it: a failed read returns a zero Object.
+func get(ctx context.Context, t TB, fixture Fixture, key, etag string, limit int64) (manifestreader.Object, error) {
+	t.Helper()
+
+	return getRequest(ctx, t, fixture, manifestreader.GetRequest{Key: key, ETag: etag, Limit: limit})
+}
+
+func getRequest(
+	ctx context.Context, t TB, fixture Fixture, req manifestreader.GetRequest,
+) (manifestreader.Object, error) {
+	t.Helper()
+
+	obj, err := fixture.Store.Get(ctx, req)
 	if err != nil {
-		return obj, fmt.Errorf("storetest: get %q: %w", key, err)
+		assert.Equal(t, manifestreader.Object{}, obj, "[failed-read-no-object] a failed read returns no object")
+
+		return obj, fmt.Errorf("storetest: get %q: %w", req.Key, err)
 	}
 
 	return obj, nil
 }
 
 // mustGet reads key and requires success.
-func mustGet(t TB, fixture Fixture, key, etag string, limit int64) manifestreader.Object {
+func mustGet(
+	t TB, fixture Fixture, key, etag string, limit int64, msgAndArgs ...any,
+) manifestreader.Object {
 	t.Helper()
 
-	obj, err := get(t.Context(), fixture, key, etag, limit)
-	require.NoError(t, err)
+	obj, err := get(t.Context(), t, fixture, key, etag, limit)
+	require.NoError(t, err, msgAndArgs...)
 
 	return obj
 }
@@ -170,6 +174,18 @@ func mustPut(t TB, fixture Fixture, key string, content []byte) {
 	require.NoError(t, fixture.Backend.Put(key, content))
 }
 
+// sameBytes compares bodies by content: nil and empty are the same body.
+func sameBytes(t TB, want, got []byte, msgAndArgs ...any) {
+	t.Helper()
+
+	if !bytes.Equal(want, got) {
+		assert.Fail(
+			t,
+			fmt.Sprintf("the bodies differ: want %d bytes %q, got %d bytes %q", len(want), want, len(got), got),
+			msgAndArgs...)
+	}
+}
+
 // wantFetchError asserts the classification of a failed read.
 func wantFetchError(t TB, err error, reason string, retryable, throttled bool) {
 	t.Helper()
@@ -177,7 +193,7 @@ func wantFetchError(t TB, err error, reason string, retryable, throttled bool) {
 	fetchErr, ok := errors.AsType[*manifestreader.FetchError](err)
 	require.True(t, ok, "want a *FetchError, got %T: %v", err, err)
 	assert.Equal(t, reason, fetchErr.Reason)
-	assert.Equal(t, retryable, fetchErr.Retryable, "Retryable")
+	assert.Equal(t, retryable, fetchErr.Retryable, "[fault-retryable] Retryable")
 	assert.Equal(t, throttled, fetchErr.Throttled, "Throttled")
 	require.NotErrorIs(t, err, manifestreader.ErrNotFound)
 	require.NotErrorIs(t, err, manifestreader.ErrNotModified)
@@ -191,7 +207,7 @@ func caseGetUnconditional(t TB, fixture Fixture) {
 	mustPut(t, fixture, keyMain, content)
 
 	obj := mustGet(t, fixture, keyMain, "", bigLimit)
-	assert.Equal(t, content, obj.Bytes, "the body of an unconditional read")
+	sameBytes(t, content, obj.Bytes, "[unconditional-body] the body of an unconditional read")
 	assert.NotEmpty(t, obj.ETag)
 }
 
@@ -201,7 +217,7 @@ func caseConditionalUnchanged(t TB, fixture Fixture) {
 	mustPut(t, fixture, keyMain, []byte(`{"flag":true}`))
 	first := mustGet(t, fixture, keyMain, "", bigLimit)
 
-	obj, err := get(t.Context(), fixture, keyMain, first.ETag, bigLimit)
+	obj, err := get(t.Context(), t, fixture, keyMain, first.ETag, bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified)
 	assert.Equal(t, manifestreader.Object{}, obj, "a not-modified answer carries no body and no ETag")
 }
@@ -215,45 +231,69 @@ func caseConditionalChanged(t TB, fixture Fixture) {
 	changed := []byte(`{"flag":false,"more":1}`)
 	mustPut(t, fixture, keyMain, changed)
 
-	second := mustGet(t, fixture, keyMain, first.ETag, bigLimit)
-	assert.Equal(t, changed, second.Bytes, "the new body")
+	second := mustGet(t, fixture, keyMain, first.ETag, bigLimit, "[changed-read-after-rewrite]")
+	sameBytes(t, changed, second.Bytes, "[changed-new-body] the new body")
 	assert.NotEmpty(t, second.ETag)
 	assert.NotEqual(t, first.ETag, second.ETag)
 
-	_, err := get(t.Context(), fixture, keyMain, second.ETag, bigLimit)
+	_, err := get(t.Context(), t, fixture, keyMain, second.ETag, bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified, "the new ETag is current")
+}
+
+// staleETags writes the contents in turn to keyMain and returns the ETag of each, then writes content and returns
+// its ETag. The stale ETags belong to bytes that were once at the key, so none of them is a made-up token that a
+// store could happen to use as an ETag of its own.
+func staleETags(t TB, fixture Fixture, earlier [][]byte, content []byte) ([]string, string) {
+	t.Helper()
+
+	stale := make([]string, 0, len(earlier))
+
+	for _, old := range earlier {
+		mustPut(t, fixture, keyMain, old)
+		stale = append(stale, mustGet(t, fixture, keyMain, "", bigLimit).ETag)
+	}
+
+	mustPut(t, fixture, keyMain, content)
+
+	current := mustGet(t, fixture, keyMain, "", bigLimit).ETag
+
+	for _, etag := range stale {
+		require.NotEqual(t, current, etag, "an ETag of other content at the key is not the current ETag")
+	}
+
+	return stale, current
 }
 
 func caseUnknownETag(t TB, fixture Fixture) {
 	t.Helper()
 
 	content := []byte(`{"flag":true}`)
-	mustPut(t, fixture, keyMain, content)
+	stale, _ := staleETags(t, fixture, [][]byte{[]byte("first"), []byte(`{"flag":false}`)}, content)
 
-	for _, etag := range []string{`"not-an-etag"`, `"0000000000000000"`, `W/"weak"`} {
-		obj := mustGet(t, fixture, keyMain, etag, bigLimit)
-		assert.Equal(t, content, obj.Bytes, etag)
+	for _, etag := range stale {
+		obj := mustGet(t, fixture, keyMain, etag, bigLimit, "[unknown-etag-returns-object]")
+		sameBytes(t, content, obj.Bytes, etag)
 	}
 }
 
 func caseMissing(t TB, fixture Fixture) {
 	t.Helper()
 
-	obj, err := get(t.Context(), fixture, keyMain, "", bigLimit)
-	require.ErrorIs(t, err, manifestreader.ErrNotFound, "never written")
+	obj, err := get(t.Context(), t, fixture, keyMain, "", bigLimit)
+	require.ErrorIs(t, err, manifestreader.ErrNotFound, "[missing-never-written]")
 	assert.Equal(t, manifestreader.Object{}, obj)
 
 	mustPut(t, fixture, keyMain, []byte("x"))
 	etag := mustGet(t, fixture, keyMain, "", bigLimit).ETag
 	require.NoError(t, fixture.Backend.Delete(keyMain))
 
-	_, err = get(t.Context(), fixture, keyMain, "", bigLimit)
+	_, err = get(t.Context(), t, fixture, keyMain, "", bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotFound, "deleted")
 
-	_, err = get(t.Context(), fixture, keyMain, etag, bigLimit)
+	_, err = get(t.Context(), t, fixture, keyMain, etag, bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotFound, "a deleted object is not a not-modified one")
 
-	_, err = get(t.Context(), fixture, "conformance/no/such/dir/object.json", "", bigLimit)
+	_, err = get(t.Context(), t, fixture, "conformance/no/such/dir/object.json", "", bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotFound, "a missing directory on the path")
 }
 
@@ -262,11 +302,10 @@ func caseMissingVersion(t TB, fixture Fixture) {
 
 	mustPut(t, fixture, keyMain, []byte("x"))
 
-	obj, err := fixture.Store.Get(t.Context(), manifestreader.GetRequest{
+	_, err := getRequest(t.Context(), t, fixture, manifestreader.GetRequest{
 		Key: keyMain, VersionID: "no-such-version", Limit: bigLimit,
 	})
-	require.ErrorIs(t, err, manifestreader.ErrNotFound)
-	assert.Equal(t, manifestreader.Object{}, obj)
+	require.ErrorIs(t, err, manifestreader.ErrNotFound, "[missing-version-not-found]")
 }
 
 func caseVersionID(t TB, fixture Fixture) {
@@ -284,28 +323,28 @@ func caseVersionID(t TB, fixture Fixture) {
 	require.NotEqual(t, id1, id2)
 
 	byVersion := func(id, etag string) (manifestreader.Object, error) {
-		return fixture.Store.Get(t.Context(), manifestreader.GetRequest{
+		return getRequest(t.Context(), t, fixture, manifestreader.GetRequest{
 			Key: keyMain, VersionID: id, ETag: etag, Limit: bigLimit,
 		})
 	}
 
 	old, err := byVersion(id1, "")
 	require.NoError(t, err)
-	assert.Equal(t, first, old.Bytes, "the older version is read after the overwrite")
+	sameBytes(t, first, old.Bytes, "[older-version-bytes] the older version is read after the overwrite")
 
 	current, err := byVersion(id2, "")
 	require.NoError(t, err)
-	assert.Equal(t, second, current.Bytes)
+	sameBytes(t, second, current.Bytes)
 	assert.NotEqual(t, old.ETag, current.ETag)
 
-	assert.Equal(t, second, mustGet(t, fixture, keyMain, "", bigLimit).Bytes, "no version id: the current one")
+	sameBytes(t, second, mustGet(t, fixture, keyMain, "", bigLimit).Bytes, "no version id: the current one")
 
 	_, err = byVersion(id1, old.ETag)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified, "an older version is unchanged for its own ETag")
 
 	again, err := byVersion(id1, current.ETag)
 	require.NoError(t, err)
-	assert.Equal(t, first, again.Bytes, "the ETag of another version does not make the version unchanged")
+	sameBytes(t, first, again.Bytes, "the ETag of another version does not make the version unchanged")
 }
 
 // faultCase arranges fault for keyMain, checks the classification of an unconditional and of a conditional read
@@ -319,24 +358,23 @@ func faultCase(t TB, fixture Fixture, fault Fault, reason string, retryable, thr
 
 	require.NoError(t, fixture.Backend.Fail(keyMain, fault))
 
-	obj, err := get(t.Context(), fixture, keyMain, "", bigLimit)
+	_, err := get(t.Context(), t, fixture, keyMain, "", bigLimit)
 	require.Error(t, err)
 	wantFetchError(t, err, reason, retryable, throttled)
-	assert.Equal(t, manifestreader.Object{}, obj)
 
-	_, err = get(t.Context(), fixture, keyMain, etag, bigLimit)
+	_, err = get(t.Context(), t, fixture, keyMain, etag, bigLimit)
 	require.Error(t, err)
 	wantFetchError(t, err, reason, retryable, throttled)
 
 	// another key is not affected
 	mustPut(t, fixture, keyOther, []byte("other"))
-	assert.Equal(t, []byte("other"), mustGet(t, fixture, keyOther, "", bigLimit).Bytes)
+	sameBytes(t, []byte("other"), mustGet(t, fixture, keyOther, "", bigLimit).Bytes)
 
 	require.NoError(t, fixture.Backend.Fail(keyMain, FaultNone))
 
-	assert.Equal(t, content, mustGet(t, fixture, keyMain, "", bigLimit).Bytes, "recovered")
+	sameBytes(t, content, mustGet(t, fixture, keyMain, "", bigLimit).Bytes, "recovered")
 
-	_, err = get(t.Context(), fixture, keyMain, etag, bigLimit)
+	_, err = get(t.Context(), t, fixture, keyMain, etag, bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified, "recovered, and the ETag is still the one of the content")
 }
 
@@ -377,16 +415,15 @@ func caseLimitBoundary(t TB, fixture Fixture) {
 	}
 
 	for _, tt := range tests {
-		obj, err := get(t.Context(), fixture, keyMain, "", tt.limit)
+		obj, err := get(t.Context(), t, fixture, keyMain, "", tt.limit)
 		if tt.want {
 			require.NoError(t, err, tt.name)
-			assert.Equal(t, content, obj.Bytes, tt.name)
+			sameBytes(t, content, obj.Bytes, tt.name)
 
 			continue
 		}
 
-		require.ErrorIs(t, err, manifestreader.ErrTooLarge, tt.name)
-		assert.Equal(t, manifestreader.Object{}, obj, tt.name)
+		require.ErrorIs(t, err, manifestreader.ErrTooLarge, "[limit-boundary-too-large] "+tt.name)
 	}
 }
 
@@ -401,15 +438,14 @@ func caseLimitZeroAndNegative(t TB, fixture Fixture) {
 	limits := []int64{0, -1, -1000, math.MinInt64}
 
 	for _, limit := range limits {
-		obj, err := get(t.Context(), fixture, keyMain, "", limit)
-		require.ErrorIs(t, err, manifestreader.ErrTooLarge, "limit %d, one byte", limit)
-		assert.Equal(t, manifestreader.Object{}, obj, "limit %d", limit)
+		_, err := get(t.Context(), t, fixture, keyMain, "", limit)
+		require.ErrorIs(t, err, manifestreader.ErrTooLarge, "[limit-nonpositive-too-large] limit %d, one byte", limit)
 
 		empty := mustGet(t, fixture, keyOther, "", limit)
 		assert.Empty(t, empty.Bytes, "limit %d, empty object", limit)
 		assert.NotEmpty(t, empty.ETag, "limit %d, empty object", limit)
 
-		_, err = get(t.Context(), fixture, keyOther, empty.ETag, limit)
+		_, err = get(t.Context(), t, fixture, keyOther, empty.ETag, limit)
 		require.ErrorIs(t, err, manifestreader.ErrNotModified, "limit %d, empty object, current ETag", limit)
 	}
 }
@@ -420,20 +456,17 @@ func caseConditionalOverLimit(t TB, fixture Fixture) {
 	t.Helper()
 
 	content := bytes.Repeat([]byte("0123456789"), repeatTen)
-	mustPut(t, fixture, keyMain, content)
+	stale, etag := staleETags(t, fixture, [][]byte{[]byte("other content")}, content)
 
-	etag := mustGet(t, fixture, keyMain, "", bigLimit).ETag
-
-	obj, err := get(t.Context(), fixture, keyMain, etag, int64(len(content))-1)
+	obj, err := get(t.Context(), t, fixture, keyMain, etag, int64(len(content))-1)
 	require.Error(t, err)
 	assert.True(t,
 		errors.Is(err, manifestreader.ErrNotModified) || errors.Is(err, manifestreader.ErrTooLarge),
 		"want not-modified or too-large, got %v", err)
 	assert.Equal(t, manifestreader.Object{}, obj, "never a body")
 
-	obj, err = get(t.Context(), fixture, keyMain, `"stale"`, int64(len(content))-1)
+	_, err = get(t.Context(), t, fixture, keyMain, stale[0], int64(len(content))-1)
 	require.ErrorIs(t, err, manifestreader.ErrTooLarge, "another ETag: the object is read and it is too large")
-	assert.Equal(t, manifestreader.Object{}, obj)
 }
 
 func caseEmptyObject(t TB, fixture Fixture) {
@@ -449,14 +482,18 @@ func caseEmptyObject(t TB, fixture Fixture) {
 	}
 
 	empty := mustGet(t, fixture, keyMain, "", bigLimit)
-	other := mustGet(t, fixture, keyOther, "", bigLimit)
-	assert.NotEqual(t, empty.ETag, other.ETag, "the empty object has an ETag of its own")
 
-	_, err := get(t.Context(), fixture, keyMain, empty.ETag, 0)
+	_, err := get(t.Context(), t, fixture, keyMain, empty.ETag, 0)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified)
 
-	_, err = get(t.Context(), fixture, keyOther, "", 0)
-	require.ErrorIs(t, err, manifestreader.ErrTooLarge, "one byte over a limit of zero")
+	_, err = get(t.Context(), t, fixture, keyOther, "", 0)
+	require.ErrorIs(t, err, manifestreader.ErrTooLarge, "[empty-limit-zero-too-large] one byte over a limit of zero")
+
+	// the empty body and another body at the same key have different ETags
+	mustPut(t, fixture, keyMain, []byte("x"))
+
+	other := mustGet(t, fixture, keyMain, "", bigLimit)
+	assert.NotEqual(t, empty.ETag, other.ETag, "[empty-etag-differs] the empty object has an ETag of its own")
 }
 
 func pseudoRandom(seed uint64, size int) []byte {
@@ -479,12 +516,12 @@ func caseLargeObject(t TB, fixture Fixture) {
 	mustPut(t, fixture, keyMain, content)
 
 	obj := mustGet(t, fixture, keyMain, "", size)
-	assert.True(t, bytes.Equal(content, obj.Bytes), "the 3 MiB body is returned whole at a limit equal to its size")
+	sameBytes(t, content, obj.Bytes, "the 3 MiB body is returned whole at a limit equal to its size")
 
-	_, err := get(t.Context(), fixture, keyMain, "", size-1)
+	_, err := get(t.Context(), t, fixture, keyMain, "", size-1)
 	require.ErrorIs(t, err, manifestreader.ErrTooLarge)
 
-	_, err = get(t.Context(), fixture, keyMain, obj.ETag, size)
+	_, err = get(t.Context(), t, fixture, keyMain, obj.ETag, size)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified)
 }
 
@@ -516,9 +553,9 @@ func keyCharacters(t TB, fixture Fixture, keys []string) {
 	}
 
 	for i, key := range keys {
-		obj, err := get(t.Context(), fixture, key, "", bigLimit)
+		obj, err := get(t.Context(), t, fixture, key, "", bigLimit)
 		require.NoError(t, err, key)
-		assert.Equal(t, []byte("content-"+strconv.Itoa(i)), obj.Bytes, key)
+		sameBytes(t, []byte("content-"+strconv.Itoa(i)), obj.Bytes, key)
 	}
 }
 
@@ -540,9 +577,8 @@ func caseOddKeys(t TB, fixture Fixture) {
 	mustPut(t, fixture, "conformance/real.json", []byte("real"))
 
 	for _, key := range oddKeys() {
-		obj, err := get(t.Context(), fixture, key, "", bigLimit)
+		_, err := get(t.Context(), t, fixture, key, "", bigLimit)
 		require.Error(t, err, "key %q", key)
-		assert.Equal(t, manifestreader.Object{}, obj, "key %q", key)
 
 		_, isFetch := errors.AsType[*manifestreader.FetchError](err)
 		assert.True(t, isFetch || errors.Is(err, manifestreader.ErrNotFound), "key %q: %T %v", key, err, err)
@@ -553,7 +589,7 @@ func caseKeyRefusal(t TB, fixture Fixture) {
 	t.Helper()
 
 	mustPut(t, fixture, "conformance/real.json", []byte("real"))
-	assert.Equal(t, []byte("real"), mustGet(t, fixture, "conformance/real.json", "", bigLimit).Bytes)
+	sameBytes(t, []byte("real"), mustGet(t, fixture, "conformance/real.json", "", bigLimit).Bytes)
 
 	refused := []string{
 		"", ".", "..", "/conformance/real.json", "conformance/../conformance/real.json", "./conformance/real.json",
@@ -563,10 +599,9 @@ func caseKeyRefusal(t TB, fixture Fixture) {
 	}
 
 	for _, key := range refused {
-		obj, err := get(t.Context(), fixture, key, "", bigLimit)
+		_, err := get(t.Context(), t, fixture, key, "", bigLimit)
 		require.Error(t, err, "key %q", key)
 		wantFetchError(t, err, manifestreader.ReasonDenied, false, false)
-		assert.Equal(t, manifestreader.Object{}, obj, "key %q", key)
 	}
 }
 
@@ -576,11 +611,11 @@ func caseNestedKeys(t TB, fixture Fixture) {
 	mustPut(t, fixture, "conformance/node", []byte("the object"))
 	mustPut(t, fixture, "conformance/node/child", []byte("the child"))
 
-	assert.Equal(t, []byte("the object"), mustGet(t, fixture, "conformance/node", "", bigLimit).Bytes)
-	assert.Equal(t, []byte("the child"), mustGet(t, fixture, "conformance/node/child", "", bigLimit).Bytes)
+	sameBytes(t, []byte("the object"), mustGet(t, fixture, "conformance/node", "", bigLimit).Bytes)
+	sameBytes(t, []byte("the child"), mustGet(t, fixture, "conformance/node/child", "", bigLimit).Bytes)
 
 	require.NoError(t, fixture.Backend.Delete("conformance/node/child"))
-	assert.Equal(t, []byte("the object"), mustGet(t, fixture, "conformance/node", "", bigLimit).Bytes)
+	sameBytes(t, []byte("the object"), mustGet(t, fixture, "conformance/node", "", bigLimit).Bytes)
 }
 
 func caseETagStable(t TB, fixture Fixture) {
@@ -591,11 +626,11 @@ func caseETagStable(t TB, fixture Fixture) {
 
 	for range 3 {
 		again := mustGet(t, fixture, keyMain, "", bigLimit)
-		assert.Equal(t, first, again)
+		assert.Equal(t, first.ETag, again.ETag, "the ETag of unchanged content is stable")
+		sameBytes(t, first.Bytes, again.Bytes)
 
-		obj, err := get(t.Context(), fixture, keyMain, first.ETag, bigLimit)
+		_, err := get(t.Context(), t, fixture, keyMain, first.ETag, bigLimit)
 		require.ErrorIs(t, err, manifestreader.ErrNotModified)
-		assert.Equal(t, manifestreader.Object{}, obj)
 	}
 }
 
@@ -656,22 +691,22 @@ func caseETagFollowsContent(t TB, fixture Fixture) {
 
 		require.NoError(t, fixture.Backend.Overwrite(keyMain, changed))
 
-		second, err := get(t.Context(), fixture, keyMain, first.ETag, bigLimit)
-		require.NoError(t, err, "%d bytes became %d bytes", len(original), len(changed))
-		assert.Equal(t, changed, second.Bytes)
+		second, err := get(t.Context(), t, fixture, keyMain, first.ETag, bigLimit)
+		require.NoError(t, err, "[follows-rewrite-seen] %d bytes became %d bytes", len(original), len(changed))
+		sameBytes(t, changed, second.Bytes)
 		assert.NotEqual(t, first.ETag, second.ETag, "%d -> %d bytes", len(original), len(changed))
 
-		_, err = get(t.Context(), fixture, keyMain, second.ETag, bigLimit)
+		_, err = get(t.Context(), t, fixture, keyMain, second.ETag, bigLimit)
 		require.ErrorIs(t, err, manifestreader.ErrNotModified)
 
 		// and back: whatever the ETag of the original is now, it describes the original bytes
 		require.NoError(t, fixture.Backend.Overwrite(keyMain, original))
 
 		back := mustGet(t, fixture, keyMain, second.ETag, bigLimit)
-		assert.Equal(t, original, back.Bytes)
+		sameBytes(t, original, back.Bytes)
 		assert.NotEqual(t, second.ETag, back.ETag)
 
-		_, err = get(t.Context(), fixture, keyMain, back.ETag, bigLimit)
+		_, err = get(t.Context(), t, fixture, keyMain, back.ETag, bigLimit)
 		require.ErrorIs(t, err, manifestreader.ErrNotModified)
 	}
 }
@@ -690,14 +725,8 @@ func caseETagContentAddressed(t TB, fixture Fixture) {
 		mustPut(t, fixture, keyMain, changed)
 		mustPut(t, fixture, keyMain, original)
 
-		assert.Equal(
-			t,
-			first,
-			mustGet(t, fixture, keyMain, "", bigLimit),
-			"%d -> %d bytes",
-			len(original),
-			len(changed),
-		)
+		again := mustGet(t, fixture, keyMain, "", bigLimit)
+		assert.Equal(t, first.ETag, again.ETag, "%d -> %d bytes", len(original), len(changed))
 	}
 }
 
@@ -717,7 +746,7 @@ func caseETagDescribesBytes(t TB, fixture Fixture) {
 		mustPut(t, fixture, keyMain, content)
 
 		obj := mustGet(t, fixture, keyMain, "", bigLimit)
-		assert.Equal(t, content, obj.Bytes, "the read that follows a write sees the write")
+		sameBytes(t, content, obj.Bytes, "[read-after-write] the read that follows a write sees the write")
 
 		seen = append(seen, obj)
 	}
@@ -743,7 +772,7 @@ func caseETagDescribesBytes(t TB, fixture Fixture) {
 	for range readers {
 		group.Go(func() {
 			for range reads {
-				obj, err := get(t.Context(), fixture, keyMain, "", bigLimit)
+				obj, err := get(t.Context(), t, fixture, keyMain, "", bigLimit)
 				if !assert.NoError(t, err) { //nolint:testifylint // require is not allowed off the test goroutine
 					return
 				}
@@ -771,7 +800,7 @@ func caseETagDescribesBytes(t TB, fixture Fixture) {
 			continue
 		}
 
-		assert.Equal(t, known, obj.Bytes, "the ETag %s came with two different contents", obj.ETag)
+		sameBytes(t, known, obj.Bytes, "[etag-two-contents] the ETag %s came with two different contents", obj.ETag)
 	}
 }
 
@@ -789,9 +818,9 @@ func caseNotAliased(t TB, fixture Fixture) {
 	require.NoError(t, fixture.Backend.Put(keyMain, []byte("ABCDEFGHIJ")))
 	require.NoError(t, fixture.Backend.Overwrite(keyMain, []byte("kl")))
 
-	assert.Equal(t, kept, got.Bytes, "bytes already returned were changed by a later write")
-	assert.Equal(t, []byte("kl"), mustGet(t, fixture, keyMain, "", bigLimit).Bytes)
-	assert.Equal(t, kept, got.Bytes)
+	sameBytes(t, kept, got.Bytes, "[bytes-not-aliased] bytes already returned were changed by a later write")
+	sameBytes(t, []byte("kl"), mustGet(t, fixture, keyMain, "", bigLimit).Bytes)
+	sameBytes(t, kept, got.Bytes)
 }
 
 func caseEndedContext(t TB, fixture Fixture) {
@@ -825,30 +854,45 @@ func caseEndedContext(t TB, fixture Fixture) {
 			key = keyThird
 		}
 
-		obj, err := get(tt.ctx, fixture, key, tt.etag, bigLimit)
-		require.ErrorIs(t, err, tt.want, tt.name)
-		assert.Equal(t, manifestreader.Object{}, obj, tt.name)
+		_, err := get(tt.ctx, t, fixture, key, tt.etag, bigLimit)
+		require.ErrorIs(t, err, tt.want, "[ended-context-error] "+tt.name)
 		require.NotErrorIs(t, err, manifestreader.ErrNotFound, tt.name)
 		require.NotErrorIs(t, err, manifestreader.ErrNotModified, tt.name)
 	}
 }
 
-// hungRead starts a read of key that hangs and waits until it does.
-func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan readResult {
+// startRead starts a read of keyMain on a goroutine and returns at once.
+func startRead(ctx context.Context, t TB, fixture Fixture) <-chan readResult {
 	t.Helper()
 
 	done := make(chan readResult, 1)
 
 	go func() {
-		obj, err := get(ctx, fixture, keyMain, "", bigLimit)
+		obj, err := get(ctx, t, fixture, keyMain, "", bigLimit)
 		done <- readResult{obj: obj, err: err}
 	}()
 
+	return done
+}
+
+// waitEntered waits until a read has reached the backend. It keeps the normal bound whatever the bound of the
+// waits after a cancellation: a read that starts late is not a store that ignores its context.
+func waitEntered(t TB, hang *Hang) {
+	t.Helper()
+
 	select {
 	case <-hang.Entered():
-	case <-time.After(waitBound(t)):
-		require.FailNow(t, "the read did not reach the backend")
+	case <-time.After(wait):
+		require.FailNow(t, "[read-did-not-enter] the read did not reach the backend")
 	}
+}
+
+// hungRead starts a read of keyMain that hangs and waits until it does.
+func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan readResult {
+	t.Helper()
+
+	done := startRead(ctx, t, fixture)
+	waitEntered(t, hang)
 
 	return done
 }
@@ -859,9 +903,9 @@ type readResult struct {
 	obj manifestreader.Object
 }
 
-// awaitRead waits for a read whose context ended and checks what it returned: an error, and no object.
-// waitBound is how long a case waits for an event that must happen: [wait], unless the test is a recording one
-// that was given a shorter bound (see [CheckWithin]), which a store that is known to fail does not need to exhaust.
+// waitBound is how long a case waits for a read to return after its context ended: [wait], unless the test is a
+// recording one that was given a shorter bound (see [CheckWithin]), which a store that is known to ignore its
+// context does not need to exhaust.
 func waitBound(t TB) time.Duration {
 	if bounded, ok := t.(interface{ waitBound() time.Duration }); ok {
 		return bounded.waitBound()
@@ -870,19 +914,38 @@ func waitBound(t TB) time.Duration {
 	return wait
 }
 
+// awaitRead waits for a read whose context ended and returns its error. That no object came with it is checked
+// by the read itself.
 func awaitRead(t TB, done <-chan readResult) error {
 	t.Helper()
 
 	select {
 	case result := <-done:
-		assert.Equal(t, manifestreader.Object{}, result.obj, "a read that ended with its context returns no object")
-
 		return result.err
 	case <-time.After(waitBound(t)):
-		require.FailNow(t, "the read did not return after its context ended")
+		require.FailNow(t, "[read-did-not-return] the read did not return after its context ended")
 
 		return nil
 	}
+}
+
+// awaitIdle checks that no request of the hang is left. A store may return as soon as its context ends and let
+// the request it abandoned finish by itself, so the count is given the bounded, clock-free settling of the leak
+// check before it must be zero.
+func awaitIdle(t TB, hang *Hang, msg string) {
+	t.Helper()
+
+	for range settleRounds {
+		if hang.Active() == 0 {
+			return
+		}
+
+		for range yieldsPerRound {
+			runtime.Gosched()
+		}
+	}
+
+	assert.Equal(t, 0, hang.Active(), msg)
 }
 
 func caseCancelWhileReading(t TB, fixture Fixture) {
@@ -899,22 +962,22 @@ func caseCancelWhileReading(t TB, fixture Fixture) {
 	defer cancel()
 
 	done := hungRead(ctx, t, fixture, hang)
-	assert.Equal(t, 1, hang.Active())
+	assert.GreaterOrEqual(t, hang.Active(), 1, "the read is waiting in the backend")
 
 	cancel()
 
 	err = awaitRead(t, done)
 	require.ErrorIs(t, err, context.Canceled)
 	require.NotErrorIs(t, err, manifestreader.ErrNotFound)
-	assert.Equal(t, 0, hang.Active(), "the request is gone when the read has returned")
+	awaitIdle(t, hang, "the request is gone once the read has returned")
 }
 
 // caseDeadlineWhileReading: the deadline of the context passes while the store waits, and the store ends the read
 // with an error that wraps [context.DeadlineExceeded] and no object. The context of the case signals the deadline
-// the way a context does: Done closes, Err is DeadlineExceeded, and Deadline reports a deadline that has passed. It
-// is not a real timer, so a store that copies the first Deadline() into a one-shot I/O deadline and does not watch
-// Done never ends the read, and fails the case: the contract is that Done is authoritative, and Deadline() alone
-// is an optimisation.
+// the way a timer would: Done closes and Err is DeadlineExceeded. Its Deadline() is one fixed instant for its whole
+// life, as a context's must be, so a store that copies the first Deadline() into a one-shot I/O deadline and does
+// not watch Done never ends the read, and fails the case: the contract is that Done is authoritative, and
+// Deadline() alone is an optimisation.
 func caseDeadlineWhileReading(t TB, fixture Fixture) {
 	t.Helper()
 
@@ -932,7 +995,7 @@ func caseDeadlineWhileReading(t TB, fixture Fixture) {
 
 	err = awaitRead(t, done)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.Equal(t, 0, hang.Active())
+	awaitIdle(t, hang, "the request is gone once the read has returned")
 }
 
 // caseCancelWhileReadingBody cancels after the answer started: the store has the headers and is reading the body.
@@ -957,7 +1020,7 @@ func caseCancelWhileReadingBody(t TB, fixture Fixture) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.NotErrorIs(t, err, manifestreader.ErrNotFound)
 	require.NotErrorIs(t, err, manifestreader.ErrTooLarge)
-	assert.Equal(t, 0, hang.Active())
+	awaitIdle(t, hang, "the request is gone once the read has returned")
 
 	hang.Release()
 
@@ -969,6 +1032,9 @@ func caseCancelWhileReadingBody(t TB, fixture Fixture) {
 	)
 }
 
+// caseNoLeakAfterCancel starts several reads of the key and cancels them. It does not require that the backend
+// admits them together: a store with a queue that takes one read at a time keeps the others waiting, and their
+// context ends them too. It waits for one read to reach the backend, then cancels.
 func caseNoLeakAfterCancel(t TB, fixture Fixture) {
 	t.Helper()
 
@@ -988,25 +1054,26 @@ func caseNoLeakAfterCancel(t TB, fixture Fixture) {
 
 	dones := make([]<-chan readResult, 0, reads)
 	for range reads {
-		dones = append(dones, hungRead(ctx, t, fixture, hang))
+		dones = append(dones, startRead(ctx, t, fixture))
 	}
 
-	assert.Equal(t, reads, hang.Active())
+	waitEntered(t, hang)
 	cancel()
 
 	for _, done := range dones {
 		require.ErrorIs(t, awaitRead(t, done), context.Canceled)
 	}
 
-	assert.Equal(t, 0, hang.Active(), "no request is left behind")
+	awaitIdle(t, hang, "no request is left behind")
 
 	// the store is not poisoned: the same key answers as before once the hang ends
 	hang.Release()
 
 	obj := mustGet(t, fixture, keyMain, "", bigLimit)
-	assert.Equal(t, manifestreader.Object{Bytes: content, ETag: etag}, obj)
+	assert.Equal(t, etag, obj.ETag)
+	sameBytes(t, content, obj.Bytes)
 
-	_, err = get(t.Context(), fixture, keyMain, etag, bigLimit)
+	_, err = get(t.Context(), t, fixture, keyMain, etag, bigLimit)
 	require.ErrorIs(t, err, manifestreader.ErrNotModified)
 }
 
@@ -1024,11 +1091,11 @@ func caseGetsLeaveNothing(t TB, fixture Fixture) {
 	cancel()
 
 	for range leakGets {
-		_, _ = get(t.Context(), fixture, keyMain, "", bigLimit)
-		_, _ = get(t.Context(), fixture, keyMain, etag, bigLimit)
-		_, _ = get(t.Context(), fixture, keyOther, "", bigLimit)
-		_, _ = get(t.Context(), fixture, keyMain, "", 1)
-		_, _ = get(canceled, fixture, keyMain, "", bigLimit)
+		_, _ = get(t.Context(), t, fixture, keyMain, "", bigLimit)
+		_, _ = get(t.Context(), t, fixture, keyMain, etag, bigLimit)
+		_, _ = get(t.Context(), t, fixture, keyOther, "", bigLimit)
+		_, _ = get(t.Context(), t, fixture, keyMain, "", 1)
+		_, _ = get(canceled, t, fixture, keyMain, "", bigLimit)
 	}
 }
 
@@ -1055,16 +1122,16 @@ func caseConcurrentGets(t TB, fixture Fixture) {
 				key := keys[(worker+round)%len(keys)]
 
 				if round%2 == 0 {
-					obj, err := get(t.Context(), fixture, key, "", bigLimit)
+					obj, err := get(t.Context(), t, fixture, key, "", bigLimit)
 					assert.NoError(t, err) //nolint:testifylint // require is not allowed off the test goroutine
-					assert.Equal(t, want[key], obj)
+					assert.Equal(t, want[key].ETag, obj.ETag)
+					sameBytes(t, want[key].Bytes, obj.Bytes)
 
 					continue
 				}
 
-				obj, err := get(t.Context(), fixture, key, want[key].ETag, bigLimit)
-				assert.ErrorIs(t, err, unchanged) //nolint:testifylint // require is not allowed off the test goroutine
-				assert.Equal(t, manifestreader.Object{}, obj)
+				_, err := get(t.Context(), t, fixture, key, want[key].ETag, bigLimit)
+				assert.ErrorIs(t, err, unchanged)
 			}
 		})
 	}

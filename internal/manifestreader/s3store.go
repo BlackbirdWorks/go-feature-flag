@@ -115,12 +115,15 @@ func readUnknownLength(body io.Reader, limit int64) ([]byte, error) {
 	}
 
 	data, err := io.ReadAll(io.LimitReader(body, window))
-	if err != nil {
-		return nil, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
-	}
 
+	// more than limit bytes is too large whatever else the same read returned: the answer does not depend on a
+	// transfer error that came after the extra byte
 	if int64(len(data)) > limit {
 		return nil, ErrTooLarge
+	}
+
+	if err != nil {
+		return nil, &FetchError{Err: err, Reason: ReasonError, Retryable: true}
 	}
 
 	return rightSize(data), nil

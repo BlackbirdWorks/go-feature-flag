@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"runtime/pprof"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -266,4 +268,84 @@ func TestLeakCheckAfterTheCleanup(t *testing.T) {
 
 		t.Cleanup(release) // the cleanup of the fixture
 	})
+}
+
+// TestBlock_ContextEndedWinsOverARelease: when the context has ended and the hang is released, Block returns the
+// error of the context, every time. (select picks at random between two ready cases.)
+func TestBlock_ContextEndedWinsOverARelease(t *testing.T) {
+	t.Parallel()
+
+	const rounds = 200
+
+	for range rounds {
+		hang := NewHang()
+		hang.Release()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		require.ErrorIs(t, hang.Block(ctx), context.Canceled)
+	}
+}
+
+// TestManualDeadline_DeadlineIsOneFixedInstant: a context reports the same deadline on every call; the deadline
+// passing is signalled through Done and Err only.
+func TestManualDeadline_DeadlineIsOneFixedInstant(t *testing.T) {
+	t.Parallel()
+
+	ctx := newManualDeadline(t.Context())
+
+	before, hasBefore := ctx.Deadline()
+	require.NoError(t, ctx.Err())
+
+	ctx.expire()
+
+	after, hasAfter := ctx.Deadline()
+
+	assert.True(t, hasBefore)
+	assert.True(t, hasAfter)
+	assert.True(t, before.Equal(after), "the deadline does not change when the context expires")
+	require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+
+	select {
+	case <-ctx.Done():
+	default:
+		assert.Fail(t, "Done is closed once the deadline has passed")
+	}
+}
+
+// TestWaitEntered_KeepsTheNormalBound: the short bound of CheckWithin is for the wait after a cancellation. A read
+// that reaches the backend late is not a store that ignores its context, so the wait for it keeps the normal bound.
+func TestWaitEntered_KeepsTheNormalBound(t *testing.T) {
+	t.Parallel()
+
+	rec := newRecorder()
+	rec.bound = time.Nanosecond
+
+	hang := NewHang()
+	done := runRecorded(func() { waitEntered(rec, hang) })
+
+	for range 5000 { // the read reaches the backend long after a bound of a nanosecond
+		runtime.Gosched()
+	}
+
+	hang.entered <- struct{}{}
+
+	<-done
+
+	assert.Empty(t, rec.failures())
+}
+
+// runRecorded runs body on a goroutine of its own and returns a channel that closes when it ends. A recording test
+// ends a failed case with [runtime.Goexit], which must not end the goroutine of the test.
+func runRecorded(body func()) <-chan struct{} {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		body()
+	}()
+
+	return done
 }
