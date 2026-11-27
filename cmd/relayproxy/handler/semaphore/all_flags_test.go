@@ -3,7 +3,6 @@ package semaphore_test
 import (
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,14 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
@@ -137,23 +133,8 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := config.Config{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: tt.args.configFlagsLocation,
-				},
-				Exporter: &config.ExporterConf{
-					Kind: config.LogExporter,
-				},
-			}
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
+			cfg := mock.LogExporter(mock.FileConfig(tt.args.configFlagsLocation))
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()
@@ -278,27 +259,13 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys: []string{"test-api-key"},
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: retrieverconf.FileRetriever,
-							Path: tt.args.configFlagsLocation,
-						},
-						Exporter: &config.ExporterConf{
-							Kind: config.LogExporter,
-						}},
+			flagsetManager := mock.NewNamed(
+				t,
+				mock.Named{
+					APIKeys: []string{"test-api-key"},
+					Config:  mock.LogExporter(mock.FileConfig(tt.args.configFlagsLocation)),
 				},
-			}
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
 			)
-			require.NoError(t, err, impossibleToCreateFlagset)
 
 			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})
 			rec := httptest.NewRecorder()

@@ -31,9 +31,7 @@ const (
 	wrongFlag                     = "wrong-flag"
 )
 
-var (
-	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
-)
+var errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
 
 // newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {

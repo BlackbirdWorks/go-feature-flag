@@ -1,10 +1,9 @@
 # Kubernetes ConfigMap
 
 > [!NOTE]
-> The relay proxy does not run retrievers any more: it reads a control plane store (S3 or a directory), see the
-> [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration examples on this page are version 1 and
-> are not read by the relay; the retriever kinds come back to the relay with the control plane connections (issue #57).
-> The Go module is not affected.
+> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
+> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
+> read by the relay. The Go module is not affected.
 
 ## Overview
 

@@ -20,7 +20,6 @@ updates:
       - dependency-name: "github.com/blackbirdworks/semaphore*"
       - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
       - dependency-name: "github.com/go-feature-flag/*"
-      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     # Sibling modules share versions: group related updates in one PR.
     groups:
       aws:

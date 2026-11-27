@@ -632,6 +632,13 @@ func TestRegisterLooksAtTheCacheAgainUnderTheLock(t *testing.T) {
 func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
 	t.Parallel()
 
+	const (
+		wantOverdue = 0
+		wantCalls   = 2
+	)
+
+	wantSegment := SegmentStatus{Breaker: BreakerClosed}
+
 	store := &internalStore{}
 	res := newInternal(t, store, &Options{
 		Default: SegmentOptions{BreakerFailures: 1, NoCache: true},
@@ -649,8 +656,8 @@ func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
 
 	status := res.Status()
 
-	assert.Equal(t, 0, status.Overdue, "a call that returned in time is not overdue")
-	assert.Equal(t, SegmentStatus{Breaker: BreakerClosed}, status.Segments[testSeg], "no failure was counted")
+	assert.Equal(t, wantOverdue, status.Overdue, "a call that returned in time is not overdue")
+	assert.Equal(t, wantSegment, status.Segments[testSeg], "no failure was counted")
 
 	// the next uncached lookup is not refused by the breaker: it makes its own call (the hook cancels this one too)
 	second := []segment.Lookup{{Segment: testSeg, ID: "b"}}
@@ -662,11 +669,16 @@ func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	assert.Equal(t, 2, store.calls, "the next uncached lookup reaches the store")
+	assert.Equal(t, wantCalls, store.calls, "the next uncached lookup reaches the store")
 }
 
 func TestTheDeadlineBeforeTheReplyDecidesOnceAndTheLateReplyCountsForNothing(t *testing.T) {
 	t.Parallel()
+
+	const (
+		wantStatus   = BreakerClosed
+		wantFailures = 1
+	)
 
 	res := newInternal(t, &internalStore{}, &Options{Default: SegmentOptions{BreakerFailures: 2}})
 	seg := res.state(testSeg)
@@ -681,8 +693,8 @@ func TestTheDeadlineBeforeTheReplyDecidesOnceAndTheLateReplyCountsForNothing(t *
 
 	status, failures := seg.brk.snapshot()
 
-	assert.Equal(t, BreakerClosed, status)
-	assert.Equal(t, 1, failures, "one failure, counted once, when it became overdue")
+	assert.Equal(t, wantStatus, status)
+	assert.Equal(t, wantFailures, failures, "one failure, counted once, when it became overdue")
 }
 
 func TestWaitForReportsTheStoreErrorAndTheTimeoutWhateverTheOrder(t *testing.T) {

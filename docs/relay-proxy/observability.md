@@ -91,19 +91,7 @@ Protocol, endpoint, and headers use standard `OTEL_EXPORTER_OTLP_*` environment 
 > [!NOTE]
 > The relay proxy supports [Prometheus native histograms](https://prometheus.io/docs/specs/native_histograms/) for higher-precision latency percentiles when scraped with Prometheus (especially over protobuf), while preserving classic histogram buckets for backward compatibility.
 
-All relay proxy series use the `semaphore_` prefix. To also emit series under the legacy `gofeatureflag_` prefix while migrating dashboards and alerts, set [`exposeLegacyMetrics`](configuration.md#exposelegacymetrics).
-
-#### Loaded flags
-
-The `semaphore_flag_loaded` gauge exposes one series per flag currently in the cache with labels `flagset`, `flag_name`, and `disabled`. It is computed on every scrape: deleted flags disappear after cache refresh, and `disabled` reflects the effective state at scrape time (including due `scheduledRollout` steps and ended `experimentation` windows).
-
-```promql
-# all flags currently served, per flagset
-sum by (flagset) (semaphore_flag_loaded)
-
-# flags loaded but disabled
-semaphore_flag_loaded{disabled="true"}
-```
+All relay proxy series use the `semaphore_` prefix. To also emit series under the legacy `gofeatureflag_` prefix while migrating dashboards and alerts, set [`observability.metrics.legacyNames`](bootstrap-config.md).
 
 ---
 

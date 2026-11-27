@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -752,27 +752,26 @@ func Test_Golden(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		configure func(*config.Config)
+		configure func(*testConf)
 		name      string
 		cases     []goldenCase
 		series    bool
 	}{
 		{
 			name:      "open",
-			configure: func(c *config.Config) { c.Swagger.Enabled = true },
+			configure: func(c *testConf) { c.settings.Swagger = true },
 			cases:     goldenOpenCases(),
 		},
 		{
 			name: "auth",
-			configure: func(c *config.Config) {
-				c.AuthorizedKeys = config.APIKeys{Evaluation: []string{goldenEvalKey}, Admin: []string{goldenAdminKey}}
-				c.ForceReloadAPIKeys()
+			configure: func(c *testConf) {
+				c.keys = mock.Keys{Evaluation: []string{goldenEvalKey}, Admin: []string{goldenAdminKey}}
 			},
 			cases: goldenAuthCases(),
 		},
 		{
 			name:      "noversion",
-			configure: func(c *config.Config) { c.DisableVersionHeader = true },
+			configure: func(c *testConf) { c.settings.DisableVersionHeader = true },
 			cases: []goldenCase{
 				{name: "health", method: http.MethodGet, path: healthPath},
 				{name: "notfound", method: http.MethodGet, path: nope},
@@ -780,7 +779,7 @@ func Test_Golden(t *testing.T) {
 		},
 		{
 			name:      "pprof",
-			configure: func(c *config.Config) { c.EnablePprof = true },
+			configure: func(c *testConf) { c.settings.Pprof = true },
 			cases: []goldenCase{
 				{name: "index", method: http.MethodGet, path: debugPprof},
 				{name: "cmdline", method: http.MethodGet, path: "/debug/pprof/cmdline"},
@@ -789,14 +788,14 @@ func Test_Golden(t *testing.T) {
 				{name: "post_index", method: http.MethodPost, path: debugPprof},
 			},
 		},
-		{name: metricsName, configure: func(*config.Config) {}, series: true},
+		{name: metricsName, configure: func(*testConf) {}, series: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			conf := testConfig(t)
-			conf.Version = goldenVersion
+			conf.settings.Version = goldenVersion
 			tt.configure(conf)
 
 			if tt.series {
@@ -811,7 +810,7 @@ func Test_Golden(t *testing.T) {
 }
 
 // runGoldenCases starts a relay proxy and checks the response to every case against its golden file.
-func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []goldenCase) {
+func runGoldenCases(t *testing.T, conf *testConf, variant string, cases []goldenCase) {
 	t.Helper()
 	baseURL := startGoldenServer(t, conf)
 	t.Run("cases", func(t *testing.T) {
@@ -839,7 +838,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 }
 
 // startGoldenServer is startTestServer with the streaming services, so that the stream routes serve.
-func startGoldenServer(t *testing.T, conf *config.Config, opts ...api.Option) string {
+func startGoldenServer(t *testing.T, conf *testConf, opts ...api.Option) string {
 	t.Helper()
 
 	return startWrappedServer(t, conf, func(ln net.Listener) net.Listener { return ln }, opts...)
@@ -848,12 +847,12 @@ func startGoldenServer(t *testing.T, conf *config.Config, opts ...api.Option) st
 // startWrappedServer is startGoldenServer with the listener of the server wrapped by wrap: a test can watch what the
 // server does to its connections.
 func startWrappedServer(
-	t *testing.T, conf *config.Config, wrap func(net.Listener) net.Listener, opts ...api.Option,
+	t *testing.T, conf *testConf, wrap func(net.Listener) net.Listener, opts ...api.Option,
 ) string {
 	t.Helper()
 	listener, port := testhelpers.ListenLocal(t)
 	listener = wrap(listener)
-	conf.Server.Port = port
+	conf.settings.Port = port
 	log := newTestLogger(t)
 
 	metrics, err := metric.NewMetrics()
@@ -861,15 +860,13 @@ func startWrappedServer(
 
 	wsService := stream.NewWebsocketService()
 	sseService := stream.NewSSEService()
-	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	conf.flags = flagsetManager
 
 	srv := newTestServer(t, conf, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		SSEService:        sseService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metrics,
+		WebsocketService: wsService,
+		SSEService:       sseService,
+		Metrics:          metrics,
 	}, log.Slog, append([]api.Option{api.WithListener(listener)}, opts...)...)
 	go func() { srv.StartWithContext(context.Background()) }()
 
@@ -1028,9 +1025,9 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 
 		keep := strings.HasPrefix(line, "# TYPE semaphore_") ||
 			strings.HasPrefix(line, "semaphore_requests_total{") ||
-			(strings.HasPrefix(line, "semaphore_request_duration_seconds_count{")) ||
-			(strings.HasPrefix(line, "semaphore_request_size_bytes_count{")) ||
-			(strings.HasPrefix(line, "semaphore_response_size_bytes_count{"))
+			strings.HasPrefix(line, "semaphore_request_duration_seconds_count{") ||
+			strings.HasPrefix(line, "semaphore_request_size_bytes_count{") ||
+			strings.HasPrefix(line, "semaphore_response_size_bytes_count{")
 		if keep {
 			lines = append(lines, hostLabel.ReplaceAllString(line, `host="HOST"`))
 		}

@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"bucket-flag","value":"b","reason":"SPLIT","variant":"b","metadata":{"gofeatureflag_cacheable":true,"semaphore_cacheable":true}}

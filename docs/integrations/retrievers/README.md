@@ -4,7 +4,7 @@
 
 Semaphore loads your `YAML`, `JSON`, or `TOML` flag files from wherever you already store config using **retrievers**.
 
-Every integration page below includes examples for both the **Relay Proxy** and the **Go module**.
+Every integration page below includes examples for the **Go module**. The relay proxy reads its flags from a control plane store (a directory or an S3 bucket); the other retriever kinds return to it with issue #57.
 
 ## Available retrievers
 

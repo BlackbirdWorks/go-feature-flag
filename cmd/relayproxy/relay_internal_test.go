@@ -506,13 +506,19 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		flags    []string
 		wantCode int
 	}{
-		{name: "a version 1 file", doc: "retrievers:\n  - kind: file\n    path: flags.yaml\n", wantCode: 1,
-			wantErr: "version 2 required"},
+		{
+			name: "a version 1 file", doc: "retrievers:\n  - kind: file\n    path: flags.yaml\n", wantCode: 1,
+			wantErr: "version 2 required",
+		},
 		{name: "version 1 declared", doc: "version: 1\n", wantCode: 1, wantErr: "version 2 required"},
 		{name: "an unknown key", doc: bootstrapDoc(dir, "studio: {}\n"), wantCode: 1, wantErr: "studio"},
 		{name: "no control plane", doc: "version: 2\n", wantCode: 1, wantErr: "controlPlane"},
-		{name: "a unix socket", doc: bootstrapDoc(dir, "server:\n  unixSocketPath: /tmp/semaphore.sock\n"), wantCode: 1,
-			wantErr: "server.unixSocketPath"},
+		{
+			name:     "a unix socket",
+			doc:      bootstrapDoc(dir, "server:\n  unixSocketPath: /tmp/semaphore.sock\n"),
+			wantCode: 1,
+			wantErr:  "server.unixSocketPath",
+		},
 		{name: "two api listeners", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: a, address: \":1\"}\n"+
 			"    - {name: b, address: \":2\"}\n"), wantCode: 1, wantErr: "the relay serves one api listener"},
 		{name: "a port in use", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: api, address: \""+
@@ -526,14 +532,25 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 			wantCode: exitUsage,
 			wantErr:  "invalid command line",
 		},
-		{name: "listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--listen=nowhere"}, wantCode: 1,
-			wantErr: "set by flag --listen"},
-		{name: "ops listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--ops-listen=nowhere"}, wantCode: 1,
-			wantErr: "set by flag --ops-listen"},
-		{name: "log level override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-level=loud"}, wantCode: 1,
-			wantErr: "set by flag --log-level"},
-		{name: "log format override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-format=xml"}, wantCode: 1,
-			wantErr: "set by flag --log-format"},
+		{
+			name: "listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--listen=nowhere"}, wantCode: 1,
+			wantErr: "set by flag --listen",
+		},
+		{
+			name:     "ops listen override",
+			doc:      bootstrapDoc(dir, ""),
+			flags:    []string{"--ops-listen=nowhere"},
+			wantCode: 1,
+			wantErr:  "set by flag --ops-listen",
+		},
+		{
+			name: "log level override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-level=loud"}, wantCode: 1,
+			wantErr: "set by flag --log-level",
+		},
+		{
+			name: "log format override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-format=xml"}, wantCode: 1,
+			wantErr: "set by flag --log-format",
+		},
 	}
 
 	for _, tt := range tests {
@@ -572,6 +589,43 @@ func TestRunWithoutMetrics(t *testing.T) {
 
 	status, _ = get(t, rig.url+"/metrics", nil)
 	assert.Equal(t, http.StatusNotFound, status, "no metrics are served when they are disabled")
+}
+
+// One strict parse decides what run does: --help wins over --version, a false flag is not a request, and a request
+// does not excuse an unknown flag.
+func TestRunHelpVersionPrecedence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		wantStderr string
+		args       []string
+		wantCode   int
+	}{
+		{name: "help=false and version", args: []string{"--help=false", versionFlag}, wantStdout: "semaphore "},
+		{name: "version=false starts normally", args: []string{"--version=false"}, wantCode: 1,
+			wantStderr: "configuration error"},
+		{name: "help and version", args: []string{helpFlag, versionFlag}, wantStdout: "Usage: semaphore"},
+		{name: "version and help", args: []string{versionFlag, helpFlag}, wantStdout: "Usage: semaphore"},
+		{name: "help and version, unknown flag", args: []string{helpFlag, versionFlag, unknownFlag},
+			wantCode: exitUsage, wantStderr: unknownFlagText},
+		{name: "version and help, unknown flag", args: []string{versionFlag, helpFlag, unknownFlag},
+			wantCode: exitUsage, wantStderr: unknownFlagText},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
+
+			assert.Equal(t, tt.wantCode, code)
+			assert.Contains(t, stdout.String(), tt.wantStdout)
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+		})
+	}
 }
 
 func TestRunPrintsTheVersion(t *testing.T) {
@@ -672,8 +726,10 @@ func TestRunBindsTheConfiguredAddress(t *testing.T) {
 			t.Parallel()
 
 			bound := make(chan string, 1)
-			rig := startRelay(t, &rigOptions{boundAddress: bound,
-				extra: "server:\n  listeners:\n    - {name: api, address: \"" + tt.address + "\"}\n"})
+			rig := startRelay(t, &rigOptions{
+				boundAddress: bound,
+				extra:        "server:\n  listeners:\n    - {name: api, address: \"" + tt.address + "\"}\n",
+			})
 
 			select {
 			case address := <-bound:
@@ -768,7 +824,10 @@ type heldFS struct {
 
 	entered chan struct{}
 	release chan struct{}
-	once    sync.Once
+	// closed is closed when the root is closed: the core does it last, after the writer ended.
+	closed    chan struct{}
+	once      sync.Once
+	closeOnce sync.Once
 }
 
 //nolint:ireturn // implements the FS seam, which returns an interface
@@ -787,6 +846,14 @@ type heldRoot struct {
 	held *heldFS
 }
 
+func (r *heldRoot) Close() error {
+	err := r.Root.Close()
+
+	r.held.closeOnce.Do(func() { close(r.held.closed) })
+
+	return err
+}
+
 func (r *heldRoot) Rename(oldname, newname string) error {
 	r.held.once.Do(func() { close(r.held.entered) })
 	<-r.held.release
@@ -799,14 +866,27 @@ func (r *heldRoot) Rename(oldname, newname string) error {
 func TestRunExitsWhenAStateWriteHoldsTheShutdown(t *testing.T) {
 	t.Parallel()
 
-	held := &heldFS{FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{})}
+	held := &heldFS{
+		FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{}),
+		closed: make(chan struct{}),
+	}
+	stateDir := filepath.Join(t.TempDir(), "state")
 	rig := startRelay(t, &rigOptions{
 		stateFS: held, shutdownTimeout: 100 * time.Millisecond,
-		flags: []string{"--state-dir=" + filepath.Join(t.TempDir(), "state")},
+		flags: []string{"--state-dir=" + stateDir},
 	})
 
-	// registered after the rig: it runs first, so the held write ends before the rig waits for the relay
-	t.Cleanup(func() { close(held.release) })
+	// registered after the temp dir and the rig: it runs first. The held write ends, and the cleanup of the core
+	// (it joins the writer, then closes the root) is awaited, so nothing writes when the directory is removed
+	t.Cleanup(func() {
+		close(held.release)
+
+		select {
+		case <-held.closed:
+		case <-time.After(waitBound):
+			assert.Fail(t, "the state writer was not joined")
+		}
+	})
 
 	rig.awaitGeneration(1)
 
@@ -859,9 +939,20 @@ func TestRunHelpAndUsage(t *testing.T) {
 		wantCode   int
 		wantStdout bool
 	}{
-		{name: "long help", args: []string{"--help"}, wantStdout: true},
+		{name: "long help", args: []string{helpFlag}, wantStdout: true},
 		{name: "short help", args: []string{"-h"}, wantStdout: true},
-		{name: "unknown flag", args: []string{unknownFlag}, wantCode: exitUsage},
+		{name: unknownFlagText, args: []string{unknownFlag}, wantCode: exitUsage},
+		{name: "unknown flag after --version", args: []string{versionFlag, unknownFlag}, wantCode: exitUsage},
+		{name: "unknown flag before --version", args: []string{unknownFlag, versionFlag}, wantCode: exitUsage},
+		{name: "unknown flag after --help", args: []string{helpFlag, unknownFlag}, wantCode: exitUsage},
+		{
+			name: "unknown flag after --version --help", args: []string{versionFlag, helpFlag, unknownFlag},
+			wantCode: exitUsage,
+		},
+		{
+			name: "unknown flag after --help --version", args: []string{helpFlag, versionFlag, unknownFlag},
+			wantCode: exitUsage,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -886,8 +977,10 @@ func TestRunHelpAndUsage(t *testing.T) {
 				assert.Contains(t, out, name)
 			}
 
-			for _, env := range []string{bootstrap.EnvConfig, bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen,
-				bootstrap.EnvOpsListen, bootstrap.EnvManifestKey, bootstrap.EnvStateDir} {
+			for _, env := range []string{
+				bootstrap.EnvConfig, bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen,
+				bootstrap.EnvOpsListen, bootstrap.EnvManifestKey, bootstrap.EnvStateDir,
+			} {
 				assert.Contains(t, out, env)
 			}
 		})
@@ -916,7 +1009,7 @@ func TestDocumentedFlagsAreTheFlagsOfTheCode(t *testing.T) {
 	var inCode []string
 
 	newStrictFlagSet().VisitAll(func(flag *pflag.Flag) {
-		if flag.Name != "version" {
+		if flag.Name != "version" && flag.Name != "help" {
 			inCode = append(inCode, "--"+flag.Name)
 		}
 	})

@@ -26,7 +26,7 @@ func (h hotPath) authenticate(tb testing.TB) {
 }
 
 // evaluate uses a flag that does not track its events: the evaluation of a tracked flag makes an event for the
-// exporters of the core, which the v1 relay without exporters does not.
+// exporters of the core, which would add the cost of the event to the measure.
 func (h hotPath) evaluate(tb testing.TB) {
 	tb.Helper()
 
@@ -38,64 +38,53 @@ func (h hotPath) evaluate(tb testing.TB) {
 	require.NoError(tb, err)
 }
 
-func hotPaths(tb testing.TB) (hotPath, hotPath) {
+func newHotPath(tb testing.TB) hotPath {
 	tb.Helper()
 
-	_, manager := newV1Manager(tb)
-	rig := newV2(tb)
-
-	return hotPath{resolver: manager}, hotPath{resolver: corehttp.NewAdapter(rig.core)}
+	return hotPath{resolver: corehttp.NewAdapter(newV2(tb).core)}
 }
 
-// TestHotPath_AllocationsNotAboveV1 pins the allocations of the authentication and of one evaluation on the v2 path
-// to the ones of the v1 path. It counts the allocations of both paths in the same process, so the figures hold under
-// -race too. It is not parallel on purpose: AllocsPerRun counts the allocations of the parallel tests too.
+// TestHotPath_AllocationsBudget pins the allocations of the authentication and of one evaluation on the v2 path to the
+// budget they had when they were measured against the first version of the relay: the authentication allocates once,
+// one evaluation twice. The figures hold under -race too. It is not parallel on purpose: AllocsPerRun counts the
+// allocations of the parallel tests too.
 //
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
-func TestHotPath_AllocationsNotAboveV1(t *testing.T) {
-	baseline, current := hotPaths(t)
+func TestHotPath_AllocationsBudget(t *testing.T) {
+	path := newHotPath(t)
 
 	tests := []struct {
-		run  func(hotPath, testing.TB)
-		name string
+		run        func(hotPath, testing.TB)
+		name       string
+		wantAllocs float64
 	}{
-		{name: "authentication", run: hotPath.authenticate},
-		{name: "single evaluation", run: hotPath.evaluate},
+		{name: "authentication", run: hotPath.authenticate, wantAllocs: 1},
+		{name: "single evaluation", run: hotPath.evaluate, wantAllocs: 2},
 	}
 	for _, tt := range tests {
-		base := testing.AllocsPerRun(200, func() { tt.run(baseline, t) })
-		got := testing.AllocsPerRun(200, func() { tt.run(current, t) })
+		got := testing.AllocsPerRun(200, func() { tt.run(path, t) })
 
-		assert.Positive(t, base, "%s: the measure sees the allocations of the baseline", tt.name)
-		assert.LessOrEqual(t, got, base, "%s: allocations per operation: v2 %v, v1 %v", tt.name, got, base)
-		t.Logf("%-18s v1 %v allocs, v2 %v allocs", tt.name, base, got)
+		assert.Positive(t, got, "%s: the measure sees the allocations", tt.name)
+		assert.LessOrEqual(t, got, tt.wantAllocs, "%s: allocations per operation", tt.name)
 	}
 }
 
 func BenchmarkAuthenticateFlagSet(b *testing.B) {
-	baseline, current := hotPaths(b)
+	path := newHotPath(b)
 
-	for name, path := range map[string]hotPath{"v1": baseline, "v2": current} {
-		b.Run(name, func(b *testing.B) {
-			b.ReportAllocs()
+	b.ReportAllocs()
 
-			for b.Loop() {
-				path.authenticate(b)
-			}
-		})
+	for b.Loop() {
+		path.authenticate(b)
 	}
 }
 
 func BenchmarkSingleEvaluation(b *testing.B) {
-	baseline, current := hotPaths(b)
+	path := newHotPath(b)
 
-	for name, path := range map[string]hotPath{"v1": baseline, "v2": current} {
-		b.Run(name, func(b *testing.B) {
-			b.ReportAllocs()
+	b.ReportAllocs()
 
-			for b.Loop() {
-				path.evaluate(b)
-			}
-		})
+	for b.Loop() {
+		path.evaluate(b)
 	}
 }

@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"SdkDefault","failed":true,"version":"","reason":"ERROR","errorCode":"TARGETING_KEY_MISSING","errorDetails":"Error: Empty targeting key","value":"x","cacheable":false}

@@ -3,6 +3,7 @@ package segmenttest_test
 import (
 	"context"
 	"errors"
+	"flag"
 	"runtime"
 	"slices"
 	"strings"
@@ -653,9 +654,16 @@ func (p *toy) unheld(look *segment.Lookup) error {
 	return nil
 }
 
-// wholeSuite tells whether every case ran or was skipped: a run that a `-run` filter focused has fewer.
-func wholeSuite(report segmenttest.Report) bool {
-	return len(report.Ran)+len(report.Unsupported) == len(segmenttest.CaseNames())
+// wholeSuite tells whether the run of the tests selected every case: it is false when a `-run` or `-skip` filter
+// was given, whatever the report says (the report cannot tell a case the filter left out from one that was lost).
+func wholeSuite() bool {
+	for _, name := range []string{"test.run", "test.skip"} {
+		if f := flag.Lookup(name); f != nil && f.Value.String() != "" {
+			return false
+		}
+	}
+
+	return true
 }
 
 // assertRanInOrder checks the order of the cases that ran, and that all of them ran when the whole suite did.
@@ -674,7 +682,7 @@ func assertRanInOrder(t *testing.T, report segmenttest.Report) {
 		last = index
 	}
 
-	if wholeSuite(report) {
+	if wholeSuite() {
 		assert.Equal(t, names, report.Ran)
 	}
 }
@@ -688,7 +696,7 @@ func assertUnsupported(t *testing.T, report segmenttest.Report, want map[string]
 		assert.Equal(t, want[name], reason, name)
 	}
 
-	if wholeSuite(report) {
+	if wholeSuite() {
 		assert.Equal(t, want, report.Unsupported)
 	}
 }

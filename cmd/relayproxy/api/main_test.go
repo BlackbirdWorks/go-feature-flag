@@ -1,9 +1,6 @@
-//go:build !docker
-
 package api_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
@@ -13,5 +10,5 @@ import (
 // dates with clock.Now, and the fixtures are built relative to clocktest.Instant.
 func TestMain(m *testing.M) {
 	clocktest.Freeze()
-	os.Exit(m.Run())
+	m.Run()
 }
