@@ -160,6 +160,11 @@ func secretRules() map[string][]secretFixture {
 		},
 		"Exporter.AccountKey": {exporterFixture("azureBlobStorage", "accountName: a, container: c, accountKey: V",
 			"Exporter.AccountKey")},
+		"KafkaSASL.Password": {exporterFixture("kafka",
+			"kafka: {topic: t, addresses: [\"h:1\"], net: {sasl: {user: u, password: V}}}", "KafkaSASL.Password")},
+		"KafkaGSSAPI.Password": {exporterFixture("kafka",
+			"kafka: {topic: t, addresses: [\"h:1\"], net: {sasl: {mechanism: GSSAPI, gssapi: {password: V}}}}",
+			"KafkaGSSAPI.Password")},
 		"Notifier.WebhookURL": {
 			notifierFixture("slack", "webhookUrl: V", "Notifier.WebhookURL"),
 			notifierFixture("microsoftteams", "webhookUrl: V", "Notifier.WebhookURL"),

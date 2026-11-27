@@ -315,3 +315,45 @@ func newTestClient(
 
 	return server, client
 }
+
+// TestExporter_Close checks that Close stops the publisher and closes the client once, that a second call and a
+// never initialised exporter do nothing, and that the exporter dials again if it is used after Close.
+func TestExporter_Close(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		events []exporter.ExportableEvent
+	}{
+		{
+			name:   "an exporter that exported releases its publisher and client",
+			events: []exporter.ExportableEvent{&exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: "k"}},
+		},
+		{name: "an exporter that never exported has nothing to release", events: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			_, client := newTestClient(ctx, t, "fake-project", "fake-topic")
+
+			exp := &Exporter{
+				ProjectID: "fake-project", Topic: "fake-topic",
+				newClientFunc: func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error) {
+					return client, nil
+				},
+			}
+
+			if tt.events != nil {
+				require.NoError(t, exp.Export(ctx, slog.Default(), tt.events))
+			}
+
+			require.NoError(t, exp.Close())
+			require.NoError(t, exp.Close(), "a second call does nothing")
+			assert.Nil(t, exp.publisher)
+			assert.Nil(t, exp.client)
+		})
+	}
+}

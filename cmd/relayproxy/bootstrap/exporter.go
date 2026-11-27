@@ -59,12 +59,6 @@ type Exporter struct {
 	AutoMigrate             bool              `json:"autoMigrate,omitempty"             yaml:"autoMigrate,omitempty"`
 }
 
-// KafkaSettings are the settings of the kafka exporter.
-type KafkaSettings struct {
-	Topic     string   `json:"topic"     yaml:"topic"`
-	Addresses []string `json:"addresses" yaml:"addresses"`
-}
-
 // Notifier kinds.
 const (
 	NotifierSlack          = "slack"

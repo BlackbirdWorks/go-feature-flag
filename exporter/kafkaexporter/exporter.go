@@ -77,6 +77,24 @@ func (e *Exporter) Export(
 	return nil
 }
 
+// Close releases the producer of the exporter. It does nothing for an exporter that never exported, and it can be
+// called more than once. It must not run at the same time as Export: the relay calls it after the final flush.
+func (e *Exporter) Close() error {
+	closer, ok := e.sender.(interface{ Close() error })
+	e.sender = nil
+
+	if !ok {
+		return nil
+	}
+
+	err := closer.Close()
+	if err != nil {
+		return fmt.Errorf("close kafka producer: %w", err)
+	}
+
+	return nil
+}
+
 // IsBulk returns false: this exporter sends each event on its own as a Kafka message, it does not batch events.
 func (*Exporter) IsBulk() bool {
 	return false
