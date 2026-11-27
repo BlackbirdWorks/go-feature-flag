@@ -15,10 +15,13 @@ A dynamic segment is a segment of type `redis` or `valkey`: the members stay in 
 | Client | go-redis v9 | valkey-go |
 | One call | one explicit pipeline | one `DoMulti`; the client batches concurrent calls on a connection (automatic pipelining) |
 | `Atomic` script mode | yes | no (no script is sent) |
+| Throughput under 64 to 256 concurrent callers (measured, see the Valkey page) | about 47000 calls/s | about 73000 to 77000 calls/s with `pipelining: always` or `auto` |
+| A reply nobody asked for (broken server or proxy) | the connection is dropped, the call returns an error | valkey-go panics in its reader: the process ends |
+| Client settings | go-redis options | `pipelining` (`always`, `auto`, `off`), `blockingPipeline`, `clientSideCache`, `retry` |
 | Server | Redis 6.2+, Valkey 7.2+ | Redis 6.2+, Valkey 7.2+ |
 
 - Pick `valkey` for a Valkey store with many concurrent calls: valkey-go merges their writes.
-- Pick `redis` when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
+- Pick `redis` when the store sits behind a proxy you do not trust, when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
 - Both have the same data model, layouts (`set` and `keys`), answers and failure classes, are read-only and pass the same conformance suite on the same resolver.
 
 ## Pages

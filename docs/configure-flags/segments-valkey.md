@@ -20,9 +20,22 @@ store, err := valkeysegment.Dial(&valkey.ClientOption{InitAddress: []string{"val
 ```
 
 - `Dial` creates the client, owns it, and `Shutdown` closes it. `New(client, opts)` takes a `valkey.Client` that you own.
-- `Dial` forces `AlwaysPipelining`, `DisableCache` (no client-side caching: the resolver caches) and `DisableRetry` (a failed read is not sent again behind the call timeout), whatever you set.
+- `Dial` builds the client from your `valkey.ClientOption` and the client settings below; the settings override the same fields of the option.
 - A cluster is detected by the client from `InitAddress`.
 - `Options` are the ones of the `redis` type without `Atomic`: `Segments`, `KeyPrefix`, `MissingKey`, `MaxIDBytes`, `Timeout` (default 100 ms) and `Observer`. The observer and the counters are the types of `redissegment`.
+
+## Client settings
+
+These options only apply to a client that `Dial` creates. The names are the ones of the relay proxy `segments` configuration. The defaults are the safe ones.
+
+| Option | Values (default first) | What it trades |
+|---|---|---|
+| `pipelining` | `always`, `auto`, `off` | `always`: the client reads in the background even for a lone call; a disconnect inside a batch keeps the replies already read and a cancel ends the call at once. `auto` (the valkey-go default): a lone call is written and read synchronously and the background reader starts under concurrent load; a transport failure inside a batch loses the whole batch (all unknown) and a cancel waits for the deadline. `off` (valkey-go `DisableAutoPipelining`): each call has its own pooled connection, no batching of concurrent calls, same loss and cancel behaviour as `auto`, one connection per call in flight. |
+| `blockingPipeline` | `0` (never), or a number of commands | From this many commands in one call valkey-go moves the call to a dedicated connection, where a cancel waits for the connection to close. `0` keeps every call on the shared connection. |
+| `clientSideCache` | `false`, `true` | valkey-go server-assisted caching. The provider reads with `DoMulti`, which is never cached, so it has no effect on lookups; the resolver is the cache. Needs RESP3 and `CLIENT TRACKING`. |
+| `retry` | `false`, `true` | `true` lets valkey-go send a failed read again behind the call timeout, so a lookup may be sent twice. |
+
+One enum (`pipelining`) is used instead of the two valkey-go booleans (`AlwaysPipelining`, `DisableAutoPipelining`) because the booleans can express a combination that valkey-go resets.
 
 ## One round trip per call
 
@@ -34,15 +47,27 @@ store, err := valkeysegment.Dial(&valkey.ClientOption{InitAddress: []string{"val
 
 - A transport error keeps the answers that were read (a healthy cluster node keeps its answers); the rest stay unknown with class `unavailable`, `timeout` or `canceled`.
 - An error reply (`WRONGTYPE`, `NOPERM`) is class `server`. A reply that is not the one the command returns, or a stream that does not parse, is class `protocol` and nothing of the call is kept.
-- The call ends at its `Timeout` at the latest, or when the caller cancels. `Dial` makes the client pipeline in the background (`AlwaysPipelining`): valkey-go's synchronous path would lose the whole batch on a disconnect and ignore a cancel. A client you pass to `New` must set `AlwaysPipelining` too.
+- The call ends at its `Timeout` at the latest. With `pipelining: always` (default) a cancel by the caller also ends it at once and a disconnect inside a batch keeps the replies already read; with `auto` and `off` it does not (see Client settings). A client you pass to `New` should be created with `AlwaysPipelining`.
 - `Shutdown` stops new calls, waits for the calls in flight until its context ends, then closes an owned client: that ends a call still in flight. It is safe to call twice.
 - Errors, status and metrics hold classes and counts only: never an id, a key, an address or a password.
 
 ## Limits
 
+- **Unsolicited reply:** a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine, which ends the process. The reader runs on every connection that pipelines in the background: all of them with `pipelining: always`, and with `auto` the connections that concurrent calls share. `off` is not exposed (each call has a connection to itself). The `redis` type (go-redis) drops such a connection and returns an error: use it when the store sits behind a proxy that you do not trust.
 - Needs `SMISMEMBER` (Valkey 7.2 or Redis 6.2). `Init` checks the commands that your layouts use.
 - The relay proxy does not use this provider yet (issue 16).
 
-## Benchmark
+## Throughput
 
-On a commodity 4-core Linux machine against one Valkey 8 node in a container, one call of 1, 10 and 100 ids of a set segment costs about the same with both providers (about 45 to 55 microseconds at 1 and 10 ids, about 80 to 90 microseconds at 100 ids, half of that per call with parallel callers). valkey-go allocates fewer objects but more bytes per call for large calls. Measure on your own store: `go test -tags=docker,bench -run '^$' -bench Contains ./modules/core/segment/valkeysegment`.
+`TestE2ELoad` (docker tag) drives each provider with 64 and 256 goroutines, batches of 1, 10 and 100 ids over both layouts, and checks every answer against the seeded members. It also runs `CLIENT KILL` of every connection and `CLIENT PAUSE` so that deadlines fire, and checks that there is no wrong answer, no call past its deadline plus a second, no goroutine left, and that the same provider answers correctly again.
+
+Measured on a commodity 4-core Linux machine against one Valkey 8 container, 12000 calls per run, race detector off:
+
+| Provider | calls/s, 64 goroutines | p50 / p99, 64 | calls/s, 256 goroutines | p50 / p99, 256 | allocations per call |
+|---|---|---|---|---|---|
+| `redis` | 46700 | 1.3 / 2.6 ms | 47500 | 6.2 / 8.2 ms | 166 |
+| `valkey`, `always` | 73400 | 0.8 / 1.9 ms | 77000 | 3.2 / 5.9 ms | 128 |
+| `valkey`, `auto` | 72600 | 0.8 / 2.0 ms | 77100 | 3.0 / 6.6 ms | 128 |
+| `valkey`, `off` | 47200 | 1.3 / 2.3 ms | 44000 | 5.0 / 22.9 ms | 128 |
+
+The load generator shares the machine with the store, so read the numbers as a comparison. Under a fault no run had a wrong answer; failed calls had the classes `unavailable` (kill) or `timeout` (pause). With a single caller one call costs about 45 to 55 microseconds with all providers. Run the benchmark with `go test -tags=docker,bench -run '^$' -bench Contains -cpu 1,4,8 ./modules/core/segment/valkeysegment`.

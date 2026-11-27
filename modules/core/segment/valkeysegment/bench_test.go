@@ -17,7 +17,8 @@ import (
 )
 
 // BenchmarkContains compares the go-redis provider (type redis) and the valkey-go provider (type valkey) on one
-// Valkey node, for 1, 10 and 100 ids of a set segment in one call, one caller and many concurrent callers.
+// Valkey node, for 1, 10 and 100 ids of a set segment in one call, one caller and many concurrent callers, with
+// the three pipelining modes of the valkey provider. Run it with -cpu 1,4,8 for the scaling of the parallel runs.
 func BenchmarkContains(b *testing.B) {
 	srv := startServerImage(b, valkeyImage)
 	opt := srv.option(plainDial)
@@ -30,8 +31,32 @@ func BenchmarkContains(b *testing.B) {
 
 	load(b, client, keyBeta, members...)
 
-	segs := map[string]valkeysegment.SegmentOptions{segBeta: {Key: keyBeta}}
-	valkeyProv := e2eProvider(b, opt, &valkeysegment.Options{Segments: segs, Timeout: e2eTimeout})
+	providers := make([]struct {
+		prov segment.Provider
+		name string
+	}, 0, 4)
+
+	modes := []valkeysegment.Pipelining{
+		valkeysegment.PipeliningAlways,
+		valkeysegment.PipeliningAuto,
+		valkeysegment.PipeliningOff,
+	}
+
+	for _, mode := range modes {
+		providers = append(providers, struct {
+			prov segment.Provider
+			name string
+		}{
+			e2eProvider(b, opt, &valkeysegment.Options{
+				Segments: map[string]valkeysegment.SegmentOptions{
+					segBeta: {Key: keyBeta},
+				},
+				Timeout:    e2eTimeout,
+				Pipelining: mode,
+			}),
+			"valkey-" + string(mode),
+		})
+	}
 
 	redisProv, dialErr := redissegment.Dial(
 		&redis.UniversalOptions{Addrs: []string{srv.address}},
@@ -42,10 +67,10 @@ func BenchmarkContains(b *testing.B) {
 	require.NoError(b, dialErr)
 	b.Cleanup(func() { _ = redisProv.Close() })
 
-	providers := []struct {
+	providers = append(providers, struct {
 		prov segment.Provider
 		name string
-	}{{redisProv, "redis"}, {valkeyProv, "valkey"}}
+	}{redisProv, "redis"})
 
 	for _, size := range []int{1, 10, 100} {
 		for _, each := range providers {
