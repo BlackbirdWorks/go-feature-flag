@@ -150,6 +150,7 @@ export default withMermaid({
         items: [
           { text: 'Documentation Index', link: '/overview' },
           { text: 'Performance', link: '/performance' },
+          { text: 'Scale', link: '/scale' },
           { text: 'Releasing', link: '/RELEASING' },
           { text: 'GitHub Releases', link: 'https://github.com/BlackbirdWorks/semaphore/releases' },
         ],
@@ -313,6 +314,7 @@ export default withMermaid({
         collapsed: true,
         items: [
           { text: 'Performance', link: '/performance' },
+          { text: 'Scale', link: '/scale' },
           { text: 'Releasing', link: '/RELEASING' },
           { text: 'Rename to Semaphore', link: '/migration/rename-to-semaphore' },
           { text: 'Prometheus Metric Renames', link: '/migration/metric-renames' },
