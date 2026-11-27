@@ -50,23 +50,29 @@ func (o *Output) Add(line string, level Level) Output {
 // PrintLines writes the collected lines. stdout carries results only: [StatusLevel] and [DefaultLevel] lines go to
 // stdout; every diagnostic ([InfoLevel], [WarnLevel], [ErrorLevel]) goes to stderr.
 func (o *Output) PrintLines(cmd *cobra.Command) {
+	o.PrintLinesTo(cmd.OutOrStdout(), cmd.ErrOrStderr())
+}
+
+// PrintLinesTo writes the collected lines to stdout and stderr. stdout carries results only: [StatusLevel] and
+// [DefaultLevel] lines go to stdout; every diagnostic ([InfoLevel], [WarnLevel], [ErrorLevel]) goes to stderr.
+func (o *Output) PrintLinesTo(stdout, stderr io.Writer) {
 	for _, line := range o.Lines {
 		var outputText string
 
-		writer := cmd.OutOrStdout()
+		writer := stdout
 
 		switch line.Level {
 		case StatusLevel:
 			outputText = pterm.Info.Sprint(line.Text)
 		case InfoLevel:
 			outputText = pterm.Info.Sprint(line.Text)
-			writer = cmd.ErrOrStderr()
+			writer = stderr
 		case WarnLevel:
 			outputText = pterm.Warning.Sprint(line.Text)
-			writer = cmd.ErrOrStderr()
+			writer = stderr
 		case ErrorLevel:
 			outputText = pterm.Error.Sprint(line.Text)
-			writer = cmd.ErrOrStderr()
+			writer = stderr
 		default:
 			outputText = pterm.Sprint(line.Text)
 		}

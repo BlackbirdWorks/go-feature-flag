@@ -1,0 +1,30 @@
+Usage: semaphore-cli <command> [flags]
+
+A command line interface for Semaphore operations.
+
+Flags:
+  -h, --help       Show context-sensitive help.
+  -v, --version    Print the version and exit
+
+Commands:
+  evaluate [<args> ...] [flags]
+    ⚙️ Evaluate feature flags based on configuration and context
+
+  lint [<args> ...] [flags]
+    🛑 Lint Semaphore configuration file.
+
+  generate [<args> ...] [flags]
+    🏗️ Generate Semaphore related files
+
+  publish [<args> ...] [flags]
+    Publish flag files and flag-set documents to S3 behind a manifest
+
+  config validate <file> [flags]
+    Check a bootstrap file with the loader of the relay proxy
+
+  config print <file> [flags]
+    Print the effective bootstrap file: defaults and environment overrides
+    applied, secrets redacted
+
+Run "semaphore-cli <command> --help" for more information on a command.
+  ERROR   error executing command: usage: unknown flag --not-a-flag

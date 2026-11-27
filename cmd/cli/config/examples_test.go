@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/config"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
@@ -47,18 +48,12 @@ func TestShippedExamplesValidate(t *testing.T) {
 
 				return v, ok
 			}
-			deps.Args = func() []string { return []string{cmdValidate, path} }
 
-			cmd := config.NewConfigCmdWith(deps)
+			var out, errOut bytes.Buffer
 
-			var out bytes.Buffer
-
-			cmd.SetOut(&out)
-			cmd.SetErr(&out)
-			cmd.SetArgs([]string{cmdValidate, path})
-
-			err := cmd.ExecuteContext(t.Context())
+			err := config.Run([]string{cmdValidate, path}, &helper.Streams{Stdout: &out, Stderr: &errOut}, deps)
 			require.NoError(t, err, out.String())
+			assert.Empty(t, errOut.String())
 			assert.Equal(t, path+": valid\n", out.String())
 		})
 	}
@@ -124,17 +119,12 @@ func TestDocumentedFullExampleValidates(t *testing.T) {
 	deps := config.DefaultDeps()
 	deps.ReadFile = func(string) ([]byte, error) { return []byte(blocks[0][1]), nil }
 	deps.LookupEnv = shippedSecrets
-	deps.Args = func() []string { return []string{cmdValidate, "docs.yaml"} }
 
-	cmd := config.NewConfigCmdWith(deps)
+	var out, errOut bytes.Buffer
 
-	var out bytes.Buffer
-
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{cmdValidate, "docs.yaml"})
-
-	require.NoError(t, cmd.ExecuteContext(t.Context()), out.String())
+	err = config.Run([]string{cmdValidate, "docs.yaml"}, &helper.Streams{Stdout: &out, Stderr: &errOut}, deps)
+	require.NoError(t, err, out.String())
+	assert.Empty(t, errOut.String())
 	assert.Equal(t, "docs.yaml: valid\n", out.String())
 }
 

@@ -1,4 +1,4 @@
-package main
+package cliapp_test
 
 import (
 	"bytes"
@@ -18,8 +18,35 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/cliapp"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
+
+const (
+	cmdValidate        = "validate"
+	cmdVerify          = "verify"
+	codeUsage          = "usage"
+	fatalLine          = "error executing command"
+	unknownFlag        = "--not-a-flag"
+	unknownFlagMsg     = "unknown flag"
+	usageText          = "Usage:"
+	cmdConfig          = "config"
+	cmdPublish         = "publish"
+	fmtJSON            = "json"
+	fmtText            = "text"
+	flagConfig         = "--config"
+	optOutput          = "--output"
+	flagFormat         = "--format"
+	formatYAML         = "yaml"
+	helperEnv          = "SEMAPHORE_CLI_TEST_HELPER"
+	localDevVersion    = "localdev"
+	shortJSON          = "-ojson"
+	flagVersion        = "--version"
+	errVersion2Req     = "version 2 required"
+	configValidateLine = "config validate <file>"
+)
+
+func noEnv(string) (string, bool) { return "", false }
 
 func TestCmdExist(t *testing.T) {
 	t.Parallel()
@@ -31,14 +58,14 @@ func TestCmdExist(t *testing.T) {
 	}{
 		{
 			name:    "lint command should exist",
-			args:    []string{"lint", "linter/testdata/valid.yaml", "--format", "yaml"},
+			args:    []string{cmdLint, "../linter/testdata/valid.yaml", flagFormat, formatYAML},
 			wantOut: "  INFO    Valid Semaphore configuration\n",
 		},
 		{
 			name: "evaluate command should exist",
 			args: []string{
-				"evaluate", flagConfig, "evaluate/testdata/flag.goff.yaml",
-				"--ctx", `{"targetingKey": "user-123"}`, "--format", "yaml",
+				cmdEvaluate, flagConfig, "../evaluate/testdata/flag.goff.yaml",
+				"--ctx", `{"targetingKey": "user-123"}`, flagFormat, formatYAML,
 			},
 			wantOut: `Flag --config has been deprecated, Use path instead
 {
@@ -88,13 +115,11 @@ func TestCmdExist(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := initRootCmd(tt.args)
+			var stdout, stderr bytes.Buffer
 
-			var out bytes.Buffer
-			cmd.SetOut(&out)
-			cmd.SetArgs(tt.args)
-			require.NoError(t, cmd.Execute())
-			assert.Equal(t, tt.wantOut, pterm.RemoveColorFromString(out.String()))
+			code := cliapp.Main(t.Context(), tt.args, &stdout, &stderr, noEnv, cliapp.Build{Version: localDevVersion})
+			assert.Equal(t, 0, code, stderr.String())
+			assert.Equal(t, tt.wantOut, pterm.RemoveColorFromString(stdout.String()))
 		})
 	}
 }
@@ -102,39 +127,38 @@ func TestCmdExist(t *testing.T) {
 func TestVersionFlag(t *testing.T) {
 	t.Parallel()
 
-	for _, flag := range []string{"--version", "-v"} {
+	for _, flag := range []string{flagVersion, "-v"} {
 		t.Run(flag, func(t *testing.T) {
 			t.Parallel()
 
-			var out bytes.Buffer
+			var stdout, stderr bytes.Buffer
 
-			cmd := initRootCmd([]string{flag})
-			cmd.SetOut(&out)
-			cmd.SetArgs([]string{flag})
-			require.NoError(t, cmd.Execute())
-			assert.Contains(t, out.String(), "semaphore-cli localdev\ncommit: ")
-			assert.Contains(t, out.String(), "\nfips140: false\n")
+			code := cliapp.Main(
+				t.Context(),
+				[]string{flag},
+				&stdout,
+				&stderr,
+				noEnv,
+				cliapp.Build{Version: localDevVersion},
+			)
+			assert.Equal(t, 0, code)
+			assert.Empty(t, stderr.String())
+			assert.Contains(t, stdout.String(), "semaphore-cli localdev\ncommit: ")
+			assert.Contains(t, stdout.String(), "\nfips140: false\n")
 		})
 	}
 }
 
-const (
-	cmdValidate    = "validate"
-	cmdVerify      = "verify"
-	codeUsage      = "usage"
-	fatalLine      = "error executing command"
-	unknownFlag    = "--not-a-flag"
-	unknownFlagMsg = "unknown flag"
-	usageText      = "Usage:"
-	cmdConfig      = "config"
-	cmdPublish     = "publish"
-	fmtJSON        = "json"
-	fmtText        = "text"
-	flagConfig     = "--config"
-	optOutput      = "--output"
-	flagFormat     = "--format"
-	formatYAML     = "yaml"
-)
+func TestEmptyArgsPrintsRootHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+
+	code := cliapp.Main(t.Context(), nil, &stdout, &stderr, noEnv, cliapp.Build{Version: localDevVersion})
+	assert.Equal(t, 0, code)
+	assert.Empty(t, stderr.String())
+	assert.Contains(t, stdout.String(), "Usage: semaphore-cli <command> [flags]")
+}
 
 func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 	t.Parallel()
@@ -153,41 +177,51 @@ func TestConfigAndPublishCommandsAreRegistered(t *testing.T) {
 		{name: "config validate", args: []string{cmdConfig, cmdValidate, file}, wantOut: file + ": valid\n"},
 		{
 			name:    "config print",
-			args:    []string{cmdConfig, "print", "--effective", file, "-o", fmtJSON},
+			args:    []string{cmdConfig, cmdPrint, flagEffective, file, "-o", fmtJSON},
 			wantOut: `"bucket": "b"`,
 		},
 		{
+			name:    "config with no subcommand prints help",
+			args:    []string{cmdConfig},
+			wantOut: configValidateLine,
+		},
+		{
+			name:    "config with -o json and no subcommand prints help",
+			args:    []string{cmdConfig, "-o", fmtJSON},
+			wantOut: configValidateLine,
+		},
+		{
+			name:    "config -h prints help",
+			args:    []string{cmdConfig, "-h"},
+			wantOut: configValidateLine,
+		},
+		{
 			name:    "publish verify exists",
-			args:    []string{cmdPublish, cmdVerify, "--help"},
+			args:    []string{cmdPublish, cmdVerify, helpFlag},
 			wantOut: "Reads the manifest and every listed object",
 		},
-		{name: "publish exists", args: []string{cmdPublish, "--help"}, wantOut: "--dry-run"},
+		{name: "publish exists", args: []string{cmdPublish, helpFlag}, wantOut: "--dry-run"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := initRootCmd(tt.args)
+			var stdout, stderr bytes.Buffer
 
-			var out bytes.Buffer
-
-			cmd.SetOut(&out)
-			cmd.SetArgs(tt.args)
-			require.NoError(t, cmd.Execute())
-			assert.Contains(t, pterm.RemoveColorFromString(out.String()), tt.wantOut)
+			code := cliapp.Main(t.Context(), tt.args, &stdout, &stderr, noEnv, cliapp.Build{Version: localDevVersion})
+			assert.Equal(t, 0, code, stderr.String())
+			assert.Empty(t, stderr.String())
+			assert.Contains(t, pterm.RemoveColorFromString(stdout.String()), tt.wantOut)
 		})
 	}
 }
 
-// helperEnv makes the test binary act as the command line: TestHelperProcess runs the arguments after "--".
-const helperEnv = "SEMAPHORE_CLI_TEST_HELPER"
-
-// TestHelperProcess is not a test: it is the entry point of the process that runCLI starts.
+// TestHelperProcess is not a test: it is the entry point of the process that runCLIClean starts.
 //
 //nolint:paralleltest // the helper process runs one command line and exits
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
-		t.Skip("only runs as the helper process of runCLI")
+		t.Skip("only runs as the helper process of runCLIClean")
 	}
 
 	args := os.Args
@@ -199,21 +233,44 @@ func TestHelperProcess(t *testing.T) {
 		}
 	}
 
-	os.Exit(execute(args)) //nolint:revive // the helper process ends with the exit code of the command line
+	code := cliapp.Main(
+		t.Context(),
+		args,
+		os.Stdout,
+		os.Stderr,
+		os.LookupEnv,
+		cliapp.Build{Version: localDevVersion},
+	)
+
+	os.Exit(code) //nolint:revive // the helper process ends with the exit code of the command line
 }
 
-// runCLI runs the command line in a process of its own and returns what it wrote on each stream and its exit code.
-func runCLI(t *testing.T, args ...string) (string, string, int) {
+// runCLIClean runs the CLI in a subprocess with an explicit minimal environment so that host variables (including
+// COLUMNS or AWS configuration) never leak into test assertions.
+func runCLIClean(t *testing.T, extraEnv []string, args ...string) (string, string, int) {
 	t.Helper()
 
 	cmd := exec.CommandContext(
 		t.Context(),
 		os.Args[0],
-		append([]string{"-test.run=^TestHelperProcess$", "--"}, args...)...)
-	cmd.Env = append(os.Environ(), helperEnv+"=1",
-		// static credentials for the explicit-target commands: nothing reaches a real AWS endpoint
-		"AWS_ACCESS_KEY_ID=test", "AWS_SECRET_ACCESS_KEY=test", "AWS_EC2_METADATA_DISABLED=true",
-		"AWS_CONFIG_FILE="+os.DevNull, "AWS_SHARED_CREDENTIALS_FILE="+os.DevNull)
+		append([]string{"-test.run=^TestHelperProcess$", "--"}, args...)...,
+	)
+
+	const baseEnvCount = 8
+
+	env := make([]string, 0, baseEnvCount+len(extraEnv))
+	env = append(env,
+		helperEnv+"=1",
+		"NO_COLOR=1",
+		"GOCOVERDIR="+t.TempDir(),
+		"AWS_ACCESS_KEY_ID=test",
+		"AWS_SECRET_ACCESS_KEY=test",
+		"AWS_EC2_METADATA_DISABLED=true",
+		"AWS_CONFIG_FILE="+os.DevNull,
+		"AWS_SHARED_CREDENTIALS_FILE="+os.DevNull,
+	)
+	env = append(env, extraEnv...)
+	cmd.Env = env
 
 	var stdout, stderr bytes.Buffer
 
@@ -228,7 +285,7 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 		require.NoError(t, err)
 	}
 
-	return stdout.String(), stderr.String(), code
+	return pterm.RemoveColorFromString(stdout.String()), pterm.RemoveColorFromString(stderr.String()), code
 }
 
 // verifyServer is a minimal S3 that holds a manifest listing one object that does not exist, so that "publish
@@ -296,31 +353,31 @@ func TestWholeProcessStreams(t *testing.T) {
 		args       []string
 		wantExit   int
 	}{
-		{name: "version", args: []string{"--version"}, wantStdout: "semaphore-cli"},
+		{name: "version", args: []string{flagVersion}, wantStdout: "semaphore-cli"},
 		{name: "unknown root flag", args: []string{unknownFlag}, wantStderr: usageText, wantExit: 1},
-		{name: "unknown subcommand", args: []string{"bogus"}, wantStderr: "unknown command", wantExit: 1},
+		{name: "unknown subcommand", args: []string{"bogus"}, wantStderr: "unexpected argument bogus", wantExit: 1},
 		{
 			name:       "lint failure",
-			args:       []string{"lint", missing, flagFormat, formatYAML},
+			args:       []string{cmdLint, missing, flagFormat, formatYAML},
 			wantStderr: "impossible to find",
 			wantExit:   1,
 		},
 		{
 			name:       "evaluate failure",
-			args:       []string{"evaluate", "--path", missing, "--ctx", "{}", flagFormat, formatYAML},
+			args:       []string{cmdEvaluate, "--path", missing, "--ctx", "{}", flagFormat, formatYAML},
 			wantStderr: "no such file",
 			wantExit:   1,
 		},
 		{
 			name:       "config failure, argument count",
 			args:       []string{cmdConfig, cmdValidate},
-			wantStderr: "accepts 1 arg(s)",
+			wantStderr: `expected "<file>"`,
 			wantExit:   1,
 		},
 		{
 			name:       "config failure, invalid file",
 			args:       []string{cmdConfig, cmdValidate, v1File},
-			wantStderr: "version 2 required",
+			wantStderr: errVersion2Req,
 			wantExit:   2,
 		},
 		{
@@ -332,7 +389,7 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
-			name: "config unknown flag before -ojson", args: []string{cmdConfig, cmdValidate, unknownFlag, "-ojson"},
+			name: "config unknown flag before -ojson", args: []string{cmdConfig, cmdValidate, unknownFlag, shortJSON},
 			wantStderr: unknownFlagMsg, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
@@ -342,7 +399,6 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantExit:   1,
 		},
 		{
-			// Cobra parsed "--output json" before it stopped at the bad flag; the later "text" decides.
 			name:       "publish json parsed, then a bad flag, then text",
 			args:       []string{cmdPublish, optOutput, fmtJSON, unknownFlag, optOutput, fmtText},
 			wantStderr: unknownFlagMsg,
@@ -366,6 +422,20 @@ func TestWholeProcessStreams(t *testing.T) {
 			name:       "config json parsed, then a bad flag, then text",
 			args:       []string{cmdConfig, cmdValidate, "-o", fmtJSON, unknownFlag, "-o", fmtText},
 			wantStderr: unknownFlagMsg,
+			wantExit:   1,
+		},
+		{
+			name:       "config text parsed, then a bad flag, then json",
+			args:       []string{cmdConfig, cmdValidate, "-o", fmtText, unknownFlag, "-o", fmtJSON},
+			wantStderr: unknownFlagMsg,
+			jsonStdout: codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "config -o json before subcommand and bad flag after",
+			args:       []string{cmdConfig, "-o", fmtJSON, cmdValidate, unknownFlag},
+			wantStderr: unknownFlagMsg,
+			jsonStdout: codeUsage,
 			wantExit:   1,
 		},
 		{
@@ -397,21 +467,6 @@ func TestWholeProcessStreams(t *testing.T) {
 			wantExit:   1,
 		},
 		{
-			// "-ho" is two shorthands and "json" is the value of o: Cobra has removed "validate" before pflag reads them.
-			name:       "config: combined shorthand before the subcommand selects json",
-			args:       []string{cmdConfig, "-ho", cmdValidate, fmtJSON, unknownFlag},
-			wantStderr: unknownFlagMsg,
-			jsonStdout: codeUsage,
-			wantExit:   1,
-		},
-		{
-			name:       "config: combined shorthand before the subcommand selects text",
-			args:       []string{cmdConfig, "-ho", cmdValidate, fmtText, unknownFlag},
-			wantStderr: unknownFlagMsg,
-			wantExit:   1,
-		},
-		{
-			// pflag reads -otext as the VALUE of --config, so the selection stays json.
 			name:       "publish: -otext is the value of --config, the output stays json",
 			args:       []string{cmdPublish, optOutput, fmtJSON, flagConfig, "-otext", unknownFlag},
 			wantStderr: unknownFlagMsg,
@@ -420,13 +475,13 @@ func TestWholeProcessStreams(t *testing.T) {
 		},
 		{
 			name:       "publish: -ojson is the value of --config, the output stays text",
-			args:       []string{cmdPublish, optOutput, fmtText, flagConfig, "-ojson", unknownFlag},
+			args:       []string{cmdPublish, optOutput, fmtText, flagConfig, shortJSON, unknownFlag},
 			wantStderr: unknownFlagMsg,
 			wantExit:   1,
 		},
 		{
-			name: "config failure, JSON", args: []string{cmdConfig, "print", "--effective", v1File, "-o", fmtJSON},
-			wantStderr: "version 2 required", jsonStdout: "invalid", wantExit: 2,
+			name: "config failure, JSON", args: []string{cmdConfig, cmdPrint, flagEffective, v1File, "-o", fmtJSON},
+			wantStderr: errVersion2Req, jsonStdout: "invalid", wantExit: 2,
 		},
 		{
 			name:       "publish failure, text",
@@ -459,8 +514,7 @@ func TestWholeProcessStreams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdout, stderr, code := runCLI(t, tt.args...)
-			stdout, stderr = pterm.RemoveColorFromString(stdout), pterm.RemoveColorFromString(stderr)
+			stdout, stderr, code := runCLIClean(t, nil, tt.args...)
 
 			assert.Equal(t, tt.wantExit, code, "stdout %q stderr %q", stdout, stderr)
 			assert.NotContains(t, stdout, fatalLine, "the final error line is never on stdout")
@@ -573,4 +627,128 @@ func assertOneJSON(t *testing.T, stdout, want string) {
 
 	require.NotNil(t, doc.Error)
 	assert.Equal(t, want, doc.Error.Code)
+}
+
+func TestMainInjectedStreamsAndErrors(t *testing.T) {
+	t.Parallel()
+
+	v1File := filepath.Join(t.TempDir(), "v1.yaml")
+	require.NoError(t, os.WriteFile(v1File, []byte("port: 1031\n"), 0o600))
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		wantStderr string
+		jsonCode   string
+		args       []string
+		wantExit   int
+	}{
+		{name: "unknown root flag", args: []string{unknownFlag}, wantStderr: usageText, wantExit: 1},
+		{name: "unknown subcommand", args: []string{"bogus"}, wantStderr: "unexpected argument bogus", wantExit: 1},
+		{
+			name:       "config validate missing file",
+			args:       []string{cmdConfig, cmdValidate},
+			wantStderr: `expected "<file>"`,
+			wantExit:   1,
+		},
+		{
+			name:       "config validate unknown flag json",
+			args:       []string{cmdConfig, cmdValidate, unknownFlag, shortJSON},
+			wantStderr: unknownFlagMsg,
+			jsonCode:   codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "config validate v1 file",
+			args:       []string{cmdConfig, cmdValidate, v1File},
+			wantStderr: errVersion2Req,
+			wantExit:   2,
+		},
+		{
+			name:       "generate no subcommand",
+			args:       []string{cmdGenerate},
+			wantStderr: "no subcommand provided",
+			wantExit:   1,
+		},
+		{
+			name:       "publish missing dir json",
+			args:       []string{cmdPublish, "-o", fmtJSON},
+			wantStderr: "accepts 1 arg(s)",
+			jsonCode:   codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "publish unknown flag json",
+			args:       []string{cmdPublish, "-o", fmtJSON, unknownFlag},
+			wantStderr: unknownFlagMsg,
+			jsonCode:   codeUsage,
+			wantExit:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := cliapp.Main(
+				t.Context(),
+				tt.args,
+				&stdout,
+				&stderr,
+				noEnv,
+				cliapp.Build{Version: localDevVersion},
+			)
+			cleanOut := pterm.RemoveColorFromString(stdout.String())
+			cleanErr := pterm.RemoveColorFromString(stderr.String())
+
+			assert.Equal(t, tt.wantExit, code)
+			assert.Contains(t, cleanErr, tt.wantStderr)
+
+			if tt.jsonCode != "" {
+				assertOneJSON(t, cleanOut, tt.jsonCode)
+			} else {
+				assert.Empty(t, cleanOut)
+			}
+		})
+	}
+}
+
+type failingWriter struct{}
+
+var errWrite = errors.New("disk full")
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
+
+func TestMainWriteFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "version write failure", args: []string{flagVersion}},
+		{name: "root help write failure", args: nil},
+		{name: "config help write failure", args: []string{cmdConfig}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderr bytes.Buffer
+
+			code := cliapp.Main(
+				t.Context(),
+				tt.args,
+				failingWriter{},
+				&stderr,
+				noEnv,
+				cliapp.Build{Version: localDevVersion},
+			)
+			assert.Equal(t, 1, code)
+			assert.Contains(t, stderr.String(), errWrite.Error())
+		})
+	}
 }

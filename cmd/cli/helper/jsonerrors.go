@@ -204,33 +204,5 @@ func wrapTree(cmd *cobra.Command, opts JSONErrorOptions) {
 }
 
 func reportJSON(stdout io.Writer, opts JSONErrorOptions, err error) error {
-	if err == nil {
-		return nil
-	}
-
-	if _, ok := errors.AsType[*ExitError](err); !ok {
-		err = &ExitError{Err: err, Code: ExitFailure}
-	}
-
-	_, done := errors.AsType[*reported](err)
-	if !opts.Enabled() || done {
-		return err
-	}
-
-	name := JSONErrorName(ExitCodeOf(err))
-	if errors.Is(err, ErrUsage) {
-		name = "usage"
-	}
-
-	var details []string
-	if opts.Details != nil {
-		details = opts.Details(err)
-	}
-
-	writeErr := WriteJSONError(stdout, name, err, details)
-	if writeErr != nil {
-		return fmt.Errorf("report error: %w", writeErr)
-	}
-
-	return err
+	return ReportJSONError(stdout, opts.Enabled(), opts.Details, err)
 }

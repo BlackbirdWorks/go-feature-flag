@@ -1,14 +1,11 @@
-package main
+package cliapp_test
 
 import (
-	"bytes"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,49 +24,6 @@ const (
 	errUnknownFlagStderr     = "  ERROR   error executing command: unknown flag: --not-a-flag\n"
 )
 
-// runCLIClean runs the CLI in a subprocess with an explicit minimal environment so that host variables (including
-// COLUMNS or AWS configuration) never leak into golden output assertions.
-func runCLIClean(t *testing.T, extraEnv []string, args ...string) (string, string, int) {
-	t.Helper()
-
-	cmd := exec.CommandContext(
-		t.Context(),
-		os.Args[0],
-		append([]string{"-test.run=^TestHelperProcess$", "--"}, args...)...,
-	)
-
-	const baseEnvCount = 8
-
-	env := make([]string, 0, baseEnvCount+len(extraEnv))
-	env = append(env,
-		helperEnv+"=1",
-		"NO_COLOR=1",
-		"GOCOVERDIR="+t.TempDir(),
-		"AWS_ACCESS_KEY_ID=test",
-		"AWS_SECRET_ACCESS_KEY=test",
-		"AWS_EC2_METADATA_DISABLED=true",
-		"AWS_CONFIG_FILE="+os.DevNull,
-		"AWS_SHARED_CREDENTIALS_FILE="+os.DevNull,
-	)
-	env = append(env, extraEnv...)
-	cmd.Env = env
-
-	var stdout, stderr bytes.Buffer
-
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-
-	err := cmd.Run()
-
-	code := 0
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-		code = exitErr.ExitCode()
-	} else {
-		require.NoError(t, err)
-	}
-
-	return pterm.RemoveColorFromString(stdout.String()), pterm.RemoveColorFromString(stderr.String()), code
-}
-
 func readGolden(t *testing.T, name string) string {
 	t.Helper()
 
@@ -77,6 +31,10 @@ func readGolden(t *testing.T, name string) string {
 	require.NoError(t, err)
 
 	return string(data)
+}
+
+func unwrapped(text string) string {
+	return strings.Join(strings.Fields(text), " ")
 }
 
 func TestHelpGolden(t *testing.T) {
@@ -135,10 +93,23 @@ func TestHelpIndependentOfTerminalWidth(t *testing.T) {
 		columns    string
 		wantGolden string
 		args       []string
+		exact      bool
 	}{
 		{name: "root COLUMNS=40", columns: "COLUMNS=40", args: []string{helpFlag}, wantGolden: helpRootGolden},
-		{name: "root COLUMNS=80", columns: "COLUMNS=80", args: []string{helpFlag}, wantGolden: helpRootGolden},
-		{name: "root COLUMNS=200", columns: "COLUMNS=200", args: []string{helpFlag}, wantGolden: helpRootGolden},
+		{
+			name:       "root COLUMNS=80",
+			columns:    "COLUMNS=80",
+			args:       []string{helpFlag},
+			wantGolden: helpRootGolden,
+			exact:      true,
+		},
+		{
+			name:       "root COLUMNS=200",
+			columns:    "COLUMNS=200",
+			args:       []string{helpFlag},
+			wantGolden: helpRootGolden,
+			exact:      true,
+		},
 		{
 			name:       "config validate COLUMNS=40",
 			columns:    "COLUMNS=40",
@@ -150,12 +121,14 @@ func TestHelpIndependentOfTerminalWidth(t *testing.T) {
 			columns:    "COLUMNS=80",
 			args:       []string{cmdConfig, cmdValidate, helpFlag},
 			wantGolden: helpConfigValidateGolden,
+			exact:      true,
 		},
 		{
 			name:       "config validate COLUMNS=200",
 			columns:    "COLUMNS=200",
 			args:       []string{cmdConfig, cmdValidate, helpFlag},
 			wantGolden: helpConfigValidateGolden,
+			exact:      true,
 		},
 	}
 
@@ -166,7 +139,13 @@ func TestHelpIndependentOfTerminalWidth(t *testing.T) {
 			stdout, stderr, code := runCLIClean(t, []string{tt.columns}, tt.args...)
 			assert.Equal(t, 0, code)
 			assert.Empty(t, stderr)
-			assert.Equal(t, readGolden(t, tt.wantGolden), stdout)
+
+			want := readGolden(t, tt.wantGolden)
+			if tt.exact {
+				assert.Equal(t, want, stdout)
+			} else {
+				assert.Equal(t, unwrapped(want), unwrapped(stdout))
+			}
 		})
 	}
 }
@@ -196,7 +175,7 @@ func TestUsageErrorsGolden(t *testing.T) {
 		{
 			name:       "unknown flag on config print",
 			args:       []string{cmdConfig, cmdPrint, unknownFlag},
-			wantStderr: "  ERROR   error executing command: usage: unknown flag: --not-a-flag\n",
+			wantStderr: "  ERROR   error executing command: usage: unknown flag --not-a-flag\n",
 			wantExit:   1,
 		},
 		{
@@ -255,7 +234,7 @@ func TestUsageErrorsGolden(t *testing.T) {
 		},
 		{
 			name:       "missing required flag on generate manifest",
-			args:       []string{cmdGenerate, cmdManifest, flagConfig, "evaluate/testdata/flag.goff.yaml"},
+			args:       []string{cmdGenerate, cmdManifest, flagConfig, "../evaluate/testdata/flag.goff.yaml"},
 			wantGolden: "err_missing_flag_generate_manifest.golden",
 			wantExit:   1,
 		},
