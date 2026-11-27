@@ -40,6 +40,9 @@ func (r *Rule) validateOnError() error {
 	return fmt.Errorf("%w, got %q", errInvalidOnError, *r.OnError)
 }
 
+// jsonWhitespace is the whitespace that JSON allows before a value; the query trim removes spaces only.
+const jsonWhitespace = " \t\r\n"
+
 // hasSegmentTerm reports whether the query uses a segment term, valid or not. A JsonLogic query uses one when the
 // operation inSegment is a key of its document, not when the text appears in a string; a Rules query when it calls
 // segment().
@@ -133,7 +136,8 @@ func (r *Rule) validateStepSegments(svc *Service, isDefault bool) error {
 
 	// a query that opens like a JsonLogic object and does not decode is rejected, as it is for the rules of the flag
 	// (it is not a valid Rules query either); the default rule ignores its query
-	if !isDefault && strings.HasPrefix(trimmed, "{") && queryFormatOf(trimmed) != JSONLogicQueryFormat {
+	if !isDefault && strings.HasPrefix(strings.TrimLeft(trimmed, jsonWhitespace), "{") &&
+		queryFormatOf(trimmed) != JSONLogicQueryFormat {
 		return errInvalidJsonlogicQuery
 	}
 

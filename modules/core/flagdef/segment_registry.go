@@ -116,7 +116,9 @@ func (r *segmentQueries) reset() {
 	r.entries.Clear()
 }
 
-// mayHaveSegments is a cheap test of a query text before it is compiled: it names segment() or inSegment.
+// mayHaveSegments is a cheap test of a query text before it is compiled: it names segment() or inSegment, in the
+// text or, for a JsonLogic query that writes a character as a JSON escape (for example "\u0069nSegment"), in the
+// decoded document. The compile decides; this only skips the queries that cannot have a segment term.
 func mayHaveSegments(raw string) bool {
-	return strings.Contains(raw, "segment") || strings.Contains(raw, opInSegment)
+	return strings.Contains(raw, "segment") || strings.Contains(raw, opInSegment) || strings.Contains(raw, `\u`)
 }
