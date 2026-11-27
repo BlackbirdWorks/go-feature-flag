@@ -67,9 +67,9 @@ type fixedKeys struct{}
 
 func (fixedKeys) AuthenticationEnabled() bool { return true }
 
-func (fixedKeys) KeyExists(apiKey string) bool { return apiKey == "user" || apiKey == "admin" }
+func (fixedKeys) KeyExists(apiKey string) bool { return apiKey == "member" || apiKey == "root" }
 
-func (fixedKeys) AdminKeyExists(apiKey string) bool { return apiKey == "admin" }
+func (fixedKeys) AdminKeyExists(apiKey string) bool { return apiKey == "root" }
 
 // TestAPIKeys_FromSource checks that a source answers instead of a configuration.
 func TestAPIKeys_FromSource(t *testing.T) {
@@ -78,8 +78,8 @@ func TestAPIKeys_FromSource(t *testing.T) {
 	keys := service.NewAPIKeysFrom(fixedKeys{})
 
 	assert.True(t, keys.AuthenticationEnabled())
-	assert.True(t, keys.KeyExists("user"))
+	assert.True(t, keys.KeyExists("member"))
 	assert.False(t, keys.KeyExists("other"))
-	assert.False(t, keys.AdminKeyExists("user"))
-	assert.True(t, keys.AdminKeyExists("admin"))
+	assert.False(t, keys.AdminKeyExists("member"))
+	assert.True(t, keys.AdminKeyExists("root"))
 }
