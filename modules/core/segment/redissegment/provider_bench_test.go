@@ -54,7 +54,7 @@ func BenchmarkContains(b *testing.B) {
 		b.Run(strconv.Itoa(cnt)+"lookups", func(b *testing.B) {
 			prov, err := redissegment.New(
 				benchClient{},
-				&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+				&redissegment.Options{Segments: twoSegments()},
 			)
 			require.NoError(b, err)
 

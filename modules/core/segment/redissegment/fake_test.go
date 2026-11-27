@@ -194,7 +194,7 @@ func (f *fakeStore) answer(args []any) any {
 	key, _ := args[1].(string)
 
 	switch strings.ToLower(name) {
-	case "sscan":
+	case cmdSScan:
 		return f.sscan(key, args)
 	case "get":
 		return nil

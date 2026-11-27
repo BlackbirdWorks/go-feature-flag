@@ -17,7 +17,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
-const seedChunk = 10_000
+const (
+	seedChunk    = 10_000
+	userLookup   = "lookup"
+	userSnapshot = "snapshot"
+)
 
 // snapEnv is a real store with a provider whose keys are private to one case.
 type snapEnv struct {
@@ -102,7 +106,7 @@ func TestSnapshotAgainstRealStores(t *testing.T) {
 
 			t.Run("a holder follows the writer", func(t *testing.T) {
 				env := newSnapEnv(t, srv, ids.Add(1))
-				holder, err := snapshot.New("alpha", env.prov, snapshot.Options{})
+				holder, err := snapshot.New(snapAlpha, env.prov, snapshot.Options{})
 				require.NoError(t, err)
 
 				const members = 25_000
@@ -127,6 +131,62 @@ func TestSnapshotAgainstRealStores(t *testing.T) {
 				require.NoError(t, holder.Refresh(context.Background()), "the version did not move: nothing is pulled")
 				assert.Equal(t, 1, holder.Status().Members)
 			})
+		})
+	}
+}
+
+//nolint:paralleltest // sequential: one container for each image
+func TestInitRefusesAUserWithoutTheSnapshotCommands(t *testing.T) {
+	for _, image := range []string{valkeyImage, redisImage} {
+		t.Run(image, func(t *testing.T) { //nolint:paralleltest // see above
+			srv := startServerImage(t, image)
+			admin := seed(t, srv.defaultOption())
+			ctx := context.Background()
+
+			for user, commands := range map[string][]string{
+				userLookup:   {"+ping", "+smismember", "+exists", "+get"},
+				userSnapshot: {"+ping", "+smismember", "+exists", "+get", "+sscan"},
+			} {
+				require.NoError(t, admin.Do(ctx,
+					admin.B().Arbitrary("ACL", "SETUSER", user, "on", ">pw", "~*").Args(commands...).Build()).Error())
+			}
+
+			segs := map[string]valkeysegment.SegmentOptions{
+				snapAlpha: {Key: "seg:{alpha}", VersionKey: "seg:alpha:version", Snapshot: true},
+			}
+
+			tests := []struct {
+				user        string
+				wantErrText string
+			}{
+				{user: userLookup, wantErrText: "the command SSCAN is not available"},
+				{user: userSnapshot},
+			}
+
+			for _, tt := range tests {
+				opt := srv.defaultOption()
+				opt.Username, opt.Password = tt.user, "pw"
+
+				prov, err := valkeysegment.Dial(opt, &valkeysegment.Options{Segments: segs})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					shutdownCtx, cancel := context.WithTimeout(context.Background(), e2eTimeout)
+					defer cancel()
+
+					_ = prov.Shutdown(shutdownCtx)
+				})
+
+				err = prov.Init(ctx)
+				if tt.wantErrText == "" {
+					require.NoError(t, err, "the user %s may run every command", tt.user)
+
+					continue
+				}
+
+				require.ErrorIs(t, err, valkeysegment.ErrInit)
+				require.ErrorContains(t, err, tt.wantErrText)
+			}
 		})
 	}
 }

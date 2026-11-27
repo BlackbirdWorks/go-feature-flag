@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net"
 	"slices"
@@ -31,6 +32,7 @@ type segmentConfig struct {
 	key        string
 	versionKey string
 	layout     Layout
+	snapshot   bool
 }
 
 // Provider is a [segment.Provider] over Redis or Valkey through go-redis. It is safe for concurrent use.
@@ -200,7 +202,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())
 
 	for name, so := range opts.Segments {
-		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey}
+		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey, snapshot: so.Snapshot}
 		if cfg.layout == "" {
 			cfg.layout = LayoutSet
 		}
@@ -968,7 +970,69 @@ func (p *Provider) probe(ctx context.Context) error {
 		}
 	}
 
+	err = p.probeSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+
 	p.record(ClassNone)
+
+	return nil
+}
+
+// probeSnapshot probes the commands of the snapshot mode on the segments that are configured for it: SSCAN of each
+// set, GET of each version key (a missing key is the answer nil, not a failure). A refused command is an error of
+// Init that names it.
+func (p *Provider) probeSnapshot(ctx context.Context) error {
+	var (
+		pipe   redis.Pipeliner
+		checks []initCheck
+	)
+
+	callCtx, cancel := p.callContext(ctx)
+	defer cancel()
+
+	for _, name := range slices.Sorted(maps.Keys(p.segs)) {
+		cfg := p.segs[name]
+		if !cfg.snapshot {
+			continue
+		}
+
+		if pipe == nil {
+			pipe = p.client.Pipeline()
+		}
+
+		if cfg.layout == LayoutSet {
+			checks = append(checks, initCheck{pipe.Do(callCtx, "sscan", cfg.key, "0", "COUNT", 1), "SSCAN", shapeNone})
+		}
+
+		if cfg.versionKey != "" {
+			checks = append(checks, initCheck{pipe.Do(callCtx, "get", cfg.versionKey), "GET", shapeNone})
+		}
+	}
+
+	if len(checks) == 0 {
+		return nil
+	}
+
+	_, execErr := pipe.Exec(callCtx)
+	res := newResult(ctx, callCtx, execErr)
+
+	for _, each := range checks {
+		err := each.cmd.Err()
+		if err == nil || errors.Is(err, redis.Nil) {
+			continue
+		}
+
+		class := res.classify(err)
+		p.record(class)
+
+		if class == ClassServer {
+			return fmt.Errorf("%w: the command %s is not available: %w", ErrInit, each.name, ErrServer)
+		}
+
+		return fmt.Errorf("%w: %w", ErrInit, (&LookupError{Class: class}).Unwrap())
+	}
 
 	return nil
 }

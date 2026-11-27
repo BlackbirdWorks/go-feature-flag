@@ -151,7 +151,7 @@ func TestSnapshotRefusalsAndVersion(t *testing.T) {
 
 	token, err := prov.Version(ctx, snapAlpha)
 	require.NoError(t, err)
-	assert.Equal(t, "v42", token)
+	assert.Equal(t, "v:v42", token)
 }
 
 func TestSnapshotFailures(t *testing.T) {

@@ -501,6 +501,12 @@ func TestTheEvaluationLookupsOfAVersionedSegmentAllocateNothing(t *testing.T) {
 		state = catalog.ResolveFor("alpha", segment.Unknown)
 	}))
 	assert.True(t, has)
+
+	// the control: Lookup copies the version spec for an external caller, so a result that is kept costs an allocation
+	var kept segment.Definition
+
+	assert.InDelta(t, 1, testing.AllocsPerRun(100, func() { kept, _ = catalog.Lookup("alpha") }), 0, "the copy is real")
+	assert.NotSame(t, spec, kept.Version)
 	assert.Equal(t, segment.Member, state, "the failure policy of the segment applies")
 	assert.Equal(
 		t,

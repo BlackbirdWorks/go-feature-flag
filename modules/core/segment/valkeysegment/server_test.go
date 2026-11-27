@@ -583,7 +583,7 @@ func (s *stubServer) readData(name string, args []string, garbage, only string) 
 	switch {
 	case garbage != "" && (only == "" || strings.EqualFold(only, name)):
 		return garbage
-	case name == "GET":
+	case name == nameGet:
 		return s.get(args[1])
 	case name == "SSCAN":
 		return s.sscan(args[1:])

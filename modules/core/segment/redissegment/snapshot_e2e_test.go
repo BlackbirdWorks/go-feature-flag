@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -119,6 +120,57 @@ func TestSnapshotAgainstRealStores(t *testing.T) {
 				require.NoError(t, holder.Refresh(context.Background()), "the version did not move: nothing is pulled")
 				assert.Equal(t, 1, holder.Status().Members)
 			})
+		})
+	}
+}
+
+//nolint:paralleltest // sequential: one container for each image
+func TestInitRefusesAUserWithoutTheSnapshotCommands(t *testing.T) {
+	for _, image := range []string{valkeyImage, redisImage} {
+		t.Run(image, func(t *testing.T) { //nolint:paralleltest // see above
+			srv := startServerImage(t, image)
+			ctx := context.Background()
+
+			for user, commands := range map[string][]any{
+				"lookup":   {"+ping", "+smismember", "+exists", "+get"},
+				"snapshot": {"+ping", "+smismember", "+exists", "+get", "+sscan"},
+			} {
+				args := append([]any{"ACL", "SETUSER", user, "on", ">pw", "~*"}, commands...)
+				require.NoError(t, srv.client.Do(ctx, args...).Err())
+			}
+
+			segs := map[string]redissegment.SegmentOptions{
+				"alpha": {Key: "seg:{alpha}", VersionKey: "seg:alpha:version", Snapshot: true},
+			}
+
+			tests := []struct {
+				user        string
+				wantErrText string
+			}{
+				{user: "lookup", wantErrText: "the command SSCAN is not available"},
+				{user: "snapshot"},
+			}
+
+			for _, tt := range tests {
+				client := redis.NewClient(&redis.Options{
+					Addr: srv.address, Username: tt.user, Password: "pw", ContextTimeoutEnabled: true, MaxRetries: -1,
+				})
+
+				t.Cleanup(func() { _ = client.Close() })
+
+				prov, err := redissegment.New(client, &redissegment.Options{Segments: segs})
+				require.NoError(t, err)
+
+				err = prov.Init(ctx)
+				if tt.wantErrText == "" {
+					require.NoError(t, err, "the user %s may run every command", tt.user)
+
+					continue
+				}
+
+				require.ErrorIs(t, err, redissegment.ErrInit)
+				require.ErrorContains(t, err, tt.wantErrText)
+			}
 		})
 	}
 }

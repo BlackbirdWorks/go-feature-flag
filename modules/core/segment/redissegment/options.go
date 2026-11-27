@@ -54,6 +54,10 @@ type SegmentOptions struct {
 	// changes whenever it changes them. [Provider.Version] reads it with GET; a missing key is the fixed version
 	// [segment.AbsentVersion], not an error. Without it Version fails with [ErrNoVersionKey].
 	VersionKey string
+	// Snapshot makes Init probe the commands of the snapshot mode on this segment: SSCAN of the set, and GET of the
+	// version key when there is one. A user that may only run the lookup commands then fails at the start, with an
+	// error that names the command, not at the first pull.
+	Snapshot bool
 }
 
 // Options configures a Provider.

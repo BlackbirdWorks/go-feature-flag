@@ -3,6 +3,8 @@ package valkeysegment
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/valkey-io/valkey-go"
 
@@ -79,6 +81,15 @@ func (p *Provider) Init(ctx context.Context) (err error) {
 // probeReply checks that the reply of a probe has the shape that Contains reads: a list of one 0 or 1 for
 // SMISMEMBER, a 0 or 1 for EXISTS.
 func probeReply(res valkey.ValkeyResult, name string) error {
+	if name == "SSCAN" || name == "GET" {
+		err := res.Error()
+		if err != nil && !valkey.IsValkeyNil(err) {
+			return err //nolint:wrapcheck // classified by the caller
+		}
+
+		return nil
+	}
+
 	if name == "SMISMEMBER" {
 		_, err := parseMembers(res, 1)
 
@@ -110,6 +121,23 @@ func (p *Provider) probeCommands(builder *valkey.Builder) ([]valkey.Completed, [
 	for _, key := range p.probeKeys {
 		cmds = append(cmds, builder.Exists().Key(key).Build())
 		names = append(names, "EXISTS")
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(p.segs)) {
+		cfg := p.segs[name]
+		if !cfg.snapshot {
+			continue
+		}
+
+		if cfg.layout == LayoutSet {
+			cmds = append(cmds, builder.Sscan().Key(cfg.key).Cursor(0).Count(1).Build())
+			names = append(names, "SSCAN")
+		}
+
+		if cfg.versionKey != "" {
+			cmds = append(cmds, builder.Get().Key(cfg.versionKey).Build())
+			names = append(names, "GET")
+		}
 	}
 
 	return cmds, names

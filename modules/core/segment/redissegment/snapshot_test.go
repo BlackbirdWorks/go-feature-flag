@@ -227,7 +227,7 @@ func TestVersionReadsTheVersionKey(t *testing.T) {
 
 	token, err := prov.Version(context.Background(), snapAlpha)
 	require.NoError(t, err)
-	assert.Equal(t, "v42", token)
+	assert.Equal(t, "v:v42", token)
 	assert.Equal(t, [][]string{{"GET " + snapVerKey}, {"GET " + snapVerKey}}, store.commands())
 }
 
