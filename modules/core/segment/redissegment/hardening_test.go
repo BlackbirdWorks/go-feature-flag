@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -16,24 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 func TestScriptSHAIsTheSHAOfTheScript(t *testing.T) {
 	t.Parallel()
 
-	sum := sha1.Sum([]byte(valkeysegment.Script))
+	sum := sha1.Sum([]byte(redissegment.Script))
 
-	assert.Equal(t, valkeysegment.ScriptSHA, hex.EncodeToString(sum[:]))
+	assert.Equal(t, redissegment.ScriptSHA, hex.EncodeToString(sum[:]))
 }
 
 func TestScriptIsLoadedOnceAndThenCalledBySHA(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &valkeysegment.Options{Atomic: true, Segments: twoSegments()})
-	bySHA := "evalsha " + valkeysegment.ScriptSHA + " 1 " + keyBeta + " alice"
-	full := "eval " + valkeysegment.Script + " 1 " + keyBeta + " alice"
+	prov := newProvider(t, store, &redissegment.Options{Atomic: true, Segments: twoSegments()})
+	bySHA := "evalsha " + redissegment.ScriptSHA + " 1 " + keyBeta + " alice"
+	full := "eval " + redissegment.Script + " 1 " + keyBeta + " alice"
 
 	for range 3 {
 		lookups := []segment.Lookup{lk(segBeta, idAlice)}
@@ -71,51 +71,51 @@ func TestInit(t *testing.T) {
 		pingCmd = cmdPing
 	)
 
-	setSegs := map[string]valkeysegment.SegmentOptions{segBeta: {}}
-	keySegs := map[string]valkeysegment.SegmentOptions{"f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix}}
-	bothSegs := map[string]valkeysegment.SegmentOptions{segBeta: {}, "f": keySegs["f"]}
+	setSegs := map[string]redissegment.SegmentOptions{segBeta: {}}
+	keySegs := map[string]redissegment.SegmentOptions{"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix}}
+	bothSegs := map[string]redissegment.SegmentOptions{segBeta: {}, "f": keySegs["f"]}
 	smis := "smismember " + setKey + " " + setID
 	exists := "exists " + setKey
 	existsKey := "exists " + keyID
-	script := " " + valkeysegment.Script + " 1 " + setKey + " " + setID
-	sha := " " + valkeysegment.ScriptSHA + " 1 " + setKey + " " + setID
+	script := " " + redissegment.Script + " 1 " + setKey + " " + setID
+	sha := " " + redissegment.ScriptSHA + " 1 " + setKey + " " + setID
 	roPipe := []string{pingCmd, "eval_ro" + script, "evalsha_ro" + sha}
 	plainPipe := []string{"eval" + script, "evalsha" + sha}
-	atomic := &valkeysegment.Options{Segments: setSegs, Atomic: true}
+	atomic := &redissegment.Options{Segments: setSegs, Atomic: true}
 
 	tests := []struct {
 		wantErr       error
 		store         *fakeStore
-		opts          *valkeysegment.Options
+		opts          *redissegment.Options
 		name          string
 		wantMsg       string
 		wantScriptCmd string
 		wantPipelines [][]string
-		wantClass     valkeysegment.Class
+		wantClass     redissegment.Class
 	}{
 		{
 			name: "set layout probes SMISMEMBER and EXISTS of its own key", store: &fakeStore{},
-			opts:          &valkeysegment.Options{Segments: setSegs},
+			opts:          &redissegment.Options{Segments: setSegs},
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
 			name: "set layout without the key check probes SMISMEMBER only", store: &fakeStore{},
-			opts:          &valkeysegment.Options{Segments: setSegs, MissingKey: valkeysegment.MissingNotMember},
+			opts:          &redissegment.Options{Segments: setSegs, MissingKey: redissegment.MissingNotMember},
 			wantPipelines: [][]string{{pingCmd, smis}},
 		},
 		{
 			name: "keys layout probes EXISTS under its prefix", store: &fakeStore{},
-			opts:          &valkeysegment.Options{Segments: keySegs},
+			opts:          &redissegment.Options{Segments: keySegs},
 			wantPipelines: [][]string{{pingCmd, existsKey}},
 		},
 		{
 			name: "both layouts probe both", store: &fakeStore{},
-			opts:          &valkeysegment.Options{Segments: bothSegs},
+			opts:          &redissegment.Options{Segments: bothSegs},
 			wantPipelines: [][]string{{pingCmd, smis, exists, existsKey}},
 		},
 		{
 			name: "the probe is in the configured namespace", store: &fakeStore{},
-			opts: &valkeysegment.Options{Segments: setSegs, KeyPrefix: "audience:"},
+			opts: &redissegment.Options{Segments: setSegs, KeyPrefix: "audience:"},
 			wantPipelines: [][]string{{
 				pingCmd, "smismember audience:{beta} " + setID, "exists audience:{beta}",
 			}},
@@ -138,55 +138,55 @@ func TestInit(t *testing.T) {
 		{
 			name:  "atomic without the key check uses SMISMEMBER, so it probes that",
 			store: &fakeStore{},
-			opts: &valkeysegment.Options{
+			opts: &redissegment.Options{
 				Segments:   setSegs,
 				Atomic:     true,
-				MissingKey: valkeysegment.MissingNotMember,
+				MissingKey: redissegment.MissingNotMember,
 			},
 			wantPipelines: [][]string{{pingCmd, smis}},
 		},
 		{
-			name: "no segment, nothing to probe but the store", store: &fakeStore{}, opts: &valkeysegment.Options{},
+			name: "no segment, nothing to probe but the store", store: &fakeStore{}, opts: &redissegment.Options{},
 			wantPipelines: [][]string{{pingCmd}},
 		},
 		{
 			name: "set layout without SMISMEMBER", store: denying("smismember"),
-			opts:    &valkeysegment.Options{Segments: setSegs},
-			wantErr: valkeysegment.ErrServer, wantClass: valkeysegment.ClassServer,
+			opts:    &redissegment.Options{Segments: setSegs},
+			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command SMISMEMBER is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
 			name: "set layout without EXISTS", store: denying("exists"),
-			opts:    &valkeysegment.Options{Segments: setSegs},
-			wantErr: valkeysegment.ErrServer, wantClass: valkeysegment.ClassServer,
+			opts:    &redissegment.Options{Segments: setSegs},
+			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EXISTS is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
 			name: "keys layout without EXISTS", store: denying("exists"),
-			opts:    &valkeysegment.Options{Segments: keySegs},
-			wantErr: valkeysegment.ErrServer, wantClass: valkeysegment.ClassServer,
+			opts:    &redissegment.Options{Segments: keySegs},
+			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EXISTS is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, existsKey}},
 		},
 		{
 			name: "atomic without any script command", store: denying("eval_ro", "eval"),
-			opts: atomic, wantErr: valkeysegment.ErrServer, wantClass: valkeysegment.ClassServer,
+			opts: atomic, wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EVAL is not available: " + msgServer,
 			wantPipelines: [][]string{roPipe, plainPipe},
 		},
 		{
 			name: "atomic without EVALSHA", store: denying("eval_ro", "evalsha"),
-			opts: atomic, wantErr: valkeysegment.ErrServer, wantClass: valkeysegment.ClassServer,
+			opts: atomic, wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EVALSHA is not available: " + msgServer,
 			wantPipelines: [][]string{roPipe, plainPipe},
 		},
 		{
 			name: nameStoreDown, store: &fakeStore{exec: func(context.Context) error { return errDial }},
-			opts:    &valkeysegment.Options{Segments: setSegs},
-			wantErr: valkeysegment.ErrUnavailable, wantClass: valkeysegment.ClassUnavailable,
-			wantMsg:       "valkey segment: init failed: valkey segment: store unavailable",
+			opts:    &redissegment.Options{Segments: setSegs},
+			wantErr: redissegment.ErrUnavailable, wantClass: redissegment.ClassUnavailable,
+			wantMsg:       "redis segment: init failed: redis segment: store unavailable",
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 	}
@@ -201,7 +201,7 @@ func TestInit(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
-				require.ErrorIs(t, err, valkeysegment.ErrInit)
+				require.ErrorIs(t, err, redissegment.ErrInit)
 				assert.Equal(t, tt.wantMsg, err.Error())
 			} else {
 				require.NoError(t, err)
@@ -244,8 +244,8 @@ func TestInitScriptFallbackSharesTheTimeoutOfInit(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {}}, Atomic: true,
+	prov := newProvider(t, store, &redissegment.Options{
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {}}, Atomic: true,
 	})
 
 	require.NoError(t, prov.Init(boundedCtx(t)))
@@ -262,11 +262,11 @@ func TestInitScriptFallbackSharesTheTimeoutOfInit(t *testing.T) {
 func TestOversizedIDsAreNeverSent(t *testing.T) {
 	t.Parallel()
 
-	long := strings.Repeat("a", valkeysegment.DefaultMaxIDBytes+1)
-	exact := strings.Repeat("b", valkeysegment.DefaultMaxIDBytes)
+	long := strings.Repeat("a", redissegment.DefaultMaxIDBytes+1)
+	exact := strings.Repeat("b", redissegment.DefaultMaxIDBytes)
 
 	tests := []struct {
-		opts         *valkeysegment.Options
+		opts         *redissegment.Options
 		name         string
 		lookups      []segment.Lookup
 		wantStates   []segment.State
@@ -275,7 +275,7 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 	}{
 		{
 			name:         "one byte over the default",
-			opts:         &valkeysegment.Options{Segments: twoSegments(), MissingKey: valkeysegment.MissingNotMember},
+			opts:         &redissegment.Options{Segments: twoSegments(), MissingKey: redissegment.MissingNotMember},
 			lookups:      []segment.Lookup{lk(segBeta, long), lk(segBeta, idAlice)},
 			wantStates:   []segment.State{segment.Unknown, segment.Member},
 			wantObserved: 1,
@@ -283,7 +283,7 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		},
 		{
 			name:         "exactly the default is looked up",
-			opts:         &valkeysegment.Options{Segments: twoSegments(), MissingKey: valkeysegment.MissingNotMember},
+			opts:         &redissegment.Options{Segments: twoSegments(), MissingKey: redissegment.MissingNotMember},
 			lookups:      []segment.Lookup{lk(segBeta, exact)},
 			wantStates:   []segment.State{segment.NotMember},
 			wantObserved: 0,
@@ -291,8 +291,8 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		},
 		{
 			name: "a custom limit",
-			opts: &valkeysegment.Options{
-				Segments: twoSegments(), MissingKey: valkeysegment.MissingNotMember, MaxIDBytes: 4,
+			opts: &redissegment.Options{
+				Segments: twoSegments(), MissingKey: redissegment.MissingNotMember, MaxIDBytes: 4,
 			},
 			lookups:      []segment.Lookup{lk(segBeta, "alice"), lk(segBeta, "bob")},
 			wantStates:   []segment.State{segment.Unknown, segment.NotMember},
@@ -301,9 +301,9 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		},
 		{
 			name: "the keys layout too",
-			opts: &valkeysegment.Options{
-				Segments: map[string]valkeysegment.SegmentOptions{
-					"f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+			opts: &redissegment.Options{
+				Segments: map[string]redissegment.SegmentOptions{
+					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
 				MaxIDBytes: 3,
 			},
@@ -337,14 +337,14 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		})
 	}
 
-	_, err := valkeysegment.New(&fakeStore{}, &valkeysegment.Options{MaxIDBytes: -1})
-	require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+	_, err := redissegment.New(&fakeStore{}, &redissegment.Options{MaxIDBytes: -1})
+	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 }
 
 func TestCloseAndShutdownAreIdempotent(t *testing.T) {
 	t.Parallel()
 
-	prov, err := valkeysegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &valkeysegment.Options{})
+	prov, err := redissegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &redissegment.Options{})
 	require.NoError(t, err)
 
 	require.NoError(t, prov.Close())
@@ -359,7 +359,7 @@ func TestAStateLeftInTheSliceNeverSurvivesAFailure(t *testing.T) {
 
 	tests := []struct {
 		store *fakeStore
-		opts  *valkeysegment.Options
+		opts  *redissegment.Options
 		name  string
 		id    string
 		seg   string
@@ -373,7 +373,7 @@ func TestAStateLeftInTheSliceNeverSurvivesAFailure(t *testing.T) {
 		{
 			name:  "an oversized id",
 			store: &fakeStore{},
-			opts:  &valkeysegment.Options{MaxIDBytes: 2},
+			opts:  &redissegment.Options{MaxIDBytes: 2},
 			id:    idAlice,
 			seg:   segBeta,
 		},
@@ -384,7 +384,7 @@ func TestAStateLeftInTheSliceNeverSurvivesAFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := valkeysegment.Options{}
+			opts := redissegment.Options{}
 			if tt.opts != nil {
 				opts = *tt.opts
 			}
@@ -431,7 +431,7 @@ func TestALargeSegmentIsSeveralCommandsInOnePipeline(t *testing.T) {
 	prov := newProvider(
 		t,
 		store,
-		&valkeysegment.Options{Segments: twoSegments(), MissingKey: valkeysegment.MissingNotMember},
+		&redissegment.Options{Segments: twoSegments(), MissingKey: redissegment.MissingNotMember},
 	)
 
 	require.NoError(t, prov.Contains(context.Background(), lookups))
@@ -447,7 +447,7 @@ func TestALargeSegmentIsSeveralCommandsInOnePipeline(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]int{valkeysegment.MaxIDsPerCommand, valkeysegment.MaxIDsPerCommand, total - 2*valkeysegment.MaxIDsPerCommand},
+		[]int{redissegment.MaxIDsPerCommand, redissegment.MaxIDsPerCommand, total - 2*redissegment.MaxIDsPerCommand},
 		sizes,
 	)
 }
@@ -466,7 +466,7 @@ func TestHealth(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	var reporter segment.HealthReporter = prov
 
@@ -484,8 +484,8 @@ func TestHealth(t *testing.T) {
 const (
 	unreachableAddr  = "127.0.0.1:1"
 	nameStoreDown    = "the store is down"
-	msgInit          = "valkey segment: init failed: "
-	msgServer        = "valkey segment: store returned an error"
+	msgInit          = "redis segment: init failed: "
+	msgServer        = "redis segment: store returned an error"
 	classUnavailable = "unavailable"
 	cmdPing          = "ping"
 )

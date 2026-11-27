@@ -18,7 +18,7 @@ beta-feature:
 ```
 
 > [!NOTE]
-> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. Looking members up in Valkey and the relay proxy settings that define segments are not available yet: they will come with the Valkey provider and the relay proxy wiring. Until then segments are available to the Go module (see [Use segments in the Go module](#use-segments-in-the-go-module)).
+> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. Looking members up in Redis or Valkey and the relay proxy settings that define segments are not available yet: they will come with the segment providers and the relay proxy wiring. Until then segments are available to the Go module (see [Use segments in the Go module](#use-segments-in-the-go-module)).
 
 ## Syntax
 
@@ -181,6 +181,6 @@ client, err := ffclient.New(&ffclient.Config{
 
 ## What is not available yet
 
-- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `valkey` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments in Valkey](segments-valkey.md)).
+- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments in Redis](segments-redis.md)).
 - The `segments` setting of the relay proxy, the segment lookups on the relay proxy evaluation endpoints, the `semaphore_segmentStatus` metadata, the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
 - Tools to import and swap members.

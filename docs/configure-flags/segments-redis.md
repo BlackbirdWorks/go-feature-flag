@@ -1,8 +1,8 @@
-# Segments in Valkey
+# Segments in Redis
 
-Three Go packages serve segments from Valkey (or Redis 6.2 or later: the store needs `SMISMEMBER`, and `EVALSHA` or `EVAL` for the atomic mode):
+Three Go packages serve segments from Redis or Valkey with go-redis (Redis 6.2 or later, Valkey 7.2 or later: the store needs `SMISMEMBER`, and `EVALSHA` or `EVAL` for the atomic mode):
 
-- `modules/core/segment/valkeysegment`: a `segment.Provider` that reads the members with go-redis. It only reads, so a read-only ACL user is enough (see ACL below).
+- `modules/core/segment/redissegment`: a `segment.Provider` that reads the members with go-redis. It only reads, so a read-only ACL user is enough (see ACL below).
 - `modules/core/segment/resolver`: a `segment.Provider` that wraps any provider with a cache, coalescing and a circuit breaker for each segment.
 - `modules/core/segment/segmenttest`: the conformance suite of a `segment.Provider`, for the providers that come later.
 
@@ -26,17 +26,17 @@ A segment is either a set (default) or one key per member.
 
 ```shell
 # set layout
-valkey-cli SADD 'semaphore:segment:{beta}' alice carol
+redis-cli SADD 'semaphore:segment:{beta}' alice carol
 # keys layout
-valkey-cli SET flag:alice 1
+redis-cli SET flag:alice 1
 ```
 
 To replace a large set without readers seeing a half-built set, build it under a temporary key with the same hash tag, then swap:
 
 ```shell
-valkey-cli DEL 'semaphore:segment:{beta}:tmp'
-valkey-cli SADD 'semaphore:segment:{beta}:tmp' alice carol dave   # in batches
-valkey-cli RENAME 'semaphore:segment:{beta}:tmp' 'semaphore:segment:{beta}'
+redis-cli DEL 'semaphore:segment:{beta}:tmp'
+redis-cli SADD 'semaphore:segment:{beta}:tmp' alice carol dave   # in batches
+redis-cli RENAME 'semaphore:segment:{beta}:tmp' 'semaphore:segment:{beta}'
 ```
 
 `RENAME` is atomic: a reader sees the old set or the new one, never a missing key. The `semaphore-cli segment` tooling (issue 17) will do this for you. Deleting the live key and then rebuilding it is not atomic: for a moment the segment is not loaded (see Missing key).
@@ -44,10 +44,10 @@ valkey-cli RENAME 'semaphore:segment:{beta}:tmp' 'semaphore:segment:{beta}'
 ## Use it
 
 ```go
-store, err := valkeysegment.New(redisClient, &valkeysegment.Options{ // a go-redis client with ContextTimeoutEnabled
-    Segments: map[string]valkeysegment.SegmentOptions{
+store, err := redissegment.New(redisClient, &redissegment.Options{ // a go-redis client with ContextTimeoutEnabled
+    Segments: map[string]redissegment.SegmentOptions{
         "beta":    {},                                               // set at semaphore:segment:{beta}
-        "flagged": {Layout: valkeysegment.LayoutKeys, Key: "flag:"}, // keys flag:<id>
+        "flagged": {Layout: redissegment.LayoutKeys, Key: "flag:"}, // keys flag:<id>
     },
     Timeout: 50 * time.Millisecond, // per call, under the context of the caller
 })
@@ -60,18 +60,18 @@ provider, err := resolver.New(store, &resolver.Options{
 client, err := ffclient.New(&ffclient.Config{ /* ... */ Segments: catalog, SegmentProvider: provider })
 ```
 
-- `valkeysegment.New` takes any go-redis client (a single node, a failover set or a cluster), so the relay can share its connection. `Dial` builds the client from `redis.UniversalOptions`, sets `ContextTimeoutEnabled` on a copy of them, and the provider owns the client.
+- `redissegment.New` takes any go-redis client (a single node, a failover set or a cluster), so the relay can share its connection. `Dial` builds the client from `redis.UniversalOptions`, sets `ContextTimeoutEnabled` on a copy of them, and the provider owns the client.
 - A client passed to `New` must have `ContextTimeoutEnabled` set and must not disable its read or write timeout (`ReadTimeout` or `WriteTimeout` of `-2`; the value that the client reports must not be negative, for a node and for a cluster client): without them the socket ignores the deadline of the call, and `New` returns an error that wraps `ErrInvalidOptions` (`ErrContextTimeoutDisabled` or `ErrSocketDeadlineDisabled`). A client that does not show its options is accepted.
-- The resolver is optional: without it every call goes to Valkey. With it, a call is: normalise, cache, breaker, one coalesced call to the store.
+- The resolver is optional: without it every call goes to the store. With it, a call is: normalise, cache, breaker, one coalesced call to the store.
 
 ## Defaults
 
 | Setting | Default |
 |---|---|
-| `valkeysegment` `Timeout` (one call) | 100 ms |
-| `valkeysegment` `KeyPrefix` | `semaphore:segment:` |
-| `valkeysegment` `MissingKey` | `unknown` |
-| `valkeysegment` `Atomic` | off |
+| `redissegment` `Timeout` (one call) | 100 ms |
+| `redissegment` `KeyPrefix` | `semaphore:segment:` |
+| `redissegment` `MissingKey` | `unknown` |
+| `redissegment` `Atomic` | off |
 | `resolver` `TTL` (members) | 30 s |
 | `resolver` `NegativeTTL` (non members) | 5 s |
 | `resolver` `MaxEntries` (each segment) | 10000 |
@@ -80,9 +80,9 @@ client, err := ffclient.New(&ffclient.Config{ /* ... */ Segments: catalog, Segme
 | `resolver` `BreakerCooldown` | 10 s |
 | `resolver` `CallTimeout` (the shared call) | 2 s |
 | `resolver` `Normalize` | `none` (the other value is `trimLower`) |
-| `resolver` and `valkeysegment` `MaxIDBytes` (longest id that is looked up) | 512 |
-| `valkeysegment` `MaxIDsPerCommand` (ids in one `SMISMEMBER`; not applied to `Atomic`) | 1000 |
-| `valkeysegment` `MaxInitProbes` (namespaces that `Init` probes) | 16 |
+| `resolver` and `redissegment` `MaxIDBytes` (longest id that is looked up) | 512 |
+| `redissegment` `MaxIDsPerCommand` (ids in one `SMISMEMBER`; not applied to `Atomic`) | 1000 |
+| `redissegment` `MaxInitProbes` (namespaces that `Init` probes) | 16 |
 
 `Options.Default` sets the values of the segments that `Options.Segments` does not name.
 
@@ -120,7 +120,7 @@ Each segment has a breaker. After `BreakerFailures` consecutive failed calls it 
 
 ## Missing key
 
-A set that does not exist is not the same as an empty segment, and Valkey deletes a set that becomes empty. The provider therefore adds an `EXISTS` of the set key to the same pipeline:
+A set that does not exist is not the same as an empty segment, and Redis and Valkey delete a set that becomes empty. The provider therefore adds an `EXISTS` of the set key to the same pipeline:
 
 | `MissingKey` | A non-member of a set whose key does not exist is |
 |---|---|
@@ -142,25 +142,25 @@ When a call returns an error, the engine keeps the answers (member or not member
 
 | Cause | Lookups | Error |
 |---|---|---|
-| Store down, connection broken | all unknown | `valkeysegment.ErrUnavailable` |
-| The per-call timeout or a network timeout | all unknown | `valkeysegment.ErrTimeout` |
-| The caller's context ended (before or during the call) | the ones answered before keep their answer, the others are unknown | `valkeysegment.ErrCanceled`, or `resolver.ErrWaiting` when it ended while waiting |
-| The store replied with an error (no permission, wrong type, loading) for one command | the lookups of that command are unknown, the others keep their answer | `valkeysegment.ErrServer` |
-| A reply that does not fit the command | the lookups of that command are unknown | `valkeysegment.ErrProtocol` |
-| A reply that cannot be parsed (a malformed integer, a broken frame) on any command of the call, or of the script retry | **every** lookup of the call is unknown, even the ones answered before it | `valkeysegment.ErrUnavailable` |
-| The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, pool exhausted, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `valkeysegment.ErrUnavailable` |
+| Store down, connection broken | all unknown | `redissegment.ErrUnavailable` |
+| The per-call timeout or a network timeout | all unknown | `redissegment.ErrTimeout` |
+| The caller's context ended (before or during the call) | the ones answered before keep their answer, the others are unknown | `redissegment.ErrCanceled`, or `resolver.ErrWaiting` when it ended while waiting |
+| The store replied with an error (no permission, wrong type, loading) for one command | the lookups of that command are unknown, the others keep their answer | `redissegment.ErrServer` |
+| A reply that does not fit the command | the lookups of that command are unknown | `redissegment.ErrProtocol` |
+| A reply that cannot be parsed (a malformed integer, a broken frame) on any command of the call, or of the script retry | **every** lookup of the call is unknown, even the ones answered before it | `redissegment.ErrUnavailable` |
+| The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, pool exhausted, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `redissegment.ErrUnavailable` |
 | The breaker of the segment is open | unknown, no call | `resolver.ErrCircuitOpen` |
 | Segment not in the options | unknown | none |
 | Set key missing (default) | non-members unknown | none |
 | The id is longer than `MaxIDBytes` | unknown, not sent | none |
 | The context of the caller ended before the call | what the cache has, the rest unknown | `resolver.ErrWaiting` with the context error |
-| After `Shutdown` | unknown | `resolver.ErrClosed`, `valkeysegment.ErrClosed` |
+| After `Shutdown` | unknown | `resolver.ErrClosed`, `redissegment.ErrClosed` |
 
-The errors hold a class and counts, never an id, a key or an address: the resolver wraps the error of the store in a `*resolver.StoreError` whose message is fixed (the error of the store stays reachable with `errors.Is` and `errors.As`), and a test checks that no id, key, address or password appears in any error, status or observation. The engine then reports the status `STORE_ERROR` for the evaluation. With Valkey down, a request takes at most the deadline of its context plus the time to return: with an open breaker it returns without a network call.
+The errors hold a class and counts, never an id, a key or an address: the resolver wraps the error of the store in a `*resolver.StoreError` whose message is fixed (the error of the store stays reachable with `errors.Is` and `errors.As`), and a test checks that no id, key, address or password appears in any error, status or observation. The engine then reports the status `STORE_ERROR` for the evaluation. With the store down, a request takes at most the deadline of its context plus the time to return: with an open breaker it returns without a network call.
 
 ## Lifecycle
 
-`segment.Initializer`, `segment.Shutdowner`, `segment.Existencer` and `segment.HealthReporter` are optional interfaces in the `segment` package (the `Provider` interface does not change). `valkeysegment.Provider` and `resolver.Resolver` implement them, and the relay will reach them with a type assertion.
+`segment.Initializer`, `segment.Shutdowner`, `segment.Existencer` and `segment.HealthReporter` are optional interfaces in the `segment` package (the `Provider` interface does not change). `redissegment.Provider` and `resolver.Resolver` implement them, and the relay will reach them with a type assertion.
 
 - `Init` sends one pipeline with the commands that the lookups will use, on the keys that you configured: `SMISMEMBER` and `EXISTS` for a set segment (only `SMISMEMBER` with `MissingKey: notMember`), the script commands for `Atomic` (the `_RO` pair first, then `EVAL` and `EVALSHA`), `EXISTS` for a keys segment. It checks that `PING` answers `PONG` and that each reply has the shape of its command. It fails with `ErrInit`, naming the command that the store refuses, so an old server or a restricted user is found at the start. It probes each distinct namespace once (the key of a set up to its `{tag}`, or the prefix of a keys segment) with the key of its first segment by name, and at most 16 namespaces in all (`MaxInitProbes`, the set and keys layouts together, the first ones by name); the others are not probed. `Provider.Exists` needs `EXISTS` even with `notMember`, and `Init` does not check it in that mode.
 - `Shutdown` is safe to call twice. It stops new calls (`Contains`, `Init` and `Exists` return `ErrClosed`, `Contains` with every lookup unknown), waits for the calls in flight until its context ends, then ends them: no call reaches the store after it returns. The resolver waits for the calls in flight, until the context of `Shutdown` ends. The `Shutdown` of the store gets a context that ends `ShutdownGrace` (default 5 seconds) after the deadline of the first `Shutdown` of the resolver, or after the call when that context has no deadline, so a store that stops only on cancellation does not stay pending. The existence check that follows an unanswered lookup runs at most once at a time for a segment: a store that hangs in `Exists` leaves one overdue check for the segment, not one for each lookup.

@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 // slotOf is the cluster slot of a key: CRC16 (XMODEM) of the hash tag when the key has one, modulo 16384.
@@ -48,8 +48,8 @@ func generatedKey(t *testing.T, name string) string {
 	t.Helper()
 
 	store := &fakeStore{}
-	prov := newProvider(t, store, &valkeysegment.Options{
-		Segments: map[string]valkeysegment.SegmentOptions{name: {}},
+	prov := newProvider(t, store, &redissegment.Options{
+		Segments: map[string]redissegment.SegmentOptions{name: {}},
 	})
 
 	_, err := prov.Exists(boundedCtx(t), []string{name})

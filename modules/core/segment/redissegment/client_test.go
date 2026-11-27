@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 func TestNewRequiresContextTimeoutOfAGoRedisClient(t *testing.T) {
@@ -23,37 +23,37 @@ func TestNewRequiresContextTimeoutOfAGoRedisClient(t *testing.T) {
 	const addr = "127.0.0.1:1" // never dialed: go-redis connects on the first command
 
 	tests := []struct {
-		client  func() valkeysegment.Client
+		client  func() redissegment.Client
 		name    string
 		wantErr bool
 	}{
 		{
 			name:    "a node client without it",
-			client:  func() valkeysegment.Client { return redis.NewClient(&redis.Options{Addr: addr}) },
+			client:  func() redissegment.Client { return redis.NewClient(&redis.Options{Addr: addr}) },
 			wantErr: true,
 		},
 		{
 			name: "a node client with it",
-			client: func() valkeysegment.Client {
+			client: func() redissegment.Client {
 				return redis.NewClient(&redis.Options{Addr: addr, ContextTimeoutEnabled: true})
 			},
 		},
 		{
 			name: "a cluster client without it",
-			client: func() valkeysegment.Client {
+			client: func() redissegment.Client {
 				return redis.NewClusterClient(&redis.ClusterOptions{Addrs: []string{addr}})
 			},
 			wantErr: true,
 		},
 		{
 			name: "a cluster client with it",
-			client: func() valkeysegment.Client {
+			client: func() redissegment.Client {
 				return redis.NewClusterClient(&redis.ClusterOptions{Addrs: []string{addr}, ContextTimeoutEnabled: true})
 			},
 		},
 		{
 			name:   "a client that does not expose its options",
-			client: func() valkeysegment.Client { return &fakeStore{} },
+			client: func() redissegment.Client { return &fakeStore{} },
 		},
 	}
 
@@ -61,11 +61,11 @@ func TestNewRequiresContextTimeoutOfAGoRedisClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov, err := valkeysegment.New(tt.client(), &valkeysegment.Options{})
+			prov, err := redissegment.New(tt.client(), &redissegment.Options{})
 
 			if tt.wantErr {
-				require.ErrorIs(t, err, valkeysegment.ErrContextTimeoutDisabled)
-				require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+				require.ErrorIs(t, err, redissegment.ErrContextTimeoutDisabled)
+				require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 				assert.Nil(t, prov)
 
 				return
@@ -158,20 +158,20 @@ func loopback(t *testing.T, request, reply string, closeAfter, warm bool) (strin
 
 // dialLoopback is a provider that owns a go-redis client for the loopback store: no identity commands, no retry
 // and a socket read timeout of an hour, so only the deadline of the call can end a call that waits.
-func dialLoopback(t *testing.T, addr string, timeout time.Duration) *valkeysegment.Provider {
+func dialLoopback(t *testing.T, addr string, timeout time.Duration) *redissegment.Provider {
 	t.Helper()
 
-	prov, err := valkeysegment.Dial(&redis.UniversalOptions{
+	prov, err := redissegment.Dial(&redis.UniversalOptions{
 		Addrs:           []string{addr},
 		Protocol:        2,
 		DisableIdentity: true,
 		ReadTimeout:     time.Hour,
 		MaxRetries:      -1,
-	}, &valkeysegment.Options{
+	}, &redissegment.Options{
 		Timeout: timeout,
-		Segments: map[string]valkeysegment.SegmentOptions{
+		Segments: map[string]redissegment.SegmentOptions{
 			segBeta: {},
-			"f":     {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+			"f":     {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 		},
 	})
 	require.NoError(t, err)
@@ -213,9 +213,9 @@ func TestAClientEndsACallAtItsDeadlineOnTheSocket(t *testing.T) {
 	require.NoError(t, warmErr, "the warm-up sets the connection up")
 	require.Equal(t, "PONG", pong.Val())
 
-	prov, err := valkeysegment.New(client, &valkeysegment.Options{
+	prov, err := redissegment.New(client, &redissegment.Options{
 		Timeout:  50 * time.Millisecond,
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {}},
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {}},
 	})
 	require.NoError(t, err)
 
@@ -226,7 +226,7 @@ func TestAClientEndsACallAtItsDeadlineOnTheSocket(t *testing.T) {
 
 	select {
 	case err = <-done:
-		require.ErrorIs(t, err, valkeysegment.ErrTimeout)
+		require.ErrorIs(t, err, redissegment.ErrTimeout)
 		assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 	case <-boundedCtx(t).Done():
 		require.FailNow(t, "the call did not end at its deadline")
@@ -294,8 +294,8 @@ func TestRepliesOnTheWire(t *testing.T) {
 
 			err := prov.Contains(boundedCtx(t), tt.lookups)
 
-			require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
-			require.NotErrorIs(t, err, valkeysegment.ErrProtocol)
+			require.ErrorIs(t, err, redissegment.ErrUnavailable)
+			require.NotErrorIs(t, err, redissegment.ErrProtocol)
 			assert.Equal(t, tt.wantStates, states(tt.lookups))
 
 			select {
@@ -320,8 +320,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			store:       &fakeStore{keys: keys, exec: func(context.Context) error { return errDial }, completed: 1},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -333,8 +333,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -349,8 +349,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
 			wantMessage: msgUnavailable2of2,
@@ -365,8 +365,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -391,11 +391,11 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", "zed"), lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Unknown, segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 2 of 3 lookups failed",
+			wantMessage: "redis segment: unavailable: 2 of 3 lookups failed",
 		},
 		{
 			name: "a closed client on one node keeps the replies of the others",
@@ -404,8 +404,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -424,8 +424,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
 			wantMessage: msgUnavailable2of2,
@@ -435,8 +435,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			store:       &fakeStore{keys: keys, exec: func(context.Context) error { return errDial }},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
 			wantMessage: msgUnavailable2of2,
@@ -446,8 +446,8 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			store:       &fakeStore{sets: sets, exec: func(context.Context) error { return errDial }, completed: 1},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -470,10 +470,10 @@ func TestDialRefusesDisabledSocketDeadlines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov, err := valkeysegment.Dial(&tt.opts, &valkeysegment.Options{})
+			prov, err := redissegment.Dial(&tt.opts, &redissegment.Options{})
 
-			require.ErrorIs(t, err, valkeysegment.ErrSocketDeadlineDisabled)
-			require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+			require.ErrorIs(t, err, redissegment.ErrSocketDeadlineDisabled)
+			require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 			assert.Nil(t, prov)
 		})
 	}
@@ -505,7 +505,7 @@ func TestNewSocketTimeoutsOfBothClientKinds(t *testing.T) {
 			t.Run(tt.name+" "+kind, func(t *testing.T) {
 				t.Parallel()
 
-				var client valkeysegment.Client
+				var client redissegment.Client
 
 				wantErr := tt.wantNodeErr
 
@@ -532,11 +532,11 @@ func TestNewSocketTimeoutsOfBothClientKinds(t *testing.T) {
 					client, wantErr = clust, tt.wantClustErr
 				}
 
-				_, err := valkeysegment.New(client, &valkeysegment.Options{})
+				_, err := redissegment.New(client, &redissegment.Options{})
 
 				if wantErr {
-					require.ErrorIs(t, err, valkeysegment.ErrSocketDeadlineDisabled)
-					require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+					require.ErrorIs(t, err, redissegment.ErrSocketDeadlineDisabled)
+					require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 
 					return
 				}
