@@ -79,6 +79,6 @@ func (ByteSize) JSONSchema() *jsonschema.Schema {
 		Type:    jsonString,
 		Pattern: byteSizePattern,
 		Description: "Size string, for example 64KiB or 1MiB. A fraction is allowed above the byte (1.5MiB), not of a " +
-			"byte. Zero means the default of the setting.",
+			"byte. The value is at least one byte, or exactly zero, which means the default of the setting.",
 	}
 }

@@ -44,37 +44,62 @@ func TestOpenAPI(t *testing.T) {
 	}
 }
 
-// The operations the anonymous flag set can reach document an optional key (the empty requirement next to the key
-// schemes) and say so; no other operation does, the admin and the monitoring ones among them.
+// The operations the anonymous flag set can reach document an optional key: the key schemes they accept, and the empty
+// requirement next to them, with the note that says why. The admin operations keep a required key.
 func TestOpenAPIOptionalKey(t *testing.T) {
 	t.Parallel()
 
-	want := []string{
-		"allFlags", "collectEvalData", "flagChange", "flagConfiguration", "flagEval", "getManifest",
-		"ofrepBulkEvaluate", "ofrepEvaluate", "sseFlagChange", "wsFlagChange", "wsFlagChangeLegacy",
+	const (
+		header = "ApiKeyAuth"
+		xKey   = "XApiKeyAuth"
+		query  = "ApiKeyQueryAuth"
+	)
+
+	both := [][]string{{header}, {xKey}, {}}
+	want := map[string][][]string{
+		"allFlags": both, "collectEvalData": both, "flagChange": both, "flagConfiguration": both, "flagEval": both,
+		"ofrepBulkEvaluate": both, "ofrepEvaluate": both,
+		"getManifest":        {{header}, {}},
+		"sseFlagChange":      {{query}, {}},
+		"wsFlagChange":       {{query}, {}},
+		"wsFlagChangeLegacy": {{query}, {}},
+		// the admin operations: a key is required
+		"validateFlags":    {{header}},
+		"retrieverRefresh": {{header}},
 	}
 
-	var optional, noted []string
+	got := map[string][][]string{}
+	noted := map[string]bool{}
 
 	for _, item := range api.OpenAPI().Paths {
 		for _, operation := range []*huma.Operation{item.Get, item.Post, item.Put, item.Delete} {
-			if operation == nil {
+			if operation == nil || len(operation.Security) == 0 {
 				continue
 			}
 
-			if slices.ContainsFunc(operation.Security, func(req map[string][]string) bool { return len(req) == 0 }) {
-				optional = append(optional, operation.OperationID)
+			requirements := make([][]string, 0, len(operation.Security))
+
+			for _, requirement := range operation.Security {
+				names := make([]string, 0, len(requirement))
+				for name := range requirement {
+					names = append(names, name)
+				}
+
+				slices.Sort(names)
+
+				requirements = append(requirements, names)
 			}
 
-			if strings.Contains(operation.Description, "auth.anonymousFlagSet") {
-				noted = append(noted, operation.OperationID)
-			}
+			got[operation.OperationID] = requirements
+			noted[operation.OperationID] = strings.Contains(operation.Description, "auth.anonymousFlagSet")
 		}
 	}
 
-	slices.Sort(optional)
-	slices.Sort(noted)
+	assert.Equal(t, want, got, "the security of every operation that has one")
 
-	assert.Equal(t, want, optional, "the operations with an optional key")
-	assert.Equal(t, want, noted, "the operations that say why")
+	for operationID, requirements := range got {
+		hasEmpty := slices.ContainsFunc(requirements, func(names []string) bool { return len(names) == 0 })
+
+		assert.Equal(t, hasEmpty, noted[operationID], "the note of "+operationID+" says what its security says")
+	}
 }

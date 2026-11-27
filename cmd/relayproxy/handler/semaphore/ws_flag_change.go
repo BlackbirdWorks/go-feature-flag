@@ -25,19 +25,14 @@ import (
 // connection" (see issue #5463).
 type threadSafeConn struct {
 	conn *websocket.Conn
-	mu   sync.Mutex
+	// deadline is the time the network gets to take one message.
+	deadline time.Duration
+	mu       sync.Mutex
 }
 
 // WriteJSON satisfies stream.WebsocketConnector (used by BroadcastFlagChanges).
 func (c *threadSafeConn) WriteJSON(message any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// real time on purpose: a network deadline is enforced by the runtime poller. The service closes a client that
-	// misses its own timeout, this deadline ends the write that the close would otherwise have to interrupt.
-	_ = c.conn.SetWriteDeadline(time.Now().Add(writeDeadline))
-
-	err := c.conn.WriteJSON(message)
+	err := c.write(func(conn *websocket.Conn) error { return conn.WriteJSON(message) })
 	if err != nil {
 		return fmt.Errorf("write websocket JSON: %w", err)
 	}
@@ -57,15 +52,32 @@ func (c *threadSafeConn) Close() error {
 
 // ping sends a ping control message to the client.
 func (c *threadSafeConn) ping() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	err := c.conn.WriteMessage(websocket.PingMessage, nil)
+	err := c.write(func(conn *websocket.Conn) error { return conn.WriteMessage(websocket.PingMessage, nil) })
 	if err != nil {
 		return fmt.Errorf("write websocket ping: %w", err)
 	}
 
 	return nil
+}
+
+// write runs one write on the connection, alone, with a fresh deadline that is set right before it. A deadline stays
+// on the connection after the write, so every writer (messages and control frames) sets its own: none runs on the
+// one that an earlier write left behind.
+func (c *threadSafeConn) write(send func(*websocket.Conn) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. The service
+	// closes a client that misses its own timeout, this deadline ends the write that the close would otherwise have
+	// to interrupt.
+	deadline := c.deadline
+	if deadline <= 0 {
+		deadline = writeDeadline
+	}
+
+	_ = c.conn.SetWriteDeadline(time.Now().Add(deadline))
+
+	return send(c.conn)
 }
 
 // writeDeadline is the time the network gets to take one message.
@@ -132,7 +144,7 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// Wrap the connection so that all writes (ping loop + flag-change broadcast)
 	// are serialized through a single mutex. gorilla/websocket only supports one
 	// concurrent writer.
-	safeConn := &threadSafeConn{conn: conn}
+	safeConn := &threadSafeConn{conn: conn, deadline: writeDeadline}
 
 	if apiKey == "" {
 		f.websocketService.RegisterAnonymous(safeConn, flagsetName)

@@ -63,6 +63,11 @@ func optionalKey(auth middleware.KeyAuth, operation *huma.Operation) *huma.Opera
 	return operation
 }
 
+// securityQuery is the security of the streams: the key is in the query.
+func securityQuery() []map[string][]string {
+	return []map[string][]string{{securityQueryAPIKey: {}}}
+}
+
 // securityAuthorization is the security of the endpoints that only document the Authorization header.
 func securityAuthorization() []map[string][]string {
 	return []map[string][]string{{securityAPIKey: {}}}
@@ -115,7 +120,7 @@ func flagKeyParam() *huma.Param {
 
 func apiKeyQueryParam() *huma.Param {
 	return &huma.Param{
-		Name: "apiKey", In: inQuery,
+		Name: queryAPIKey, In: inQuery,
 		Description: "apiKey to authorize the connection to the relay proxy", Schema: &huma.Schema{Type: typeString},
 	}
 }
@@ -302,6 +307,7 @@ func operationSSE(api huma.API) *huma.Operation {
 			"The full URL (including query string) is sensitive and must not be logged\n" +
 			"or persisted by intermediaries.",
 		Parameters: []*huma.Param{apiKeyQueryParam()},
+		Security:   securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK): {
 				Description: "SSE stream of OFREP flag change events",
@@ -325,6 +331,7 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 			"every change pushes a notifier.DiffCache message to the client.\n" +
 			"When disableFlagDetailsInStream is true, values are empty objects.",
 		Parameters: []*huma.Param{apiKeyQueryParam()},
+		Security:   securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK):                  jsonResponse[notifier.DiffCache](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),
