@@ -42,6 +42,7 @@ type Reader struct {
 	routes     map[string]string
 	snaps      chan *Snapshot
 	refresh    *refresher
+	now        func() time.Time
 	logged     map[string]string
 	hookPanics map[string]uint64
 	held       *held
@@ -143,6 +144,7 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 		reqCtx:     withTimeout,
 		snaps:      make(chan *Snapshot, 1),
 		refresh:    newRefresher(),
+		now:        clock.Now,
 		cache:      map[string][]byte{},
 		names:      map[string]*nameState{},
 		logged:     map[string]string{},

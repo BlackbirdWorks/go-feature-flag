@@ -1,9 +1,11 @@
 package flagruntime_test
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,4 +169,64 @@ func TestAnonymousFlagSetFollowsReloadsAndGenerations(t *testing.T) {
 	assert.Nil(t, set)
 	assert.Equal(t, flagruntime.RouteUnknown, route)
 	assert.Nil(t, harness.holder.Load().Status.Anonymous)
+}
+
+// Await returns when the runtime serves the generation, or when the engine rejected it, and not before.
+func TestEngineAwait(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t, flagruntime.Hooks{})
+	harness.start()
+
+	res := harness.feed(content(1, simpleObjs(t, 1)))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
+
+	applied, err := harness.eng.Await(t.Context(), 1)
+	require.NoError(t, err)
+	assert.Equal(t, flagruntime.OutcomeApplied, applied.Outcome)
+	assert.Equal(t, uint64(1), applied.Generation)
+
+	// a generation that is not there yet: the call waits for the round that applies it
+	waited := make(chan flagruntime.Reload, 1)
+
+	go func() {
+		got, awaitErr := harness.eng.Await(t.Context(), 2)
+		assert.NoError(t, awaitErr)
+
+		waited <- got
+	}()
+
+	select {
+	case <-waited:
+		require.FailNow(t, "the call returned before the generation was applied")
+	default:
+	}
+
+	res = harness.feed(content(2, simpleObjs(t, 2)))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
+
+	select {
+	case got := <-waited:
+		assert.Equal(t, uint64(2), got.Generation)
+		assert.Equal(t, flagruntime.OutcomeApplied, got.Outcome)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the call did not return when the generation was applied")
+	}
+
+	// a generation the engine rejects is decided: the call returns the rejection
+	bad := content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}}))
+	res = harness.feed(bad)
+	require.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
+
+	rejected, err := harness.eng.Await(t.Context(), 3)
+	require.NoError(t, err)
+	assert.Equal(t, flagruntime.OutcomeRejected, rejected.Outcome)
+	assert.NotEmpty(t, rejected.Code)
+
+	// and the call ends with its context
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err = harness.eng.Await(ctx, 9)
+	require.ErrorIs(t, err, context.Canceled)
 }

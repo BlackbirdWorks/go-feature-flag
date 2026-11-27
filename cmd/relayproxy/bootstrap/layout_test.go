@@ -47,6 +47,59 @@ func TestListenerLayoutsTheRelayCanNotServe(t *testing.T) {
 	}
 }
 
+// API and ops listeners that can not both bind are refused at load: the same port with a wildcard host on a side. The
+// schema can not say it: it is a known limitation (the schema accepts these files).
+const (
+	wildcard1031 = "0.0.0.0:1031"
+	loopback1031 = "127.0.0.1:1031"
+)
+
+func TestOverlappingListenersAreRefused(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		api, ops string
+		wantErr  bool
+	}{
+		{name: "IPv4 wildcard and loopback on one port", api: wildcard1031, ops: loopback1031, wantErr: true},
+		{name: "loopback and IPv4 wildcard on one port", api: loopback1031, ops: wildcard1031, wantErr: true},
+		{name: "empty host and loopback on one port", api: ":1031", ops: loopback1031, wantErr: true},
+		{name: "IPv6 wildcard and IPv4 loopback (dual stack)", api: "[::]:1031", ops: loopback1031, wantErr: true},
+		{name: "IPv4 wildcard and a name", api: wildcard1031, ops: "localhost:1031", wantErr: true},
+		{name: "IPv4 wildcard and IPv6 loopback", api: wildcard1031, ops: "[::1]:1031"},
+		{name: "two specific hosts on one port", api: loopback1031, ops: "127.0.0.2:1031"},
+		{name: "distinct ports with a wildcard", api: wildcard1031, ops: "127.0.0.1:1032"},
+		{name: "wildcard and wildcard on distinct ports", api: ":1031", ops: ":1032"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nserver:\n  listeners:\n    - {name: a, address: \"" + tt.api + "\"}\n" +
+				"    - {name: b, address: \"" + tt.ops + "\", role: ops}\n"
+
+			_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.NotNil(t, findError(t, err, bootstrap.ErrInvalidValue, pathListener1Address))
+				assert.Contains(t, err.Error(), "checked conservatively")
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			skip := options(nil, nil, false)
+			skip.SkipRelayChecks = true
+
+			_, err = bootstrap.Parse([]byte(doc), nil, skip)
+			require.NoError(t, err, "the layout checks are the loader's only: the schema accepts the file")
+		})
+	}
+}
+
 // The ops listener has an address of its own: another host than the api listener is allowed, and the same address is
 // not.
 func TestOpsListenerHasItsOwnAddress(t *testing.T) {

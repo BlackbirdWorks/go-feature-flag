@@ -69,14 +69,13 @@ type FlagChanger interface {
 
 // RefreshOutcome is what a refresh on request found.
 type RefreshOutcome struct {
-	// Result is the result of the poll of the manifest: "updated", "not_modified", "not_found", "too_large",
-	// "error"; Reason is the closed class of a failure, empty otherwise.
-	Result string
-	Reason string
-	// Generation is the generation of the manifest the relay holds after the poll.
-	Generation uint64
-	// Changed says that the poll found another generation than the one held before it.
-	Changed bool
+	Result            string
+	Reason            string
+	Rejection         string
+	Generation        uint64
+	AppliedGeneration uint64
+	Changed           bool
+	Applied           bool
 }
 
 // Refresher is a [FlagSetResolver] that polls its control plane on request, through the poll of the schedule: calls

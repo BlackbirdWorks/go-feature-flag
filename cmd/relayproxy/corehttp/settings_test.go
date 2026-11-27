@@ -121,12 +121,16 @@ func TestRefreshPollsNow(t *testing.T) {
 		publish    bool
 	}{
 		{
-			name: "a new generation", publish: true, key: adminKey, wantStatus: http.StatusOK,
-			wantBody: `{"result":"updated","generation":2,"refreshed":true,"changed":true}`,
+			name:       "a new generation",
+			publish:    true,
+			key:        adminKey,
+			wantStatus: http.StatusOK,
+			wantBody: `{"result":"updated","generation":2,"refreshed":true,"changed":true,"applied":true,` +
+				`"appliedGeneration":2}`,
 		},
 		{
 			name: "nothing new", key: adminKey, wantStatus: http.StatusOK,
-			wantBody: `{"result":"not_modified","generation":2,"refreshed":true}`,
+			wantBody: `{"result":"not_modified","generation":2,"refreshed":true,"applied":true,"appliedGeneration":2}`,
 		},
 		{
 			name:       "a flag set key",

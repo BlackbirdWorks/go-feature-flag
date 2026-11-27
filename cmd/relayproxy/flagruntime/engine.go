@@ -105,6 +105,8 @@ type Engine struct {
 	baseline  *bootstrap.Config
 	cur       *Runtime
 	last      atomic.Pointer[RoundResult]
+	// roundDone is closed, and replaced, at the end of every round: [Engine.Await] waits on it.
+	roundDone atomic.Pointer[chan struct{}]
 	rejected  *Reload
 	// running describes the content that runs, to tell a repeat, a state change and a conflict apart at the same
 	// generation.
@@ -146,6 +148,9 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 	eng.changes = make(chan Change, eng.changeBuf)
 	eng.builder = NewBuilder(svc, BuilderOptions{OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap})
 	eng.snapshot = eng.cur.Snapshot
+
+	first := make(chan struct{})
+	eng.roundDone.Store(&first)
 
 	return eng
 }
@@ -203,6 +208,33 @@ func (e *Engine) Result() RoundResult {
 	}
 
 	return RoundResult{}
+}
+
+// Await returns when the runtime serves the generation or a later one (the applied Reload), or when the engine
+// rejected that generation (the rejected Reload, with its code): what the relay serves is then decided. It waits on
+// the end of the rounds, never polls, and ends with ctx. The generation 0 is served from the start.
+func (e *Engine) Await(ctx context.Context, generation uint64) (Reload, error) {
+	for {
+		done := *e.roundDone.Load()
+
+		if current := e.holder.Load(); current.Generation >= generation {
+			return current.Status.LastReload, nil
+		}
+
+		if res := e.Result(); res.Outcome == OutcomeRejected && res.Generation == generation {
+			return res.Reload, nil
+		}
+
+		if rejected := e.holder.Load().Status.LastRejected; rejected != nil && rejected.Generation == generation {
+			return *rejected, nil
+		}
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return Reload{}, fmt.Errorf("waiting for the generation %d: %w", generation, ctx.Err())
+		}
+	}
 }
 
 // Run is the reconcile loop. It returns when ctx is done; it starts no other goroutine, so nothing is left
@@ -737,6 +769,9 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 	}
 
 	e.last.Store(&result)
+
+	next := make(chan struct{})
+	close(*e.roundDone.Swap(&next))
 
 	if e.roundHadBoot {
 		e.bootstrapped.Store(true)

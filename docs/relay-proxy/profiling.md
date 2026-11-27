@@ -21,7 +21,12 @@ server:
     pprof: {enabled: true}
 ```
 
-The ops listener binds `127.0.0.1:1032` here, so only the host itself reaches it (from a container, publish the port to the loopback of the host, or use `kubectl port-forward`). The pprof index is then available at `http://localhost:1032/debug/pprof/`. The `api` listener answers `404` for every `/debug/pprof/` path, whatever the setting.
+The ops listener binds `127.0.0.1:1032` here, so only the process itself and its host reach it. Inside a container this is not enough to reach it from outside, and there are two cases:
+
+- In a container, bind the ops listener to the container interface (`":1032"`) and restrict who reaches it where the port is published: `docker run -p 127.0.0.1:1032:1032 ...` (a published port that is bound to the host loopback only), or a network policy in Kubernetes. A port published on a bridge network reaches the container address, not the container loopback.
+- Loopback inside the container (`127.0.0.1:1032`) is for a sidecar in the same network namespace or for `docker exec` / `kubectl exec` only.
+
+The pprof index is then available at `http://localhost:1032/debug/pprof/`. The `api` listener answers `404` for every `/debug/pprof/` path, whatever the setting.
 
 - Without an `ops` listener, the file is refused: `server.ops.pprof.enabled: invalid value: needs a listener with role ops`.
 - The log level has no effect on profiling.

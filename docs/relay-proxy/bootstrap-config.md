@@ -26,8 +26,8 @@ control plane location, listeners, observability and admin keys. It is strict: a
   is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
   whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
 - Stop: on `SIGTERM` or `SIGINT` the relay shuts down in the order described in [Shutdown](#shutdown).
-- Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
-  refresh on request), the AWS Lambda mode and artifact are gone, and so are the retrievers other than the control plane
+- Removed with the switch: the AWS Lambda mode and artifact are gone (`/admin/v1/retriever/refresh` polls the control
+  plane on request, see [advanced usage](advanced-usage.md)), and so are the retrievers other than the control plane
   store (they come back with the retriever kinds of the control plane, issue #57).
 
 ## Rules

@@ -1,7 +1,9 @@
 package manifestreader_test
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,5 +53,69 @@ func TestReader_Refresh(t *testing.T) {
 			assert.Equal(t, tt.wantGeneration, result.Generation)
 			assert.Equal(t, tt.wantChanged, result.Changed)
 		})
+	}
+}
+
+// manualClock is a clock the test moves.
+type manualClock struct {
+	now atomic.Pointer[time.Time]
+}
+
+func (c *manualClock) Now() time.Time { return *c.now.Load() }
+
+func (c *manualClock) advance(d time.Duration) {
+	next := c.Now().Add(d)
+	c.now.Store(&next)
+}
+
+// A refresh cuts the wait short, but the time that passed counts: however many refreshes interrupt the waits, the
+// retry of a failed object runs once its instant came. The manifest answers 304 all along.
+func TestReader_RefreshesDoNotPostponeARetry(t *testing.T) {
+	t.Parallel()
+
+	const backoffMax = 100 * time.Second
+
+	start := time.Date(2026, time.November, 27, 12, 0, 0, 0, time.UTC)
+	clk := &manualClock{}
+	clk.now.Store(&start)
+
+	store := newFakeStore()
+	objs := threeObjects()
+	publish(t, store, 1, objs...)
+	store.failNext(keyOf(t, objs[0]), &manifestreader.FetchError{Err: errBoom, Reason: manifestreader.ReasonDenied})
+
+	rdr := startRig(t, store, &manifestreader.Config{BackoffMax: backoffMax}, manifestreader.WithClock(clk.Now))
+	store.takeCalls()
+
+	tests := []struct {
+		name          string
+		advance       time.Duration
+		wantObjectGet int
+	}{
+		{name: "30s after the failure", advance: 30 * time.Second},
+		{name: "70s after it", advance: 40 * time.Second},
+		{name: "90s after it", advance: 20 * time.Second},
+		{name: "101s after it: the retry is due", advance: 11 * time.Second, wantObjectGet: 1},
+	}
+
+	for _, tt := range tests {
+		clk.advance(tt.advance)
+
+		result, err := rdr.reader.Refresh(t.Context())
+		require.NoError(t, err, tt.name)
+		assert.Equal(t, manifestreader.PollNotModified, result.Poll.Result, tt.name)
+
+		manifestGets, objectGets := 0, 0
+
+		for _, c := range store.takeCalls() {
+			if c.Key == keyOf(t, objs[0]) {
+				objectGets++
+			} else if c.Key == manifestKey {
+				manifestGets++
+			}
+		}
+
+		assert.Equal(t, 1, manifestGets, "%s: one poll of the manifest", tt.name)
+		assert.Equal(t, tt.wantObjectGet, objectGets, "%s: requests of the failed object", tt.name)
 	}
 }

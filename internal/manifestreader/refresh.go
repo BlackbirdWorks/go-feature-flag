@@ -122,6 +122,7 @@ func (r *Reader) sleepOrRefresh(ctx context.Context, delay time.Duration) (bool,
 	defer cancel()
 
 	done := make(chan error, 1)
+	started := r.now()
 
 	go func() { done <- r.sched.Wait(waitCtx, delay) }()
 
@@ -139,6 +140,9 @@ func (r *Reader) sleepOrRefresh(ctx context.Context, delay time.Duration) (bool,
 
 		waitErr := <-done
 		_ = waitErr // the wait was cancelled on purpose
+
+		// the time that passed counts: the retries of the failed objects are instants of this virtual clock
+		r.vnow += min(max(r.now().Sub(started), 0), delay)
 
 		return true, nil
 	}

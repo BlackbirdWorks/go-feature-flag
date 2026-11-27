@@ -874,6 +874,14 @@
       "RetrieverRefreshResponse": {
         "additionalProperties": false,
         "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "appliedGeneration": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "changed": {
             "type": "boolean"
           },
@@ -887,6 +895,9 @@
           },
           "refreshed": {
             "type": "boolean"
+          },
+          "rejection": {
+            "type": "string"
           },
           "result": {
             "type": "string"

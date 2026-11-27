@@ -24,16 +24,14 @@ type ForceFlagsRefresh struct {
 
 // RetrieverRefreshResponse is the response of the refresh endpoint.
 type RetrieverRefreshResponse struct {
-	// Result is the result of the poll: "updated", "not_modified", "not_found", "too_large" or "error".
-	Result string `json:"result,omitempty"`
-	// Reason is the class of a failed poll.
-	Reason string `json:"reason,omitempty"`
-	// Generation is the generation of the manifest the relay holds after the poll.
-	Generation uint64 `json:"generation,omitempty"`
-	// Refreshed says that the poll reached the control plane (the manifest was read or confirmed).
-	Refreshed bool `json:"refreshed"`
-	// Changed says that the poll found another generation than the one held before it.
-	Changed bool `json:"changed,omitempty"`
+	Applied           *bool  `json:"applied,omitempty"`
+	Result            string `json:"result,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+	Rejection         string `json:"rejection,omitempty"`
+	Generation        uint64 `json:"generation,omitempty"`
+	AppliedGeneration uint64 `json:"appliedGeneration,omitempty"`
+	Refreshed         bool   `json:"refreshed"`
+	Changed           bool   `json:"changed,omitempty"`
 }
 
 // RetrieverRefreshInput is the request of the refresh endpoint.
@@ -85,6 +83,7 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, input *RetrieverRefreshI
 			Reason:     "",
 			Generation: 0,
 			Changed:    false,
+			Applied:    nil, AppliedGeneration: 0, Rejection: "",
 		},
 	}, nil
 }
@@ -93,6 +92,7 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, input *RetrieverRefreshI
 // error of the request.
 func (*ForceFlagsRefresh) refresh(ctx context.Context, refresher service.Refresher) (*RetrieverRefreshOutput, error) {
 	outcome, err := refresher.Refresh(ctx)
+	applied := outcome.Applied
 
 	switch {
 	case errors.Is(err, service.ErrNotPolling):
@@ -106,5 +106,6 @@ func (*ForceFlagsRefresh) refresh(ctx context.Context, refresher service.Refresh
 	return &RetrieverRefreshOutput{Body: RetrieverRefreshResponse{
 		Result: outcome.Result, Reason: outcome.Reason, Generation: outcome.Generation, Changed: outcome.Changed,
 		Refreshed: outcome.Result == manifestreader.PollUpdated || outcome.Result == manifestreader.PollNotModified,
+		Applied:   &applied, AppliedGeneration: outcome.AppliedGeneration, Rejection: outcome.Rejection,
 	}}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"reflect"
 	"regexp"
@@ -228,6 +229,52 @@ func (v *validator) serveLayout() {
 
 		roles[listener.Role] = i
 	}
+
+	v.overlap(roles)
+}
+
+// overlap refuses an api and an ops listener that can not both bind: the same port, with a wildcard host on a side.
+// The check is conservative: a "::" listener is taken as covering the IPv4 hosts too (dual stack).
+func (v *validator) overlap(roles map[string]int) {
+	apiIdx, hasAPI := roles[RoleAPI]
+	opsIdx, hasOps := roles[RoleOps]
+
+	if !hasAPI || !hasOps {
+		return
+	}
+
+	listeners := v.cfg.Server.Listeners
+	apiHost, apiPort, apiErr := net.SplitHostPort(listeners[apiIdx].Address)
+	opsHost, opsPort, opsErr := net.SplitHostPort(listeners[opsIdx].Address)
+
+	if apiErr != nil || opsErr != nil || apiPort != opsPort || listeners[apiIdx].Address == listeners[opsIdx].Address {
+		return // the duplicate address is reported by address()
+	}
+
+	if hostsOverlap(apiHost, opsHost) {
+		v.failf("server.listeners["+strconv.Itoa(opsIdx)+"].address", ErrInvalidValue,
+			"the port is also bound by server.listeners[%d] and one of the two hosts is a wildcard: both can not be "+
+				"bound (checked conservatively, \"::\" covers IPv4 too)", apiIdx)
+	}
+}
+
+// hostsOverlap reports whether two hosts of one port can not both be bound because one is a wildcard that covers the
+// other: "" and "::" cover every host, "0.0.0.0" covers the IPv4 addresses and the names (which may resolve to one).
+func hostsOverlap(left, right string) bool {
+	return covers(left, right) || covers(right, left)
+}
+
+func covers(wide, other string) bool {
+	switch wide {
+	case "", "::":
+		return true
+	case "0.0.0.0":
+		addr, err := netip.ParseAddr(other)
+
+		return err != nil || addr.Is4() || addr.Is4In6()
+	}
+
+	return false
 }
 
 func (v *validator) address(path, address string, idx int, seen map[string]int) {

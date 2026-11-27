@@ -2,9 +2,11 @@ package relayapp
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -286,6 +288,8 @@ const (
 type streamClient struct {
 	events chan string
 	closed chan error
+	// received counts every message the client got.
+	received atomic.Int64
 }
 
 func dialWebsocket(t *testing.T, base, key string) *streamClient {
@@ -311,6 +315,8 @@ func dialWebsocket(t *testing.T, base, key string) *streamClient {
 
 				return
 			}
+
+			client.received.Add(1)
 
 			client.events <- string(msg)
 		}
@@ -341,6 +347,8 @@ func dialSSE(t *testing.T, base, key string) *streamClient {
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			if line := scanner.Text(); strings.HasPrefix(line, "data:") {
+				client.received.Add(1)
+
 				client.events <- line
 			}
 		}
@@ -357,12 +365,6 @@ func (c *streamClient) awaitEvent(t *testing.T, want string) {
 	select {
 	case got := <-c.events:
 		assert.Contains(t, got, want)
-
-		// the engine may report one change as two (they are merged only when they wait together): the caller made
-		// sure everything was delivered, so what is left in the channel belongs to the same change
-		for len(c.events) > 0 {
-			<-c.events
-		}
 	case err := <-c.closed:
 		require.FailNow(t, "the stream was closed before the change", "%v", err)
 	case <-time.After(waitBound):
@@ -370,8 +372,8 @@ func (c *streamClient) awaitEvent(t *testing.T, want string) {
 	}
 }
 
-// awaitClosed waits for the end of the stream and returns the number of messages that reached the client until then.
-func (c *streamClient) awaitClosed(t *testing.T) int {
+// awaitClosed waits for the end of the stream.
+func (c *streamClient) awaitClosed(t *testing.T) {
 	t.Helper()
 
 	select {
@@ -380,8 +382,6 @@ func (c *streamClient) awaitClosed(t *testing.T) int {
 	case <-time.After(waitBound):
 		require.FailNow(t, "the stream was not closed")
 	}
-
-	return len(c.events)
 }
 
 // A client without a key gets the changes of the anonymous flag set, on the websocket and on the SSE stream. When a
@@ -406,17 +406,43 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			rig := startRelay(
-				t,
-				&rigOptions{extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n"},
-			)
+			offered := make(chan uint64, 16)
+			rig := startRelay(t, &rigOptions{
+				extra:     "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n",
+				broadcast: func(change flagruntime.Change) { offered <- change.Generation },
+			})
 			rig.awaitGeneration(1)
 
 			rel := <-rig.started
 
-			// the change of generation 1 is queued for the streams: the clients connect after it was delivered, so
-			// that the only change they get is the one the test publishes
-			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the first change was delivered")
+			// awaitOffered waits until the core handed the change of the generation to the streams, and until the
+			// streams delivered it
+			awaitDelivered := func(generation uint64) {
+				t.Helper()
+
+				for {
+					select {
+					case got := <-offered:
+						if got < generation {
+							continue
+						}
+					case <-time.After(waitBound):
+						require.FailNow(
+							t,
+							"the core did not hand the change to the streams",
+							"generation %d",
+							generation,
+						)
+					}
+
+					break
+				}
+
+				require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
+			}
+
+			// the change of generation 1 reaches no client: they connect after it was delivered
+			awaitDelivered(1)
 
 			anonWS, anonSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
 			keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
@@ -427,29 +453,64 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 
 			rig.store.publish(2)
 			rig.poll(2)
+			awaitDelivered(2)
 
-			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
-
-			anonWS.awaitEvent(t, flagKey)
+			// the message of the websocket carries the new value of the flag: it is the change of generation 2
+			anonWS.awaitEvent(t, `"v":2`)
 			anonSSE.awaitEvent(t, "refetchEvaluation")
-			keyedWS.awaitEvent(t, flagKey)
+			keyedWS.awaitEvent(t, `"v":2`)
 			keyedSSE.awaitEvent(t, "refetchEvaluation")
 
 			rig.writeConfig(tt.reloaded)
 			rig.applyReload(t)
 
-			anonWSMessages, anonSSEMessages := anonWS.awaitClosed(t), anonSSE.awaitClosed(t)
+			anonWS.awaitClosed(t)
+			anonSSE.awaitClosed(t)
 
 			rig.store.publish(3)
 			rig.pollNext(3)
+			awaitDelivered(3)
 
-			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
-
-			keyedWS.awaitEvent(t, flagKey)
+			keyedWS.awaitEvent(t, `"v":3`)
 			keyedSSE.awaitEvent(t, "refetchEvaluation")
-			assert.Len(t, anonWS.events, anonWSMessages, "no change reached the closed websocket client")
-			assert.Len(t, anonSSE.events, anonSSEMessages, "no change reached the closed SSE client")
+
+			// exact counts: one message per published generation for the clients with a key, and the one of
+			// generation 2 for the clients that were closed before generation 3
+			assert.Equal(t, int64(1), anonWS.received.Load(), "messages of the closed websocket client")
+			assert.Equal(t, int64(1), anonSSE.received.Load(), "messages of the closed SSE client")
+			assert.Equal(t, int64(2), keyedWS.received.Load(), "messages of the websocket client with a key")
+			assert.Equal(t, int64(2), keyedSSE.received.Load(), "messages of the SSE client with a key")
 			assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
 		})
+	}
+}
+
+const refreshPath = "/admin/v1/retriever/refresh"
+
+// The answer of a refresh is about what the relay serves: the evaluation that follows it already sees the new value.
+func TestRunRefreshAnswersWhatIsServed(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
+	rig.awaitGeneration(1)
+
+	headers := http.Header{headerAPIKey: {adminKey}}
+
+	for _, generation := range []int{2, 3} {
+		value := float64(generation)
+
+		rig.store.publish(generation)
+
+		status, body := doRequest(t, http.MethodPost, rig.url+refreshPath, "", headers)
+		require.Equal(t, http.StatusOK, status, body)
+		assert.JSONEq(t, fmt.Sprintf(
+			`{"result":"updated","generation":%d,"refreshed":true,"changed":true,"applied":true,"appliedGeneration":%d}`,
+			generation,
+			generation,
+		), body)
+
+		status, got := rig.evaluate(tenantKey)
+		assert.Equal(t, http.StatusOK, status)
+		assert.InDelta(t, value, got, 0, "the evaluation after the refresh serves the new generation")
 	}
 }

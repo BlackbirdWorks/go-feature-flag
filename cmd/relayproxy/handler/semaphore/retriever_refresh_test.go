@@ -63,37 +63,51 @@ func Test_retriever_refresh_Handler_polls(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		resolver refresherResolver
+		wantBody controller.RetrieverRefreshResponse
 		name     string
 		wantErr  string
-		wantBody controller.RetrieverRefreshResponse
+		resolver refresherResolver
 	}{
 		{
 			name: "a new generation",
 			resolver: refresherResolver{outcome: service.RefreshOutcome{
-				Result: manifestreader.PollUpdated, Generation: 4, Changed: true,
+				Result: manifestreader.PollUpdated, Generation: 4, Changed: true, Applied: true, AppliedGeneration: 4,
 			}},
 			wantBody: controller.RetrieverRefreshResponse{
 				Result: manifestreader.PollUpdated, Generation: 4, Changed: true, Refreshed: true, Reason: "",
+				Applied: new(true), AppliedGeneration: 4,
 			},
 		},
 		{
 			name: "nothing new",
 			resolver: refresherResolver{outcome: service.RefreshOutcome{
-				Result: manifestreader.PollNotModified, Generation: 4,
+				Result: manifestreader.PollNotModified, Generation: 4, Applied: true, AppliedGeneration: 4,
 			}},
 			wantBody: controller.RetrieverRefreshResponse{
 				Result: manifestreader.PollNotModified, Generation: 4, Refreshed: true, Reason: "", Changed: false,
+				Applied: new(true), AppliedGeneration: 4,
 			},
 		},
 		{
 			name: "a poll that failed is an answer",
 			resolver: refresherResolver{outcome: service.RefreshOutcome{
-				Result: manifestreader.PollError, Reason: manifestreader.ReasonTimeout, Generation: 4,
+				Result: manifestreader.PollError, Reason: manifestreader.ReasonTimeout, Generation: 4, Applied: true,
+				AppliedGeneration: 3,
 			}},
 			wantBody: controller.RetrieverRefreshResponse{
 				Result: manifestreader.PollError, Reason: manifestreader.ReasonTimeout, Generation: 4,
-				Refreshed: false, Changed: false,
+				Refreshed: false, Changed: false, Applied: new(true), AppliedGeneration: 3,
+			},
+		},
+		{
+			name: "a generation the engine rejected",
+			resolver: refresherResolver{outcome: service.RefreshOutcome{
+				Result: manifestreader.PollUpdated, Generation: 5, Changed: true, Applied: false, AppliedGeneration: 5,
+				Rejection: "build-failed",
+			}},
+			wantBody: controller.RetrieverRefreshResponse{
+				Result: manifestreader.PollUpdated, Generation: 5, Changed: true, Refreshed: true, Reason: "",
+				Applied: new(false), AppliedGeneration: 5, Rejection: "build-failed",
 			},
 		},
 		{

@@ -38,7 +38,7 @@ type Source interface {
 	// Collect hands a feature event to the exporters.
 	Collect(event events.Event) bool
 	// Refresh polls the control plane now.
-	Refresh(ctx context.Context) (manifestreader.RefreshResult, error)
+	Refresh(ctx context.Context) (relaycore.RefreshResult, error)
 }
 
 // Adapter implements the seam of the HTTP layer on a core: it finds the flag set of an API key in the current runtime
@@ -47,7 +47,7 @@ type Adapter struct {
 	holder  *flagruntime.Holder
 	eval    *flagruntime.Evaluator
 	collect func(events.Event) bool
-	refresh func(context.Context) (manifestreader.RefreshResult, error)
+	refresh func(context.Context) (relaycore.RefreshResult, error)
 	// table is the flag set views of the runtime that was last served: a view is made once per flag set, so
 	// resolving a key does not allocate.
 	table atomic.Pointer[viewTable]
@@ -137,7 +137,9 @@ func (a *Adapter) Refresh(ctx context.Context) (service.RefreshOutcome, error) {
 	}
 
 	return service.RefreshOutcome{
-		Result: result.Poll.Result, Reason: result.Poll.Reason, Generation: result.Generation, Changed: result.Changed,
+		Result: result.Poll.Poll.Result, Reason: result.Poll.Poll.Reason, Generation: result.Poll.Generation,
+		Changed: result.Poll.Changed, Applied: result.Engine.Outcome != flagruntime.OutcomeRejected,
+		AppliedGeneration: result.Engine.Generation, Rejection: rejection(&result.Engine),
 	}, nil
 }
 
@@ -278,3 +280,12 @@ func (*view) CollectTrackingEventData(*exporter.TrackingEvent) {}
 
 // ForceRefresh is false: a core follows its control plane by polling and does not refresh on request.
 func (*view) ForceRefresh() bool { return false }
+
+// rejection is the closed code of a generation the engine rejected, empty when it did not.
+func rejection(decided *flagruntime.Reload) string {
+	if decided.Outcome == flagruntime.OutcomeRejected {
+		return decided.Code
+	}
+
+	return ""
+}
