@@ -16,6 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+// rulesBetaQuery is a Rules query that targets the segment beta.
+const rulesBetaQuery = `targetingKey in segment("beta")`
+
 // The validation of a flag compiles queries that may never run: it must not leave them in the Service, which keeps
 // what the evaluations compile until it is closed.
 func TestValidationDoesNotMemoizeQueries(t *testing.T) {
@@ -84,31 +87,78 @@ func (allMembers) Contains(_ context.Context, lookups []segment.Lookup) error {
 }
 
 // The first evaluation after a load compiles nothing: the compiled segment queries are built by the validation and
-// kept with the rules, the Service memoizes nothing for them.
+// kept with the rules, the Service memoizes nothing for them. Each query format is evaluated on its own, so the rule
+// of each format is the one that decides.
 func TestFirstEvaluationAfterLoadCompilesNothing(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name        string
+		query       string
+		wantVariant string
+	}{
+		{name: "jsonlogic", query: `{"inSegment": [{"var": "targetingKey"}, "beta"]}`, wantVariant: "on"},
+		{name: "rules", query: rulesBetaQuery, wantVariant: "on"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := NewService()
+			flag := segmentFlag(tt.query)
+			require.NoError(t, flag.IsValid(svc))
+
+			assert.Equal(t, 1, svc.segmentQueries.size(), "the validation compiled the query")
+			assert.Equal(t, 0, mapSize(&svc.compiled))
+
+			evaluators := mapSize(&svc.nikunjy.entries)
+
+			for range 2 {
+				_, details := flag.Value(
+					"f",
+					ffcontext.NewEvaluationContext("k"),
+					Context{Service: svc, Segments: allMembers{}},
+				)
+				assert.Equal(t, tt.wantVariant, details.Variant)
+			}
+
+			assert.Equal(t, 1, svc.segmentQueries.size())
+			assert.Equal(t, 0, mapSize(&svc.compiled), "nothing was memoized by the evaluations")
+			assert.Equal(t, evaluators, mapSize(&svc.nikunjy.entries), "no evaluator was parsed by the evaluations")
+
+			runtime.KeepAlive(flag) // the flag keeps its queries registered until the checks are done
+		})
+	}
+}
+
+// A JsonLogic query that writes the operator with a JSON escape has no literal marker: it is retained at load and
+// released with its flag all the same, and the fallback cache never sees it.
+func TestEscapedInSegmentIsRetainedAndReleasedWithItsFlag(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService()
-	flag := segmentFlag(`{"inSegment": [{"var": "targetingKey"}, "beta"]}`, `targetingKey in segment("beta")`)
-	require.NoError(t, flag.IsValid(svc))
+	query := `{"\u0069nSegment": [{"var": "targetingKey"}, "beta"]}`
 
-	assert.Equal(t, 2, svc.segmentQueries.size(), "the validation compiled both queries")
-	assert.Equal(t, 0, mapSize(&svc.compiled))
+	func() {
+		flag := segmentFlag(query)
+		require.NoError(t, flag.IsValid(svc))
 
-	evaluators := mapSize(&svc.nikunjy.entries)
+		assert.Equal(t, 1, svc.segmentQueries.size(), "the query is retained at load")
+		assert.Equal(t, 1, svc.segmentQueries.refCount(query))
 
-	for range 2 {
 		_, details := flag.Value(
 			"f",
 			ffcontext.NewEvaluationContext("k"),
 			Context{Service: svc, Segments: allMembers{}},
 		)
 		assert.Equal(t, "on", details.Variant)
-	}
+		assert.Equal(t, 0, mapSize(&svc.compiled), "the fallback cache did not compile it")
+	}()
 
-	assert.Equal(t, 2, svc.segmentQueries.size())
-	assert.Equal(t, 0, mapSize(&svc.compiled), "nothing was memoized by the evaluations")
-	assert.Equal(t, evaluators, mapSize(&svc.nikunjy.entries), "no evaluator was parsed by the evaluations")
+	gcUntil(t, func() bool { return svc.segmentQueries.size() == 0 }, "the query is released with the flag")
+	assert.Equal(t, 0, svc.segmentQueries.refCount(query))
+	assert.Equal(t, 0, mapSize(&svc.compiled), "and nothing is left in the fallback cache")
 }
 
 // What a flag brought stays only as long as the flag: a reload that drops it drops the compiled queries.
@@ -123,13 +173,13 @@ func TestCompiledSegmentQueriesLiveWithTheirFlag(t *testing.T) {
 
 	load(`{"inSegment": [{"var": "targetingKey"}, "beta"]}`)
 
-	kept := segmentFlag(`targetingKey in segment("beta")`)
+	kept := segmentFlag(rulesBetaQuery)
 	require.NoError(t, kept.IsValid(svc))
 
 	gcUntil(t, func() bool { return svc.segmentQueries.size() == 1 },
 		"the query of the dropped flag is released, the one of the kept flag stays")
 
-	_, ok := svc.segmentQueries.load(`targetingKey in segment("beta")`)
+	_, ok := svc.segmentQueries.load(rulesBetaQuery)
 	assert.True(t, ok)
 
 	runtime.KeepAlive(kept)
@@ -139,13 +189,16 @@ func TestCompiledSegmentQueriesSharedByTwoFlagsStayUntilBothAreDropped(t *testin
 	t.Parallel()
 
 	svc := NewService()
-	query := `targetingKey in segment("beta")`
+	query := rulesBetaQuery
 
 	first := segmentFlag(query)
 	require.NoError(t, first.IsValid(svc))
 
 	func() {
-		require.NoError(t, segmentFlag(query).IsValid(svc)) // the second flag is dropped
+		second := segmentFlag(query)
+		require.NoError(t, second.IsValid(svc)) // the second flag is dropped after this block
+		assert.Equal(t, 2, svc.segmentQueries.refCount(query), "both flags reference the query")
+		runtime.KeepAlive(second)
 	}()
 
 	gcUntil(
@@ -163,7 +216,7 @@ func TestReleaseOfAnEarlierEpochIsIgnored(t *testing.T) {
 	t.Parallel()
 
 	svc := NewService()
-	query := `targetingKey in segment("beta")`
+	query := rulesBetaQuery
 
 	before := svc.segmentQueries.epoch.Load()
 
@@ -218,6 +271,10 @@ func TestScheduledStepQueryIsParsedWithTheFlag(t *testing.T) {
 
 	_, parsed = loadPtr[parser.Evaluator](&svc.nikunjy.entries, query)
 	assert.True(t, parsed, "the kept flag still holds it")
+
+	_, details := kept.Value("f", ffcontext.NewEvaluationContext("k"), Context{Service: svc, Segments: allMembers{}})
+	assert.Equal(t, "on", details.Variant, "the step is due: its rule decides and the key is a member")
+	assert.Equal(t, segment.StatusHealthy, details.SegmentStatus)
 
 	runtime.KeepAlive(kept)
 }
