@@ -34,10 +34,11 @@ type stubServer struct {
 	conns    map[net.Conn]struct{}
 	gate     chan struct{}
 	entered  chan struct{}
-	only     string // when set, garbage applies to this command only
-	garbage  string // the reply to SMISMEMBER and EXISTS when set: bytes written as they are
-	pong     string // the reply to PING when set
-	noCmd    string // the name of a command that the server refuses with an error reply
+	only     string   // when set, garbage applies to this command only
+	garbage  string   // the reply to SMISMEMBER and EXISTS when set: bytes written as they are
+	pong     string   // the reply to PING when set
+	noCmd    string   // the name of a command that the server refuses with an error reply
+	seq      []string // replies to the next data commands, in order, before anything else
 	wg       sync.WaitGroup
 	mu       sync.Mutex
 	writes   atomic.Int64 // writes of the client side connections, see clientOption
@@ -137,6 +138,14 @@ func (s *stubServer) answer(raw string) {
 	defer s.mu.Unlock()
 
 	s.garbage = raw
+}
+
+// answerSequence makes the server reply to the next data commands with these bytes, one for each, in order.
+func (s *stubServer) answerSequence(raw ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.seq = raw
 }
 
 // answerOnly is answer for one command.
@@ -349,6 +358,11 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 	s.counts[strings.ToLower(name)]++
 	gate, entered, failed, garbage, noCmd, pong := s.gate, s.entered, s.failed, s.garbage, s.noCmd, s.pong
 	only := s.only
+	next := ""
+
+	if len(s.seq) > 0 {
+		next, s.seq = s.seq[0], s.seq[1:]
+	}
 	s.mu.Unlock()
 
 	hold(entered, gate)
@@ -357,6 +371,10 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 		_ = conn.Close()
 
 		return "", false
+	}
+
+	if next != "" {
+		return next, true
 	}
 
 	if s.cutNow() {

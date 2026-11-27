@@ -28,7 +28,6 @@ func TestProviderConformsOnTheStubServer(t *testing.T) {
 	modes := []valkeysegment.Pipelining{
 		valkeysegment.PipeliningAlways,
 		valkeysegment.PipeliningAuto,
-		valkeysegment.PipeliningOff,
 	}
 
 	for _, tt := range layouts {

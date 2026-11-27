@@ -16,37 +16,27 @@ func TestBuildClientOption(t *testing.T) {
 		opts                 Options
 		wantBlockingPipeline int
 		wantAlways           bool
-		wantDisableAuto      bool
-		wantDisableCache     bool
 		wantDisableRetry     bool
 	}{
 		{
-			name: "defaults are safe", wantAlways: true, wantDisableCache: true, wantDisableRetry: true,
+			name: "defaults are safe", wantAlways: true, wantDisableRetry: true,
 			wantBlockingPipeline: math.MaxInt,
 		},
 		{
 			name: "always", opts: Options{Pipelining: PipeliningAlways}, wantAlways: true,
-			wantDisableCache: true, wantDisableRetry: true, wantBlockingPipeline: math.MaxInt,
-		},
-		{
-			name: "auto is the library default", opts: Options{Pipelining: PipeliningAuto},
-			wantDisableCache: true, wantDisableRetry: true, wantBlockingPipeline: math.MaxInt,
-		},
-		{
-			name: "off", opts: Options{Pipelining: PipeliningOff}, wantDisableAuto: true,
-			wantDisableCache: true, wantDisableRetry: true, wantBlockingPipeline: math.MaxInt,
-		},
-		{
-			name: "client side cache", opts: Options{ClientSideCache: true}, wantAlways: true,
 			wantDisableRetry: true, wantBlockingPipeline: math.MaxInt,
 		},
 		{
-			name: "retry", opts: Options{Retry: true}, wantAlways: true, wantDisableCache: true,
+			name: "auto is the library default", opts: Options{Pipelining: PipeliningAuto},
+			wantDisableRetry: true, wantBlockingPipeline: math.MaxInt,
+		},
+		{
+			name: "retry", opts: Options{Retry: true}, wantAlways: true,
 			wantBlockingPipeline: math.MaxInt,
 		},
 		{
 			name: "blocking pipeline threshold", opts: Options{BlockingPipeline: 500}, wantAlways: true,
-			wantDisableCache: true, wantDisableRetry: true, wantBlockingPipeline: 500,
+			wantDisableRetry: true, wantBlockingPipeline: 500,
 		},
 	}
 
@@ -57,8 +47,8 @@ func TestBuildClientOption(t *testing.T) {
 			got := buildClientOption(&valkey.ClientOption{}, &tt.opts)
 
 			assert.Equal(t, tt.wantAlways, got.AlwaysPipelining)
-			assert.Equal(t, tt.wantDisableAuto, got.DisableAutoPipelining)
-			assert.Equal(t, tt.wantDisableCache, got.DisableCache)
+			assert.False(t, got.DisableAutoPipelining)
+			assert.True(t, got.DisableCache, "lookups are never cached by the client")
 			assert.Equal(t, tt.wantDisableRetry, got.DisableRetry)
 			assert.Equal(t, tt.wantBlockingPipeline, got.BlockingPipeline)
 		})
