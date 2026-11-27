@@ -575,9 +575,13 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	})
 
 	select {
-	case <-r.drained:
-	case <-ctx.Done():
-		return fmt.Errorf("%w: %d calls still running: %w", ErrShutdown, r.inflight.Load(), ctx.Err())
+	case <-r.drained: // drained already: that wins over a context that ended too
+	default:
+		select {
+		case <-r.drained:
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %d calls still running: %w", ErrShutdown, r.inflight.Load(), ctx.Err())
+		}
 	}
 
 	stopper, ok := r.inner.(segment.Shutdowner)
