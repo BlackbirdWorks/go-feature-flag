@@ -262,7 +262,7 @@ func TestConformance_MyStore(t *testing.T) {
 | `returned-bytes-are-not-aliased` | - | a later write does not change bytes already returned |
 | `ended-context-is-an-error` | - | a cancelled or expired context is an error that wraps the context error, with no object |
 | `cancel-while-reading` | `hang` | a cancel ends a read that waits: `context.Canceled`, no object, nothing left |
-| `deadline-while-reading` | `hang` | a deadline ends a read that waits: `context.DeadlineExceeded`, no object; the context reports its deadline too |
+| `deadline-while-reading` | `hang` | a deadline ends a read that waits: `context.DeadlineExceeded`, no object. Done is authoritative: a store that copies `Deadline()` into a one-shot I/O deadline must also watch Done |
 | `cancel-while-reading-the-body` | `hang-body` | a cancel while the body is read, then the store reads on |
 | `cancel-leaves-nothing-behind` | `hang` | many cancelled reads leave no request, and the store is not poisoned |
 | `gets-leave-no-goroutine-behind` | - | reads of every outcome leave no goroutine |
@@ -281,6 +281,12 @@ func TestConformance_MyStore(t *testing.T) {
   that the suite fails for each.
 - The suite runs today against the in-memory fake, the file store and the S3 store (the last one with the `docker`
   build tag, on the emulator).
+
+What a store must do when the context ends: end the read when `Done` closes, with an error that wraps
+`context.Canceled` or `context.DeadlineExceeded`, and return no object. `Deadline()` may be used to set a deadline on the
+I/O the store starts, but only as an optimisation: a store that copies it into a one-shot deadline must still watch
+`Done`. The suite signals a deadline the way a context does (Done closes, Err is `DeadlineExceeded`, Deadline reports a
+deadline that has passed) without a timer, so a store that watches only a one-shot copy of `Deadline()` fails it.
 
 What the reader needs of an ETag, and nothing more:
 

@@ -846,7 +846,7 @@ func hungRead(ctx context.Context, t TB, fixture Fixture, hang *Hang) <-chan rea
 
 	select {
 	case <-hang.Entered():
-	case <-time.After(wait):
+	case <-time.After(waitBound(t)):
 		require.FailNow(t, "the read did not reach the backend")
 	}
 
@@ -860,6 +860,16 @@ type readResult struct {
 }
 
 // awaitRead waits for a read whose context ended and checks what it returned: an error, and no object.
+// waitBound is how long a case waits for an event that must happen: [wait], unless the test is a recording one
+// that was given a shorter bound (see [CheckWithin]), which a store that is known to fail does not need to exhaust.
+func waitBound(t TB) time.Duration {
+	if bounded, ok := t.(interface{ waitBound() time.Duration }); ok {
+		return bounded.waitBound()
+	}
+
+	return wait
+}
+
 func awaitRead(t TB, done <-chan readResult) error {
 	t.Helper()
 
@@ -868,7 +878,7 @@ func awaitRead(t TB, done <-chan readResult) error {
 		assert.Equal(t, manifestreader.Object{}, result.obj, "a read that ended with its context returns no object")
 
 		return result.err
-	case <-time.After(wait):
+	case <-time.After(waitBound(t)):
 		require.FailNow(t, "the read did not return after its context ended")
 
 		return nil
@@ -899,6 +909,12 @@ func caseCancelWhileReading(t TB, fixture Fixture) {
 	assert.Equal(t, 0, hang.Active(), "the request is gone when the read has returned")
 }
 
+// caseDeadlineWhileReading: the deadline of the context passes while the store waits, and the store ends the read
+// with an error that wraps [context.DeadlineExceeded] and no object. The context of the case signals the deadline
+// the way a context does: Done closes, Err is DeadlineExceeded, and Deadline reports a deadline that has passed. It
+// is not a real timer, so a store that copies the first Deadline() into a one-shot I/O deadline and does not watch
+// Done never ends the read, and fails the case: the contract is that Done is authoritative, and Deadline() alone
+// is an optimisation.
 func caseDeadlineWhileReading(t TB, fixture Fixture) {
 	t.Helper()
 

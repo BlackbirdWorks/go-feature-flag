@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -103,6 +104,9 @@ func readBody(body io.Reader, contentLength *int64, limit int64) ([]byte, error)
 	return buf, nil
 }
 
+// spareDivisor makes the spare capacity that [rightSize] keeps a quarter of the body.
+const spareDivisor = 4
+
 // readUnknownLength reads a body whose length the answer did not give.
 func readUnknownLength(body io.Reader, limit int64) ([]byte, error) {
 	window := limit
@@ -119,10 +123,21 @@ func readUnknownLength(body io.Reader, limit int64) ([]byte, error) {
 		return nil, ErrTooLarge
 	}
 
-	out := make([]byte, len(data)) // exactly the size of the body: ReadAll leaves spare capacity
+	return rightSize(data), nil
+}
+
+// rightSize returns data with no spare capacity. When the spare capacity is small it only caps the capacity (no
+// second buffer: the peak stays near the size of the body); when it is large (a small body that ReadAll grew past)
+// it copies into a buffer of exactly the size, which is cheap because the body is small.
+func rightSize(data []byte) []byte {
+	if spare := cap(data) - len(data); spare <= len(data)/spareDivisor {
+		return slices.Clip(data)
+	}
+
+	out := make([]byte, len(data))
 	copy(out, data)
 
-	return out, nil
+	return out
 }
 
 // classifyS3 maps an SDK error to the results of [ObjectStore]. The 304 comes first: the SDK reports it as an

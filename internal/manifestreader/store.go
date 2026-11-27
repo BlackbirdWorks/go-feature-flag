@@ -48,8 +48,10 @@ type GetRequest struct {
 //     conditional Get that holds the current ETag is answered with [ErrNotModified] (and a zero [Object]). Equal
 //     bytes need not give an equal ETag: a row version, a commit SHA or a generation number is a valid ETag.
 //   - A failed Get returns a zero [Object]. A Get that ended with its context returns an error that wraps the error
-//     of the context: [context.Canceled] for a cancellation, [context.DeadlineExceeded] for a deadline. The
-//     context can end while the store waits, whether it signals that through Done or only through Deadline.
+//     of the context: [context.Canceled] for a cancellation, [context.DeadlineExceeded] for a deadline. The store
+//     ends a read when Done closes: Done is authoritative. A store may also use Deadline() to set a deadline on the
+//     I/O it starts, but that is an optimisation: a store that copies Deadline() into a one-shot deadline must
+//     still watch Done.
 //   - A Get that starts after a write to the object has returned sees that write (read-after-write consistency).
 //   - The size guarantee is the one of [GetRequest.Limit]: never a body of more than Limit bytes, though a store may
 //     read one byte past it. When Limit is below the size of the object, the answer is [ErrTooLarge], or

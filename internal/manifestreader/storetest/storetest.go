@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -299,6 +300,13 @@ func nilIfEmpty(m Waivers) Waivers {
 // so that a test can show that the suite catches a broken store: the case runs on a goroutine of its own, with a
 // recording [TB].
 func Check(name string, fixture Fixture) ([]string, bool) {
+	return CheckWithin(name, fixture, wait)
+}
+
+// CheckWithin is [Check] with a shorter bound for the events a case waits for. A store that is expected to fail by
+// never answering (it ignores its context) then fails in about the bound and not in ten seconds. A store that is
+// expected to pass needs the default bound: a short one can fail it on a busy machine.
+func CheckWithin(name string, fixture Fixture, bound time.Duration) ([]string, bool) {
 	for i := range allCases() {
 		current := allCases()[i]
 		if current.name != name {
@@ -310,6 +318,7 @@ func Check(name string, fixture Fixture) ([]string, bool) {
 		}
 
 		rec := newRecorder()
+		rec.bound = bound
 		done := make(chan struct{})
 		runID := newID("check")
 
@@ -370,6 +379,7 @@ type recorder struct {
 	ctx    context.Context //nolint:containedctx // it is the context of the test, as testing.T.Context is
 	cancel context.CancelFunc
 	fails  []string
+	bound  time.Duration
 	mu     sync.Mutex
 }
 
@@ -401,3 +411,5 @@ func (r *recorder) failures() []string {
 
 	return slices.Clone(r.fails)
 }
+
+func (r *recorder) waitBound() time.Duration { return r.bound }

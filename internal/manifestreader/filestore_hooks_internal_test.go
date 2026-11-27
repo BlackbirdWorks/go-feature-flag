@@ -104,15 +104,29 @@ func TestFileStore_ContextEndsDuringTheRead(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		cause error
-		name  string
-		etag  string
-		looks int64
+		cause         error
+		name          string
+		etag          string
+		wantReason    string
+		looks         int64
+		wantRetryable bool
 	}{
-		{name: "cancelled during the hashing pass", cause: context.Canceled, etag: heldETag, looks: 4},
-		{name: "deadline during the hashing pass", cause: context.DeadlineExceeded, etag: heldETag, looks: 4},
-		{name: "cancelled during the read pass", cause: context.Canceled, looks: 4},
-		{name: "deadline during the read pass", cause: context.DeadlineExceeded, looks: 4},
+		{
+			name: "cancelled during the hashing pass", cause: context.Canceled, etag: heldETag, looks: 4,
+			wantReason: ReasonError, wantRetryable: true,
+		},
+		{
+			name: "deadline during the hashing pass", cause: context.DeadlineExceeded, etag: heldETag, looks: 4,
+			wantReason: ReasonError, wantRetryable: true,
+		},
+		{
+			name: "cancelled during the read pass", cause: context.Canceled, looks: 4,
+			wantReason: ReasonError, wantRetryable: true,
+		},
+		{
+			name: "deadline during the read pass", cause: context.DeadlineExceeded, looks: 4,
+			wantReason: ReasonError, wantRetryable: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,8 +145,8 @@ func TestFileStore_ContextEndsDuringTheRead(t *testing.T) {
 
 			fetchErr, ok := errors.AsType[*FetchError](err)
 			require.True(t, ok)
-			assert.True(t, fetchErr.Retryable)
-			assert.Equal(t, ReasonError, fetchErr.Reason)
+			assert.Equal(t, tt.wantRetryable, fetchErr.Retryable)
+			assert.Equal(t, tt.wantReason, fetchErr.Reason)
 			assert.LessOrEqual(t, counter.served.Load(), tt.looks*fileChunk, "the read stopped with the context")
 			assert.Less(t, counter.served.Load(), int64(hookSparseSize))
 		})
@@ -246,19 +260,20 @@ func TestFileStore_ReadErrorsAndGrowth(t *testing.T) {
 	}
 
 	tests := []struct {
-		wrap       func(int, io.Reader) io.Reader
-		wantIs     error
-		name       string
-		etag       string
-		wantReason string
+		wrap          func(int, io.Reader) io.Reader
+		wantIs        error
+		name          string
+		etag          string
+		wantReason    string
+		wantRetryable bool
 	}{
 		{
 			name: "a read error during the hashing pass", wrap: failing(passHash), etag: heldETag,
-			wantIs: errDisk, wantReason: ReasonError,
+			wantIs: errDisk, wantReason: ReasonError, wantRetryable: true,
 		},
 		{
 			name: "a read error during the read pass", wrap: failing(passRead),
-			wantIs: errDisk, wantReason: ReasonError,
+			wantIs: errDisk, wantReason: ReasonError, wantRetryable: true,
 		},
 		{
 			name: "a file that grew past the limit after it was opened", wrap: growing, etag: heldETag,
@@ -284,7 +299,7 @@ func TestFileStore_ReadErrorsAndGrowth(t *testing.T) {
 				fetchErr, ok := errors.AsType[*FetchError](err)
 				require.True(t, ok)
 				assert.Equal(t, tt.wantReason, fetchErr.Reason)
-				assert.True(t, fetchErr.Retryable)
+				assert.Equal(t, tt.wantRetryable, fetchErr.Retryable)
 			}
 		})
 	}

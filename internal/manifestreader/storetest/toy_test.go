@@ -18,6 +18,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/storetest"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // toyStore is a small in-memory store that is correct, with one defect that a test can switch on. It has every
@@ -35,9 +36,6 @@ type toyStore struct {
 	nextID   int
 	worker   bool
 	started  bool
-	// deadlineOnly makes the toy wait on the deadline of the context alone, as a store that hands it to the
-	// I/O it starts does: it ignores Done.
-	deadlineOnly bool
 }
 
 type toyVersion struct {
@@ -69,7 +67,23 @@ const (
 	defectETagOfOldBytes    = "ETag of the previous content with the new bytes"
 	defectPartialOnCancel   = "a cancelled read returns the bytes it had"
 	defectServesStale       = "keeps serving the first content after a later write"
+	defectOneShotDeadline   = "sets a one-shot deadline from the first Deadline() and ignores Done"
 )
+
+// The bound of the waits of a case for a store that is known to fail by never answering: a bounded wait that is
+// certain to run out, and so does not depend on the speed of the machine. The default is the one of Check.
+const (
+	shortBound   = 300 * time.Millisecond
+	defaultBound = 10 * time.Second
+)
+
+func cmpOr(value, fallback time.Duration) time.Duration {
+	if value != 0 {
+		return value
+	}
+
+	return fallback
+}
 
 // Names of cases that several rows name.
 const (
@@ -332,19 +346,22 @@ func (s *toyStore) answer(content []byte, etag, held string) (manifestreader.Obj
 	return manifestreader.Object{Bytes: content, ETag: etag}, nil
 }
 
-// block holds the read in the hang. A toy that honours only the deadline watches Deadline() and ignores Done.
+// block holds the read in the hang. The toy with the one-shot defect copies the first Deadline() of the context
+// into a deadline that it never looks at again, as a store does that hands the deadline to the I/O it starts, and
+// ignores Done: Done is authoritative, so the suite has to reject it.
 func (s *toyStore) block(ctx context.Context, hang *storetest.Hang) error {
-	if !s.deadlineOnly {
+	if s.defect != defectOneShotDeadline {
 		return hang.Block(ctx)
 	}
+
+	deadline, hasDeadline := ctx.Deadline() // read once
 
 	inner, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancel()
 
 	go func() {
 		for inner.Err() == nil {
-			deadline, ok := ctx.Deadline()
-			if ok && time.Now().After(deadline) {
+			if hasDeadline && clock.Now().After(deadline) {
 				cancel()
 
 				return
@@ -394,6 +411,8 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 		defect    string
 		wantText  string
 		wantCases []string
+		// within is the bound of the waits of the cases, for a store that fails by never answering (0: the default)
+		within time.Duration
 	}{
 		{
 			name:      "the ETag of a rewrite stays the old one",
@@ -449,6 +468,12 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 			wantCases: []string{"missing-is-not-found"},
 		},
 		{
+			name:      "a store copies the first Deadline() into a one-shot deadline and ignores Done",
+			defect:    defectOneShotDeadline,
+			wantCases: []string{"deadline-while-reading", "cancel-while-reading"},
+			within:    shortBound,
+		},
+		{
 			name: "a store keeps serving the first content after a later write", defect: defectServesStale,
 			wantCases: []string{caseDescribes, caseChanged},
 		},
@@ -469,7 +494,7 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 			for _, name := range tt.wantCases {
 				fixture, toy := toyFixture(tt.defect)
 
-				failures, ran := storetest.Check(name, fixture)
+				failures, ran := storetest.CheckWithin(name, fixture, cmpOr(tt.within, defaultBound))
 
 				close(toy.release)
 
@@ -505,35 +530,4 @@ func TestSuiteAcceptsAGoodToy(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{caseKeys}, notRun, "the one case that needs key validation")
-}
-
-// TestSuiteDeadlineReachesTheStore: the deadline case works for a store that waits on the deadline of its context
-// alone (it hands the deadline to the I/O it starts and ignores Done) and for one that waits on Done alone. Both
-// are valid stores; the context of the case has to end for each.
-func TestSuiteDeadlineReachesTheStore(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		deadlineOnly bool
-	}{
-		{name: "a store that watches Deadline and ignores Done", deadlineOnly: true},
-		{name: "a store that watches Done and ignores Deadline"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			fixture, toy := toyFixture(defectNone)
-			toy.deadlineOnly = tt.deadlineOnly
-
-			failures, ran := storetest.Check("deadline-while-reading", fixture)
-
-			close(toy.release)
-
-			assert.True(t, ran)
-			assert.Empty(t, failures)
-		})
-	}
 }
