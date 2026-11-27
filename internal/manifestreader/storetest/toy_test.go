@@ -407,83 +407,111 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		defect    string
-		wantText  string
-		wantCases []string
+		name   string
+		defect string
+		// wants names each case that must fail for the defect and a fragment of the failure it must produce. A
+		// failure of the setup of the case (the read did not reach the backend) is not the failure of the defect.
+		wants []caseWant
 		// within is the bound of the waits of the cases, for a store that fails by never answering (0: the default)
 		within time.Duration
 	}{
 		{
-			name:      "the ETag of a rewrite stays the old one",
-			defect:    defectStaleETag,
-			wantCases: []string{caseChanged, caseFollows},
+			name: "the ETag of a rewrite stays the old one", defect: defectStaleETag,
+			wants: []caseWant{{caseChanged, textNotModified}, {caseFollows, textBytesBecame}},
 		},
 		{
 			name: "the ETag is the same for every content", defect: defectConstantETag,
-			wantCases: []string{caseChanged, caseFollows, "empty-object", caseDescribes},
+			wants: []caseWant{
+				{caseChanged, textNotModified}, {caseFollows, textBytesBecame},
+				{"empty-object", "the empty object has an ETag of its own"}, {caseDescribes, textTwoContents},
+			},
 		},
 		{
 			name: "the limit is ignored", defect: defectIgnoresLimit,
-			wantCases: []string{"limit-at-and-one-over", "limit-zero-and-negative", "empty-object"},
+			wants: []caseWant{
+				{"limit-at-and-one-over", "one under"}, {"limit-zero-and-negative", "limit 0, one byte"},
+				{"empty-object", "one byte over a limit of zero"},
+			},
 		},
 		{
 			name: "a negative limit lets everything through", defect: defectNegativeLimit,
-			wantCases: []string{"limit-zero-and-negative"},
+			wants: []caseWant{{"limit-zero-and-negative", "limit -1, one byte"}},
 		},
 		{
 			name: "any ETag is answered with not-modified", defect: defectNotModifiedAlways,
-			wantCases: []string{"unknown-etag-returns-the-object", caseChanged},
+			wants: []caseWant{{"unknown-etag-returns-the-object", textNotModified}, {caseChanged, textNotModified}},
 		},
 		{
 			name: "a body comes with the not-modified answer", defect: defectBodyWithNotMod,
-			wantCases: []string{"conditional-unchanged-is-not-modified", "etag-is-stable-for-unchanged-content"},
+			wants: []caseWant{
+				{"conditional-unchanged-is-not-modified", textBodyWithNotModified},
+				{"etag-is-stable-for-unchanged-content", textBodyWithNotModified},
+			},
 		},
 		{
 			name: "the context is ignored", defect: defectIgnoresContext,
-			wantCases: []string{"ended-context-is-an-error"},
+			wants: []caseWant{{"ended-context-is-an-error", "in chain but got nil"}},
 		},
 		{
-			name: "the body is one byte short", defect: defectTruncates,
-			wantCases: []string{"get-unconditional", caseChanged},
+			name:   "the body is one byte short",
+			defect: defectTruncates,
+			wants: []caseWant{
+				{"get-unconditional", "the body of an unconditional read"},
+				{caseChanged, "the new body"},
+			},
 		},
 		{
-			name: "every Get leaves a goroutine", defect: defectLeaks, wantText: "left goroutines behind",
-			wantCases: []string{"gets-leave-no-goroutine-behind", "get-unconditional"},
+			name: "every Get leaves a goroutine", defect: defectLeaks,
+			wants: []caseWant{{"gets-leave-no-goroutine-behind", textLeak}, {"get-unconditional", textLeak}},
 		},
 		{
-			name: "returned bytes are overwritten by a later Put", defect: defectAliases,
-			wantCases: []string{"returned-bytes-are-not-aliased"},
+			name:   "returned bytes are overwritten by a later Put",
+			defect: defectAliases,
+			wants: []caseWant{
+				{"returned-bytes-are-not-aliased", "bytes already returned were changed by a later write"},
+			},
 		},
 		{
 			name: "a version that does not exist is served", defect: defectIgnoresVersion,
-			wantCases: []string{"missing-version-is-not-found", "version-id-reads-an-older-version"},
+			wants: []caseWant{
+				{"missing-version-is-not-found", "in chain but got nil"},
+				{"version-id-reads-an-older-version", "the older version is read after the overwrite"},
+			},
 		},
 		{
 			name: "a denied read is retryable", defect: defectDeniedRetryable,
-			wantCases: []string{"denied-is-not-retryable"},
+			wants: []caseWant{{"denied-is-not-retryable", "Retryable"}},
 		},
 		{
 			name: "a missing object is an empty one", defect: defectMissingIsEmpty,
-			wantCases: []string{"missing-is-not-found"},
+			wants: []caseWant{{"missing-is-not-found", "never written"}},
 		},
 		{
-			name:      "a store copies the first Deadline() into a one-shot deadline and ignores Done",
-			defect:    defectOneShotDeadline,
-			wantCases: []string{"deadline-while-reading", "cancel-while-reading"},
-			within:    shortBound,
+			name:   "a store copies the first Deadline() into a one-shot deadline and ignores Done",
+			defect: defectOneShotDeadline,
+			wants: []caseWant{
+				{"deadline-while-reading", textNoReturn}, {"cancel-while-reading", textNoReturn},
+			},
+			within: shortBound,
 		},
 		{
-			name: "a store keeps serving the first content after a later write", defect: defectServesStale,
-			wantCases: []string{caseDescribes, caseChanged},
+			name:   "a store keeps serving the first content after a later write",
+			defect: defectServesStale,
+			wants: []caseWant{
+				{caseDescribes, "the read that follows a write sees the write"},
+				{caseChanged, textNotModified},
+			},
 		},
 		{
 			name: "a cancelled read returns the bytes it had", defect: defectPartialOnCancel,
-			wantCases: []string{"cancel-while-reading", "cancel-while-reading-the-body", "deadline-while-reading"},
+			wants: []caseWant{
+				{"cancel-while-reading", textNoObject}, {"cancel-while-reading-the-body", textNoObject},
+				{"deadline-while-reading", textNoObject},
+			},
 		},
 		{
 			name: "the ETag is the one of the previous bytes", defect: defectETagOfOldBytes,
-			wantCases: []string{caseDescribes, caseFollows},
+			wants: []caseWant{{caseDescribes, textTwoContents}, {caseFollows, textBytesBecame}},
 		},
 	}
 
@@ -491,20 +519,48 @@ func TestSuiteCatchesBrokenStores(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			for _, name := range tt.wantCases {
+			for _, want := range tt.wants {
 				fixture, toy := toyFixture(tt.defect)
 
-				failures, ran := storetest.CheckWithin(name, fixture, cmpOr(tt.within, defaultBound))
+				failures, ran := storetest.CheckWithin(want.name, fixture, cmpOr(tt.within, defaultBound))
 
 				close(toy.release)
 
-				require.True(t, ran, "case %s did not run", name)
-				assert.NotEmpty(t, failures, "the case %s did not catch %q", name, tt.defect)
-				assert.Contains(t, strings.Join(failures, "\n"), tt.wantText)
+				require.True(t, ran, "case %s did not run", want.name)
+
+				text := strings.Join(failures, "\n")
+				assert.Contains(t, text, want.text, "the case %s did not fail for %q as it must", want.name, tt.defect)
+				assert.NotContains(
+					t,
+					text,
+					textSetup,
+					"the case %s failed in its setup, not for %q",
+					want.name,
+					tt.defect,
+				)
 			}
 		})
 	}
 }
+
+// caseWant is a case that must fail for a defect, with a fragment of its failure.
+type caseWant struct {
+	name string
+	text string
+}
+
+// Fragments of the failures that the rows look for.
+const (
+	textNotModified         = "manifestreader: not modified"
+	textBytesBecame         = "bytes became"
+	textTwoContents         = "came with two different contents"
+	textBodyWithNotModified = "expected: manifestreader.Object{ETag:\"\", Bytes:[]uint8(nil)}"
+	textLeak                = "left goroutines behind"
+	textNoReturn            = "the read did not return after its context ended"
+	textNoObject            = "a read that ended with its context returns no object"
+	// textSetup is the failure of a case whose read never reached the store: no row accepts it.
+	textSetup = "the read did not reach the backend"
+)
 
 // TestSuiteAcceptsAGoodToy guards the table above: the toy without a defect passes every case, so the failures
 // of the other rows come from their defects.

@@ -191,7 +191,7 @@ func caseGetUnconditional(t TB, fixture Fixture) {
 	mustPut(t, fixture, keyMain, content)
 
 	obj := mustGet(t, fixture, keyMain, "", bigLimit)
-	assert.Equal(t, content, obj.Bytes)
+	assert.Equal(t, content, obj.Bytes, "the body of an unconditional read")
 	assert.NotEmpty(t, obj.ETag)
 }
 
@@ -216,7 +216,7 @@ func caseConditionalChanged(t TB, fixture Fixture) {
 	mustPut(t, fixture, keyMain, changed)
 
 	second := mustGet(t, fixture, keyMain, first.ETag, bigLimit)
-	assert.Equal(t, changed, second.Bytes)
+	assert.Equal(t, changed, second.Bytes, "the new body")
 	assert.NotEmpty(t, second.ETag)
 	assert.NotEqual(t, first.ETag, second.ETag)
 
