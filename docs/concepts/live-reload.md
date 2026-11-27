@@ -2,7 +2,7 @@
 
 The relay changes what it serves while it runs: no restart, no redeploy, no failed in-flight request. This page describes the reload engine in `cmd/relayproxy/flagruntime`.
 
-> **Status:** the engine is built beside the running relay. It becomes active when the relay switches to config v2 (a later release). Until then the relay keeps reloading as described in the [relay configuration](../relay-proxy/configuration.md).
+> **Status:** the relay runs on this engine, see the [bootstrap file](../relay-proxy/bootstrap-config.md).
 
 ## How a reload works
 

@@ -10,11 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -27,20 +26,10 @@ const (
 )
 
 // testConfig returns a minimal HTTP relay proxy configuration. startTestServer gives it its port.
-func testConfig(t *testing.T) *config.Config {
+func testConfig(t *testing.T) *testConf {
 	t.Helper()
 
-	return &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: fixtures.KindFile,
-				Path: fixtures.FlagConfigYAMLParentPath,
-			},
-		},
-		Server: config.Server{
-			Mode: config.ServerModeHTTP,
-		},
-	}
+	return &testConf{settings: api.Settings{Mode: api.ServerModeHTTP}}
 }
 
 // startTestServer boots a relay proxy from conf and returns its base URL and, when withMonitoring is set, the
@@ -48,17 +37,17 @@ func testConfig(t *testing.T) *config.Config {
 // bound before the server started and are kept open, so no other test can take the ports. conf gets its ports
 // from them. The function waits for the monitoring server too, because it is started in its own goroutine and
 // serves the endpoints the API server no longer has.
-func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (string, string) {
+func startTestServer(t *testing.T, conf *testConf, withMonitoring bool) (string, string) {
 	t.Helper()
 	ln, port := testhelpers.ListenLocal(t)
-	conf.Server.Port = port
+	conf.settings.Port = port
 	opts := []api.Option{api.WithListener(ln)}
 
 	var monitoringURL string
 
 	if withMonitoring {
 		monitoringLn, monitoringPort := testhelpers.ListenLocal(t)
-		conf.Server.MonitoringPort = monitoringPort
+		conf.settings.MonitoringPort = monitoringPort
 
 		opts = append(opts, api.WithMonitoringListener(monitoringLn))
 		monitoringURL = fmt.Sprintf(httpLocalhostD, monitoringPort)
@@ -72,14 +61,12 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(wsService.Close)
 
-	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	flagsetManager := newDefaultFlags(t, nil)
+	conf.flags = flagsetManager
 
 	srv := newTestServer(t, conf, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		WebsocketService:  wsService,
-		FlagsetManager:    flagsetManager,
-		Metrics:           metricsV2,
+		WebsocketService: wsService,
+		Metrics:          metricsV2,
 	}, log.Slog, opts...)
 	go func() { srv.StartWithContext(context.Background()) }()
 
@@ -168,8 +155,7 @@ func Test_CORS_Preflight(t *testing.T) {
 	t.Parallel()
 
 	conf := testConfig(t)
-	conf.AuthorizedKeys = config.APIKeys{Evaluation: []string{"my-key"}}
-	conf.ForceReloadAPIKeys()
+	conf.keys = mock.Keys{Evaluation: []string{"my-key"}}
 	baseURL, _ := startTestServer(t, conf, false)
 
 	endpoints := []string{

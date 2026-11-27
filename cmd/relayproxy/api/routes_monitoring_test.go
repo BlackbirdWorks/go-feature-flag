@@ -12,14 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
@@ -62,28 +59,17 @@ func TestPprofEndpointsStarts(t *testing.T) {
 				opts = append(opts, api.WithMonitoringListener(monitoringLn))
 			}
 
-			cfg := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: fixtures.FlagConfigYAMLParentPath,
-					},
+			cfg := &testConf{
+				settings: api.Settings{
+					Mode: api.ServerModeHTTP, Port: port, MonitoringPort: monitoringPort, Pprof: tt.EnablePprof,
 				},
-				Server: config.Server{
-					Mode: config.ServerModeHTTP,
-					Port: port,
-				},
-				MonitoringPort: monitoringPort, //nolint:staticcheck // SA1019: the test covers the deprecated setting
-				EnablePprof:    tt.EnablePprof,
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(cfg, logger, []notifier.Notifier{}, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, []notifier.Notifier{})
+			cfg.flags = flagsetManager
 			apiServer := newTestServer(t, cfg, &service.Services{
-				MonitoringService: service.NewMonitoring(flagsetManager),
-				WebsocketService:  stream.NewWebsocketService(),
-				FlagsetManager:    flagsetManager,
-				Metrics:           &metric.Metrics{},
+				WebsocketService: stream.NewWebsocketService(),
+				Metrics:          &metric.Metrics{},
 			}, logger, opts...)
 
 			portToCheck := port
@@ -136,8 +122,8 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			t.Parallel()
 
 			conf := testConfig(t)
-			conf.Version = "1.2.3"
-			conf.DisableVersionHeader = tt.disableVersionHeader
+			conf.settings.Version = "1.2.3"
+			conf.settings.DisableVersionHeader = tt.disableVersionHeader
 			baseURL, monitoringURL := startTestServer(t, conf, true)
 
 			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+healthPath, nil)

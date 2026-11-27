@@ -13,7 +13,4 @@
 // and notifiers. AWS backed kinds take their client or configuration from the connection factory by connection
 // name. [Runtime] ties the dispatcher and the notification worker together under one lifecycle (start, reload in
 // place, shutdown with a drain deadline), and [Collector] exposes [Status] to Prometheus.
-//
-// The package is built beside the running relay: nothing in the relay reads it yet. The relay keeps running on
-// the version 1 configuration until the switch to config v2.
 package events

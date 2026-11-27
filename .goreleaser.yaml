@@ -68,7 +68,6 @@ archives:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-fips
     name_template: "semaphore-fips_\
@@ -82,7 +81,6 @@ archives:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-cli
     formats: [tar.gz]
@@ -100,7 +98,6 @@ archives:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
 
 checksum:
   name_template: "checksums.txt"
@@ -125,7 +122,6 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -157,7 +153,6 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -187,7 +182,6 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -217,7 +211,6 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -247,7 +240,6 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
-      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore-cli
     tags:

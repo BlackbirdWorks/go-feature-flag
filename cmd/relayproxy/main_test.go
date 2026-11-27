@@ -22,28 +22,50 @@ const (
 	configFlag  = "--config"
 	unknownFlag = "--nope"
 	versionFlag = "--version"
+	helpFlag    = "--help"
+
+	// unknownFlagText is what the parser says of an unknown flag.
+	unknownFlagText = "unknown flag"
 )
 
-func TestVersionRequested(t *testing.T) {
+func TestParseCommandLineHelpAndVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		args []string
-		want bool
+		name        string
+		args        []string
+		wantHelp    bool
+		wantVersion bool
+		wantErr     bool
 	}{
-		{name: "no argument", args: nil, want: false},
-		{name: "long flag", args: []string{versionFlag}, want: true},
-		{name: "short flag", args: []string{"-v"}, want: true},
-		{name: "after the config flag", args: []string{configXYaml, versionFlag}, want: true},
-		{name: "config only", args: []string{configXYaml}, want: false},
-		{name: "unknown flags are ignored", args: []string{unknownFlag, "-v"}, want: true},
+		{name: "no argument"},
+		{name: "long version", args: []string{versionFlag}, wantVersion: true},
+		{name: "short version", args: []string{"-v"}, wantVersion: true},
+		{name: "version after the config flag", args: []string{configXYaml, versionFlag}, wantVersion: true},
+		{name: "config only", args: []string{configXYaml}},
+		{name: "version=false", args: []string{"--version=false", configXYaml}},
+		{name: "help=false and version", args: []string{"--help=false", versionFlag}, wantVersion: true},
+		{name: "help", args: []string{helpFlag}, wantHelp: true},
+		{name: "short help", args: []string{"-h"}, wantHelp: true},
+		{name: "help and version", args: []string{helpFlag, versionFlag}, wantHelp: true, wantVersion: true},
+		{name: "version and help", args: []string{versionFlag, helpFlag}, wantHelp: true, wantVersion: true},
+		{name: "unknown flag", args: []string{unknownFlag, "-v"}, wantErr: true},
+		{name: "unknown flag after help", args: []string{helpFlag, unknownFlag}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, versionRequested(tt.args))
+			got, err := parseCommandLine(tt.args)
+			if tt.wantErr {
+				require.ErrorIs(t, err, errUsage)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHelp, got.Help)
+			assert.Equal(t, tt.wantVersion, got.Version)
 		})
 	}
 }
@@ -56,40 +78,13 @@ func TestVersionText(t *testing.T) {
 	assert.Contains(t, got, "\nfips140: false\n")
 }
 
-func TestConfigFlagSet(t *testing.T) {
+func TestConfigValueStartingWithADash(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name        string
-		wantConfig  string
-		args        []string
-		wantVersion bool
-	}{
-		{name: "config only", args: []string{configXYaml}, wantConfig: "/x.yaml"},
-		{
-			name:       "version=false before config keeps the config",
-			args:       []string{"--version=false", configXYaml},
-			wantConfig: "/x.yaml",
-		},
-		{
-			name:       "config value starting with a dash is a value",
-			args:       []string{configFlag, "-version.yaml"},
-			wantConfig: "-version.yaml",
-		},
-		{name: "version", args: []string{versionFlag}, wantVersion: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			f := newConfigFlagSet()
-			require.NoError(t, f.Parse(tt.args))
-			got, err := f.GetString("config")
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantConfig, got)
-			assert.Equal(t, tt.wantVersion, versionRequested(tt.args))
-		})
-	}
+	got, err := parseCommandLine([]string{configFlag, "-version.yaml"})
+	require.NoError(t, err)
+	assert.Equal(t, "-version.yaml", got.Overrides.Config)
+	assert.False(t, got.Version)
 }
 
 func TestOverridesFrom(t *testing.T) {
@@ -138,7 +133,7 @@ func TestOverridesFrom(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := overridesFrom(tt.args)
+			got, err := parseCommandLine(tt.args)
 			if tt.wantErr {
 				require.ErrorIs(t, err, errUsage)
 
@@ -146,7 +141,7 @@ func TestOverridesFrom(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, *got)
+			assert.Equal(t, tt.want, *got.Overrides)
 		})
 	}
 }

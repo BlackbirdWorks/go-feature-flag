@@ -3,7 +3,6 @@ package manifest_test
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"testing"
@@ -11,16 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
 
 const (
@@ -37,25 +32,8 @@ const (
 func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	t.Parallel()
 
-	conf := &config.Config{
-		PollingInterval: 10000,
-		FileFormat:      protocol.FormatYAML,
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{
-				Kind: retrieverconf.FileRetriever,
-				Path: manifestConfigFlags,
-			},
-		},
-	}
-
-	flagsetManager, err := service.NewFlagsetManager(
-		conf,
-		slog.New(slog.DiscardHandler),
-		[]notifier.Notifier{},
-		nil,
-		nil,
-	)
-	require.NoError(t, err, "failed to create flagset manager")
+	cfg := mock.FileConfig(manifestConfigFlags)
+	flagsetManager := mock.NewDefault(t, &cfg)
 
 	defer flagsetManager.Close()
 
@@ -125,43 +103,19 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		},
 	}
 
-	conf := &config.Config{
-		FlagSets: []config.FlagSet{
-			{
-				Name:            "flagset1",
-				PollingInterval: 10000,
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: retrieverconf.FileRetriever,
-						Path: manifestConfigFlags,
-					},
-				},
-				APIKeys: []string{"flagset1-api-key"},
-			},
-			{
-				Name:            "flagset2",
-				PollingInterval: 10000,
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: retrieverconf.FileRetriever,
-						Path: manifestConfigFlagsV2,
-					},
-				},
-				APIKeys: []string{"flagset2-api-key"},
-			},
+	flagsetManager := mock.NewNamed(
+		t,
+		mock.Named{
+			Name:    "flagset1",
+			APIKeys: []string{"flagset1-api-key"},
+			Config:  mock.FileConfig(manifestConfigFlags),
 		},
-	}
-
-	flagsetManager, err := service.NewFlagsetManager(
-		conf,
-		slog.New(slog.DiscardHandler),
-		[]notifier.Notifier{},
-		nil,
-		nil,
+		mock.Named{
+			Name:    "flagset2",
+			APIKeys: []string{"flagset2-api-key"},
+			Config:  mock.FileConfig(manifestConfigFlagsV2),
+		},
 	)
-	require.NoError(t, err, "failed to create flagset manager")
 	t.Cleanup(func() { flagsetManager.Close() })
 
 	for _, tt := range tests {

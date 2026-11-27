@@ -21,7 +21,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
@@ -38,16 +37,13 @@ const (
 func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 	t.Helper()
 	conf := testConfig(t)
-	conf.Version = versionNineNineNine
-	conf.Swagger.Enabled = true
-	conf.Server.MonitoringPort = monitoringPort
-	flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
-	require.NoError(t, err)
+	conf.settings.Version = versionNineNineNine
+	conf.settings.Swagger = true
+	conf.settings.MonitoringPort = monitoringPort
+	flagsetManager := newDefaultFlags(t, nil)
+	conf.flags = flagsetManager
 	t.Cleanup(flagsetManager.Close)
-	srv := apiwire.New(conf, &service.Services{
-		MonitoringService: service.NewMonitoring(flagsetManager),
-		FlagsetManager:    flagsetManager,
-	}, newTestLogger(t).Slog)
+	srv := newTestServer(t, conf, &service.Services{}, newTestLogger(t).Slog)
 
 	return srv.Handler()
 }
@@ -280,10 +276,14 @@ func Test_Upload(t *testing.T) {
 		wantDeadline bool // a deadline of the length of the timeout is set, else it is cleared
 		wantEnded    bool // the stalled upload is ended by the server
 	}{
-		{name: "collector timeout", path: v1DataCollector, timeout: 100 * time.Millisecond,
-			wantDeadline: true, wantEnded: true},
-		{name: "configuration timeout", path: v1FlagConfiguration, timeout: 100 * time.Millisecond,
-			wantDeadline: true, wantEnded: true},
+		{
+			name: "collector timeout", path: v1DataCollector, timeout: 100 * time.Millisecond,
+			wantDeadline: true, wantEnded: true,
+		},
+		{
+			name: "configuration timeout", path: v1FlagConfiguration, timeout: 100 * time.Millisecond,
+			wantDeadline: true, wantEnded: true,
+		},
 		{name: "collector no timeout", path: v1DataCollector},
 		{name: "configuration no timeout", path: v1FlagConfiguration},
 	}
@@ -293,10 +293,10 @@ func Test_Upload(t *testing.T) {
 
 			// the mechanism
 			conf := testConfig(t)
-			flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, nil)
+			conf.flags = flagsetManager
 			t.Cleanup(flagsetManager.Close)
-			srv := apiwire.New(conf, &service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
+			srv := newTestServer(t, conf, &service.Services{}, newTestLogger(t).Slog,
 				api.WithReadTimeout(tt.timeout))
 			req := httptest.NewRequestWithContext(
 				t.Context(),

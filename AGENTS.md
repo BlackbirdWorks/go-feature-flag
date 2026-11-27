@@ -78,16 +78,15 @@ benchstat base.txt new.txt                           # alternate base and new ru
   evaluation results keep their order under a reasoned `//nolint:govet` (fieldalignment).
 - The Go API is internal (nothing imports this module): it may change.
 
-### Names: Semaphore first, GO Feature Flag still accepted
+### Names: Semaphore first, GO Feature Flag still accepted on the wire
 
-The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
-that keeps working (one warning per owner (relay config loader, client, CLI command) and kind when it is used, `modules/core/legacy`). Do not remove an alias
-without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table.
+The names below are client contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
+that keeps working (one warning per owner (client, CLI command) and kind when it is used, `modules/core/legacy`). Do not remove an alias
+without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table. The relay reads one version 2
+bootstrap file: its configuration file, folder and environment aliases are gone.
 
-- Relay proxy config file `semaphore-proxy.<ext>` before the legacy `goff-proxy.<ext>`, searched in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, `/etc/opt/goff/`.
-- Environment variables: unprefixed, the `envVariablePrefix` setting, and the always-read `SEMAPHORE_` prefix (it wins).
 - Evaluation-context key `semaphore` (and its sub-keys), legacy `gofeatureflag`; OFREP metadata `semaphore_cacheable` and `gofeatureflag_cacheable`; headers `X-SEMAPHORE-VERSION` and `X-GOFEATUREFLAG-VERSION`.
-- Prometheus prefix `semaphore_`, legacy `gofeatureflag_` behind `exposeLegacyMetrics`. OpenTelemetry service name and scope default to `semaphore`.
+- Prometheus prefix `semaphore_`, legacy `gofeatureflag_` behind `observability.metrics.legacyNames`. OpenTelemetry service name and scope default to `semaphore`.
 - Wire paths, JSON field names and the flag file format are not renamed; the provider tests in `openfeature/provider_tests` run the upstream providers and must keep passing.
 - Go module path `github.com/blackbirdworks/semaphore` (a single Go module; `openfeature/provider_tests/go-integration-tests` is the only other `go.mod`).
 

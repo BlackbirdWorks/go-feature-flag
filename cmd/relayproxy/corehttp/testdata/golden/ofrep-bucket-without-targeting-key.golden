@@ -1,0 +1,5 @@
+status: 400
+Content-Type: application/json
+Vary: Origin
+
+{"errorCode":"TARGETING_KEY_MISSING","errorDetails":"Error while evaluating the flag: bucket-flag","key":"bucket-flag"}

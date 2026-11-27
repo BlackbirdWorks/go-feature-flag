@@ -6,7 +6,4 @@
 // context ends or [Core.Shutdown] is called, and [Core.Shutdown] stops them in order and drains the events within
 // the deadline of its context. The package has no global state, imports no HTTP code and registers no route: the
 // handlers of the relay take the [flagruntime.Holder] and the [flagruntime.Evaluator] from the core.
-//
-// The package is built beside the running relay: nothing in the relay uses it yet. The relay keeps running on
-// the version 1 configuration until the switch to config v2.
 package relaycore

@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"number-flag","value":1,"reason":"DEFAULT","variant":"low","metadata":{"gofeatureflag_cacheable":true,"semaphore_cacheable":true}}

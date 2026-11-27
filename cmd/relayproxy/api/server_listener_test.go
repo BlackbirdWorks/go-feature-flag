@@ -11,12 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestServer_WithListener checks that the server serves on the listener it is given, which stays bound from
@@ -33,19 +30,16 @@ func TestServer_WithListener(t *testing.T) {
 
 	port := tcpAddr.Port
 
-	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath}},
-		Server:     config.Server{Mode: config.ServerModeHTTP, Host: loopbackAddress, Port: port},
+	proxyConf := &testConf{
+		settings: api.Settings{Mode: api.ServerModeHTTP, Host: loopbackAddress, Port: port},
 	}
 	log := newTestLogger(t)
-	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	manager := newDefaultFlags(t, nil)
+	proxyConf.flags = manager
 	t.Cleanup(manager.Close)
 
 	srv := newTestServer(t, proxyConf, &service.Services{
-		MonitoringService: service.NewMonitoring(manager),
-		FlagsetManager:    manager,
-		Metrics:           &metric.Metrics{},
+		Metrics: &metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
 	go srv.StartWithContext(context.Background())
 

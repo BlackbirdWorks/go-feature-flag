@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -55,17 +53,10 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
-//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func (*mockFlagsetManagerSSE) FlagSet(_ string) (service.FlagSet, error) {
 	return nil, assert.AnError
 }
-
-func (*mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
-	return nil, assert.AnError
-}
-func (*mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
-func (*mockFlagsetManagerSSE) Close()                           {}
-func (*mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
 func Test_SSE_FlagChange(t *testing.T) {
 	t.Parallel()

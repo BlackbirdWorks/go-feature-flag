@@ -1,0 +1,5 @@
+status: 400
+Content-Type: application/json
+Vary: Origin
+
+{"errorCode":"INVALID_REQUEST","errorDetails":"impossible to read request body: code=400, message=Bad Request, err=unexpected end of JSON input"}

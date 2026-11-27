@@ -40,24 +40,15 @@ func declareFlags(flags *pflag.FlagSet) {
 	flags.String("state-dir", "", "controlPlane.stateDir, empty for no state directory (or SEMAPHORE_STATE_DIR)")
 }
 
-// newConfigFlagSet declares the command line flags. config is declared so that its value is
-// consumed as a value even when it starts with a dash; unknown flags (--version, -v) are skipped
-// instead of stopping the parse and losing --config. It is the flag set of the version check only: the relay parses
-// with [newStrictFlagSet].
-func newConfigFlagSet() *pflag.FlagSet {
-	flags := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	declareFlags(flags)
-	flags.ParseErrorsAllowlist.UnknownFlags = true
-
-	return flags
-}
-
 // newStrictFlagSet is the flag set of the relay: an unknown flag is an error, and --version and --help are declared.
 func newStrictFlagSet() *pflag.FlagSet {
 	flags := pflag.NewFlagSet("semaphore", pflag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	declareFlags(flags)
 	flags.BoolP("version", "v", false, "Print the version and exit")
+	// declared, so that the parse reads the whole command line (an unknown flag after --help is an error) before
+	// the help is answered; --help wins over --version
+	flags.BoolP("help", "h", false, "Print this help and exit (wins over --version)")
 
 	return flags
 }
@@ -70,16 +61,22 @@ func usageText() string {
 // errUsage is wrapped by the error of command line flags that do not parse.
 var errUsage = errors.New("invalid command line")
 
-// overridesFrom reads the flags that override the file (a flag wins over the environment, which wins over the file).
-// --help is [pflag.ErrHelp].
-func overridesFrom(args []string) (*bootstrap.Overrides, error) {
+// commandLine is what the command line says: the overrides of the file, and the two flags that answer without
+// starting the relay.
+type commandLine struct {
+	Overrides *bootstrap.Overrides
+	// Help is --help: it wins over Version when both are true.
+	Help bool
+	// Version is --version.
+	Version bool
+}
+
+// parseCommandLine parses the whole command line once, strictly: an unknown flag is an error whatever else is given.
+// The overrides are the flags that override the file (a flag wins over the environment, which wins over the file).
+func parseCommandLine(args []string) (*commandLine, error) {
 	flags := newStrictFlagSet()
 
 	err := flags.Parse(args)
-	if errors.Is(err, pflag.ErrHelp) {
-		return nil, err //nolint:wrapcheck // the caller matches the sentinel of the flag package
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errUsage, err)
 	}
@@ -89,23 +86,17 @@ func overridesFrom(args []string) (*bootstrap.Overrides, error) {
 
 		return value
 	}
+	help, _ := flags.GetBool("help")
+	version, _ := flags.GetBool("version")
 
-	return &bootstrap.Overrides{
-		Config: get("config"), LogLevel: get("log-level"), LogFormat: get("log-format"), Listen: get("listen"),
-		OpsListen: get("ops-listen"), ManifestKey: get("manifest-key"), StateDir: get("state-dir"),
-		StateDirGiven: flags.Changed("state-dir"),
+	return &commandLine{
+		Help: help, Version: version,
+		Overrides: &bootstrap.Overrides{
+			Config: get("config"), LogLevel: get("log-level"), LogFormat: get("log-format"), Listen: get("listen"),
+			OpsListen: get("ops-listen"), ManifestKey: get("manifest-key"), StateDir: get("state-dir"),
+			StateDirGiven: flags.Changed("state-dir"),
+		},
 	}, nil
-}
-
-// versionRequested reports whether args ask for --version / -v. It uses a flag set of its
-// own so that the flag never reaches the configuration loader.
-func versionRequested(args []string) bool {
-	f := newConfigFlagSet()
-	f.SetOutput(io.Discard)
-	show := f.BoolP("version", "v", false, "Print the version and exit")
-	_ = f.Parse(args)
-
-	return *show
 }
 
 const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ █ █ █▀█ █▀▀   █▀▀ █   ▄▀█ █▀▀

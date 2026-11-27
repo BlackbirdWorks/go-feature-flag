@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"trackEvents":true,"variationType":"SdkDefault","failed":true,"version":"","reason":"ERROR","errorCode":"FLAG_NOT_FOUND","value":"fallback","cacheable":false}

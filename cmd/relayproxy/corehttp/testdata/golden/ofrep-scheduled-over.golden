@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"scheduled-over-flag","value":"new","reason":"STATIC","variant":"new"}
