@@ -196,3 +196,33 @@ func TestHelpGolden(t *testing.T) {
 		})
 	}
 }
+
+// Main wires the real environment: it answers --version with the stamped build and exits 0, and a start without a
+// file exits 1.
+func TestMain_Process(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		wantStderr string
+		args       []string
+		wantCode   int
+	}{
+		{name: "version", args: []string{versionFlag}, wantStdout: "semaphore v1.2.3\n"},
+		{name: "no file", args: nil, wantCode: 1, wantStderr: "configuration error"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := Main(t.Context(), tt.args, &stdout, &stderr, Build{Version: "v1.2.3"})
+
+			assert.Equal(t, tt.wantCode, code)
+			assert.Contains(t, stdout.String(), tt.wantStdout)
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+		})
+	}
+}
