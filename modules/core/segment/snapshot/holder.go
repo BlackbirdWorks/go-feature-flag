@@ -273,6 +273,7 @@ func (h *Holder) pull(ctx context.Context) (*segment.MemberSet, Class, error) {
 func (h *Holder) fail(ctx context.Context, cur *snap, class Class, err error) error {
 	if ctx.Err() != nil {
 		class = ClassCanceled
+		err = fmt.Errorf("snapshot of segment %q: %w", h.name, ctx.Err()) // the end of the context is the cause
 	}
 
 	held := snap{lastErr: class}

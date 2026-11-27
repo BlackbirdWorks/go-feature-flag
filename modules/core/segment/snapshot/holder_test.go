@@ -526,23 +526,39 @@ func (u unversioned) Members(ctx context.Context, name string) iter.Seq2[string,
 func TestWithoutAVersionEveryRefreshPulls(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
-
-	holder, err := snapshot.New(segAlpha, unversioned{inner: inner}, snapshot.Options{})
-	require.NoError(t, err)
-
-	for range 3 {
-		require.NoError(t, holder.Refresh(ctx))
+	tests := []struct {
+		name          string
+		refreshes     int
+		wantPulls     int
+		wantAfterEdit segment.State
+	}{
+		{name: "one refresh", refreshes: 1, wantPulls: 1, wantAfterEdit: segment.Member},
+		{name: "three refreshes", refreshes: 3, wantPulls: 3, wantAfterEdit: segment.Member},
 	}
 
-	assert.Equal(t, 3, inner.Calls(segment.OpMembers), "no version, no way to tell a change: one pull for each refresh")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	inner.Set(segAlpha, []string{"b"})
-	require.NoError(t, holder.Refresh(ctx))
-	assert.Equal(t, segment.Member, holder.Lookup("b"), "a change is seen at the next refresh")
-	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
-	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+			ctx := context.Background()
+			inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+
+			holder, err := snapshot.New(segAlpha, unversioned{inner: inner}, snapshot.Options{})
+			require.NoError(t, err)
+
+			for range tt.refreshes {
+				require.NoError(t, holder.Refresh(ctx))
+			}
+
+			assert.Equal(t, tt.wantPulls, inner.Calls(segment.OpMembers), "no version: one pull for each refresh")
+
+			inner.Set(segAlpha, []string{"b"})
+			require.NoError(t, holder.Refresh(ctx))
+			assert.Equal(t, tt.wantAfterEdit, holder.Lookup("b"), "a change is seen at the next refresh")
+			assert.Equal(t, segment.NotMember, holder.Lookup("a"))
+			assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+		})
+	}
 }
 
 // emptyToken reports a segment missing while gone is set, and a version that is the valid empty token otherwise.
@@ -566,27 +582,46 @@ func (e emptyToken) Members(ctx context.Context, name string) iter.Seq2[string, 
 func TestAMissingVersionThenTheEmptyTokenIsPulled(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	gone := &atomic.Bool{}
-	inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+	tests := []struct {
+		name         string
+		missing      segment.MissingKey
+		wantWhenGone segment.State
+	}{
+		{name: "default policy", wantWhenGone: segment.NotMember},
+		{name: "unknown policy", missing: segment.MissingUnknown, wantWhenGone: segment.Unknown},
+	}
 
-	holder, err := snapshot.New(segAlpha, emptyToken{inner: inner, gone: gone}, snapshot.Options{})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	gone.Store(true)
-	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
-	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
+			ctx := context.Background()
+			gone := &atomic.Bool{}
+			inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
 
-	gone.Store(false)
-	require.NoError(t, holder.Refresh(ctx))
-	assert.Equal(
-		t,
-		segment.Member,
-		holder.Lookup("a"),
-		"the empty token of an existing segment is not the missing state",
-	)
-	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
-	assert.Equal(t, 1, inner.Calls(segment.OpMembers))
+			holder, err := snapshot.New(
+				segAlpha,
+				emptyToken{inner: inner, gone: gone},
+				snapshot.Options{Missing: tt.missing},
+			)
+			require.NoError(t, err)
+
+			gone.Store(true)
+			require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+			assert.Equal(t, tt.wantWhenGone, holder.Lookup("a"))
+
+			gone.Store(false)
+			require.NoError(t, holder.Refresh(ctx))
+			assert.Equal(
+				t,
+				segment.Member,
+				holder.Lookup("a"),
+				"the empty token of an existing segment is not the missing state",
+			)
+			assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+			assert.Equal(t, 1, inner.Calls(segment.OpMembers))
+		})
+	}
 }
 
 // switchable serves a set, and from the moment trip is set its stream ends the context and then reports the segment
@@ -628,7 +663,9 @@ func TestAMissingResultAfterTheContextEndedKeepsTheLastKnownGood(t *testing.T) {
 	src.trip.Store(true)
 	src.version.Store(1) // the version moved: the members are pulled
 
-	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+	err = holder.Refresh(ctx)
+	require.ErrorIs(t, err, context.Canceled, "the end of the context is the error, as the status says")
+	require.NotErrorIs(t, err, segment.ErrSegmentMissing)
 	assert.Equal(t, snapshot.ClassCanceled, holder.Status().LastError, "the cancel decides, not the missing answer")
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the last known good is kept")
 }
