@@ -118,13 +118,6 @@ func flagKeyParam() *huma.Param {
 	}
 }
 
-func apiKeyQueryParam() *huma.Param {
-	return &huma.Param{
-		Name: queryAPIKey, In: inQuery,
-		Description: "apiKey to authorize the connection to the relay proxy", Schema: &huma.Schema{Type: typeString},
-	}
-}
-
 // setRequestBody replaces the request body huma derived from a RawBody field (a binary document) by the JSON
 // document the handler decodes: the handler decodes the bytes itself to keep its error bodies.
 func setRequestBody(api huma.API, id string, body *huma.RequestBody) {
@@ -306,8 +299,7 @@ func operationSSE(api huma.API) *huma.Operation {
 			"`: heartbeat` every 30 seconds), they are ignored by SSE clients.\n" +
 			"The full URL (including query string) is sensitive and must not be logged\n" +
 			"or persisted by intermediaries.",
-		Parameters: []*huma.Param{apiKeyQueryParam()},
-		Security:   securityQuery(),
+		Security: securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK): {
 				Description: "SSE stream of OFREP flag change events",
@@ -330,8 +322,7 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 		Description: "This endpoint is a websocket endpoint to be notified about flag changes;\n" +
 			"every change pushes a notifier.DiffCache message to the client.\n" +
 			"When disableFlagDetailsInStream is true, values are empty objects.",
-		Parameters: []*huma.Param{apiKeyQueryParam()},
-		Security:   securityQuery(),
+		Security: securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK):                  jsonResponse[notifier.DiffCache](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),

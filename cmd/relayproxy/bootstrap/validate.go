@@ -279,11 +279,12 @@ func (v *validator) httpURL(path, value string) {
 func (v *validator) hostPort(path, value string) {
 	host, port, err := net.SplitHostPort(value)
 	portNumber, portErr := strconv.Atoi(port)
+	signed := strings.IndexFunc(port, func(r rune) bool { return r < '0' || r > '9' }) >= 0
 
 	switch {
 	case strings.Contains(value, "@"):
 		v.failf(path, ErrInvalidValue, "credentials in the address are not allowed")
-	case err != nil || host == "" || portErr != nil || portNumber < 1 || portNumber > maxPort:
+	case err != nil || host == "" || portErr != nil || signed || portNumber < 1 || portNumber > maxPort:
 		v.failf(path, ErrInvalidValue, "expected host:port")
 	}
 }

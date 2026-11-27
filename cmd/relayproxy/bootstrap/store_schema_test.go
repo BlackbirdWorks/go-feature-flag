@@ -39,6 +39,8 @@ func TestStoreSchemaAndLoaderAgree(t *testing.T) {
 		{name: "empty addresses", doc: `{type: redis, addresses: []}`},
 		{name: "empty address", doc: `{type: redis, addresses: [""]}`},
 		{name: "address with white space", doc: `{type: redis, addresses: ["redis :6379"]}`},
+		{name: "IPv6 without brackets", doc: `{type: redis, addresses: ["::1:6379"]}`},
+		{name: "signed port", doc: `{type: redis, addresses: ["redis:+6379"]}`},
 		{name: "bracketed IPv6", doc: `{type: redis, addresses: ["[::1]:6379"]}`, wantSchemaOK: true, wantLoadOK: true},
 		{
 			name: "port out of range", doc: `{type: redis, addresses: ["h:99999"]}`, wantSchemaOK: true,
