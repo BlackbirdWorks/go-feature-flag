@@ -182,6 +182,9 @@ type v2 struct {
 	put     func(key string, data []byte)
 	flags   map[string][]byte
 	url     string
+	dir     string
+	metrics *metric.Metrics
+	ready   *corehttp.Readiness
 	sets    []controlplane.FlagSet
 	gen     uint64
 }
@@ -270,7 +273,29 @@ func (rig *v2) awaitGeneration(tb testing.TB, gen uint64) {
 func newV2(tb testing.TB) *v2 {
 	tb.Helper()
 
-	dir := filepath.Join(tb.TempDir(), "control")
+	return newV2With(tb, v2Options{})
+}
+
+// v2Options shape a v2 rig: a state directory, and a cold start (nothing is published, so the first poll finds no
+// manifest). dir is the store directory; empty makes a new one.
+type v2Options struct {
+	// beforeSwap vetoes a candidate runtime (a rejected round); nil lets every candidate through.
+	beforeSwap  func(*flagruntime.Runtime) error
+	stateDir    string
+	dir         string
+	cold        bool
+	noAdminKeys bool
+}
+
+// newV2With is [newV2] with options.
+func newV2With(tb testing.TB, opts v2Options) *v2 {
+	tb.Helper()
+
+	dir := opts.dir
+	if dir == "" {
+		dir = filepath.Join(tb.TempDir(), "control")
+	}
+
 	require.NoError(tb, os.MkdirAll(dir, 0o750))
 
 	rig := &v2{
@@ -278,6 +303,7 @@ func newV2(tb testing.TB) *v2 {
 		rounds:  make(chan flagruntime.RoundResult, 256),
 		events:  &recorder{got: make(chan *exporter.FeatureEvent, 256)},
 		streams: corehttp.NewStreams(),
+		dir:     dir,
 		flags:   map[string][]byte{flagsObject: []byte(flagsYAML)},
 		sets:    []controlplane.FlagSet{{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}}},
 		put: func(key string, data []byte) {
@@ -293,11 +319,25 @@ func newV2(tb testing.TB) *v2 {
 
 		require.NoError(tb, rig.streams.Close(ctx))
 	})
-	rig.publish(tb)
+
+	if !opts.cold {
+		rig.publish(tb)
+	}
+
+	stateLine := ""
+	if opts.stateDir != "" {
+		stateLine = "  stateDir: " + opts.stateDir + "\n"
+	}
+
+	adminLine := "auth:\n  adminKeys: [" + adminKey + "]\n"
+	if opts.noAdminKeys {
+		adminLine = ""
+	}
 
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
-		channelName + ", jitter: 0}\nexporters:\n  tracked: {kind: log}\nauth:\n  adminKeys: [" + adminKey + "]\n"
+		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n" +
+		adminLine
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
 	require.NoError(tb, err)
@@ -308,7 +348,10 @@ func newV2(tb testing.TB) *v2 {
 		NewManager: func(string, exporter.Config, *slog.Logger) events.FeatureManager {
 			return rig.events
 		},
-		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
+		Hooks: flagruntime.Hooks{
+			AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res },
+			BeforeSwap: opts.beforeSwap,
+		},
 		TuneReader: func(rc *manifestreader.Config) {
 			rc.FetchConcurrency = 1
 			rc.DisableFetchSpread = true
@@ -335,9 +378,28 @@ func newV2(tb testing.TB) *v2 {
 	})
 
 	rig.settle(tb)
-	rig.awaitGeneration(tb, 1)
 
-	srv, err := corehttp.New(core, &corehttp.Config{Settings: &api.Settings{}, Streams: rig.streams})
+	switch {
+	case !opts.cold:
+		rig.awaitGeneration(tb, 1)
+	case opts.stateDir == "":
+		// the bootstrap round (applied, or ignored when the file equals the empty runtime), before the first manifest
+		select {
+		case <-rig.rounds:
+		case <-time.After(waitBound):
+			require.FailNow(tb, "the engine did not run the bootstrap round")
+		}
+	}
+
+	metrics, err := metric.NewMetrics()
+	require.NoError(tb, err)
+
+	rig.metrics = metrics
+	rig.ready = corehttp.NewReadiness(core)
+
+	srv, err := corehttp.New(core, &corehttp.Config{
+		Settings: &api.Settings{}, Streams: rig.streams, Metrics: metrics, Readiness: rig.ready,
+	})
 	require.NoError(tb, err)
 
 	rig.url = serve(tb, &srv)
@@ -368,4 +430,22 @@ func do(tb testing.TB, method, url, body string, headers http.Header) (int, http
 	require.NoError(tb, err)
 
 	return resp.StatusCode, resp.Header, out
+}
+
+// awaitRejected waits for the engine to reject the generation.
+func (rig *v2) awaitRejected(tb testing.TB, gen uint64) {
+	tb.Helper()
+
+	timeout := time.After(waitBound)
+
+	for {
+		select {
+		case res := <-rig.rounds:
+			if res.Outcome == flagruntime.OutcomeRejected && res.Generation == gen {
+				return
+			}
+		case <-timeout:
+			require.FailNow(tb, "the engine did not reject the generation", "generation %d", gen)
+		}
+	}
 }

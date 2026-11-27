@@ -10,6 +10,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -31,6 +32,8 @@ type Source interface {
 	Holder() *flagruntime.Holder
 	// Evaluator returns the evaluator of the flag sets.
 	Evaluator() *flagruntime.Evaluator
+	// Status is the status of the core, for the probes, /info and the metrics.
+	Status() relaycore.Status
 	// Collect hands a feature event to the exporters.
 	Collect(event events.Event) bool
 }

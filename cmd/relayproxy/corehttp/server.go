@@ -4,12 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
@@ -26,8 +23,12 @@ type Config struct {
 	// Streams serves the streams of flag changes, it is required. To get changes it must also be the Broadcast of
 	// the core. The caller owns it and closes it ([Streams.Close]) after the server stopped.
 	Streams *Streams
-	// Metrics are the metrics of the handlers; nil makes them.
+	// Metrics are the metrics of the handlers; nil makes them. The server registers the collector of the config
+	// status ([NewConfigCollector]) in its registry.
 	Metrics *metric.Metrics
+	// Readiness is the readiness the probes answer from. The caller keeps it to call [Readiness.BeginShutdown] first
+	// on SIGTERM, before the listeners close; nil makes one that follows the core only ([relaycore.Status]).
+	Readiness *Readiness
 }
 
 // New builds the HTTP server of a core. The server serves the evaluation API, the flag configuration, the flag change,
@@ -56,8 +57,20 @@ func New(src Source, cfg *Config, opts ...api.Option) (api.Server, error) {
 		metrics = made
 	}
 
+	ready := cfg.Readiness
+	if ready == nil {
+		ready = NewReadiness(src)
+	}
+
+	if metrics.Enabled() {
+		err := metrics.Registry.Register(NewConfigCollector(src))
+		if err != nil {
+			return api.Server{}, fmt.Errorf("registering the config metrics: %w", err)
+		}
+	}
+
 	services := &service.Services{
-		MonitoringService: monitoring{holder: src.Holder()},
+		MonitoringService: monitoring{Readiness: ready, holder: src.Holder()},
 		WebsocketService:  streams.ws,
 		SSEService:        streams.sse,
 		Metrics:           metrics,
@@ -66,29 +79,4 @@ func New(src Source, cfg *Config, opts ...api.Option) (api.Server, error) {
 	all := append([]api.Option{api.WithFlagSetResolver(adapter)}, opts...)
 
 	return api.New(cfg.Settings, service.NewAPIKeysFrom(adapter), services, logger, all...), nil
-}
-
-// monitoring answers the health and the info endpoints from the runtime.
-type monitoring struct {
-	holder *flagruntime.Holder
-}
-
-// Health reports that the server is initialized.
-func (monitoring) Health() model.HealthResponse { return model.HealthResponse{Initialized: true} }
-
-// Info lists the flag sets with the date of their last change.
-func (m monitoring) Info() (model.InfoResponse, error) {
-	rt := m.holder.Load()
-	dates := make(map[string]time.Time, len(rt.FlagSets))
-
-	var latest time.Time
-
-	for name, set := range rt.FlagSets {
-		dates[name] = set.ModifiedAt
-		if set.ModifiedAt.After(latest) {
-			latest = set.ModifiedAt
-		}
-	}
-
-	return model.InfoResponse{Flagsets: dates, LatestCacheRefresh: &latest}, nil
 }

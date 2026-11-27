@@ -112,9 +112,23 @@ func TestAdapter_FlagSetView(t *testing.T) {
 	all := flagSet.AllFlagsState(ffcontext.NewEvaluationContext("u"))
 	assert.Len(t, all.GetFlags(), len(set.Flags))
 
-	// the exporters take feature events only: a tracking event is dropped
+	// the exporters take feature events only: a tracking event is dropped. The two raw evaluations above each hand
+	// a feature event to the exporters, asynchronously, so the queue is drained first (Shutdown returns when the
+	// exporters have delivered everything they hold) and the delivered events are then exactly those two.
 	flagSet.CollectTrackingEventData(&exporter.TrackingEvent{})
-	assert.Empty(t, rig.events.got)
+
+	drain, cancel := context.WithTimeout(t.Context(), waitBound)
+	defer cancel()
+
+	require.NoError(t, rig.core.Shutdown(drain))
+	close(rig.events.got)
+
+	var delivered []string
+	for event := range rig.events.got {
+		delivered = append(delivered, event.Key)
+	}
+
+	assert.ElementsMatch(t, []string{"string-flag", "no-such-flag"}, delivered)
 }
 
 func TestServer_Events(t *testing.T) {

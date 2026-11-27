@@ -19,6 +19,7 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
 // routeSet is the router of one listener and the huma API that describes and serves its operations.
@@ -264,6 +265,8 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 	register(routes, operationHealth(), controller.NewHealth(s.services.MonitoringService).Handle)
 	register(routes, operationInfo(), controller.NewInfo(s.services.MonitoringService).Handle)
 
+	s.addProbeRoutes(routes)
+
 	api.OpenAPI().AddOperation(operationMetrics())
 
 	if s.services.Metrics.Enabled() {
@@ -299,6 +302,47 @@ func (s *Server) addMonitoringRoutes(routes *routeSet) {
 
 		routes.mux.Handle("POST "+prefix+"/symbol", http.HandlerFunc(pprof.Symbol))
 	}
+}
+
+// addProbeRoutes documents /livez, /readyz and /startupz and serves them. /livez answers while the process serves; the
+// other two are served only when the monitoring service implements [service.Probes] (the config v2 runtime). They
+// need no API key.
+func (s *Server) addProbeRoutes(routes *routeSet) {
+	doc := routes.api.OpenAPI()
+	doc.AddOperation(operationLivez())
+	doc.AddOperation(operationReadyz())
+	doc.AddOperation(operationStartupz())
+
+	probes, ok := s.services.MonitoringService.(service.Probes)
+	if !ok {
+		return
+	}
+
+	routes.mux.HandleFunc("GET /livez", func(w http.ResponseWriter, _ *http.Request) {
+		writeProbe(w, http.StatusOK, model.LiveResponse{Live: true})
+	})
+	routes.mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
+		code, body := probes.Ready()
+		writeProbe(w, code, body)
+	})
+	routes.mux.HandleFunc("GET /startupz", func(w http.ResponseWriter, _ *http.Request) {
+		code, body := probes.Started()
+		writeProbe(w, code, body)
+	})
+}
+
+func writeProbe(w http.ResponseWriter, code int, body any) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(code)
+	_, _ = w.Write(data)
 }
 
 // OpenAPI returns the OpenAPI document of the relay proxy, generated from the operations it registers.
