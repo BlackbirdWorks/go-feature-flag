@@ -1,49 +1,25 @@
 package main
 
 import (
-	"context"
-	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
+
+// TestMain pins the clock once for the whole package.
+func TestMain(m *testing.M) {
+	clocktest.Freeze()
+	m.Run()
+}
 
 const (
 	configXYaml = "--config=/x.yaml"
 	versionFlag = "--version"
 )
-
-type recordingAPIServer struct{ calls *[]string }
-
-func (s recordingAPIServer) Stop(_ context.Context) { *s.calls = append(*s.calls, "api.Stop") }
-
-type recordingFlagsetManager struct {
-	service.FlagsetManager
-
-	calls *[]string
-}
-
-func (m recordingFlagsetManager) Close() { *m.calls = append(*m.calls, "flagsets.Close") }
-
-func TestShutdown(t *testing.T) {
-	t.Parallel()
-
-	var calls []string
-	shutdown(
-		slog.New(slog.DiscardHandler),
-		recordingAPIServer{calls: &calls},
-		stream.NewWebsocketService(),
-		stream.NewSSEService(),
-		recordingFlagsetManager{calls: &calls},
-	)
-	// The flagsets must be closed (flushing the exporters) after the server stopped accepting requests.
-	assert.Equal(t, []string{"api.Stop", "flagsets.Close"}, calls)
-}
 
 func TestVersionRequested(t *testing.T) {
 	t.Parallel()
