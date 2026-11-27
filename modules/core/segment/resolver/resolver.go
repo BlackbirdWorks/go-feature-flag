@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -124,6 +125,7 @@ type Resolver struct {
 	states        atomic.Pointer[map[string]*segState]
 	beforeStop    func(*call)
 	stopDone      chan struct{}
+	firstStop     *shutdownBound // the first Shutdown call: instant and deadline (under admit)
 	opts          Options
 	wg            sync.WaitGroup
 	inflight      atomic.Int64
@@ -131,6 +133,7 @@ type Resolver struct {
 	maxOver       int
 	timeout       time.Duration
 	shutdownGrace time.Duration
+	existsTimeout time.Duration // the deadline of an existence check when it is not the call timeout (tests)
 	overdue       atomic.Int64
 	rawLimit      int
 	admit         sync.RWMutex
@@ -568,7 +571,13 @@ func (r *Resolver) Exists(ctx context.Context, names []string) ([]segment.State,
 // Shutdown waits again for the calls in flight, and returns nil when they are done.
 func (r *Resolver) Shutdown(ctx context.Context) error {
 	r.admit.Lock()
-	r.closed = true
+	if !r.closed {
+		r.closed = true
+		r.firstStop = &shutdownBound{at: clock.Now()}
+		r.firstStop.deadline, _ = ctx.Deadline()
+	}
+
+	first := *r.firstStop
 	r.admit.Unlock()
 
 	// one wait for the calls in flight, shared by every Shutdown: a caller that gives up leaves no goroutine behind
@@ -605,7 +614,7 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 
 			// not under the context of this caller: another caller may be waiting for the result, and each caller is
 			// bounded by its own context below
-			shutdownCtx, cancel := r.shutdownContext(ctx)
+			shutdownCtx, cancel := first.context(ctx, clock.Now(), r.shutdownGrace)
 			defer cancel()
 
 			r.stopErr = guard(func() error { return stopper.Shutdown(shutdownCtx) })
@@ -626,19 +635,33 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	}
 }
 
-// shutdownContext is the context of the Shutdown of the store: it does not end when the context of the caller does
-// (another caller may wait for the result), it ends ShutdownGrace after the deadline of the first caller, or
-// ShutdownGrace after the start when that context has no deadline, so a store that stops only on cancellation
-// does not stay pending for ever.
-func (r *Resolver) shutdownContext(ctx context.Context) (context.Context, context.CancelFunc) {
+// shutdownBound is what the first Shutdown call of the resolver fixes for the Shutdown of the store: the instant of
+// the call and its deadline (zero when it had none), whichever caller ends up running the store's Shutdown.
+type shutdownBound struct {
+	at       time.Time
+	deadline time.Time
+}
+
+// remaining is how long the store has left at now when the first call had no deadline: the grace counted from the
+// first call, never negative.
+func (b shutdownBound) remaining(now time.Time, grace time.Duration) time.Duration {
+	return max(b.at.Add(grace).Sub(now), 0)
+}
+
+// context is the context of the Shutdown of the store: it does not end when the context of a caller does (another
+// caller may wait for the result). It ends ShutdownGrace after the deadline of the first Shutdown call, or
+// ShutdownGrace after that call when it had no deadline, so a store that stops only on cancellation does not stay
+// pending for ever.
+func (b shutdownBound) context(
+	ctx context.Context, now time.Time, grace time.Duration,
+) (context.Context, context.CancelFunc) {
 	base := context.WithoutCancel(ctx)
 
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return context.WithTimeout(base, r.shutdownGrace)
+	if b.deadline.IsZero() {
+		return context.WithTimeout(base, b.remaining(now, grace))
 	}
 
-	return context.WithDeadline(base, deadline.Add(r.shutdownGrace))
+	return context.WithDeadline(base, b.deadline.Add(grace))
 }
 
 // state returns the state of a segment, and creates it with the default settings the first time a segment that
@@ -1121,7 +1144,7 @@ func (s *segState) releaseExists() {
 func (r *Resolver) existsCall(
 	ctx context.Context, existencer segment.Existencer, names []string,
 ) ([]segment.State, error) {
-	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.timeout)
+	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cmp.Or(r.existsTimeout, r.timeout))
 	defer cancel()
 
 	state := &callState{}
