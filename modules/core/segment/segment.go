@@ -127,16 +127,25 @@ var (
 // Definition is a segment: its name, where its members are and what an unanswered lookup becomes. It holds no
 // member and no connection detail; the provider that serves the segment holds those.
 type Definition struct {
+	// Version says how the version of the segment is learned. Nil means no version: only the time-to-live of a
+	// cache applies.
+	Version *VersionSpec
 	// Name is the name that the rules use: segment("name").
 	Name string
 	// Type is the kind of store of the members.
 	Type Type
 	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorUnknown.
 	OnError OnError
+	// Mode is how a segment that lives in a store is served. Empty means ModeSnapshot.
+	Mode Mode
+	// MissingKey is what a segment that does not exist in the store means. Empty means MissingNotMember.
+	MissingKey MissingKey
+	// Layout is how a store of keys holds the members. Empty means LayoutSet; LayoutKeys is lookup-only.
+	Layout Layout
 }
 
 // Validate returns an error that wraps ErrInvalidDefinition when the definition is not valid.
-func (d Definition) Validate() error {
+func (d *Definition) Validate() error {
 	if !ValidName(d.Name) {
 		return fmt.Errorf("%w: %q: %w", ErrInvalidDefinition, d.Name, errInvalidName)
 	}
@@ -147,14 +156,14 @@ func (d Definition) Validate() error {
 
 	switch d.OnError {
 	case "", OnErrorUnknown, OnErrorNotMember, OnErrorMember:
-		return nil
+		return d.validateModeVersion()
 	default:
 		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidOnError, d.OnError)
 	}
 }
 
 // Resolve applies the failure policy of the definition to a lookup state: an Unknown state becomes what OnError says.
-func (d Definition) Resolve(state State) State {
+func (d *Definition) Resolve(state State) State {
 	if state != Unknown {
 		return state
 	}
@@ -182,6 +191,8 @@ func NewCatalog(defs ...Definition) (*Catalog, error) {
 	catalog := &Catalog{defs: make(map[string]Definition, len(defs))}
 
 	for _, def := range defs {
+		def.Version = def.Version.clone() // the catalog owns its copy: the caller's spec stays the caller's
+
 		err := def.Validate()
 		if err != nil {
 			return nil, err
@@ -197,6 +208,34 @@ func NewCatalog(defs ...Definition) (*Catalog, error) {
 	return catalog, nil
 }
 
+// Has reports whether the catalog defines the segment name. It does not copy the definition: it is for the evaluation
+// path.
+func (c *Catalog) Has(name string) bool {
+	if c == nil {
+		return false
+	}
+
+	_, ok := c.defs[name]
+
+	return ok
+}
+
+// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does, and
+// returns the state unchanged for a segment that the catalog does not define. It does not copy the definition: it is
+// for the evaluation path.
+func (c *Catalog) ResolveFor(name string, state State) State {
+	if c == nil {
+		return state
+	}
+
+	def, ok := c.defs[name]
+	if !ok {
+		return state
+	}
+
+	return def.Resolve(state)
+}
+
 // Lookup returns the definition of the segment name.
 func (c *Catalog) Lookup(name string) (Definition, bool) {
 	if c == nil {
@@ -204,6 +243,7 @@ func (c *Catalog) Lookup(name string) (Definition, bool) {
 	}
 
 	def, ok := c.defs[name]
+	def.Version = def.Version.clone() // a copy: the caller cannot change the catalog through it
 
 	return def, ok
 }
