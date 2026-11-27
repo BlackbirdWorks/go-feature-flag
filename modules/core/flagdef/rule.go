@@ -137,8 +137,11 @@ type queryContext struct {
 	// requestContext is the context of the calls of segments, see Context.RequestContext.
 	requestContext context.Context //nolint:containedctx // lives for one evaluation, like the Context it is copied from
 	// svc owns the caches and the pool that evaluating the queries uses.
-	svc                  *Service
-	parsedEvalCtxAsMap   map[string]any
+	svc                *Service
+	parsedEvalCtxAsMap map[string]any
+	// typed holds the decoded JSON form of the typed objects of the context that the evaluation read, see
+	// typedAttribute.
+	typed                map[string]typedObject
 	parsedEvalCtxAsBytes []byte
 	// segmentStatus is the health of the segment lookups of the evaluation.
 	segmentStatus segment.Status

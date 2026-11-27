@@ -61,6 +61,41 @@ func TestEvaluationAllocations(t *testing.T) {
 		assert.InDelta(t, 10, jsonlogic, 0)
 	})
 
+	t.Run(
+		"a typed attribute is converted once: its extra cost does not grow with the terms that read it",
+		func(t *testing.T) {
+			allocsWith := func(query string, user any) float64 {
+				svc := flagdef.NewService()
+				flag := onOffFlag(queryRule("r", query))
+				require.NoError(t, flag.IsValid(svc))
+
+				evalCtx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("user", user).Build()
+				flagCtx := flagdef.Context{Service: svc, Segments: provider}
+
+				_, details := flag.Value("f", evalCtx, flagCtx)
+				assert.Equal(t, variantOn, details.Variant, "alice is a member of both segments")
+
+				return minAllocs(func() { flag.Value("f", evalCtx, flagCtx) })
+			}
+
+			plainUser := map[string]any{"id": keyAlice, "email": keyAlice}
+			typedUser := userRecord{ID: keyAlice, Email: keyAlice}
+
+			oneTerm, twoTerms := `user.id in segment("beta")`, `user.id in segment("beta") and user.email in segment("beta")`
+			extraOne := allocsWith(oneTerm, typedUser) - allocsWith(oneTerm, plainUser)
+			extraTwo := allocsWith(twoTerms, typedUser) - allocsWith(twoTerms, plainUser)
+
+			assert.Positive(t, extraOne, "a typed attribute does cost its conversion")
+			assert.InDelta(
+				t,
+				extraOne,
+				extraTwo,
+				0,
+				"and a second term on the same attribute does not convert it again",
+			)
+		},
+	)
+
 	// each case compares the rule with a segment to a rule without one that selects the same variation
 	tests := []struct {
 		name        string
@@ -131,4 +166,10 @@ func TestEvaluationAllocations(t *testing.T) {
 			)
 		})
 	}
+}
+
+// userRecord is a typed attribute of a context.
+type userRecord struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
 }

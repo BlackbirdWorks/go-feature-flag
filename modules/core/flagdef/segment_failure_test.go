@@ -3,6 +3,7 @@ package flagdef_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math"
 	"strings"
@@ -555,6 +556,80 @@ func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 			assert.Equal(t, tt.wantVariant, details.Variant)
 			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
 			assert.False(t, details.Cacheable)
+		})
+	}
+}
+
+// cancelsAfterAnswering answers the lookups of the segment "a" and then the request ends during the call.
+type cancelsAfterAnswering struct {
+	cancel context.CancelFunc
+	inner  segment.Provider
+}
+
+func (p cancelsAfterAnswering) Contains(ctx context.Context, lookups []segment.Lookup) error {
+	answered := answersThenFails{inner: p.inner}.Contains(ctx, lookups) // sets the answers of "a", reports an error
+
+	p.cancel()
+
+	if answered == nil {
+		return nil
+	}
+
+	return fmt.Errorf("the request ended: %w", ctx.Err())
+}
+
+// The request ends during the call: like any error of the provider, the answers that it gave before keep their value.
+func TestSegmentRequestEndingDuringTheCallKeepsTheAnswersGiven(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rulesOr  = `targetingKey in segment("a") or targetingKey in segment("b")`
+		rulesAnd = `targetingKey in segment("a") and targetingKey in segment("b")`
+		jsonOr   = `{"or": [{"inSegment": [{"var": "targetingKey"}, "a"]}, {"inSegment": [{"var": "targetingKey"}, "b"]}]}`
+		jsonAnd  = `{"and": [{"inSegment": [{"var": "targetingKey"}, "a"]}, {"inSegment": [{"var": "targetingKey"}, "b"]}]}`
+	)
+
+	tests := []struct {
+		name        string
+		query       string
+		key         string
+		wantVariant string
+	}{
+		{name: "rules or: a member of a decides", query: rulesOr, key: keyAlice, wantVariant: variantOn},
+		{name: "json or: a member of a decides", query: jsonOr, key: keyAlice, wantVariant: variantOn},
+		{name: "rules and: a non member of a decides", query: rulesAnd, key: keyBob, wantVariant: variantOff},
+		{name: "json and: a non member of a decides", query: jsonAnd, key: keyBob, wantVariant: variantOff},
+		{
+			name:        "rules and: b stays unknown, the rule is skipped",
+			query:       rulesAnd,
+			key:         keyAlice,
+			wantVariant: variantOff,
+		},
+		{name: "json or: b stays unknown, the rule is skipped", query: jsonOr, key: keyBob, wantVariant: variantOff},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			provider := cancelsAfterAnswering{
+				cancel: cancel,
+				inner:  segment.NewMemoryProvider(map[string][]string{"a": {keyAlice}}),
+			}
+			svc := flagdef.NewService()
+			flag := onOffFlag(queryRule("r", tt.query))
+			require.NoError(t, flag.IsValid(svc))
+
+			_, details := flag.Value("f", ffcontext.NewEvaluationContext(tt.key),
+				flagdef.Context{Service: svc, Segments: provider, RequestContext: ctx})
+
+			assert.Equal(t, tt.wantVariant, details.Variant)
+			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+			assert.False(t, details.Cacheable)
+			require.ErrorIs(t, ctx.Err(), context.Canceled)
 		})
 	}
 }

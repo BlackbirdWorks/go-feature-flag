@@ -6,7 +6,9 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -327,6 +329,20 @@ type taggedTie struct {
 	taggedID
 }
 
+type embedsTime struct {
+	*time.Time
+
+	ID string `json:"id"`
+}
+
+type panicsOnMarshal struct{}
+
+func (panicsOnMarshal) MarshalJSON() ([]byte, error) { panic(secretID) }
+
+type withMarshaler struct {
+	Inner *marshaled `json:"inner"`
+}
+
 type marshaled struct{}
 
 //nolint:unparam // the interface needs the error
@@ -364,7 +380,7 @@ func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 	t.Parallel()
 
 	members := map[string][]string{
-		segIDs: {keyAlice, "9007199254740993", "12345", "1", "1000", "123456789012345678901234567890"},
+		segIDs: {keyAlice, "9007199254740993", "12345", "1", "1000", "123456789012345678901234567890", "100000010"},
 	}
 
 	tests := []struct {
@@ -472,6 +488,28 @@ func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 		{
 			name: "a json.Number with a huge exponent is not read", attr: map[string]any{"id": json.Number("1e99999")},
 			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a nil embedded pointer whose type has MarshalJSON does not crash", attr: embedsTime{ID: keyAlice},
+			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a MarshalJSON that panics makes the attribute unreadable", attr: panicsOnMarshal{},
+			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a nil pointer to a marshaler in the middle of the path is missing", attr: withMarshaler{},
+			attrName: ownedUserKey, path: "user.inner.id", wantVariant: variantOff,
+		},
+		{
+			name: "a float32 is what JSON prints for it",
+			attr: struct {
+				ID float32 `json:"id"`
+			}{ID: 100000008},
+			attrName:    ownedUserKey,
+			path:        pathUserID,
+			wantLookups: [][]string{{"ids:100000010"}},
+			wantVariant: variantOn,
 		},
 		{
 			name: "a json.Marshaler decides the names", attr: marshaled{}, attrName: ownedUserKey,
@@ -687,6 +725,57 @@ func TestSegmentUnknownTermDoesNotHideAnOperandError(t *testing.T) {
 				"an error is not an unknown result: onError match does not apply",
 			)
 			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+		})
+	}
+}
+
+// countingObject counts how many times it is converted to JSON.
+type countingObject struct {
+	conversions *atomic.Int32
+	id          string
+	email       string
+}
+
+//nolint:unparam // the interface needs the error
+func (c countingObject) MarshalJSON() ([]byte, error) {
+	c.conversions.Add(1)
+
+	return []byte(`{"id": "` + c.id + `", "email": "` + c.email + `"}`), nil
+}
+
+// A typed object of the context is converted once for each evaluation, whatever the number of terms that read it, and
+// nothing is kept for the next evaluation.
+func TestTypedAttributeIsConvertedOncePerEvaluation(t *testing.T) {
+	t.Parallel()
+
+	queries := map[string]string{
+		formatNikunjy: `user.id in segment("ids") and user.email in segment("emails") and profile.id in segment("ids")`,
+		formatJSON: `{"and": [{"inSegment": [{"var": "user.id"}, "ids"]}, ` +
+			`{"inSegment": [{"var": "user.email"}, "emails"]}, {"inSegment": [{"var": "profile.id"}, "ids"]}]}`,
+	}
+
+	for format, query := range queries {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			svc := flagdef.NewService()
+			provider := segment.NewMemoryProvider(map[string][]string{segIDs: {keyAlice}, "emails": {"a@b.c"}})
+			flag := onOffFlag(queryRule("r", query))
+			require.NoError(t, flag.IsValid(svc))
+
+			var user, profile atomic.Int32
+
+			evalCtx := ffcontext.NewEvaluationContextBuilder("k").
+				AddCustom(ownedUserKey, countingObject{conversions: &user, id: keyAlice, email: "a@b.c"}).
+				AddCustom("profile", countingObject{conversions: &profile, id: keyAlice}).Build()
+
+			for evaluation := int32(1); evaluation <= 2; evaluation++ {
+				_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: provider})
+
+				assert.Equal(t, variantOn, details.Variant)
+				assert.Equal(t, evaluation, user.Load(), "one conversion of user for each evaluation")
+				assert.Equal(t, evaluation, profile.Load(), "one conversion of profile for each evaluation")
+			}
 		})
 	}
 }

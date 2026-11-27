@@ -121,22 +121,27 @@ func (q *queryContext) resolveSegments(
 		return matchOfBool(matched), nil
 	}
 
-	var pending uint32
+	var (
+		pending uint32
+		ids     [parser.MaxSegmentTerms]string // read once for each term of the evaluation
+	)
 
 	for i := range terms {
 		states[i] = parser.SegmentUnknown
 
-		if _, ok := q.attributeID(terms[i].Path); !ok || !q.svc.definesSegment(terms[i].Name) {
+		id, ok := q.attributeID(terms[i].Path)
+		if !ok || !q.svc.definesSegment(terms[i].Name) {
 			states[i] = parser.SegmentNotMember
 
 			continue
 		}
 
+		ids[i] = id
 		pending |= 1 << i
 	}
 
 	if pending != 0 {
-		q.lookup(terms, states, pending)
+		q.lookup(terms, states, &ids, pending)
 	}
 
 	return q.secondPass(evaluator, skeleton, states)
@@ -183,7 +188,12 @@ func (q *queryContext) secondPass(
 }
 
 // lookup answers the terms of the bits of pending: it sets their states and records the health of the lookups.
-func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.SegmentState, pending uint32) {
+func (q *queryContext) lookup(
+	terms []parser.SegmentTerm,
+	states []parser.SegmentState,
+	ids *[parser.MaxSegmentTerms]string,
+	pending uint32,
+) {
 	var status segment.Status
 
 	if q.segments == nil {
@@ -193,8 +203,7 @@ func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.Segmen
 
 		for i := range terms {
 			if pending&(1<<i) != 0 {
-				id, _ := q.attributeID(terms[i].Path)
-				lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: id, State: segment.Unknown})
+				lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: ids[i], State: segment.Unknown})
 			}
 		}
 
@@ -250,7 +259,9 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	if err != nil {
 		q.svc.logger.LogAttrs(ctx, slog.LevelWarn, "segment lookup failed", slog.Any(errorLiteral, err))
 
-		if errors.Is(err, errProviderPanic) || ctx.Err() != nil {
+		// whatever the source of the error (the store, or the end of the request during the call), the answers that
+		// were set validly are kept; only a provider that panicked is not trusted
+		if errors.Is(err, errProviderPanic) {
 			for i := range lookups {
 				lookups[i].State = segment.Unknown
 			}
@@ -324,9 +335,11 @@ func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.S
 //
 // A context of the Go client can hold an object of another type than map[string]any (a map[string]string, a struct
 // with JSON tags, a pointer): the typed object is converted with encoding/json, so its fields are named, promoted
-// and left out exactly as its JSON form does, a number keeps its digits (integers of any size are exact), and a value
-// that cannot be encoded (a cycle, a NaN, a channel) makes the attribute unreadable: no identifier, no lookup. Only
-// the typed object that holds the attribute is converted, nothing else of the context, and nothing is cached.
+// and left out exactly as its JSON form does, a number keeps the digits that JSON prints for it (integers of any size
+// are exact; a float32 holds what JSON prints for it, 100000008 is 100000010, so use integers, strings or float64
+// for identifiers), and a value that cannot be encoded (a cycle, a NaN, a channel, a marshaler that panics) makes the
+// attribute unreadable: no identifier, no lookup. Only the typed object that holds the attribute is converted, once
+// for the evaluation, nothing else of the context, and nothing is kept after the evaluation.
 func (q *queryContext) attributeID(path []string) (string, bool) {
 	var current any = q.mapOnce()
 
@@ -337,7 +350,7 @@ func (q *queryContext) attributeID(path []string) (string, bool) {
 		case nil:
 			return "", false
 		default:
-			value, ok := decodedAttribute(parent, path[i:])
+			value, ok := q.typedAttribute(path[:i], parent, path[i:])
 			if !ok {
 				return "", false
 			}
@@ -349,23 +362,68 @@ func (q *queryContext) attributeID(path []string) (string, bool) {
 	return identifier(current)
 }
 
-// decodedAttribute returns the value at path of the JSON form of a typed object, decoded with its numbers as
-// [json.Number].
-func decodedAttribute(object any, path []string) (any, bool) {
+// typedAttribute returns the value at rest of the JSON form of the typed object found at the path prefix. The object
+// is converted once for the evaluation: the result, or the failure, is kept in the queryContext.
+func (q *queryContext) typedAttribute(prefix []string, object any, rest []string) (any, bool) {
+	key := strings.Join(prefix, "\x00")
+
+	converted, seen := q.typed[key]
+	if !seen {
+		converted = convertTyped(object)
+
+		if q.typed == nil {
+			q.typed = map[string]typedObject{}
+		}
+
+		q.typed[key] = converted
+	}
+
+	if !converted.ok {
+		return nil, false
+	}
+
+	return walkDecoded(converted.value, rest)
+}
+
+// typedObject is the JSON form of a typed object, decoded, or the fact that it cannot be read.
+type typedObject struct {
+	value any
+	ok    bool
+}
+
+// convertTyped converts a typed object to its decoded JSON form, numbers as [json.Number]. A panic of the conversion
+// (a nil pointer embedded in the struct whose type has a MarshalJSON method, a marshaler that panics) is an
+// unreadable object: the panic value is not looked at, it can hold an identifier.
+//
+//nolint:nonamedreturns // recover sets the result
+func convertTyped(object any) (converted typedObject) {
+	defer func() {
+		if recover() != nil {
+			converted = typedObject{}
+		}
+	}()
+
 	encoded, err := json.Marshal(object)
 	if err != nil {
-		return nil, false
+		return typedObject{}
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.UseNumber()
 
-	var current any
+	var value any
 
-	err = decoder.Decode(&current)
+	err = decoder.Decode(&value)
 	if err != nil {
-		return nil, false
+		return typedObject{}
 	}
+
+	return typedObject{value: value, ok: true}
+}
+
+// walkDecoded returns the value at path of a decoded JSON document.
+func walkDecoded(root any, path []string) (any, bool) {
+	current := root
 
 	for _, name := range path {
 		parent, ok := current.(map[string]any)

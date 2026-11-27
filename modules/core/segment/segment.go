@@ -81,11 +81,11 @@ type Lookup struct {
 //
 // Contains sets the State of every lookup it can answer, in place, and leaves the others Unknown. A lookup that
 // cannot be answered is not an error: the engine applies the failure policy of the segment to it. A non-nil error
-// means the call failed (a timeout, a broken connection): the lookups that it answered with Member or NotMember
-// before it failed keep their answer, and the others are Unknown. Contains must honour ctx, must not retain
-// lookups after it returns, must not change Segment or ID, and is called by concurrent evaluations: it must be safe
-// for concurrent use. The slice is one per call and can have several lookups of the same segment, so a store can
-// answer them in one round trip.
+// means the call failed (a timeout, a broken connection, the end of the request context during the call): the
+// lookups that it answered with Member or NotMember before it failed keep their answer, and the others are Unknown.
+// Contains must honour ctx, must not retain lookups after it returns, must not change Segment or ID, and is called by
+// concurrent evaluations: it must be safe for concurrent use. The slice is one per call and can have several lookups
+// of the same segment, so a store can answer them in one round trip.
 type Provider interface {
 	Contains(ctx context.Context, lookups []Lookup) error
 }
