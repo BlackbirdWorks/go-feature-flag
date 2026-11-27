@@ -1,7 +1,11 @@
 package valkeysegment_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"runtime/pprof"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,6 +23,9 @@ const (
 	boundTimeout = 30 * time.Second
 	// panicText stands for a secret that a panic value could carry.
 	panicText = "secret-panic-text"
+	// msgUnavailable1of2 is the text of a failure of one lookup in two.
+	msgUnavailable1of2 = "valkey segment: unavailable: 1 of 2 lookups failed"
+	segOther           = "other"
 )
 
 // boundedCtx returns a context that ends by itself, so a hung call or shutdown fails the test and does not block it.
@@ -265,4 +272,109 @@ func TestShutdownThatRunsOutOfTimeEndsTheCallsInFlight(t *testing.T) {
 	require.ErrorIs(t, <-containsDone, valkeysegment.ErrCanceled)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 	assert.Equal(t, [][]string{{cmdBeta + " " + idAlice, existsBeta}}, store.commands())
+}
+
+func TestNoOpCallsAfterShutdownAreClosed(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{}
+	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+
+	require.NoError(t, prov.Shutdown(boundedCtx(t)))
+
+	tests := []struct {
+		call func() error
+		name string
+	}{
+		{name: "an empty batch", call: func() error { return prov.Contains(boundedCtx(t), []segment.Lookup{}) }},
+		{name: "no lookup at all", call: func() error { return prov.Contains(boundedCtx(t), nil) }},
+		{
+			name: "no name",
+			call: func() error {
+				_, err := prov.Exists(boundedCtx(t), nil)
+
+				return err
+			},
+		},
+		{
+			name: "names of no set segment",
+			call: func() error {
+				_, err := prov.Exists(boundedCtx(t), []string{segOther})
+
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.ErrorIs(t, tt.call(), valkeysegment.ErrClosed)
+		})
+	}
+
+	assert.Empty(t, store.commands())
+}
+
+// goroutinesLabeled counts the goroutines that carry the pprof label value and run the function, from the text
+// form of the profile.
+func goroutinesLabeled(t *testing.T, value, function string) int {
+	t.Helper()
+
+	var dump bytes.Buffer
+
+	require.NoError(t, pprof.Lookup("goroutine").WriteTo(&dump, 1))
+
+	total := 0
+
+	for group := range strings.SplitSeq(dump.String(), "\n\n") {
+		if !strings.Contains(group, `# labels: {"`+labelKey+`":"`+value+`"}`) || !strings.Contains(group, function) {
+			continue
+		}
+
+		var count int
+
+		_, err := fmt.Sscanf(group, "%d @", &count)
+		require.NoError(t, err)
+
+		total += count
+	}
+
+	return total
+}
+
+const labelKey = "valkeysegment-test"
+
+func TestShutdownCallsShareOneWaiter(t *testing.T) {
+	t.Parallel()
+
+	hold := newGate(t)
+	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.hold}
+	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	containsDone := make(chan error, 1)
+
+	go func() { containsDone <- prov.Contains(boundedCtx(t), []segment.Lookup{lk(segBeta, idAlice)}) }()
+
+	hold.waitEntered(t)
+
+	expired, cancel := context.WithCancel(context.Background())
+
+	cancel()
+
+	// the goroutines that Shutdown starts inherit the label of the caller
+	const attempts = 3
+
+	pprof.Do(context.Background(), pprof.Labels(labelKey, t.Name()), func(context.Context) {
+		for range attempts {
+			require.ErrorIs(t, prov.Shutdown(expired), context.Canceled)
+		}
+	})
+
+	assert.Equal(t, 1, goroutinesLabeled(t, t.Name(), "(*Provider).Shutdown"), "one waiter, not one per Shutdown call")
+
+	hold.release()
+
+	require.NoError(t, <-containsDone)
+	require.NoError(t, prov.Shutdown(boundedCtx(t)))
 }

@@ -10,6 +10,10 @@
 // returns a *[LookupError] that names the class of the failure and the counts only, never an id or a key. A panic of
 // the client is recovered and counts as an unavailable store: no answer of that call is kept.
 //
+// A go-redis client passed to [New] must have ContextTimeoutEnabled set, or the socket ignores the deadline of a call:
+// New refuses one that exposes its options and has it off. [Dial] sets it on a copy of the options. Init probes the
+// commands that the configured layouts and mode will use, on keys of the configured namespace.
+//
 // Shutdown stops new calls (Contains, Init and Exists return [ErrClosed]), waits for the calls in flight until its own
 // context ends, and then ends them: no command is sent after it returns.
 package valkeysegment

@@ -37,12 +37,16 @@ type Provider struct {
 	observer  Observer
 	closer    func() error
 	segs      map[string]*segmentConfig
+	drained   chan struct{}
+	probeSet  string // key of the set segment that Init probes (the first by name), empty when there is none
+	probeKeys string // key that Init probes for the keys layout
 	missing   MissingKey
 	timeout   time.Duration
 	maxID     int
 	inflight  sync.WaitGroup
 	admitMu   sync.Mutex // orders the admission of a call (check closed, then Add) against Shutdown
 	closeOnce sync.Once
+	drainOnce sync.Once
 	lastFail  atomic.Uint32
 	ready     atomic.Bool
 	closed    atomic.Bool
@@ -58,7 +62,65 @@ var (
 	_ segment.HealthReporter = (*Provider)(nil)
 )
 
-// New returns a Provider that reads through client. The caller owns the client and closes it.
+// contextTimeout is implemented by the clients of go-redis that expose their options.
+type (
+	nodeOptions    interface{ Options() *redis.Options }
+	clusterOptions interface{ Options() *redis.ClusterOptions }
+)
+
+// checkContextTimeout rejects a go-redis client that ignores the deadline of the context: it would keep a call
+// waiting on the socket past the timeout of the provider. A client that does not expose its options (a test double)
+// is accepted.
+func checkContextTimeout(client Client) error {
+	enabled := true
+
+	switch typed := client.(type) {
+	case nodeOptions:
+		enabled = typed.Options().ContextTimeoutEnabled
+	case clusterOptions:
+		enabled = typed.Options().ContextTimeoutEnabled
+	}
+
+	if !enabled {
+		return fmt.Errorf("%w: %w", ErrInvalidOptions, ErrContextTimeoutDisabled)
+	}
+
+	return nil
+}
+
+// probeKeys returns the keys that Init probes: the key of the first set segment by name, and the member key of the
+// first keys segment by name. Both are in the namespace that the operator configured for the segments.
+func probeKeys(segs map[string]*segmentConfig) (string, string) {
+	var setName, keysName string
+
+	for name, cfg := range segs {
+		switch {
+		case cfg.layout == LayoutSet && (setName == "" || name < setName):
+			setName = name
+		case cfg.layout == LayoutKeys && (keysName == "" || name < keysName):
+			keysName = name
+		}
+	}
+
+	var setKey, memberKey string
+
+	if setName != "" {
+		setKey = segs[setName].key
+	}
+
+	if keysName != "" {
+		memberKey = segs[keysName].key + probeID
+	}
+
+	return setKey, memberKey
+}
+
+// probeID is the id that the probes of Init look up.
+const probeID = "init-probe"
+
+// New returns a Provider that reads through client. The caller owns the client and closes it. A go-redis client
+// must have ContextTimeoutEnabled set (Dial does it): New fails with ErrContextTimeoutDisabled when the client
+// exposes its options and it is not.
 func New(client Client, opts *Options) (*Provider, error) {
 	if client == nil {
 		return nil, ErrNilClient
@@ -69,6 +131,11 @@ func New(client Client, opts *Options) (*Provider, error) {
 	}
 
 	err := opts.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkContextTimeout(client)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +187,8 @@ func New(client Client, opts *Options) (*Provider, error) {
 		prov.segs[name] = cfg
 	}
 
+	prov.probeSet, prov.probeKeys = probeKeys(prov.segs)
+
 	return prov, nil
 }
 
@@ -129,7 +198,11 @@ func Dial(redisOpts *redis.UniversalOptions, opts *Options) (*Provider, error) {
 		return nil, ErrNilClient
 	}
 
-	client := redis.NewUniversalClient(redisOpts)
+	owned := *redisOpts
+	// without it go-redis reads the socket under its own timeouts and not under the deadline of the call
+	owned.ContextTimeoutEnabled = true
+
+	client := redis.NewUniversalClient(&owned)
 
 	prov, err := New(client, opts)
 	if err != nil {
@@ -228,10 +301,6 @@ func (pl *plan) take(start int) []any {
 // Contains implements [segment.Provider]. It sends all the lookups in one pipeline and sets the state of each
 // lookup that the store answered. See the package documentation for the failure behaviour.
 func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error {
-	if len(lookups) == 0 {
-		return nil
-	}
-
 	// a state that the caller left in the slice never survives a failure
 	for i := range lookups {
 		lookups[i].State = segment.Unknown
@@ -242,6 +311,10 @@ func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error
 	}
 
 	defer p.inflight.Done()
+
+	if len(lookups) == 0 {
+		return nil
+	}
 
 	started := clock.Now()
 	scr, _ := p.plans.Get().(*plan)
@@ -286,6 +359,16 @@ func (r *result) noteClass(class Class) {
 	}
 }
 
+// completed tells whether a command that carries an error got its reply before the pipeline failed. go-redis reads
+// the replies in order: a command read before a transport error keeps its value and no error, the failing command
+// and the ones after it get the error, and at the end of the call go-redis stamps the pipeline error on every
+// command that has none, completed ones included. So a command that has a value and the very error of the
+// pipeline was answered and then stamped. A command whose own reply failed has no value, and a reply that is an
+// error of the store is not the pipeline error of a transport failure.
+func (r *result) completed(cmd *redis.Cmd, err error) bool {
+	return r.execErr != nil && cmd.Val() != nil && errors.Is(err, r.execErr)
+}
+
 // cmdErr returns the error of a command, or the pipeline error when the command has no reply.
 func (r *result) cmdErr(cmd *redis.Cmd) error {
 	if cmd == nil {
@@ -293,7 +376,7 @@ func (r *result) cmdErr(cmd *redis.Cmd) error {
 	}
 
 	err := cmd.Err()
-	if err != nil {
+	if err != nil && !r.completed(cmd, err) {
 		return fmt.Errorf("valkey segment: reply: %w", err)
 	}
 
@@ -531,11 +614,6 @@ func (p *Provider) Init(ctx context.Context) (err error) {
 	return p.probe(ctx)
 }
 
-// probeKey is a key that no segment uses, for the probes of Init.
-func probeKey() string {
-	return DefaultKeyPrefix + "{init-probe}"
-}
-
 // Shutdown marks the provider closed, so no new call starts, waits for the calls in flight until ctx ends, and then
 // closes the client when the provider owns it (see Dial). When ctx ends first it ends the calls in flight and returns
 // the error of ctx: no call sends a command after Shutdown returns. A second call waits for the same calls and
@@ -545,17 +623,20 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	p.closed.Store(true)
 	p.admitMu.Unlock()
 
-	done := make(chan struct{})
+	// one waiter for every Shutdown call, however many of them time out
+	p.drainOnce.Do(func() {
+		p.drained = make(chan struct{})
 
-	go func() {
-		p.inflight.Wait()
-		close(done)
-	}()
+		go func() {
+			p.inflight.Wait()
+			close(p.drained)
+		}()
+	})
 
 	var waitErr error
 
 	select {
-	case <-done:
+	case <-p.drained:
 	case <-ctx.Done():
 		waitErr = fmt.Errorf("valkey segment: shutdown: %w", ctx.Err())
 	}
@@ -570,6 +651,13 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 // store could not answer. A failure returns a *LookupError and leaves the states of the answered names.
 func (p *Provider) Exists(ctx context.Context, names []string) ([]segment.State, error) {
 	out := make([]segment.State, len(names))
+
+	if !p.admit() {
+		return out, ErrClosed
+	}
+
+	defer p.inflight.Done()
+
 	if len(names) == 0 {
 		return out, nil
 	}
@@ -585,12 +673,6 @@ func (p *Provider) Exists(ctx context.Context, names []string) ([]segment.State,
 	if asked == 0 {
 		return out, nil
 	}
-
-	if !p.admit() {
-		return out, ErrClosed
-	}
-
-	defer p.inflight.Done()
 
 	if ctx.Err() != nil {
 		p.record(ClassCanceled)
@@ -668,45 +750,73 @@ func (p *Provider) askExists(ctx context.Context, names []string, asked int, out
 	return nil
 }
 
-// probe sends the probes of Init and reads the replies.
+// initCheck is one probe of Init: the command, and the name that an error of Init gives.
+type initCheck struct {
+	cmd  *redis.Cmd
+	name string
+}
+
+// probe sends the probes of Init: exactly the commands that the provider will use. A set segment is probed with
+// SMISMEMBER and EXISTS, or with the script when Atomic applies (see queue); a keys segment with EXISTS. The key
+// is one the operator configured, so a user limited to that namespace can pass.
 func (p *Provider) probe(ctx context.Context) error {
 	callCtx, cancel := p.callContext(ctx)
 	defer cancel()
 
-	probe := probeKey()
 	pipe := p.client.Pipeline()
+	ping := pipe.Do(callCtx, "ping")
+	checks := []initCheck{{ping, "PING"}}
 
-	type check struct {
-		cmd  *redis.Cmd
-		name string
+	var scripts []initCheck
+
+	switch {
+	case p.probeSet == "":
+	case p.atomicTx && p.missing == MissingUnknown:
+		scripts = []initCheck{
+			{pipe.Do(callCtx, "eval_ro", Script, 1, p.probeSet, probeID), "EVAL_RO"},
+			{pipe.Do(callCtx, "evalsha_ro", ScriptSHA, 1, p.probeSet, probeID), "EVALSHA_RO"},
+		}
+	default:
+		checks = append(checks, initCheck{pipe.Do(callCtx, "smismember", p.probeSet, probeID), "SMISMEMBER"})
+
+		if p.missing == MissingUnknown {
+			checks = append(checks, initCheck{pipe.Do(callCtx, "exists", p.probeSet), "EXISTS"})
+		}
 	}
 
-	checks := []check{{pipe.Do(callCtx, "ping"), "PING"}}
-
-	var sets, keys bool
-
-	for _, cfg := range p.segs {
-		sets = sets || cfg.layout == LayoutSet
-		keys = keys || cfg.layout == LayoutKeys
+	if p.probeKeys != "" {
+		checks = append(checks, initCheck{pipe.Do(callCtx, "exists", p.probeKeys), "EXISTS"})
 	}
-
-	if sets {
-		checks = append(checks, check{pipe.Do(callCtx, "smismember", probe, "x"), "SMISMEMBER"})
-	}
-
-	if keys {
-		checks = append(checks, check{pipe.Do(callCtx, "exists", probe), "EXISTS"})
-	}
-
-	if sets && p.atomicTx && p.missing == MissingUnknown {
-		checks = append(checks, check{pipe.Do(callCtx, "eval", "return 1", 0), "EVAL"})
-	}
-
-	readOnly := pipe.Do(callCtx, "eval_ro", "return 1", 0)
 
 	_, execErr := pipe.Exec(callCtx)
 	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
 
+	err := p.initFailure(&res, checks)
+	if err != nil {
+		return err
+	}
+
+	pong, _ := ping.Val().(string)
+	if pong != "PONG" {
+		p.record(ClassProtocol)
+
+		return fmt.Errorf("%w: %w", ErrInit, ErrProtocol)
+	}
+
+	if len(scripts) > 0 {
+		err = p.probeScripts(ctx, &res, scripts)
+		if err != nil {
+			return err
+		}
+	}
+
+	p.record(ClassNone)
+
+	return nil
+}
+
+// initFailure returns the error of Init for the first probe that failed, or nil.
+func (p *Provider) initFailure(res *result, checks []initCheck) error {
 	for _, each := range checks {
 		err := res.cmdErr(each.cmd)
 		if err == nil {
@@ -723,8 +833,41 @@ func (p *Provider) probe(ctx context.Context) error {
 		return fmt.Errorf("%w: %w", ErrInit, (&LookupError{Class: class}).Unwrap())
 	}
 
-	p.roScript.Store(res.cmdErr(readOnly) == nil)
-	p.record(ClassNone)
+	return nil
+}
+
+// probeScripts reads the probes of the read-only script commands. When the store refuses them, it probes the plain
+// commands in a second pipeline, and the provider uses those from then on.
+func (p *Provider) probeScripts(ctx context.Context, res *result, readOnly []initCheck) error {
+	err := p.initFailure(res, readOnly)
+	if err == nil {
+		p.roScript.Store(true)
+
+		return nil
+	}
+
+	if !errors.Is(err, ErrServer) {
+		return err
+	}
+
+	callCtx, cancel := p.callContext(ctx)
+	defer cancel()
+
+	pipe := p.client.Pipeline()
+	plain := []initCheck{
+		{pipe.Do(callCtx, "eval", Script, 1, p.probeSet, probeID), "EVAL"},
+		{pipe.Do(callCtx, "evalsha", ScriptSHA, 1, p.probeSet, probeID), "EVALSHA"},
+	}
+
+	_, execErr := pipe.Exec(callCtx)
+	again := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+
+	err = p.initFailure(&again, plain)
+	if err != nil {
+		return err
+	}
+
+	p.roScript.Store(false)
 
 	return nil
 }
