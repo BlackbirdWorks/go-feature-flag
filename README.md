@@ -26,42 +26,23 @@ ones. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 ## Quick start
 
-Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`, and [Task](https://taskfile.dev)):
+Build the relay proxy and run it on the example file store (requires Go, see `go.mod`, and [Task](https://taskfile.dev)):
 
 ```shell
 task build-relayproxy        # binary: out/bin/semaphore
-
-cat > flags.yaml <<'YAML'
-new-checkout:
-  variations:
-    enabled: true
-    disabled: false
-  targeting:
-    - name: beta users
-      query: beta eq true
-      variation: enabled
-  defaultRule:
-    variation: disabled
-YAML
-
-cat > semaphore-proxy.yaml <<'YAML'
-pollingInterval: 1000
-retrievers:
-  - kind: file
-    path: ./flags.yaml
-YAML
-
-./out/bin/semaphore --config semaphore-proxy.yaml
+cd cmd/relayproxy/testdata/dockerhub-example   # a version 2 bootstrap file and a file store with flags
+../../../../out/bin/semaphore --config bootstrap.yaml
 ```
 
-Evaluate the flag through OFREP from another terminal:
+Evaluate a flag through OFREP from another terminal (the example flag set has the API key `example-api-key`):
 
 ```shell
-curl -s http://localhost:1031/ofrep/v1/evaluate/flags/new-checkout -X POST \
-  -H 'Content-Type: application/json' \
-  --data-raw '{"context": {"targetingKey": "user-123", "beta": true}}'
-# {"key":"new-checkout","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"evaluatedRuleName":"beta users","gofeatureflag_cacheable":true,"semaphore_cacheable":true}}
+curl -s http://localhost:1031/ofrep/v1/evaluate/flags/flag-only-for-admin -X POST \
+  -H 'Content-Type: application/json' -H 'X-API-Key: example-api-key' \
+  --data-raw '{"context": {"targetingKey": "user-123", "admin": true}}'
 ```
+
+Publish your own flags with `semaphore-cli publish` to an S3 bucket, see [docs/relay-proxy/getting-started.md](docs/relay-proxy/getting-started.md).
 
 Then point an OpenFeature OFREP provider at `http://localhost:1031`, see [docs/openfeature/ofrep.md](docs/openfeature/ofrep.md).
 

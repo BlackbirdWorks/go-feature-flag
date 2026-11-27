@@ -4,8 +4,8 @@
 relay will use.
 
 > [!NOTE]
-> The relay does not read the version 2 format yet: it still starts from its current configuration. A valid file and the
-> effective print describe what the relay will run once it switches to version 2, not what it runs today.
+> The relay reads the version 2 format only: a valid file here is a file the relay starts from, and the effective print
+> shows what it runs with.
 
 ## Validate
 

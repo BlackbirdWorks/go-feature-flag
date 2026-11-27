@@ -2,7 +2,7 @@
 
 How a request finds its flag set and how its flags are evaluated in config v2: flag sets come from the control-plane manifest, API keys come with the flag set, and one process-wide evaluator answers for all of them.
 
-> **Status:** this is built beside the running relay (`cmd/relayproxy/flagruntime` and `cmd/relayproxy/controlsource`). The relay keeps running on the version 1 configuration until the switch to config v2. Everything below that the relay does only after the switch is written in the future tense.
+> **Status:** the relay binary runs on this (`cmd/relayproxy/flagruntime` and `cmd/relayproxy/controlsource`), the version 1 configuration is gone. Parts that are not done yet are marked as such.
 
 ## The request path
 

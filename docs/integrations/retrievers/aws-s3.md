@@ -1,5 +1,11 @@
 # AWS S3
 
+> [!NOTE]
+> The relay proxy does not run retrievers any more: it reads a control plane store (S3 or a directory), see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration examples on this page are version 1 and
+> are not read by the relay; the retriever kinds come back to the relay with the control plane connections (issue #57).
+> The Go module is not affected.
+
 ## Overview
 
 Load flag configurations from an AWS S3 bucket. Point to a single file with `item`, or omit `item` to load and merge multiple flag files from a bucket prefix.

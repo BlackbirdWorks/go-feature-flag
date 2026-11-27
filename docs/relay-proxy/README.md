@@ -1,11 +1,11 @@
 # Relay Proxy
 
-The **relay proxy** is the stateless HTTP backend for Semaphore. It loads flag configurations from your retrievers, keeps them in memory, and serves evaluations to any [OpenFeature](https://openfeature.dev) SDK using [OFREP](../openfeature/ofrep.md).
+The **relay proxy** is the stateless HTTP backend for Semaphore. It reads flag sets from a control plane store (S3 or a directory), keeps them in memory, and serves evaluations to any [OpenFeature](https://openfeature.dev) SDK using [OFREP](../openfeature/ofrep.md).
 
 ## Key traits
 
 - **Stateless and lightweight**: single Go binary with no database required.
-- **Always up to date**: polls your configured sources on an interval (or refreshes on demand via the admin API).
+- **Always up to date**: polls the control plane manifest and applies a change after one poll, without a restart.
 - **Drop-in OpenFeature backend**: use standard OpenFeature SDKs in any language without custom providers.
 
 > [!NOTE]
@@ -15,4 +15,4 @@ The **relay proxy** is the stateless HTTP backend for Semaphore. It loads flag c
 
 - [Getting started](getting-started.md) — run the relay proxy locally in a few minutes.
 - [Installation](install.md) — Docker images, release binaries, and FIPS 140-3 builds.
-- [Configuration reference](configuration.md) — all proxy, retriever, exporter, and notifier options.
+- [Bootstrap file reference](bootstrap-config.md) — connections, control plane, listeners, exporters and notifiers.

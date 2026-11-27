@@ -27,8 +27,7 @@ flagsets/<name>.yaml|yml|json   a flag-set document (kind flagSets)
 
 ## Where to publish
 
-Either the control-plane connection of a [bootstrap file](../relay-proxy/bootstrap-config.md) (the version 2 format, which the relay
-does not read yet), or explicit flags. They do not mix.
+Either the control-plane connection of a [bootstrap file](../relay-proxy/bootstrap-config.md) (the version 2 format the relay reads), or explicit flags. They do not mix.
 
 | Flag | Meaning |
 |---|---|

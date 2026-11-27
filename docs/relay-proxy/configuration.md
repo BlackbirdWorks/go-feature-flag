@@ -1,5 +1,10 @@
 # Configuration
 
+> [!WARNING]
+> This page documents the version 1 configuration, which the relay proxy no longer reads: a version 1 file is rejected
+> with `version 2 required`. The current format is the [bootstrap file, version 2](bootstrap-config.md). This page is
+> removed with the version 1 code.
+
 ## Overview
 
 This page documents all configuration options for the Semaphore **relay proxy**.

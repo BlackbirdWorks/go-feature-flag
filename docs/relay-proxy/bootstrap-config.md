@@ -3,9 +3,26 @@
 The version 2 bootstrap file is the new configuration format of the relay proxy: connections to backends, the
 control plane location, listeners, observability and admin keys. It is strict: an unknown key is an error.
 
-> **Status.** The format, the loader and the JSON Schema are implemented in `cmd/relayproxy/bootstrap`, but the relay
-> does not read this format yet. It switches to it in a later release step. From that release, version 1 files
-> (the format described in [Configuration reference](configuration.md)) are rejected with `version 2 required`.
+> **Status.** This is the only format the relay reads (`cmd/relayproxy/bootstrap`). A version 1 file is rejected with
+> `version 2 required` and nothing starts. See [Run, reload and stop](#run-reload-and-stop) for what the relay does with it.
+
+## Run, reload and stop
+
+- Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). An invalid or version 1 file exits with a non-zero
+  status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
+  the state, see [probes](probes.md).
+- Listeners: one `api` listener and at most one `ops` listener on the same host. More listeners, another host for `ops`
+  and `server.unixSocketPath` are refused at start (they are not served yet). `h2c` in `protocols` enables HTTP/2 over
+  cleartext on the `api` listener.
+- `observability.logging.format: text` writes logfmt lines.
+- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` apply live; every other change is kept out and named in
+  `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
+  refused, the relay keeps what it has. A change of the file on disk is not watched: send `SIGHUP`.
+- Stop: on `SIGTERM` or `SIGINT` `/readyz` answers 503 `shutting-down` first, the streams close, the listeners stop,
+  then the core drains its exporters, all within 15 seconds.
+- Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
+  refresh on request), the AWS Lambda mode and artifact are gone, and so are the retrievers other than the control plane
+  store (they come back with the retriever kinds of the control plane, issue #57).
 
 ## Rules
 

@@ -34,10 +34,10 @@ Until then, build a local image from source:
 task build-relayproxy-docker   # image: semaphore:local
 ```
 
-The image sets `/usr/local/bin/semaphore` as `ENTRYPOINT`. With no arguments, it looks for configuration in `/semaphore/` (or legacy `/goff/`); any arguments are passed directly to `semaphore`. Use `--entrypoint` to override it. Pass options as flags:
+The image sets `/usr/local/bin/semaphore` as `ENTRYPOINT`. With no arguments, it needs `--config` (or `SEMAPHORE_CONFIG`) with the path of a version 2 bootstrap file; any arguments are passed directly to `semaphore`. Use `--entrypoint` to override it. Pass options as flags:
 
 ```shell
-docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local --config=/cfg/semaphore-proxy.yaml
+docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local --config=/cfg/bootstrap.yaml
 ```
 
 ## FIPS 140-3

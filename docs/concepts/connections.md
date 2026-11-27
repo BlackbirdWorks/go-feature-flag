@@ -1,7 +1,7 @@
 # Connections
 
-> Status: the connection factory is in the code base but not active yet. It becomes active when the relay switches
-> to config v2 (epic #19, issue #3). The v1 configuration keeps building its AWS clients as before.
+> Status: the relay builds every AWS client and file store through the connection factory, from the connections of the
+> [bootstrap file](../relay-proxy/bootstrap-config.md).
 
 ## What a connection is
 
