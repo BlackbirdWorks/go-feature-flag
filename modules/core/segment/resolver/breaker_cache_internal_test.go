@@ -385,11 +385,14 @@ func TestDefaults(t *testing.T) {
 
 type internalStore struct {
 	fail  error
+	mu    sync.Mutex
 	calls int
 }
 
 func (s *internalStore) Contains(_ context.Context, lookups []segment.Lookup) error {
+	s.mu.Lock()
 	s.calls++
+	s.mu.Unlock()
 
 	if s.fail != nil {
 		return s.fail
@@ -607,4 +610,110 @@ func TestRegisterLooksAtTheCacheAgainUnderTheLock(t *testing.T) {
 	assert.Equal(t, CallObservation{Hits: 1}, obs)
 	assert.Empty(t, seg.flights)
 	assert.Equal(t, 0, store.calls)
+}
+
+func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
+	t.Parallel()
+
+	store := &internalStore{}
+	res := newInternal(t, store, &Options{
+		Default: SegmentOptions{BreakerFailures: 1, NoCache: true},
+	})
+
+	// the deadline fires after the store returned and before the worker stops the timer
+	res.beforeStop = func(shared *call) { shared.cancel() }
+
+	first := []segment.Lookup{{Segment: testSeg, ID: "a"}}
+
+	// the caller may leave at the cancelled deadline: the call it started is what the test looks at
+	_ = res.Contains(context.Background(), first)
+
+	require.Eventually(t, func() bool { return res.Status().Running == 0 }, 10*time.Second, time.Millisecond)
+
+	status := res.Status()
+
+	assert.Equal(t, 0, status.Overdue, "a call that returned in time is not overdue")
+	assert.Equal(t, SegmentStatus{Breaker: BreakerClosed}, status.Segments[testSeg], "no failure was counted")
+
+	// the next uncached lookup is not refused by the breaker: it makes its own call (the hook cancels this one too)
+	second := []segment.Lookup{{Segment: testSeg, ID: "b"}}
+	err := res.Contains(context.Background(), second)
+
+	assert.NotErrorIs(t, err, ErrCircuitOpen)
+	require.Eventually(t, func() bool { return res.Status().Running == 0 }, 10*time.Second, time.Millisecond)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	assert.Equal(t, 2, store.calls, "the next uncached lookup reaches the store")
+}
+
+func TestTheDeadlineBeforeTheReplyDecidesOnceAndTheLateReplyCountsForNothing(t *testing.T) {
+	t.Parallel()
+
+	state := &callState{}
+	res := newInternal(t, &internalStore{}, &Options{Default: SegmentOptions{BreakerFailures: 2}})
+	seg := res.state(testSeg)
+	leaders := []leader{{sst: seg, key: "a"}}
+
+	// the deadline takes the lock first
+	state.mu.Lock()
+	state.overdue = true
+	state.mu.Unlock()
+
+	res.settleOverdue(leaders, baseTime())
+	res.overdue.Add(1)
+
+	// the reply that comes after is late: it must not be taken for a success
+	res.settle(leaders, []segment.Lookup{{Segment: testSeg, ID: "a", State: segment.Member}}, nil, baseTime(), true)
+
+	status, failures := seg.brk.snapshot()
+
+	assert.Equal(t, BreakerClosed, status)
+	assert.Equal(t, 1, failures, "one failure, counted once, when it became overdue")
+}
+
+func TestWaitForReportsTheStoreErrorAndTheTimeoutWhateverTheOrder(t *testing.T) {
+	t.Parallel()
+
+	storeErr := &StoreError{Err: errBoomInternal}
+
+	tests := []struct {
+		name      string
+		failedAt  int // the index of the flight that failed; the other one timed out
+		wantState []segment.State
+	}{
+		{name: "the store error first", failedAt: 0, wantState: []segment.State{segment.Unknown, segment.Unknown}},
+		{name: "the timeout first", failedAt: 1, wantState: []segment.State{segment.Unknown, segment.Unknown}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			expired, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			failed := &flight{done: make(chan struct{}), call: &call{ctx: context.Background()}, err: storeErr}
+			close(failed.done)
+
+			timedOut := &flight{done: make(chan struct{}), call: &call{ctx: expired}}
+			seg := &segState{name: testSeg}
+
+			flights := []*flight{timedOut, timedOut}
+			flights[tt.failedAt] = failed
+
+			pend := []pending{{sst: seg, flt: flights[0], idx: 0}, {sst: seg, flt: flights[1], idx: 1}}
+			lookups := []segment.Lookup{{Segment: testSeg, ID: "a"}, {Segment: testSeg, ID: "b"}}
+
+			var accs segAccs
+
+			err := waitFor(context.Background(), lookups, pend, &accs)
+
+			require.ErrorIs(t, err, errBoomInternal, "the store error")
+			require.ErrorIs(t, err, ErrWaiting, "the timeout")
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Equal(t, tt.wantState, []segment.State{lookups[0].State, lookups[1].State})
+		})
+	}
 }

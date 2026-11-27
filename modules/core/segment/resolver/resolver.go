@@ -61,6 +61,14 @@ type call struct {
 	cancel context.CancelFunc
 }
 
+// callState decides how a shared call ended, exactly once, under one lock: either the store returned in time or its
+// deadline fired first. Whichever takes the lock first wins; the other then counts for nothing.
+type callState struct {
+	mu       sync.Mutex
+	returned bool // the store returned before its deadline fired
+	overdue  bool // the deadline fired before the store returned
+}
+
 // flight is one lookup that a caller has sent to the store; the other callers that ask the same wait on it.
 type flight struct {
 	err   error
@@ -112,10 +120,12 @@ type Resolver struct {
 	overdue  atomic.Int64
 	maxID    int
 	maxOver  int
-	admit    sync.RWMutex
-	stopOnce sync.Once
-	mu       sync.Mutex
-	closed   bool
+	// beforeStop (tests only) runs between the return of the store and the disarming of its deadline.
+	beforeStop func(*call)
+	admit      sync.RWMutex
+	stopOnce   sync.Once
+	mu         sync.Mutex
+	closed     bool
 }
 
 var (
@@ -256,7 +266,7 @@ type decision struct {
 // that times out leaves its lookups Unknown and the others go on waiting for theirs. An answer that is already there
 // wins over a context that ended too.
 func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs *segAccs) error {
-	var firstErr error
+	var storeErr, waitErr error
 
 	for i := range pend {
 		pnd := &pend[i]
@@ -273,21 +283,22 @@ func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs
 			if pnd.flt.err != nil {
 				accs.of(pnd.sst.name).mark(ReasonStore)
 
-				firstErr = firstOf(firstErr, pnd.flt.err)
+				storeErr = firstOf(storeErr, pnd.flt.err)
 			}
 		case flightTimedOut:
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 
-			firstErr = firstOf(firstErr, fmt.Errorf("%w: %w", ErrWaiting, cause))
+			waitErr = firstOf(waitErr, fmt.Errorf("%w: %w", ErrWaiting, cause))
 		case callerGone:
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 			keepAnswered(lookups, pend[i+1:])
 
-			return fmt.Errorf("%w: %w", ErrWaiting, cause)
+			return errors.Join(storeErr, firstOf(waitErr, fmt.Errorf("%w: %w", ErrWaiting, cause)))
 		}
 	}
 
-	return firstErr
+	// both kinds are reported, in this order, whatever the order of the lookups: a caller can detect either
+	return errors.Join(storeErr, waitErr)
 }
 
 func firstOf(first, next error) error {
@@ -687,14 +698,26 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 	defer r.inflight.Add(-1)
 	defer shared.cancel()
 
-	// a store that ignores its context keeps running after the context ended: count it while it does
-	// and it is a failure of the store from the moment it is overdue, not when (if ever) it returns: the breaker
-	// stops the new calls while the stuck ones are still out
+	// A store that ignores its context keeps running after the deadline: it is a failure of the store from the moment
+	// it is overdue, not when (if ever) it returns, so that the breaker stops the new calls while the stuck ones are
+	// still out. The breaker is told before the counter moves, so a reader that sees the counter sees the failure
+	// too. The store's return and the deadline are decided under one lock (see callState).
+	state := &callState{}
 	fired := make(chan struct{})
 	stop := context.AfterFunc(shared.ctx, func() {
-		r.overdue.Add(1)
+		defer close(fired)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+
+		if state.returned {
+			return // the store was in time: nothing is overdue
+		}
+
+		state.overdue = true
+
 		r.settleOverdue(leaders, clock.Now())
-		close(fired)
+		r.overdue.Add(1)
 	})
 
 	sub := make([]segment.Lookup, len(leaders))
@@ -703,6 +726,24 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 	}
 
 	callErr := r.call(shared.ctx, sub)
+
+	state.mu.Lock()
+	state.returned = !state.overdue
+	late := state.overdue
+	state.mu.Unlock()
+
+	if r.beforeStop != nil {
+		r.beforeStop(shared)
+	}
+
+	if !stop() {
+		<-fired // the deadline callback is running or ran: it has seen the decision above
+	}
+
+	if late {
+		r.overdue.Add(-1)
+	}
+
 	if errors.Is(callErr, ErrProviderPanic) {
 		// a store that panicked is not trusted: nothing it set counts
 		for i := range sub {
@@ -710,13 +751,6 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 		}
 	} else if callErr != nil {
 		callErr = &StoreError{Err: callErr}
-	}
-
-	late := !stop()
-	if late {
-		<-fired
-
-		r.overdue.Add(-1)
 	}
 
 	now := clock.Now()
