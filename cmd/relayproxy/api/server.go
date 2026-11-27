@@ -76,6 +76,15 @@ func WithListener(l net.Listener) Option {
 	return func(s *Server) { s.listener = l }
 }
 
+// ListenFunc binds an address: net.Listen for the network "tcp" is the default.
+type ListenFunc func(ctx context.Context, network, address string) (net.Listener, error)
+
+// WithListenFunc replaces the binding of the configured addresses. A test that checks the address the server binds gives
+// it a function that records the address and returns a listener that is already bound.
+func WithListenFunc(listen ListenFunc) Option {
+	return func(s *Server) { s.listen = listen }
+}
+
 // WithMonitoringListener is WithListener for the monitoring server: it serves on the given bound listener
 // instead of binding the configured monitoring port. The monitoring port must still be configured (it
 // decides whether a monitoring server exists). The server owns the listener.
@@ -140,6 +149,7 @@ type Server struct {
 	otelService            opentelemetry.OtelService
 	tracerProvider         trace.TracerProvider
 	meterProvider          metric.MeterProvider
+	listen                 ListenFunc
 	listener               net.Listener
 	monitoringListener     net.Listener
 	propagator             propagation.TextMapPropagator

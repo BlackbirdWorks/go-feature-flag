@@ -158,12 +158,17 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 }
 
 // listenOn returns the listener the server was given, or else listens on the address.
-func (*Server) listenOn(ctx context.Context, address string, given net.Listener) (net.Listener, error) {
+func (s *Server) listenOn(ctx context.Context, address string, given net.Listener) (net.Listener, error) {
 	if given != nil {
 		return given, nil
 	}
 
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	listen := s.listen
+	if listen == nil {
+		listen = (&net.ListenConfig{}).Listen
+	}
+
+	listener, err := listen(ctx, "tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("listen on %s: %w", address, err)
 	}

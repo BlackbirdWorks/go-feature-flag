@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -178,8 +177,9 @@ type rigOptions struct {
 	extra string
 	// manifestKey replaces the manifest key of the file.
 	manifestKey string
-	// port, when set, makes the relay bind the address of its file (no injected listener) on that port.
-	port string
+	// boundAddress, when set, receives the address the relay asks to bind: the relay gets the pre-bound listener of the
+	// rig for it, and no port is released before the relay binds it.
+	boundAddress chan string
 	// flags are added to the command line.
 	flags []string
 	// shutdownTimeout bounds the shutdown of the relay.
@@ -208,16 +208,18 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	rig.manifestKey = ropts.manifestKey
 	rig.writeConfig(ropts.extra)
 
-	var serverOpts []api.Option
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
-	rig.url = "http://127.0.0.1:" + ropts.port
+	rig.url = "http://" + listener.Addr().String()
+	serverOpts := []api.Option{api.WithListener(listener)}
 
-	if ropts.port == "" {
-		listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-		require.NoError(t, err)
+	if ropts.boundAddress != nil {
+		serverOpts = []api.Option{api.WithListenFunc(func(_ context.Context, _, address string) (net.Listener, error) {
+			ropts.boundAddress <- address
 
-		rig.url = "http://" + listener.Addr().String()
-		serverOpts = []api.Option{api.WithListener(listener)}
+			return listener, nil
+		})}
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -649,74 +651,41 @@ func TestOSLoadOptions(t *testing.T) {
 	assert.False(t, opts.AllowInlineSecrets)
 }
 
-// freePort returns a port nobody listens on. The relay binds it again from its file: the address formatting of the
-// binder is what the test is about, so the listener can not be injected.
-func freePort(t *testing.T) string {
-	t.Helper()
-
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	require.NoError(t, listener.Close())
-
-	return port
-}
-
-// awaitServing waits until the relay answers /livez on its configured address, or stops with an exit code.
-func (r *relayRig) awaitServing() {
-	r.store.t.Helper()
-
-	ctx, cancel := context.WithTimeout(r.store.t.Context(), waitBound)
-	defer cancel()
-
-	for ctx.Err() == nil {
-		select {
-		case code := <-r.done:
-			require.FailNow(r.store.t, "the relay stopped", "exit code %d, log: %s", code, r.stderr.String())
-		default:
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.url+"/livez", http.NoBody)
-		require.NoError(r.store.t, err)
-
-		resp, err := http.DefaultClient.Do(req)
-		if err == nil {
-			_ = resp.Body.Close()
-
-			return
-		}
-
-		runtime.Gosched()
-	}
-
-	require.FailNow(r.store.t, "the relay does not answer on its configured address", r.stderr.String())
-}
-
+// The relay binds the address of its file as written: brackets of an IPv6 host included. The binder gets a function
+// that records the address and hands over a listener that is already bound.
 func TestRunBindsTheConfiguredAddress(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		host string
+		name        string
+		address     string
+		wantAddress string
 	}{
-		{name: "ipv4 literal", host: "127.0.0.1"},
-		{name: "no host", host: ""},
-		{name: "ipv6 wildcard in brackets", host: "[::]"},
-		{name: "host name", host: "localhost"},
+		{name: "ipv4 literal", address: "127.0.0.1:1031", wantAddress: "127.0.0.1:1031"},
+		{name: "no host", address: ":1031", wantAddress: ":1031"},
+		{name: "ipv6 wildcard in brackets", address: "[::]:1031", wantAddress: "[::]:1031"},
+		{name: "ipv6 loopback in brackets", address: "[::1]:8080", wantAddress: "[::1]:8080"},
+		{name: "host name", address: "localhost:1031", wantAddress: "localhost:1031"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			port := freePort(t)
-			rig := startRelay(t, &rigOptions{port: port, extra: "server:\n  listeners:\n    - {name: api, address: \"" +
-				tt.host + ":" + port + "\"}\n"})
-			rig.awaitServing()
+			bound := make(chan string, 1)
+			rig := startRelay(t, &rigOptions{boundAddress: bound,
+				extra: "server:\n  listeners:\n    - {name: api, address: \"" + tt.address + "\"}\n"})
+
+			select {
+			case address := <-bound:
+				assert.Equal(t, tt.wantAddress, address)
+			case <-time.After(waitBound):
+				require.FailNow(t, "the relay did not bind", rig.stderr.String())
+			}
+
+			rig.awaitGeneration(1)
 
 			status, _ := get(t, rig.url+readyPath, nil)
-			assert.NotZero(t, status)
+			assert.Equal(t, http.StatusOK, status)
 		})
 	}
 }
