@@ -15,6 +15,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Probes and observability of the config v2 runtime](relay-proxy/probes.md) (`/livez`, `/readyz`, `/startupz`, the `/info` config section and the metrics)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
+- [Client compatibility](relay-proxy/client-compatibility.md) (OpenFeature and OFREP provider test coverage)
 - [Performance](performance.md) (throughput and latency, single and bulk evaluation, HTTP/1.1 and HTTP/2)
 - [Scale](scale.md) (thousands of flag sets, reloaded in place: what is tested and how to run the full size)
 - [Advanced usage](relay-proxy/advanced-usage.md) (manual refresh, flag validation, FIPS)
