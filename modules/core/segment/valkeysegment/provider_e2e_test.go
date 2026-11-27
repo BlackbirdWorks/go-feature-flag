@@ -359,7 +359,7 @@ const e2eFlags = `beta-feature:
     disabled: false
   targeting:
     - name: beta
-      query: targetingKey in segment(segBeta)
+      query: targetingKey in segment("beta")
       variation: enabled
   defaultRule:
     variation: disabled
