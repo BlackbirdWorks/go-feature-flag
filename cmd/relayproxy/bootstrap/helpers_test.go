@@ -148,6 +148,6 @@ const (
 func isOverrideName(name string) bool {
 	return slices.Contains([]string{
 		bootstrap.EnvConfig, bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen, bootstrap.EnvOpsListen,
-		bootstrap.EnvManifestKey, bootstrap.EnvStateDir,
+		bootstrap.EnvManifestKey, bootstrap.EnvStateDir, bootstrap.EnvShutdownDrainDelay, bootstrap.EnvShutdownTimeout,
 	}, name)
 }

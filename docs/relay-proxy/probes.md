@@ -25,8 +25,8 @@ contain a key, a secret or the bytes of an object. The relay binary serves them 
 - A relay with zero flag sets is ready (`empty`). A stale or missing object, a rejected flag, or a flag set that is
   degraded or pending makes the state `degraded`, never unready.
 - With a state directory a restart during an outage is ready at once.
-- `shutting-down` is answered first on shutdown, before the listeners close: call `Readiness.BeginShutdown()` on
-  SIGTERM, then stop the server, then call `Core.Shutdown`. `Core.Shutdown` also flips the probe by itself.
+- `shutting-down` is answered first on shutdown, before the listeners close, and stays until the process exits; the
+  relay keeps serving during the drain delay, see [Shutdown in Kubernetes](#shutdown-in-kubernetes).
 
 Reasons (closed list): `starting`, `waiting-for-manifest`, `shutting-down`. States of a 200: `empty`, `serving`, `degraded`.
 
@@ -77,3 +77,25 @@ readinessProbe:
 
 Use `/livez` for the liveness probe: it never fails because the control plane is down, so a storage outage does not
 restart the relay.
+
+## Shutdown in Kubernetes
+
+On `SIGTERM` the relay fails `/readyz` (503 `shutting-down`) and keeps serving for `server.shutdown.drainDelay`, so that
+the endpoint controllers and load balancers stop sending traffic before the listeners close. Then it stops within
+`server.shutdown.timeout` (default `15s`); the order is in the [bootstrap file page](bootstrap-config.md#shutdown).
+
+- Set `terminationGracePeriodSeconds` to at least `drainDelay + timeout` plus a margin (for example 10 seconds), or the
+  kubelet sends `SIGKILL` before the relay finishes. With `drainDelay: 10s` and the default timeout:
+  `terminationGracePeriodSeconds: 35`.
+- A `preStop` hook is not needed: the drain delay does what a `sleep` in `preStop` does, and the readiness probe already
+  fails.
+- A shutdown that ends in the hard stop exits with status 1.
+
+```yaml
+spec:
+  terminationGracePeriodSeconds: 35
+  containers:
+    - name: semaphore
+      env:
+        - {name: SEMAPHORE_SHUTDOWN_DRAIN_DELAY, value: "10s"}
+```

@@ -24,8 +24,7 @@ control plane location, listeners, observability and admin keys. It is strict: a
   refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
   is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
   whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
-- Stop: on `SIGTERM` or `SIGINT` `/readyz` answers 503 `shutting-down` first, the streams close, the listeners stop,
-  then the core drains its exporters, all within 15 seconds.
+- Stop: on `SIGTERM` or `SIGINT` the relay shuts down in the order described in [Shutdown](#shutdown).
 - Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
   refresh on request), the AWS Lambda mode and artifact are gone, and so are the retrievers other than the control plane
   store (they come back with the retriever kinds of the control plane, issue #57).
@@ -92,10 +91,12 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `SEMAPHORE_OPS_LISTEN` | Address of the `ops` listener (created when missing) |
 | `SEMAPHORE_MANIFEST_KEY` | `controlPlane.manifest.key` |
 | `SEMAPHORE_STATE_DIR` | `controlPlane.stateDir` |
+| `SEMAPHORE_SHUTDOWN_DRAIN_DELAY` | `server.shutdown.drainDelay` |
+| `SEMAPHORE_SHUTDOWN_TIMEOUT` | `server.shutdown.timeout` |
 
 - Every other `SEMAPHORE_*` variable is ignored.
 - A value from a flag or variable that fails validation is reported with its source (`set by flag --listen`,
-  `set by environment variable SEMAPHORE_LISTEN`) and no file line. The flags are `--config`, `--log-level`,
+  `set by environment variable SEMAPHORE_LISTEN`) and no file line. The two shutdown variables have no flag. The flags are `--config`, `--log-level`,
   `--log-format`, `--listen`, `--ops-listen`, `--manifest-key` and `--state-dir`.
 - `SEMAPHORE_OPS_LISTEN` sets the address of the first `ops` listener. When there is none it adds a listener named
   `ops` (or `ops-2`, ... when that name is taken).
@@ -131,9 +132,31 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].address` | string | required | `host:port`, for example `:1031` |
 | `server.listeners[].role` | string | `api` | `api`, `ops` |
 | `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
+| `server.shutdown.drainDelay` | duration | `0s` (no delay) | `0s` to `10m` |
+| `server.shutdown.timeout` | duration | `15s` | positive, at most `10m` |
 
 - With no listener, the relay has one `api` listener on `:1031`.
 - At least one listener has the role `api`. Names and addresses are unique.
+- The shutdown settings are described in [Shutdown](#shutdown).
+
+## Shutdown
+
+`SIGTERM` or `SIGINT` starts the shutdown. A second `SIGTERM` or `SIGINT` while it runs stops the relay hard at once.
+The steps run in this order:
+
+1. `/readyz` answers 503 `shutting-down`; the listeners stay open.
+2. The drain delay (`server.shutdown.drainDelay`, or `SEMAPHORE_SHUTDOWN_DRAIN_DELAY`): the relay keeps serving every
+   request, so that load balancers and Kubernetes stop sending traffic. `0s` (the default) means no delay.
+3. The change streams close, so that their clients reconnect elsewhere and the server can drain.
+4. The HTTP servers stop gracefully: the requests in flight finish.
+5. The core stops: the event queues are flushed to the exporters and the state directory is written.
+
+The timeout (`server.shutdown.timeout`, or `SEMAPHORE_SHUTDOWN_TIMEOUT`, default `15s`) starts after the drain delay and
+bounds steps 3 to 5. The drain delay is not part of it, so the longest a shutdown takes is the drain delay plus the
+timeout. When the timeout ends first the relay stops hard: the servers close, the requests still in flight are cut, the
+log lists what was cut (`shutdown: stopped hard`), and the process exits with status 1. A clean shutdown exits with 0.
+Both settings are read at the start (a reload does not change them), are durations of at most `10m` (the timeout is positive, the drain delay may be `0s`), and the variable wins over the file, and a value that does not parse
+stops the relay at the start. See [probes](probes.md#shutdown-in-kubernetes) for Kubernetes.
 
 ### `observability`
 
