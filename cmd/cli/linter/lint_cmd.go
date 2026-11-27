@@ -2,64 +2,99 @@ package linter
 
 import (
 	"errors"
+	"fmt"
+	"reflect"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
-var (
-	errInvalidSemaphoreConfiguration = errors.New("invalid Semaphore configuration")
-)
+var errInvalidSemaphoreConfiguration = errors.New("invalid Semaphore configuration")
 
-// NewLintCmd returns the command that lints a flag configuration file.
-func NewLintCmd() *cobra.Command {
-	// Flag values are local to each command so several commands can exist (and run) at once.
-	var lintFlagFormat string
-
-	lintCmd := &cobra.Command{
-		Use:   "lint <config_file>",
-		Short: "🛑 Lint Semaphore configuration file.",
-		Long:  `🛑 Validate Semaphore configuration file, it will return an error if your file is not valid.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(cmd, args, lintFlagFormat)
-		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
+// HelpVars returns the kong interpolation variables used by [Cmd] help tags.
+func HelpVars() kong.Vars {
+	return kong.Vars{
+		"helpLintConfig": "Path to your Semaphore configuration file.",
+		"helpLintFormat": "Format of your input file (YAML, JSON or TOML)",
 	}
-	lintCmd.Flags().
-		StringVarP(&lintFlagFormat, "format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
-
-	return lintCmd
 }
 
-func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
+// Cmd lints a Semaphore flag configuration file.
+type Cmd struct {
+	ConfigFile string `arg:""         help:"${helpLintConfig}" name:"config_file" optional:""`
+	Format     string `default:"yaml" help:"${helpLintFormat}" name:"format"      short:"f"`
+}
+
+// Help returns the detailed description of lint for kong's help output.
+func (Cmd) Help() string {
+	return "🛑 Validate Semaphore configuration file, it will return an error if your file is not valid."
+}
+
+// Run executes the lint command using streams for stdout and stderr.
+func (c Cmd) Run(streams *helper.Streams) error {
+	return runLint(streams, c.ConfigFile, c.Format)
+}
+
+// Run parses args against [Cmd] and executes the linter with injected output streams.
+func Run(args []string, streams *helper.Streams) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
+
+	parser, err := kong.New(&runner,
+		kong.Name("lint"),
+		kong.Description("🛑 Lint Semaphore configuration file."),
+		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
+	)
+	if err != nil {
+		return fmt.Errorf("build lint parser: %w", err)
+	}
+
+	kctx, exited, err := helper.Parse(parser, args)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	return kctx.Run(streams) //nolint:wrapcheck // Cmd.Run returns package sentinel or nil
+}
+
+func runLint(streams *helper.Streams, inputFile, format string) error {
 	output := helper.Output{}
 
 	l := Linter{
-		InputFile:   extractFilePathFromArgs(args),
-		InputFormat: lintFlagFormat,
+		InputFile:   inputFile,
+		InputFormat: format,
 	}
 	if errs := l.Lint(); len(errs) > 0 {
 		for _, err := range errs {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
 
-		output.PrintLines(cmd)
+		printErr := output.PrintLines(streams.Stdout, streams.Stderr)
+		if printErr != nil {
+			return fmt.Errorf("print lint findings: %w", printErr)
+		}
 
 		return errInvalidSemaphoreConfiguration
 	}
 
 	output.Add("Valid Semaphore configuration", helper.StatusLevel)
-	output.PrintLines(cmd)
 
-	return nil
-}
-
-func extractFilePathFromArgs(args []string) string {
-	if len(args) == 0 {
-		return ""
+	err := output.PrintLines(streams.Stdout, streams.Stderr)
+	if err != nil {
+		return fmt.Errorf("print lint status: %w", err)
 	}
 
-	return args[0]
+	return nil
 }

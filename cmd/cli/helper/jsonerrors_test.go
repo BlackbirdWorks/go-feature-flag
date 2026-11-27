@@ -3,11 +3,12 @@ package helper_test
 import (
 	"bytes"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,126 +17,246 @@ import (
 
 const (
 	combinedEq     = "-vo=json"
-	unknownLong    = "--zzz"
-	shortEqJSON    = "-o=json"
 	combinedO      = "-nvo"
-	bogusValue     = "bogus"
-	flagOutputJSON = "--output=json"
-	badToken       = "---bad"
 	flagConfigLong = "--config"
-	shortJSON      = "-ojson"
-	emptyName      = "--=x"
-	tripleDash     = "---x"
-	groupName      = "config"
-	leafName       = "validate"
-	unknownArg     = "--unknown"
-	shortText      = "-otext"
-	flagEndpoint   = "--endpoint"
 	flagOutput     = "--output"
+	flagOutputJSON = "--output=json"
 	jsonValue      = "json"
+	shortEqJSON    = "-o=json"
+	shortJSON      = "-ojson"
+	shortText      = "-otext"
 	textValue      = "text"
-	subName        = "sub"
-	pubName        = "publish"
-	jsonFlag       = "--json"
+	unknownArg     = "--unknown"
+	badToken       = "---bad"
+	subCmdName     = "sub"
+	otherSubCmd    = "other"
+	eqLiteralVal   = "=literal"
 )
 
 var errRun = errors.New("run failed")
 
-// newTree is a command with one subcommand, wired to the JSON error mechanism like a real command group.
-func newTree(jsonMode *bool, runErr error) *cobra.Command {
-	root := &cobra.Command{Use: "root", SilenceErrors: true, SilenceUsage: true, Args: cobra.NoArgs}
-	root.PersistentFlags().BoolVar(jsonMode, jsonValue, false, "")
-	root.AddCommand(&cobra.Command{
-		Use: subName, SilenceErrors: true, SilenceUsage: true, Args: cobra.ExactArgs(1),
-		RunE: func(*cobra.Command, []string) error { return runErr },
-	})
-	root.AddCommand(&cobra.Command{
-		Use: "done", SilenceErrors: true, SilenceUsage: true,
-		RunE: func(*cobra.Command, []string) error {
-			return helper.WithExitCode(helper.MarkReported(errRun), helper.ExitVerify)
-		},
-	})
+func kongTestFlags(t *testing.T) []*kong.Flag {
+	t.Helper()
 
-	helper.JSONErrors(root, helper.JSONErrorOptions{
-		Enabled: func() bool { return *jsonMode },
-		Details: func(error) []string { return []string{"detail"} },
-	})
+	var cmd struct {
+		Output   string `default:"text"  name:"output" short:"o"`
+		Config   string `name:"config"   short:"c"`
+		Endpoint string `name:"endpoint"`
+		DryRun   bool   `name:"dry"      short:"n"`
+		Verbose  bool   `name:"verbose"  short:"v"`
+	}
 
-	return root
+	parser, err := kong.New(&cmd)
+	require.NoError(t, err)
+
+	return parser.Model.Flags
 }
 
-func TestJSONErrors(t *testing.T) {
+func TestScanOutputFlag(t *testing.T) {
 	t.Parallel()
 
+	flags := kongTestFlags(t)
+
 	tests := []struct {
-		runErr     error
-		name       string
-		wantStdout string
-		args       []string
-		wantExit   int
+		name      string
+		wantValue string
+		args      []string
+		wantFound bool
 	}{
+		{name: "empty args"},
+		{name: "no output flag", args: []string{"--dry", unknownArg}},
+		{name: "long flag with space", args: []string{flagOutput, jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "long flag with equals", args: []string{flagOutputJSON}, wantValue: jsonValue, wantFound: true},
+		{name: "long flag with empty equals", args: []string{"--output="}, wantValue: "", wantFound: true},
+		{name: "short flag with space", args: []string{"-o", jsonValue}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag attached", args: []string{shortJSON}, wantValue: jsonValue, wantFound: true},
+		{name: "short flag with equals", args: []string{shortEqJSON}, wantValue: jsonValue, wantFound: true},
 		{
-			name:       "argument error in JSON mode",
-			args:       []string{jsonFlag, subName},
-			wantExit:   helper.ExitFailure,
-			wantStdout: `{"error":{"code":"usage","message":"usage: accepts 1 arg(s), received 0","details":["detail"]}}`,
+			name:      "combined short bool then o",
+			args:      []string{combinedO, jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{name: "combined short bool then o=json", args: []string{combinedEq}, wantValue: jsonValue, wantFound: true},
+		{
+			name:      "last wins after unknown flag",
+			args:      []string{unknownArg, flagOutputJSON, "-o", textValue},
+			wantValue: textValue,
+			wantFound: true,
 		},
 		{
-			name: "flag error in JSON mode", args: []string{jsonFlag, subName, "--nope"}, wantExit: helper.ExitFailure,
-			wantStdout: `{"error":{"code":"usage","message":"usage: unknown flag: --nope","details":["detail"]}}`,
+			name:      "output after malformed token",
+			args:      []string{badToken, shortJSON},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
+		{name: "value of --config is not output", args: []string{"--config=-otext"}, wantFound: false},
+		{name: "value of -c is not output", args: []string{"-c-ojson"}, wantFound: false},
+		{
+			name:      "missing --config value followed by -o json",
+			args:      []string{flagConfigLong, "-o", jsonValue},
+			wantValue: jsonValue,
+			wantFound: true,
 		},
 		{
-			name:       "failure of the command keeps its code",
-			args:       []string{jsonFlag, subName, "x"},
-			wantExit:   helper.ExitConflict,
-			runErr:     helper.WithExitCode(errRun, helper.ExitConflict),
-			wantStdout: `{"error":{"code":"conflict","message":"run failed","details":["detail"]}}`,
+			name:      "missing -c value followed by -ojson",
+			args:      []string{"-c", shortJSON},
+			wantValue: jsonValue,
+			wantFound: true,
 		},
 		{
-			name:       "plain failure exits 1",
-			args:       []string{jsonFlag, subName, "x"},
-			wantExit:   helper.ExitFailure,
-			runErr:     errRun,
-			wantStdout: `{"error":{"code":"failure","message":"run failed","details":["detail"]}}`,
+			name:      "stops at double dash",
+			args:      []string{flagOutputJSON, "--", "-o", textValue},
+			wantValue: jsonValue,
+			wantFound: true,
 		},
-		{name: "text mode writes nothing on stdout", args: []string{subName}, wantExit: helper.ExitFailure},
+		{name: "missing value at end", args: []string{"-o"}, wantFound: false},
 		{
-			name:     "text mode failure of the command",
-			args:     []string{subName, "x"},
-			wantExit: helper.ExitFailure,
-			runErr:   errRun,
+			name:      "missing output value followed by --output=json",
+			args:      []string{flagOutput, flagOutputJSON},
+			wantValue: jsonValue,
+			wantFound: true,
 		},
 		{
-			name:     "a reported error gets no second document",
-			args:     []string{jsonFlag, "done"},
-			wantExit: helper.ExitVerify,
+			name:      "missing short output value followed by -ojson",
+			args:      []string{"-o", shortJSON},
+			wantValue: jsonValue,
+			wantFound: true,
 		},
-		{name: "success", args: []string{jsonFlag, subName, "x"}},
+		{
+			name:      "missing output value followed by -- does not swallow delimiter",
+			args:      []string{flagOutput, "--", flagOutputJSON},
+			wantFound: false,
+		},
+		{name: "unknown short flag skipped", args: []string{"-x", shortJSON}, wantValue: jsonValue, wantFound: true},
+		{
+			name:      "bool short with equals stops cluster",
+			args:      []string{"-n=true", shortJSON},
+			wantValue: jsonValue,
+			wantFound: true,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var jsonMode bool
+			got, found := helper.ScanOutputFlag(flags, tt.args)
+			assert.Equal(t, tt.wantFound, found)
+			assert.Equal(t, tt.wantValue, got)
+		})
+	}
+}
 
-			root := newTree(&jsonMode, tt.runErr)
+func TestScanOutputFlagWithoutOutput(t *testing.T) {
+	t.Parallel()
+
+	var cmd struct {
+		DryRun bool `name:"dry"`
+	}
+
+	parser, err := kong.New(&cmd)
+	require.NoError(t, err)
+
+	got, found := helper.ScanOutputFlag(parser.Model.Flags, []string{"-o", jsonValue})
+	assert.False(t, found)
+	assert.Empty(t, got)
+
+	got, found = helper.ScanOutputFlag(nil, []string{"-o", jsonValue})
+	assert.False(t, found)
+	assert.Empty(t, got)
+}
+
+func FuzzScanOutputFlag(f *testing.F) {
+	var cmd struct {
+		Output  string `default:"text" name:"output" short:"o"`
+		Config  string `name:"config"  short:"c"`
+		DryRun  bool   `name:"dry"     short:"n"`
+		Verbose bool   `name:"verbose" short:"v"`
+	}
+
+	parser, err := kong.New(&cmd)
+	require.NoError(f, err)
+
+	flags := parser.Model.Flags
+
+	for _, seed := range []string{
+		"-o\njson",
+		"--output=json",
+		"---bad\n-ojson",
+		"--config\n-otext",
+		"-nvo\njson\n--\n-o\ntext",
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, joined string) {
+		args := strings.Split(joined, "\n")
+
+		value, found := helper.ScanOutputFlag(flags, args)
+		if found {
+			assert.Contains(t, joined, value, "returned value must come from the arguments")
+		}
+
+		prefixed, prefixedFound := helper.ScanOutputFlag(flags, append([]string{badToken}, args...))
+		assert.Equal(t, value, prefixed, "a malformed token first changes nothing")
+		assert.Equal(t, found, prefixedFound)
+	})
+}
+
+func TestReportJSONError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err        error
+		details    func(error) []string
+		name       string
+		wantStdout string
+		wantExit   int
+		enabled    bool
+		wantNil    bool
+	}{
+		{name: "nil error stays nil", enabled: true, wantNil: true},
+		{name: "disabled leaves stdout empty", enabled: false, err: errRun, wantExit: helper.ExitFailure},
+		{
+			name:       "usage error gets usage code",
+			enabled:    true,
+			err:        errors.Join(helper.ErrUsage, errRun),
+			details:    func(error) []string { return []string{"d1"} },
+			wantExit:   helper.ExitFailure,
+			wantStdout: `{"error":{"code":"usage","message":"usage\nrun failed","details":["d1"]}}`,
+		},
+		{
+			name:       "exit error keeps its code",
+			enabled:    true,
+			err:        helper.WithExitCode(errRun, helper.ExitConflict),
+			wantExit:   helper.ExitConflict,
+			wantStdout: `{"error":{"code":"conflict","message":"run failed","details":[]}}`,
+		},
+		{
+			name:     "reported error writes nothing",
+			enabled:  true,
+			err:      helper.WithExitCode(helper.MarkReported(errRun), helper.ExitVerify),
+			wantExit: helper.ExitVerify,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
 			var stdout bytes.Buffer
 
-			root.SetOut(&stdout)
-			root.SetArgs(tt.args)
-
-			err := root.ExecuteContext(t.Context())
-
-			if tt.wantExit == 0 {
-				require.NoError(t, err)
+			gotErr := helper.ReportJSONError(&stdout, tt.enabled, tt.details, tt.err)
+			if tt.wantNil {
+				require.NoError(t, gotErr)
 				assert.Empty(t, stdout.String())
 
 				return
 			}
 
-			require.Error(t, err)
-			assert.Equal(t, tt.wantExit, helper.ExitCodeOf(err))
+			require.Error(t, gotErr)
+			assert.Equal(t, tt.wantExit, helper.ExitCodeOf(gotErr))
 
 			if tt.wantStdout == "" {
 				assert.Empty(t, stdout.String())
@@ -166,8 +287,11 @@ func TestMarkReportedKeepsTheErrorAndItsCode(t *testing.T) {
 			wantIs:      true,
 		},
 		{
-			name: "a marked plain error has the default code", err: helper.MarkReported(errRun),
-			wantMessage: "run failed", wantCode: helper.ExitFailure, wantIs: true,
+			name:        "a marked plain error has the default code",
+			err:         helper.MarkReported(errRun),
+			wantMessage: "run failed",
+			wantCode:    helper.ExitFailure,
+			wantIs:      true,
 		},
 	}
 	for _, tt := range tests {
@@ -185,310 +309,6 @@ func TestMarkReportedKeepsTheErrorAndItsCode(t *testing.T) {
 			assert.Equal(t, tt.wantIs, errors.Is(tt.err, errRun))
 		})
 	}
-}
-
-// outputFlags is a flag set like the one of publish: a string flag -c, a boolean -n, a string with no shorthand, and
-// the output flag -o.
-func outputFlags() *pflag.FlagSet {
-	flags := pflag.NewFlagSet("publish", pflag.ContinueOnError)
-	flags.StringP(groupName, "c", "", "")
-	flags.String("endpoint", "", "")
-	flags.BoolP("dry-run", "n", false, "")
-	flags.BoolP("verbose", "v", false, "")
-	flags.BoolP("help", "h", false, "")
-	flags.IntP("port", "p", 0, "")
-	flags.StringP("output", "o", textValue, "")
-
-	return flags
-}
-
-// rawOutputRow is one case of the read of the output flag: the arguments and what the read must return.
-type rawOutputRow struct {
-	name      string
-	wantValue string
-	args      []string
-	wantFound bool
-}
-
-// rawOutputRows are the cases of TestRawOutputIn; they are the seeds of FuzzRawOutput too.
-func rawOutputRows() []rawOutputRow {
-	return []rawOutputRow{
-		{name: "no arguments"},
-		{name: "no output flag", args: []string{pubName, flagEndpoint, "http://x", "-c", "file"}},
-		{name: "short flag", args: []string{pubName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true},
-		{name: "short flag attached", args: []string{shortJSON}, wantValue: jsonValue, wantFound: true},
-		{name: "short flag with equals", args: []string{shortEqJSON}, wantValue: jsonValue, wantFound: true},
-		{name: "long flag", args: []string{flagOutput, jsonValue}, wantValue: jsonValue, wantFound: true},
-		{name: "long flag with equals", args: []string{flagOutputJSON}, wantValue: jsonValue, wantFound: true},
-		{name: "text is a selection too", args: []string{"--output=text"}, wantValue: textValue, wantFound: true},
-		{
-			name: "the last one wins", args: []string{"-o", jsonValue, "-o", textValue}, wantValue: textValue,
-			wantFound: true,
-		},
-		{
-			name: "before an unknown flag", args: []string{"-o", jsonValue, "--no-such-flag"}, wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "after an unknown flag", args: []string{"--no-such-flag", "-o", textValue}, wantValue: textValue,
-			wantFound: true,
-		},
-		{
-			name: "attached after an unknown flag", args: []string{"--not-a-flag", shortText}, wantValue: textValue,
-			wantFound: true,
-		},
-		{
-			name:      "-otext is the value of --config",
-			args:      []string{flagOutput, jsonValue, flagConfigLong, shortText, "--not-a-flag"},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "-otext is the attached value of --config", args: []string{flagOutput, jsonValue, "--config=-otext"},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name: "-otext is the value of -c", args: []string{flagOutput, jsonValue, "-c", shortText},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{name: "--output is the value of another flag", args: []string{flagEndpoint, flagOutput, "-x"}},
-		{name: "--output=json is the value of another flag", args: []string{flagEndpoint, flagOutputJSON}},
-		{
-			name: "a boolean flag takes no value", args: []string{"-n", "-o", jsonValue, "--dry-run", "-v"},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name: "combined shorthands ending in o with an attached value", args: []string{"-nvojson"},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name: "combined shorthands ending in o with the value after", args: []string{combinedO, jsonValue},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{name: "combined shorthands ending in c take the next argument", args: []string{"-nvc", shortJSON}},
-		{name: "a positional json", args: []string{pubName, jsonValue}},
-		{name: "a positional that looks like a flag value", args: []string{"verify", "-n", jsonValue}},
-		{name: "stops at the double dash", args: []string{pubName, "--", "-o", jsonValue}},
-		{
-			name: "the selection before the double dash stays", args: []string{"-o", textValue, "--", flagOutputJSON},
-			wantValue: textValue, wantFound: true,
-		},
-		{name: "a dangling output flag", args: []string{pubName, "-o"}},
-		{name: "a dangling long output flag", args: []string{pubName, flagOutput}},
-		{
-			name:      "an unknown shorthand in a run is skipped as pflag skips it",
-			args:      []string{"-xojson"},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "a malformed flag before the selection",
-			args:      []string{"---dry-run", flagOutputJSON},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "a flag with an empty name before the selection",
-			args:      []string{emptyName, "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "a lone dash is a positional",
-			args:      []string{"-", "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{name: "a lone dash and nothing else", args: []string{"-"}},
-		{
-			name:      "a malformed token as the value of --output is the value",
-			args:      []string{"--output", tripleDash},
-			wantValue: tripleDash,
-			wantFound: true,
-		},
-		{
-			name:      "a malformed token as the value of another flag is that value",
-			args:      []string{flagConfigLong, tripleDash, "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "a malformed token after the double dash is a positional",
-			args: []string{"--", tripleDash, flagOutputJSON},
-		},
-		{
-			name:      "a malformed token after a selection and the double dash",
-			args:      []string{"-o", textValue, "--", tripleDash},
-			wantValue: textValue,
-			wantFound: true,
-		},
-		{
-			name:      "a malformed token between two selections",
-			args:      []string{"-o", textValue, tripleDash, "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "an invalid value for a typed flag before the selection",
-			args:      []string{"--port", "abc", "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "an invalid value for a typed shorthand before the selection",
-			args:      []string{"-p", "abc", "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "an invalid output value followed by a valid one", args: []string{"-o", bogusValue, "-o", jsonValue},
-			wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name:      "an invalid output value and nothing after it",
-			args:      []string{"-o", bogusValue},
-			wantValue: bogusValue,
-			wantFound: true,
-		},
-		// pflag reads a shorthand run so: "o=json" and "o==x" (more than two characters, "=" second) give "json" and
-		// "=x", but a bare "o=" gives "=" (the rest of the run is the value, the "=" included).
-		{
-			name:      "bare shorthand equals: the value is the equals sign",
-			args:      []string{"-o="},
-			wantValue: "=",
-			wantFound: true,
-		},
-		{name: "shorthand equals twice", args: []string{"-o==x"}, wantValue: "=x", wantFound: true},
-		{name: "shorthand equals with a value", args: []string{shortEqJSON}, wantValue: jsonValue, wantFound: true},
-		{
-			name:      "combined shorthands, equals and a value",
-			args:      []string{"-ho=json"},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name:      "combined shorthands, a bool flag before equals",
-			args:      []string{combinedEq},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{name: "a bool flag with an equals value takes the rest of the token", args: []string{"-v=o=json"}},
-		{name: "another flag that starts with -o", args: []string{"-opt"}, wantValue: "pt", wantFound: true},
-	}
-}
-
-func TestRawOutputIn(t *testing.T) {
-	t.Parallel()
-
-	tests := rawOutputRows()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			value, found := helper.RawOutputIn(outputFlags(), tt.args)
-
-			assert.Equal(t, tt.wantValue, value)
-			assert.Equal(t, tt.wantFound, found)
-		})
-	}
-}
-
-// outputTree is root > config (persistent -o output, -v verbose) > validate, like the config group of the CLI.
-func outputTree() (*cobra.Command, *cobra.Command) {
-	root := &cobra.Command{Use: "root", SilenceErrors: true, SilenceUsage: true}
-	group := &cobra.Command{Use: groupName, SilenceErrors: true, SilenceUsage: true}
-	group.PersistentFlags().StringP("output", "o", textValue, "")
-	group.PersistentFlags().BoolP("verbose", "v", false, "")
-	group.PersistentFlags().StringP(groupName, "c", "", "")
-
-	validate := &cobra.Command{
-		Use:           leafName,
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		Run:           func(*cobra.Command, []string) {},
-	}
-	group.AddCommand(validate)
-	root.AddCommand(group)
-
-	// Cobra merges the persistent flags of the parents into the flags of the command when it parses.
-	validate.Flags().AddFlagSet(group.PersistentFlags())
-
-	return root, validate
-}
-
-// The command names are removed by Cobra before pflag reads the flags, so the scan must start from what is left.
-func TestRawOutputResolvesTheCommandLikeCobra(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		wantValue string
-		args      []string
-		wantFound bool
-	}{
-		{
-			name:      "combined shorthand before a subcommand",
-			args:      []string{groupName, "-vo", leafName, jsonValue, unknownArg},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "persistent flag before the subcommand, output after it",
-			args: []string{groupName, "-v", leafName, "-o", jsonValue}, wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name: "output before the subcommand, an unknown flag after it",
-			args: []string{groupName, "-o", jsonValue, leafName, unknownArg}, wantValue: jsonValue, wantFound: true,
-		},
-		{
-			name:      "a value flag missing its value at the end",
-			args:      []string{groupName, leafName, "-o", jsonValue, "-c"},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{
-			name: "the output flag given twice", args: []string{groupName, leafName, "-o", jsonValue, "-o", textValue},
-			wantValue: textValue, wantFound: true,
-		},
-		{
-			name:      "a later selection after an unknown flag",
-			args:      []string{groupName, leafName, unknownArg, "-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-		{name: "no selection", args: []string{groupName, leafName, unknownArg}},
-		{
-			name:      "arguments that name no command fall back to the failing command",
-			args:      []string{"-o", jsonValue},
-			wantValue: jsonValue,
-			wantFound: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			root, validate := outputTree()
-			_ = root
-
-			value, found := helper.RawOutput(validate, tt.args)
-
-			assert.Equal(t, tt.wantValue, value)
-			assert.Equal(t, tt.wantFound, found)
-		})
-	}
-}
-
-func TestRawOutputWithoutAnOutputFlagNamesNothing(t *testing.T) {
-	t.Parallel()
-
-	value, found := helper.RawOutputIn(pflag.NewFlagSet("none", pflag.ContinueOnError), []string{"-o", jsonValue})
-	assert.Empty(t, value)
-	assert.False(t, found)
-
-	value, found = helper.RawOutputIn(nil, []string{"-o", jsonValue})
-	assert.Empty(t, value)
-	assert.False(t, found)
 }
 
 func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {
@@ -511,13 +331,9 @@ func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {
 
 			var stdout, stderr bytes.Buffer
 
-			cmd := &cobra.Command{}
-			cmd.SetOut(&stdout)
-			cmd.SetErr(&stderr)
-
 			out := helper.Output{}
 			out.Add("the line", tt.level)
-			out.PrintLines(cmd)
+			require.NoError(t, out.PrintLines(&stdout, &stderr))
 
 			got, other := stdout.String(), stderr.String()
 			if !tt.wantStdout {
@@ -528,4 +344,88 @@ func TestPrintLinesRoutesResultsToStdoutAndDiagnosticsToStderr(t *testing.T) {
 			assert.Empty(t, other)
 		})
 	}
+}
+
+type failingWriter struct{}
+
+var errWrite = errors.New("disk full")
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
+
+func TestPrintLinesReturnsWriteError(t *testing.T) {
+	t.Parallel()
+
+	out := helper.Output{}
+	out.Add("line", helper.DefaultLevel)
+	require.ErrorIs(t, out.PrintLines(failingWriter{}, failingWriter{}), errWrite)
+}
+
+func TestParseAndFlags(t *testing.T) {
+	t.Parallel()
+
+	var cmd struct {
+		Sub struct {
+			Other struct{} `cmd:"" help:"Other subcommand"`
+			Leaf  struct {
+				Arg string `arg:"" name:"arg"`
+			} `cmd:"" default:"withargs" hidden:""`
+		} `cmd:""`
+		Output string          `default:"text" name:"output" short:"o"`
+		Help   helper.HelpFlag `name:"help"    short:"h"`
+		Run    bool            `name:"run"`
+	}
+
+	var out bytes.Buffer
+
+	parser, err := kong.New(
+		&cmd,
+		kong.Writers(&out, &out),
+		kong.NoDefaultHelp(),
+		kong.PostBuild(helper.RegisterHelpFlag),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
+	)
+	require.Error(t, helper.RegisterHelpFlag(nil))
+	require.NoError(t, err)
+	assert.NotNil(t, parser.Model.HelpFlag)
+
+	kctx, exited, err := helper.Parse(parser, []string{"--help"})
+	require.NoError(t, err)
+	assert.True(t, exited)
+	assert.Nil(t, kctx)
+	assert.Contains(t, out.String(), "--output")
+	assert.Contains(t, out.String(), `Run "`+parser.Model.Name+` <command> --help"`)
+
+	out.Reset()
+
+	kctx, exited, err = helper.Parse(parser, []string{"--help=false", "-o=json", "--run", subCmdName, otherSubCmd})
+	require.NoError(t, err)
+	assert.False(t, exited)
+	require.NotNil(t, kctx)
+	assert.Empty(t, out.String())
+	assert.True(t, cmd.Run)
+
+	for _, testCase := range []struct {
+		want string
+		args []string
+	}{
+		{args: []string{"-o=json", subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{shortJSON, subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{"-o", jsonValue, subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{"-o", eqLiteralVal, subCmdName, otherSubCmd}, want: eqLiteralVal},
+		{args: []string{"--output=" + eqLiteralVal, subCmdName, otherSubCmd}, want: eqLiteralVal},
+	} {
+		cmd.Output = ""
+		_, exited, err = helper.Parse(parser, testCase.args)
+		require.NoError(t, err)
+		assert.False(t, exited)
+		assert.Equal(t, testCase.want, cmd.Output)
+	}
+
+	_, exited, err = helper.Parse(parser, []string{flagOutput})
+	require.Error(t, err)
+	assert.False(t, exited)
+
+	_, exited, err = helper.Parse(parser, []string{"--nope"})
+	require.Error(t, err)
+	assert.False(t, exited)
 }

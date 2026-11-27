@@ -26,9 +26,6 @@ type Deps struct {
 	// NewAPI builds the S3 client of the target. Nil means the connection factory of the relay, which honours
 	// ConnectionOptions.
 	NewAPI func(ctx context.Context, spec *connection.S3Spec, name string) (s3publish.API, error)
-	// Args returns the raw command-line arguments (nil: os.Args[1:]); a flag that does not parse is reported as JSON
-	// when they ask for --output json, whatever the order of the flags.
-	Args func() []string
 	// Now stamps createdAt of the manifest.
 	Now func() time.Time
 	// ConnectionOptions are passed to the connection factory (a round tripper that counts requests, for example).

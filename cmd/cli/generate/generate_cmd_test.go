@@ -2,45 +2,59 @@ package generate_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
-type generateCmdTestCase struct {
-	name          string
-	expectedErr   string
-	expectedOut   string
-	args          []string
-	wantErr       bool
-	checkManifest bool
-}
+const cmdManifest = "manifest"
 
-func TestNewGenerateCmd(t *testing.T) {
+func TestGenerateCmd(t *testing.T) {
 	t.Parallel()
 
-	pterm.DisableStyling()
-	pterm.DisableColor()
+	manifestOut := filepath.Join(t.TempDir(), "manifest.json")
 
-	tests := []generateCmdTestCase{
+	tests := []struct {
+		name        string
+		expectedErr string
+		expectedOut string
+		args        []string
+		wantErr     bool
+	}{
 		{
 			name:        "no subcommand provided",
 			args:        []string{},
 			wantErr:     true,
-			expectedErr: "no subcommand provided",
-			expectedOut: "ERROR: you must specify a subcommand (e.g., manifest)\n",
+			expectedErr: `expected "manifest"`,
 		},
 		{
-			name:          "manifest subcommand is available",
-			args:          []string{"manifest", "--help"},
-			wantErr:       false,
-			expectedOut:   "", // help goes to stdout, we don’t check in detail here
-			checkManifest: true,
+			name:        "root help",
+			args:        []string{"--help"},
+			wantErr:     false,
+			expectedOut: cmdManifest,
+		},
+		{
+			name:        "manifest subcommand help",
+			args:        []string{cmdManifest, "--help"},
+			wantErr:     false,
+			expectedOut: "flag_manifest_destination",
+		},
+		{
+			name: "manifest subcommand executes",
+			args: []string{
+				cmdManifest,
+				"--config=manifest/testdata/input/flag.goff.yaml",
+				"--flag_manifest_destination",
+				manifestOut,
+			},
+			wantErr:     false,
+			expectedOut: "Manifest has been created",
 		},
 	}
 
@@ -48,56 +62,22 @@ func TestNewGenerateCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var buf bytes.Buffer
+			var stdout, stderr bytes.Buffer
 
-			cmd := generate.NewGenerateCmd()
-			cmd.SetOut(&buf)
-			cmd.SetErr(&buf)
-			cmd.SetArgs(tt.args)
+			err := generate.Run(tt.args, &helper.Streams{Stdout: &stdout, Stderr: &stderr})
 
-			err := cmd.Execute()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
 
-			verifyGenerateCmdResult(t, &tt, cmd, &buf, err)
+			if tt.expectedOut != "" {
+				assert.Contains(t, pterm.RemoveColorFromString(stdout.String()), tt.expectedOut)
+			}
+
+			assert.Empty(t, stderr.String())
 		})
 	}
-}
-
-// verifyGenerateCmdResult asserts the outcome of executing the generate command
-// for a single test case. Keeping it flat (no deep nesting) avoids inflating the
-// cognitive complexity of the parent test.
-func verifyGenerateCmdResult(
-	t *testing.T,
-	tt *generateCmdTestCase,
-	cmd *cobra.Command,
-	buf *bytes.Buffer,
-	err error,
-) {
-	t.Helper()
-
-	if tt.wantErr {
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), tt.expectedErr)
-	} else {
-		require.NoError(t, err)
-	}
-
-	if tt.expectedOut != "" {
-		assert.Equal(t, tt.expectedOut, buf.String())
-	}
-
-	if tt.checkManifest {
-		assert.True(t, hasManifestSubcommand(cmd),
-			"manifest subcommand should be wired into generate")
-	}
-}
-
-// hasManifestSubcommand reports whether the manifest subcommand is wired into cmd.
-func hasManifestSubcommand(cmd *cobra.Command) bool {
-	for _, c := range cmd.Commands() {
-		if c.Name() == "manifest" {
-			return true
-		}
-	}
-
-	return false
 }

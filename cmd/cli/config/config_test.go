@@ -94,18 +94,10 @@ func testDeps() config.Deps {
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
-	deps := testDeps()
-	deps.Args = func() []string { return args }
-
-	cmd := config.NewConfigCmdWith(deps)
-
 	var out, errOut bytes.Buffer
 
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-	cmd.SetArgs(args)
-
-	err := cmd.ExecuteContext(t.Context())
+	streams := &helper.Streams{Stdout: &out, Stderr: &errOut}
+	err := config.Run(args, streams, testDeps())
 
 	assert.Empty(t, errOut.String(), "the commands print nothing on stderr themselves")
 
@@ -180,13 +172,19 @@ func TestValidate(t *testing.T) {
 			name:     "no file",
 			args:     []string{cmdValidate},
 			wantCode: helper.ExitFailure,
-			wantErr:  "accepts 1 arg(s), received 0",
+			wantErr:  `expected "<file>"`,
 		},
 		{
 			name:     "bad output",
 			args:     []string{cmdValidate, validName, "-o", "yaml"},
 			wantCode: helper.ExitFailure,
 			wantErr:  "--output must be text or json",
+		},
+		{
+			name:     "unknown flag",
+			args:     []string{cmdValidate, "--nope"},
+			wantCode: helper.ExitFailure,
+			wantErr:  "unknown flag --nope",
 		},
 	}
 	for _, tt := range tests {
@@ -297,10 +295,64 @@ func TestPrintEffectiveJSONIsOneDocument(t *testing.T) {
 func TestConfigWithoutSubcommandShowsHelp(t *testing.T) {
 	t.Parallel()
 
-	out, err := run(t)
-	require.NoError(t, err)
-	assert.Contains(t, out, cmdValidate)
-	assert.Contains(t, out, cmdPrint)
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: nil},
+		{name: "help flag", args: []string{"--help"}},
+		{name: "output flag only", args: []string{"-o", fmtJSON}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := run(t, tt.args...)
+			require.NoError(t, err)
+			assert.Contains(t, out, cmdValidate)
+			assert.Contains(t, out, cmdPrint)
+		})
+	}
+}
+
+func TestParseErrorsInJSONMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		wantCode string
+		args     []string
+	}{
+		{
+			name:     "unknown flag with -o json",
+			args:     []string{cmdValidate, "--nope", "-o", fmtJSON},
+			wantCode: "usage",
+		},
+		{
+			name:     "missing arg with --output=json",
+			args:     []string{cmdValidate, "--output=json"},
+			wantCode: "usage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := run(t, tt.args...)
+			require.Error(t, err)
+			assert.Equal(t, helper.ExitFailure, helper.ExitCodeOf(err))
+
+			var doc struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(out), &doc))
+			assert.Equal(t, tt.wantCode, doc.Error.Code)
+		})
+	}
 }
 
 var errWrite = errors.New("disk full")
@@ -327,27 +379,16 @@ func TestWriteFailuresAreReported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := config.NewConfigCmdWith(testDeps())
-			cmd.SetOut(failingWriter{})
-			cmd.SetErr(failingWriter{})
-			cmd.SetArgs(tt.args)
+			streams := &helper.Streams{Stdout: failingWriter{}, Stderr: failingWriter{}}
+			err := config.Run(tt.args, streams, testDeps())
 
-			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), errWrite.Error())
+			require.ErrorContains(t, err, errWrite.Error())
 		})
 	}
 }
 
-func TestNewConfigCmdIsWiredToTheRealEnvironment(t *testing.T) {
+func TestDefaultDepsIsWired(t *testing.T) {
 	t.Parallel()
-
-	cmd := config.NewConfigCmd()
-	names := make([]string, 0, len(cmd.Commands()))
-
-	for _, sub := range cmd.Commands() {
-		names = append(names, sub.Name())
-	}
-
-	assert.ElementsMatch(t, []string{cmdValidate, cmdPrint}, names)
 
 	deps := config.DefaultDeps()
 	assert.NotNil(t, deps.LookupEnv)

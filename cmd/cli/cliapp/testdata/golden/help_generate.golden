@@ -1,0 +1,12 @@
+Usage: semaphore-cli generate <command> [flags]
+
+🏗️ Generate Semaphore related files
+
+Flags:
+  -h, --help       Show context-sensitive help.
+  -v, --version    Print the version and exit
+
+Commands:
+  generate manifest --flag_manifest_destination=STRING [flags]
+    📄 (experimental) Generate an OpenFeature flag manifest based on your flags
+    configuration.
