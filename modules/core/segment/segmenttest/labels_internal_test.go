@@ -2,6 +2,7 @@ package segmenttest
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -45,5 +46,43 @@ func TestCountLabelled(t *testing.T) {
 
 			assert.Equal(t, tt.want, countLabelled(dump, tt.label))
 		})
+	}
+}
+
+// TestCaseDeadlineGrowsWithTheCalls pins that a case that makes many calls one after the other may take as many
+// bounds, so a provider that is slow but timely passes.
+func TestCaseDeadlineGrowsWithTheCalls(t *testing.T) {
+	t.Parallel()
+
+	const bound = 100 * time.Millisecond
+
+	tests := []struct {
+		name string
+		tc   testCase
+		want time.Duration
+	}{
+		{name: "a case with a call or two", tc: testCase{}, want: 3 * bound},
+		{
+			name: "the concurrent case: 25 calls one after the other for each worker",
+			tc:   testCase{calls: rounds},
+			want: 27 * bound,
+		},
+		{
+			name: "the retained slice case: the rounds of two phases",
+			tc:   testCase{calls: 2*rounds + 1},
+			want: 53 * bound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, caseDeadline(tt.tc, bound))
+		})
+	}
+
+	for _, tcase := range cases() {
+		assert.GreaterOrEqual(t, caseDeadline(tcase, bound), 3*bound, tcase.name)
 	}
 }

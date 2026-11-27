@@ -244,6 +244,9 @@ type testCase struct {
 	run  func(sc *scene)
 	name string
 	need Capability
+	// calls is the most calls of the provider that the case makes one after the other: the deadline of the case
+	// grows with it, so a provider that is slow but answers each call within the bound passes.
+	calls int
 }
 
 func cases() []testCase {
@@ -260,8 +263,8 @@ func cases() []testCase {
 		{name: CaseRecovers, run: caseRecovers, need: CapFail},
 		{name: CaseCtxEndedBefore, run: caseCtxEndedBefore},
 		{name: CaseCtxCancelDuring, run: caseCtxCancelDuring, need: CapHang},
-		{name: CaseSliceNotRetained, run: caseSliceNotRetained},
-		{name: CaseConcurrent, run: caseConcurrent},
+		{name: CaseSliceNotRetained, run: caseSliceNotRetained, calls: 2*rounds + 1},
+		{name: CaseConcurrent, run: caseConcurrent, calls: rounds},
 		{name: CasePrefilled, run: casePrefilled, need: CapPartial},
 		{name: CaseAfterShutdown, run: caseAfterShutdown, need: capShutdown},
 		{name: CaseLongID, run: caseLongID},
@@ -444,8 +447,14 @@ func closeFixture(fixture Fixture) {
 // the case, so the leak check finds exactly the ones of this case.
 const labelKey = "segmenttest"
 
-// caseBudget is how many bounds of a call a whole case may take.
-const caseBudget = 6
+// aroundCalls is the number of bounds that a case gets besides its calls, for what it does around them.
+const aroundCalls = 2
+
+// caseDeadline is how long a whole case may take: one bound for each call that it makes one after the other, and two
+// more for the steps around them.
+func caseDeadline(tcase testCase, bound time.Duration) time.Duration {
+	return time.Duration(max(tcase.calls, 1)+aroundCalls) * bound
+}
 
 func runCase(tcase testCase, prep prepared) []string {
 	rep := &reporter{}
@@ -464,7 +473,7 @@ func runCase(tcase testCase, prep prepared) []string {
 
 	select {
 	case <-done:
-	case <-time.After(caseBudget * prep.bound()):
+	case <-time.After(caseDeadline(tcase, prep.bound())):
 		// a case that does not end: report it, release what hangs, and give it a bound to finish
 		rep.Errorf("%s: the case did not finish", msgStuck)
 

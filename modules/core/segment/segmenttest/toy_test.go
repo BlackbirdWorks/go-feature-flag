@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 var errToy = errors.New("toy failure")
 
 const (
+	slowSpins     = 3000
 	reasonNoStore = "no store"
 	msgStuckText  = "a call did not return within the bound"
 )
@@ -45,6 +47,7 @@ const (
 	defectAnswersClosed   = "answers after Shutdown"
 	defectLongIDMember    = "an id of a hundred kilobytes is a member"
 	defectLeaks           = "leaks a goroutine"
+	defectSlowButRight    = "slow, and right"
 	defectUnknownSegErr   = "returns an error for a segment it does not hold"
 	defectKeepsOnOutage   = "keeps the state the caller left when the whole store fails"
 	defectFastWrong       = "answers wrongly before it reaches the store"
@@ -139,6 +142,12 @@ type toyConfig struct {
 func (p *toy) Contains(ctx context.Context, lookups []segment.Lookup) error {
 	cfg := p.snapshot()
 
+	if p.defect == defectSlowButRight {
+		for range slowSpins {
+			runtime.Gosched()
+		}
+	}
+
 	if p.refuses(lookups) {
 		return errToy
 	}
@@ -209,7 +218,7 @@ func TestSuitePassesACorrectProvider(t *testing.T) {
 
 	report := segmenttest.Run(t, toyFactory(t, defectNone), nil)
 
-	assert.Equal(t, segmenttest.CaseNames(), report.Ran)
+	assertRanInOrder(t, report)
 	assert.Empty(t, report.Failed)
 	assert.Empty(t, report.Unsupported)
 }
@@ -423,11 +432,7 @@ func TestMemoryProviderConforms(t *testing.T) {
 		return segmenttest.Fixture{Provider: segment.NewMemoryProvider(data)}, nil
 	}, nil)
 
-	assert.Equal(
-		t,
-		map[string]string{segmenttest.CaseAfterShutdown: "the provider has no Shutdown"},
-		report.Unsupported,
-	)
+	assertUnsupported(t, report, map[string]string{segmenttest.CaseAfterShutdown: "the provider has no Shutdown"})
 	assert.Empty(t, report.Failed)
 }
 
@@ -646,4 +651,53 @@ func (p *toy) unheld(look *segment.Lookup) error {
 	}
 
 	return nil
+}
+
+// wholeSuite tells whether every case ran or was skipped: a run that a `-run` filter focused has fewer.
+func wholeSuite(report segmenttest.Report) bool {
+	return len(report.Ran)+len(report.Unsupported) == len(segmenttest.CaseNames())
+}
+
+// assertRanInOrder checks the order of the cases that ran, and that all of them ran when the whole suite did.
+func assertRanInOrder(t *testing.T, report segmenttest.Report) {
+	t.Helper()
+
+	names := segmenttest.CaseNames()
+	last := -1
+
+	for _, name := range report.Ran {
+		index := slices.Index(names, name)
+
+		require.GreaterOrEqual(t, index, 0, "an unknown case %q", name)
+		assert.Greater(t, index, last, "the cases are in the order of the suite")
+
+		last = index
+	}
+
+	if wholeSuite(report) {
+		assert.Equal(t, names, report.Ran)
+	}
+}
+
+// assertUnsupported checks the reasons of the cases that a waiver skipped; the exact set only counts when the whole
+// suite ran.
+func assertUnsupported(t *testing.T, report segmenttest.Report, want map[string]string) {
+	t.Helper()
+
+	for name, reason := range report.Unsupported {
+		assert.Equal(t, want[name], reason, name)
+	}
+
+	if wholeSuite(report) {
+		assert.Equal(t, want, report.Unsupported)
+	}
+}
+
+func TestASlowProviderThatAnswersInTimePasses(t *testing.T) {
+	t.Parallel()
+
+	report := segmenttest.Check(toyFactory(t, defectSlowButRight), nil)
+
+	assert.Empty(t, report.Failed)
+	assert.Equal(t, segmenttest.CaseNames(), report.Ran)
 }
