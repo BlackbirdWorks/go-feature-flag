@@ -177,6 +177,7 @@ export default withMermaid({
           { text: 'Config v2 Relay Core', link: '/relay-proxy/relay-core' },
           { text: 'Config v2 Probes', link: '/relay-proxy/probes' },
           { text: 'API Endpoints', link: '/relay-proxy/endpoints' },
+          { text: 'Client Compatibility', link: '/relay-proxy/client-compatibility' },
           { text: 'Observability', link: '/relay-proxy/observability' },
           { text: 'Profiling', link: '/relay-proxy/profiling' },
           { text: 'Advanced Usage', link: '/relay-proxy/advanced-usage' },
