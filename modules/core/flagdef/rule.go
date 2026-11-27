@@ -449,19 +449,31 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 	}
 }
 
-// GetTrimmedQuery is removing the break lines and return.
+// GetTrimmedQuery returns the query to compile: a rules-format query is joined on one line, a JsonLogic query is
+// returned as written, because joining its lines would merge its tokens.
 func (r *Rule) GetTrimmedQuery() string {
-	return evalcore.StrTrim(r.GetQuery())
+	raw := r.GetQuery()
+
+	return trimmedQueryOf(raw, queryFormatOf(raw))
+}
+
+// trimmedQueryOf returns the text of raw that is validated and compiled, given its format.
+func trimmedQueryOf(raw string, format QueryFormat) string {
+	if format == JSONLogicQueryFormat {
+		return raw
+	}
+
+	return evalcore.StrTrim(raw)
 }
 
 // GetQueryFormat is returning the format used for the query.
 func (r *Rule) GetQueryFormat() QueryFormat {
-	return queryFormatOf(r.GetTrimmedQuery())
+	return queryFormatOf(r.GetQuery())
 }
 
-// queryFormatOf returns the format of an already trimmed query.
-func queryFormatOf(trimmedQuery string) QueryFormat {
-	if evalcore.IsJSONObject(trimmedQuery) {
+// queryFormatOf returns the format of a query as written: JsonLogic when it is a JSON object, whitespace included.
+func queryFormatOf(query string) QueryFormat {
+	if evalcore.IsJSONObject(query) {
 		return JSONLogicQueryFormat
 	}
 

@@ -77,6 +77,10 @@ func (k *DefaultKinesisSender) SendMessages(
 // Exporter sends evaluation events to Amazon Kinesis.
 type Exporter struct {
 	sender MessageSender
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
@@ -93,7 +97,9 @@ type Exporter struct {
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/kinesis#Options
 	KinesisOptions []func(*kinesis.Options)
-	init           sync.Once
+	// initMu guards the initialisation, which is retried by the next call until it has succeeded.
+	initMu   sync.Mutex
+	initDone bool
 }
 
 // PartitionKeyFunc returns the partition key of an evaluation event.
@@ -347,32 +353,35 @@ func (*Exporter) IsBulk() bool {
 }
 
 func (e *Exporter) initializeProducer(ctx context.Context) error {
-	var initErr error
+	e.initMu.Lock()
+	defer e.initMu.Unlock()
 
-	e.init.Do(func() {
-		if e.Settings == nil {
-			e.Settings = NewSettings()
+	if e.initDone {
+		return nil
+	}
+
+	if e.Settings == nil {
+		e.Settings = NewSettings()
+	}
+
+	if e.AwsConfig == nil {
+		cfg, err := e.defaultConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("impossible to init Kinesis exporter: %w", err)
 		}
 
-		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
+		e.AwsConfig = &cfg
+	}
 
-				return
-			}
-
-			e.AwsConfig = &cfg
+	if e.sender == nil {
+		e.sender = &DefaultKinesisSender{
+			kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
 		}
+	}
 
-		if e.sender == nil {
-			e.sender = &DefaultKinesisSender{
-				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
-			}
-		}
-	})
+	e.initDone = true
 
-	return initErr
+	return nil
 }
 
 // sendChunk sends one PutRecords call and retries only the records Kinesis rejected.
@@ -453,4 +462,19 @@ func (*Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// defaultConfig loads the configuration of the default AWS chain; it is only reached by an exporter that is used as
+// a library and has no AwsConfig.
+func (e *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if e.loadConfig != nil {
+		return e.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }

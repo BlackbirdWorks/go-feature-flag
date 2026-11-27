@@ -680,9 +680,9 @@ func TestSegmentTermsAreCopies(t *testing.T) {
 func TestSegmentErrorOffsetIsInTheQueryTheEngineParses(t *testing.T) {
 	t.Parallel()
 
-	// the engine joins the lines of a query and removes the leading blanks of each line before it parses it
+	// the engine joins the lines of a query with a space and removes the leading blanks of each line before it parses it
 	query := "age gt 1\n    and key in segment(\"Bad\")"
-	joined := "age gt 1and key in segment(\"Bad\")"
+	joined := "age gt 1 and key in segment(\"Bad\")"
 
 	err := onOffFlag(queryRule("r", query)).IsValid(flagdef.NewService())
 	require.ErrorIs(t, err, flagdef.ErrInvalidSegment)

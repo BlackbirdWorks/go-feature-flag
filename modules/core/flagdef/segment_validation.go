@@ -46,9 +46,12 @@ const jsonWhitespace = " \t\r\n"
 // hasSegmentTerm reports whether the query uses a segment term, valid or not. A JsonLogic query uses one when the
 // operation inSegment is a key of its document, not when the text appears in a string; a Rules query when it calls
 // segment().
-func hasSegmentTerm(trimmed string) bool {
-	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		return hasInSegment(newCompiledQuery(trimmed).jsonLogic)
+func hasSegmentTerm(raw string) bool {
+	format := queryFormatOf(raw)
+	trimmed := trimmedQueryOf(raw, format)
+
+	if format == JSONLogicQueryFormat {
+		return hasInSegment(newCompiledQuery(raw).jsonLogic)
 	}
 
 	return strings.Contains(trimmed, "segment") && parser.HasSegmentCall(trimmed)
@@ -64,9 +67,11 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 		return nil
 	}
 
-	trimmed := rule.GetTrimmedQuery()
+	raw := rule.GetQuery()
+	format := queryFormatOf(raw)
+	trimmed := trimmedQueryOf(raw, format)
 
-	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
+	if format == JSONLogicQueryFormat {
 		if compiled := newCompiledQuery(rule.GetQuery()); compiled.jlSeg != nil {
 			return compiled.jlSeg.terms
 		}
@@ -132,16 +137,18 @@ func (r *Rule) validateStepSegments(svc *Service, isDefault bool) error {
 		return nil
 	}
 
-	trimmed := r.GetTrimmedQuery()
+	// the format is decided once, on the query as written: the joined text of a rules query can be valid JSON
+	raw := r.GetQuery()
+	format := queryFormatOf(raw)
+	trimmed := trimmedQueryOf(raw, format)
 
 	// a query that opens like a JsonLogic object and does not decode is rejected, as it is for the rules of the flag
 	// (it is not a valid Rules query either); the default rule ignores its query
-	if !isDefault && strings.HasPrefix(strings.TrimLeft(trimmed, jsonWhitespace), "{") &&
-		queryFormatOf(trimmed) != JSONLogicQueryFormat {
+	if !isDefault && strings.HasPrefix(strings.TrimLeft(raw, jsonWhitespace), "{") && format != JSONLogicQueryFormat {
 		return errInvalidJsonlogicQuery
 	}
 
-	if !hasSegmentTerm(trimmed) {
+	if !hasSegmentTerm(raw) {
 		return nil
 	}
 
@@ -149,8 +156,8 @@ func (r *Rule) validateStepSegments(svc *Service, isDefault bool) error {
 		return errSegmentInDefaultRule
 	}
 
-	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		return newCompiledQuery(r.GetQuery()).segErr
+	if format == JSONLogicQueryFormat {
+		return newCompiledQuery(raw).segErr
 	}
 
 	_, err = svc.nikunjy.get(trimmed)

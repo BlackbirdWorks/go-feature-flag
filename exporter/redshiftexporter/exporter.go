@@ -172,7 +172,10 @@ func trackingEventColumns() []column {
 
 // Exporter inserts events in an AWS Redshift table using the Redshift Data API.
 type Exporter struct {
-	initErr error
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// client is the Redshift Data API client, it can be set for testing purposes.
 	client redshiftDataClient
 	// AwsConfig is the AWS SDK configuration used to call the Redshift Data API.
@@ -198,8 +201,10 @@ type Exporter struct {
 	pollInterval     time.Duration
 	statementTimeout time.Duration
 	cancelTimeout    time.Duration
-	initOnce         sync.Once
-	migrateMutex     sync.Mutex
+	// initMu guards the initialisation, which is retried by the next call until it has succeeded.
+	initMu       sync.Mutex
+	initDone     bool
+	migrateMutex sync.Mutex
 	// AutoMigrate creates the table with the expected schema if it does not exist.
 	AutoMigrate bool
 	migrated    bool
@@ -319,26 +324,29 @@ func (e *Exporter) tableName(eventType string) string {
 }
 
 func (e *Exporter) initClient(ctx context.Context) error {
-	e.initOnce.Do(func() {
-		if e.client != nil {
-			return
-		}
+	e.initMu.Lock()
+	defer e.initMu.Unlock()
 
+	if e.initDone {
+		return nil
+	}
+
+	if e.client == nil {
 		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
+			cfg, err := e.defaultConfig(ctx)
 			if err != nil {
-				e.initErr = fmt.Errorf("redshift exporter: impossible to load AWS config: %w", err)
-
-				return
+				return fmt.Errorf("redshift exporter: impossible to load AWS config: %w", err)
 			}
 
 			e.AwsConfig = &cfg
 		}
 
 		e.client = redshiftdata.NewFromConfig(*e.AwsConfig)
-	})
+	}
 
-	return e.initErr
+	e.initDone = true
+
+	return nil
 }
 
 // migrate creates the table if AutoMigrate is enabled. It runs once per exporter
@@ -894,4 +902,19 @@ func quoteTableName(name string) string {
 	}
 
 	return strings.Join(parts, ".")
+}
+
+// defaultConfig loads the configuration of the default AWS chain; only an exporter used as a library, without an
+// AwsConfig, reaches it.
+func (e *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if e.loadConfig != nil {
+		return e.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }
