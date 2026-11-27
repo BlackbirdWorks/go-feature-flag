@@ -189,7 +189,16 @@ export default withMermaid({
           { text: 'Flag Format', link: '/configure-flags/create-flags' },
           { text: 'Targeting Rules', link: '/configure-flags/target-with-flags' },
           { text: 'Segments', link: '/configure-flags/segments' },
-          { text: 'Segments in Redis', link: '/configure-flags/segments-redis' },
+          { text: 'Segments - static', link: '/configure-flags/segments-static' },
+          {
+            text: 'Segments - dynamic',
+            link: '/configure-flags/segments-dynamic',
+            collapsed: true,
+            items: [
+              { text: 'Redis', link: '/configure-flags/segments-redis' },
+              { text: 'Valkey', link: '/configure-flags/segments-valkey' },
+            ],
+          },
           { text: 'Custom Bucketing', link: '/configure-flags/custom-bucketing' },
           {
             text: 'Rollout Strategies',
