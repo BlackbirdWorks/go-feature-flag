@@ -196,3 +196,7 @@ The relay proxy will export the observations of the resolver (issue 16 and 18): 
 - A call over several segments is a pipeline that the client splits by node: it works across slots, with one round trip per node.
 - The keys of the `keys` layout spread over the nodes.
 - The tests of the package start a real three-node cluster (three nodes in one container, ports mapped by Docker, the client remaps the addresses that the nodes announce) and check these rules, including the `RENAME` swap in one slot.
+
+## Retries of go-redis
+
+`Dial` does not set `MaxRetries`: the go-redis default of 3 retries applies unless you set it in `redis.UniversalOptions`. A retry runs under the call timeout of the provider, so it cannot make a call longer than `Timeout`, but a command may be sent more than once and a killed connection is often hidden from the caller (in the load test, killing every connection gave no failed call with the `redis` type, where the `valkey` type returned `unavailable` for the calls that met the dead connection). Set `MaxRetries: -1` to see every transport failure as an unknown lookup at once, or keep the default to hide short disconnects at the cost of the extra attempts inside the timeout.

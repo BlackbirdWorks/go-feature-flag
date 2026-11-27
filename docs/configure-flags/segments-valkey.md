@@ -30,12 +30,11 @@ These options only apply to a client that `Dial` creates. The names are the ones
 
 | Option | Values (default first) | What it trades |
 |---|---|---|
-| `pipelining` | `always`, `auto`, `off` | `always`: the client reads in the background even for a lone call; a disconnect inside a batch keeps the replies already read and a cancel ends the call at once. `auto` (the valkey-go default): a lone call is written and read synchronously and the background reader starts under concurrent load; a transport failure inside a batch loses the whole batch (all unknown) and a cancel waits for the deadline. `off` (valkey-go `DisableAutoPipelining`): each call has its own pooled connection, no batching of concurrent calls, same loss and cancel behaviour as `auto`, one connection per call in flight. |
+| `pipelining` | `always`, `auto` | `always`: the client reads in the background even for a lone call; a disconnect inside a batch keeps the replies already read and a cancel ends the call at once. `auto` (the valkey-go default): a lone call is written and read synchronously and the background reader starts under concurrent load; a transport failure inside a batch loses the whole batch (all unknown) and a cancel is seen only at the deadline: a reply that arrives after the cancel and before the deadline is returned as the answer (a correct one). |
 | `blockingPipeline` | `0` (never), or a number of commands | From this many commands in one call valkey-go moves the call to a dedicated connection, where a cancel waits for the connection to close. `0` keeps every call on the shared connection. |
-| `clientSideCache` | `false`, `true` | valkey-go server-assisted caching. The provider reads with `DoMulti`, which is never cached, so it has no effect on lookups; the resolver is the cache. Needs RESP3 and `CLIENT TRACKING`. |
 | `retry` | `false`, `true` | `true` lets valkey-go send a failed read again behind the call timeout, so a lookup may be sent twice. |
 
-One enum (`pipelining`) is used instead of the two valkey-go booleans (`AlwaysPipelining`, `DisableAutoPipelining`) because the booleans can express a combination that valkey-go resets.
+Client-side caching is not used: lookups go through `DoMulti`, which valkey-go never caches, and the resolver caches. One enum (`pipelining`) is used instead of the two valkey-go booleans (`AlwaysPipelining`, `DisableAutoPipelining`) because the booleans can express a combination that valkey-go resets. valkey-go also has a mode with one pooled connection per call; it is not offered: it is slower and loses its connection cap when a call is cancelled.
 
 ## One round trip per call
 
@@ -53,7 +52,9 @@ One enum (`pipelining`) is used instead of the two valkey-go booleans (`AlwaysPi
 
 ## Limits
 
-- **Unsolicited reply:** a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine, which ends the process. The reader runs on every connection that pipelines in the background: all of them with `pipelining: always`, and with `auto` the connections that concurrent calls share. `off` is not exposed (each call has a connection to itself). The `redis` type (go-redis) drops such a connection and returns an error: use it when the store sits behind a proxy that you do not trust.
+- **Unsolicited reply:** a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine, which ends the process. The reader runs on every connection that pipelines in the background: all of them with `pipelining: always`, and with `auto` the connections that concurrent calls share. The `redis` type (go-redis) drops such a connection and returns an error: use it when the store sits behind a proxy that you do not trust.
+- **Full ring:** when a slow peer stops reading until the ring of a connection is full (1024 calls waiting), valkey-go waits for a slot without looking at the context, so the call timeout does not end the wait. It ends when the connection is closed because of the `ConnWriteTimeout` of the client option (about 10 seconds by default): set a lower value if you need a tighter bound.
+- **Set created during a call:** a set segment asks `EXISTS` of its key before `SMISMEMBER`, so a set created while the call runs is unknown or answered by `SMISMEMBER`, never a non-member that matches no state of the set.
 - Needs `SMISMEMBER` (Valkey 7.2 or Redis 6.2). `Init` checks the commands that your layouts use.
 - The relay proxy does not use this provider yet (issue 16).
 
@@ -68,6 +69,5 @@ Measured on a commodity 4-core Linux machine against one Valkey 8 container, 120
 | `redis` | 46700 | 1.3 / 2.6 ms | 47500 | 6.2 / 8.2 ms | 166 |
 | `valkey`, `always` | 73400 | 0.8 / 1.9 ms | 77000 | 3.2 / 5.9 ms | 128 |
 | `valkey`, `auto` | 72600 | 0.8 / 2.0 ms | 77100 | 3.0 / 6.6 ms | 128 |
-| `valkey`, `off` | 47200 | 1.3 / 2.3 ms | 44000 | 5.0 / 22.9 ms | 128 |
 
 The load generator shares the machine with the store, so read the numbers as a comparison. Under a fault no run had a wrong answer; failed calls had the classes `unavailable` (kill) or `timeout` (pause). With a single caller one call costs about 45 to 55 microseconds with all providers. Run the benchmark with `go test -tags=docker,bench -run '^$' -bench Contains -cpu 1,4,8 ./modules/core/segment/valkeysegment`.

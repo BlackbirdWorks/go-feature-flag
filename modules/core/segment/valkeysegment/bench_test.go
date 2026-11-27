@@ -18,7 +18,7 @@ import (
 
 // BenchmarkContains compares the go-redis provider (type redis) and the valkey-go provider (type valkey) on one
 // Valkey node, for 1, 10 and 100 ids of a set segment in one call, one caller and many concurrent callers, with
-// the three pipelining modes of the valkey provider. Run it with -cpu 1,4,8 for the scaling of the parallel runs.
+// the two pipelining modes of the valkey provider. Run it with -cpu 1,4,8 for the scaling of the parallel runs.
 func BenchmarkContains(b *testing.B) {
 	srv := startServerImage(b, valkeyImage)
 	opt := srv.option(plainDial)
@@ -34,12 +34,11 @@ func BenchmarkContains(b *testing.B) {
 	providers := make([]struct {
 		prov segment.Provider
 		name string
-	}, 0, 4)
+	}, 0, 3)
 
 	modes := []valkeysegment.Pipelining{
 		valkeysegment.PipeliningAlways,
 		valkeysegment.PipeliningAuto,
-		valkeysegment.PipeliningOff,
 	}
 
 	for _, mode := range modes {

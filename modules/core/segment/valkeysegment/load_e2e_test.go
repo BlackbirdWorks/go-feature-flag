@@ -84,7 +84,6 @@ func loadProviders() []loadProvider {
 		},
 		valkeyMode(valkeysegment.PipeliningAlways),
 		valkeyMode(valkeysegment.PipeliningAuto),
-		valkeyMode(valkeysegment.PipeliningOff),
 	}
 }
 
