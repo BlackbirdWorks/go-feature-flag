@@ -20,6 +20,10 @@ const (
 	DefaultFlushInterval  = 60 * time.Second
 	DefaultMaxEvents      = 100000
 	DefaultExportFormat   = "json"
+	// DefaultShutdownTimeout bounds the stop that follows the drain delay.
+	DefaultShutdownTimeout = 15 * time.Second
+	// MaxShutdownDuration is the upper bound of the drain delay and of the shutdown timeout.
+	MaxShutdownDuration = 10 * time.Minute
 )
 
 func orDefault[T comparable](v *T, def T) *T {
@@ -58,6 +62,8 @@ func (c *Config) applyDefaults() {
 }
 
 func (s *Server) applyDefaults() {
+	s.Shutdown.Timeout = orDefault(s.Shutdown.Timeout, Duration(DefaultShutdownTimeout))
+
 	if len(s.Listeners) == 0 {
 		s.Listeners = []Listener{{Name: RoleAPI, Address: DefaultAPIAddress}}
 	}

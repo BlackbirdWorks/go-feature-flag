@@ -167,6 +167,7 @@ func setDurationDefaults(root *jsonschema.Schema) {
 		{"Manifest", "pollInterval"}: DefaultPollInterval, {"Poll", "interval"}: DefaultPollInterval,
 		{"Timeouts", "connect"}: DefaultConnectTimeout, {"Timeouts", "request"}: DefaultRequestTimeout,
 		{"Retry", "maxBackoff"}: DefaultMaxBackoff, {"Exporter", "flushInterval"}: DefaultFlushInterval,
+		{"Shutdown", "timeout"}: DefaultShutdownTimeout,
 	}
 
 	if prop, ok := root.Definitions["Manifest"].Properties.Get("pollInterval"); ok {

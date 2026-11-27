@@ -1939,6 +1939,22 @@
                         "$ref": "#/$defs/Listener"
                     },
                     "type": "array"
+                },
+                "shutdown": {
+                    "$ref": "#/$defs/Shutdown"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Shutdown": {
+            "properties": {
+                "drainDelay": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "timeout": {
+                    "$ref": "#/$defs/Duration",
+                    "default": "15s"
                 }
             },
             "additionalProperties": false,

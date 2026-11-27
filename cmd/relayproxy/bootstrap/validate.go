@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // nameRE is the rule for every name: connections, exporters, notifiers and listeners.
@@ -115,7 +116,29 @@ func (v *validator) secret(path string, secret Secret) {
 	}
 }
 
+func (v *validator) shutdown() {
+	for _, path := range []string{pathDrainDelay, pathTimeout} {
+		if detail, bad := v.cfg.badEnv[path]; bad {
+			v.failf(path, ErrInvalidDuration, "%s", detail)
+		}
+	}
+
+	shutdown := v.cfg.Server.Shutdown
+	for _, setting := range []struct {
+		value *Duration
+		path  string
+	}{
+		{shutdown.DrainDelay, pathDrainDelay}, {shutdown.Timeout, pathTimeout},
+	} {
+		if setting.value != nil && time.Duration(*setting.value) > MaxShutdownDuration {
+			v.failf(setting.path, ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
+		}
+	}
+}
+
 func (v *validator) server() {
+	v.shutdown()
+
 	s := v.cfg.Server
 	names := map[string]int{}
 	addrs := map[string]int{}

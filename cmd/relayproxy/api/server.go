@@ -46,6 +46,7 @@ func New(settings *Settings,
 		stopRequested: stopRequested,
 		stop:          sync.OnceFunc(func() { close(stopRequested) }),
 		stopped:       make(chan struct{}),
+		shutdown:      &shutdownState{},
 		readTimeout:   defaultReadTimeout,
 	}
 	for _, opt := range opts {
@@ -152,6 +153,7 @@ type Server struct {
 	stopped                chan struct{}
 	exit                   func()
 	stopRequested          chan struct{}
+	shutdown               *shutdownState
 	keys                   service.APIKeys
 	settings               Settings
 	readTimeout            time.Duration

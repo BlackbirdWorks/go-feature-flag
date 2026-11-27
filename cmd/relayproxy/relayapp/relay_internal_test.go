@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"testing"
@@ -46,6 +47,7 @@ const (
 	evalPath      = "/ofrep/v1/evaluate/flags/" + flagKey
 	readyPath     = "/readyz"
 	reasonDown    = "shutting-down"
+	rigLabel      = "relayrig"
 )
 
 // tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
@@ -157,6 +159,10 @@ type relayRig struct {
 	finished    chan struct{}
 	sched       *tickScheduler
 	draining    chan struct{}
+	timeoutEnd  chan context.CancelFunc
+	timeoutFor  chan time.Duration
+	force       chan struct{}
+	label       string
 	store       *store
 	cancel      context.CancelFunc
 	ctx         context.Context //nolint:containedctx // the context the relay runs with, read by the drain hook
@@ -170,21 +176,15 @@ type relayRig struct {
 }
 
 type rigOptions struct {
-	// stateFS replaces the file system of the state directory.
-	stateFS statedir.FS
-	// extra is appended to the bootstrap file.
-	extra string
-	// manifestKey replaces the manifest key of the file.
-	manifestKey string
-	// boundAddress, when set, receives the address the relay asks to bind: the relay gets the pre-bound listener of the
-	// rig for it, and no port is released before the relay binds it.
+	stateFS      statedir.FS
 	boundAddress chan string
-	// flags are added to the command line.
-	flags []string
-	// shutdownTimeout bounds the shutdown of the relay.
-	shutdownTimeout time.Duration
-	// watchDrain records the readiness at the start of the shutdown.
-	watchDrain bool
+	reads        chan string
+	drainWait    func(ctx context.Context, delay time.Duration) error
+	onDraining   func(ctx context.Context)
+	extra        string
+	manifestKey  string
+	flags        []string
+	watchDrain   bool
 }
 
 func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
@@ -202,6 +202,9 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		stdout:   &bytes.Buffer{},
 		cfgPath:  filepath.Join(t.TempDir(), "bootstrap.yaml"),
 		draining: make(chan struct{}),
+		// the shutdown timeout never ends by itself: the test ends it through the cancel function it receives
+		timeoutEnd: make(chan context.CancelFunc, 1), timeoutFor: make(chan time.Duration, 1),
+		force: make(chan struct{}), label: t.Name(),
 	}
 	rig.store.publish(1)
 	rig.manifestKey = ropts.manifestKey
@@ -211,7 +214,13 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	require.NoError(t, err)
 
 	rig.url = "http://" + listener.Addr().String()
-	serverOpts := []api.Option{api.WithListener(listener)}
+
+	served := listener
+	if ropts.reads != nil {
+		served = &readSignalListener{Listener: listener, reads: ropts.reads}
+	}
+
+	serverOpts := []api.Option{api.WithListener(served)}
 
 	if ropts.boundAddress != nil {
 		serverOpts = []api.Option{api.WithListenFunc(func(_ context.Context, _, address string) (net.Listener, error) {
@@ -238,8 +247,19 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 			},
 			Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
 		},
-		ServerOptions:   serverOpts,
-		ShutdownTimeout: ropts.shutdownTimeout,
+		ServerOptions: serverOpts,
+		Force:         rig.force,
+		DrainWait:     ropts.drainWait,
+		WithTimeout: func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+			bounded, endTimeout := context.WithCancel(parent)
+
+			rig.timeoutFor <- d
+
+			rig.timeoutEnd <- endTimeout
+
+			return bounded, endTimeout
+		},
+		OnDraining: ropts.onDraining,
 	}
 	if ropts.watchDrain {
 		opts.OnDraining = rig.onDraining
@@ -248,7 +268,10 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	go func() {
 		defer close(rig.finished)
 
-		rig.done <- run(ctx, opts)
+		// every goroutine of the relay inherits this label: a test lists what is left of it
+		pprof.Do(ctx, pprof.Labels(rigLabel, rig.label), func(ctx context.Context) {
+			rig.done <- run(ctx, opts)
+		})
 	}()
 
 	t.Cleanup(func() {
@@ -260,10 +283,10 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 }
 
 // onDraining records what /readyz answers while the listener is still open.
-func (r *relayRig) onDraining() {
+func (r *relayRig) onDraining(ctx context.Context) {
 	defer close(r.draining)
 
-	req, err := http.NewRequestWithContext(context.WithoutCancel(r.ctx), http.MethodGet, r.url+readyPath, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.url+readyPath, http.NoBody)
 	if err != nil {
 		r.drainErr = err
 
@@ -568,7 +591,6 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 
 			code := run(t.Context(), &runOptions{
 				Args: args, Stdout: io.Discard, Stderr: &stderr, Load: bootstrap.LoadOptions{ReadFile: os.ReadFile},
-				ShutdownTimeout: waitBound,
 			})
 
 			assert.Equal(t, tt.wantCode, code)
@@ -871,8 +893,8 @@ func TestRunExitsWhenAStateWriteHoldsTheShutdown(t *testing.T) {
 	}
 	stateDir := filepath.Join(t.TempDir(), "state")
 	rig := startRelay(t, &rigOptions{
-		stateFS: held, shutdownTimeout: 100 * time.Millisecond,
-		flags: []string{"--state-dir=" + stateDir},
+		stateFS: held,
+		flags:   []string{"--state-dir=" + stateDir},
 	})
 
 	// registered after the temp dir and the rig: it runs first. The held write ends, and the cleanup of the core
@@ -896,6 +918,10 @@ func TestRunExitsWhenAStateWriteHoldsTheShutdown(t *testing.T) {
 	}
 
 	rig.cancel()
+
+	// the timeout of the shutdown is the one of the file, and it ends when the test says so
+	assert.Equal(t, bootstrap.DefaultShutdownTimeout, rig.awaitTimeout())
+	(<-rig.timeoutEnd)()
 
 	select {
 	case code := <-rig.done:
@@ -1025,4 +1051,18 @@ func flagNames(t *testing.T, withAnswering bool) []string {
 	}
 
 	return names
+}
+
+// awaitTimeout is the duration that the relay asked for the timeout of its shutdown.
+func (r *relayRig) awaitTimeout() time.Duration {
+	r.store.t.Helper()
+
+	select {
+	case d := <-r.timeoutFor:
+		return d
+	case <-time.After(waitBound):
+		require.FailNow(r.store.t, "the relay did not start the timeout of the shutdown")
+
+		return 0
+	}
 }

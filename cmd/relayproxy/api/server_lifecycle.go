@@ -26,6 +26,8 @@ const defaultReadTimeout = 30 * time.Second
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
 
+	s.shutdown.started.Store(true)
+
 	select {
 	case <-s.stopRequested:
 		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
@@ -188,6 +190,9 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 		ReadTimeout: s.readTimeout,
 	}
 
+	conns := &connTracker{states: map[net.Conn]http.ConnState{}}
+	srv.ConnState = conns.track
+
 	if h2c {
 		var p http.Protocols
 		p.SetHTTP1(true)
@@ -209,13 +214,18 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 	wg.Go(func() {
 		<-gCtx.Done()
 
-		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(gCtx), gracefulShutdownTimeout)
+		shutdownCtx, cancelShutdown := s.shutdown.context(gCtx)
 		defer cancelShutdown()
 
 		err := srv.Shutdown(shutdownCtx)
 		if err != nil {
-			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, "Error shutting down the server",
-				slog.String("server", serverName), cmdlog.Err(err))
+			// the shutdown context ended: the requests still in flight are cut
+			cut := conns.active()
+			_ = srv.Close()
+
+			s.shutdown.addCut(cut)
+			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, "Error shutting down the server, cut",
+				slog.String("server", serverName), slog.Int("inFlightRequests", cut), cmdlog.Err(err))
 		}
 	})
 
@@ -246,7 +256,13 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 
 // Stop shutdown the API server.
 // It waits for StartWithContext to return (servers drained) or for ctx to be done.
-func (s *Server) Stop(ctx context.Context) {
+func (s *Server) Stop(ctx context.Context) { _ = s.Shutdown(ctx) }
+
+// Shutdown stops the servers gracefully: the listeners close and the requests in flight finish. When ctx ends first
+// the servers close hard, the requests still in flight are cut, and the error says so (it wraps [ErrCut]).
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.shutdown.ctx.Store(&ctx)
+
 	err := s.otelService.Stop(ctx)
 	if err != nil {
 		s.logger.LogAttrs(context.WithoutCancel(ctx), slog.LevelError, "impossible to stop otel", cmdlog.Err(err))
@@ -259,7 +275,21 @@ func (s *Server) Stop(ctx context.Context) {
 	case <-ctx.Done():
 		s.logger.LogAttrs(
 			context.WithoutCancel(ctx), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
+
+		// the servers close hard as soon as the context is done, which does not wait for the requests
+		if s.shutdown.started.Load() {
+			<-s.stopped
+		}
+
+		return fmt.Errorf("%w: %d request(s) in flight: %w", ErrCut, s.shutdown.cutCount(), ctx.Err())
 	}
+
+	cut := s.shutdown.cutCount()
+	if cut > 0 {
+		return fmt.Errorf("%w: %d request(s) in flight", ErrCut, cut)
+	}
+
+	return nil
 }
 
 // isMonitoringPortConfigured checks if the monitoring port is configured.
