@@ -584,19 +584,31 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	r.drainOnce.Do(func() {
 		r.drained = make(chan struct{})
 
+		// no call can enter any more: with none in flight there is nothing to wait for, and no goroutine is started
+		if r.inflight.Load() == 0 {
+			close(r.drained)
+
+			return
+		}
+
 		go func() {
 			r.wg.Wait()
 			close(r.drained)
 		}()
 	})
 
-	select {
-	case <-r.drained: // drained already: that wins over a context that ended too
-	default:
+	// no call can enter any more, so a count of zero means the calls are done: do not let a context that ended while
+	// the goroutine above had not run yet (a heavily loaded machine) turn into "calls still running" and skip the
+	// Shutdown of the store
+	if r.inflight.Load() > 0 {
 		select {
-		case <-r.drained:
-		case <-ctx.Done():
-			return fmt.Errorf("%w: %d calls still running: %w", ErrShutdown, r.inflight.Load(), ctx.Err())
+		case <-r.drained: // drained already: that wins over a context that ended too
+		default:
+			select {
+			case <-r.drained:
+			case <-ctx.Done():
+				return fmt.Errorf("%w: %d calls still running: %w", ErrShutdown, r.inflight.Load(), ctx.Err())
+			}
 		}
 	}
 

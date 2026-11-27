@@ -56,7 +56,7 @@ func TestExport_UsesInjectedS3Client(t *testing.T) {
 		Filename: testFile,
 	}
 	err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
-		&exporter.FeatureEvent{Kind: "feature", Key: "k"},
+		&exporter.FeatureEvent{Kind: kindFeature, Key: "k"},
 	})
 	require.NoError(t, err)
 
@@ -104,7 +104,7 @@ func s3Endpoint(t *testing.T) (*httptest.Server, func() []string) {
 
 // oneEvent returns a batch of one event.
 func oneEvent() []exporter.ExportableEvent {
-	return []exporter.ExportableEvent{&exporter.FeatureEvent{Kind: "feature", Key: "k"}}
+	return []exporter.ExportableEvent{&exporter.FeatureEvent{Kind: kindFeature, Key: "k"}}
 }
 
 // TestExport_BuildsItsClientFromTheAwsConfig checks the path where the exporter builds the client from the

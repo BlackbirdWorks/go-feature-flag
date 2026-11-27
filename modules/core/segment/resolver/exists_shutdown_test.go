@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"runtime/pprof"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,26 +15,68 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
-// stoppedByContext is a store whose Shutdown returns only when its context ends; it records that context's deadline.
+// farDeadline is a deadline that no run of the tests reaches: a caller's context ends only when the test cancels it,
+// so no timer decides the outcome. It is also an exact value to assert on.
+func farDeadline() time.Time { return time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC) }
+
+// storeCall is what the store's Shutdown saw of its context.
+type storeCall struct {
+	deadline time.Time
+	hasLimit bool
+}
+
+// stoppedByContext is a store whose Shutdown returns when its context ends or when the test releases it; it reports
+// the deadline of the context it was given.
 type stoppedByContext struct {
 	*fakeStore
 
-	deadline chan time.Time
-	hasLimit chan bool
-	stopped  chan struct{}
+	entered chan storeCall
+	release chan struct{}
+	stopped chan struct{}
+	once    sync.Once
+}
+
+// newStoppedByContext returns the store; its Shutdown is released when the test ends, so a failed assertion leaves
+// nothing waiting.
+func newStoppedByContext(t *testing.T) *stoppedByContext {
+	t.Helper()
+
+	store := &stoppedByContext{
+		fakeStore: betaStore(),
+		entered:   make(chan storeCall, 1),
+		release:   make(chan struct{}),
+		stopped:   make(chan struct{}),
+	}
+	t.Cleanup(store.open)
+
+	return store
 }
 
 func (s *stoppedByContext) Shutdown(ctx context.Context) error {
 	defer close(s.stopped)
 
 	deadline, ok := ctx.Deadline()
-	s.deadline <- deadline
+	s.entered <- storeCall{deadline: deadline, hasLimit: ok}
 
-	s.hasLimit <- ok
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.release:
+		return nil
+	}
+}
 
-	<-ctx.Done()
+func (s *stoppedByContext) open() { s.once.Do(func() { close(s.release) }) }
 
-	return ctx.Err()
+// receive stores into out what arrives on ch, or fails the test after the failure bound with msg.
+func receive[T any](t *testing.T, ch <-chan T, out *T, msg string) {
+	t.Helper()
+
+	select {
+	case *out = <-ch:
+	case <-time.After(eventuallyWait):
+		require.FailNow(t, msg)
+	}
 }
 
 func TestTheShutdownOfTheStoreEndsAtTheFirstDeadlinePlusTheGrace(t *testing.T) {
@@ -42,45 +85,51 @@ func TestTheShutdownOfTheStoreEndsAtTheFirstDeadlinePlusTheGrace(t *testing.T) {
 	const grace = 20 * time.Millisecond
 
 	tests := []struct {
-		wantErr           error
-		name              string
-		callerTimeout     time.Duration
-		wantExactDeadline bool
+		wantErr error
+		// callerContext makes the context of the Shutdown call
+		callerContext func() (context.Context, context.CancelFunc)
+		wantDeadline  time.Time // zero: the deadline of the store's context is only asserted to exist
+		name          string
+		// endCaller ends the context of the caller once the store has been reached
+		endCaller bool
 	}{
 		{
-			name: "a caller with a deadline", callerTimeout: 10 * time.Millisecond,
-			wantErr: resolver.ErrShutdown, wantExactDeadline: true,
+			name: "a caller with a deadline",
+			callerContext: func() (context.Context, context.CancelFunc) {
+				return context.WithDeadline(context.Background(), farDeadline())
+			},
+			endCaller: true, wantErr: resolver.ErrShutdown, wantDeadline: farDeadline().Add(grace),
 		},
-		{name: "a caller without a deadline", wantErr: context.DeadlineExceeded},
+		{
+			name: "a caller whose context ended before the call and nothing is in flight",
+			callerContext: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithDeadline(context.Background(), farDeadline())
+				cancel()
+
+				return ctx, cancel
+			},
+			wantErr: resolver.ErrShutdown, wantDeadline: farDeadline().Add(grace),
+		},
+		{
+			name:          "a caller without a deadline",
+			callerContext: func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			wantErr:       context.DeadlineExceeded,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := &stoppedByContext{
-				fakeStore: betaStore(),
-				deadline:  make(chan time.Time, 1),
-				hasLimit:  make(chan bool, 1),
-				stopped:   make(chan struct{}),
-			}
+			store := newStoppedByContext(t)
 
 			res, err := resolver.New(store, &resolver.Options{ShutdownGrace: grace})
 			require.NoError(t, err)
 
 			label := "shutdown-grace-" + t.Name() // unique: the goroutine of the store inherits it from this one
-			ctx := context.Background()
 
-			var callerDeadline time.Time
-
-			if tt.callerTimeout > 0 {
-				var cancel context.CancelFunc
-
-				ctx, cancel = context.WithTimeout(ctx, tt.callerTimeout)
-				defer cancel()
-
-				callerDeadline, _ = ctx.Deadline()
-			}
+			ctx, cancel := tt.callerContext()
+			defer cancel()
 
 			done := make(chan error, 1)
 
@@ -88,28 +137,31 @@ func TestTheShutdownOfTheStoreEndsAtTheFirstDeadlinePlusTheGrace(t *testing.T) {
 				done <- res.Shutdown(ctx)
 			})
 
+			// the store is reached whatever the context of the caller: its Shutdown must not be skipped
+			var call storeCall
+
+			receive(t, store.entered, &call, "the store's Shutdown was never called")
+
+			assert.True(t, call.hasLimit, "the context of the store has a deadline")
+
+			if !tt.wantDeadline.IsZero() {
+				assert.Equal(t, tt.wantDeadline, call.deadline)
+			}
+
+			if tt.endCaller {
+				cancel()
+			}
+
 			var shutdownErr error
 
-			select {
-			case shutdownErr = <-done:
-			case <-time.After(eventuallyWait):
-				require.Fail(t, "Shutdown did not end: the store is not bounded")
-			}
-
+			receive(t, done, &shutdownErr, "Shutdown did not end: the store is not bounded")
 			require.ErrorIs(t, shutdownErr, tt.wantErr)
 
-			select {
-			case <-store.stopped:
-			case <-time.After(eventuallyWait):
-				require.Fail(t, "the shutdown of the store never ended")
-			}
+			store.open()
 
-			assert.True(t, <-store.hasLimit, "the context of the store has a deadline")
+			var stopped struct{}
 
-			storeDeadline := <-store.deadline
-			if tt.wantExactDeadline {
-				assert.Equal(t, callerDeadline.Add(grace), storeDeadline)
-			}
+			receive(t, store.stopped, &stopped, "the shutdown of the store never ended")
 
 			require.Eventually(t, func() bool {
 				var dump bytes.Buffer
@@ -127,12 +179,7 @@ func TestTheShutdownBoundOfTheStoreIsFixedByTheFirstCallWhoeverRunsIt(t *testing
 
 	const grace = 20 * time.Millisecond
 
-	store := &stoppedByContext{
-		fakeStore: betaStore(),
-		deadline:  make(chan time.Time, 1),
-		hasLimit:  make(chan bool, 1),
-		stopped:   make(chan struct{}),
-	}
+	store := newStoppedByContext(t)
 	entered := store.Hang()
 
 	res, err := resolver.New(store, &resolver.Options{ShutdownGrace: grace})
@@ -142,32 +189,62 @@ func TestTheShutdownBoundOfTheStoreIsFixedByTheFirstCallWhoeverRunsIt(t *testing
 
 	go func() { lookupDone <- res.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}) }()
 
-	select {
-	case <-entered:
-	case <-time.After(eventuallyWait):
-		require.Fail(t, "the lookup never reached the store")
-	}
+	var reached struct{}
+
+	receive(t, entered, &reached, "the lookup never reached the store")
 
 	// the first call has a deadline and leaves while the lookup is still in flight
-	first, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
-
-	firstDeadline, _ := first.Deadline()
+	first, cancel := context.WithDeadline(context.Background(), farDeadline())
+	cancel()
 
 	require.ErrorIs(t, res.Shutdown(first), resolver.ErrShutdown)
 
 	// the second call, with no deadline, drains and reaches the store's Shutdown: the bound is still the first one
 	store.Release()
 
-	select {
-	case lookupErr := <-lookupDone:
-		require.NoError(t, lookupErr)
-	case <-time.After(eventuallyWait):
-		require.Fail(t, "the lookup did not end")
-	}
+	var lookupErr error
 
-	require.ErrorIs(t, res.Shutdown(context.Background()), context.DeadlineExceeded)
+	receive(t, lookupDone, &lookupErr, "the lookup did not end")
+	require.NoError(t, lookupErr)
 
-	assert.True(t, <-store.hasLimit)
-	assert.Equal(t, firstDeadline.Add(grace), <-store.deadline)
+	secondDone := make(chan error, 1)
+
+	go func() { secondDone <- res.Shutdown(context.Background()) }()
+
+	var call storeCall
+
+	receive(t, store.entered, &call, "the second Shutdown never reached the store")
+	assert.True(t, call.hasLimit)
+	assert.Equal(t, farDeadline().Add(grace), call.deadline)
+
+	store.open()
+
+	var secondErr error
+
+	receive(t, secondDone, &secondErr, "the second Shutdown did not end")
+	require.NoError(t, secondErr)
+}
+
+// A Shutdown with nothing in flight starts no goroutine of its own: the dump of the goroutines, taken as soon as it
+// returns, has none under its label (no wait, no polling).
+func TestShutdownWithNothingInFlightLeavesNoGoroutine(t *testing.T) {
+	t.Parallel()
+
+	res, err := resolver.New(betaStore(), &resolver.Options{})
+	require.NoError(t, err)
+
+	label := "shutdown-idle-" + t.Name() // unique: a goroutine started by Shutdown inherits it
+
+	var shutdownErr error
+
+	pprof.Do(t.Context(), pprof.Labels("test", label), func(ctx context.Context) {
+		shutdownErr = res.Shutdown(ctx)
+	})
+
+	require.NoError(t, shutdownErr)
+
+	var dump bytes.Buffer
+
+	require.NoError(t, pprof.Lookup("goroutine").WriteTo(&dump, 1))
+	assert.NotContains(t, dump.String(), label, "no goroutine of the resolver is left")
 }
