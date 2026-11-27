@@ -124,15 +124,12 @@ func (v *validator) shutdown() {
 	}
 
 	shutdown := v.cfg.Server.Shutdown
-	for _, setting := range []struct {
-		value *Duration
-		path  string
-	}{
-		{shutdown.DrainDelay, pathDrainDelay}, {shutdown.Timeout, pathTimeout},
-	} {
-		if setting.value != nil && time.Duration(*setting.value) > MaxShutdownDuration {
-			v.failf(setting.path, ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
-		}
+	if shutdown.DrainDelay != nil && time.Duration(*shutdown.DrainDelay) > MaxShutdownDuration {
+		v.failf(pathDrainDelay, ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
+	}
+
+	if shutdown.Timeout != nil && time.Duration(*shutdown.Timeout) > MaxShutdownDuration {
+		v.failf(pathTimeout, ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
 	}
 }
 

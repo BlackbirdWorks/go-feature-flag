@@ -167,7 +167,7 @@ func setDurationDefaults(root *jsonschema.Schema) {
 		{"Manifest", "pollInterval"}: DefaultPollInterval, {"Poll", "interval"}: DefaultPollInterval,
 		{"Timeouts", "connect"}: DefaultConnectTimeout, {"Timeouts", "request"}: DefaultRequestTimeout,
 		{"Retry", "maxBackoff"}: DefaultMaxBackoff, {"Exporter", "flushInterval"}: DefaultFlushInterval,
-		{"Shutdown", "timeout"}: DefaultShutdownTimeout,
+		{"Shutdown", "timeout"}: DefaultShutdownTimeout, {"Shutdown", "drainDelay"}: 0,
 	}
 
 	if prop, ok := root.Definitions["Manifest"].Properties.Get("pollInterval"); ok {
@@ -176,7 +176,11 @@ func setDurationDefaults(root *jsonschema.Schema) {
 
 	for key, value := range defaults {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
-			prop.Default = Duration(value).String()
+			if key[1] == "drainDelay" {
+				prop.Default = Delay(value).String()
+			} else {
+				prop.Default = Duration(value).String()
+			}
 		}
 	}
 }

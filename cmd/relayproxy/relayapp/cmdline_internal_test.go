@@ -191,11 +191,15 @@ func TestHelpGolden(t *testing.T) {
 			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
 
 			assert.Equal(t, tt.wantCode, code)
-			assert.Equal(t, tt.wantStdout, stdout.String())
-			assert.Equal(t, tt.wantStderr, stderr.String())
+			// kong wraps the help at the width of the terminal (COLUMNS): the text is compared without its wrapping
+			assert.Equal(t, unwrapped(tt.wantStdout), unwrapped(stdout.String()))
+			assert.Equal(t, unwrapped(tt.wantStderr), unwrapped(stderr.String()))
 		})
 	}
 }
+
+// noEnv is the empty environment of the tests: none of them reads the real one.
+func noEnv(string) (string, bool) { return "", false }
 
 // Main wires the real environment: it answers --version with the stamped build and exits 0, and a start without a
 // file exits 1.
@@ -218,7 +222,7 @@ func TestMain_Process(t *testing.T) {
 
 			var stdout, stderr bytes.Buffer
 
-			code := Main(t.Context(), tt.args, &stdout, &stderr, Build{Version: "v1.2.3"})
+			code := Main(t.Context(), tt.args, &stdout, &stderr, noEnv, Build{Version: "v1.2.3"})
 
 			assert.Equal(t, tt.wantCode, code)
 			assert.Contains(t, stdout.String(), tt.wantStdout)
@@ -226,3 +230,6 @@ func TestMain_Process(t *testing.T) {
 		})
 	}
 }
+
+// unwrapped collapses every run of white space, so that the wrapping of the help does not matter.
+func unwrapped(text string) string { return strings.Join(strings.Fields(text), " ") }

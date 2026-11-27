@@ -28,7 +28,29 @@ func TestShutdownSettings(t *testing.T) {
 		wantDrainDelayN bool
 		wantTimeoutN    bool
 	}{
-		{name: "unset", doc: base},
+		{
+			name:            "unset",
+			doc:             base,
+			wantDrainDelayN: true,
+			wantTimeoutN:    true,
+			wantTimeout:     bootstrap.DefaultShutdownTimeout,
+		},
+		{
+			name:            "explicit zero drain delay",
+			doc:             base + "server:\n  shutdown: {drainDelay: 0s}\n",
+			wantDrainDelayN: true,
+			wantTimeoutN:    true,
+			wantTimeout:     bootstrap.DefaultShutdownTimeout,
+		},
+		{
+			name:            "a zero drain delay from a variable",
+			doc:             base,
+			env:             envMap{bootstrap.EnvShutdownDrainDelay: "0s"},
+			wantDrainDelayN: true,
+			wantTimeoutN:    true,
+			wantTimeout:     bootstrap.DefaultShutdownTimeout,
+		},
+		{name: "a zero timeout", doc: base + "server:\n  shutdown: {timeout: 0s}\n", wantErr: "invalid duration"},
 		{
 			name:            "from the file",
 			wantDrainDelayN: true,
@@ -52,9 +74,9 @@ func TestShutdownSettings(t *testing.T) {
 			wantErr: "server.shutdown.timeout: invalid duration: set by environment variable SEMAPHORE_SHUTDOWN_TIMEOUT",
 		},
 		{
-			name: "a zero variable", doc: base, env: envMap{bootstrap.EnvShutdownDrainDelay: "0s"},
-			wantErr: "server.shutdown.drainDelay: invalid duration: set by environment variable " +
-				"SEMAPHORE_SHUTDOWN_DRAIN_DELAY",
+			name: "a zero timeout variable", doc: base, env: envMap{bootstrap.EnvShutdownTimeout: "0s"},
+			wantErr: "server.shutdown.timeout: invalid duration: set by environment variable " +
+				"SEMAPHORE_SHUTDOWN_TIMEOUT",
 		},
 		{
 			name: "a drain delay above the bound", doc: base + "server:\n  shutdown: {drainDelay: 11m}\n",

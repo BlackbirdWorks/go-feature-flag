@@ -233,38 +233,44 @@ func (c *Config) Print(w io.Writer) error {
 	return nil
 }
 
-// applyShutdownEnv applies the shutdown variables. A value that is not a positive duration is kept in badEnv and
-// reported by the validation with its source.
+// applyShutdownEnv applies the shutdown variables. A value that does not parse, or is not allowed (the timeout is
+// positive, the drain delay is not negative), is kept in badEnv and reported by the validation with its source.
 func (c *Config) applyShutdownEnv(opts LoadOptions, sources map[string]string) {
-	settings := []struct {
-		target **Duration
-		env    string
-		path   string
-	}{
-		{&c.Server.Shutdown.DrainDelay, EnvShutdownDrainDelay, pathDrainDelay},
-		{&c.Server.Shutdown.Timeout, EnvShutdownTimeout, pathTimeout},
+	drain := opts.env(EnvShutdownDrainDelay)
+	if drain != "" {
+		sources[pathDrainDelay] = "environment variable " + EnvShutdownDrainDelay
+
+		value, err := time.ParseDuration(drain)
+		if err != nil || value < 0 {
+			c.setBadEnv(pathDrainDelay, "expected a duration such as \"10s\" (\"0s\" for none)")
+		} else {
+			delay := Delay(value)
+			c.Server.Shutdown.DrainDelay = &delay
+		}
 	}
 
-	for _, setting := range settings {
-		raw := opts.env(setting.env)
-		if raw == "" {
-			continue
-		}
-
-		sources[setting.path] = "environment variable " + setting.env
-
-		value, err := time.ParseDuration(raw)
-		if err != nil || value <= 0 {
-			if c.badEnv == nil {
-				c.badEnv = map[string]string{}
-			}
-
-			c.badEnv[setting.path] = "expected a positive duration such as \"30s\""
-
-			continue
-		}
-
-		d := Duration(value)
-		*setting.target = &d
+	raw := opts.env(EnvShutdownTimeout)
+	if raw == "" {
+		return
 	}
+
+	sources[pathTimeout] = "environment variable " + EnvShutdownTimeout
+
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		c.setBadEnv(pathTimeout, "expected a positive duration such as \"30s\"")
+
+		return
+	}
+
+	timeout := Duration(value)
+	c.Server.Shutdown.Timeout = &timeout
+}
+
+func (c *Config) setBadEnv(path, detail string) {
+	if c.badEnv == nil {
+		c.badEnv = map[string]string{}
+	}
+
+	c.badEnv[path] = detail
 }

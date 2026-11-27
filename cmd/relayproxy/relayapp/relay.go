@@ -80,9 +80,20 @@ const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ �
 Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
-// Main runs the relay on the real environment until ctx is cancelled (SIGTERM, SIGINT) and returns the exit code.
+// Main runs the relay on the environment that lookupEnv reads (the process reads it only in main.go) until ctx is
+// cancelled (SIGTERM, SIGINT) and returns the exit code.
 // SIGHUP reloads the bootstrap file.
-func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Build) int {
+func Main(
+	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
+) int {
+	return mainWith(ctx, args, stdout, stderr, lookupEnv, build, nil)
+}
+
+// mainWith is [Main] with options for the API server (a test gives it its listener).
+func mainWith(
+	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
+	serverOptions []api.Option,
+) int {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 
@@ -116,7 +127,14 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Bu
 	}()
 
 	return run(ctx, &runOptions{
-		Args: args, Stdout: stdout, Stderr: stderr, Build: build, Load: osLoadOptions(), Reload: reload, Force: force,
+		Args:          args,
+		Stdout:        stdout,
+		Stderr:        stderr,
+		Build:         build,
+		Load:          bootstrap.LoadOptions{LookupEnv: lookupEnv, ReadFile: os.ReadFile},
+		Reload:        reload,
+		Force:         force,
+		ServerOptions: serverOptions,
 	})
 }
 
@@ -150,11 +168,6 @@ func forwardSignals(ctx context.Context, in <-chan os.Signal, out chan<- struct{
 			return
 		}
 	}
-}
-
-// osLoadOptions reads the real environment and files.
-func osLoadOptions() bootstrap.LoadOptions {
-	return bootstrap.LoadOptions{LookupEnv: os.LookupEnv, ReadFile: os.ReadFile}
 }
 
 // run starts the relay proxy on a version 2 bootstrap file and returns the exit code of the process. A cancelled ctx
@@ -414,7 +427,7 @@ func (r *relay) Shutdown(ctx context.Context) error {
 func (r *relay) fail() { r.failOnce.Do(func() { close(r.failed) }) }
 
 // shutdownDelay is the value of an optional duration of the file; unset is zero.
-func shutdownDelay(d *bootstrap.Duration) time.Duration {
+func shutdownDelay(d *bootstrap.Delay) time.Duration {
 	if d == nil {
 		return 0
 	}

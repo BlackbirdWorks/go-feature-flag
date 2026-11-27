@@ -276,7 +276,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.LogAttrs(
 			context.WithoutCancel(ctx), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
 
-		// the servers close hard as soon as the context is done, which does not wait for the requests
+		// the servers close hard as soon as the context is done, which does not wait for the requests; a server
+		// that has not started has nothing to wait for (stopped closes only when StartWithContext returns)
 		if s.shutdown.started.Load() {
 			<-s.stopped
 		}

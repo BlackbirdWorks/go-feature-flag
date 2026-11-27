@@ -25,6 +25,7 @@ func main() {
 		os.Args[1:],
 		os.Stdout,
 		os.Stderr,
+		os.LookupEnv,
 		relayapp.Build{Version: version, Commit: commit, Date: date},
 	)
 

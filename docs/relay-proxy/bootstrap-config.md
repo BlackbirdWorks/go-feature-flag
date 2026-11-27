@@ -10,7 +10,7 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 - Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). The flags `--log-level`, `--log-format`, `--listen`,
   `--ops-listen`, `--manifest-key` and `--state-dir` (given empty it means no state directory, whatever the variable and the file say) override the variables, which override the file, at the start and on
-  every reload. `--help` prints the flags and their variables and exits 0 (it wins over `--version`, and `--help=false` or `--version=false` request nothing); an unknown flag prints the usage on stderr and exits 2, with `--version` too (the command line is parsed strictly before the version is printed). Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
+  every reload. Boolean flags (`--help`, `--version`) take `true`, `1`, `yes`, `false`, `0` or `no` in any case, only with `=` and the long name (`--help=no`; `-h=false` is a usage error). `--help` prints the flags and their variables and exits 0 (it wins over `--version`, and `--help=false` or `--version=false` request nothing); an unknown flag prints the usage on stderr and exits 2, with `--version` too (the command line is parsed strictly before the version is printed). Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
   path-addressed error that holds no secret. An invalid or version 1 file exits with a non-zero
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).
@@ -131,8 +131,8 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].address` | string | required | `host:port`, for example `:1031` |
 | `server.listeners[].role` | string | `api` | `api`, `ops` |
 | `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
-| `server.shutdown.drainDelay` | duration | unset (no delay) | positive, at most `10m` |
-| `server.shutdown.timeout` | duration | unset (`15s`) | positive, at most `10m` |
+| `server.shutdown.drainDelay` | duration | `0s` (no delay) | `0s` to `10m` |
+| `server.shutdown.timeout` | duration | `15s` | positive, at most `10m` |
 
 - With no listener, the relay has one `api` listener on `:1031`.
 - At least one listener has the role `api`. Names and addresses are unique.
@@ -145,7 +145,7 @@ The steps run in this order:
 
 1. `/readyz` answers 503 `shutting-down`; the listeners stay open.
 2. The drain delay (`server.shutdown.drainDelay`, or `SEMAPHORE_SHUTDOWN_DRAIN_DELAY`): the relay keeps serving every
-   request, so that load balancers and Kubernetes stop sending traffic. Unset means no delay.
+   request, so that load balancers and Kubernetes stop sending traffic. `0s` (the default) means no delay.
 3. The change streams close, so that their clients reconnect elsewhere and the server can drain.
 4. The HTTP servers stop gracefully: the requests in flight finish.
 5. The core stops: the event queues are flushed to the exporters and the state directory is written.
@@ -154,7 +154,7 @@ The timeout (`server.shutdown.timeout`, or `SEMAPHORE_SHUTDOWN_TIMEOUT`, default
 bounds steps 3 to 5. The drain delay is not part of it, so the longest a shutdown takes is the drain delay plus the
 timeout. When the timeout ends first the relay stops hard: the servers close, the requests still in flight are cut, the
 log lists what was cut (`shutdown: stopped hard`), and the process exits with status 1. A clean shutdown exits with 0.
-Both settings are read at the start (a reload does not change them), are positive durations of at most `10m`, and the variable wins over the file, and a value that does not parse
+Both settings are read at the start (a reload does not change them), are durations of at most `10m` (the timeout is positive, the drain delay may be `0s`), and the variable wins over the file, and a value that does not parse
 stops the relay at the start. See [probes](probes.md#shutdown-in-kubernetes) for Kubernetes.
 
 ### `observability`
