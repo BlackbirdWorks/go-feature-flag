@@ -11,6 +11,7 @@ type Config struct {
 	Exporters     map[string]Exporter   `json:"exporters,omitempty"    yaml:"exporters,omitempty"`
 	Notifiers     map[string]Notifier   `json:"notifiers,omitempty"    yaml:"notifiers,omitempty"`
 	ControlPlane  *ControlPlane         `json:"controlPlane,omitempty" yaml:"controlPlane,omitempty"`
+	Segments      *Segments             `json:"segments,omitempty"     yaml:"segments,omitempty"`
 	Server        Server                `json:"server,omitzero"        yaml:"server"`
 	Observability Observability         `json:"observability,omitzero" yaml:"observability"`
 	Evaluation    Evaluation            `json:"evaluation,omitzero"    yaml:"evaluation"`

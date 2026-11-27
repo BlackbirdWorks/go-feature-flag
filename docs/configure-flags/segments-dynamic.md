@@ -25,6 +25,37 @@ A dynamic segment is a segment of type `redis` or `valkey`: the members stay in 
 - Pick `redis` when the store sits behind a proxy you do not trust, when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
 - Both have the same data model, layouts (`set` and `keys`), answers and failure classes, are read-only and pass the same conformance suite on the same resolver.
 
+## Configure in the relay
+
+The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-config.md#connections-name) of the bootstrap file, because the clients own their connections and caching. The resolver settings are its `segments.resolver` section (see [its keys](../relay-proxy/bootstrap-config.md#segments)). The options of the providers are keys of the connection with the same names.
+
+- The relay checks the connections and the section at the start, and `semaphore-cli config validate` checks them too.
+- The password is a `fromEnv` or `fromFile` reference. It is never printed.
+- The segment definitions are published with the flags, like any other flag content. That comes with the next step of the segments work; the bootstrap file has no `segments.definitions`.
+- Today the relay only validates the connections and the section and logs that the stores are configured but not active.
+
+<!-- full-example -->
+```yaml
+version: 2
+connections:
+  control: {type: s3, region: us-east-1, bucket: acme-control}
+  segments-valkey:
+    type: valkey
+    addresses: ["valkey-1:6379", "valkey-2:6379"]
+    username: semaphore
+    password: {fromEnv: VALKEY_PASSWORD}
+    tls: {enable: true, caBundleFile: /etc/ssl/valkey-ca.pem}
+    pipelining: auto
+    lookupTimeout: 100ms
+controlPlane:
+  connection: control
+  manifest: {key: manifests/stable.yaml}
+segments:
+  resolver:
+    callTimeout: 2s
+    default: {ttl: 30s, negativeTtl: 5s, breakerFailures: 5}
+```
+
 ## Pages
 
 - [Segments - dynamic: Redis](segments-redis.md): the data model, loading members, the resolver, metrics and sizing (shared by both types).

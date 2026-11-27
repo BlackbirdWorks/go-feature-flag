@@ -23,6 +23,7 @@ const (
 	SettingNotifiers         = "notifiers"
 	SettingObservability     = "observability"
 	SettingEvaluation        = "evaluation"
+	SettingSegments          = "segments"
 )
 
 // ResolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
@@ -73,6 +74,7 @@ func pendingRestart(base, cfg *bootstrap.Config) []string {
 	add(!reflect.DeepEqual(base.Notifiers, cfg.Notifiers), SettingNotifiers)
 	add(!reflect.DeepEqual(base.Observability, cfg.Observability), SettingObservability)
 	add(!reflect.DeepEqual(base.Evaluation, cfg.Evaluation), SettingEvaluation)
+	add(!reflect.DeepEqual(base.Segments, cfg.Segments), SettingSegments)
 
 	slices.Sort(out)
 
