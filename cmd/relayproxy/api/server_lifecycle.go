@@ -251,7 +251,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
-	addressMonitoring := net.JoinHostPort(s.settings.Host, strconv.Itoa(s.settings.MonitoringPort))
+	addressMonitoring := net.JoinHostPort(s.monitoringHost(), strconv.Itoa(s.settings.MonitoringPort))
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
@@ -326,6 +326,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// monitoringHost is the host of the monitoring listener: its own when the settings give one, else the one of the API.
+func (s *Server) monitoringHost() string {
+	if s.settings.MonitoringHost != nil {
+		return *s.settings.MonitoringHost
+	}
+
+	return s.settings.Host
 }
 
 // isMonitoringPortConfigured checks if the monitoring port is configured.

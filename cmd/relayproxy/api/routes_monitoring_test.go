@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -155,6 +157,93 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 				tt.expectedVersion,
 				apiResp.Header.Get(xGofeatureflagVersion),
 				"api server")
+		})
+	}
+}
+
+// The API listener and the ops listener bind the addresses of their own settings: another host for the ops listener
+// is its own address, and it is not the one of the API.
+const apiAddress = "127.0.0.1:1031"
+
+func TestListenersBindTheirOwnAddresses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		monitoringHost *string
+		wantAPI        string
+		wantOps        string
+	}{
+		{
+			name:    "no host for the ops listener: the host of the api",
+			wantAPI: apiAddress,
+			wantOps: "127.0.0.1:1032",
+		},
+		{
+			name: "another host for the ops listener", monitoringHost: new("127.0.0.2"),
+			wantAPI: apiAddress, wantOps: "127.0.0.2:1032",
+		},
+		{
+			name:           "every interface for the ops listener",
+			monitoringHost: new(""),
+			wantAPI:        apiAddress,
+			wantOps:        ":1032",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu        sync.Mutex
+				addresses []string
+			)
+
+			bound := make(chan struct{}, 2)
+
+			listen := func(ctx context.Context, network, address string) (net.Listener, error) {
+				mu.Lock()
+
+				addresses = append(addresses, address)
+				mu.Unlock()
+
+				bound <- struct{}{}
+
+				return (&net.ListenConfig{}).Listen(ctx, network, "127.0.0.1:0")
+			}
+
+			conf := testConfig(t)
+			conf.settings.Host, conf.settings.Port = "127.0.0.1", 1031
+			conf.settings.MonitoringPort, conf.settings.MonitoringHost = 1032, tt.monitoringHost
+
+			srv := newTestServer(t, conf, &service.Services{
+				WebsocketService: stream.NewWebsocketService(), Metrics: &metric.Metrics{},
+			}, slog.New(slog.DiscardHandler), api.WithListenFunc(listen))
+
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+
+			go func() {
+				srv.StartWithContext(ctx)
+				close(done)
+			}()
+
+			for range 2 {
+				select {
+				case <-bound:
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, "a listener was not bound")
+				}
+			}
+
+			cancel()
+			<-done
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			assert.ElementsMatch(t, []string{tt.wantAPI, tt.wantOps}, addresses)
 		})
 	}
 }

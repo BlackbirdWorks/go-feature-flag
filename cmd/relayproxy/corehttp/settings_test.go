@@ -56,14 +56,15 @@ func TestSettingsFrom(t *testing.T) {
 				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "0.0.0.0:2", Role: bootstrap.RoleOps}),
 			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Host: "0.0.0.0", Port: 1, MonitoringPort: 2,
-				Telemetry: opentelemetry.Settings{Version: "v"}},
+				MonitoringHost: new("0.0.0.0"), Telemetry: opentelemetry.Settings{Version: "v"}},
 		},
 		{
 			name: "ops on another host",
 			cfg: listeners(
 				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "127.0.0.1:2", Role: bootstrap.RoleOps}),
-			wantErr: true,
+			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Host: "0.0.0.0", Port: 1, MonitoringPort: 2,
+				MonitoringHost: new("127.0.0.1"), Telemetry: opentelemetry.Settings{Version: "v"}},
 		},
 		{
 			name: "two api listeners",

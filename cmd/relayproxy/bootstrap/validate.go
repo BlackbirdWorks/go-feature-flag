@@ -191,7 +191,7 @@ func (v *validator) server() {
 }
 
 // serveLayout refuses the listener layouts that the relay can not serve yet: a unix socket, several listeners of a
-// role, a port 0, and an ops listener on another host than the api listener.
+// role and a port 0.
 func (v *validator) serveLayout() {
 	server := v.cfg.Server
 
@@ -200,12 +200,11 @@ func (v *validator) serveLayout() {
 	}
 
 	roles := map[string]int{}
-	hosts := map[string]string{}
 
 	for i, listener := range server.Listeners {
 		base := "server.listeners[" + strconv.Itoa(i) + "]"
 
-		host, port, err := net.SplitHostPort(listener.Address)
+		_, port, err := net.SplitHostPort(listener.Address)
 		if err != nil {
 			continue // address() reported it
 		}
@@ -227,15 +226,7 @@ func (v *validator) serveLayout() {
 			continue
 		}
 
-		roles[listener.Role], hosts[listener.Role] = i, host
-	}
-
-	apiHost, hasAPI := hosts[RoleAPI]
-
-	opsHost, hasOps := hosts[RoleOps]
-	if hasAPI && hasOps && apiHost != opsHost {
-		v.failf("server.listeners["+strconv.Itoa(roles[RoleOps])+"].address", ErrInvalidValue,
-			"the ops listener must use the host of the api listener")
+		roles[listener.Role] = i
 	}
 }
 
