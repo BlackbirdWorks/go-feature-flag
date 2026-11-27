@@ -324,7 +324,10 @@ func TestEquivalence_EnrichmentWinsOverTheRequest(t *testing.T) {
 	enrichment := map[string]any{planAttr: proPlan}
 
 	legacy := versionOne(t, path, enrichment, "", nil)
-	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{EvaluationContextEnrichment: enrichment})
+	eval := flagruntime.NewEvaluator(
+		newService(t),
+		&flagruntime.EvaluatorConfig{EvaluationContextEnrichment: enrichment},
+	)
 
 	ctx := ffcontext.NewEvaluationContext("user")
 	ctx.AddCustomAttribute(planAttr, "free")

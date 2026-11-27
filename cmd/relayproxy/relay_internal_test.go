@@ -137,9 +137,11 @@ func (s *store) publish(value int) {
 }
 
 // bootstrapDoc is a bootstrap file on the file store of dir.
-func bootstrapDoc(dir, extra string) string {
+func bootstrapDoc(dir, extra string) string { return bootstrapDocWithKey(dir, manifestKey, extra) }
+
+func bootstrapDocWithKey(dir, key, extra string) string {
 	return "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
-		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
+		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + key + ", channel: " +
 		channelName + ", jitter: 0}\n" + extra
 }
 
@@ -159,6 +161,7 @@ type relayRig struct {
 	drainErr    error
 	url         string
 	cfgPath     string
+	manifestKey string
 	drainBody   string
 	drainStatus int
 	snapshot    uint64
@@ -167,13 +170,17 @@ type relayRig struct {
 type rigOptions struct {
 	// extra is appended to the bootstrap file.
 	extra string
+	// manifestKey replaces the manifest key of the file.
+	manifestKey string
 	// port, when set, makes the relay bind the address of its file (no injected listener) on that port.
 	port string
+	// flags are added to the command line.
+	flags []string
 	// watchDrain records the readiness at the start of the shutdown.
 	watchDrain bool
 }
 
-func startRelay(t *testing.T, ropts rigOptions) *relayRig {
+func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -190,6 +197,7 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 		draining: make(chan struct{}),
 	}
 	rig.store.publish(1)
+	rig.manifestKey = ropts.manifestKey
 	rig.writeConfig(ropts.extra)
 
 	var serverOpts []api.Option
@@ -209,7 +217,7 @@ func startRelay(t *testing.T, ropts rigOptions) *relayRig {
 	rig.ctx = ctx
 
 	opts := &runOptions{
-		Args:   []string{configFlag, rig.cfgPath},
+		Args:   append([]string{configFlag, rig.cfgPath}, ropts.flags...),
 		Stdout: rig.stdout, Stderr: rig.stderr,
 		Load:   bootstrap.LoadOptions{ReadFile: os.ReadFile},
 		Reload: rig.reload,
@@ -266,7 +274,13 @@ func (r *relayRig) onDraining() {
 
 func (r *relayRig) writeConfig(extra string) {
 	r.store.t.Helper()
-	require.NoError(r.store.t, os.WriteFile(r.cfgPath, []byte(bootstrapDoc(r.store.dir, extra)), 0o600))
+
+	key := manifestKey
+	if r.manifestKey != "" {
+		key = r.manifestKey
+	}
+
+	require.NoError(r.store.t, os.WriteFile(r.cfgPath, []byte(bootstrapDocWithKey(r.store.dir, key, extra)), 0o600))
 }
 
 // awaitRound waits for the first applied round that satisfies ok.
@@ -366,7 +380,7 @@ func TestRunServesAFileStore(t *testing.T) {
 
 	rig := startRelay(
 		t,
-		rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\nevaluation:\n  environment: test\n"},
+		&rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\nevaluation:\n  environment: test\n"},
 	)
 	rig.awaitGeneration(1)
 
@@ -395,7 +409,7 @@ func TestRunServesAFileStore(t *testing.T) {
 func TestRunReloadsTheBootstrapFile(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, rigOptions{})
+	rig := startRelay(t, &rigOptions{})
 	rig.awaitGeneration(1)
 
 	// the admin key is unknown: 401. After the reload it is known: the evaluation API answers 400 to an admin key.
@@ -426,7 +440,7 @@ func TestRunReloadsTheBootstrapFile(t *testing.T) {
 func TestRunShutsDownInOrder(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, rigOptions{watchDrain: true})
+	rig := startRelay(t, &rigOptions{watchDrain: true})
 	rig.awaitGeneration(1)
 
 	rig.cancel()
@@ -477,6 +491,7 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		doc      string
 		wantErr  string
 		args     []string
+		flags    []string
 		wantCode int
 	}{
 		{name: "a version 1 file", doc: "retrievers:\n  - kind: file\n    path: flags.yaml\n", wantCode: 1,
@@ -491,6 +506,15 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		{name: "a port in use", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: api, address: \""+
 			taken.Addr().String()+"\"}\n"), wantCode: 1, wantErr: "Error starting relay proxy"},
 		{name: "no file", args: []string{}, wantCode: 1, wantErr: "no bootstrap file"},
+		{name: "a flag without its value", args: []string{"--listen"}, wantCode: 1, wantErr: "invalid command line"},
+		{name: "listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--listen=nowhere"}, wantCode: 1,
+			wantErr: "set by flag --listen"},
+		{name: "ops listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--ops-listen=nowhere"}, wantCode: 1,
+			wantErr: "set by flag --ops-listen"},
+		{name: "log level override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-level=loud"}, wantCode: 1,
+			wantErr: "set by flag --log-level"},
+		{name: "log format override", doc: bootstrapDoc(dir, ""), flags: []string{"--log-format=xml"}, wantCode: 1,
+			wantErr: "set by flag --log-format"},
 	}
 
 	for _, tt := range tests {
@@ -502,7 +526,7 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "bootstrap.yaml")
 				require.NoError(t, os.WriteFile(path, []byte(tt.doc), 0o600))
 
-				args = []string{configFlag, path}
+				args = append([]string{configFlag, path}, tt.flags...)
 			}
 
 			var stderr syncBuffer
@@ -521,7 +545,7 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 func TestRunWithoutMetrics(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, rigOptions{extra: "observability:\n  metrics: {enabled: false}\n"})
+	rig := startRelay(t, &rigOptions{extra: "observability:\n  metrics: {enabled: false}\n"})
 	rig.awaitGeneration(1)
 
 	status, _ := rig.evaluate(tenantKey)
@@ -546,7 +570,7 @@ func TestLogFormat(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct{ name, in, want string }{
-		{name: "text is logfmt", in: "text", want: "logfmt"},
+		{name: "text is logfmt", in: logFormatText, want: "logfmt"},
 		{name: "json stays", in: "json", want: "json"},
 		{name: "empty stays", in: "", want: ""},
 	}
@@ -670,12 +694,45 @@ func TestRunBindsTheConfiguredAddress(t *testing.T) {
 			t.Parallel()
 
 			port := freePort(t)
-			rig := startRelay(t, rigOptions{port: port, extra: "server:\n  listeners:\n    - {name: api, address: \"" +
+			rig := startRelay(t, &rigOptions{port: port, extra: "server:\n  listeners:\n    - {name: api, address: \"" +
 				tt.host + ":" + port + "\"}\n"})
 			rig.awaitServing()
 
 			status, _ := get(t, rig.url+readyPath, nil)
 			assert.NotZero(t, status)
 		})
+	}
+}
+
+// The flags override the file at the start: the manifest key of the file names no manifest, the flag does.
+func TestRunAppliesTheOverridesOfTheFlags(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(
+		t,
+		&rigOptions{manifestKey: "manifests/missing.yaml", flags: []string{"--manifest-key=" + manifestKey}},
+	)
+	rig.awaitGeneration(1)
+
+	status, value := rig.evaluate(tenantKey)
+	assert.Equal(t, http.StatusOK, status)
+	assert.InDelta(t, 1, value, 0)
+}
+
+func TestLoaderKeepsTheOverridesOnReload(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "bootstrap.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(bootstrapDoc(t.TempDir(), "")), 0o600))
+
+	load := loaderOf(
+		&bootstrap.Overrides{Config: path, Listen: "127.0.0.1:4321"},
+		bootstrap.LoadOptions{ReadFile: os.ReadFile},
+	)
+
+	for range 2 {
+		cfg, err := load()
+		require.NoError(t, err)
+		assert.Equal(t, "127.0.0.1:4321", cfg.Server.Listeners[0].Address)
 	}
 }

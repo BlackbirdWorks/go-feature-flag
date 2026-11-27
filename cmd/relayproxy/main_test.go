@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 )
 
@@ -86,6 +87,59 @@ func TestConfigFlagSet(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantConfig, got)
 			assert.Equal(t, tt.wantVersion, versionRequested(tt.args))
+		})
+	}
+}
+
+func TestOverridesFrom(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		want    bootstrap.Overrides
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{name: "none", args: nil, want: bootstrap.Overrides{}},
+		{name: "config", args: []string{configFlag, "/a.yaml"}, want: bootstrap.Overrides{Config: "/a.yaml"}},
+		{name: "log level", args: []string{"--log-level=debug"}, want: bootstrap.Overrides{LogLevel: "debug"}},
+		{
+			name: "log format",
+			args: []string{"--log-format", logFormatText},
+			want: bootstrap.Overrides{LogFormat: logFormatText},
+		},
+		{name: "listen", args: []string{"--listen=:8080"}, want: bootstrap.Overrides{Listen: ":8080"}},
+		{
+			name: "ops listen",
+			args: []string{"--ops-listen=127.0.0.1:9"},
+			want: bootstrap.Overrides{OpsListen: "127.0.0.1:9"},
+		},
+		{
+			name: "manifest key",
+			args: []string{"--manifest-key=m/a.yaml"},
+			want: bootstrap.Overrides{ManifestKey: "m/a.yaml"},
+		},
+		{name: "state dir", args: []string{"--state-dir=/var/s"}, want: bootstrap.Overrides{StateDir: "/var/s"}},
+		{
+			name: "version is not an override",
+			args: []string{versionFlag, "--listen=:1"},
+			want: bootstrap.Overrides{Listen: ":1"},
+		},
+		{name: "a flag without its value", args: []string{"--listen"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := overridesFrom(tt.args)
+			if tt.wantErr {
+				require.ErrorIs(t, err, errUsage)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, *got)
 		})
 	}
 }

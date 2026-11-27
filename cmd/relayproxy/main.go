@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/fips140"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
 )
 
@@ -30,11 +33,42 @@ func versionText() string {
 // consumed as a value even when it starts with a dash; unknown flags (--version, -v) are skipped
 // instead of stopping the parse and losing --config.
 func newConfigFlagSet() *pflag.FlagSet {
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of the version 2 bootstrap file (or SEMAPHORE_CONFIG)")
-	f.ParseErrorsAllowlist.UnknownFlags = true
+	flags := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	flags.String("config", "", "Location of the version 2 bootstrap file (or SEMAPHORE_CONFIG)")
+	flags.String("log-level", "", "observability.logging.level (or SEMAPHORE_LOG_LEVEL)")
+	flags.String("log-format", "", "observability.logging.format (or SEMAPHORE_LOG_FORMAT)")
+	flags.String("listen", "", "Address of the api listener (or SEMAPHORE_LISTEN)")
+	flags.String("ops-listen", "", "Address of the ops listener (or SEMAPHORE_OPS_LISTEN)")
+	flags.String("manifest-key", "", "controlPlane.manifest.key (or SEMAPHORE_MANIFEST_KEY)")
+	flags.String("state-dir", "", "controlPlane.stateDir (or SEMAPHORE_STATE_DIR)")
+	flags.ParseErrorsAllowlist.UnknownFlags = true
 
-	return f
+	return flags
+}
+
+// errUsage is wrapped by the error of command line flags that do not parse.
+var errUsage = errors.New("invalid command line")
+
+// overridesFrom reads the flags that override the file (a flag wins over the environment, which wins over the file).
+func overridesFrom(args []string) (*bootstrap.Overrides, error) {
+	flags := newConfigFlagSet()
+	flags.SetOutput(io.Discard)
+
+	err := flags.Parse(args)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errUsage, err)
+	}
+
+	get := func(name string) string {
+		value, _ := flags.GetString(name)
+
+		return value
+	}
+
+	return &bootstrap.Overrides{
+		Config: get("config"), LogLevel: get("log-level"), LogFormat: get("log-format"), Listen: get("listen"),
+		OpsListen: get("ops-listen"), ManifestKey: get("manifest-key"), StateDir: get("state-dir"),
+	}, nil
 }
 
 // versionRequested reports whether args ask for --version / -v. It uses a flag set of its

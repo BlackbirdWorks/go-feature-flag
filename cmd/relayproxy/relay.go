@@ -24,6 +24,9 @@ import (
 // streams.
 const shutdownTimeout = 15 * time.Second
 
+// logFormatText is the format of the file that the logger calls logfmt.
+const logFormatText = "text"
+
 // stopSteps is the number of steps of the shutdown that can fail.
 const stopSteps = 2
 
@@ -67,12 +70,14 @@ func run(ctx context.Context, opts *runOptions) int {
 		return 0
 	}
 
-	flags := newConfigFlagSet()
-	_ = flags.Parse(opts.Args)
-	configPath, _ := flags.GetString("config")
-
 	logger := cmdlog.NewDefault(cmdlog.WithWriter(opts.Stderr))
-	overrides := &bootstrap.Overrides{Config: configPath}
+
+	overrides, err := overridesFrom(opts.Args)
+	if err != nil {
+		logFatal(ctx, logger.Slog, "command line error", cmdlog.Err(err))
+
+		return 1
+	}
 
 	cfg, err := bootstrap.Load(overrides, opts.Load)
 	if err != nil {
@@ -99,12 +104,17 @@ func run(ctx context.Context, opts *runOptions) int {
 		return 1
 	}
 
-	return rel.wait(ctx, func() (*bootstrap.Config, error) { return bootstrap.Load(overrides, opts.Load) }, opts)
+	return rel.wait(ctx, loaderOf(overrides, opts.Load), opts)
+}
+
+// loaderOf reads the file again with the overrides of the command line: a reload applies the same flags as the start.
+func loaderOf(overrides *bootstrap.Overrides, load bootstrap.LoadOptions) func() (*bootstrap.Config, error) {
+	return func() (*bootstrap.Config, error) { return bootstrap.Load(overrides, load) }
 }
 
 // logFormat maps the format of the file to the one of the logger: "text" is logfmt.
 func logFormat(format string) string {
-	if format == "text" {
+	if format == logFormatText {
 		return "logfmt"
 	}
 
