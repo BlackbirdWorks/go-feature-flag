@@ -269,11 +269,20 @@ func failingEvalCases(cancelled context.Context, t *testing.T) []evalCase {
 			wantVariant: variantOff,
 			wantStatus:  segment.StatusStoreError,
 		},
-		// unknown segment of the provider
+		// a segment that does not exist has no member by default: healthy, not a member
 		{
-			name:        "segment unknown to the provider",
+			name:        "segment that does not exist, default: not a member",
 			query:       `targetingKey in segment("other")`,
 			key:         keyAlice,
+			wantVariant: variantOff,
+			wantStatus:  segment.StatusHealthy,
+		},
+		// a segment that does not exist: the explicit opt-in keeps it unknown
+		{
+			name:        "segment unknown to the provider, missing is unknown",
+			query:       `targetingKey in segment("other")`,
+			key:         keyAlice,
+			provider:    segment.NewMemoryProvider(nil).WithMissing(segment.MissingUnknown),
 			wantVariant: variantOff,
 			wantStatus:  segment.StatusStoreError,
 		},
