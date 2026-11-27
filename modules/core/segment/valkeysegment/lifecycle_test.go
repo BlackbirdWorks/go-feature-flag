@@ -324,7 +324,7 @@ func TestDocumentedDefaults(t *testing.T) {
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups), "a missing key is unknown by default")
 	assert.Equal(
 		t,
-		[][]string{{"smismember semaphore:segment:{ghost} alice", "exists semaphore:segment:{ghost}"}},
+		[][]string{{cmdSMIGhostAlice, "exists semaphore:segment:{ghost}"}},
 		store.commands(),
 	)
 }

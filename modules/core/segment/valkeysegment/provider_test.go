@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	cmdSMIGhostAlice   = "smismember semaphore:segment:{ghost} alice"
 	cmdExistsFlagAlice = "exists flag:alice"
 	keyFlagAlice       = "flag:alice"
 	segGone            = "gone"
@@ -129,7 +130,7 @@ func TestContainsAnswers(t *testing.T) {
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
 			wantStates: []segment.State{segment.Unknown},
 			wantCommands: [][]string{
-				{"smismember semaphore:segment:{ghost} alice", "exists semaphore:segment:{ghost}"},
+				{cmdSMIGhostAlice, "exists semaphore:segment:{ghost}"},
 			},
 		},
 		{
@@ -141,7 +142,7 @@ func TestContainsAnswers(t *testing.T) {
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
 			wantStates: []segment.State{segment.NotMember},
 			wantCommands: [][]string{
-				{"smismember semaphore:segment:{ghost} alice"},
+				{cmdSMIGhostAlice},
 			},
 		},
 		{
