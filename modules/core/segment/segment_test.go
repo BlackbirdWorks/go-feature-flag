@@ -214,7 +214,7 @@ func TestMemoryProvider(t *testing.T) {
 		{Segment: "a", ID: "x"},
 		{Segment: "a", ID: "z"},
 		{Segment: segEmpty, ID: "x"},
-		{Segment: "ghost", ID: "x"},
+		{Segment: segGhost, ID: "x"},
 	}
 
 	require.NoError(t, provider.Contains(context.Background(), lookups))

@@ -127,12 +127,17 @@ var (
 // Definition is a segment: its name, where its members are and what an unanswered lookup becomes. It holds no
 // member and no connection detail; the provider that serves the segment holds those.
 type Definition struct {
+	// Version says how the version of the segment is learned. Nil means no version: only the time-to-live of a
+	// cache applies.
+	Version *VersionSpec
 	// Name is the name that the rules use: segment("name").
 	Name string
 	// Type is the kind of store of the members.
 	Type Type
 	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorUnknown.
 	OnError OnError
+	// Mode is how a segment that lives in a store is served. Empty means ModeSnapshot.
+	Mode Mode
 }
 
 // Validate returns an error that wraps ErrInvalidDefinition when the definition is not valid.
@@ -147,7 +152,7 @@ func (d Definition) Validate() error {
 
 	switch d.OnError {
 	case "", OnErrorUnknown, OnErrorNotMember, OnErrorMember:
-		return nil
+		return d.validateModeVersion()
 	default:
 		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidOnError, d.OnError)
 	}

@@ -3,6 +3,7 @@ package resolver
 import (
 	"hash/maphash"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -14,6 +15,7 @@ type entry struct {
 	prev    *entry
 	next    *entry
 	key     string
+	version string // the segment version the answer was fetched under
 	state   segment.State
 }
 
@@ -44,6 +46,7 @@ func (shd *shard) pushFront(ent *entry) {
 
 // cache is a bounded LRU of the answers of one segment, with a TTL for members and one for non members.
 type cache struct {
+	version     atomic.Pointer[string] // the current version of the segment, nil until one is learned
 	shards      []*shard
 	seed        maphash.Seed
 	ttl         time.Duration
@@ -70,6 +73,27 @@ func newCache(opts SegmentOptions) *cache {
 	return cch
 }
 
+// current returns the version that new entries are stamped with and that old ones must match. It does not allocate.
+func (c *cache) current() string {
+	if p := c.version.Load(); p != nil {
+		return *p
+	}
+
+	return ""
+}
+
+// setVersion makes the entries of any other version misses, without touching them: they age out of the LRU. It
+// reports whether the version changed.
+func (c *cache) setVersion(token string) bool {
+	if c.current() == token {
+		return false
+	}
+
+	c.version.Store(&token)
+
+	return true
+}
+
 func (c *cache) shardOf(key string) *shard {
 	return c.shards[maphash.String(c.seed, key)%uint64(len(c.shards))]
 }
@@ -78,12 +102,18 @@ func (c *cache) shardOf(key string) *shard {
 func (c *cache) get(key string, now time.Time) (segment.State, bool) {
 	shd := c.shardOf(key)
 
+	cur := c.current()
+
 	shd.mu.Lock()
 	defer shd.mu.Unlock()
 
 	ent := shd.m[key]
 	if ent == nil {
 		return segment.Unknown, false
+	}
+
+	if ent.version != cur {
+		return segment.Unknown, false // fetched under another version: a miss, the entry ages out
 	}
 
 	if !now.Before(ent.expires) {
@@ -111,12 +141,13 @@ func (c *cache) put(key string, state segment.State, now time.Time) {
 	}
 
 	shd := c.shardOf(key)
+	cur := c.current()
 
 	shd.mu.Lock()
 	defer shd.mu.Unlock()
 
 	if ent := shd.m[key]; ent != nil {
-		ent.state, ent.expires = state, now.Add(ttl)
+		ent.state, ent.expires, ent.version = state, now.Add(ttl), cur
 		ent.unlink()
 		shd.pushFront(ent)
 
@@ -129,7 +160,7 @@ func (c *cache) put(key string, state segment.State, now time.Time) {
 		delete(shd.m, oldest.key)
 	}
 
-	ent := &entry{key: key, state: state, expires: now.Add(ttl)}
+	ent := &entry{key: key, state: state, expires: now.Add(ttl), version: cur}
 	shd.m[key] = ent
 	shd.pushFront(ent)
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"maps"
 	"strings"
 )
@@ -34,6 +35,50 @@ func (s *MemberSet) Contains(id string) bool {
 	_, ok := s.set[id]
 
 	return ok
+}
+
+// All yields the members, in no particular order.
+func (s *MemberSet) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for id := range s.set {
+			if !yield(id) {
+				return
+			}
+		}
+	}
+}
+
+// MemberSetBuilder builds a MemberSet one member at a time, straight into the set: no list of the members exists.
+// The zero value is ready to use.
+type MemberSetBuilder struct {
+	set map[string]struct{}
+}
+
+// Add adds a member and reports whether it was new.
+func (b *MemberSetBuilder) Add(id string) bool {
+	if b.set == nil {
+		b.set = make(map[string]struct{})
+	}
+
+	before := len(b.set)
+	b.set[id] = struct{}{}
+
+	return len(b.set) > before
+}
+
+// Len is the number of distinct members added.
+func (b *MemberSetBuilder) Len() int { return len(b.set) }
+
+// Build returns the set and resets the builder: the set takes the map, nothing is copied.
+func (b *MemberSetBuilder) Build() *MemberSet {
+	set := b.set
+	if set == nil {
+		set = map[string]struct{}{}
+	}
+
+	b.set = nil
+
+	return &MemberSet{set: set}
 }
 
 // MemoryProvider is a Provider of segments whose members are held in memory, as a hash set per segment. It serves
