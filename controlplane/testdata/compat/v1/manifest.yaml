@@ -1,0 +1,26 @@
+apiVersion: semaphore/v1
+kind: Manifest
+channel: stable
+generation: 7
+createdAt: 2026-01-02T03:04:05Z
+objects:
+  - name: checkout-flags
+    kind: flags
+    connection: flags-eu
+    key: objects/sha256/29/2934fb49d6b38adef036c28fac69f188feae09259f3184e6d9cfbd0f35454fec.yaml
+    format: yaml
+    checksum:
+      algorithm: sha256
+      value: "2934fb49d6b38adef036c28fac69f188feae09259f3184e6d9cfbd0f35454fec"
+    size: 5
+    versionId: v1
+  - name: flagsets
+    kind: flagSets
+    connection: control
+    key: objects/sha256/06/069100af988b1eda7efb84e2964ebff7a05592a3aec9124a576d83a340fe1e0e.yaml
+    format: yaml
+    version: 1
+    checksum:
+      algorithm: sha256
+      value: "069100af988b1eda7efb84e2964ebff7a05592a3aec9124a576d83a340fe1e0e"
+    size: 9
