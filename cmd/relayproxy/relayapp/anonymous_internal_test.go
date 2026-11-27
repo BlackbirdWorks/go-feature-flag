@@ -357,6 +357,12 @@ func (c *streamClient) awaitEvent(t *testing.T, want string) {
 	select {
 	case got := <-c.events:
 		assert.Contains(t, got, want)
+
+		// the engine may report one change as two (they are merged only when they wait together): the caller made
+		// sure everything was delivered, so what is left in the channel belongs to the same change
+		for len(c.events) > 0 {
+			<-c.events
+		}
 	case err := <-c.closed:
 		require.FailNow(t, "the stream was closed before the change", "%v", err)
 	case <-time.After(waitBound):
@@ -364,7 +370,8 @@ func (c *streamClient) awaitEvent(t *testing.T, want string) {
 	}
 }
 
-func (c *streamClient) awaitClosed(t *testing.T) {
+// awaitClosed waits for the end of the stream and returns the number of messages that reached the client until then.
+func (c *streamClient) awaitClosed(t *testing.T) int {
 	t.Helper()
 
 	select {
@@ -374,7 +381,7 @@ func (c *streamClient) awaitClosed(t *testing.T) {
 		require.FailNow(t, "the stream was not closed")
 	}
 
-	assert.Empty(t, c.events, "nothing arrived after the close")
+	return len(c.events)
 }
 
 // A client without a key gets the changes of the anonymous flag set, on the websocket and on the SSE stream. When a
@@ -407,6 +414,10 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 
 			rel := <-rig.started
 
+			// the change of generation 1 is queued for the streams: the clients connect after it was delivered, so
+			// that the only change they get is the one the test publishes
+			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the first change was delivered")
+
 			anonWS, anonSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
 			keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
 
@@ -417,6 +428,8 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 			rig.store.publish(2)
 			rig.poll(2)
 
+			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
+
 			anonWS.awaitEvent(t, flagKey)
 			anonSSE.awaitEvent(t, "refetchEvaluation")
 			keyedWS.awaitEvent(t, flagKey)
@@ -425,16 +438,17 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 			rig.writeConfig(tt.reloaded)
 			rig.applyReload(t)
 
-			anonWS.awaitClosed(t)
-			anonSSE.awaitClosed(t)
+			anonWSMessages, anonSSEMessages := anonWS.awaitClosed(t), anonSSE.awaitClosed(t)
 
 			rig.store.publish(3)
 			rig.pollNext(3)
 
+			require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
+
 			keyedWS.awaitEvent(t, flagKey)
 			keyedSSE.awaitEvent(t, "refetchEvaluation")
-			assert.Empty(t, anonWS.events)
-			assert.Empty(t, anonSSE.events)
+			assert.Len(t, anonWS.events, anonWSMessages, "no change reached the closed websocket client")
+			assert.Len(t, anonSSE.events, anonSSEMessages, "no change reached the closed SSE client")
 			assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
 		})
 	}

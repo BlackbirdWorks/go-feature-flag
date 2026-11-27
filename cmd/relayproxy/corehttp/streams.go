@@ -96,6 +96,21 @@ func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
 	s.sse.DisconnectAnonymous(keep)
 }
 
+// Idle reports that no change waits in a lane and none is being sent: what was broadcast has been delivered.
+func (s *Streams) Idle() bool {
+	for _, l := range s.lane {
+		l.mu.Lock()
+		idle := len(l.order) == 0 && !l.busy
+		l.mu.Unlock()
+
+		if !idle {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ClientCounts are the clients connected to each stream service.
 type ClientCounts struct {
 	Websocket, SSE int
@@ -176,6 +191,8 @@ type lane struct {
 	dropped atomic.Uint64
 	mu      sync.Mutex
 	closed  bool
+	// busy is set from the moment the worker took a change until it was sent.
+	busy bool
 }
 
 func startLane(labels context.Context, label string, limit int, send func(*flagruntime.Change), onExit func()) *lane {
@@ -249,6 +266,7 @@ func (l *lane) next() (*flagruntime.Change, bool) {
 	l.order = l.order[1:]
 	change := l.pending[name]
 	delete(l.pending, name)
+	l.busy = true
 
 	return change, true
 }
@@ -278,6 +296,10 @@ func (l *lane) run() {
 			}
 
 			l.send(change)
+
+			l.mu.Lock()
+			l.busy = false
+			l.mu.Unlock()
 		}
 	}
 }
