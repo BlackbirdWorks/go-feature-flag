@@ -129,11 +129,11 @@ func TestInit(t *testing.T) {
 			store:         &fakeStore{unknown: map[string]bool{cmdEvalRO: true}},
 			opts:          atomic,
 			wantPipelines: [][]string{roPipe, plainPipe},
-			wantScriptCmd: "evalsha",
+			wantScriptCmd: cmdEvalSHA,
 		},
 		{
 			name: "atomic falls back when only EVALSHA_RO is refused", store: denying("evalsha_ro"),
-			opts: atomic, wantPipelines: [][]string{roPipe, plainPipe}, wantScriptCmd: "evalsha",
+			opts: atomic, wantPipelines: [][]string{roPipe, plainPipe}, wantScriptCmd: cmdEvalSHA,
 		},
 		{
 			name:  "atomic without the key check uses SMISMEMBER, so it probes that",

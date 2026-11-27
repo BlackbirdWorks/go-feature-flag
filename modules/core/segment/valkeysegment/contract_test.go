@@ -173,7 +173,7 @@ func (b *faultBackend) reply(args []any) *fakeReply {
 
 	for seg := range b.failSeg {
 		if strings.Contains(key, seg) {
-			return &fakeReply{err: serverError{msg: "WRONGTYPE"}}
+			return &fakeReply{err: serverError{msg: msgWrongType}}
 		}
 	}
 

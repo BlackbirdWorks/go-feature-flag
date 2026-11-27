@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ const (
 	cmdExists          = "exists"
 	cmdEval            = "eval"
 	cmdEvalRO          = "eval_ro"
+	cmdEvalSHA         = "evalsha"
+	msgWrongType       = "WRONGTYPE"
 	flagPrefix         = "flag:"
 	msgProtocol1       = "valkey segment: protocol: 1 of 1 lookups failed"
 	keyBeta            = "semaphore:segment:{beta}"
@@ -58,6 +61,11 @@ type timeoutError struct{}
 func (timeoutError) Error() string   { return "i/o timeout" }
 func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return false }
+
+// errParse is the error of go-redis for a reply that is not an integer.
+func errParse() error {
+	return &strconv.NumError{Func: "ParseInt", Num: "invalid", Err: strconv.ErrSyntax}
+}
 
 func lk(seg, id string) segment.Lookup { return segment.Lookup{Segment: seg, ID: id} }
 
@@ -319,7 +327,7 @@ func TestContainsFailures(t *testing.T) {
 			wantSentry:  valkeysegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 2 of 2 lookups failed",
+			wantMessage: msgUnavailable2of2,
 		},
 		{
 			name: "server error on every command",
@@ -343,7 +351,7 @@ func TestContainsFailures(t *testing.T) {
 				sets: setBeta,
 				reply: func(args []any) *fakeReply {
 					if args[1] == keyChurned {
-						return &fakeReply{err: serverError{msg: "WRONGTYPE"}}
+						return &fakeReply{err: serverError{msg: msgWrongType}}
 					}
 
 					return nil
