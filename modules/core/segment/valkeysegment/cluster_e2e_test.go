@@ -97,8 +97,9 @@ func startCluster(t *testing.T) *redis.ClusterClient {
 
 	dialer := &net.Dialer{Timeout: 2 * time.Second}
 	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:      []string{mapped[ports[0]]},
-		MaxRetries: -1,
+		Addrs:                 []string{mapped[ports[0]]},
+		ContextTimeoutEnabled: true,
+		MaxRetries:            -1,
 		// the nodes announce 127.0.0.1:<internal port>: dial the mapped address of that port
 		Dialer: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
 			_, port, splitErr := net.SplitHostPort(addr)

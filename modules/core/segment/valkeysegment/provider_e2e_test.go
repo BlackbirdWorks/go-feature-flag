@@ -171,10 +171,11 @@ func (srv *server) newClient(tb testing.TB, address string) *redis.Client {
 	tb.Helper()
 
 	client := redis.NewClient(&redis.Options{
-		Addr:        address,
-		MaxRetries:  -1,
-		DialTimeout: time.Second,
-		ReadTimeout: time.Second,
+		Addr:                  address,
+		ContextTimeoutEnabled: true,
+		MaxRetries:            -1,
+		DialTimeout:           time.Second,
+		ReadTimeout:           time.Second,
 	})
 	client.AddHook(srv.fault)
 	tb.Cleanup(func() { _ = client.Close() })
@@ -384,7 +385,8 @@ func TestE2ETimeout(t *testing.T) {
 
 	client := redis.NewClient(&redis.Options{
 		Addr: listener.Addr().String(), MaxRetries: -1, Protocol: 2, DisableIdentity: true,
-		ReadTimeout: time.Minute, DialTimeout: time.Minute,
+		ContextTimeoutEnabled: true,
+		ReadTimeout:           time.Minute, DialTimeout: time.Minute,
 	})
 
 	t.Cleanup(func() { _ = client.Close() })
