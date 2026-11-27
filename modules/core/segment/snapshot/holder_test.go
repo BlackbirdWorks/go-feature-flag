@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -308,4 +309,129 @@ func TestASourceThatIgnoresItsContextIsNotTrusted(t *testing.T) {
 
 	require.ErrorIs(t, holder.Refresh(ctx), context.Canceled)
 	assert.Equal(t, snapshot.Status{LastError: snapshot.ClassCanceled}, holder.Status())
+}
+
+// reportsMissing is a source whose Version says that the segment does not exist while gone is set.
+type reportsMissing struct {
+	inner *segment.MemorySource
+	gone  *atomic.Bool
+}
+
+func (r reportsMissing) Version(ctx context.Context, name string) (string, error) {
+	if r.gone.Load() {
+		return "", segment.ErrSegmentMissing
+	}
+
+	return r.inner.Version(ctx, name)
+}
+
+func (r reportsMissing) Members(ctx context.Context, name string) iter.Seq2[string, error] {
+	return r.inner.Members(ctx, name)
+}
+
+func TestAVersionThatReportsMissingIsAnAnswer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		missing       segment.MissingKey
+		startGone     bool
+		wantLookup    segment.State
+		wantLoaded    bool
+		wantFirstLook segment.State
+	}{
+		{
+			name:          "present then missing, default",
+			wantLookup:    segment.NotMember,
+			wantLoaded:    true,
+			wantFirstLook: segment.Member,
+		},
+		{
+			name:          "present then missing, unknown",
+			missing:       segment.MissingUnknown,
+			wantLookup:    segment.Unknown,
+			wantFirstLook: segment.Member,
+		},
+		{
+			name:          "missing from the start, default",
+			startGone:     true,
+			wantLookup:    segment.NotMember,
+			wantLoaded:    true,
+			wantFirstLook: segment.NotMember,
+		},
+		{
+			name:          "missing from the start, unknown",
+			startGone:     true,
+			missing:       segment.MissingUnknown,
+			wantLookup:    segment.Unknown,
+			wantFirstLook: segment.Unknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			gone := &atomic.Bool{}
+			src := reportsMissing{inner: segment.NewMemorySource(map[string][]string{segAlpha: {"a"}}), gone: gone}
+
+			holder, err := snapshot.New(segAlpha, src, snapshot.Options{Missing: tt.missing})
+			require.NoError(t, err)
+
+			gone.Store(tt.startGone)
+
+			if tt.startGone {
+				require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+			} else {
+				require.NoError(t, holder.Refresh(ctx))
+				assert.Equal(t, tt.wantFirstLook, holder.Lookup("a"))
+
+				gone.Store(true)
+				require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing, "the answer is returned once")
+			}
+
+			assert.Equal(t, tt.wantLookup, holder.Lookup("a"), "the old set is dropped and the policy answers")
+			assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
+			assert.Equal(t, tt.wantLoaded, holder.Status().Loaded)
+			require.NoError(t, holder.Refresh(ctx), "already known: no second error")
+			assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
+
+			gone.Store(false)
+			require.NoError(t, holder.Refresh(ctx), "the segment is back")
+			assert.Equal(t, segment.Member, holder.Lookup("a"))
+			assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+		})
+	}
+}
+
+func TestAPollThatWorksRestoresTheTrueStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// a present segment: an outage and then a poll of the same version leave no error
+	holder, src := loaded(t, "a")
+
+	src.Fail(segment.OpVersion, errBoom)
+	require.ErrorIs(t, holder.Refresh(ctx), errBoom)
+	assert.Equal(t, snapshot.ClassVersion, holder.Status().LastError)
+
+	src.Fail(segment.OpVersion, nil)
+	require.NoError(t, holder.Refresh(ctx))
+	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+
+	// a missing segment: an outage and then a poll of the same version show missing again, not healthy
+	src.Delete(segAlpha)
+	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
+
+	src.Fail(segment.OpVersion, errBoom)
+	require.ErrorIs(t, holder.Refresh(ctx), errBoom)
+	assert.Equal(t, snapshot.ClassVersion, holder.Status().LastError)
+
+	src.Fail(segment.OpVersion, nil)
+	require.NoError(t, holder.Refresh(ctx))
+	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError, "still missing: the true state")
+	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
 }

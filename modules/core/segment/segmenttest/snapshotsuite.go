@@ -606,7 +606,6 @@ func snapGone(t caseT, fix SnapshotFixture) {
 
 	status := holder.Status()
 	assert.Equal(t, snapshot.ClassMissing, status.LastError)
-	assert.NotEmpty(t, status.Version, "the version of the missing segment is recorded")
 	assert.Equal(t, wantMissing(fix), holder.Lookup("m1"), "a segment that is gone is not served from the old set")
 
 	_, pulls := prb.counts()
