@@ -5,7 +5,7 @@ import "strings"
 // StrTrim returns query as a single line, for the rules-format grammar: the leading spaces of every line, the line ends
 // (LF or CRLF) and the blank lines are removed. Two lines are joined with a space unless the text already has a
 // separator there (the previous line ends with a space) or the join cannot merge two tokens (after an opening
-// bracket, before a closing bracket or a comma). A line break inside a quoted value becomes exactly one space.
+// bracket, before a closing bracket or a comma). A line break inside a quoted value becomes exactly one space (a space that already ends the line is reused).
 // A query on one line only loses its leading spaces.
 //
 // It must not be used on a JsonLogic query: that is JSON, which ignores whitespace between tokens and rejects a
@@ -27,8 +27,11 @@ func StrTrim(query string) string {
 
 		switch {
 		case inQuote:
-			// a line break inside a quoted value is exactly one space, whatever surrounds it
-			joined.WriteByte(' ')
+			// the spaces around a line break inside a quoted value (and any blank lines) collapse to one space,
+			// whatever the neighbouring punctuation: an ending space of the previous line is reused
+			if joined.String()[joined.Len()-1] != ' ' {
+				joined.WriteByte(' ')
+			}
 		case line == "":
 			continue
 		case joined.Len() > 0 && needsSeparator(joined.String()[joined.Len()-1], line[0]):

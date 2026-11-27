@@ -38,6 +38,7 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 		wantValue any
 		name      string
 		query     string
+		key       string // the evaluation key; abc when empty
 		n         int
 		scheduled bool
 		evalOnly  bool // skip load-time validation: a scheduled step is evaluated without it
@@ -69,12 +70,28 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 			query: newlineInString,
 		},
 		{
-			name: "nikunjy line break after a bracket inside quotes is one space", wantValid: true, wantValue: "a",
-			query: "key in [\"x\", \"ab[\nc\", \"abc\"]",
+			name: "nikunjy quoted break after a bracket matches the key joined with one space", wantValid: true,
+			key: "ab[ c", wantValue: "a", query: "key eq \"ab[\nc\"",
 		},
 		{
-			name: "nikunjy line break after a letter inside quotes is one space", wantValid: true, wantValue: "a",
-			query: "key eq \"a b\nc\" or key eq \"abc\"",
+			name: "nikunjy quoted break after a bracket does not match the unjoined key", wantValid: true,
+			key: "ab[c", wantValue: "b", query: "key eq \"ab[\nc\"",
+		},
+		{
+			name: "nikunjy quoted break after a bracket does not match the double-spaced key", wantValid: true,
+			key: "ab[  c", wantValue: "b", query: "key eq \"ab[\nc\"",
+		},
+		{
+			name: "nikunjy quoted break after a letter matches the key joined with one space", wantValid: true,
+			key: "ab c", wantValue: "a", query: "key eq \"ab\nc\"",
+		},
+		{
+			name: "nikunjy quoted break after a letter does not match the unjoined key", wantValid: true,
+			key: "abc", wantValue: "b", query: "key eq \"ab\nc\"",
+		},
+		{
+			name: "nikunjy quoted break after a letter does not match the double-spaced key", wantValid: true,
+			key: "ab  c", wantValue: "b", query: "key eq \"ab\nc\"",
 		},
 		{
 			name: "jsonlogic multi-line in a scheduled step", wantValid: true, wantValue: "a", scheduled: true,
@@ -157,7 +174,12 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 				n = 1
 			}
 
-			ctx := atFixedNow(ffcontext.NewEvaluationContextBuilder("abc").AddCustom("n", n).Build())
+			key := tt.key
+			if key == "" {
+				key = "abc"
+			}
+
+			ctx := atFixedNow(ffcontext.NewEvaluationContextBuilder(key).AddCustom("n", n).Build())
 			got, _ := flg.Value("flag", ctx, flagdef.Context{Service: svc, DefaultSdkValue: "sdk"})
 			assert.Equal(t, tt.wantValue, got)
 		})
