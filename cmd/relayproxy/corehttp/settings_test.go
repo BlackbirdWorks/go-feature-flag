@@ -217,3 +217,73 @@ func TestSettingsFromServerSettings(t *testing.T) {
 		})
 	}
 }
+
+// The settings of the file reach the HTTP layer: the profiler, the advertised event stream and the validate limits.
+func TestSettingsFromServerSettings(t *testing.T) {
+	t.Parallel()
+
+	const (
+		kib        = 1 << 10
+		streamBase = "https://flags.example.com"
+	)
+
+	jsonLimit, yamlLimit := bootstrap.ByteSize(2<<20), bootstrap.ByteSize(100*kib)
+
+	apiOnly := bootstrap.Listener{Name: roleAPI, Address: ":1031", Role: bootstrap.RoleAPI}
+
+	tests := []struct {
+		server     bootstrap.Server
+		name       string
+		wantLimits controller.ValidateFlagsLimits
+		wantPprof  bool
+		wantStream bool
+		wantErr    bool
+	}{
+		{name: "nothing set", server: bootstrap.Server{Listeners: []bootstrap.Listener{apiOnly}}},
+		{
+			name: "pprof on", wantPprof: true,
+			server: bootstrap.Server{
+				Listeners: []bootstrap.Listener{apiOnly}, Ops: bootstrap.Ops{Pprof: bootstrap.Pprof{Enabled: true}},
+			},
+		},
+		{
+			name: "event stream advertised", wantStream: true,
+			server: bootstrap.Server{
+				Listeners:        []bootstrap.Listener{apiOnly},
+				OFREPEventStream: bootstrap.OFREPEventStream{BaseURL: streamBase, InactivityDelaySec: 30},
+			},
+		},
+		{
+			name: "event stream with a URL that is not valid", wantErr: true,
+			server: bootstrap.Server{
+				Listeners:        []bootstrap.Listener{apiOnly},
+				OFREPEventStream: bootstrap.OFREPEventStream{BaseURL: "ftp://x"},
+			},
+		},
+		{
+			name:       "limits set",
+			wantLimits: controller.ValidateFlagsLimits{MaxJSONBodySize: 2 << 20, MaxYAMLBodySize: 100 * kib},
+			server: bootstrap.Server{
+				Listeners:     []bootstrap.Listener{apiOnly},
+				ValidateFlags: bootstrap.ValidateFlags{MaxJSONBodySize: &jsonLimit, MaxYAMLBodySize: &yamlLimit},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := corehttp.SettingsFrom(&bootstrap.Config{Server: tt.server}, "v")
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPprof, got.Pprof)
+			assert.Equal(t, tt.wantStream, got.OfrepEventStream.IsEnabled())
+			assert.Equal(t, tt.wantLimits, got.ValidateFlags)
+		})
+	}
+}

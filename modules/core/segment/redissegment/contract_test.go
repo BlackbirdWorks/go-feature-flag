@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
 )
@@ -119,7 +120,12 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 
 				backend := newFaultBackend(store)
 
-				return segmenttest.Fixture{Provider: prov, Backend: backend, Close: backend.Release}, nil
+				return segmenttest.Fixture{
+					Provider: prov,
+					Missing:  segment.MissingUnknown,
+					Backend:  backend,
+					Close:    backend.Release,
+				}, nil
 			}, nil)
 		})
 	}

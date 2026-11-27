@@ -69,6 +69,9 @@ type SegmentOptions struct {
 	NoCache bool
 	// NoBreaker turns the breaker of the segment off.
 	NoBreaker bool
+	// Versioned makes [Resolver.RefreshVersions] ask for the version of the segment. Without it the segment has no
+	// version and only the time-to-live applies.
+	Versioned bool
 }
 
 func (o SegmentOptions) validate(name string) error {
