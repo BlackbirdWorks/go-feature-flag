@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "variations": {
+      "a": "yes",
+      "b": "no",
+      "c": 0.5,
+      "d": "2026-01-01"
+    },
+    "defaultRule": {
+      "variation": "a"
+    }
+  },
+  "new-checkout": {
+    "trackEvents": false,
+    "disable": false,
+    "version": "1.2",
+    "variations": {
+      "off": false,
+      "on": true
+    },
+    "targeting": [
+      {
+        "name": "beta",
+        "query": "beta eq true",
+        "percentage": {
+          "off": 0.0,
+          "on": 100.0
+        },
+        "onError": "match"
+      },
+      {
+        "name": "ramp",
+        "query": "country eq \"FR\"",
+        "progressiveRollout": {
+          "initial": {
+            "variation": "off",
+            "percentage": 0.0,
+            "date": "2026-01-01T03:04:05Z"
+          },
+          "end": {
+            "variation": "on",
+            "percentage": 100.0,
+            "date": "2026-01-02T03:04:05Z"
+          }
+        }
+      }
+    ],
+    "bucketingKey": "targetingKey",
+    "defaultRule": {
+      "variation": "off"
+    },
+    "scheduledRollout": [
+      {
+        "date": "2026-01-03T03:04:05Z",
+        "defaultRule": {
+          "variation": "on"
+        },
+        "metadata": {
+          "step": "full"
+        }
+      }
+    ],
+    "experimentation": {
+      "start": "2026-01-04T03:04:05Z",
+      "end": "2026-01-05T03:04:05Z"
+    },
+    "metadata": {
+      "owner": "payments",
+      "ratio": 1.5,
+      "tags": [
+        "yes",
+        "007"
+      ]
+    }
+  }
+}
