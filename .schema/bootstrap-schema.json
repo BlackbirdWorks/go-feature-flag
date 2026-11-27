@@ -80,6 +80,9 @@
                 "controlPlane": {
                     "$ref": "#/$defs/ControlPlane"
                 },
+                "segments": {
+                    "$ref": "#/$defs/Segments"
+                },
                 "server": {
                     "$ref": "#/$defs/Server"
                 },
@@ -121,6 +124,12 @@
                 },
                 {
                     "$ref": "#/$defs/FileConnection"
+                },
+                {
+                    "$ref": "#/$defs/RedisConnection"
+                },
+                {
+                    "$ref": "#/$defs/ValkeyConnection"
                 }
             ]
         },
@@ -1766,6 +1775,78 @@
             "additionalProperties": false,
             "type": "object"
         },
+        "RedisConnection": {
+            "properties": {
+                "tls": {
+                    "$ref": "#/$defs/StoreTLS"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/RedisTimeouts"
+                },
+                "maxRetries": {
+                    "type": "integer",
+                    "minimum": -1
+                },
+                "poolSize": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "lookupTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "redis"
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                },
+                "keyPrefix": {
+                    "type": "string"
+                },
+                "password": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "addresses": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "db": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "cluster": {
+                    "type": "boolean"
+                },
+                "atomic": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "RedisTimeouts": {
+            "properties": {
+                "connect": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "read": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "write": {
+                    "$ref": "#/$defs/Duration"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
         "RedshiftConnection": {
             "properties": {
                 "credentials": {
@@ -1929,6 +2010,79 @@
             "maxProperties": 1,
             "minProperties": 1
         },
+        "SegmentResolver": {
+            "properties": {
+                "callTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "shutdownGrace": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "maxOverdue": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "maxIdBytes": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "default": {
+                    "$ref": "#/$defs/SegmentTuning"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "SegmentTuning": {
+            "properties": {
+                "ttl": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "negativeTtl": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "breakerCooldown": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "maxEntries": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "shards": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "breakerFailures": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "noCache": {
+                    "type": "boolean"
+                },
+                "noBreaker": {
+                    "type": "boolean"
+                },
+                "normalize": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "trimLower",
+                        ""
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Segments": {
+            "properties": {
+                "resolver": {
+                    "$ref": "#/$defs/SegmentResolver"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
         "Server": {
             "properties": {
                 "unixSocketPath": {
@@ -1939,6 +2093,21 @@
                         "$ref": "#/$defs/Listener"
                     },
                     "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "StoreTLS": {
+            "properties": {
+                "serverName": {
+                    "type": "string"
+                },
+                "caBundleFile": {
+                    "type": "string"
+                },
+                "enable": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -1979,6 +2148,76 @@
                         ""
                     ],
                     "default": "parentbased_always_off"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "ValkeyConnection": {
+            "properties": {
+                "tls": {
+                    "$ref": "#/$defs/StoreTLS"
+                },
+                "timeouts": {
+                    "$ref": "#/$defs/ValkeyTimeouts"
+                },
+                "lookupTimeout": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "valkey"
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                },
+                "pipelining": {
+                    "type": "string",
+                    "enum": [
+                        "always",
+                        "auto",
+                        ""
+                    ],
+                    "default": "always"
+                },
+                "keyPrefix": {
+                    "type": "string"
+                },
+                "password": {
+                    "$ref": "#/$defs/Secret"
+                },
+                "addresses": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "blockingPipeline": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "forceSingleClient": {
+                    "type": "boolean"
+                },
+                "retry": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
+        "ValkeyTimeouts": {
+            "properties": {
+                "connect": {
+                    "$ref": "#/$defs/Duration"
+                },
+                "io": {
+                    "$ref": "#/$defs/Duration"
                 }
             },
             "additionalProperties": false,

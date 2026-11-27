@@ -120,6 +120,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `exporters` | map of name to exporter | none | see below |
 | `notifiers` | map of name to notifier | none | see below |
 | `controlPlane` | object | none (no control plane) | see below |
+| `segments` | object | none (no segment) | see below |
 
 ### `server`
 
@@ -179,8 +180,8 @@ A change of `evaluation` needs a restart (it is listed in `pendingRestart` after
 
 ### `connections.<name>`
 
-Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift` and `file` are supported. Types that are planned
-but not built yet (`valkey`, `redis`, `webhook`, `kafka`, `postgres`, `mysql`, `dynamodb`, `gcs`, `azureBlob`,
+Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis` and `valkey` are supported. Types that are planned
+but not built yet (`webhook`, `kafka`, `postgres`, `mysql`, `dynamodb`, `gcs`, `azureBlob`,
 `pubsub`, `bigquery`, `http`) fail with `type not supported yet`; any other value is an unknown type.
 
 Settings shared by the AWS types (`s3`, `kinesis`, `sqs`, `redshift`):
@@ -216,6 +217,51 @@ Extra keys per type:
 | `file` | `path` | string | required | a directory; object keys are read below it, and no key can leave it |
 | `kinesis` | `stream` | string | none | |
 | `sqs` | `queueUrl` | string | none | an `http` or `https` URL without credentials |
+
+Settings of the store types `redis` and `valkey` (stores of [dynamic segments](../configure-flags/segments-dynamic.md); see the pages of the [redis](../configure-flags/segments-redis.md) and [valkey](../configure-flags/segments-valkey.md) providers for what they do):
+
+| Type | Key | Type | Default | Allowed |
+|---|---|---|---|---|
+| both | `addresses` | list of strings | required | `host:port`, no credentials, no duplicate |
+| both | `username` | string | none | |
+| both | `password` | secret | none | `fromEnv` or `fromFile` (an inline value is refused unless inline secrets are allowed) |
+| both | `tls.enable` | boolean | `false` | |
+| both | `tls.caBundleFile` | string | none (the system roots) | a PEM file; needs `tls.enable: true` |
+| both | `tls.serverName` | string | none | needs `tls.enable: true` |
+| both | `keyPrefix` | string | `semaphore:segment:` | no white space |
+| both | `lookupTimeout` | duration | `100ms` | positive; bounds one lookup call |
+| `redis` | `cluster` | boolean | `false` | a single address that is a cluster endpoint; several addresses are a cluster already |
+| `redis` | `db` | integer | `0` | 0 or more; not with a cluster |
+| `redis` | `timeouts.connect`, `timeouts.read`, `timeouts.write` | duration | go-redis defaults | positive |
+| `redis` | `maxRetries` | integer | go-redis default | -1 or more (-1 turns the retries off) |
+| `redis` | `poolSize` | integer | go-redis default | 1 or more |
+| `redis` | `atomic` | boolean | `false` | one Lua script for each set segment |
+| `valkey` | `pipelining` | string | `always` | `always`, `auto` |
+| `valkey` | `blockingPipeline` | integer | `0` (never) | 0 or more |
+| `valkey` | `retry` | boolean | `false` | |
+| `valkey` | `forceSingleClient` | boolean | `false` | one address only; keeps valkey-go from probing for a cluster |
+| `valkey` | `timeouts.connect`, `timeouts.io` | duration | valkey-go defaults | positive; `io` is the read and write timeout of a connection |
+
+### `segments`
+
+Process-level settings of the segment resolver (cache, breaker, timeouts). The segment definitions are not in this file: they are published with the flags and arrive through the control plane (not active yet). A definition names one of the `redis` or `valkey` connections above.
+
+The relay validates this section and logs that segment stores are configured but not active: the relay does not look a segment up yet.
+
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `resolver.callTimeout` | duration | `2s` | positive |
+| `resolver.shutdownGrace` | duration | `5s` | positive |
+| `resolver.maxOverdue` | integer | `8` | 1 or more |
+| `resolver.maxIdBytes` | integer | `512` | 1 or more |
+| `resolver.default.normalize` | string | `none` | `none`, `trimLower` |
+| `resolver.default.ttl` | duration | `30s` | positive; how long a member is cached |
+| `resolver.default.negativeTtl` | duration | `5s` | positive |
+| `resolver.default.maxEntries` | integer | `10000` | 1 or more |
+| `resolver.default.shards` | integer | `16` | 1 or more |
+| `resolver.default.breakerFailures` | integer | `5` | 1 or more |
+| `resolver.default.breakerCooldown` | duration | `10s` | positive |
+| `resolver.default.noCache`, `resolver.default.noBreaker` | boolean | `false` | |
 
 ### `exporters.<name>`
 
@@ -340,6 +386,27 @@ connections:
   events-queue: {type: sqs, region: us-east-1, queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/evals"}
   warehouse: {type: redshift, region: us-east-1}
   local-control: {type: file, path: /var/lib/semaphore/control}
+  segments-valkey:
+    type: valkey
+    addresses: ["valkey-1:6379", "valkey-2:6379"]
+    username: semaphore
+    password: {fromEnv: VALKEY_PASSWORD}
+    tls: {enable: true, caBundleFile: /etc/ssl/valkey-ca.pem, serverName: valkey.internal}
+    timeouts: {connect: 2s, io: 1s}
+    pipelining: auto
+    blockingPipeline: 64
+    retry: false
+    keyPrefix: "acme:segment:"
+    lookupTimeout: 150ms
+  segments-redis:
+    type: redis
+    addresses: ["redis:6379"]
+    db: 2
+    password: {fromFile: /run/secrets/redis-password}
+    timeouts: {connect: 2s, read: 500ms, write: 500ms}
+    maxRetries: 2
+    poolSize: 20
+    atomic: true
 exporters:
   evals-kinesis:
     kind: kinesis
@@ -387,4 +454,11 @@ controlPlane:
     jitter: 0.1
     maxObjects: 20000
   stateDir: /var/lib/semaphore
+segments:
+  resolver:
+    callTimeout: 2s
+    shutdownGrace: 5s
+    maxOverdue: 8
+    maxIdBytes: 512
+    default: {normalize: trimLower, ttl: 30s, negativeTtl: 5s, maxEntries: 10000, shards: 16, breakerFailures: 5, breakerCooldown: 10s}
 ```

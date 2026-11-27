@@ -24,6 +24,7 @@ func JSONSchema() ([]byte, error) {
 	for _, t := range []reflect.Type{
 		reflect.TypeFor[S3Connection](), reflect.TypeFor[KinesisConnection](),
 		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](), reflect.TypeFor[FileConnection](),
+		reflect.TypeFor[RedisConnection](), reflect.TypeFor[ValkeyConnection](),
 	} {
 		member := r.ReflectFromType(t)
 		maps.Copy(root.Definitions, member.Definitions)
@@ -190,6 +191,7 @@ func allowEmptyEnums(root *jsonschema.Schema) {
 		{"Credentials", keyType}, {defS3Connection, "requestChecksumCalculation"},
 		{defS3Connection, "responseChecksumValidation"}, {"Exporter", keyFormat},
 		{"KafkaSASL", "mechanism"}, {"KafkaGSSAPI", "authType"},
+		{"ValkeyConnection", "pipelining"}, {"SegmentTuning", "normalize"},
 		{kafkaProducerDef, "requiredAcks"}, {kafkaProducerDef, "compression"}, {kafkaProducerDef, "partitioner"},
 	} {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {

@@ -86,6 +86,39 @@ connections:
   local-control:
     type: file
     path: /var/lib/semaphore/control
+  segments-redis:
+    timeouts:
+      connect: 2s
+      read: 500ms
+      write: 500ms
+    maxRetries: 2
+    poolSize: 20
+    type: redis
+    password:
+      fromFile: /run/secrets/redis-password
+    addresses:
+      - redis:6379
+    db: 2
+    atomic: true
+  segments-valkey:
+    tls:
+      serverName: valkey.internal
+      caBundleFile: /etc/ssl/valkey-ca.pem
+      enable: true
+    timeouts:
+      connect: 2s
+      io: 1s
+    lookupTimeout: 150ms
+    type: valkey
+    username: semaphore
+    pipelining: auto
+    keyPrefix: 'acme:segment:'
+    password:
+      fromEnv: VALKEY_PASSWORD
+    addresses:
+      - valkey-1:6379
+      - valkey-2:6379
+    blockingPipeline: 64
   warehouse:
     credentials:
       type: chain
@@ -160,6 +193,22 @@ controlPlane:
     channel: stable
   connection: control
   stateDir: /var/lib/semaphore
+segments:
+  resolver:
+    callTimeout: 2s
+    shutdownGrace: 5s
+    maxOverdue: 8
+    maxIdBytes: 512
+    default:
+      ttl: 30s
+      negativeTtl: 5s
+      breakerCooldown: 10s
+      maxEntries: 10000
+      shards: 16
+      breakerFailures: 5
+      noCache: false
+      noBreaker: false
+      normalize: trimLower
 server:
   listeners:
     - name: api

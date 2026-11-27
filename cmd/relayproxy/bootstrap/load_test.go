@@ -164,7 +164,7 @@ func TestParseErrors(t *testing.T) {
 		},
 		{
 			name:    "unsupported connection type",
-			doc:     "version: 2\nconnections:\n  cache: {type: valkey}\n",
+			doc:     "version: 2\nconnections:\n  cache: {type: postgres}\n",
 			wantErr: bootstrap.ErrUnsupportedType, wantPath: pathCacheType, wantLine: 3,
 		},
 		{
