@@ -68,6 +68,8 @@ var (
 	ErrInvalidOptions = errors.New("valkey segment: invalid options")
 	// ErrClosed is returned by a call after Shutdown.
 	ErrClosed = errors.New("valkey segment: closed")
+	// ErrContextTimeoutDisabled is wrapped by the error of New for a go-redis client without ContextTimeoutEnabled.
+	ErrContextTimeoutDisabled = errors.New("valkey segment: the client must set ContextTimeoutEnabled")
 	// ErrNilClient is returned when the client is nil.
 	ErrNilClient = errors.New("valkey segment: nil client")
 

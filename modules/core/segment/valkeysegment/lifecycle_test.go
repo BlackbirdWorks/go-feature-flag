@@ -3,6 +3,7 @@ package valkeysegment_test
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -176,6 +177,22 @@ func TestInitStatusAndShutdown(t *testing.T) {
 			wantErr:    valkeysegment.ErrProtocol,
 			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassProtocol},
 		},
+		{
+			name: "the reply is another string than PONG",
+			store: &fakeStore{reply: func([]any) *fakeReply {
+				return &fakeReply{value: "OK"}
+			}},
+			wantErr:    valkeysegment.ErrProtocol,
+			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassProtocol},
+		},
+		{
+			name: "the reply is an error of the store",
+			store: &fakeStore{reply: func([]any) *fakeReply {
+				return &fakeReply{err: serverError{msg: "NOPERM"}}
+			}},
+			wantErr:    valkeysegment.ErrServer,
+			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassServer},
+		},
 	}
 
 	for _, tt := range tests {
@@ -254,7 +271,7 @@ func TestExists(t *testing.T) {
 		{
 			name:       "keys layout and unconfigured segments cannot tell",
 			store:      &fakeStore{},
-			names:      []string{"f", "other"},
+			names:      []string{"f", segOther},
 			wantStates: []segment.State{segment.Unknown, segment.Unknown},
 			wantCmds:   [][]string{},
 		},
@@ -311,28 +328,45 @@ func TestDocumentedDefaults(t *testing.T) {
 	assert.Equal(t, 100*time.Millisecond, valkeysegment.DefaultTimeout)
 	assert.Equal(t, "semaphore:segment:", valkeysegment.DefaultKeyPrefix)
 
-	var deadline time.Time
+	tests := []struct {
+		name        string
+		timeout     time.Duration
+		wantTimeout time.Duration
+	}{
+		{name: "the default timeout", wantTimeout: valkeysegment.DefaultTimeout},
+		{name: "a configured timeout", timeout: 3 * time.Second, wantTimeout: 3 * time.Second},
+	}
 
-	store := &fakeStore{exec: func(ctx context.Context) error {
-		deadline, _ = ctx.Deadline()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		return nil
-	}}
-	prov := newProvider(
-		t,
-		store,
-		&valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{"ghost": {}}},
-	)
-	lookups := []segment.Lookup{lk("ghost", idAlice)}
+			// inside the bubble the clock is fake and starts at a fixed time, so the deadline is exact
+			synctest.Test(t, func(t *testing.T) {
+				var deadline time.Time
 
-	require.NoError(t, prov.Contains(context.Background(), lookups))
+				start := time.Now()
+				store := &fakeStore{exec: func(ctx context.Context) error {
+					deadline, _ = ctx.Deadline()
 
-	assert.False(t, deadline.IsZero(), "a call has the default timeout")
-	assert.LessOrEqual(t, time.Until(deadline), valkeysegment.DefaultTimeout)
-	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups), "a missing key is unknown by default")
-	assert.Equal(
-		t,
-		[][]string{{cmdSMIGhostAlice, "exists semaphore:segment:{ghost}"}},
-		store.commands(),
-	)
+					return nil
+				}}
+				prov := newProvider(t, store, &valkeysegment.Options{
+					Timeout:  tt.timeout,
+					Segments: map[string]valkeysegment.SegmentOptions{"ghost": {}},
+				})
+				lookups := []segment.Lookup{lk("ghost", idAlice)}
+
+				require.NoError(t, prov.Contains(context.Background(), lookups))
+
+				assert.Equal(t, start.Add(tt.wantTimeout), deadline)
+				assert.Equal(t, []segment.State{segment.Unknown}, states(lookups), "a missing key is unknown")
+				assert.Equal(
+					t,
+					[][]string{{cmdSMIGhostAlice, "exists semaphore:segment:{ghost}"}},
+					store.commands(),
+				)
+			})
+		})
+	}
 }

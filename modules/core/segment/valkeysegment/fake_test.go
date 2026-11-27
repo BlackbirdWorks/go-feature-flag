@@ -27,6 +27,7 @@ type fakeStore struct {
 	exec      func(ctx context.Context) error
 	scripts   map[string]bool
 	pipelines [][]string
+	completed int // when exec fails, this many commands (from the first) got their reply before the failure
 	mu        sync.Mutex
 }
 
@@ -85,7 +86,12 @@ func (p *fakePipe) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	if store.exec != nil {
 		execErr := store.exec(ctx)
 		if execErr != nil {
-			for _, cmd := range p.cmds {
+			// a client reads the replies in order, and at the end stamps the error on every command that has none
+			for i, cmd := range p.cmds {
+				if i < store.completed {
+					store.play(cmd)
+				}
+
 				cmd.SetErr(execErr)
 			}
 

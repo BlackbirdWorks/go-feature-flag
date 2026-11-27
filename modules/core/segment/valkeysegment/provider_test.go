@@ -371,7 +371,7 @@ func TestContainsFailures(t *testing.T) {
 			wantSentry:  valkeysegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 1 of 2 lookups failed",
+			wantMessage: msgUnavailable1of2,
 		},
 		{
 			name: "key check with a wrong reply type",
@@ -501,7 +501,7 @@ func TestContainsReplyFailures(t *testing.T) {
 			wantSentry:  valkeysegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 1 of 2 lookups failed",
+			wantMessage: msgUnavailable1of2,
 		},
 		{
 			name: "the per-call timeout passes",

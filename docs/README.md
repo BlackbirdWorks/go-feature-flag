@@ -13,6 +13,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Configuration reference](relay-proxy/configuration.md) (including flag sets and API keys)
 - [Bootstrap file, version 2](relay-proxy/bootstrap-config.md) (the next configuration format; not read by the relay yet)
 - [Config v2 relay core](relay-proxy/relay-core.md) (how the v2 core starts, reloads in place and shuts down; not the default binary path yet)
+- [Probes and observability of the config v2 runtime](relay-proxy/probes.md) (`/livez`, `/readyz`, `/startupz`, the `/info` config section and the metrics)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
 - [Performance](performance.md) (throughput and latency, single and bulk evaluation, HTTP/1.1 and HTTP/2)
