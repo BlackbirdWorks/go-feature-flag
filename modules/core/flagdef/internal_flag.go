@@ -272,6 +272,11 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return err
 	}
 
+	err = f.validateScheduledSegments()
+	if err != nil {
+		return err
+	}
+
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
 	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
 

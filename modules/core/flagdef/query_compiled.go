@@ -28,6 +28,16 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 		return v
 	}
 
+	compiled := newCompiledQuery(raw)
+
+	actual, _ := s.compiled.LoadOrStore(raw, compiled)
+
+	return ptrOr(actual, compiled)
+}
+
+// newCompiledQuery compiles raw without memoizing it: the validation of a flag compiles the queries it checks with
+// it, so that a query that is replaced by a reload does not stay in the Service.
+func newCompiledQuery(raw string) *compiledQuery {
 	trimmed := evalcore.StrTrim(raw)
 
 	compiled := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
@@ -42,7 +52,5 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 		compiled.segments = strings.Contains(trimmed, "segment") && parser.HasSegmentCall(trimmed)
 	}
 
-	actual, _ := s.compiled.LoadOrStore(raw, compiled)
-
-	return ptrOr(actual, compiled)
+	return compiled
 }

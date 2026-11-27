@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"math/bits"
+	"reflect"
 	"strconv"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -45,7 +46,7 @@ func (r *Rule) evaluateNikunjySegments(evaluator *parser.Evaluator, query string
 
 	match, err := queryCtx.resolveSegments(terms, states, evaluator, nil)
 	if err != nil {
-		queryCtx.svc.logger.Error("error while evaluating the nikunjy query",
+		queryCtx.svc.logger.LogAttrs(queryCtx.logContext(), slog.LevelError, "error while evaluating the nikunjy query",
 			slog.String(queryName, query), slog.Any(errorLiteral, err))
 
 		return false
@@ -76,15 +77,40 @@ func (r *Rule) evaluateSegments(compiled *compiledQuery, queryCtx *queryContext)
 	return r.evaluateNikunjySegments(evaluator, compiled.trimmed, queryCtx)
 }
 
+// logContext is the context of the request, or the background context.
+func (q *queryContext) logContext() context.Context {
+	if q.requestContext == nil {
+		return context.Background()
+	}
+
+	return q.requestContext
+}
+
 // demandOf evaluates the rule, three-valued, with the given states: by the Rules format evaluator or by the
 // compiled JsonLogic skeleton, whichever is not nil.
+//
+// The pass that decides what to look up (decide) does not report the error of an operand that a still unknown
+// earlier operand could hide: "k in segment(a) or x" does not read x for a member. The pass that follows the lookups
+// does.
 func (q *queryContext) demandOf(
 	evaluator *parser.Evaluator,
 	skeleton *jlNode,
 	states []parser.SegmentState,
+	decide bool,
 ) (parser.Match, uint32, error) {
 	if evaluator != nil {
-		match, demand, err := evaluator.ProcessSegmentsDemand(q.mapOnce(), states)
+		var (
+			match  parser.Match
+			demand uint32
+			err    error
+		)
+
+		if decide {
+			match, demand, err = evaluator.ProcessSegmentsDemand(q.mapOnce(), states)
+		} else {
+			match, err = evaluator.ProcessSegments(q.mapOnce(), states)
+		}
+
 		if err != nil {
 			return match, demand, fmt.Errorf("evaluating the rule: %w", err)
 		}
@@ -92,7 +118,7 @@ func (q *queryContext) demandOf(
 		return match, demand, nil
 	}
 
-	return skeleton.matchDemand(q, states)
+	return skeleton.matchDemand(q, states, decide)
 }
 
 // resolveSegments evaluates a rule that has segment terms and returns its three-valued result. states has one
@@ -112,35 +138,28 @@ func (q *queryContext) resolveSegments(
 	evaluator *parser.Evaluator,
 	skeleton *jlNode,
 ) (parser.Match, error) {
-	items := q.mapOnce()
-
 	for i := range terms {
 		states[i] = parser.SegmentUnknown
 
-		if _, ok := attributeID(items, terms[i].Path); !ok || !q.svc.definesSegment(terms[i].Name) {
+		if _, ok := q.attributeID(terms[i].Path); !ok || !q.svc.definesSegment(terms[i].Name) {
 			states[i] = parser.SegmentNotMember
 		}
 	}
 
-	match, demand, err := q.demandOf(evaluator, skeleton, states)
+	match, demand, err := q.demandOf(evaluator, skeleton, states, true)
 	if err != nil || match != parser.MatchUnknown || demand == 0 {
 		return match, err
 	}
 
-	q.lookup(terms, states, demand, items)
+	q.lookup(terms, states, demand)
 
-	match, _, err = q.demandOf(evaluator, skeleton, states)
+	match, _, err = q.demandOf(evaluator, skeleton, states, false)
 
 	return match, err
 }
 
 // lookup answers the demanded terms: it sets their states and records the health of the lookups.
-func (q *queryContext) lookup(
-	terms []parser.SegmentTerm,
-	states []parser.SegmentState,
-	demand uint32,
-	items map[string]any,
-) {
+func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.SegmentState, demand uint32) {
 	var status segment.Status
 
 	if q.segments == nil {
@@ -150,7 +169,7 @@ func (q *queryContext) lookup(
 
 		for i := range terms {
 			if demand&(1<<i) != 0 {
-				id, _ := attributeID(items, terms[i].Path)
+				id, _ := q.attributeID(terms[i].Path)
 				lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: id, State: segment.Unknown})
 			}
 		}
@@ -264,18 +283,53 @@ func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.S
 // integer only up to 2^53, a larger one is the identifier of the number that the float holds, which can differ from
 // the number that was written. Everything else (missing, empty, boolean, a number with a fraction, NaN, infinity,
 // list, object) is not an identifier.
-func attributeID(items map[string]any, path []string) (string, bool) {
-	var current any = items
-
-	for _, name := range path {
-		m, ok := current.(map[string]any)
-		if !ok {
+//
+// A context of the Go client can hold an object of another type than map[string]any (a map[string]string, a struct
+// with JSON tags): the attribute is then read from the JSON form of the context, like the variables of JsonLogic,
+// and a number there is a float64.
+func (q *queryContext) attributeID(path []string) (string, bool) {
+	value, opaque := walkAttribute(q.mapOnce(), path)
+	if opaque {
+		data, err := q.dataOnce()
+		if err != nil {
 			return "", false
 		}
 
-		current = m[name]
+		value, _ = walkAttribute(data, path)
 	}
 
+	return identifier(value)
+}
+
+// walkAttribute returns the value at path of an object of maps. opaque is true when a parent on the way is neither a
+// map[string]any nor absent: only the JSON form of the context can tell what it holds.
+func walkAttribute(root any, path []string) (any, bool) {
+	current := root
+
+	for _, name := range path {
+		switch parent := current.(type) {
+		case map[string]any:
+			current = parent[name]
+		case nil:
+			return nil, false
+		default:
+			return nil, isContainer(parent)
+		}
+	}
+
+	return current, false
+}
+
+// isContainer reports whether the value is an object or a list (a type that the JSON form can open).
+func isContainer(value any) bool {
+	kind := reflect.TypeOf(value).Kind()
+
+	return kind == reflect.Map || kind == reflect.Struct || kind == reflect.Pointer || kind == reflect.Slice ||
+		kind == reflect.Array
+}
+
+// identifier is the identifier of a scalar value.
+func identifier(current any) (string, bool) {
 	if str, ok := current.(string); ok {
 		return str, str != ""
 	}

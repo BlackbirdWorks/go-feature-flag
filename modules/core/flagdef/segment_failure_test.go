@@ -61,6 +61,9 @@ type secretPanicProvider struct{}
 
 func (secretPanicProvider) Contains(context.Context, []segment.Lookup) error { panic(secretID) }
 
+// oneLookup is the lookups that a provider receives for the rule of the matrix: one call with one lookup.
+func oneLookup() [][]string { return [][]string{{"beta:alice"}} }
+
 func TestSegmentFailureMatrix(t *testing.T) {
 	t.Parallel()
 
@@ -71,18 +74,28 @@ func TestSegmentFailureMatrix(t *testing.T) {
 		provider   segment.Provider
 		reqCtx     context.Context //nolint:containedctx // the table carries the request context of each case
 		name       string
+		wantCalls  [][]string
 		wantStatus segment.Status
-		wantCalls  int
 	}{
-		{name: "panic", provider: panicProvider{}, wantStatus: segment.StatusStoreError, wantCalls: 1},
-		{name: "error", provider: failingProvider{}, wantStatus: segment.StatusStoreError, wantCalls: 1},
-		{name: "nil provider", provider: nil, wantStatus: segment.StatusNotConfigured, wantCalls: 0},
-		{name: "untouched lookup", provider: silentProvider{}, wantStatus: segment.StatusStoreError, wantCalls: 1},
-		{name: "invalid state", provider: invalidStateProvider{}, wantStatus: segment.StatusStoreError, wantCalls: 1},
+		{name: "panic", provider: panicProvider{}, wantStatus: segment.StatusStoreError, wantCalls: oneLookup()},
+		{name: "error", provider: failingProvider{}, wantStatus: segment.StatusStoreError, wantCalls: oneLookup()},
+		{name: "nil provider", provider: nil, wantStatus: segment.StatusNotConfigured, wantCalls: nil},
+		{
+			name:       "untouched lookup",
+			provider:   silentProvider{},
+			wantStatus: segment.StatusStoreError,
+			wantCalls:  oneLookup(),
+		},
+		{
+			name:       "invalid state",
+			provider:   invalidStateProvider{},
+			wantStatus: segment.StatusStoreError,
+			wantCalls:  oneLookup(),
+		},
 		{
 			name:     "cancelled context: no call",
 			provider: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}}), reqCtx: cancelled,
-			wantStatus: segment.StatusStoreError, wantCalls: 0,
+			wantStatus: segment.StatusStoreError, wantCalls: nil,
 		},
 	}
 
@@ -136,7 +149,7 @@ func TestSegmentFailureMatrix(t *testing.T) {
 						assert.False(t, details.Cacheable, "a value that could not read the store is not cacheable")
 
 						if rec, ok := provider.(*recordingProvider); ok {
-							assert.Len(t, rec.calls, tt.wantCalls)
+							assert.Equal(t, tt.wantCalls, rec.calls)
 						}
 					})
 				}
@@ -252,7 +265,7 @@ func TestSegmentAttributeIDByType(t *testing.T) {
 			t.Parallel()
 
 			svc := flagdef.NewService()
-			rec := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{"ids": {tt.wantID}})}
+			rec := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{segIDs: {tt.wantID}})}
 			flag := onOffFlag(queryRule("r", `uid in segment("ids")`))
 			require.NoError(t, flag.IsValid(svc))
 

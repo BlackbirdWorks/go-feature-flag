@@ -129,6 +129,16 @@ func TestSegmentRuleEvaluatedWithoutValidation(t *testing.T) {
 	}
 }
 
+// lookupsOf is the lookups of the rule of TestSegmentRuleWithManyTerms for a key: one for each segment s00, s01, ...
+func lookupsOf(terms int, key string) []string {
+	lookups := make([]string, 0, terms)
+	for i := range terms {
+		lookups = append(lookups, fmt.Sprintf("s%02d:%s", i, key))
+	}
+
+	return lookups
+}
+
 func TestSegmentRuleWithManyTerms(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +168,7 @@ func TestSegmentRuleWithManyTerms(t *testing.T) {
 			t.Parallel()
 
 			svc := flagdef.NewService()
-			counting := &countingProvider{inner: segment.NewMemoryProvider(members)}
+			counting := &recordingProvider{inner: segment.NewMemoryProvider(members)}
 			flag := onOffFlag(queryRule("many", query))
 			require.NoError(t, flag.IsValid(svc))
 
@@ -166,11 +176,11 @@ func TestSegmentRuleWithManyTerms(t *testing.T) {
 
 			_, notAll := flag.Value("f", ffcontext.NewEvaluationContext(keyAlice), flagCtx)
 			assert.Equal(t, variantOff, notAll.Variant, "alice is not in s11")
-			assert.Equal(t, 1, counting.calls)
-			assert.Equal(t, terms, counting.lookups)
+			assert.Equal(t, [][]string{lookupsOf(terms, keyAlice)}, counting.calls, "one call with every term")
 
 			_, all := flag.Value("f", ffcontext.NewEvaluationContext(keyBob), flagCtx)
 			assert.Equal(t, variantOff, all.Variant, "bob is only in s11")
+			assert.Equal(t, [][]string{lookupsOf(terms, keyAlice), lookupsOf(terms, keyBob)}, counting.calls)
 		})
 	}
 }

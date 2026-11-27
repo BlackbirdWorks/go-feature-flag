@@ -349,7 +349,10 @@ func TestProcessSegmentsReportsTheErrorOfAnotherTerm(t *testing.T) {
 	evaluator, err := parser.NewEvaluator(`plan gt true and targetingKey in segment("s")`)
 	require.NoError(t, err)
 
-	got, err := evaluator.ProcessSegments(map[string]any{"plan": "pro"}, []parser.SegmentState{parser.SegmentMember})
+	got, err := evaluator.ProcessSegments(
+		map[string]any{attrPlan: planPro},
+		[]parser.SegmentState{parser.SegmentMember},
+	)
 	require.Error(t, err)
 	assert.Equal(t, parser.MatchUnknown, got)
 	require.Error(t, evaluator.LastDebugErr(), "the debug error of the term is kept")
@@ -572,7 +575,7 @@ func TestProcessSegmentsDemand(t *testing.T) {
 		unknown   = parser.SegmentUnknown
 	)
 
-	items := map[string]any{"plan": "pro"}
+	items := map[string]any{attrPlan: planPro}
 
 	tests := []struct {
 		name       string
@@ -673,6 +676,120 @@ func TestHasSegmentCall(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, parser.HasSegmentCall(tt.rule))
+		})
+	}
+}
+
+// ProcessSegmentsDemand has no pool: it allocates nothing, so the count is exact even under the race detector.
+//
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
+func TestProcessSegmentsDemandDoesNotAllocate(t *testing.T) {
+	evaluator, err := parser.NewEvaluator(`(plan eq "pro" or k in segment("a")) and not (e in segment("b"))`)
+	require.NoError(t, err)
+
+	items := map[string]any{"plan": "pro", "k": "x", "e": "y"}
+	states := []parser.SegmentState{parser.SegmentUnknown, parser.SegmentNotMember}
+
+	match, demand, err := evaluator.ProcessSegmentsDemand(items, states)
+	require.NoError(t, err)
+	assert.Equal(t, parser.MatchYes, match)
+	assert.Equal(t, uint32(0), demand)
+
+	allocs := testing.AllocsPerRun(200, func() { _, _, _ = evaluator.ProcessSegmentsDemand(items, states) })
+	assert.InDelta(t, 0, allocs, 0)
+}
+
+// An error of the right operand of "or" or "and" is not reported by the pass that decides what to look up when the left
+// operand is still unknown: the left operand could hide it. The pass that follows the lookups reports it when it is
+// reached.
+func TestProcessSegmentsDefersTheErrorOfAnOperandThatMayBeHidden(t *testing.T) {
+	t.Parallel()
+
+	const (
+		member    = parser.SegmentMember
+		notMember = parser.SegmentNotMember
+		unknown   = parser.SegmentUnknown
+		orRule    = `a in segment("s") or user.id eq "staff"`
+		andRule   = `a in segment("s") and user.id eq "staff"`
+	)
+
+	// "user" is a string: reading user.id panics
+	items := map[string]any{"user": "x"}
+
+	tests := []struct {
+		name          string
+		rule          string
+		decide        parser.SegmentState // the state of the term in the pass that decides what to look up
+		answer        parser.SegmentState // the state in the pass that follows the lookups
+		wantDecide    parser.Match
+		wantDemand    uint32
+		wantDecideErr bool
+		wantFinal     parser.Match
+		wantFinalErr  bool
+	}{
+		{
+			name:       "or, a member decides",
+			rule:       orRule,
+			decide:     member,
+			answer:     member,
+			wantDecide: parser.MatchYes,
+			wantFinal:  parser.MatchYes,
+		},
+		{name: "or, a non member reaches the operand", rule: orRule, decide: notMember, wantDecideErr: true},
+		{
+			name: "or, unknown then member", rule: orRule, decide: unknown, answer: member,
+			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinal: parser.MatchYes,
+		},
+		{
+			name: "or, unknown then non member", rule: orRule, decide: unknown, answer: notMember,
+			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinalErr: true,
+		},
+		{
+			name:       "and, a non member decides",
+			rule:       andRule,
+			decide:     notMember,
+			answer:     notMember,
+			wantDecide: parser.MatchNo,
+			wantFinal:  parser.MatchNo,
+		},
+		{name: "and, a member reaches the operand", rule: andRule, decide: member, wantDecideErr: true},
+		{
+			name: "and, unknown then non member", rule: andRule, decide: unknown, answer: notMember,
+			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinal: parser.MatchNo,
+		},
+		{
+			name: "and, unknown then member", rule: andRule, decide: unknown, answer: member,
+			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinalErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evaluator, err := parser.NewEvaluator(tt.rule)
+			require.NoError(t, err)
+
+			match, demand, err := evaluator.ProcessSegmentsDemand(items, []parser.SegmentState{tt.decide})
+			if tt.wantDecideErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantDecide, match)
+			assert.Equal(t, tt.wantDemand, demand)
+
+			final, err := evaluator.ProcessSegments(items, []parser.SegmentState{tt.answer})
+			if tt.wantFinalErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFinal, final)
 		})
 	}
 }

@@ -540,10 +540,15 @@ func (r *Rule) evaluateWith(key string, queryCtx *queryContext, flagName string,
 	// Check if the rule applies for this user
 	ruleApply := isDefault
 	if !ruleApply {
+		// a disabled rule never applies: its query is not evaluated, so it does not look a segment up
+		if r.IsDisable() {
+			return "", errRuleNotApply
+		}
+
 		ruleApply = r.evaluateQuery(queryCtx)
 	}
 
-	if !ruleApply || (!isDefault && r.IsDisable()) {
+	if !ruleApply {
 		return "", errRuleNotApply
 	}
 

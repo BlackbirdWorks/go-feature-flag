@@ -81,6 +81,17 @@ plain-flag:
   defaultRule:
     variation: disabled
 
+typed-user:
+  variations:
+    enabled: true
+    disabled: false
+  targeting:
+    - name: typed
+      query: user.id in segment("beta-users")
+      variation: enabled
+  defaultRule:
+    variation: disabled
+
 broken-flag:
   variations:
     enabled: true
@@ -300,4 +311,37 @@ func TestSegmentsInAllFlagsState(t *testing.T) {
 	otherState := client.AllFlagsState(ffcontext.NewEvaluationContext("bob"))
 	other := otherState.GetFlags()
 	assert.Equal(t, false, other[flagBeta].Value)
+}
+
+type clientUser struct {
+	ID string `json:"id"`
+}
+
+func TestSegmentsReadTheAttributesOfTypedObjectsOfTheClient(t *testing.T) {
+	t.Parallel()
+
+	client := newSegmentClient(t, nil, segment.NewMemoryProvider(map[string][]string{"beta-users": {keyAlice}}))
+
+	tests := []struct {
+		user any
+		name string
+		want bool
+	}{
+		{name: "map of strings", user: map[string]string{"id": keyAlice}, want: true},
+		{name: "struct with json tags", user: clientUser{ID: keyAlice}, want: true},
+		{name: "map of any", user: map[string]any{"id": keyAlice}, want: true},
+		{name: "another user", user: map[string]string{"id": "zed"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evalCtx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("user", tt.user).Build()
+
+			got, err := client.BoolVariation("typed-user", evalCtx, !tt.want)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
