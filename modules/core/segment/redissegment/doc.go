@@ -1,5 +1,6 @@
 // Package redissegment is a [segment.Provider] that answers segment membership lookups from a Redis or Valkey
-// store with go-redis (type "redis"; the valkey-go provider is a separate package).
+// store with go-redis (segment type [segment.TypeRedis]; the valkey-go provider, type [segment.TypeValkey], is a
+// separate package).
 //
 // All the lookups of one call go out in one pipeline (one more after a NOSCRIPT answer), so one call is one round trip
 // on a single node (one per node on a cluster). A segment is either a set of members read with SMISMEMBER (layout

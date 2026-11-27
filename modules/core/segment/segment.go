@@ -96,7 +96,9 @@ type Type string
 const (
 	// TypeFile is a segment whose members are loaded in memory from a file (one value per line).
 	TypeFile Type = "file"
-	// TypeValkey is a segment looked up in Valkey for each request.
+	// TypeRedis is a segment looked up in Redis or Valkey for each request, through go-redis (package redissegment).
+	TypeRedis Type = "redis"
+	// TypeValkey is a segment looked up in Valkey for each request, through valkey-go (package valkeysegment).
 	TypeValkey Type = "valkey"
 )
 
@@ -117,7 +119,7 @@ var (
 	// ErrInvalidDefinition is wrapped by the errors of the definitions that are not valid.
 	ErrInvalidDefinition = errors.New("invalid segment definition")
 	errInvalidName       = errors.New("invalid name: use 1 to 64 characters of a-z, 0-9, _ and -")
-	errInvalidType       = errors.New("invalid type: want file or valkey")
+	errInvalidType       = errors.New("invalid type: want file, redis or valkey")
 	errInvalidOnError    = errors.New("invalid onError: want unknown, notMember or member")
 	errDuplicate         = errors.New("duplicated name")
 )
@@ -139,7 +141,7 @@ func (d Definition) Validate() error {
 		return fmt.Errorf("%w: %q: %w", ErrInvalidDefinition, d.Name, errInvalidName)
 	}
 
-	if d.Type != TypeFile && d.Type != TypeValkey {
+	if d.Type != TypeFile && d.Type != TypeRedis && d.Type != TypeValkey {
 		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidType, d.Type)
 	}
 
