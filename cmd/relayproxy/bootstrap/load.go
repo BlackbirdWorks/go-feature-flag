@@ -5,6 +5,7 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +22,9 @@ const (
 	EnvOpsListen   = "SEMAPHORE_OPS_LISTEN"
 	EnvManifestKey = "SEMAPHORE_MANIFEST_KEY"
 	EnvStateDir    = "SEMAPHORE_STATE_DIR"
+	// EnvShutdownDrainDelay and EnvShutdownTimeout set server.shutdown.drainDelay and server.shutdown.timeout.
+	EnvShutdownDrainDelay = "SEMAPHORE_SHUTDOWN_DRAIN_DELAY"
+	EnvShutdownTimeout    = "SEMAPHORE_SHUTDOWN_TIMEOUT"
 )
 
 // LoadOptions injects what the loader needs from the outside world.
@@ -154,6 +158,8 @@ func (c *Config) applyOverrides(overrides *Overrides, opts LoadOptions) map[stri
 		sources["server.listeners["+strconv.Itoa(c.setListener(RoleOps, v))+"].address"] = from
 	}
 
+	c.applyShutdownEnv(opts, sources)
+
 	if c.ControlPlane != nil {
 		manifestKey := source{flag: "--manifest-key", env: EnvManifestKey}
 		if v, from := opts.pickSource(overrides.ManifestKey, manifestKey); v != "" {
@@ -225,4 +231,46 @@ func (c *Config) Print(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// applyShutdownEnv applies the shutdown variables. A value that does not parse, or is not allowed (the timeout is
+// positive, the drain delay is not negative), is kept in badEnv and reported by the validation with its source.
+func (c *Config) applyShutdownEnv(opts LoadOptions, sources map[string]string) {
+	drain := opts.env(EnvShutdownDrainDelay)
+	if drain != "" {
+		sources[pathDrainDelay] = "environment variable " + EnvShutdownDrainDelay
+
+		value, err := time.ParseDuration(drain)
+		if err != nil || value < 0 {
+			c.setBadEnv(pathDrainDelay, "expected a duration such as \"10s\" (\"0s\" for none)")
+		} else {
+			delay := Delay(value)
+			c.Server.Shutdown.DrainDelay = &delay
+		}
+	}
+
+	raw := opts.env(EnvShutdownTimeout)
+	if raw == "" {
+		return
+	}
+
+	sources[pathTimeout] = "environment variable " + EnvShutdownTimeout
+
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		c.setBadEnv(pathTimeout, "expected a positive duration such as \"30s\"")
+
+		return
+	}
+
+	timeout := Duration(value)
+	c.Server.Shutdown.Timeout = &timeout
+}
+
+func (c *Config) setBadEnv(path, detail string) {
+	if c.badEnv == nil {
+		c.badEnv = map[string]string{}
+	}
+
+	c.badEnv[path] = detail
 }

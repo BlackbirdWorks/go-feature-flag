@@ -60,8 +60,48 @@ type cli struct {
 	Help bool `help:"Print this help and exit (wins over --version)" name:"help" short:"h"`
 }
 
-// helpWidth is the width at which the help text wraps.
-const helpWidth = 100
+// helpGap is the space between a flag and its help.
+const helpGap = 2
+
+// flagIndent is the indentation of a flag in the help.
+const flagIndent = "      "
+
+// printHelp prints the help of the relay. It does not wrap: kong wraps at the width of the terminal (COLUMNS), and the
+// text of --help must not depend on it.
+func printHelp(_ kong.HelpOptions, ctx *kong.Context) error {
+	left := make([]string, 0, len(ctx.Model.Flags))
+
+	widest := 0
+
+	for _, flag := range ctx.Model.Flags {
+		name := flagIndent + "--" + flag.Name
+		if flag.Short != 0 {
+			name = "  -" + string(flag.Short) + ", --" + flag.Name
+		}
+
+		if flag.PlaceHolder != "" {
+			name += "=" + flag.PlaceHolder
+		}
+
+		left = append(left, name)
+		widest = max(widest, len(name))
+	}
+
+	var out strings.Builder
+
+	out.WriteString("Usage: semaphore [flags]\n\n" + ctx.Model.Help + "\n\nFlags:\n")
+
+	for i, flag := range ctx.Model.Flags {
+		out.WriteString(left[i] + strings.Repeat(" ", widest-len(left[i])+helpGap) + flag.Help + "\n")
+	}
+
+	_, err := fmt.Fprint(ctx.Stdout, out.String())
+	if err != nil {
+		return fmt.Errorf("print the help: %w", err)
+	}
+
+	return nil
+}
 
 // helpVars are the help texts of the flags: each names the setting and its environment variable.
 func helpVars() kong.Vars {
@@ -94,7 +134,7 @@ func newParser(command *cli, out io.Writer) (*kong.Kong, error) {
 		kong.NoDefaultHelp(),
 		kong.Writers(out, out),
 		kong.Exit(func(int) {}),
-		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helpWidth}),
+		kong.Help(printHelp),
 		helpVars(),
 	)
 	if err != nil {

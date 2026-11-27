@@ -4,6 +4,8 @@ package bootstrap
 const Version = 2
 
 // Config is the bootstrap file, version 2.
+//
+//nolint:govet // the field order is the order of the effective print
 type Config struct {
 	Connections   map[string]Connection `json:"connections,omitempty"  yaml:"connections,omitempty"`
 	Exporters     map[string]Exporter   `json:"exporters,omitempty"    yaml:"exporters,omitempty"`
@@ -15,6 +17,8 @@ type Config struct {
 	Evaluation    Evaluation            `json:"evaluation,omitzero"    yaml:"evaluation"`
 	Auth          Auth                  `json:"auth,omitzero"          yaml:"auth"`
 	Version       int                   `json:"version"                jsonschema:"enum=2"           yaml:"version"`
+	// badEnv holds the shutdown variables that did not parse, by setting path, for the validation.
+	badEnv map[string]string
 }
 
 // Listener roles and protocols.
@@ -27,10 +31,14 @@ const (
 )
 
 // Server is the network side of the relay.
+//
+//nolint:govet // the field order is the order of the effective print
 type Server struct {
 	// UnixSocketPath is the path of a unix socket the api listener also serves on.
 	UnixSocketPath string     `json:"unixSocketPath,omitempty" yaml:"unixSocketPath,omitempty"`
 	Listeners      []Listener `json:"listeners,omitempty"      yaml:"listeners,omitempty"`
+	// Shutdown tunes the stop of the relay after SIGTERM or SIGINT.
+	Shutdown Shutdown `json:"shutdown,omitzero" yaml:"shutdown,omitempty"`
 }
 
 // Listener is one address the relay listens on.

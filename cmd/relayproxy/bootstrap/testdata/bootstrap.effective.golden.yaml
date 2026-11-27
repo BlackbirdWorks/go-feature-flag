@@ -222,6 +222,9 @@ server:
       role: ops
       protocols:
         - http1
+  shutdown:
+    drainDelay: 0s
+    timeout: 15s
 observability:
   logging:
     level: info

@@ -257,7 +257,7 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 		sched:   &tickScheduler{entered: make(chan struct{}, 64), release: make(chan struct{})},
 		rounds:  make(chan flagruntime.RoundResult, 256),
 		events:  &recorder{got: make(chan *exporter.FeatureEvent, 256)},
-		streams: corehttp.NewStreams(),
+		streams: corehttp.NewStreams(context.Background()),
 		dir:     dir,
 		flags:   map[string][]byte{flagsObject: []byte(flagsYAML)},
 		sets:    []controlplane.FlagSet{{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}}},
