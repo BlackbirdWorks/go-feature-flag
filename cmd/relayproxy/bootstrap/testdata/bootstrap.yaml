@@ -48,6 +48,27 @@ connections:
   events-queue: {type: sqs, region: us-east-1, queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/evals"}
   warehouse: {type: redshift, region: us-east-1}
   local-control: {type: file, path: /var/lib/semaphore/control}
+  segments-valkey:
+    type: valkey
+    addresses: ["valkey-1:6379", "valkey-2:6379"]
+    username: semaphore
+    password: {fromEnv: VALKEY_PASSWORD}
+    tls: {enable: true, caBundleFile: /etc/ssl/valkey-ca.pem, serverName: valkey.internal}
+    timeouts: {connect: 2s, io: 1s}
+    pipelining: auto
+    blockingPipeline: 64
+    retry: false
+    keyPrefix: "acme:segment:"
+    lookupTimeout: 150ms
+  segments-redis:
+    type: redis
+    addresses: ["redis:6379"]
+    db: 2
+    password: {fromFile: /run/secrets/redis-password}
+    timeouts: {connect: 2s, read: 500ms, write: 500ms}
+    maxRetries: 2
+    poolSize: 20
+    atomic: true
 exporters:
   evals-kinesis:
     kind: kinesis
@@ -95,3 +116,10 @@ controlPlane:
     jitter: 0.1
     maxObjects: 20000
   stateDir: /var/lib/semaphore
+segments:
+  resolver:
+    callTimeout: 2s
+    shutdownGrace: 5s
+    maxOverdue: 8
+    maxIdBytes: 512
+    default: {normalize: trimLower, ttl: 30s, negativeTtl: 5s, maxEntries: 10000, shards: 16, breakerFailures: 5, breakerCooldown: 10s}

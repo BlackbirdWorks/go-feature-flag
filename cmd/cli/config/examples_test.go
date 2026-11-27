@@ -40,8 +40,12 @@ func TestShippedExamplesValidate(t *testing.T) {
 			// the complete example names secrets by reference: the validation resolves them
 			deps.LookupEnv = func(name string) (string, bool) {
 				secrets := map[string]string{
-					"DEV_S3_ACCESS_KEY": "a", "SEMAPHORE_ADMIN_KEY": "b", "EVALS_WEBHOOK_URL": "https://example.com/e",
-					"EVALS_WEBHOOK_TOKEN": "c", "SLACK_WEBHOOK_URL": "https://hooks.example.com/s",
+					"DEV_S3_ACCESS_KEY":   "a",
+					"SEMAPHORE_ADMIN_KEY": "b",
+					"EVALS_WEBHOOK_URL":   "https://example.com/e",
+					"EVALS_WEBHOOK_TOKEN": "c",
+					"VALKEY_PASSWORD":     "d",
+					"SLACK_WEBHOOK_URL":   "https://hooks.example.com/s",
 				}
 				v, ok := secrets[name]
 
@@ -141,7 +145,7 @@ func TestDocumentedFullExampleValidates(t *testing.T) {
 func shippedSecrets(name string) (string, bool) {
 	secrets := map[string]string{
 		"DEV_S3_ACCESS_KEY": "a", "SEMAPHORE_ADMIN_KEY": "b", "EVALS_WEBHOOK_URL": "https://example.com/e",
-		"EVALS_WEBHOOK_TOKEN": "c", "SLACK_WEBHOOK_URL": "https://hooks.example.com/s",
+		"EVALS_WEBHOOK_TOKEN": "c", "VALKEY_PASSWORD": "d", "SLACK_WEBHOOK_URL": "https://hooks.example.com/s",
 	}
 	v, ok := secrets[name]
 

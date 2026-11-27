@@ -1,7 +1,9 @@
 package relaycore_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -591,4 +593,28 @@ func TestEvaluationSettingsReachTheEvaluator(t *testing.T) {
 
 	assert.Equal(t, map[string]any{"region": "eu"},
 		harness.core.Evaluator().EvaluationContextEnrichment(set))
+}
+
+// The segments section is validated and then ignored: the core says so at the start and does not depend on a store.
+func TestSegmentsSectionIsConfiguredNotActive(t *testing.T) {
+	t.Parallel()
+
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + t.TempDir() + "}\n" +
+		"  segstore: {type: valkey, addresses: [\"127.0.0.1:1\"]}\n" + controlDoc(connName, "") +
+		"segments: {resolver: {callTimeout: 2s}}\n"
+
+	var logs bytes.Buffer
+
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	core, err := relaycore.New(t.Context(), parse(t, doc, opts), &relaycore.Deps{Secrets: opts, Logger: logger})
+	require.NoError(t, err)
+
+	assert.Contains(
+		t,
+		logs.String(),
+		"segment stores are configured; segment definitions come from the control plane (not active yet)",
+	)
+	require.NoError(t, core.Shutdown(t.Context()))
 }

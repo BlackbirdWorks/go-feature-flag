@@ -80,7 +80,7 @@ func TestSchemaShape(t *testing.T) {
 	}{
 		{name: "root has the version key", def: "Config", wantProperty: "version", wantRequired: []string{"version"}},
 		{name: "control plane", def: defMaxManifest, wantProperty: "maxObjects"},
-		{name: "connection is a union", def: "Connection", wantOneOf: 5},
+		{name: "connection is a union", def: "Connection", wantOneOf: 7},
 		{name: "s3 member", def: "S3Connection", wantProperty: tcBucket, wantRequired: []string{typeKey, "region"}},
 		{name: "secret reference", def: "Secret", wantProperty: "fromEnv"},
 	}
@@ -174,7 +174,7 @@ func TestSchemaRejectsWhatTheLoaderRejects(t *testing.T) {
 		},
 		{
 			name: "connection type",
-			doc:  "version: 2\nconnections: {a: {type: valkey}}\n",
+			doc:  "version: 2\nconnections: {a: {type: nonsense}}\n",
 			want: "matches 0 of the oneOf",
 		},
 		{name: "reserved name", doc: "version: 2\nconnections: {default: {type: s3, region: r}}\n", want: "{default}"},

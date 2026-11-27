@@ -98,6 +98,16 @@ func credentialsFixtures(extra string, writes ...string) []secretFixture {
 	return out
 }
 
+func storeFixture(kind string, writes ...string) secretFixture {
+	return secretFixture{
+		name:   kind,
+		writes: writes,
+		build: func(resource, value string) string {
+			return "connections:\n  " + resource + ": {type: " + kind + ", addresses: [\"h:1\"], password: " + value + "}\n"
+		},
+	}
+}
+
 func exporterFixture(kind, keys string, writes ...string) secretFixture {
 	return secretFixture{
 		name:   kind,
@@ -144,7 +154,9 @@ func secretRules() map[string][]secretFixture {
 			"Credentials.AccessKeyID", "Credentials.SecretAccessKey", "Credentials.SessionToken"),
 		"Credentials.ExternalID": credentialsFixtures("type: assumeRole, roleArn: r, externalId: V",
 			"Credentials.ExternalID"),
-		"Exporter.EndpointURL": {exporterFixture("webhook", "endpointUrl: V", webhookURL...)},
+		"RedisConnection.Password":  {storeFixture("redis", "RedisConnection.Password")},
+		"ValkeyConnection.Password": {storeFixture("valkey", "ValkeyConnection.Password")},
+		"Exporter.EndpointURL":      {exporterFixture("webhook", "endpointUrl: V", webhookURL...)},
 		"Exporter.Secret": {exporterFixture("webhook", "endpointUrl: V, secret: V",
 			"Exporter.EndpointURL", "Exporter.Secret")},
 		"Exporter.Headers[*]": {exporterFixture("webhook", "endpointUrl: V, headers: {A: V, B: V}",

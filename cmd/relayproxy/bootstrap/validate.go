@@ -74,6 +74,7 @@ func (c *Config) validate(pos positions, sources map[string]string, opts LoadOpt
 	}
 
 	check.controlPlane()
+	check.segments()
 
 	return errors.Join(check.errs...)
 }
@@ -331,6 +332,12 @@ func (v *validator) connection(path string, conn Connection) {
 
 	if conn.File != nil {
 		v.require(path+".path", strings.TrimSpace(conn.File.Path) != "", "")
+
+		return
+	}
+
+	if conn.Redis != nil || conn.Valkey != nil {
+		v.storeConnection(path, conn)
 
 		return
 	}
