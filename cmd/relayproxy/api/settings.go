@@ -42,11 +42,12 @@ type Settings struct {
 	MonitoringPort int
 	// EnableH2C makes the API listener accept HTTP/2 over cleartext.
 	EnableH2C bool
-	// Debug is the debug log level: the errors of the requests carry their details, pprof is served.
+	// Debug is the debug log level: the errors of the requests carry their details.
 	Debug bool
 	// Swagger serves the Swagger UI and the OpenAPI document.
 	Swagger bool
-	// Pprof serves the pprof endpoints without the debug level.
+	// Pprof serves the pprof endpoints on the monitoring listener, never on the API listener: it has no effect
+	// without a monitoring port.
 	Pprof bool
 	// ExposeLegacyMetrics exposes the metrics under their legacy names too.
 	ExposeLegacyMetrics bool

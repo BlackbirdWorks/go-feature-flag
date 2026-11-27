@@ -353,3 +353,97 @@ func TestSchemaDurationPattern(t *testing.T) {
 		})
 	}
 }
+
+// The size pattern of the schema and the loader agree on what a size is.
+func TestSchemaByteSizePattern(t *testing.T) {
+	t.Parallel()
+
+	raw, err := bootstrap.JSONSchema()
+	require.NoError(t, err)
+
+	var doc struct {
+		Defs map[string]struct {
+			Pattern string `json:"pattern"`
+		} `json:"$defs"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	pattern := regexp.MustCompile(doc.Defs["ByteSize"].Pattern)
+
+	tests := []struct {
+		value      string
+		wantAccept bool
+	}{
+		{"1MiB", true},
+		{"64KiB", true},
+		{"1500B", true},
+		{"1.5MiB", true},
+		{"1 MiB", true},
+		{"2MB", true},
+		{"3GiB", true},
+		{"1TiB", true},
+		{"0B", true},
+		{"0", true},
+		{"100", true},
+		{
+			"0.5B",
+			false,
+		},
+		{"0.5", false},
+		{"1.5B", false},
+		{"-1MiB", false},
+		{"lots", false},
+		{"", false},
+		{"MiB", false},
+		{"1XiB", false},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.value, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nserver:\n  validateFlags: {maxJsonBodySize: \"" + tcase.value + "\"}\n"
+			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+
+			assert.Equal(t, tcase.wantAccept, pattern.MatchString(tcase.value), "the schema pattern")
+			assert.Equal(t, tcase.wantAccept, parseErr == nil, "the loader")
+		})
+	}
+}
+
+// What the loader refuses and the pattern of the schema can not say: a value that is not zero but rounds to zero
+// bytes. A regular expression can not do the arithmetic, the description of the schema says that the value is at
+// least one byte or exactly zero. The pattern accepts these, the loader does not.
+func TestSchemaByteSizeKnownLimitations(t *testing.T) {
+	t.Parallel()
+
+	raw, err := bootstrap.JSONSchema()
+	require.NoError(t, err)
+
+	var doc struct {
+		Defs map[string]struct {
+			Pattern     string `json:"pattern"`
+			Description string `json:"description"`
+		} `json:"$defs"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	pattern := regexp.MustCompile(doc.Defs["ByteSize"].Pattern)
+
+	assert.Contains(t, doc.Defs["ByteSize"].Description, "at least one byte, or exactly zero")
+
+	for _, value := range []string{"0.0001KiB", "0.0000001MiB"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nserver:\n  validateFlags: {maxJsonBodySize: \"" + value + "\"}\n"
+			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+
+			assert.True(t, pattern.MatchString(value), "the schema pattern accepts it")
+			require.Error(t, parseErr, "the loader refuses it")
+			assert.Contains(t, parseErr.Error(), "the size is below one byte")
+		})
+	}
+}

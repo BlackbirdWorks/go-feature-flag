@@ -1,7 +1,0 @@
-status: 404
-Content-Type: application/json
-Vary: Origin
-X-Gofeatureflag-Version: v0.0.0-golden
-X-Semaphore-Version: v0.0.0-golden
----
-"{\"message\":\"Not Found\"}\n"

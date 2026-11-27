@@ -105,7 +105,7 @@ func setLabel(state flagruntime.SetState) string {
 		return resourceReady
 	case flagruntime.StatePending:
 		return resourcePending
-	case flagruntime.StateDegraded, flagruntime.StateWithdrawn:
+	case flagruntime.StateDegraded, flagruntime.StateWithdrawn, flagruntime.StateMissing:
 	}
 
 	return resourceDegraded

@@ -71,6 +71,10 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	info.Generation, info.Snapshot = current.Generation, current.Snapshot
 	info.PendingRestart = append(info.PendingRestart, current.PendingRestart...)
 
+	if anon := current.Anonymous; anon != nil {
+		info.Anonymous = &model.AnonymousInfo{FlagSet: anon.FlagSet, State: string(anon.State)}
+	}
+
 	failures := map[string]manifestreader.ObjectFailure{}
 	for _, failure := range status.Source.Reader.Failures {
 		failures[failure.Name] = failure

@@ -3,10 +3,12 @@ package api
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -34,9 +36,36 @@ const (
 	etagExample = `Etag: "117-0193435c612c50d93b798619d9464856263dbf9f"`
 )
 
+// keylessNote is added to the description of the operations that accept a request without a key.
+const keylessNote = "\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): " +
+	"a request without a key is then served by that flag set. Without that setting every request needs a key. " +
+	"A wrong key is always refused."
+
 // securityAll is the security of the endpoints that accept an API key in any of the two headers.
 func securityAll() []map[string][]string {
 	return []map[string][]string{{securityAPIKey: {}}, {securityXAPIKey: {}}}
+}
+
+// optionalKey documents the key of an operation as optional when the middleware that guards it lets a request without
+// a key through (the anonymous flag set): the empty requirement is how OpenAPI says that the security is optional.
+// The operations that the anonymous flag set can reach are the ones registered through it, so the document follows
+// the middleware.
+func optionalKey(auth middleware.KeyAuth, operation *huma.Operation) *huma.Operation {
+	if !auth.AllowsAnonymous() || slices.ContainsFunc(operation.Security, func(req map[string][]string) bool {
+		return len(req) == 0
+	}) {
+		return operation
+	}
+
+	operation.Security = append(slices.Clone(operation.Security), map[string][]string{})
+	operation.Description += keylessNote
+
+	return operation
+}
+
+// securityQuery is the security of the streams: the key is in the query.
+func securityQuery() []map[string][]string {
+	return []map[string][]string{{securityQueryAPIKey: {}}}
 }
 
 // securityAuthorization is the security of the endpoints that only document the Authorization header.
@@ -91,7 +120,7 @@ func flagKeyParam() *huma.Param {
 
 func apiKeyQueryParam() *huma.Param {
 	return &huma.Param{
-		Name: "apiKey", In: inQuery,
+		Name: queryAPIKey, In: inQuery,
 		Description: "apiKey to authorize the connection to the relay proxy", Schema: &huma.Schema{Type: typeString},
 	}
 }
@@ -242,7 +271,7 @@ func operationValidate(api huma.API) *huma.Operation {
 			"The flag file is not loaded, nothing is changed on the flags served by the relay proxy.\n" +
 			"The format of the body is selected with the `Content-Type` header (`application/json`,\n" +
 			"`application/yaml`, `application/x-yaml`, `text/yaml` or `application/toml`).\n" +
-			"The maximum size of the body is configurable per format with `endpoints.validateFlags`\n" +
+			"The maximum size of the body is configurable per format with `server.validateFlags`\n" +
 			"(defaults: 1 MiB for JSON, 64 KiB for YAML and TOML).",
 		RequestBody: &huma.RequestBody{Description: "The flag file to validate", Required: true, Content: content},
 		Responses: map[string]*huma.Response{
@@ -278,6 +307,7 @@ func operationSSE(api huma.API) *huma.Operation {
 			"The full URL (including query string) is sensitive and must not be logged\n" +
 			"or persisted by intermediaries.",
 		Parameters: []*huma.Param{apiKeyQueryParam()},
+		Security:   securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK): {
 				Description: "SSE stream of OFREP flag change events",
@@ -301,6 +331,7 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 			"every change pushes a notifier.DiffCache message to the client.\n" +
 			"When disableFlagDetailsInStream is true, values are empty objects.",
 		Parameters: []*huma.Param{apiKeyQueryParam()},
+		Security:   securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK):                  jsonResponse[notifier.DiffCache](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),

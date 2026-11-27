@@ -443,6 +443,24 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			},
 		},
 		{
+			name: "the ops, event stream, validate limits and banner settings are reported",
+			edits: [][2]string{{
+				"unixSocketPath: /run/a.sock",
+				"unixSocketPath: /run/a.sock\n  hideBanner: true\n  ops: {pprof: {enabled: true}}\n" +
+					"  ofrepEventStream: {baseUrl: \"https://f.example.com\"}\n  validateFlags: {maxJsonBodySize: 2MiB}",
+			}},
+			wantAdmin: []string{adminOne},
+			wantPending: []string{
+				flagruntime.SettingServerHideBanner, flagruntime.SettingServerEventStream,
+				flagruntime.SettingServerOps, flagruntime.SettingServerValidate,
+			},
+		},
+		{
+			name:      "the anonymous flag set applies live and nothing needs a restart",
+			edits:     [][2]string{{"[" + adminOne + "]", "[" + adminOne + "]\n  anonymousFlagSet: a"}},
+			wantAdmin: []string{adminOne},
+		},
+		{
 			name:        "the evaluation settings are reported",
 			extra:       "evaluation: {environment: staging}\n",
 			wantAdmin:   []string{adminOne},

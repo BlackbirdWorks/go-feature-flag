@@ -29,6 +29,9 @@
         },
         "Auth": {
             "properties": {
+                "anonymousFlagSet": {
+                    "type": "string"
+                },
                 "adminKeys": {
                     "items": {
                         "$ref": "#/$defs/AdminKey"
@@ -38,6 +41,11 @@
             },
             "additionalProperties": false,
             "type": "object"
+        },
+        "ByteSize": {
+            "type": "string",
+            "pattern": "^(\\d+ ?[bB]?|\\d+(\\.\\d+)? ?[kKmMgGtT]i?[bB]?)$",
+            "description": "Size string, for example 64KiB or 1MiB. A fraction is allowed above the byte (1.5MiB), not of a byte. The value is at least one byte, or exactly zero, which means the default of the setting."
         },
         "Config": {
             "properties": {
@@ -1749,6 +1757,19 @@
                 "kind"
             ]
         },
+        "OFREPEventStream": {
+            "properties": {
+                "baseUrl": {
+                    "type": "string"
+                },
+                "inactivityDelaySec": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
         "Observability": {
             "properties": {
                 "logging": {
@@ -1759,6 +1780,15 @@
                 },
                 "tracing": {
                     "$ref": "#/$defs/Tracing"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Ops": {
+            "properties": {
+                "pprof": {
+                    "$ref": "#/$defs/Pprof"
                 }
             },
             "additionalProperties": false,
@@ -1775,6 +1805,16 @@
                     "maximum": 1,
                     "minimum": 0,
                     "default": 0.1
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Pprof": {
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
                 }
             },
             "additionalProperties": false,
@@ -2144,6 +2184,18 @@
                 },
                 "shutdown": {
                     "$ref": "#/$defs/Shutdown"
+                },
+                "ops": {
+                    "$ref": "#/$defs/Ops"
+                },
+                "ofrepEventStream": {
+                    "$ref": "#/$defs/OFREPEventStream"
+                },
+                "validateFlags": {
+                    "$ref": "#/$defs/ValidateFlags"
+                },
+                "hideBanner": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -2239,6 +2291,24 @@
                         ""
                     ],
                     "default": "parentbased_always_off"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "ValidateFlags": {
+            "properties": {
+                "maxJsonBodySize": {
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest JSON body. Default 1MiB, applied by the endpoint when unset or zero."
+                },
+                "maxYamlBodySize": {
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest YAML body. Default 64KiB, applied by the endpoint when unset or zero."
+                },
+                "maxTomlBodySize": {
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest TOML body. Default 64KiB, applied by the endpoint when unset or zero."
                 }
             },
             "additionalProperties": false,

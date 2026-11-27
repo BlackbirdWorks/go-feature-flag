@@ -25,15 +25,14 @@ import (
 // connection" (see issue #5463).
 type threadSafeConn struct {
 	conn *websocket.Conn
-	mu   sync.Mutex
+	// deadline is the time the network gets to take one message.
+	deadline time.Duration
+	mu       sync.Mutex
 }
 
 // WriteJSON satisfies stream.WebsocketConnector (used by BroadcastFlagChanges).
-func (c *threadSafeConn) WriteJSON(v any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	err := c.conn.WriteJSON(v)
+func (c *threadSafeConn) WriteJSON(message any) error {
+	err := c.write(func(conn *websocket.Conn) error { return conn.WriteJSON(message) })
 	if err != nil {
 		return fmt.Errorf("write websocket JSON: %w", err)
 	}
@@ -41,18 +40,48 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 	return nil
 }
 
+// Close closes the connection: the relay does it when the access of the client ends.
+func (c *threadSafeConn) Close() error {
+	err := c.conn.Close()
+	if err != nil {
+		return fmt.Errorf("close websocket: %w", err)
+	}
+
+	return nil
+}
+
 // ping sends a ping control message to the client.
 func (c *threadSafeConn) ping() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	err := c.conn.WriteMessage(websocket.PingMessage, nil)
+	err := c.write(func(conn *websocket.Conn) error { return conn.WriteMessage(websocket.PingMessage, nil) })
 	if err != nil {
 		return fmt.Errorf("write websocket ping: %w", err)
 	}
 
 	return nil
 }
+
+// write runs one write on the connection, alone, with a fresh deadline that is set right before it. A deadline stays
+// on the connection after the write, so every writer (messages and control frames) sets its own: none runs on the
+// one that an earlier write left behind.
+func (c *threadSafeConn) write(send func(*websocket.Conn) error) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. The service
+	// closes a client that misses its own timeout, this deadline ends the write that the close would otherwise have
+	// to interrupt.
+	deadline := c.deadline
+	if deadline <= 0 {
+		deadline = writeDeadline
+	}
+
+	_ = c.conn.SetWriteDeadline(time.Now().Add(deadline))
+
+	return send(c.conn)
+}
+
+// writeDeadline is the time the network gets to take one message.
+const writeDeadline = 10 * time.Second
 
 // defaultPingInterval is how often a keep-alive ping is sent to the client.
 const defaultPingInterval = 1 * time.Second
@@ -93,7 +122,9 @@ func (f *WSFlagChange) LegacyHandler(w http.ResponseWriter, r *http.Request) err
 // Handler is the entry point for the websocket endpoint to get notified when a flag has been edited.
 func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
-	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, r.URL.Query().Get("apiKey"))
+	apiKey := r.URL.Query().Get("apiKey")
+
+	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, apiKey)
 	if err != nil {
 		return fmt.Errorf(
 			"binding the request of the flag change websocket: %w",
@@ -113,9 +144,14 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// Wrap the connection so that all writes (ping loop + flag-change broadcast)
 	// are serialized through a single mutex. gorilla/websocket only supports one
 	// concurrent writer.
-	safeConn := &threadSafeConn{conn: conn}
+	safeConn := &threadSafeConn{conn: conn, deadline: writeDeadline}
 
-	f.websocketService.Register(safeConn, flagsetName)
+	if apiKey == "" {
+		f.websocketService.RegisterAnonymous(safeConn, flagsetName)
+	} else {
+		f.websocketService.Register(safeConn, flagsetName)
+	}
+
 	defer f.websocketService.Deregister(safeConn)
 
 	logger := logging.FromContext(r.Context())

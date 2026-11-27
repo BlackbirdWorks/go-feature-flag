@@ -777,17 +777,6 @@ func Test_Golden(t *testing.T) {
 				{name: "notfound", method: http.MethodGet, path: nope},
 			},
 		},
-		{
-			name:      "pprof",
-			configure: func(c *testConf) { c.settings.Pprof = true },
-			cases: []goldenCase{
-				{name: "index", method: http.MethodGet, path: debugPprof},
-				{name: "cmdline", method: http.MethodGet, path: "/debug/pprof/cmdline"},
-				{name: "symbol", method: http.MethodGet, path: "/debug/pprof/symbol"},
-				{name: "unknown_profile", method: http.MethodGet, path: "/debug/pprof/nope"},
-				{name: "post_index", method: http.MethodPost, path: debugPprof},
-			},
-		},
 		{name: metricsName, configure: func(*testConf) {}, series: true},
 	}
 	for _, tt := range tests {
