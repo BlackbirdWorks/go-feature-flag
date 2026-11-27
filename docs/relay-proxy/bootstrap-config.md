@@ -286,16 +286,16 @@ The deprecated version 1 notifier key `slackWebhookURL` is not carried over: ver
 
 ## Full example
 
-This file is the golden test input of the package (`cmd/relayproxy/bootstrap/testdata/bootstrap.yaml`).
+This file is the golden test input of the package (`cmd/relayproxy/bootstrap/testdata/bootstrap.yaml`): a test checks that this block is that file, and that it passes `semaphore-cli config validate`.
 
+<!-- full-example -->
 ```yaml
 # Complete example of the version 2 bootstrap file: every section, with the secrets as references.
 version: 2
 server:
   listeners:
     - {name: api, address: ":1031", protocols: [http1, h2c]}
-    - {name: ops, address: "127.0.0.1:1032", role: ops}
-  unixSocketPath: /run/semaphore/api.sock
+    - {name: ops, address: ":1032", role: ops}
 observability:
   logging: {level: info, format: json}
   metrics: {enabled: true, legacyNames: false, perFlagLabels: false}
@@ -303,6 +303,10 @@ observability:
     otlpEndpoint: "otel-collector:4317"
     serviceName: semaphore
     sampler: parentbased_always_off
+evaluation:
+  environment: production
+  contextEnrichment: {region: us-east-1}
+  disableSemaphoreMetadata: false
 connections:
   control:
     type: s3

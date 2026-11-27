@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestShippedExamplesValidate(t *testing.T) {
 
 				return v, ok
 			}
-			deps.Args = func() []string { return []string{"validate", path} }
+			deps.Args = func() []string { return []string{cmdValidate, path} }
 
 			cmd := config.NewConfigCmdWith(deps)
 
@@ -54,7 +55,7 @@ func TestShippedExamplesValidate(t *testing.T) {
 
 			cmd.SetOut(&out)
 			cmd.SetErr(&out)
-			cmd.SetArgs([]string{"validate", path})
+			cmd.SetArgs([]string{cmdValidate, path})
 
 			err := cmd.ExecuteContext(t.Context())
 			require.NoError(t, err, out.String())
@@ -101,4 +102,48 @@ func TestShippedStoresAreConsistent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The full example of the documentation is the complete example of the loader, and it validates: the page can not
+// drift from the file the tests use.
+func TestDocumentedFullExampleValidates(t *testing.T) {
+	t.Parallel()
+
+	page, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "relay-proxy", "bootstrap-config.md"))
+	require.NoError(t, err)
+
+	file, err := os.ReadFile(
+		filepath.Join("..", "..", "..", "cmd", "relayproxy", "bootstrap", "testdata", "bootstrap.yaml"),
+	)
+	require.NoError(t, err)
+
+	blocks := regexp.MustCompile("(?s)<!-- full-example -->\n```yaml\n(.*?)```").FindAllStringSubmatch(string(page), -1)
+	require.Len(t, blocks, 1, "the page marks its full example")
+	assert.Equal(t, string(file), blocks[0][1], "the page shows the complete example of the loader")
+
+	deps := config.DefaultDeps()
+	deps.ReadFile = func(string) ([]byte, error) { return []byte(blocks[0][1]), nil }
+	deps.LookupEnv = shippedSecrets
+	deps.Args = func() []string { return []string{cmdValidate, "docs.yaml"} }
+
+	cmd := config.NewConfigCmdWith(deps)
+
+	var out bytes.Buffer
+
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{cmdValidate, "docs.yaml"})
+
+	require.NoError(t, cmd.ExecuteContext(t.Context()), out.String())
+	assert.Equal(t, "docs.yaml: valid\n", out.String())
+}
+
+func shippedSecrets(name string) (string, bool) {
+	secrets := map[string]string{
+		"DEV_S3_ACCESS_KEY": "a", "SEMAPHORE_ADMIN_KEY": "b", "EVALS_WEBHOOK_URL": "https://example.com/e",
+		"EVALS_WEBHOOK_TOKEN": "c", "SLACK_WEBHOOK_URL": "https://hooks.example.com/s",
+	}
+	v, ok := secrets[name]
+
+	return v, ok
 }
