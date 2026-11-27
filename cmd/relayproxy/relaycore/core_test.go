@@ -142,6 +142,18 @@ func TestNewErrors(t *testing.T) {
 			wantPath: "connections.s3c",
 		},
 		{
+			name: "an admin key reference that does not resolve",
+			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
+				return parse(t, fileDoc(dir, "")+"auth:\n  adminKeys: ["+canaryKey+", {fromEnv: ADMIN_MISSING}]\n",
+					secretOptions(hook))
+			},
+			env:      hook,
+			wantErr:  flagruntime.ErrInvalidBootstrap,
+			wantPath: "auth.adminKeys",
+		},
+		{
 			name: "poll interval the reader refuses",
 			build: func(t *testing.T) *bootstrap.Config {
 				t.Helper()

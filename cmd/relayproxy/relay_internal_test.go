@@ -32,18 +32,19 @@ import (
 
 const (
 	// waitBound bounds every wait of the tests: it is a failure bound, never a pause.
-	waitBound   = 30 * time.Second
-	connName    = "control"
-	manifestKey = "manifests/stable.yaml"
-	channelName = "stable"
-	setsName    = "sets"
-	flagsObject = "flags-a"
-	tenantKey   = "11111111-1111-4111-8111-111111111111"
-	adminKey    = "22222222-2222-4222-8222-222222222222"
-	flagKey     = "f"
-	evalPath    = "/ofrep/v1/evaluate/flags/" + flagKey
-	readyPath   = "/readyz"
-	reasonDown  = "shutting-down"
+	waitBound     = 30 * time.Second
+	connName      = "control"
+	manifestKey   = "manifests/stable.yaml"
+	channelName   = "stable"
+	setsName      = "sets"
+	flagsObject   = "flags-a"
+	tenantKey     = "11111111-1111-4111-8111-111111111111"
+	adminKey      = "22222222-2222-4222-8222-222222222222"
+	otherAdminKey = "44444444-4444-4444-8444-444444444444"
+	flagKey       = "f"
+	evalPath      = "/ofrep/v1/evaluate/flags/" + flagKey
+	readyPath     = "/readyz"
+	reasonDown    = "shutting-down"
 )
 
 // tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
@@ -506,6 +507,8 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		{name: "a port in use", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: api, address: \""+
 			taken.Addr().String()+"\"}\n"), wantCode: 1, wantErr: "Error starting relay proxy"},
 		{name: "no file", args: []string{}, wantCode: 1, wantErr: "no bootstrap file"},
+		{name: "an admin key reference that does not resolve", doc: bootstrapDoc(dir,
+			"auth:\n  adminKeys: ["+adminKey+", {fromEnv: ADMIN_MISSING}]\n"), wantCode: 1, wantErr: "auth.adminKeys"},
 		{name: "a flag without its value", args: []string{"--listen"}, wantCode: 1, wantErr: "invalid command line"},
 		{name: "listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--listen=nowhere"}, wantCode: 1,
 			wantErr: "set by flag --listen"},
@@ -734,5 +737,44 @@ func TestLoaderKeepsTheOverridesOnReload(t *testing.T) {
 		cfg, err := load()
 		require.NoError(t, err)
 		assert.Equal(t, "127.0.0.1:4321", cfg.Server.Listeners[0].Address)
+	}
+}
+
+// A reload whose admin key reference does not resolve is rejected as a whole: the keys of the running set stay.
+func TestReloadWithAnUnresolvedAdminKeyKeepsTheKeys(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
+	rig.awaitGeneration(1)
+
+	status, _ := rig.evaluate(adminKey)
+	require.Equal(t, http.StatusBadRequest, status, "the admin key of the file is known")
+
+	rig.writeConfig("auth:\n  adminKeys: [" + otherAdminKey + ", {fromEnv: ADMIN_MISSING}]\n")
+
+	rig.reload <- struct{}{}
+
+	timeout := time.After(waitBound)
+
+	for {
+		select {
+		case res := <-rig.rounds:
+			if res.Outcome != flagruntime.OutcomeRejected {
+				continue
+			}
+
+			assert.Equal(t, flagruntime.CodeInvalidBootstrap, res.Code)
+			assert.NotContains(t, res.Detail, otherAdminKey)
+
+			status, _ = rig.evaluate(adminKey)
+			assert.Equal(t, http.StatusBadRequest, status, "the previous admin key still works")
+
+			status, _ = rig.evaluate(otherAdminKey)
+			assert.Equal(t, http.StatusUnauthorized, status, "the key of the rejected file is not known")
+
+			return
+		case <-timeout:
+			require.FailNow(t, "the reload was not rejected")
+		}
 	}
 }

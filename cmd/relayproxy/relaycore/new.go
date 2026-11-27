@@ -37,6 +37,12 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		return nil, &BuildError{Path: "controlPlane.connection", Err: ErrUnknownConnection}
 	}
 
+	// the file asked for these admin keys: the relay never serves with fewer than that
+	_, err := flagruntime.ResolveAdminKeys(cfg, deps.Secrets)
+	if err != nil {
+		return nil, &BuildError{Path: "auth.adminKeys", Err: err}
+	}
+
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
@@ -52,7 +58,7 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		released: make(chan struct{}),
 	}
 
-	err := core.assemble(ctx, cfg, deps)
+	err = core.assemble(ctx, cfg, deps)
 	if err != nil {
 		core.release(ctx)
 

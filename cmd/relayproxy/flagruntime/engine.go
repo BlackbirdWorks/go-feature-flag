@@ -448,7 +448,7 @@ func (e *Engine) reject(generation uint64, code string, err error) contentPlan {
 }
 
 func (e *Engine) planBootstrap(cfg *bootstrap.Config) bootPlan {
-	admin, err := resolveAdminKeys(cfg, e.secrets)
+	admin, err := ResolveAdminKeys(cfg, e.secrets)
 	if err != nil {
 		res := Reload{
 			Outcome: OutcomeRejected, Code: CodeInvalidBootstrap, Generation: e.cur.Generation, Detail: err.Error(),

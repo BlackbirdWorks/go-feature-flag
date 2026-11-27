@@ -24,8 +24,8 @@ const (
 	SettingEvaluation        = "evaluation"
 )
 
-// resolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
-func resolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[string]struct{}, error) {
+// ResolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
+func ResolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[string]struct{}, error) {
 	keys := make(map[string]struct{}, len(cfg.Auth.AdminKeys))
 
 	for i := range cfg.Auth.AdminKeys {
