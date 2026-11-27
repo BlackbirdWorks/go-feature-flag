@@ -73,7 +73,7 @@ func (r *Readiness) Ready() (int, model.ReadyResponse) {
 	}
 
 	current := status.Source.Runtime
-	if current != nil && current.Snapshot > 0 {
+	if status.Bootstrapped || current != nil && current.Snapshot > 0 {
 		r.started.Store(true)
 	}
 
@@ -93,8 +93,8 @@ func (r *Readiness) Ready() (int, model.ReadyResponse) {
 
 // Started answers /startupz: 200 once the bootstrap snapshot is applied, and from then on.
 func (r *Readiness) Started() (int, model.ReadyResponse) {
-	current := r.src.Status().Source.Runtime
-	if current != nil && current.Snapshot > 0 {
+	status := r.src.Status()
+	if status.Bootstrapped || status.Source.Runtime != nil && status.Source.Runtime.Snapshot > 0 {
 		r.started.Store(true)
 	}
 

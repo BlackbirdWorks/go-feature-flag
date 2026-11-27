@@ -79,6 +79,18 @@ func TestProbes_ColdStartThenManifest(t *testing.T) {
 	rig.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
 }
 
+// TestProbes_ColdStartWithoutAdminKeys: the bootstrap file equals the empty runtime, so its round swaps nothing; the
+// startup probe still passes and the readiness waits for the manifest.
+func TestProbes_ColdStartWithoutAdminKeys(t *testing.T) {
+	t.Parallel()
+
+	rig := newV2With(t, v2Options{cold: true, noAdminKeys: true})
+
+	rig.wantProbe(t, "/startupz", http.StatusOK, `{"ready":true}`)
+	rig.wantProbe(t, "/readyz", http.StatusServiceUnavailable, bodyWaiting)
+	assert.Equal(t, uint64(0), rig.core.Status().Source.Runtime.Snapshot)
+}
+
 func TestProbes_OutageAfterGoodLoadNeverUnready(t *testing.T) {
 	t.Parallel()
 
@@ -290,9 +302,11 @@ semaphore_resource_count{kind="object",state="stale"} 0
 	require.NotNil(t, info.Config)
 	require.NotNil(t, info.Config.LastRejected)
 	assert.Equal(t, model.ReloadInfo{
-		Outcome: "rejected", Code: flagruntime.CodeVetoed, Generation: 3,
+		At: info.Config.LastRejected.At, Outcome: "rejected", Code: flagruntime.CodeVetoed, Generation: 3,
 	}, *info.Config.LastRejected)
 	assert.Equal(t, map[string]uint64{"applied": 3, "rejected": 1, "ignored": 0}, info.Config.Reloads)
 	assert.Equal(t, uint64(2), info.Config.Generation)
+	assert.Equal(t, "rejected", info.Config.LastReload.Outcome)
+	assert.Equal(t, uint64(2), info.Config.LastApplied.Generation)
 	rig.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
 }

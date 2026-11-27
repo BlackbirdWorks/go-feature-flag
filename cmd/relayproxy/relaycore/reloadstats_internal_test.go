@@ -12,13 +12,20 @@ import (
 func TestReloadCounter(t *testing.T) {
 	t.Parallel()
 
-	round := func(outcome flagruntime.Outcome) flagruntime.RoundResult {
+	round := func(outcome flagruntime.Outcome, code string, gen uint64) flagruntime.RoundResult {
 		var res flagruntime.RoundResult
 
-		res.Outcome = outcome
+		res.Outcome, res.Code, res.Generation = outcome, code, gen
 
 		return res
 	}
+	summary := func(outcome, code string, gen uint64) *RoundSummary {
+		return &RoundSummary{At: clock.Now().UTC(), Outcome: outcome, Code: code, Generation: gen}
+	}
+
+	applied := flagruntime.OutcomeApplied
+	rejected := flagruntime.OutcomeRejected
+	ignored := flagruntime.OutcomeIgnored
 
 	tests := []struct {
 		name   string
@@ -27,17 +34,36 @@ func TestReloadCounter(t *testing.T) {
 	}{
 		{name: "none", want: ReloadStats{}},
 		{
-			name: "mixed",
+			name: "rejected then ignored keeps the rejection",
 			rounds: []flagruntime.RoundResult{
-				round(flagruntime.OutcomeApplied), round(flagruntime.OutcomeRejected),
-				round(flagruntime.OutcomeIgnored), round(flagruntime.OutcomeIgnored), round(flagruntime.OutcomeApplied),
+				round(applied, "applied", 1), round(rejected, "invalid-content", 2), round(ignored, "unchanged", 1),
 			},
-			want: ReloadStats{Applied: 2, Rejected: 1, Ignored: 2, LastSuccess: clock.Now().UTC()},
+			want: ReloadStats{
+				Applied: 1, Rejected: 1, Ignored: 1, LastSuccess: clock.Now().UTC(),
+				LastRound:    summary("ignored", "unchanged", 1),
+				LastApplied:  summary("applied", "applied", 1),
+				LastRejected: summary("rejected", "invalid-content", 2),
+			},
 		},
 		{
-			name:   "only rejected leaves no success time",
-			rounds: []flagruntime.RoundResult{round(flagruntime.OutcomeRejected)},
-			want:   ReloadStats{Rejected: 1},
+			name: "rejected then applied clears the rejection",
+			rounds: []flagruntime.RoundResult{
+				round(rejected, "vetoed", 2), round(applied, "applied", 3),
+			},
+			want: ReloadStats{
+				Applied: 1, Rejected: 1, LastSuccess: clock.Now().UTC(),
+				LastRound:   summary("applied", "applied", 3),
+				LastApplied: summary("applied", "applied", 3),
+			},
+		},
+		{
+			name:   "only rejected leaves no success",
+			rounds: []flagruntime.RoundResult{round(rejected, "vetoed", 2)},
+			want: ReloadStats{
+				Rejected:     1,
+				LastRound:    summary("rejected", "vetoed", 2),
+				LastRejected: summary("rejected", "vetoed", 2),
+			},
 		},
 	}
 
@@ -50,7 +76,7 @@ func TestReloadCounter(t *testing.T) {
 				counter.record(r)
 			}
 
-			assert.Equal(t, tt.want, counter.stats())
+			assert.Equal(t, tt.want, counter.snapshot())
 		})
 	}
 }

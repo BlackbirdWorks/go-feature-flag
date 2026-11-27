@@ -1,6 +1,13 @@
 {
   "config": {
     "lastReload": {
+      "at": "2025-06-15T12:00:00Z",
+      "outcome": "applied",
+      "code": "applied",
+      "generation": 3
+    },
+    "lastApplied": {
+      "at": "2025-06-15T12:00:00Z",
       "outcome": "applied",
       "code": "applied",
       "generation": 3

@@ -280,10 +280,11 @@ func newV2(tb testing.TB) *v2 {
 // manifest). dir is the store directory; empty makes a new one.
 type v2Options struct {
 	// beforeSwap vetoes a candidate runtime (a rejected round); nil lets every candidate through.
-	beforeSwap func(*flagruntime.Runtime) error
-	stateDir   string
-	dir        string
-	cold       bool
+	beforeSwap  func(*flagruntime.Runtime) error
+	stateDir    string
+	dir         string
+	cold        bool
+	noAdminKeys bool
 }
 
 // newV2With is [newV2] with options.
@@ -328,10 +329,15 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 		stateLine = "  stateDir: " + opts.stateDir + "\n"
 	}
 
+	adminLine := "auth:\n  adminKeys: [" + adminKey + "]\n"
+	if opts.noAdminKeys {
+		adminLine = ""
+	}
+
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n" +
-		"auth:\n  adminKeys: [" + adminKey + "]\n"
+		adminLine
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
 	require.NoError(tb, err)
@@ -377,8 +383,12 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 	case !opts.cold:
 		rig.awaitGeneration(tb, 1)
 	case opts.stateDir == "":
-		// the bootstrap snapshot, before the first manifest
-		rig.awaitGeneration(tb, 0)
+		// the bootstrap round (applied, or ignored when the file equals the empty runtime), before the first manifest
+		select {
+		case <-rig.rounds:
+		case <-time.After(waitBound):
+			require.FailNow(tb, "the engine did not run the bootstrap round")
+		}
 	}
 
 	metrics, err := metric.NewMetrics()

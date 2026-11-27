@@ -59,11 +59,20 @@ type Status struct {
 	Source controlsource.Status `json:"source"`
 	// ShuttingDown is true from the first call of [Core.Shutdown].
 	ShuttingDown bool `json:"shuttingDown"`
+	// Bootstrapped is true once the first round that carried the bootstrap file ended, whatever its outcome. It is a
+	// fact of the engine, not inferred from the snapshot: a file equal to the empty runtime swaps nothing.
+	Bootstrapped bool `json:"bootstrapped"`
 }
 
 // ReloadStats counts the rounds of the engine (the bootstrap round, every manifest generation and every reload of
-// the file) by outcome.
+// the file) by outcome, and keeps the last ones.
 type ReloadStats struct {
+	// LastRound is the most recent round of any outcome; nil before the first one.
+	LastRound *RoundSummary `json:"lastRound,omitempty"`
+	// LastApplied is the most recent applied round; nil when none was applied.
+	LastApplied *RoundSummary `json:"lastApplied,omitempty"`
+	// LastRejected is the most recent rejected round, kept until a later applied round supersedes it; nil then.
+	LastRejected *RoundSummary `json:"lastRejected,omitempty"`
 	// LastSuccess is the time of the last applied round, zero when none was applied.
 	LastSuccess time.Time `json:"lastSuccess"`
 	// Applied, Rejected and Ignored count the rounds by outcome.
@@ -72,31 +81,50 @@ type ReloadStats struct {
 	Ignored  uint64 `json:"ignored"`
 }
 
-// reloadCounter keeps the [ReloadStats] with atomics: the engine goroutine writes, Status reads.
+// RoundSummary is one round of the engine, without its free text: the outcome and the stable code, the generation
+// the round was about, and when it ended.
+type RoundSummary struct {
+	At         time.Time `json:"at"`
+	Outcome    string    `json:"outcome"`
+	Code       string    `json:"code"`
+	Generation uint64    `json:"generation"`
+}
+
+// reloadCounter keeps the [ReloadStats]; the engine goroutine writes, Status reads.
 type reloadCounter struct {
-	applied, rejected, ignored atomic.Uint64
-	lastSuccess                atomic.Int64
+	stats ReloadStats
+	mu    sync.Mutex
 }
 
 func (r *reloadCounter) record(res flagruntime.RoundResult) {
+	now := clock.Now().UTC()
+	round := &RoundSummary{At: now, Outcome: string(res.Outcome), Code: res.Code, Generation: res.Generation}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.stats.LastRound = round
+
 	switch res.Outcome {
 	case flagruntime.OutcomeApplied:
-		r.lastSuccess.Store(clock.Now().UnixNano())
-		r.applied.Add(1)
+		r.stats.LastSuccess = now
+		r.stats.LastApplied = round
+		r.stats.LastRejected = nil
+		r.stats.Applied++
 	case flagruntime.OutcomeRejected:
-		r.rejected.Add(1)
+		r.stats.LastRejected = round
+		r.stats.Rejected++
 	case flagruntime.OutcomeIgnored:
-		r.ignored.Add(1)
+		r.stats.Ignored++
 	}
 }
 
-func (r *reloadCounter) stats() ReloadStats {
-	stats := ReloadStats{Applied: r.applied.Load(), Rejected: r.rejected.Load(), Ignored: r.ignored.Load()}
-	if nano := r.lastSuccess.Load(); nano != 0 {
-		stats.LastSuccess = time.Unix(0, nano).UTC()
-	}
+// snapshot returns a copy; the summaries it points to are never changed.
+func (r *reloadCounter) snapshot() ReloadStats {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	return stats
+	return r.stats
 }
 
 type phase uint8
@@ -158,6 +186,7 @@ func (c *Core) Collect(event events.Event) bool { return c.events.Collect(event)
 func (c *Core) Status() Status {
 	return Status{
 		StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status(),
-		Reloads: c.reloads.stats(), ShuttingDown: c.shutdownStarted.Load(),
+		Reloads: c.reloads.snapshot(), ShuttingDown: c.shutdownStarted.Load(),
+		Bootstrapped: c.engine.Bootstrapped(),
 	}
 }

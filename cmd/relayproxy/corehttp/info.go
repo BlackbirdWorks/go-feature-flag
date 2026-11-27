@@ -55,27 +55,21 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		Staleness:      staleness(status, now),
 	}
 
-	round := status.Source.Round
+	info.LastReload = roundInfo(status.Reloads.LastRound)
+	info.LastApplied = roundInfo(status.Reloads.LastApplied)
+
+	if status.Reloads.LastRejected != nil {
+		rejected := roundInfo(status.Reloads.LastRejected)
+		info.LastRejected = &rejected
+	}
+
 	current := status.Source.Runtime
-
 	if current == nil {
-		info.LastReload = reloadInfo(&round.Reload)
-
 		return info
 	}
 
 	info.Generation, info.Snapshot = current.Generation, current.Snapshot
-	info.LastReload = reloadInfo(&current.LastReload)
 	info.PendingRestart = append(info.PendingRestart, current.PendingRestart...)
-
-	switch {
-	case round.Outcome == flagruntime.OutcomeRejected:
-		rejected := reloadInfo(&round.Reload)
-		info.LastRejected = &rejected
-	case current.LastRejected != nil:
-		rejected := reloadInfo(current.LastRejected)
-		info.LastRejected = &rejected
-	}
 
 	failures := map[string]manifestreader.ObjectFailure{}
 	for _, failure := range status.Source.Reader.Failures {
@@ -100,8 +94,14 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	return info
 }
 
-func reloadInfo(r *flagruntime.Reload) model.ReloadInfo {
-	return model.ReloadInfo{Outcome: string(r.Outcome), Code: r.Code, Generation: r.Generation}
+func roundInfo(round *relaycore.RoundSummary) model.ReloadInfo {
+	if round == nil {
+		return model.ReloadInfo{At: nil, Outcome: "", Code: "", Generation: 0}
+	}
+
+	at := round.At
+
+	return model.ReloadInfo{At: &at, Outcome: round.Outcome, Code: round.Code, Generation: round.Generation}
 }
 
 func staleness(status *relaycore.Status, now time.Time) model.StalenessInfo {

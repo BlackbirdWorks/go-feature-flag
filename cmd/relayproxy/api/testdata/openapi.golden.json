@@ -82,6 +82,9 @@
             "minimum": 0,
             "type": "integer"
           },
+          "lastApplied": {
+            "$ref": "#/components/schemas/ReloadInfo"
+          },
           "lastRejected": {
             "$ref": "#/components/schemas/ReloadInfo"
           },
@@ -134,6 +137,7 @@
         },
         "required": [
           "lastReload",
+          "lastApplied",
           "staleness",
           "reloads",
           "flagSets",
@@ -825,6 +829,10 @@
       "ReloadInfo": {
         "additionalProperties": false,
         "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },

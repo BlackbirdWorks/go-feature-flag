@@ -32,7 +32,7 @@ func (f *fakeStatus) set(status *relaycore.Status) { f.st.Store(status) }
 func runtimeStatus(snapshot, generation uint64, sets map[string]*flagruntime.FlagSetStatus,
 	objects map[string]*flagruntime.ObjectStatus,
 ) *relaycore.Status {
-	return &relaycore.Status{Source: controlsource.Status{Runtime: &flagruntime.Status{
+	return &relaycore.Status{Bootstrapped: snapshot > 0, Source: controlsource.Status{Runtime: &flagruntime.Status{
 		Snapshot: snapshot, Generation: generation, FlagSets: sets, Objects: objects,
 	}}}
 }
@@ -75,6 +75,9 @@ func TestReadiness(t *testing.T) {
 				wantStartz: 503, wantStartBod: notReadyStarting},
 			{name: "empty runtime", status: runtimeStatus(0, 0, nil, nil), wantReadyz: 503,
 				wantReadyBod: notReadyStarting, wantStartz: 503, wantStartBod: notReadyStarting},
+			{name: "first round ended without a swap (no admin keys)", status: &relaycore.Status{
+				Bootstrapped: true, Source: runtimeStatus(0, 0, nil, nil).Source,
+			}, wantReadyz: 503, wantReadyBod: notReadyWaiting, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "bootstrap applied", status: runtimeStatus(1, 0, nil, nil), wantReadyz: 503,
 				wantReadyBod: notReadyWaiting, wantStartz: 200, wantStartBod: bodyStarted},
 			{name: "manifest with zero objects", status: runtimeStatus(2, 1, nil, nil), wantReadyz: 200,

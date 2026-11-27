@@ -21,6 +21,9 @@ const (
 	kindFlags = "flags"
 	fineName  = "fine"
 	sameSum   = "same"
+	outIgnore = "ignored"
+	outApply  = "applied"
+	outReject = "rejected"
 )
 
 func TestConfigInfo(t *testing.T) {
@@ -30,7 +33,12 @@ func TestConfigInfo(t *testing.T) {
 	synced := now.Add(-90 * time.Second)
 
 	status := relaycore.Status{
-		Reloads: relaycore.ReloadStats{Applied: 2, LastSuccess: synced},
+		Reloads: relaycore.ReloadStats{
+			Applied: 2, Rejected: 1, LastSuccess: synced,
+			LastRound:    &relaycore.RoundSummary{At: now, Outcome: outIgnore, Code: "unchanged", Generation: 4},
+			LastApplied:  &relaycore.RoundSummary{At: synced, Outcome: outApply, Code: outApply, Generation: 4},
+			LastRejected: &relaycore.RoundSummary{At: now, Outcome: outReject, Code: "vetoed", Generation: 5},
+		},
 		Source: controlsource.Status{
 			Reader: manifestreader.Status{
 				LastSync: synced,
@@ -57,9 +65,11 @@ func TestConfigInfo(t *testing.T) {
 	}
 
 	want := model.ConfigInfo{
-		LastReload: model.ReloadInfo{},
-		Staleness:  model.StalenessInfo{LastConfirmed: &synced, LastSuccessfulReload: &synced, AgeSeconds: 90},
-		Reloads:    map[string]uint64{"applied": 2, "rejected": 0, "ignored": 0},
+		LastReload:   model.ReloadInfo{At: &now, Outcome: outIgnore, Code: "unchanged", Generation: 4},
+		LastApplied:  model.ReloadInfo{At: &synced, Outcome: outApply, Code: outApply, Generation: 4},
+		LastRejected: &model.ReloadInfo{At: &now, Outcome: outReject, Code: "vetoed", Generation: 5},
+		Staleness:    model.StalenessInfo{LastConfirmed: &synced, LastSuccessfulReload: &synced, AgeSeconds: 90},
+		Reloads:      map[string]uint64{outApply: 2, outReject: 1, outIgnore: 0},
 		FlagSets: []model.FlagSetInfo{
 			{Name: "a", State: "ready", Problems: []model.ProblemInfo{}, Flags: 3},
 			{Name: "b", State: "degraded", APIKeys: 2,
@@ -84,7 +94,7 @@ func TestConfigInfo_NoRuntime(t *testing.T) {
 
 	got := configInfo(&relaycore.Status{}, clock.Now())
 
-	assert.Equal(t, map[string]uint64{"applied": 0, "rejected": 0, "ignored": 0}, got.Reloads)
+	assert.Equal(t, map[string]uint64{outApply: 0, outReject: 0, outIgnore: 0}, got.Reloads)
 	assert.Equal(t, []model.FlagSetInfo{}, got.FlagSets)
 	assert.Equal(t, []model.ObjectInfo{}, got.Objects)
 	assert.Equal(t, []string{}, got.PendingRestart)

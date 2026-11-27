@@ -10,13 +10,14 @@ contain a key, a secret or the bytes of an object. The v1 server is unchanged: i
 | --- | --- | --- |
 | `/livez` | `{"live": true}` while the process serves. Never depends on the control plane or a flag set. | never |
 | `/readyz` | `{"ready": true, "state": "empty"}` (or `serving`, `degraded`) | `{"ready": false, "reason": "starting"}` (or `waiting-for-manifest`, `shutting-down`) |
-| `/startupz` | `{"ready": true}` once the bootstrap snapshot is applied | `{"ready": false, "reason": "starting"}` |
+| `/startupz` | `{"ready": true}` once the first bootstrap round has ended | `{"ready": false, "reason": "starting"}` |
 | `/health` | `{"initialized": true}`, always, as in v1 | never |
 | `/info` | the v1 fields plus a `config` section | never |
 
 ## Readiness rules
 
-- The relay is **not ready** until the bootstrap snapshot is applied (`starting`) and the first manifest outcome is
+- The relay is **not ready** until the first round of the engine that carried the bootstrap file has ended, whatever its
+  outcome (`starting`; a file with no admin keys swaps nothing, and still counts) and the first manifest outcome is
   known (`waiting-for-manifest`): a manifest applied, even one that lists zero objects, or the verified copy of the state
   directory. Without a manifest and without a state copy the relay retries with backoff and stays up.
 - Once ready the relay **stays ready** through any later S3 or manifest outage and serves the last known good content.
@@ -31,12 +32,13 @@ Reasons (closed list): `starting`, `waiting-for-manifest`, `shutting-down`. Stat
 
 ## `/info` config section
 
-`config` holds: `generation` (applied manifest generation), `snapshot`, `lastReload` and `lastRejected` (outcome, code,
-generation), `reloads` (rounds by outcome), `staleness` (last confirmation by the control plane, last successful
+`config` holds: `generation` (applied manifest generation), `snapshot`, `lastReload` (the most recent round of any
+outcome), `lastApplied` and `lastRejected` (outcome, code, generation, time), `reloads` (rounds by outcome), `staleness` (last confirmation by the control plane, last successful
 reload, age in seconds), `flagSets` (state `ready`, `degraded` or `pending`, problems, flags, number of API keys,
 rejected flags), `objects` (state, reason, checksum held and listed), `withdrawn` and `pendingRestart`.
 The free text of a failure (the detail of a round, the text of a problem) is not served, because it can quote the content
-of an object: `/info` shows closed codes, and the text is in the logs. It works with zero flag sets.
+of an object: `/info` shows closed codes, and the text is in the logs. `lastRejected` stays until a later applied round supersedes it, then it is absent; ignored (unchanged) rounds do not clear
+it. It works with zero flag sets.
 
 ## Metrics
 

@@ -5,9 +5,11 @@ import "time"
 // ConfigInfo is what /info says about the config v2 runtime. It never holds an API key, an admin key, a secret or the
 // bytes of an object.
 type ConfigInfo struct {
-	// LastReload is the last round of the engine, applied or not.
+	// LastReload is the most recent round of any outcome.
 	LastReload ReloadInfo `json:"lastReload"`
-	// LastRejected is the last rejected candidate, absent when none was.
+	// LastApplied is the most recent applied round.
+	LastApplied ReloadInfo `json:"lastApplied"`
+	// LastRejected is the most recent rejected round, kept until a later applied round supersedes it; absent then.
 	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
 	// Staleness says how long ago the held configuration was last confirmed by the control plane.
 	Staleness StalenessInfo `json:"staleness"`
@@ -31,9 +33,11 @@ type ConfigInfo struct {
 // The free text of a round (the detail) is not served: it can quote the content of an object. The code is a closed
 // reason; the detail is in the logs.
 type ReloadInfo struct {
-	Outcome    string `json:"outcome"`
-	Code       string `json:"code"`
-	Generation uint64 `json:"generation"`
+	// At is when the round ended; absent before the first round.
+	At         *time.Time `json:"at,omitempty"`
+	Outcome    string     `json:"outcome"`
+	Code       string     `json:"code"`
+	Generation uint64     `json:"generation"`
 }
 
 // StalenessInfo is the age of the configuration.
