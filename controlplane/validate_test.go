@@ -81,7 +81,10 @@ func TestValidateManifest(t *testing.T) {
 	}{
 		{name: "valid manifest", mutate: func(*controlplane.Manifest) {}},
 		{name: "empty objects is valid", mutate: func(m *controlplane.Manifest) { m.Objects = nil }},
-		{name: "size zero is valid", mutate: func(m *controlplane.Manifest) { m.Objects[0].Size = 0 }},
+		{
+			name:   "size zero is valid: the reader marks the entry, the publisher refuses to write it",
+			mutate: func(m *controlplane.Manifest) { m.Objects[0].Size = 0 },
+		},
 		{
 			name:   "no channel",
 			mutate: func(m *controlplane.Manifest) { m.Channel = "" },
@@ -299,7 +302,7 @@ func TestValidateFlagSet(t *testing.T) {
 		},
 		{
 			name:   "unresolved source",
-			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{sourceNope} },
 			want:   []problem{set(controlplane.CodeUnresolvedSource, "checkout", 0, "flagSets[0].sources[0]")},
 		},
 		{
@@ -309,7 +312,7 @@ func TestValidateFlagSet(t *testing.T) {
 		},
 		{
 			name:   "unresolved without manifest",
-			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{"nope"} },
+			mutate: func(d *controlplane.FlagSetDocument) { d.FlagSets[0].Sources = []string{sourceNope} },
 			noMani: true,
 		},
 		{
@@ -432,7 +435,7 @@ func TestValidateFlagsVariations(t *testing.T) {
 		{
 			name: "mixed variation types",
 			mutate: func(flags controlplane.Flags) {
-				edit(flags, func(x *controlplane.Flag) { x.Variations = map[string]any{"a": 1, "b": "two"} })
+				edit(flags, func(x *controlplane.Flag) { x.Variations = map[string]any{"a": 1, "b": setTwo} })
 			},
 			want: []problem{flagProblem(controlplane.CodeInvalidValue, "f", "f.variations.b")},
 		},
@@ -638,7 +641,7 @@ func TestValidateFlagsRollouts(t *testing.T) {
 				edit(flags, func(x *controlplane.Flag) {
 					x.ScheduledRollout = []controlplane.ScheduledStep{{
 						Date:        fixtureTime(1),
-						Variations:  map[string]any{"q": 1, "r": "two"},
+						Variations:  map[string]any{"q": 1, "r": setTwo},
 						DefaultRule: &controlplane.Rule{Variation: new("q")},
 					}}
 				})
