@@ -851,3 +851,19 @@ func TestRunExitsWhenAStateWriteHoldsTheShutdown(t *testing.T) {
 
 	assert.Contains(t, rig.stderr.String(), "the loops of the relay did not stop within the shutdown deadline")
 }
+
+// Handing a file to the engine is not an applied reload: the log says it is queued, and names where the outcome is.
+func TestReloadLogsTheHandOverAsQueued(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{})
+	rig.awaitGeneration(1)
+
+	// the channel holds one request: when the third send returns, the loop took the second, so it ended the first
+	for range 3 {
+		rig.reload <- struct{}{}
+	}
+
+	assert.Contains(t, rig.stderr.String(), "reload queued")
+	assert.NotContains(t, rig.stderr.String(), "was reloaded")
+}
