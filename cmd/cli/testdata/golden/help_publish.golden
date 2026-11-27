@@ -1,0 +1,31 @@
+Reads the documents of <dir> (flags/*.yaml|yml|json and flagsets/*.yaml|yml|json), validates them,
+uploads the objects that are absent under their content-addressed keys, and writes the manifest last with a
+conditional write, so a reader never sees a half-written state.
+
+Where to publish comes from the control-plane connection of a bootstrap file (--config), or from --bucket and
+--region. Exit codes: 0 success, 1 failure or bad usage, 2 invalid documents or configuration, 3 conflict (another
+publisher won; nothing visible changed), 4 store call failed (safe to repeat), 5 the bucket holds a bad state.
+
+Usage:
+  semaphore-cli publish <dir> [flags]
+  semaphore-cli publish [command]
+
+Available Commands:
+  verify      Check the manifest and every object it lists in the bucket
+
+Flags:
+      --bucket string                           bucket (without --config)
+      --channel string                          channel of the manifest (without --config; default stable)
+  -c, --config string                           bootstrap file whose controlPlane connection is the target
+      --connection string                       connection name written in the manifest (without --config; default control)
+      --dry-run[=true|false]                    plan the publication: the same reads, no write
+      --endpoint string                         S3 endpoint, for emulators and S3 compatible stores (without --config)
+      --generation uint                         generation to write (default: the one in the bucket plus one)
+  -h, --help[=true|false]                       help for publish
+      --manifest-key string                     manifest key (without --config; default <prefix>manifests/<channel>.yaml)
+  -o, --output string                           output format: text or json (default "text")
+      --prefix string                           key prefix of the objects and of the default manifest key
+      --region string                           AWS region (without --config)
+      --replace-invalid-manifest[=true|false]   replace a manifest in the bucket that is invalid or over the limits (needs --generation)
+
+Use "semaphore-cli publish [command] --help" for more information about a command.
