@@ -216,10 +216,11 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 
 		raw := (*rules)[i].GetQuery()
 
-		trimmed := evalcore.StrTrim(raw)
-		if queryFormatOf(trimmed) != NikunjyQueryFormat {
+		if queryFormatOf(raw) != NikunjyQueryFormat {
 			continue
 		}
+
+		trimmed := evalcore.StrTrim(raw)
 
 		queries = append(queries, trimmed)
 		if trimmed != "" {

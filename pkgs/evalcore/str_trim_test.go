@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	helloworld = "helloworld"
+	helloworld = "hello world"
 )
 
 func TestStrTrim(t *testing.T) {
@@ -44,6 +44,21 @@ func TestStrTrim(t *testing.T) {
 			name:  "only spaces",
 			input: "   ",
 			want:  "",
+		},
+		{
+			name:  "line that ends with a space is joined as it is",
+			input: "hello \n  world",
+			want:  helloworld,
+		},
+		{
+			name:  "CRLF line ends and blank lines",
+			input: "\r\n hello\r\n\r\nworld\r\n\n",
+			want:  helloworld,
+		},
+		{
+			name:  "brackets and commas take no separator",
+			input: "[\n1,\n2\n]",
+			want:  "[1, 2]",
 		},
 		{
 			name:  "mixed leading spaces",

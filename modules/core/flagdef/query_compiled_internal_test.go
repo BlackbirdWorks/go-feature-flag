@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	keyEqAbc  = `key eq "abc"`
-	varKeyAbc = `{"==": [{"var": "key"}, "abc"]}`
+	multiLineVarKeyAbc = "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
+	keyEqAbc           = `key eq "abc"`
+	varKeyAbc          = `{"==": [{"var": "key"}, "abc"]}`
 )
 
 func TestService_CompiledQuery(t *testing.T) {
@@ -31,8 +32,9 @@ func TestService_CompiledQuery(t *testing.T) {
 			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
 		},
 		{
-			name: "multi-line jsonlogic", raw: "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}",
-			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
+			name: "multi-line jsonlogic", raw: multiLineVarKeyAbc,
+			wantTrimmed: multiLineVarKeyAbc, wantFormat: JSONLogicQueryFormat,
+			wantDecoded: true,
 		},
 		{
 			name: "invalid json", raw: `{"==": [{"var": "key"}, "abc"]`,
@@ -72,8 +74,8 @@ func TestService_CompiledQueryIsOwnedByTheService(t *testing.T) {
 func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 	t.Parallel()
 
-	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
-	trimmed := varKeyAbc
+	query := multiLineVarKeyAbc
+	trimmed := query // a JsonLogic query is compiled as written
 
 	tests := []struct {
 		name           string
