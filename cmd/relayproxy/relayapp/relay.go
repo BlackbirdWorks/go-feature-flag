@@ -76,9 +76,12 @@ const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ �
 Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
-// Main runs the relay on the real environment until ctx is cancelled (SIGTERM, SIGINT) and returns the exit code.
+// Main runs the relay on the environment that lookupEnv reads (the process reads it only in main.go) until ctx is
+// cancelled (SIGTERM, SIGINT) and returns the exit code.
 // SIGHUP reloads the bootstrap file.
-func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Build) int {
+func Main(
+	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
+) int {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 
@@ -99,7 +102,12 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Bu
 	}()
 
 	return run(ctx, &runOptions{
-		Args: args, Stdout: stdout, Stderr: stderr, Build: build, Load: osLoadOptions(), Reload: reload,
+		Args:   args,
+		Stdout: stdout,
+		Stderr: stderr,
+		Build:  build,
+		Load:   bootstrap.LoadOptions{LookupEnv: lookupEnv, ReadFile: os.ReadFile},
+		Reload: reload,
 	})
 }
 
@@ -116,11 +124,6 @@ func forwardSignals(ctx context.Context, in <-chan os.Signal, out chan<- struct{
 			return
 		}
 	}
-}
-
-// osLoadOptions reads the real environment and files.
-func osLoadOptions() bootstrap.LoadOptions {
-	return bootstrap.LoadOptions{LookupEnv: os.LookupEnv, ReadFile: os.ReadFile}
 }
 
 // run starts the relay proxy on a version 2 bootstrap file and returns the exit code of the process. A cancelled ctx

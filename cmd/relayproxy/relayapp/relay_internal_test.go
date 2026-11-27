@@ -694,16 +694,6 @@ func TestForwardSignals(t *testing.T) {
 	assert.Len(t, out, 1, "the second signal was merged into the first")
 }
 
-func TestOSLoadOptions(t *testing.T) {
-	t.Parallel()
-
-	opts := osLoadOptions()
-
-	require.NotNil(t, opts.LookupEnv)
-	require.NotNil(t, opts.ReadFile)
-	assert.False(t, opts.AllowInlineSecrets)
-}
-
 // The relay binds the address of its file as written: brackets of an IPv6 host included. The binder gets a function
 // that records the address and hands over a listener that is already bound.
 func TestRunBindsTheConfiguredAddress(t *testing.T) {
