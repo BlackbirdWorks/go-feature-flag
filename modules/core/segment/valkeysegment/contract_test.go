@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
@@ -74,7 +75,12 @@ func TestProviderConformsOnTheStubServer(t *testing.T) {
 						_ = prov.Shutdown(ctx)
 					}
 
-					return segmenttest.Fixture{Provider: prov, Backend: srv, Close: closeFixture}, nil
+					return segmenttest.Fixture{
+						Provider: prov,
+						Missing:  segment.MissingUnknown,
+						Backend:  srv,
+						Close:    closeFixture,
+					}, nil
 				}, nil)
 			})
 		}

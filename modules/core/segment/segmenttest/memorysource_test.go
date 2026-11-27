@@ -17,10 +17,22 @@ func seedOf(src *segment.MemorySource) segmenttest.Seed {
 
 //nolint:paralleltest // the suite measures the allocations of the whole process in one case
 func TestMemorySourceSnapshotSuite(t *testing.T) {
+	for _, missing := range []segment.MissingKey{"", segment.MissingUnknown} {
+		t.Run("missing "+string(missing), func(t *testing.T) { //nolint:paralleltest // see above
+			runSnapshotSuite(t, missing)
+		})
+	}
+}
+
+func runSnapshotSuite(t *testing.T, missing segment.MissingKey) {
+	t.Helper()
+
 	segmenttest.RunSnapshotSource(t, func() (segmenttest.SnapshotFixture, error) {
 		src := segment.NewMemorySource(nil)
 
-		return segmenttest.SnapshotFixture{Source: src, Seed: seedOf(src)}, nil
+		return segmenttest.SnapshotFixture{
+			Source: src, Seed: seedOf(src), Remove: removeOf(src), Missing: missing,
+		}, nil
 	})
 }
 

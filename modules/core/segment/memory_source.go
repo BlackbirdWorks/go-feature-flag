@@ -35,8 +35,10 @@ type MemorySource struct {
 	fails    map[Op]error
 	calls    map[Op]int
 	subs     map[*subscription]struct{}
+	pinned   map[string]struct{} // every token ever pinned: a counter version never takes one
 	hook     func(segment string, yielded int)
 	midErr   error
+	missing  MissingKey
 	midAfter int
 	counter  int
 	mu       sync.Mutex
@@ -58,7 +60,7 @@ func NewMemorySource(members map[string][]string) *MemorySource {
 		fails:    make(map[Op]error),
 		calls:    make(map[Op]int),
 		subs:     map[*subscription]struct{}{},
-		midAfter: -1,
+		midAfter: -1, pinned: map[string]struct{}{},
 	}
 
 	for name, ids := range members {
@@ -72,8 +74,7 @@ func NewMemorySource(members map[string][]string) *MemorySource {
 func (m *MemorySource) Set(name string, ids []string) {
 	m.mu.Lock()
 	m.sets[name] = NewMemberSet(ids)
-	m.counter++
-	m.versions[name] = strconv.Itoa(m.counter)
+	m.versions[name] = m.nextVersion()
 	m.mu.Unlock()
 	m.publish(name)
 }
@@ -94,9 +95,9 @@ func (m *MemorySource) PinVersion(name, token string) {
 	switch {
 	case token != "":
 		m.versions[name] = token
+		m.pinned[token] = struct{}{}
 	case m.sets[name] != nil:
-		m.counter++
-		m.versions[name] = strconv.Itoa(m.counter)
+		m.versions[name] = m.nextVersion()
 	default:
 		delete(m.versions, name)
 	}
@@ -130,6 +131,13 @@ func (m *MemorySource) FailMembersAfter(n int, err error) {
 func (m *MemorySource) SetMembersHook(hook func(segment string, yielded int)) {
 	m.mu.Lock()
 	m.hook = hook
+	m.mu.Unlock()
+}
+
+// SetMissing sets what a lookup of a segment that does not exist answers: the default (empty) is NotMember.
+func (m *MemorySource) SetMissing(missing MissingKey) {
+	m.mu.Lock()
+	m.missing = missing
 	m.mu.Unlock()
 }
 
@@ -201,7 +209,8 @@ func (m *MemorySource) Members(ctx context.Context, name string) iter.Seq2[strin
 	}
 }
 
-// Contains implements [Provider]: a segment the source does not hold stays Unknown.
+// Contains implements [Provider]: a segment the source does not hold is NotMember, or Unknown after
+// SetMissing(MissingUnknown).
 func (m *MemorySource) Contains(ctx context.Context, lookups []Lookup) error {
 	err := m.enter(ctx, OpContains)
 	if err != nil {
@@ -214,6 +223,10 @@ func (m *MemorySource) Contains(ctx context.Context, lookups []Lookup) error {
 	for i := range lookups {
 		set, ok := m.sets[lookups[i].Segment]
 		if !ok {
+			if m.missing.Effective() == MissingNotMember {
+				lookups[i].State = NotMember
+			}
+
 			continue
 		}
 
@@ -320,19 +333,15 @@ func (m *MemorySource) enter(ctx context.Context, kind Op) error {
 // publish tells the subscribers the current version of a segment.
 func (m *MemorySource) publish(name string) {
 	m.mu.Lock()
+	defer m.mu.Unlock() // read and write in one step: overlapping publishes keep their order
+
 	token, ok := m.versions[name]
 
 	if !ok {
 		token = AbsentVersion
 	}
 
-	subs := make([]*subscription, 0, len(m.subs))
 	for sub := range m.subs {
-		subs = append(subs, sub)
-	}
-	m.mu.Unlock()
-
-	for _, sub := range subs {
 		sub.mu.Lock()
 		sub.pending[name] = token
 		sub.mu.Unlock()
@@ -340,6 +349,18 @@ func (m *MemorySource) publish(name string) {
 		select {
 		case sub.signal <- struct{}{}:
 		default:
+		}
+	}
+}
+
+// nextVersion returns a counter version that no pin ever used. The caller holds the lock.
+func (m *MemorySource) nextVersion() string {
+	for {
+		m.counter++
+
+		token := strconv.Itoa(m.counter)
+		if _, pinned := m.pinned[token]; !pinned {
+			return token
 		}
 	}
 }

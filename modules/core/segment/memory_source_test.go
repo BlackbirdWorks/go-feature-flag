@@ -3,6 +3,7 @@ package segment_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,8 +147,14 @@ func TestMemorySourceLookupAndExists(t *testing.T) {
 	}
 
 	require.NoError(t, src.Contains(context.Background(), lookups))
-	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.Unknown},
-		[]segment.State{lookups[0].State, lookups[1].State, lookups[2].State})
+	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember},
+		[]segment.State{lookups[0].State, lookups[1].State, lookups[2].State}, "a missing segment has no member")
+
+	src.SetMissing(segment.MissingUnknown)
+
+	again := []segment.Lookup{{Segment: segGhost, ID: "a"}}
+	require.NoError(t, src.Contains(context.Background(), again))
+	assert.Equal(t, segment.Unknown, again[0].State, "Unknown on request")
 
 	states, err := src.Exists(context.Background(), []string{segAlpha, segGhost})
 	require.NoError(t, err)
@@ -193,4 +200,68 @@ func TestMemorySourceChanges(t *testing.T) {
 
 	_, err = src.Changes(ended)
 	require.ErrorIs(t, err, context.Canceled, "no subscription on an ended context")
+}
+
+func TestASetAfterAPinNeverTakesAPinnedToken(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+
+	first, err := src.Version(ctx, segAlpha)
+	require.NoError(t, err)
+	require.Equal(t, "1", first)
+
+	src.PinVersion(segAlpha, "2")
+	src.Set(segAlpha, []string{"a", "b"})
+
+	got, err := src.Version(ctx, segAlpha)
+	require.NoError(t, err)
+	assert.Equal(t, "3", got, "the counter skips the token that was pinned")
+}
+
+func TestOverlappingPublishesLeaveTheLatestVersion(t *testing.T) {
+	t.Parallel()
+
+	const (
+		writers = 8
+		rounds  = 25
+	)
+
+	ctx := t.Context()
+	src := segment.NewMemorySource(nil)
+
+	changes, err := src.Changes(ctx)
+	require.NoError(t, err)
+
+	var wait sync.WaitGroup
+
+	for range writers {
+		wait.Go(func() {
+			for range rounds {
+				src.Set(segAlpha, []string{"a"})
+			}
+		})
+	}
+
+	wait.Wait()
+
+	final, err := src.Version(ctx, segAlpha)
+	require.NoError(t, err)
+
+	src.Set("zz-sentinel", nil) // sorted after alpha: alpha is delivered before it, with its latest version
+
+	last := ""
+
+	for change, err := range changes {
+		require.NoError(t, err)
+
+		if change.Segment == "zz-sentinel" {
+			break
+		}
+
+		last = change.Version
+	}
+
+	assert.Equal(t, final, last, "the subscriber ends with the version the store has")
 }

@@ -48,6 +48,11 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		logger = slog.New(slog.DiscardHandler)
 	}
 
+	if cfg.Segments != nil {
+		logger.LogAttrs(ctx, slog.LevelWarn,
+			"segment stores are configured; segment definitions come from the control plane (not active yet)")
+	}
+
 	core := &Core{
 		log:      logger,
 		factory:  connection.New(append([]connection.Option{connection.WithLogger(logger)}, deps.Connection...)...),

@@ -20,9 +20,12 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 | Memory | the whole set (guarded by a maximum of members and bytes) | the LRU only (the least of the two modes) |
 | Freshness | as of the last pull; the relay polls the version and pulls again only when it changed | as of the version of the cached entry; entries of another version are misses, and the time-to-live is the fallback |
 | Change detection | version token, compared for equality | the same version token, learned off the request path |
-| Store down | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
-| Segment missing in the store | unknown, never an empty set | unknown |
+| Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
+| Segment missing in the store (the store answered) | the old set is dropped and nobody is in the segment (not a member); it is served again when the segment comes back. With `missingKey: unknown` the lookups are unknown instead | not a member, or unknown with `missingKey: unknown` |
 
+- A segment that does not exist in the store has no member: the default `missingKey` is `notMember`, for both modes. `missingKey: unknown` is an opt-in that sends the lookups to the failure policy (`onError`). Consequence: an expired or deleted set means "nobody is in the segment". Replace a segment atomically (build the new set under another key and rename it over the old one), not by deleting it and adding the members again. Last known good is for errors only, never for a segment that is gone.
+- The `keys` layout is lookup-only. A definition with the `keys` layout and the `snapshot` mode (the default) is invalid and `segment.Definition.Validate` rejects it, naming the segment, the layout and the mode: its members cannot be listed without scanning the whole keyspace.
+- The Redis and Valkey providers of this page still answer a missing set as unknown by default; their default follows the model in the next change.
 - A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay will run it when it builds a generation.
 - A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h).
 - A store that can push changes also implements `ChangeNotifier`; polling the version stays the baseline.
@@ -45,6 +48,37 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 - Pick `valkey` for a Valkey store with many concurrent calls: valkey-go merges their writes.
 - Pick `redis` when the store sits behind a proxy you do not trust, when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
 - Both have the same data model, layouts (`set` and `keys`), answers and failure classes, are read-only and pass the same conformance suite on the same resolver.
+
+## Configure in the relay
+
+The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-config.md#connections-name) of the bootstrap file, because the clients own their connections and caching. The resolver settings are its `segments.resolver` section (see [its keys](../relay-proxy/bootstrap-config.md#segments)). The options of the providers are keys of the connection with the same names.
+
+- The relay checks the connections and the section at the start, and `semaphore-cli config validate` checks them too.
+- The password is a `fromEnv` or `fromFile` reference. It is never printed.
+- The segment definitions are published with the flags, like any other flag content. That comes with the next step of the segments work; the bootstrap file has no `segments.definitions`.
+- Today the relay only validates the connections and the section and logs that the stores are configured but not active.
+
+<!-- full-example -->
+```yaml
+version: 2
+connections:
+  control: {type: s3, region: us-east-1, bucket: acme-control}
+  segments-valkey:
+    type: valkey
+    addresses: ["valkey-1:6379", "valkey-2:6379"]
+    username: semaphore
+    password: {fromEnv: VALKEY_PASSWORD}
+    tls: {enable: true, caBundleFile: /etc/ssl/valkey-ca.pem}
+    pipelining: auto
+    lookupTimeout: 100ms
+controlPlane:
+  connection: control
+  manifest: {key: manifests/stable.yaml}
+segments:
+  resolver:
+    callTimeout: 2s
+    default: {ttl: 30s, negativeTtl: 5s, breakerFailures: 5}
+```
 
 ## Pages
 

@@ -224,7 +224,11 @@ func TestMemoryProvider(t *testing.T) {
 		states[i] = lookups[i].State
 	}
 
-	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember, segment.Unknown}, states)
+	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember, segment.NotMember}, states)
+
+	unknown := []segment.Lookup{{Segment: segGhost, ID: "x"}}
+	require.NoError(t, provider.WithMissing(segment.MissingUnknown).Contains(context.Background(), unknown))
+	assert.Equal(t, segment.Unknown, unknown[0].State, "a missing segment is Unknown on request")
 	assert.Equal(t, "a", lookups[0].Segment)
 	assert.Equal(t, "x", lookups[0].ID)
 }
@@ -451,4 +455,29 @@ func TestResolveLeavesAnInvalidStateAlone(t *testing.T) {
 
 	unknownPolicy := segment.Definition{Name: "a", Type: segment.TypeFile, OnError: segment.OnError("other")}
 	assert.Equal(t, segment.Unknown, unknownPolicy.Resolve(segment.Unknown), "an unrecognised policy keeps it unknown")
+}
+
+func TestCatalogOwnsAndReturnsCopiesOfTheVersionSpec(t *testing.T) {
+	t.Parallel()
+
+	spec := &segment.VersionSpec{Value: "v1"}
+
+	catalog, err := segment.NewCatalog(segment.Definition{Name: "alpha", Type: segment.TypeRedis, Version: spec})
+	require.NoError(t, err)
+
+	spec.Value = "changed after the call" // the caller's spec is the caller's
+
+	got, ok := catalog.Lookup("alpha")
+	require.True(t, ok)
+	assert.Equal(t, &segment.VersionSpec{Value: "v1"}, got.Version)
+
+	got.Version.Value = "changed through the lookup" // so is the one that Lookup returned
+
+	again, ok := catalog.Lookup("alpha")
+	require.True(t, ok)
+	assert.Equal(t, &segment.VersionSpec{Value: "v1"}, again.Version)
+
+	none, ok := catalog.Lookup("ghost")
+	require.False(t, ok)
+	assert.Nil(t, none.Version)
 }

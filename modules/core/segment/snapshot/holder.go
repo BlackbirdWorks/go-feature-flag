@@ -38,6 +38,9 @@ const checkEvery = 1024
 
 // Options bounds the memory of one holder. A zero field means the default of the segment package.
 type Options struct {
+	// Missing is what a segment that does not exist means: the default (empty) is [segment.MissingNotMember], an empty
+	// set; [segment.MissingUnknown] drops the set and answers Unknown.
+	Missing segment.MissingKey
 	// MaxMembers is the most distinct members; more refuses the pull and keeps the last good set.
 	MaxMembers int
 	// MaxBytes is the most bytes of the distinct members (the length of the ids), same rule.
@@ -68,6 +71,7 @@ type snap struct {
 	version  string
 	lastErr  Class
 	pulls    uint64
+	missing  bool // the store answered that the segment does not exist: no set is held
 }
 
 // Holder keeps the member set of one segment. Reads are lock-free; Refresh is driven by the caller (it starts no
@@ -148,7 +152,7 @@ func (h *Holder) Status() Status {
 	}
 
 	if cur.set == nil {
-		return Status{LastError: cur.lastErr}
+		return Status{Version: cur.version, LastError: cur.lastErr}
 	}
 
 	return Status{
@@ -158,8 +162,12 @@ func (h *Holder) Status() Status {
 }
 
 // Refresh reads the version of the segment and, only when it differs from the held one, pulls the members and swaps
-// them in. On any error the held set stays and keeps answering; the error class is in Status. The version is read
-// before the members, so a write that lands between the two makes the next Refresh pull again.
+// them in. On an error (the store is down, a timeout, a stream that broke, the memory guard, a malformed reply) the
+// held set stays and keeps answering, and the class is in Status. A pull that completes and finds the segment missing
+// is an answer, not an error: the held set is dropped and the lookups answer the policy (NotMember, or Unknown with
+// MissingUnknown), and Status shows ClassMissing with the version. Refresh returns that error once, when it learns
+// it; while the version stays, the next calls return nil. The version is read before the members, so a write that
+// lands between the two makes the next Refresh pull again.
 func (h *Holder) Refresh(ctx context.Context) error {
 	h.refresh.Lock()
 	defer h.refresh.Unlock()
@@ -171,15 +179,35 @@ func (h *Holder) Refresh(ctx context.Context) error {
 		return h.fail(ctx, cur, ClassVersion, err)
 	}
 
-	if cur != nil && cur.set != nil && cur.version == version {
+	if cur != nil && (cur.set != nil || cur.missing) && cur.version == version {
 		held := *cur
-		held.lastErr = ClassNone
+		if !held.missing {
+			held.lastErr = ClassNone
+		}
+
 		h.cur.Store(&held)
 
 		return nil
 	}
 
 	set, class, err := h.pull(ctx)
+	if class == ClassMissing {
+		// the pull completed and the store says the segment is gone: that is an answer, not a failure, so the old set
+		// is dropped and lookups are Unknown until the segment exists again
+		next := &snap{version: version, lastErr: ClassMissing, missing: true, loadedAt: clock.Now()}
+		if h.opts.Missing.Effective() == segment.MissingNotMember {
+			next.set = &segment.MemberSet{} // nobody is in a segment that does not exist
+		}
+
+		if cur != nil {
+			next.pulls = cur.pulls
+		}
+
+		h.cur.Store(next)
+
+		return err
+	}
+
 	if err != nil {
 		return h.fail(ctx, cur, class, err)
 	}

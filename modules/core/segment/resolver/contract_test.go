@@ -42,11 +42,16 @@ func TestResolverConforms(t *testing.T) {
 					return segmenttest.Fixture{}, err
 				}
 
-				return segmenttest.Fixture{Provider: res, Backend: store, Close: func() {
-					store.Release()
+				return segmenttest.Fixture{
+					Provider: res,
+					Missing:  segment.MissingUnknown,
+					Backend:  store,
+					Close: func() {
+						store.Release()
 
-					_ = res.Shutdown(context.Background())
-				}}, nil
+						_ = res.Shutdown(context.Background())
+					},
+				}, nil
 			}, nil)
 		})
 	}

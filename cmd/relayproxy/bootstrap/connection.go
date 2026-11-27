@@ -16,6 +16,8 @@ const (
 	TypeSQS      = "sqs"
 	TypeRedshift = "redshift"
 	TypeFile     = "file"
+	TypeRedis    = "redis"
+	TypeValkey   = "valkey"
 )
 
 // Credential types.
@@ -40,6 +42,8 @@ type Connection struct {
 	SQS      *SQSConnection      `json:"-" yaml:"-"`
 	Redshift *RedshiftConnection `json:"-" yaml:"-"`
 	File     *FileConnection     `json:"-" yaml:"-"`
+	Redis    *RedisConnection    `json:"-" yaml:"-"`
+	Valkey   *ValkeyConnection   `json:"-" yaml:"-"`
 }
 
 // Type returns the discriminator of the set member, or "" for an empty connection.
@@ -55,9 +59,19 @@ func (c Connection) Type() string {
 		return TypeRedshift
 	case c.File != nil:
 		return TypeFile
+	case c.Redis != nil:
+		return TypeRedis
+	case c.Valkey != nil:
+		return TypeValkey
 	}
 
 	return ""
+}
+
+// Format implements [fmt.Formatter]: a connection prints its type only, so that no verb reaches a secret of a member
+// (fmt does not call the Format method of a field while it prints a value for a verb that does not fit).
+func (c Connection) Format(f fmt.State, _ rune) {
+	_, _ = f.Write([]byte("Connection{" + c.Type() + "}"))
 }
 
 // connectionVariant maps a type name to the Go type of its settings. Types that are planned but not built yet
@@ -74,7 +88,11 @@ func connectionVariant(name string) (reflect.Type, error) {
 		return reflect.TypeFor[RedshiftConnection](), nil
 	case TypeFile:
 		return reflect.TypeFor[FileConnection](), nil
-	case "valkey", "redis", "webhook", keyKafka, "postgres", "mysql", "dynamodb", "gcs", "azureBlob", "pubsub",
+	case TypeRedis:
+		return reflect.TypeFor[RedisConnection](), nil
+	case TypeValkey:
+		return reflect.TypeFor[ValkeyConnection](), nil
+	case "webhook", keyKafka, "postgres", "mysql", "dynamodb", "gcs", "azureBlob", "pubsub",
 		"bigquery", "http":
 		return nil, fmt.Errorf("%w: %q", ErrUnsupportedType, name)
 	}
@@ -108,6 +126,14 @@ func (c *Connection) UnmarshalYAML(node *yaml.Node) error {
 		c.Redshift = new(RedshiftConnection)
 
 		return decodeVariant(node, c.Redshift)
+	case reflect.TypeFor[RedisConnection]():
+		c.Redis = new(RedisConnection)
+
+		return decodeVariant(node, c.Redis)
+	case reflect.TypeFor[ValkeyConnection]():
+		c.Valkey = new(ValkeyConnection)
+
+		return decodeVariant(node, c.Valkey)
 	default:
 		c.File = new(FileConnection)
 
@@ -128,6 +154,10 @@ func (c Connection) MarshalYAML() (any, error) { //nolint:unparam // yaml.Marsha
 		return c.Redshift, nil
 	case c.File != nil:
 		return c.File, nil
+	case c.Redis != nil:
+		return c.Redis, nil
+	case c.Valkey != nil:
+		return c.Valkey, nil
 	}
 
 	return map[string]string{}, nil
@@ -147,7 +177,15 @@ func (c Connection) MarshalJSON() ([]byte, error) {
 
 // JSONSchema is a oneOf over the members, on the "type" discriminator.
 func (Connection) JSONSchema() *jsonschema.Schema {
-	names := []string{defS3Connection, "KinesisConnection", "SQSConnection", "RedshiftConnection", "FileConnection"}
+	names := []string{
+		defS3Connection,
+		"KinesisConnection",
+		"SQSConnection",
+		"RedshiftConnection",
+		"FileConnection",
+		"RedisConnection",
+		"ValkeyConnection",
+	}
 	one := make([]*jsonschema.Schema, 0, len(names))
 
 	for _, n := range names {

@@ -28,9 +28,20 @@ type SnapshotFixture struct {
 	Seed Seed
 	// Close (optional) releases the store after the case.
 	Close func()
+	// Remove (optional) deletes a segment from the store and moves its version.
+	Remove func(name string) error
+	// Missing is what a segment that does not exist means for the holders of the suite: the default (empty) is
+	// segment.MissingNotMember, segment.MissingUnknown is the opt-in.
+	Missing segment.MissingKey
 	// NoEmptySet is true for a store that cannot hold an empty segment (a Redis set does not exist without a
 	// member): seeding no member then removes the segment, and the suite expects it to be missing.
 	NoEmptySet bool
+}
+
+func (f SnapshotFixture) options(opts snapshot.Options) snapshot.Options {
+	opts.Missing = f.Missing
+
+	return opts
 }
 
 // SnapshotSegments returns the names of the segments that the suite uses, for a factory whose store must be told its
@@ -51,6 +62,7 @@ const (
 	CaseSnapVersionFails    = "a-failed-version-keeps-the-last-known-good"
 	CaseSnapCancelMidStream = "a-cancel-during-the-stream-keeps-the-last-known-good"
 	CaseSnapMemoryGuard     = "the-memory-guard-refuses-and-keeps-the-last-known-good"
+	CaseSnapGone            = "a-segment-gone-from-the-store-is-unknown-not-last-known-good"
 	CaseSnapNeverLoaded     = "a-holder-that-never-loaded-answers-unknown"
 	CaseSnapLargeStreamed   = "a-large-set-is-built-without-a-second-copy"
 )
@@ -157,24 +169,7 @@ func idsOf(prefix string, n int) []string {
 func RunSnapshotSource(t *testing.T, factory SnapshotFactory) {
 	t.Helper()
 
-	cases := []struct {
-		run  func(*testing.T, SnapshotFixture)
-		name string
-	}{
-		{snapEmptyVsMissing, CaseSnapEmptyVsMissing},
-		{snapStreamsMembers, CaseSnapStreamsMembers},
-		{snapVersionMoves, CaseSnapVersionMoves},
-		{snapCtxEnded, CaseSnapCtxEnded},
-		{snapNoRepull, CaseSnapNoRepull},
-		{snapLastKnownGood, CaseSnapLastKnownGood},
-		{snapVersionFails, CaseSnapVersionFails},
-		{snapCancelMidStream, CaseSnapCancelMidStream},
-		{snapMemoryGuard, CaseSnapMemoryGuard},
-		{snapNeverLoaded, CaseSnapNeverLoaded},
-		{snapLargeStreamed, CaseSnapLargeStreamed},
-	}
-
-	for _, tcase := range cases {
+	for _, tcase := range snapshotCases() {
 		t.Run(tcase.name, func(t *testing.T) {
 			fixture, err := factory()
 			require.NoError(t, err, "the factory builds a fixture")
@@ -185,6 +180,71 @@ func RunSnapshotSource(t *testing.T, factory SnapshotFactory) {
 
 			tcase.run(t, fixture)
 		})
+	}
+}
+
+// CheckSnapshotSource runs the same cases without a [testing.T] and returns the failures of each case that failed, by
+// case name. It is how the suite is tested against deliberately broken sources.
+func CheckSnapshotSource(factory SnapshotFactory) map[string][]string {
+	failed := map[string][]string{}
+
+	for _, tcase := range snapshotCases() {
+		rep := &reporter{}
+
+		fixture, err := factory()
+		if err != nil {
+			failed[tcase.name] = []string{"the factory failed: " + err.Error()}
+
+			continue
+		}
+
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+
+			tcase.run(rep, fixture)
+		}()
+
+		<-done
+
+		if fixture.Close != nil {
+			fixture.Close()
+		}
+
+		if rep.failed {
+			failed[tcase.name] = rep.failures
+		}
+	}
+
+	return failed
+}
+
+// caseT is what a case needs of a test: assertions and Helper. A [*testing.T] and the reporter of Check satisfy it.
+type caseT interface {
+	require.TestingT
+	Helper()
+}
+
+type snapshotCase struct {
+	run  func(caseT, SnapshotFixture)
+	name string
+}
+
+func snapshotCases() []snapshotCase {
+	return []snapshotCase{
+		{snapEmptyVsMissing, CaseSnapEmptyVsMissing},
+		{snapStreamsMembers, CaseSnapStreamsMembers},
+		{snapVersionMoves, CaseSnapVersionMoves},
+		{snapCtxEnded, CaseSnapCtxEnded},
+		{snapNoRepull, CaseSnapNoRepull},
+		{snapLastKnownGood, CaseSnapLastKnownGood},
+		{snapVersionFails, CaseSnapVersionFails},
+		{snapCancelMidStream, CaseSnapCancelMidStream},
+		{snapMemoryGuard, CaseSnapMemoryGuard},
+		{snapGone, CaseSnapGone},
+		{snapNeverLoaded, CaseSnapNeverLoaded},
+		{snapLargeStreamed, CaseSnapLargeStreamed},
 	}
 }
 
@@ -202,7 +262,7 @@ func collect(src segment.SnapshotSource, name string) ([]string, error) {
 	return ids, nil
 }
 
-func snapEmptyVsMissing(t *testing.T, fix SnapshotFixture) {
+func snapEmptyVsMissing(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	require.NoError(t, fix.Seed("empty", nil))
@@ -219,9 +279,19 @@ func snapEmptyVsMissing(t *testing.T, fix SnapshotFixture) {
 	ids, err = collect(fix.Source, "ghost")
 	require.ErrorIs(t, err, segment.ErrSegmentMissing, "a missing segment is reported as missing")
 	assert.Empty(t, ids, "a missing segment yields no member")
+
+	items := 0
+
+	for _, streamErr := range fix.Source.Members(context.Background(), "ghost") {
+		items++
+
+		require.ErrorIs(t, streamErr, segment.ErrSegmentMissing)
+	}
+
+	assert.Equal(t, 1, items, "the stream ends with its error: nothing is yielded after it")
 }
 
-func snapStreamsMembers(t *testing.T, fix SnapshotFixture) {
+func snapStreamsMembers(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	want := append(idsOf("m", snapStream), "ünï")
@@ -232,7 +302,7 @@ func snapStreamsMembers(t *testing.T, fix SnapshotFixture) {
 	assert.ElementsMatch(t, want, got, "every member exactly once, whatever the bytes")
 }
 
-func snapVersionMoves(t *testing.T, fix SnapshotFixture) {
+func snapVersionMoves(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -253,7 +323,7 @@ func snapVersionMoves(t *testing.T, fix SnapshotFixture) {
 	assert.NotEqual(t, first, moved, "a write moves the version")
 }
 
-func snapCtxEnded(t *testing.T, fix SnapshotFixture) {
+func snapCtxEnded(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	require.NoError(t, fix.Seed("alpha", idsOf("m", snapSmall)))
@@ -277,7 +347,7 @@ func snapCtxEnded(t *testing.T, fix SnapshotFixture) {
 	require.ErrorIs(t, streamErr, context.Canceled, "Members honours an ended context")
 }
 
-func newHolder(t *testing.T, src segment.SnapshotSource, opts snapshot.Options) *snapshot.Holder {
+func newHolder(t caseT, src segment.SnapshotSource, opts snapshot.Options) *snapshot.Holder {
 	t.Helper()
 
 	holder, err := snapshot.New("alpha", src, opts)
@@ -286,12 +356,12 @@ func newHolder(t *testing.T, src segment.SnapshotSource, opts snapshot.Options) 
 	return holder
 }
 
-func snapNoRepull(t *testing.T, fix SnapshotFixture) {
+func snapNoRepull(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ctx := context.Background()
 	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, snapshot.Options{})
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
 
 	require.NoError(t, fix.Seed("alpha", []string{"a", "b"}))
 
@@ -315,12 +385,12 @@ func snapNoRepull(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, len(grown), holder.Status().Members)
 }
 
-func snapLastKnownGood(t *testing.T, fix SnapshotFixture) {
+func snapLastKnownGood(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ctx := context.Background()
 	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, snapshot.Options{})
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
 
 	require.NoError(t, fix.Seed("alpha", idsOf("old", snapMedium)))
 	require.NoError(t, holder.Refresh(ctx))
@@ -353,12 +423,12 @@ func snapLastKnownGood(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, segment.NotMember, holder.Lookup("old7"))
 }
 
-func snapVersionFails(t *testing.T, fix SnapshotFixture) {
+func snapVersionFails(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ctx := context.Background()
 	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, snapshot.Options{})
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
 
 	require.NoError(t, fix.Seed("alpha", idsOf("m", snapListed)))
 	require.NoError(t, holder.Refresh(ctx))
@@ -377,11 +447,11 @@ func snapVersionFails(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, 1, pulls, "no pull while the version cannot be read")
 }
 
-func snapCancelMidStream(t *testing.T, fix SnapshotFixture) {
+func snapCancelMidStream(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, snapshot.Options{})
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
 
 	require.NoError(t, fix.Seed("alpha", idsOf("old", snapSmall)))
 	require.NoError(t, holder.Refresh(context.Background()))
@@ -411,14 +481,14 @@ func snapCancelMidStream(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, segment.NotMember, holder.Lookup("new3"))
 }
 
-func snapMemoryGuard(t *testing.T, fix SnapshotFixture) {
+func snapMemoryGuard(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ctx := context.Background()
 
 	require.NoError(t, fix.Seed("alpha", idsOf("m", snapSmall)))
 
-	byCount := newHolder(t, fix.Source, snapshot.Options{MaxMembers: snapSmall})
+	byCount := newHolder(t, fix.Source, fix.options(snapshot.Options{MaxMembers: snapSmall}))
 	require.NoError(t, byCount.Refresh(ctx), "exactly at the limit is allowed")
 
 	require.NoError(t, fix.Seed("alpha", idsOf("n", snapOver)))
@@ -427,26 +497,34 @@ func snapMemoryGuard(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, segment.Member, byCount.Lookup("m1"), "the set under the limit is kept")
 	assert.Equal(t, segment.NotMember, byCount.Lookup("n1"))
 
-	byBytes := newHolder(t, fix.Source, snapshot.Options{MaxBytes: snapByteLimit})
+	byBytes := newHolder(t, fix.Source, fix.options(snapshot.Options{MaxBytes: snapByteLimit}))
 	require.ErrorIs(t, byBytes.Refresh(ctx), segment.ErrMembersTooLarge, "11 ids of 2 or 3 bytes are over 20 bytes")
 	assert.Equal(t, segment.Unknown, byBytes.Lookup("n1"), "a refused first pull holds nothing")
 	assert.False(t, byBytes.Status().Loaded)
 }
 
-func snapNeverLoaded(t *testing.T, fix SnapshotFixture) {
+func snapNeverLoaded(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
-	holder := newHolder(t, fix.Source, snapshot.Options{})
+	holder := newHolder(t, fix.Source, fix.options(snapshot.Options{}))
 
-	assert.Equal(t, segment.Unknown, holder.Lookup("a"), "before any pull the answer is Unknown, not NotMember")
+	assert.Equal(t, segment.Unknown, holder.Lookup("a"), "before any pull the answer is Unknown")
 
 	err := holder.Refresh(context.Background())
 	require.ErrorIs(t, err, segment.ErrSegmentMissing)
 
 	status := holder.Status()
 	assert.Equal(t, snapshot.ClassMissing, status.LastError)
-	assert.False(t, status.Loaded)
-	assert.Equal(t, segment.Unknown, holder.Lookup("a"), "a missing segment is Unknown, not empty")
+	assert.Equal(t, wantMissing(fix), holder.Lookup("a"), "a missing segment answers its policy")
+}
+
+// wantMissing is the answer of a lookup in a segment that does not exist, under the policy of the fixture.
+func wantMissing(fix SnapshotFixture) segment.State {
+	if fix.Missing.Effective() == segment.MissingUnknown {
+		return segment.Unknown
+	}
+
+	return segment.NotMember
 }
 
 func totalAlloc(run func()) uint64 {
@@ -460,7 +538,7 @@ func totalAlloc(run func()) uint64 {
 	return after.TotalAlloc - before.TotalAlloc
 }
 
-func snapLargeStreamed(t *testing.T, fix SnapshotFixture) {
+func snapLargeStreamed(t caseT, fix SnapshotFixture) {
 	t.Helper()
 
 	ids := idsOf("member-", snapLarge)
@@ -487,7 +565,7 @@ func snapLargeStreamed(t *testing.T, fix SnapshotFixture) {
 	require.NoError(t, streamErr)
 	require.Equal(t, snapLarge, reference.Len())
 
-	holder := newHolder(t, fix.Source, snapshot.Options{})
+	holder := newHolder(t, fix.Source, fix.options(snapshot.Options{}))
 
 	var refreshErr error
 
@@ -499,4 +577,52 @@ func snapLargeStreamed(t *testing.T, fix SnapshotFixture) {
 	assert.Equal(t, segment.Member, holder.Lookup(ids[snapLarge/2]))
 	assert.LessOrEqual(t, got, wantMax+wantMax/8+snapAllocSlack,
 		"a pull allocates one copy of the set (%d bytes for one pass), not a list and a set", wantMax)
+}
+
+func snapGone(t caseT, fix SnapshotFixture) {
+	t.Helper()
+
+	remove := fix.Remove
+	if remove == nil {
+		require.True(
+			t,
+			fix.NoEmptySet,
+			"a fixture needs Remove, or NoEmptySet when seeding no member removes the segment",
+		)
+
+		remove = func(name string) error { return fix.Seed(name, nil) }
+	}
+
+	ctx := context.Background()
+	prb := &probe{inner: fix.Source}
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
+
+	require.NoError(t, fix.Seed("alpha", idsOf("m", snapSmall)))
+	require.NoError(t, holder.Refresh(ctx))
+	require.Equal(t, segment.Member, holder.Lookup("m1"))
+
+	require.NoError(t, remove("alpha"))
+	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing, "the store answered: the segment is gone")
+
+	status := holder.Status()
+	assert.Equal(t, snapshot.ClassMissing, status.LastError)
+	assert.NotEmpty(t, status.Version, "the version of the missing segment is recorded")
+	assert.Equal(t, wantMissing(fix), holder.Lookup("m1"), "a segment that is gone is not served from the old set")
+
+	_, pulls := prb.counts()
+
+	require.NoError(
+		t,
+		holder.Refresh(ctx),
+		"already known to be missing: the status says so, the error was returned once",
+	)
+	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
+
+	_, again := prb.counts()
+	assert.Equal(t, pulls, again, "the version did not move: nothing is pulled")
+
+	require.NoError(t, fix.Seed("alpha", idsOf("n", snapSmall)))
+	require.NoError(t, holder.Refresh(ctx))
+	assert.Equal(t, segment.Member, holder.Lookup("n1"), "the segment is back")
+	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
 }

@@ -30,7 +30,49 @@ const (
 	MaxVersionInterval = 24 * time.Hour
 )
 
+// MissingKey is what a segment that does not exist in the store means.
+type MissingKey string
+
+const (
+	// MissingNotMember means a segment that does not exist has no member: every lookup answers NotMember. It is the
+	// default, for both modes. An expired or deleted segment is then "nobody is in the segment": replace a segment
+	// atomically (a rename of a new one over it) rather than deleting it and adding it again.
+	MissingNotMember MissingKey = "notMember"
+	// MissingUnknown means a segment that does not exist is Unknown: the lookups fall to the failure policy of the
+	// segment (onError). It is an explicit opt-in.
+	MissingUnknown MissingKey = "unknown"
+)
+
+// Effective returns the policy that applies: MissingNotMember when empty.
+func (m MissingKey) Effective() MissingKey {
+	if m == "" {
+		return MissingNotMember
+	}
+
+	return m
+}
+
+// Valid reports whether the policy is empty (the default), notMember or unknown.
+func (m MissingKey) Valid() bool {
+	return m == "" || m == MissingNotMember || m == MissingUnknown
+}
+
+// Layout is how the members of a segment are stored in a key-value store.
+type Layout string
+
+const (
+	// LayoutSet stores the members in one set. It serves both modes.
+	LayoutSet Layout = "set"
+	// LayoutKeys stores one key per member. It serves the lookup mode only: its members cannot be listed without a
+	// scan of the whole keyspace.
+	LayoutKeys Layout = "keys"
+)
+
 var (
+	errInvalidMissing = errors.New("invalid missingKey: want notMember or unknown")
+	errInvalidLayout  = errors.New("invalid layout: want set or keys")
+	// ErrKeysSnapshot is wrapped by the error of a definition of the keys layout in the snapshot mode.
+	ErrKeysSnapshot       = errors.New("the keys layout is lookup-only: it cannot be used with the snapshot mode")
 	errInvalidMode        = errors.New("invalid mode: want snapshot or lookup")
 	errVersionBoth        = errors.New("invalid version: value and key are mutually exclusive")
 	errVersionIntervalKey = errors.New("invalid version: interval needs a key")
@@ -87,9 +129,24 @@ func (v *VersionSpec) Validate() error {
 	return nil
 }
 
-func (d Definition) validateModeVersion() error {
+func (d *Definition) validateModeVersion() error {
 	if !d.Mode.Valid() {
 		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidMode, d.Mode)
+	}
+
+	if !d.MissingKey.Valid() {
+		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidMissing, d.MissingKey)
+	}
+
+	switch d.Layout {
+	case "", LayoutSet:
+	case LayoutKeys:
+		if d.Mode.Effective() == ModeSnapshot {
+			return fmt.Errorf("%w: %q: layout %q with mode %q: %w",
+				ErrInvalidDefinition, d.Name, d.Layout, d.Mode.Effective(), ErrKeysSnapshot)
+		}
+	default:
+		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidLayout, d.Layout)
 	}
 
 	err := d.Version.Validate()
@@ -98,4 +155,15 @@ func (d Definition) validateModeVersion() error {
 	}
 
 	return nil
+}
+
+// clone returns an owned copy of the spec, nil for nil.
+func (v *VersionSpec) clone() *VersionSpec {
+	if v == nil {
+		return nil
+	}
+
+	owned := *v
+
+	return &owned
 }

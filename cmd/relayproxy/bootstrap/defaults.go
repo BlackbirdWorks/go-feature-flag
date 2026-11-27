@@ -45,6 +45,10 @@ func (c *Config) applyDefaults() {
 		c.Exporters[name] = exporter
 	}
 
+	if c.Segments != nil {
+		c.Segments.applyDefaults()
+	}
+
 	if c.ControlPlane != nil {
 		manifest := &c.ControlPlane.Manifest
 		if manifest.Channel == "" {
@@ -119,6 +123,10 @@ func (a *AWS) applyDefaults() {
 }
 
 func (c Connection) applyDefaults() {
+	if k := c.Valkey; k != nil && k.Pipelining == "" {
+		k.Pipelining = PipeliningAlways
+	}
+
 	if a := c.aws(); a != nil {
 		a.applyDefaults()
 	}
