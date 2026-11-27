@@ -18,12 +18,12 @@ import (
 
 // FlagConfigurationAPICtrl serves the flag configuration API of the relay proxy.
 type FlagConfigurationAPICtrl struct {
-	flagsetManager service.FlagsetManager
+	flagsetManager service.FlagSetResolver
 	metrics        *metric.Metrics
 }
 
 // NewAPIFlagConfiguration returns the controller that serves the flag configuration API.
-func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *FlagConfigurationAPICtrl {
+func NewAPIFlagConfiguration(flagsetManager service.FlagSetResolver, metrics *metric.Metrics) *FlagConfigurationAPICtrl {
 	return &FlagConfigurationAPICtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,

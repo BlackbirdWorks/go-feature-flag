@@ -20,6 +20,7 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
@@ -54,7 +55,7 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
-func (*mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
+func (*mockFlagsetManagerSSE) FlagSet(_ string) (service.FlagSet, error) {
 	return nil, assert.AnError
 }
 

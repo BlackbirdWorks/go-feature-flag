@@ -14,12 +14,12 @@ import (
 
 // FlagChangeAPICtrl is the controller of the endpoint to poll to know if the flags changed.
 type FlagChangeAPICtrl struct {
-	flagsetManager service.FlagsetManager
+	flagsetManager service.FlagSetResolver
 	metrics        *metric.Metrics
 }
 
 // NewAPIFlagChange is the constructor of the controller of the flag change endpoint.
-func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *FlagChangeAPICtrl {
+func NewAPIFlagChange(flagsetManager service.FlagSetResolver, metrics *metric.Metrics) *FlagChangeAPICtrl {
 	return &FlagChangeAPICtrl{flagsetManager: flagsetManager, metrics: metrics}
 }
 

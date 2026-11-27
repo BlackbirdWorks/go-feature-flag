@@ -126,8 +126,30 @@ func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPr
 	}
 }
 
+// WithFlagSetResolver makes the server find the flag set of an API key with the resolver instead of the flag set
+// manager of its services: this is how the evaluation API is served from another source than the v1 clients, the
+// config v2 core. The monitoring service and the metrics still come from the services.
+func WithFlagSetResolver(resolver service.FlagSetResolver) Option {
+	return func(s *Server) { s.resolver = resolver }
+}
+
+// flagSets returns what finds the flag set of an API key: the resolver of the option, else the flag set manager. It
+// returns a nil interface when there is none, the handlers answer 500 then.
+func (s *Server) flagSets() service.FlagSetResolver {
+	if s.resolver != nil {
+		return s.resolver
+	}
+
+	if s.services.FlagsetManager == nil {
+		return nil
+	}
+
+	return s.services.FlagsetManager
+}
+
 // Server is the struct that represents the API server.
 type Server struct {
+	resolver               service.FlagSetResolver
 	services               service.Services
 	otelService            opentelemetry.OtelService
 	tracerProvider         trace.TracerProvider

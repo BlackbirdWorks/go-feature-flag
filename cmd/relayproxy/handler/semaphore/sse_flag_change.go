@@ -15,14 +15,14 @@ import (
 // SSEFlagChange is the controller for the SSE flag change endpoint.
 type SSEFlagChange struct {
 	sseService     stream.SSEService
-	flagsetManager service.FlagsetManager
+	flagsetManager service.FlagSetResolver
 }
 
 // NewSSEFlagChange is the constructor to create a new controller to handle SSE
 // requests to be notified about flag changes.
 func NewSSEFlagChange(
 	sseService stream.SSEService,
-	flagsetManager service.FlagsetManager,
+	flagsetManager service.FlagSetResolver,
 ) *SSEFlagChange {
 	return &SSEFlagChange{
 		sseService:     sseService,

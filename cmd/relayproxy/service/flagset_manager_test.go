@@ -702,7 +702,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		flagset, err := manager.FlagSet(fixtures.APIKeyTest)
 		require.NoError(t, err)
 
-		_, _ = flagset.BoolVariation(
+		_, _ = flagset.RawVariation(
 			"test-flag-rule-apply",
 			ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 			false,
