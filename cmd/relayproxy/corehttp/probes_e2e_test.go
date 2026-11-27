@@ -301,8 +301,10 @@ semaphore_resource_count{kind="object",state="stale"} 0
 	require.NoError(t, json.Unmarshal(body, &info))
 	require.NotNil(t, info.Config)
 	require.NotNil(t, info.Config.LastRejected)
+
+	rejectedAt := clock.Now().UTC()
 	assert.Equal(t, model.ReloadInfo{
-		At: info.Config.LastRejected.At, Outcome: "rejected", Code: flagruntime.CodeVetoed, Generation: 3,
+		At: &rejectedAt, Outcome: "rejected", Code: flagruntime.CodeVetoed, Generation: 3,
 	}, *info.Config.LastRejected)
 	assert.Equal(t, map[string]uint64{"applied": 3, "rejected": 1, "ignored": 0}, info.Config.Reloads)
 	assert.Equal(t, uint64(2), info.Config.Generation)

@@ -369,7 +369,7 @@ func operationReadyz() *huma.Operation {
 
 func operationStartupz() *huma.Operation {
 	return probeOperation("startupz", "/startupz", "Startup",
-		"200 once the bootstrap snapshot is applied, else 503 `{\"ready\": false, \"reason\": \"starting\"}`. "+
+		"200 once the first bootstrap round has ended, else 503 `{\"ready\": false, \"reason\": \"starting\"}`. "+
 			"Served by the config v2 runtime. No API key.")
 }
 
