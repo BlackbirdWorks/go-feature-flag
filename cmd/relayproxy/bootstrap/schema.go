@@ -23,7 +23,7 @@ func JSONSchema() ([]byte, error) {
 
 	for _, t := range []reflect.Type{
 		reflect.TypeFor[S3Connection](), reflect.TypeFor[KinesisConnection](),
-		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](),
+		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](), reflect.TypeFor[FileConnection](),
 	} {
 		member := r.ReflectFromType(t)
 		maps.Copy(root.Definitions, member.Definitions)
@@ -35,6 +35,7 @@ func JSONSchema() ([]byte, error) {
 	setDurationDefaults(root)
 	allowEmptyEnums(root)
 	requireByKind(root)
+	requireNonBlank(root)
 
 	raw, err := json.Marshal(root)
 	if err != nil {
@@ -168,6 +169,10 @@ func setDurationDefaults(root *jsonschema.Schema) {
 		{"Retry", "maxBackoff"}: DefaultMaxBackoff, {"Exporter", "flushInterval"}: DefaultFlushInterval,
 	}
 
+	if prop, ok := root.Definitions["Manifest"].Properties.Get("pollInterval"); ok {
+		prop.Description = "The loader also requires at least 1s; the schema cannot express that on a duration string."
+	}
+
 	for key, value := range defaults {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
 			prop.Default = Duration(value).String()
@@ -222,4 +227,17 @@ func addRedshiftExclusions(def *jsonschema.Schema) {
 			},
 		},
 	})
+}
+
+// requireNonBlank makes the settings that the loader requires (and refuses blank) required in the schema: the
+// region of an S3 connection and the path of a file connection.
+func requireNonBlank(root *jsonschema.Schema) {
+	for _, req := range [][2]string{{defS3Connection, "region"}, {"FileConnection", keyPath}} {
+		def := root.Definitions[req[0]]
+		def.Required = append(def.Required, req[1])
+
+		if prop, ok := def.Properties.Get(req[1]); ok {
+			prop.Pattern = `\S`
+		}
+	}
 }

@@ -18,6 +18,8 @@ import (
 const (
 	// DefaultPollInterval is the poll interval of a manifest.
 	DefaultPollInterval = 60 * time.Second
+	// MaxJitterFraction is the exclusive upper bound of the jitter fraction.
+	MaxJitterFraction = 1.0
 	// MinPollInterval is the shortest accepted poll interval, and the shortest wait between two rounds.
 	MinPollInterval = time.Second
 	// DefaultJitterFraction is the jitter of the poll interval: +/-10 %.
@@ -125,8 +127,8 @@ func (c *Config) withDefaults() error {
 	return nil
 }
 
-// validKey reports whether key can be an absolute bucket key: not empty and not starting with a slash.
-func validKey(key string) bool {
+// ValidKey reports whether key can be an absolute bucket key: not empty and not starting with a slash.
+func ValidKey(key string) bool {
 	return key != "" && key[0] != '/'
 }
 
@@ -145,7 +147,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("%w: ManifestKey is required", ErrInvalidConfig)
 	}
 
-	if !validKey(c.ManifestKey) {
+	if !ValidKey(c.ManifestKey) {
 		return fmt.Errorf("%w: ManifestKey is not an absolute bucket key", ErrInvalidConfig)
 	}
 
@@ -162,7 +164,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("%w: PollInterval is below %s", ErrInvalidConfig, MinPollInterval)
 	}
 
-	if c.JitterFraction < 0 || c.JitterFraction >= 1 || math.IsNaN(c.JitterFraction) {
+	if c.JitterFraction < 0 || c.JitterFraction >= MaxJitterFraction || math.IsNaN(c.JitterFraction) {
 		return fmt.Errorf("%w: JitterFraction is outside [0, 1)", ErrInvalidConfig)
 	}
 

@@ -115,6 +115,9 @@
                 },
                 {
                     "$ref": "#/$defs/RedshiftConnection"
+                },
+                {
+                    "$ref": "#/$defs/FileConnection"
                 }
             ]
         },
@@ -1108,6 +1111,26 @@
                 "kind"
             ]
         },
+        "FileConnection": {
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "file"
+                    ]
+                },
+                "path": {
+                    "type": "string",
+                    "pattern": "\\S"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type",
+                "path"
+            ]
+        },
         "KafkaFlush": {
             "properties": {
                 "frequency": {
@@ -1440,6 +1463,9 @@
                 "region": {
                     "type": "string"
                 },
+                "caBundleFile": {
+                    "type": "string"
+                },
                 "type": {
                     "type": "string",
                     "enum": [
@@ -1522,11 +1548,12 @@
             "properties": {
                 "pollInterval": {
                     "$ref": "#/$defs/Duration",
+                    "description": "The loader also requires at least 1s; the schema cannot express that on a duration string.",
                     "default": "60s"
                 },
                 "jitter": {
                     "type": "number",
-                    "maximum": 1,
+                    "exclusiveMaximum": 1,
                     "minimum": 0,
                     "default": 0.1
                 },
@@ -1737,6 +1764,9 @@
                 "region": {
                     "type": "string"
                 },
+                "caBundleFile": {
+                    "type": "string"
+                },
                 "type": {
                     "type": "string",
                     "enum": [
@@ -1781,6 +1811,10 @@
                     "type": "string"
                 },
                 "region": {
+                    "type": "string",
+                    "pattern": "\\S"
+                },
+                "caBundleFile": {
                     "type": "string"
                 },
                 "poll": {
@@ -1820,7 +1854,8 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "type"
+                "type",
+                "region"
             ]
         },
         "SQSConnection": {
@@ -1838,6 +1873,9 @@
                     "type": "string"
                 },
                 "region": {
+                    "type": "string"
+                },
+                "caBundleFile": {
                     "type": "string"
                 },
                 "type": {

@@ -16,7 +16,7 @@ func FuzzParse(f *testing.F) {
 
 	for _, seed := range []string{
 		string(example), "", v2Doc, v1Doc, "- a\n", "version: 2\nconnections: [a]\n",
-		"version: 2\nconnections:\n  a: &x {type: s3}\n  b: *x\n",
+		"version: 2\nconnections:\n  a: &x {type: s3, region: r}\n  b: *x\n",
 		"version: 2\nauth: {adminKeys: [{fromEnv: A, fromFile: B}]}\n",
 		"version: 2\nserver: {listeners: [{name: a, address: \":1\", protocols: [h2]}]}\n",
 		"{{{{", "version: 2\n---\nversion: 3\n",

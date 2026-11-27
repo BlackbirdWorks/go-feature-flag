@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
 
-const s3Pre = "version: 2\nconnections:\n  a:\n    type: s3\n"
+const s3Pre = "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n"
 
 func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 	t.Parallel()
@@ -19,27 +19,27 @@ func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 		{name: "second document is malformed", doc: "version: 2\n---\n[\n", wantErr: bootstrap.ErrSyntax},
 		{
 			name: "integer for a string", doc: s3Pre + "    bucket: 123\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 6,
 		},
 		{
-			name: "boolean for a string", doc: s3Pre + "    region: true\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.region", wantLine: 5,
+			name: "boolean for a string", doc: s3Pre + "    bucket: true\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.bucket", wantLine: 6,
 		},
 		{
 			name: "binary for a string", doc: s3Pre + "    bucket: !!binary aGVsbG8=\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsABucket, wantLine: 6,
 		},
 		{
 			name: "float for an integer", doc: s3Pre + "    retry: {maxAttempts: 3.0}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 6,
 		},
 		{
 			name: "fraction truncated to an integer", doc: s3Pre + "    retry: {maxAttempts: 20.9}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsARetryMaxattempts, wantLine: 6,
 		},
 		{
 			name: "string for a boolean", doc: s3Pre + "    pathStyle: \"yes\"\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.pathStyle", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.pathStyle", wantLine: 6,
 		},
 		{
 			name: "number for a secret", doc: "version: 2\nauth:\n  adminKeys: [12345]\n",
@@ -51,11 +51,14 @@ func TestParseErrorsDocumentsAndScalars(t *testing.T) {
 		},
 		{
 			name: "NaN jitter", doc: s3Pre + "    poll: {jitter: .nan}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.poll.jitter", wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.poll.jitter", wantLine: 6,
 		},
 		{
-			name: "merge key under a connection", doc: "version: 2\nconnections:\n  a:\n    <<: {type: s3}\n",
-			wantErr: bootstrap.ErrUnknownKey, wantPath: "connections.a.<<", wantLine: 4,
+			name:     "merge key under a connection",
+			doc:      "version: 2\nconnections:\n  a:\n    <<: {type: s3, region: r}\n",
+			wantErr:  bootstrap.ErrUnknownKey,
+			wantPath: "connections.a.<<",
+			wantLine: 4,
 		},
 		{
 			name:     "null value in a map of secrets",
@@ -77,7 +80,7 @@ func TestParseErrorsValidationGaps(t *testing.T) {
 	runParseErrors(t, []parseErrorCase{
 		{
 			name: "userinfo in the endpoint", doc: s3Pre + "    endpoint: http://user:PASSW0RD@host:1\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsAEndpoint, wantLine: 5,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsAEndpoint, wantLine: 6,
 		},
 		{
 			name:    "userinfo in the queue URL of a connection",
@@ -144,7 +147,7 @@ func TestParseErrorsValidationGaps(t *testing.T) {
 		{
 			name:    "externalId is a secret",
 			doc:     s3Pre + "    credentials: {type: assumeRole, roleArn: arn, externalId: plain}\n",
-			wantErr: bootstrap.ErrInlineSecret, wantPath: "connections.a.credentials.externalId", wantLine: 5,
+			wantErr: bootstrap.ErrInlineSecret, wantPath: "connections.a.credentials.externalId", wantLine: 6,
 		},
 	})
 }
@@ -240,7 +243,8 @@ func TestAuthKeysAreNotEchoed(t *testing.T) {
 func TestOverrideErrorsNameTheirSource(t *testing.T) {
 	t.Parallel()
 
-	doc := "version: 2\nobservability:\n  logging: {level: warn}\nconnections:\n  control: {type: s3, bucket: b}\n" +
+	doc := "version: 2\nobservability:\n  logging: {level: warn}\nconnections:\n" +
+		"  control: {type: s3, region: r, bucket: b}\n" +
 		"controlPlane:\n  connection: control\n  manifest: {key: file.json}\n"
 
 	tests := []struct {

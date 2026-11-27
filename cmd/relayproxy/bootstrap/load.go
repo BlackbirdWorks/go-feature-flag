@@ -31,6 +31,10 @@ type LoadOptions struct {
 	ReadFile func(string) ([]byte, error)
 	// AllowInlineSecrets accepts plain strings for secrets. Development only.
 	AllowInlineSecrets bool
+	// SkipRelayChecks leaves out the checks that only starting the relay needs: the polling bounds of the manifest
+	// reader. A tool that reads the file for another purpose (publish) sets it; the relay and `config validate`
+	// do not.
+	SkipRelayChecks bool
 }
 
 // Overrides are the values of the command-line flags. A flag wins over the environment, which wins over the file.

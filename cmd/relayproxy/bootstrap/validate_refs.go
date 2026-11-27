@@ -2,8 +2,12 @@ package bootstrap
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 // commonExporterKeys returns the keys that are valid for every exporter kind.
@@ -18,7 +22,7 @@ type exporterSpec struct {
 
 // exporterKind returns the keys of an exporter kind and the connection type it needs.
 func exporterKind(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", keyPath}
 
 	switch kind {
 	case ExporterFile:
@@ -44,7 +48,7 @@ func exporterKind(kind string) (exporterSpec, bool) {
 
 // exporterKindCloud is the second half of [exporterKind].
 func exporterKindCloud(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", keyPath}
 
 	switch kind {
 	case ExporterKafka:
@@ -68,9 +72,9 @@ func exporterKindCloud(kind string) (exporterSpec, bool) {
 }
 
 // connectionRef checks a reference to a connection by name and returns the connection.
-func (v *validator) connectionRef(path, name, wantType string) (Connection, bool) {
+func (v *validator) connectionRef(path, name string, wantTypes ...string) (Connection, bool) {
 	if name == "" {
-		v.failf(path, ErrMissingValue, "name a connection of type %s", wantType)
+		v.failf(path, ErrMissingValue, "name a connection of type %s", strings.Join(wantTypes, " or "))
 
 		return Connection{}, false
 	}
@@ -82,8 +86,8 @@ func (v *validator) connectionRef(path, name, wantType string) (Connection, bool
 		return Connection{}, false
 	}
 
-	if conn.Type() != wantType {
-		v.failf(path, ErrWrongConnectionType, "connection %q is not of type %s", name, wantType)
+	if !slices.Contains(wantTypes, conn.Type()) {
+		v.failf(path, ErrWrongConnectionType, "connection %q is not of type %s", name, strings.Join(wantTypes, " or "))
 
 		return Connection{}, false
 	}
@@ -259,7 +263,8 @@ func (v *validator) controlPlane() {
 		return
 	}
 
-	if conn, ok := v.connectionRef("controlPlane.connection", plane.Connection, TypeS3); ok && conn.S3.Bucket == "" {
+	conn, ok := v.connectionRef("controlPlane.connection", plane.Connection, TypeS3, TypeFile)
+	if ok && conn.S3 != nil && conn.S3.Bucket == "" {
 		v.failf("controlPlane.connection", ErrMissingValue, "connection %q sets no bucket", plane.Connection)
 	}
 
@@ -270,9 +275,44 @@ func (v *validator) controlPlane() {
 		v.failf("controlPlane.manifest.channel", ErrInvalidValue, "expected a channel name")
 	}
 
-	v.jitter("controlPlane.manifest.jitter", *manifest.Jitter)
+	v.pollingBounds(manifest)
+
+	v.manifestKey(conn, ok, manifest.Key)
 
 	if *manifest.MaxObjects < 1 {
 		v.failf("controlPlane.manifest.maxObjects", ErrInvalidValue, "expected a positive integer")
+	}
+}
+
+// manifestKey checks the manifest key against the rules of the store of the control plane connection: a clean
+// relative path below the directory of a file connection, an absolute bucket key (no leading slash) for S3.
+func (v *validator) manifestKey(conn Connection, found bool, key string) {
+	if !found || strings.TrimSpace(key) == "" {
+		return
+	}
+
+	switch {
+	case conn.File != nil && !manifestreader.ValidFileKey(key):
+		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a clean relative path below the directory")
+	case conn.S3 != nil && !manifestreader.ValidKey(key):
+		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a bucket key without a leading slash")
+	}
+}
+
+// pollingBounds checks the interval and the jitter against what the manifest reader accepts, so that every file that
+// validates builds a relay. Tools that only read the destination skip it ([LoadOptions.SkipRelayChecks]).
+func (v *validator) pollingBounds(manifest Manifest) {
+	if v.opts.SkipRelayChecks {
+		return
+	}
+
+	if !(*manifest.Jitter >= 0 && *manifest.Jitter < manifestreader.MaxJitterFraction) {
+		v.failf("controlPlane.manifest.jitter", ErrInvalidValue, "expected a number from 0 up to, not including, %v",
+			manifestreader.MaxJitterFraction)
+	}
+
+	if time.Duration(*manifest.PollInterval) < manifestreader.MinPollInterval {
+		v.failf("controlPlane.manifest.pollInterval", ErrInvalidValue, "expected at least %s",
+			manifestreader.MinPollInterval)
 	}
 }

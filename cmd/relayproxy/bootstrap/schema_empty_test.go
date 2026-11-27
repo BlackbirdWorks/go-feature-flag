@@ -55,16 +55,16 @@ func emptyValueCases() []emptyValueCase {
 		},
 		{
 			setting: "Credentials.type", wantAccept: true, wantDefault: "chain",
-			doc: "connections: {a: {type: s3, credentials: {type: \"\"}}}", got: creds,
+			doc: "connections: {a: {type: s3, region: r, credentials: {type: \"\"}}}", got: creds,
 		},
 		{
 			setting: "S3Connection.requestChecksumCalculation", wantAccept: true, wantDefault: "whenSupported",
-			doc: "connections: {a: {type: s3, requestChecksumCalculation: \"\"}}",
+			doc: "connections: {a: {type: s3, region: r, requestChecksumCalculation: \"\"}}",
 			got: func(cfg *bootstrap.Config) string { return cfg.Connections["a"].S3.RequestChecksumCalculation },
 		},
 		{
 			setting: "S3Connection.responseChecksumValidation", wantAccept: true, wantDefault: "whenSupported",
-			doc: "connections: {a: {type: s3, responseChecksumValidation: \"\"}}",
+			doc: "connections: {a: {type: s3, region: r, responseChecksumValidation: \"\"}}",
 			got: func(cfg *bootstrap.Config) string { return cfg.Connections["a"].S3.ResponseChecksumValidation },
 		},
 		{
@@ -101,6 +101,7 @@ func emptyValueCases() []emptyValueCase {
 		{setting: "KinesisConnection.type", doc: "connections: {a: {type: \"\", stream: s}}"},
 		{setting: "SQSConnection.type", doc: "connections: {a: {type: \"\", queueUrl: \"https://q.example/q\"}}"},
 		{setting: "RedshiftConnection.type", doc: "connections: {a: {type: \"\", region: us-east-1}}"},
+		{setting: "FileConnection.type", doc: "connections: {a: {type: \"\", path: /srv/control}}"},
 		{setting: "Config.version", doc: "version: \"\""},
 		{setting: "Exporter.kind", doc: "exporters: {a: {kind: \"\"}}"},
 		{setting: "Notifier.kind", doc: "notifiers: {a: {kind: \"\"}}"},
