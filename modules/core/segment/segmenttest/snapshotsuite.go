@@ -618,7 +618,7 @@ func snapGone(t caseT, fix SnapshotFixture) {
 	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
 
 	_, again := prb.counts()
-	assert.Equal(t, pulls, again, "the version did not move: nothing is pulled")
+	assert.Equal(t, pulls+1, again, "missing is a state: the members are asked again, whatever the token")
 
 	require.NoError(t, fix.Seed("alpha", idsOf("n", snapSmall)))
 	require.NoError(t, holder.Refresh(ctx))

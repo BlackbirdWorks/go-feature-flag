@@ -165,9 +165,11 @@ func (h *Holder) Status() Status {
 // them in. On an error (the store is down, a timeout, a stream that broke, the memory guard, a malformed reply) the
 // held set stays and keeps answering, and the class is in Status. A pull that completes and finds the segment missing
 // is an answer, not an error: the held set is dropped and the lookups answer the policy (NotMember, or Unknown with
-// MissingUnknown), and Status shows ClassMissing with the version. Refresh returns that error once, when it learns
-// it; while the version stays, the next calls return nil. The version is read before the members, so a write that
-// lands between the two makes the next Refresh pull again.
+// MissingUnknown), and Status shows ClassMissing with the version. While the segment is missing, every Refresh whose
+// Version works pulls the members again (the token cannot tell that the segment came back); a Version that reports it
+// missing again pulls nothing. A writer that deletes or replaces a set must change the version: a deletion under an
+// unchanged token is not seen. Refresh returns the missing error once, when it learns it. The version is read before
+// the members, so a write that lands between the two makes the next Refresh pull again.
 func (h *Holder) Refresh(ctx context.Context) error {
 	h.refresh.Lock()
 	defer h.refresh.Unlock()
@@ -184,13 +186,12 @@ func (h *Holder) Refresh(ctx context.Context) error {
 		return h.fail(ctx, cur, ClassVersion, err)
 	}
 
-	if cur != nil && (cur.set != nil || cur.missing) && cur.version == version {
-		held := *cur // a poll that worked: the outage is over and the state is what the version says
-
+	// "missing" is a state of the holder, not a version: after a missing answer the token says nothing (a segment that
+	// comes back may carry the very token it had, or the same absent token), so the members are pulled again until the
+	// store has the segment.
+	if cur != nil && cur.set != nil && !cur.missing && cur.version == version {
+		held := *cur // a poll that worked: the outage is over
 		held.lastErr = ClassNone
-		if held.missing {
-			held.lastErr = ClassMissing
-		}
 
 		h.cur.Store(&held)
 
