@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
 
@@ -122,12 +123,23 @@ func (r *relayRig) awaitCode() int {
 }
 
 // goroutinesOf counts the goroutines that carry the label of the rig.
-func goroutinesOf(label string) int {
+func goroutinesOf(label string) int { return goroutinesRunning(label, "") }
+
+// goroutinesRunning counts the goroutines that carry the label of the rig and have the function in their stack.
+func goroutinesRunning(label, function string) int {
 	var dump bytes.Buffer
 
 	_ = pprof.Lookup("goroutine").WriteTo(&dump, 1)
 
-	return strings.Count(dump.String(), fmt.Sprintf("%q:%q", rigLabel, label))
+	count := 0
+
+	for block := range strings.SplitSeq(dump.String(), "\n\n") {
+		if strings.Contains(block, fmt.Sprintf("%q:%q", rigLabel, label)) && strings.Contains(block, function) {
+			count++
+		}
+	}
+
+	return count
 }
 
 // A request in flight when the signal arrives completes; the log lists the steps in order.
@@ -172,6 +184,7 @@ func TestShutdownCutsARequestThatOutlivesTheTimeout(t *testing.T) {
 	rig.awaitGeneration(1)
 
 	slow := startSlowRequest(t, rig, reads)
+	_ = startSlowRequest(t, rig, reads)
 
 	rig.cancel()
 	assert.Equal(t, bootstrap.DefaultShutdownTimeout, rig.awaitTimeout())
@@ -194,7 +207,7 @@ func TestShutdownCutsARequestThatOutlivesTheTimeout(t *testing.T) {
 	require.Error(t, err, "the connection was cut")
 
 	log := rig.stderr.String()
-	assert.Contains(t, log, `"inFlightRequests":1`)
+	assert.Contains(t, log, `"inFlightRequests":2`)
 	assert.Contains(t, log, "shutdown: stopped hard")
 }
 
@@ -250,6 +263,57 @@ func TestShutdownKeepsServingDuringTheDrainDelay(t *testing.T) {
 
 	assert.Equal(t, bootstrap.DefaultShutdownTimeout, rig.awaitTimeout())
 	assert.Equal(t, 0, rig.awaitCode())
+}
+
+// A start that failed (the port is in use) skips the drain delay: nothing serves, so there is nothing to drain.
+func TestShutdownSkipsTheDrainWhenTheStartFailed(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{
+		extra:       drainExtra,
+		listenFails: true,
+		drainWait: func(context.Context, time.Duration) error {
+			assert.Fail(t, "the drain delay ran after a failed start")
+
+			return nil
+		},
+	})
+
+	assert.Equal(t, 1, rig.awaitCode())
+	assert.Contains(t, rig.stderr.String(), errPortInUse.Error())
+	assert.NotContains(t, rig.stderr.String(), "still serving")
+}
+
+// While the start of the server is held (a slow initialisation that ignores its context), the shutdown still ends
+// at its timeout: the core is stopped, the exit code is not zero, and the held start is joined once it is released.
+func TestShutdownIsBoundedWhileTheStartIsHeld(t *testing.T) {
+	t.Parallel()
+
+	entered := make(chan struct{})
+	gate := make(chan struct{})
+	rig := startRelay(t, &rigOptions{serverOptions: []api.Option{api.WithStartupStep(func(context.Context) {
+		close(entered)
+		<-gate
+	})}})
+
+	// registered after the rig: it runs first, so the held start returns and the rig can join it
+	t.Cleanup(func() { close(gate) })
+
+	select {
+	case <-entered:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the start of the server did not reach its startup step")
+	}
+
+	rig.cancel()
+	assert.Equal(t, bootstrap.DefaultShutdownTimeout, rig.awaitTimeout())
+	(<-rig.timeoutEnd)()
+
+	assert.Equal(t, 1, rig.awaitCode())
+
+	log := rig.stderr.String()
+	assert.Contains(t, log, "shutdown: core", "the core was stopped although the server was held")
+	assert.Contains(t, log, "shutdown: stopped hard")
 }
 
 // The second signal during the drain delay stops hard at once.
@@ -321,6 +385,9 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 	rig := startRelay(t, &rigOptions{})
 	rig.awaitGeneration(1)
 	assert.Positive(t, goroutinesOf(rig.label), "the relay runs goroutines under the label")
+
+	// the workers of the two streams (websocket and SSE) keep the label that started them
+	assert.Equal(t, 2, goroutinesRunning(rig.label, "(*lane).run"), "the stream workers carry the label")
 
 	rig.cancel()
 	assert.Equal(t, 0, rig.awaitCode())

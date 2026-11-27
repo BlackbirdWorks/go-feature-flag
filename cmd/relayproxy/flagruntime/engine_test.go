@@ -401,6 +401,14 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			wantPending: []string{flagruntime.SettingServerListeners},
 		},
 		{
+			name: "a changed shutdown setting is reported",
+			edits: [][2]string{
+				{"unixSocketPath: /run/a.sock", "unixSocketPath: /run/a.sock\n  shutdown: {drainDelay: 5s}"},
+			},
+			wantAdmin:   []string{adminOne},
+			wantPending: []string{flagruntime.SettingServerShutdown},
+		},
+		{
 			name: "a changed unix socket, state dir and control plane connection are reported",
 			edits: [][2]string{
 				{"/run/a.sock", "/run/b.sock"}, {"/var/a", "/var/b"}, {"connection: main", "connection: other"},

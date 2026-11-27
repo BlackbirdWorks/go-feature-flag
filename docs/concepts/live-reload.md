@@ -95,7 +95,7 @@ A flag set that the publisher removes (from its document, or by removing the doc
 
 Admin keys apply live, through the same swap. Settings that cannot change while running are reported in `pendingRestart` and not applied:
 
-- listeners and the unix socket (`server.listeners`, `server.unixSocketPath`);
+- listeners and the unix socket (`server.listeners`, `server.unixSocketPath`) and the shutdown settings (`server.shutdown`);
 - the connection and state directory of the control plane, and its manifest settings;
 - `connections`, `exporters`, `notifiers`, `observability`, and the bootstrap `version`.
 

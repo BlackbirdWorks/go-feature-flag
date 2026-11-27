@@ -3,9 +3,7 @@ package api
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
-	"sync"
 	"sync/atomic"
 )
 
@@ -20,6 +18,10 @@ type shutdownState struct {
 	cut atomic.Int64
 	// started is true once [Server.StartWithContext] ran: only then does stopped close.
 	started atomic.Bool
+	// serving is true once the initialisation of [Server.StartWithContext] ended: the servers answer a stop then.
+	serving atomic.Bool
+	// inFlight is the number of requests being served, on every server.
+	inFlight atomic.Int64
 }
 
 // context returns the context given to [Server.Shutdown]; without one (the server is stopped by its own context) the
@@ -36,37 +38,12 @@ func (st *shutdownState) context(parent context.Context) (context.Context, conte
 func (st *shutdownState) addCut(n int)  { st.cut.Add(int64(n)) }
 func (st *shutdownState) cutCount() int { return int(st.cut.Load()) }
 
-// connTracker counts the connections that are serving a request.
-type connTracker struct {
-	states map[net.Conn]http.ConnState
-	mu     sync.Mutex
-}
+// counting wraps the handler of a server with the count of the requests in flight.
+func (st *shutdownState) counting(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		st.inFlight.Add(1)
+		defer st.inFlight.Add(-1)
 
-// track is the ConnState hook of the servers.
-func (c *connTracker) track(conn net.Conn, state http.ConnState) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	switch state {
-	case http.StateNew, http.StateActive, http.StateIdle:
-		c.states[conn] = state
-	case http.StateHijacked, http.StateClosed:
-		delete(c.states, conn)
-	}
-}
-
-// active is the number of connections with a request in flight.
-func (c *connTracker) active() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	count := 0
-
-	for _, state := range c.states {
-		if state == http.StateActive {
-			count++
-		}
-	}
-
-	return count
+		next.ServeHTTP(w, r)
+	})
 }

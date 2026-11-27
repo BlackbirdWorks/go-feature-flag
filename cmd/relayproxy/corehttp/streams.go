@@ -27,6 +27,8 @@ type StreamsConfig struct {
 	// Websocket and SSE are the services of the streams.
 	Websocket stream.WebsocketService
 	SSE       stream.SSEService
+	// Labels is the context whose profiler labels the workers keep; nil means none.
+	Labels context.Context //nolint:containedctx // only its profiler labels are read
 	// Label is the value of the pprof label of the workers; it tells the goroutines of one Streams apart.
 	Label string
 	// MaxPending bounds the flag sets that wait for a service; 0 means [DefaultMaxPending].
@@ -43,9 +45,11 @@ type Streams struct {
 	lane [2]*lane
 }
 
-// NewStreams returns the streams on the stream package services, built with its options.
-func NewStreams(opts ...stream.Option) *Streams {
+// NewStreams returns the streams on the stream package services, built with its options. The workers carry the
+// profiler labels of labels, so that what started them can find them (a leak test lists them by label).
+func NewStreams(labels context.Context, opts ...stream.Option) *Streams {
 	return NewStreamsWith(&StreamsConfig{
+		Labels:    labels,
 		Websocket: stream.NewWebsocketService(opts...), SSE: stream.NewSSEService(opts...),
 	})
 }
@@ -58,7 +62,7 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	}
 
 	out := &Streams{ws: cfg.Websocket, sse: cfg.SSE}
-	out.lane[0] = startLane(cfg.Label+"/websocket", limit, func(change *flagruntime.Change) {
+	out.lane[0] = startLane(cfg.Labels, cfg.Label+"/websocket", limit, func(change *flagruntime.Change) {
 		// a merged change that undid itself has nothing to tell: the diff is the websocket message
 		if !change.Diff.HasDiff() {
 			return
@@ -66,7 +70,7 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 
 		out.ws.BroadcastFlagChanges(change.FlagSet, change.Diff)
 	}, out.ws.Close)
-	out.lane[1] = startLane(cfg.Label+"/sse", limit, func(change *flagruntime.Change) {
+	out.lane[1] = startLane(cfg.Labels, cfg.Label+"/sse", limit, func(change *flagruntime.Change) {
 		// a change that undid itself still tells the client to fetch again: it may have fetched the flag meanwhile
 		// the SSE service fails only when it can not encode its fixed event, it has nothing to tell the core
 		_ = out.sse.BroadcastFlagChanges(change.FlagSet, change.Diff)
@@ -132,13 +136,17 @@ type lane struct {
 	closed  bool
 }
 
-func startLane(label string, limit int, send func(*flagruntime.Change), onExit func()) *lane {
+func startLane(labels context.Context, label string, limit int, send func(*flagruntime.Change), onExit func()) *lane {
 	queue := &lane{
 		pending: make(map[string]*flagruntime.Change), wake: make(chan struct{}, 1), stop: make(chan struct{}),
 		done: make(chan struct{}), send: send, onExit: onExit, limit: limit,
 	}
 
-	go pprof.Do(context.Background(), pprof.Labels("corehttp_streams", label), func(context.Context) { queue.run() })
+	go pprof.Do(
+		labelsOrBackground(labels),
+		pprof.Labels("corehttp_streams", label),
+		func(context.Context) { queue.run() },
+	)
 
 	return queue
 }
@@ -286,4 +294,13 @@ func apply(states map[string]*keyState, key string, hadBefore bool, before flagd
 	}
 
 	state.hasAfter, state.after = hasAfter, after
+}
+
+// labelsOrBackground is the context whose profiler labels the workers keep: [pprof.Do] adds its own to them.
+func labelsOrBackground(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+
+	return context.WithoutCancel(ctx)
 }

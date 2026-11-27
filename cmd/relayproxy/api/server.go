@@ -106,6 +106,12 @@ func WithGlobalTelemetry() Option {
 	return func(s *Server) { s.installGlobalTelemetry = true }
 }
 
+// WithStartupStep adds a step that [Server.StartWithContext] runs after the tracing initialisation and before the
+// servers serve; ctx ends when a stop is requested. A test uses it to hold the start.
+func WithStartupStep(step func(ctx context.Context)) Option {
+	return func(s *Server) { s.startupStep = step }
+}
+
 // WithReadTimeout sets how long a request may take to be read, its body included: the servers close the connection
 // of a client that is slower. The default is 30 seconds, the uploads (data collector, flag configuration) are bound
 // by the same duration. A duration of zero or less means no bound at all, for the servers and for the uploads: it is
@@ -154,6 +160,7 @@ type Server struct {
 	exit                   func()
 	stopRequested          chan struct{}
 	shutdown               *shutdownState
+	startupStep            func(ctx context.Context)
 	keys                   service.APIKeys
 	settings               Settings
 	readTimeout            time.Duration

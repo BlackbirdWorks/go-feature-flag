@@ -284,7 +284,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		}
 	}
 
-	streams := corehttp.NewStreams() //nolint:contextcheck // the stream workers outlive the context of the start
+	streams := corehttp.NewStreams(ctx) // the workers outlive the start: only their profiler labels come from ctx
 	deps := opts.Deps
 	deps.Logger = logger
 	deps.Secrets = opts.Load
@@ -336,6 +336,8 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		serverCfg,
 		serverOpts...)
 	if err != nil {
+		rel.drainDelay = 0 // the start failed: there is no traffic to drain
+
 		_ = rel.Shutdown(context.WithoutCancel(ctx))
 
 		return nil, fmt.Errorf("server: %w", err)
@@ -455,6 +457,8 @@ func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error)
 		case <-ctx.Done():
 			done = true
 		case <-r.failed:
+			// nothing serves any more: the drain delay would only keep a failed relay alive
+			r.drainDelay = 0
 			code, done = 1, true
 		case <-opts.Reload:
 			r.reload(ctx, load)

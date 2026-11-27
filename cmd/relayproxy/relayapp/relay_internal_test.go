@@ -50,6 +50,9 @@ const (
 	rigLabel      = "relayrig"
 )
 
+// errPortInUse is the failure of the address that is already bound.
+var errPortInUse = errors.New("address already in use")
+
 // tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
 type tickScheduler struct {
 	entered chan struct{}
@@ -184,7 +187,10 @@ type rigOptions struct {
 	extra        string
 	manifestKey  string
 	flags        []string
-	watchDrain   bool
+	// serverOptions are added to the options of the API server, listenFails makes it fail to bind its address.
+	serverOptions []api.Option
+	listenFails   bool
+	watchDrain    bool
 }
 
 func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
@@ -220,7 +226,8 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		served = &readSignalListener{Listener: listener, reads: ropts.reads}
 	}
 
-	serverOpts := []api.Option{api.WithListener(served)}
+	serverOpts := make([]api.Option, 0, 1+len(ropts.serverOptions))
+	serverOpts = append(serverOpts, api.WithListener(served))
 
 	if ropts.boundAddress != nil {
 		serverOpts = []api.Option{api.WithListenFunc(func(_ context.Context, _, address string) (net.Listener, error) {
@@ -233,6 +240,14 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	ctx, cancel := context.WithCancel(t.Context())
 	rig.cancel = cancel
 	rig.ctx = ctx
+
+	if ropts.listenFails {
+		serverOpts = []api.Option{api.WithListenFunc(func(context.Context, string, string) (net.Listener, error) {
+			return nil, errPortInUse
+		})}
+	}
+
+	serverOpts = append(serverOpts, ropts.serverOptions...)
 
 	opts := &runOptions{
 		Args:   append([]string{configFlag, rig.cfgPath}, ropts.flags...),

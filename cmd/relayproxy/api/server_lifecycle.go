@@ -28,18 +28,23 @@ func (s *Server) StartWithContext(ctx context.Context) {
 
 	s.shutdown.started.Store(true)
 
-	select {
-	case <-s.stopRequested:
-		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
-		for _, l := range []net.Listener{s.listener, s.monitoringListener} {
-			if l != nil {
-				_ = l.Close()
-			}
-		}
-
+	if s.stopWasRequested() {
 		return
-	default:
 	}
+
+	// The server owns no signal handler: the process does, so that it can fail the readiness probe before the
+	// listeners close. Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers below.
+	// The watcher is installed before anything slow runs, so that a stop reaches the initialisation too.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		select {
+		case <-s.stopRequested:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	// start the OpenTelemetry tracing service
 	err := s.otelService.Init(ctx, &s.settings.Telemetry)
@@ -55,24 +60,39 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		s.otelService.Install(ctx, s.logger)
 	}
 
-	// The server owns no signal handler: the process does, so that it can fail the readiness probe before the
-	// listeners close. Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers below.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	if s.startupStep != nil {
+		s.startupStep(ctx)
+	}
 
-	go func() {
-		select {
-		case <-s.stopRequested:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	// from here a stop is answered by the servers themselves, which end promptly: Shutdown may wait for them
+	s.shutdown.serving.Store(true)
+
+	if s.stopWasRequested() {
+		return
+	}
 
 	switch s.settings.Mode {
 	case ServerModeUnixSocket:
 		s.startUnixSocketServer(ctx)
 	default:
 		s.startAsHTTPServer(ctx)
+	}
+}
+
+// stopWasRequested reports whether Stop or Shutdown ran; the listeners that the server was given are closed then,
+// nothing will serve on them.
+func (s *Server) stopWasRequested() bool {
+	select {
+	case <-s.stopRequested:
+		for _, l := range []net.Listener{s.listener, s.monitoringListener} {
+			if l != nil {
+				_ = l.Close()
+			}
+		}
+
+		return true
+	default:
+		return false
 	}
 }
 
@@ -183,15 +203,12 @@ func (s *Server) listenOn(ctx context.Context, address string, given net.Listene
 // next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
 func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, serverName string) error {
 	srv := &http.Server{
-		Handler:  h,
+		Handler:  s.shutdown.counting(h),
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
 		// ReadTimeout is a defence against slow clients (gosec G112). There is no WriteTimeout: the streams
 		// (SSE, websocket) are long-lived.
 		ReadTimeout: s.readTimeout,
 	}
-
-	conns := &connTracker{states: map[net.Conn]http.ConnState{}}
-	srv.ConnState = conns.track
 
 	if h2c {
 		var p http.Protocols
@@ -220,7 +237,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 		err := srv.Shutdown(shutdownCtx)
 		if err != nil {
 			// the shutdown context ended: the requests still in flight are cut
-			cut := conns.active()
+			cut := int(s.shutdown.inFlight.Load())
 			_ = srv.Close()
 
 			s.shutdown.addCut(cut)
@@ -283,8 +300,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.LogAttrs(
 			context.WithoutCancel(ctx), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
 
-		// the servers close hard as soon as the context is done, which does not wait for the requests
-		<-s.stopped
+		// Once the servers serve they close hard as soon as the context is done, which is prompt. While the
+		// initialisation still runs nothing answers the stop: Shutdown does not wait for it.
+		if s.shutdown.serving.Load() {
+			<-s.stopped
+		}
 
 		return fmt.Errorf("%w: %d request(s) in flight: %w", ErrCut, s.shutdown.cutCount(), ctx.Err())
 	}
