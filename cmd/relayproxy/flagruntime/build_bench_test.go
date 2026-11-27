@@ -24,7 +24,7 @@ const (
 func fleet(tb testing.TB, variant int) *flagruntime.Content {
 	tb.Helper()
 
-	return scaleFleet(tb, 1, benchSets, benchFlagsPerSet, func(idx int) int {
+	return scaleFleet(tb, 1, benchSets, func(idx int) int {
 		if idx == 0 {
 			return 100000 + variant
 		}

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 )
@@ -19,7 +21,8 @@ import (
 // reports the peak of the heap in use after a swap.
 func BenchmarkScaleFullSwap(b *testing.B) {
 	gens := [2]*flagruntime.Content{scaleGeneration(b, 1, scaleSets), scaleGeneration(b, 2, scaleSets)}
-	step := engineBench(b, gens[0])
+	// the seed carries values of neither generation, so the first iteration is a full rebuild too
+	step := engineBench(b, scaleSeed(b))
 
 	var stats runtime.MemStats
 
@@ -34,8 +37,12 @@ func BenchmarkScaleFullSwap(b *testing.B) {
 
 		step(&flagruntime.Content{Generation: gen, Objects: gens[gen%2].Objects})
 
+		b.StopTimer()
 		runtime.ReadMemStats(&stats)
+
 		peak = max(peak, stats.HeapInuse)
+
+		b.StartTimer()
 	}
 
 	b.ReportMetric(float64(peak)/(1<<20), "peak-heap-MB")
@@ -69,8 +76,9 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 		}
 	}()
 
-	eng.Submit(gens[0])
-	<-rounds
+	// the seed carries values of neither generation, so the first iteration is a full rebuild too
+	eng.Submit(scaleSeed(b))
+	requireApplied(b, <-rounds)
 
 	eval := flagruntime.NewEvaluator(svc, nil)
 
@@ -79,6 +87,7 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 		wg        sync.WaitGroup
 		mu        sync.Mutex
 		latencies []time.Duration
+		failed    atomic.Int64
 	)
 
 	for reader := range readers {
@@ -92,7 +101,12 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 
 				started := time.Now()
 
-				_, _ = eval.IntVariationDetails(set, "flag-000", evalCtx, -1)
+				res, err := eval.IntVariationDetails(set, "flag-000", evalCtx, -1)
+				if err != nil || res.Failed {
+					failed.Add(1)
+
+					continue
+				}
 
 				own = append(own, time.Since(started))
 			}
@@ -113,13 +127,14 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 		gen++
 
 		eng.Submit(&flagruntime.Content{Generation: gen, Objects: gens[gen%2].Objects})
-		<-rounds
+		requireApplied(b, <-rounds)
 	}
 
 	b.StopTimer()
 	stop.Store(true)
 	wg.Wait()
 
+	require.Zero(b, failed.Load(), "failed evaluations")
 	slices.Sort(latencies)
 
 	if len(latencies) > 0 {
@@ -128,4 +143,20 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 
 	cancel()
 	<-done
+}
+
+// requireApplied fails the benchmark on a round that did not swap: the old runtime would keep serving.
+func requireApplied(b *testing.B, res flagruntime.RoundResult) {
+	b.Helper()
+
+	if res.Outcome != flagruntime.OutcomeApplied {
+		require.Equal(b, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+	}
+}
+
+// scaleSeed is the fleet the engines start from: it carries the values of neither generation of the benchmarks.
+func scaleSeed(b *testing.B) *flagruntime.Content {
+	b.Helper()
+
+	return scaleFleet(b, 1, scaleSets, func(idx int) int { return scaleValue(9, idx) })
 }

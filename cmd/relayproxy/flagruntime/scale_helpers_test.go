@@ -27,14 +27,14 @@ func scaleKey(obj, slot int) string { return "key-" + scaleSetName(obj, slot) }
 // scaleValue is the value that every flag of the object idx carries in generation gen; it identifies both.
 func scaleValue(gen uint64, idx int) int { return int(gen)*1_000_000 + idx }
 
-// scaleFleet generates, in memory, sets flag sets of flagsPerSet flags. scaleSetsPerObject flag sets share one flags
-// object and every object has its own content. The flags of the object idx carry valueOf(idx).
+// scaleFleet generates, in memory, sets flag sets of scaleFlagsPerSet flags. scaleSetsPerObject flag sets share
+// one flags object, and every object has its own content. The flags of the object idx carry valueOf(idx).
 func scaleFleet(
-	tb testing.TB, gen uint64, sets, flagsPerSet int, valueOf func(idx int) int,
+	tb testing.TB, gen uint64, sets int, valueOf func(idx int) int,
 ) *flagruntime.Content {
 	tb.Helper()
 
-	names := make([]string, flagsPerSet)
+	names := make([]string, scaleFlagsPerSet)
 	for i := range names {
 		names[i] = fmt.Sprintf("flag-%03d", i)
 	}
@@ -59,14 +59,14 @@ func scaleFleet(
 func scaleGeneration(tb testing.TB, gen uint64, sets int) *flagruntime.Content {
 	tb.Helper()
 
-	return scaleFleet(tb, gen, sets, scaleFlagsPerSet, func(idx int) int { return scaleValue(gen, idx) })
+	return scaleFleet(tb, gen, sets, func(idx int) int { return scaleValue(gen, idx) })
 }
 
 // scaleVariant is generation 1 with the flags of the listed objects changed.
 func scaleVariant(tb testing.TB, sets int, changed ...int) *flagruntime.Content {
 	tb.Helper()
 
-	return scaleFleet(tb, 1, sets, scaleFlagsPerSet, func(idx int) int {
+	return scaleFleet(tb, 1, sets, func(idx int) int {
 		if slices.Contains(changed, idx) {
 			return scaleValue(2, idx)
 		}

@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -148,7 +149,7 @@ func TestScaleFullGenerationSwap(t *testing.T) {
 	harness.feed(first)
 
 	before := harness.holder.Load()
-	assert.Empty(t, mixedSets(before, 1))
+	assert.Empty(t, mixedSets(before, 1, scaleSets))
 
 	res := harness.feed(scaleGeneration(t, 2, scaleSets))
 	after := harness.holder.Load()
@@ -157,7 +158,7 @@ func TestScaleFullGenerationSwap(t *testing.T) {
 	assert.Equal(t, before.Snapshot+1, after.Snapshot, "one swap")
 	assert.Equal(t, uint64(2), after.Generation)
 	assert.Len(t, after.FlagSets, scaleSets)
-	assert.Empty(t, mixedSets(after, 2), "every flag set carries the values of generation 2")
+	assert.Empty(t, mixedSets(after, 2, scaleSets), "every flag set carries the values of generation 2")
 
 	var kept []string
 
@@ -168,21 +169,20 @@ func TestScaleFullGenerationSwap(t *testing.T) {
 	}
 
 	assert.Empty(t, kept, "every flag set was replaced")
-	assert.Empty(t, mixedSets(before, 1), "the runtime a reader holds is not changed by the swap")
+	assert.Empty(t, mixedSets(before, 1, scaleSets), "the runtime a reader holds is not changed by the swap")
 }
 
-// mixedSets lists the flag sets of a runtime whose flags do not carry the values of generation gen: the
-// consistency fingerprint of a runtime.
-func mixedSets(run *flagruntime.Runtime, gen uint64) []string {
+// mixedSets lists the flag sets, out of the sets the test generated, that are missing from the runtime or whose
+// flags are not exactly the flags of generation gen (every flag, none more): the consistency fingerprint of a runtime.
+func mixedSets(run *flagruntime.Runtime, gen uint64, sets int) []string {
 	var bad []string
 
-	for idx := range len(run.FlagSets) / scaleSetsPerObject {
+	for idx := range sets / scaleSetsPerObject {
 		for slot := range scaleSetsPerObject {
 			name := scaleSetName(idx, slot)
-			set, ok := run.FlagSets[name]
 
-			if !ok || len(set.Flags) != scaleFlagsPerSet || value(set, "flag-000") != scaleValue(gen, idx) ||
-				value(set, "flag-099") != scaleValue(gen, idx) {
+			set, ok := run.FlagSets[name]
+			if !ok || len(set.Flags) != scaleFlagsPerSet || !carries(set, scaleValue(gen, idx)) {
 				bad = append(bad, name)
 			}
 		}
@@ -191,20 +191,30 @@ func mixedSets(run *flagruntime.Runtime, gen uint64) []string {
 	return bad
 }
 
+// carries reports whether every flag of the set has the value want.
+func carries(set *flagruntime.FlagSet, want int) bool {
+	for i := range scaleFlagsPerSet {
+		if value(set, fmt.Sprintf("flag-%03d", i)) != want {
+			return false
+		}
+	}
+
+	return true
+}
+
 // TestScaleGoroutinesDoNotGrowWithFlagSets: the engine is one goroutine whatever the number of flag sets. The rig
 // of every row carries its own pprof label, so only the goroutines of that engine are counted.
 func TestScaleGoroutinesDoNotGrowWithFlagSets(t *testing.T) {
 	t.Parallel()
 
-	const wantEngineGoroutines = 1
-
 	tests := []struct {
-		name string
-		sets int
+		name           string
+		sets           int
+		wantGoroutines int
 	}{
-		{name: "one object", sets: scaleSetsPerObject},
-		{name: "a tenth of the fleet", sets: scaleSets / 10},
-		{name: "the fleet", sets: scaleSets},
+		{name: "one object", sets: scaleSetsPerObject, wantGoroutines: 1},
+		{name: "a tenth of the fleet", sets: scaleSets / 10, wantGoroutines: 1},
+		{name: "the fleet", sets: scaleSets, wantGoroutines: 1},
 	}
 
 	for _, tt := range tests {
@@ -213,12 +223,27 @@ func TestScaleGoroutinesDoNotGrowWithFlagSets(t *testing.T) {
 
 			harness := newRig(t, flagruntime.Hooks{})
 			harness.start()
-			harness.feed(scaleGeneration(t, 1, tt.sets))
-			harness.feed(scaleGeneration(t, 2, tt.sets))
 
-			assert.Equal(t, wantEngineGoroutines, harness.labelledGoroutines())
+			for gen := uint64(1); gen <= 2; gen++ {
+				require.Equal(t, flagruntime.OutcomeApplied, harness.feed(scaleGeneration(t, gen, tt.sets)).Outcome)
+			}
+
+			require.Len(t, harness.holder.Load().FlagSets, tt.sets, "the fleet of the row is loaded")
+			assert.Empty(t, mixedSets(harness.holder.Load(), 2, tt.sets))
+			assert.Equal(t, tt.wantGoroutines, harness.labelledGoroutines())
 		})
 	}
+}
+
+// scalePositions lists the positions a reader that starts at start visits.
+func scalePositions(sets, stride, start int) []int {
+	out := make([]int, 0, (sets-start+stride-1)/stride)
+
+	for pos := start; pos < sets; pos += stride {
+		out = append(out, pos)
+	}
+
+	return out
 }
 
 // TestScaleReadersDuringContinuousReloads: readers evaluate through the evaluator while the engine swaps whole
@@ -246,51 +271,92 @@ func TestScaleReadersDuringContinuousReloads(t *testing.T) {
 		stop      atomic.Bool
 		wg        sync.WaitGroup
 		evaluated atomic.Int64
+		pinned    atomic.Int64
 	)
 
-	for reader := range readers {
-		wg.Go(func() {
-			ctx := ffcontext.NewEvaluationContext("user")
+	// pass evaluates every stride-th flag set of a runtime, from position reader; the values must be the ones of the
+	// generation of that runtime. It returns the number of results it checked.
+	pass := func(run *flagruntime.Runtime, reader int) int64 {
+		ctx := ffcontext.NewEvaluationContext("user")
 
+		var checked int64
+
+		for pos := reader; pos < sets; pos += stride {
+			idx, slot := pos/scaleSetsPerObject, pos%scaleSetsPerObject
+
+			set, route := run.Route(scaleKey(idx, slot))
+			if !assert.Equal(t, flagruntime.RouteFlagSet, route) {
+				return checked
+			}
+
+			res, err := eval.IntVariationDetails(set, "flag-000", ctx, -1)
+			if err != nil {
+				assert.Fail(t, "the evaluation failed", err.Error())
+
+				return checked
+			}
+
+			if !assert.False(t, res.Failed) {
+				return checked
+			}
+
+			assert.Equal(t, scaleValue(run.Generation, idx), res.Value, "another generation than the runtime")
+
+			checked++
+		}
+
+		return checked
+	}
+
+	// The pinned reader loads generation 1, waits until generation 2 is published, and only then evaluates what it
+	// loaded: the runtime it holds must still answer with generation 1. The gate is opened by the cleanup too, so a
+	// failed test cannot leave the reader parked.
+	loaded, published := make(chan struct{}), make(chan struct{})
+	publish := sync.OnceFunc(func() { close(published) })
+
+	t.Cleanup(publish)
+
+	wg.Go(func() {
+		run := harness.holder.Load()
+
+		close(loaded)
+		<-published
+
+		assert.Equal(t, uint64(1), run.Generation)
+		assert.Greater(t, harness.holder.Load().Generation, run.Generation, "the swap was published before the pass")
+		pinned.Add(pass(run, 0))
+	})
+
+	for reader := 1; reader < readers; reader++ {
+		wg.Go(func() {
 			// at least one pass, whatever the scheduler does
 			for first := true; first || !stop.Load(); first = false {
-				run := harness.holder.Load()
-
-				for pos := reader; pos < sets; pos += stride {
-					idx, slot := pos/scaleSetsPerObject, pos%scaleSetsPerObject
-
-					set, route := run.Route(scaleKey(idx, slot))
-					if !assert.Equal(t, flagruntime.RouteFlagSet, route) {
-						return
-					}
-
-					res, err := eval.IntVariationDetails(set, "flag-000", ctx, -1)
-					if err != nil {
-						assert.Fail(t, "the evaluation failed", err.Error())
-
-						return
-					}
-
-					if !assert.False(t, res.Failed) {
-						return
-					}
-
-					assert.Equal(t, scaleValue(run.Generation, idx), res.Value, "another generation than the runtime")
-					evaluated.Add(1)
-				}
+				evaluated.Add(pass(harness.holder.Load(), reader))
 			}
 		})
+	}
+
+	expired, stopTimer := bound()
+	defer stopTimer()
+
+	select {
+	case <-loaded:
+	case <-expired:
+		require.FailNow(t, "the pinned reader did not load a runtime")
 	}
 
 	for gen := uint64(2); gen <= generations; gen++ {
 		res := harness.feed(scaleGeneration(t, gen, sets))
 		assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
+
+		publish()
 	}
 
 	stop.Store(true)
 	wg.Wait()
 
 	assert.Positive(t, evaluated.Load())
+	assert.EqualValues(t, len(scalePositions(sets, stride, 0)), pinned.Load(), "the pinned reader checked all")
 	assert.Equal(t, uint64(generations), harness.holder.Load().Generation)
-	assert.Empty(t, mixedSets(harness.holder.Load(), generations))
+	assert.Empty(t, mixedSets(harness.holder.Load(), generations, sets))
 }

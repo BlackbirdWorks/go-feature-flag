@@ -2,9 +2,9 @@ package controlsource_test
 
 import (
 	"fmt"
-	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 const (
@@ -49,23 +50,36 @@ func scaleListing() *listing {
 func TestScaleColdStart(t *testing.T) {
 	t.Parallel()
 
-	// wantFetched is the list of keys the store sees from the cold start: the manifest and every object, or only the
-	// manifest.
+	// wantFetched is the list of requests the store sees from the cold start, with the ETag of each: the manifest
+	// and every object (no ETag), or only the conditional poll of the manifest (the stored ETag, answered without a
+	// body).
 	tests := []struct {
-		wantFetched func(keys map[string]string) []string
+		wantFetched func(keys map[string]string, manifestETag string) []storeCall
 		name        string
+		wantPoll    string
 		seed        bool
 	}{
 		{
-			name: "without the state directory",
-			wantFetched: func(keys map[string]string) []string {
-				return append(slices.Collect(maps.Values(keys)), restartManifest)
+			name:     "without the state directory",
+			wantPoll: manifestreader.PollUpdated,
+			wantFetched: func(keys map[string]string, _ string) []storeCall {
+				calls := make([]storeCall, 0, len(keys)+1)
+				calls = append(calls, storeCall{Key: restartManifest})
+
+				for _, key := range keys {
+					calls = append(calls, storeCall{Key: key})
+				}
+
+				return calls
 			},
 		},
 		{
-			name:        "with the state directory",
-			seed:        true,
-			wantFetched: func(map[string]string) []string { return []string{restartManifest} },
+			name:     "with the state directory",
+			seed:     true,
+			wantPoll: manifestreader.PollNotModified,
+			wantFetched: func(_ map[string]string, manifestETag string) []storeCall {
+				return []storeCall{{Key: restartManifest, ETag: manifestETag}}
+			},
 		},
 	}
 
@@ -91,14 +105,8 @@ func TestScaleColdStart(t *testing.T) {
 			proc.settle()
 			assert.Equal(t, flagruntime.OutcomeApplied, proc.nextRound().Outcome)
 
-			calls := store.take()
-			fetched := make([]string, 0, len(calls))
-
-			for _, call := range calls {
-				fetched = append(fetched, call.Key)
-			}
-
-			assert.Equal(t, sortedKeys(tt.wantFetched(keys)), sortedKeys(fetched))
+			assert.Equal(t, sortedCalls(tt.wantFetched(keys, store.etag(restartManifest))), sortedCalls(store.take()))
+			assert.Equal(t, tt.wantPoll, proc.source.Status().Reader.Poll.Result)
 
 			run := proc.holder.Load()
 			assert.Len(t, run.FlagSets, scaleSets)
@@ -107,4 +115,6 @@ func TestScaleColdStart(t *testing.T) {
 	}
 }
 
-func sortedKeys(in []string) []string { return slices.Sorted(slices.Values(in)) }
+func sortedCalls(in []storeCall) []storeCall {
+	return slices.SortedFunc(slices.Values(in), func(a, b storeCall) int { return strings.Compare(a.Key, b.Key) })
+}
