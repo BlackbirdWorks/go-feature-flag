@@ -44,6 +44,10 @@ type KeyAuth struct {
 // NewKeyAuth returns the authentication middleware of the configuration.
 func NewKeyAuth(cfg KeyAuthConfig) KeyAuth { return KeyAuth{cfg: cfg} }
 
+// AllowsAnonymous reports whether a request without a key reaches the validator: the operations behind this
+// middleware are documented with an optional key.
+func (k KeyAuth) AllowsAnonymous() bool { return k.cfg.AllowAnonymous }
+
 // HTTP is the entry point for a [http.Handler].
 func (k KeyAuth) HTTP() Func {
 	return func(next http.Handler) http.Handler {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,50 +44,37 @@ func TestOpenAPI(t *testing.T) {
 	}
 }
 
-// The operations the anonymous flag set can serve document an optional key (the empty requirement next to the key
-// schemes); the admin operations and the other ones keep a required key.
+// The operations the anonymous flag set can reach document an optional key (the empty requirement next to the key
+// schemes) and say so; no other operation does, the admin and the monitoring ones among them.
 func TestOpenAPIOptionalKey(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		path         string
-		wantOptional bool
-	}{
-		{
-			name:         "the OFREP bulk evaluation",
-			path:         "/ofrep/v1/evaluate/flags",
-			wantOptional: true,
-		},
-		{name: "the all flags evaluation", path: "/v1/allflags", wantOptional: true},
-		{name: "the validate endpoint", path: "/admin/v1/flags/validate"},
-		{name: "the refresh endpoint", path: "/admin/v1/retriever/refresh"},
+	want := []string{
+		"allFlags", "collectEvalData", "flagChange", "flagConfiguration", "flagEval", "getManifest",
+		"ofrepBulkEvaluate", "ofrepEvaluate", "sseFlagChange", "wsFlagChange", "wsFlagChangeLegacy",
 	}
 
-	doc := api.OpenAPI()
+	var optional, noted []string
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	for _, item := range api.OpenAPI().Paths {
+		for _, operation := range []*huma.Operation{item.Get, item.Post, item.Put, item.Delete} {
+			if operation == nil {
+				continue
+			}
 
-			item := doc.Paths[tt.path]
-			require.NotNil(t, item)
+			if slices.ContainsFunc(operation.Security, func(req map[string][]string) bool { return len(req) == 0 }) {
+				optional = append(optional, operation.OperationID)
+			}
 
-			operation := item.Post
-			require.NotNil(t, operation)
-
-			hasEmpty := slices.ContainsFunc(
-				operation.Security,
-				func(req map[string][]string) bool { return len(req) == 0 },
-			)
-
-			assert.Equal(t, tt.wantOptional, hasEmpty, "the empty requirement")
-			assert.Equal(
-				t,
-				tt.wantOptional,
-				strings.Contains(operation.Description, "auth.anonymousFlagSet"),
-				"the note",
-			)
-		})
+			if strings.Contains(operation.Description, "auth.anonymousFlagSet") {
+				noted = append(noted, operation.OperationID)
+			}
+		}
 	}
+
+	slices.Sort(optional)
+	slices.Sort(noted)
+
+	assert.Equal(t, want, optional, "the operations with an optional key")
+	assert.Equal(t, want, noted, "the operations that say why")
 }

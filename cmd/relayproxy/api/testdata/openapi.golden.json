@@ -1407,7 +1407,7 @@
     },
     "/openfeature/v0/manifest": {
       "get": {
-        "description": "**GET** request to the URL `/openfeature/v0/manifest` returns the project manifest\ncontaining active flags. Archived flags are excluded.",
+        "description": "**GET** request to the URL `/openfeature/v0/manifest` returns the project manifest\ncontaining active flags. Archived flags are excluded.\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): a request without a key is then served by that flag set. Without that setting every request needs a key. A wrong key is always refused.",
         "operationId": "getManifest",
         "responses": {
           "200": {
@@ -1461,7 +1461,8 @@
         "security": [
           {
             "ApiKeyAuth": []
-          }
+          },
+          {}
         ],
         "summary": "GetManifest is a GET endpoint to return the flags configured in Semaphore.",
         "tags": [
@@ -1535,7 +1536,7 @@
     },
     "/stream/v1/sse/flag/change": {
       "get": {
-        "description": "Server-Sent Events endpoint pushing flag change notifications, following OpenFeature ADR-0008.\nIt is advertised in the `eventStreams` field of the OFREP bulk evaluation response.\nEach event is sent as `event: message` with a `model.OFREPSSEEvent` JSON payload,\na `refetchEvaluation` event means that the provider must re-fetch its evaluations.\nThe stream also sends SSE comment lines (`: connected` when the connection opens,\n`: heartbeat` every 30 seconds), they are ignored by SSE clients.\nThe full URL (including query string) is sensitive and must not be logged\nor persisted by intermediaries.",
+        "description": "Server-Sent Events endpoint pushing flag change notifications, following OpenFeature ADR-0008.\nIt is advertised in the `eventStreams` field of the OFREP bulk evaluation response.\nEach event is sent as `event: message` with a `model.OFREPSSEEvent` JSON payload,\na `refetchEvaluation` event means that the provider must re-fetch its evaluations.\nThe stream also sends SSE comment lines (`: connected` when the connection opens,\n`: heartbeat` every 30 seconds), they are ignored by SSE clients.\nThe full URL (including query string) is sensitive and must not be logged\nor persisted by intermediaries.\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): a request without a key is then served by that flag set. Without that setting every request needs a key. A wrong key is always refused.",
         "operationId": "sseFlagChange",
         "parameters": [
           {
@@ -1589,6 +1590,9 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "SSE endpoint to be notified about flag changes",
         "tags": [
           "Semaphore Evaluation Stream API"
@@ -1597,7 +1601,7 @@
     },
     "/stream/v1/ws/flag/change": {
       "get": {
-        "description": "This endpoint is a websocket endpoint to be notified about flag changes;\nevery change pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.",
+        "description": "This endpoint is a websocket endpoint to be notified about flag changes;\nevery change pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): a request without a key is then served by that flag set. Without that setting every request needs a key. A wrong key is always refused.",
         "operationId": "wsFlagChange",
         "parameters": [
           {
@@ -1651,6 +1655,9 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "Websocket endpoint to be notified about flag changes",
         "tags": [
           "Semaphore Evaluation Stream API"
@@ -1984,7 +1991,7 @@
     "/ws/v1/flag/change": {
       "get": {
         "deprecated": true,
-        "description": "Deprecated: use /stream/v1/ws/flag/change instead. This endpoint\nis a websocket endpoint to be notified about flag changes; every\nchange pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.",
+        "description": "Deprecated: use /stream/v1/ws/flag/change instead. This endpoint\nis a websocket endpoint to be notified about flag changes; every\nchange pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): a request without a key is then served by that flag set. Without that setting every request needs a key. A wrong key is always refused.",
         "operationId": "wsFlagChangeLegacy",
         "parameters": [
           {
@@ -2038,6 +2045,9 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "Websocket endpoint to be notified about flag changes",
         "tags": [
           "Semaphore Evaluation Stream API"

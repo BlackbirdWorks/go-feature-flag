@@ -3,6 +3,7 @@ package stream_test
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -193,11 +194,16 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 			websocketService := stream.NewWebsocketService()
 			clients := map[string]string{"a1": fixtures.FlagsetLower, "a2": fixtures.FlagsetLower, "b1": "flagset-b"}
 
+			var mu sync.Mutex
+
 			got := map[string]bool{}
 			for name, flagsetName := range clients {
 				got[name] = false
 
 				websocketService.Register(&mockConn{writeJSONFunc: func(_ any) error {
+					mu.Lock()
+					defer mu.Unlock()
+
 					got[name] = true
 
 					return nil
@@ -205,6 +211,9 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 			}
 
 			websocketService.BroadcastFlagChanges(tt.broadcastFlagset, notifier.DiffCache{})
+
+			mu.Lock()
+			defer mu.Unlock()
 
 			assert.Equal(t, tt.want, got)
 		})

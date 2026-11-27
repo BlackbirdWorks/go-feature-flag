@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -41,18 +41,26 @@ const keylessNote = "\n\nThe key is optional when the relay names an anonymous f
 	"a request without a key is then served by that flag set. Without that setting every request needs a key. " +
 	"A wrong key is always refused."
 
-// securityAll is the security of the endpoints that accept an API key in any of the two headers, or none when the
-// relay has an anonymous flag set: the empty requirement is how OpenAPI says that the security is optional.
+// securityAll is the security of the endpoints that accept an API key in any of the two headers.
 func securityAll() []map[string][]string {
-	return []map[string][]string{{securityAPIKey: {}}, {securityXAPIKey: {}}, {}}
+	return []map[string][]string{{securityAPIKey: {}}, {securityXAPIKey: {}}}
 }
 
-// withKeylessNote adds the note to the description of an operation whose security is optional.
-func withKeylessNote(op *huma.Operation) {
-	if slices.ContainsFunc(op.Security, func(requirement map[string][]string) bool { return len(requirement) == 0 }) &&
-		!strings.HasSuffix(op.Description, keylessNote) {
-		op.Description += keylessNote
+// optionalKey documents the key of an operation as optional when the middleware that guards it lets a request without
+// a key through (the anonymous flag set): the empty requirement is how OpenAPI says that the security is optional.
+// The operations that the anonymous flag set can reach are the ones registered through it, so the document follows
+// the middleware.
+func optionalKey(auth middleware.KeyAuth, operation *huma.Operation) *huma.Operation {
+	if !auth.AllowsAnonymous() || slices.ContainsFunc(operation.Security, func(req map[string][]string) bool {
+		return len(req) == 0
+	}) {
+		return operation
 	}
+
+	operation.Security = append(slices.Clone(operation.Security), map[string][]string{})
+	operation.Description += keylessNote
+
+	return operation
 }
 
 // securityAuthorization is the security of the endpoints that only document the Authorization header.

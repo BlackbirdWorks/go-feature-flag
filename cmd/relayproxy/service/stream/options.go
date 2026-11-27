@@ -9,9 +9,14 @@ import (
 // defaultSSEHeartbeatInterval is the default interval between two SSE heartbeat comments.
 const defaultSSEHeartbeatInterval = 30 * time.Second
 
+// defaultWriteTimeout bounds the write of one message to one websocket client: a client that does not take it in
+// that time is closed and removed.
+const defaultWriteTimeout = 10 * time.Second
+
 type options struct {
 	includeFlagDetails   bool
 	sseHeartbeatInterval time.Duration
+	writeTimeout         time.Duration
 }
 
 // Option configures flag change streams.
@@ -32,13 +37,25 @@ func WithSSEHeartbeatInterval(interval time.Duration) Option {
 	}
 }
 
+// WithWriteTimeout sets the time a websocket client has to take a message before it is closed and removed. A value
+// <= 0 keeps the default.
+func WithWriteTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		if timeout > 0 {
+			o.writeTimeout = timeout
+		}
+	}
+}
+
 func newOptions(opts ...Option) options {
-	o := options{includeFlagDetails: true, sseHeartbeatInterval: defaultSSEHeartbeatInterval}
+	cfg := options{
+		includeFlagDetails: true, sseHeartbeatInterval: defaultSSEHeartbeatInterval, writeTimeout: defaultWriteTimeout,
+	}
 	for _, opt := range opts {
-		opt(&o)
+		opt(&cfg)
 	}
 
-	return o
+	return cfg
 }
 
 type flagChangeNames struct {

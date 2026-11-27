@@ -46,6 +46,7 @@ type WebsocketServiceImpl struct {
 	mutex              *sync.RWMutex
 	closed             chan struct{}
 	includeFlagDetails bool
+	writeTimeout       time.Duration
 }
 
 // NewWebsocketService is a constructor to create a new WebsocketServiceImpl.
@@ -58,27 +59,39 @@ func NewWebsocketService(opts ...Option) *WebsocketServiceImpl {
 		mutex:              &sync.RWMutex{},
 		closed:             make(chan struct{}),
 		includeFlagDetails: streamOpts.includeFlagDetails,
+		writeTimeout:       streamOpts.writeTimeout,
 	}
 }
 
-// BroadcastFlagChanges is sending the diff to all the open connection of the flagset.
+// BroadcastFlagChanges is sending the diff to all the open connection of the flagset. No lock is held while a client
+// is written to: the recipients are taken under the lock, then every one is written to on its own, and one that does
+// not take the message within the write timeout is closed and removed. The others still get the change.
 func (w *WebsocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff notifier.DiffCache) {
 	w.mutex.RLock()
-	defer w.mutex.RUnlock()
 
-	payload := flagChangePayload(diff, w.includeFlagDetails)
+	recipients := make([]WebsocketConnector, 0, len(w.clients))
+
 	for conn, clientFlagsetName := range w.clients {
-		if clientFlagsetName != flagsetName {
-			continue
-		}
-
-		err := conn.WriteJSON(payload)
-		if err != nil {
-			w.mutex.RUnlock()
-			w.Deregister(conn)
-			w.mutex.RLock()
+		if clientFlagsetName == flagsetName {
+			recipients = append(recipients, conn)
 		}
 	}
+
+	w.mutex.RUnlock()
+
+	payload := flagChangePayload(diff, w.includeFlagDetails)
+
+	var group sync.WaitGroup
+
+	for _, conn := range recipients {
+		group.Go(func() {
+			if !w.write(conn, payload) {
+				w.drop(conn)
+			}
+		})
+	}
+
+	group.Wait()
 }
 
 // Register is adding the connection to the list of open connection of the flagset.
@@ -164,5 +177,40 @@ func (w *WebsocketServiceImpl) WaitForCleanup(timeout time.Duration) error {
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("waiting for the cleanup of the websocket connections: %w", ctx.Err())
+	}
+}
+
+// write sends the payload to a client that is still registered, and reports whether the client took it in time.
+// A client that left meanwhile (a revoked access) gets nothing and is not a failure.
+func (w *WebsocketServiceImpl) write(conn WebsocketConnector, payload any) bool {
+	w.mutex.RLock()
+	_, registered := w.clients[conn]
+	w.mutex.RUnlock()
+
+	if !registered {
+		return true
+	}
+
+	result := make(chan error, 1)
+
+	go func() { result <- conn.WriteJSON(payload) }()
+
+	timer := time.NewTimer(w.writeTimeout)
+	defer timer.Stop()
+
+	select {
+	case err := <-result:
+		return err == nil
+	case <-timer.C:
+		return false
+	}
+}
+
+// drop removes a client and closes its connection, which ends a write that is stuck on it.
+func (w *WebsocketServiceImpl) drop(conn WebsocketConnector) {
+	w.Deregister(conn)
+
+	if closer, ok := conn.(interface{ Close() error }); ok {
+		_ = closer.Close()
 	}
 }
