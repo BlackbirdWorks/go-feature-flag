@@ -96,7 +96,7 @@ func TestContainsCaching(t *testing.T) {
 			wantCalls: [][]string{{callAlice, callZed}},
 		},
 		{
-			name:  "an unknown answer is never cached: the store is asked again, since it did not say that the segment is not loaded",
+			name:  "an unknown answer is never cached: the store is asked again, it did not say the segment is not loaded",
 			store: &fakeStore{data: members(map[string][]string{segOther: {idAlice}})},
 			steps: []step{
 				{lookups: []segment.Lookup{lk(segBeta, idAlice)}, wantStates: []segment.State{segment.Unknown}},

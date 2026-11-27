@@ -762,6 +762,7 @@ func TestALookupDoesNotJoinAFlightThatIsPastItsDeadline(t *testing.T) {
 	t.Parallel()
 
 	store := &stuckThenOK{release: make(chan struct{}), entered: make(chan struct{}, 2)}
+
 	t.Cleanup(func() { close(store.release) })
 
 	res := newInternal(t, store, &Options{
@@ -844,7 +845,7 @@ func TestTheErrorOfALookupCarriesEveryCause(t *testing.T) {
 
 			for position, which := range order {
 				pend[position] = pending{sst: seg, flt: flights[which], idx: position}
-				lookups[position] = segment.Lookup{Segment: testSeg, ID: fmt.Sprint(which)}
+				lookups[position] = segment.Lookup{Segment: testSeg, ID: strconv.Itoa(which)}
 			}
 
 			gone, cancel := context.WithCancel(context.Background())

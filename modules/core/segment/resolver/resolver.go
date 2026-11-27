@@ -116,24 +116,24 @@ func (s *segState) normalize(id string) (string, Reason) {
 // Resolver is a [segment.Provider] with a cache, coalescing and a breaker in front of another provider. It is safe
 // for concurrent use.
 type Resolver struct {
-	inner      segment.Provider
 	observer   Observer
 	stopErr    error
+	inner      segment.Provider
+	drained    chan struct{}
 	states     atomic.Pointer[map[string]*segState]
 	beforeStop func(*call)
+	stopDone   chan struct{}
 	opts       Options
 	wg         sync.WaitGroup
-	overdue    atomic.Int64
 	inflight   atomic.Int64
 	maxID      int
 	maxOver    int
 	timeout    time.Duration
+	overdue    atomic.Int64
+	rawLimit   int
 	admit      sync.RWMutex
 	stopOnce   sync.Once
 	drainOnce  sync.Once
-	drained    chan struct{}
-	stopDone   chan struct{}
-	rawLimit   int
 	mu         sync.Mutex
 	closed     bool
 }
@@ -336,17 +336,9 @@ func appendOnce(errs []error, err error) []error {
 }
 
 // joinCauses joins every cause, the errors of the store first and then the waits, so that a caller can detect each
-// of them with errors.Is whatever the order of its lookups.
+// of them with [errors.Is] whatever the order of its lookups.
 func joinCauses(storeErrs, waitErrs []error) error {
 	return errors.Join(append(slices.Clone(storeErrs), waitErrs...)...)
-}
-
-func firstOf(first, next error) error {
-	if first != nil {
-		return first
-	}
-
-	return next
 }
 
 // keepAnswered sets the lookups whose flights are already done: the caller leaves, and what it has keeps its answer.
@@ -842,7 +834,7 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 	neutral := r.settle(leaders, sub, callErr, now, late)
 
 	// before the answers are delivered, so that a caller that comes back at once sees the memory
-	r.confirmNotLoaded(shared, neutral, now)
+	r.confirmNotLoaded(shared.ctx, neutral, now)
 
 	for i := range leaders {
 		lead := &leaders[i]
@@ -873,7 +865,6 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 		close(lead.flt.done)
 	}
-
 }
 
 // disarm ends the deadline of a shared call after the store returned, and tells whether the deadline had fired first.
@@ -1000,7 +991,7 @@ func resultOf(results *[]segmentResult, lead leader) *segmentResult {
 // came back Unknown without an error. A segment is remembered as not loaded only when the store says so itself
 // (NotMember): an unanswered lookup alone says nothing about the segment. A store without Existencer is never
 // inferred about.
-func (r *Resolver) confirmNotLoaded(shared *call, neutral []*segmentResult, now time.Time) {
+func (r *Resolver) confirmNotLoaded(ctx context.Context, neutral []*segmentResult, now time.Time) {
 	existencer, ok := r.inner.(segment.Existencer)
 	if !ok || len(neutral) == 0 {
 		return
@@ -1011,10 +1002,10 @@ func (r *Resolver) confirmNotLoaded(shared *call, neutral []*segmentResult, now 
 		names[i] = res.sst.name
 	}
 
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(shared.ctx), r.timeout)
+	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.timeout)
 	defer cancel()
 
-	answers, err := existencer.Exists(ctx, names)
+	answers, err := existencer.Exists(callCtx, names)
 	if err != nil || len(answers) != len(neutral) {
 		return
 	}

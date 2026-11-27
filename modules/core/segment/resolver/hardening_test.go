@@ -361,7 +361,9 @@ func TestACallerThatIsGoneAnswersFromTheCacheOnly(t *testing.T) {
 	}
 
 	assert.Equal(t, [][]string{{callAlice}}, store.callList(), "no call to the store for a caller that is gone")
+
 	allCached := []segment.Lookup{lk(segBeta, idAlice)}
+
 	require.NoError(t, res.Contains(gone, allCached), "a call that the cache answers entirely has nothing to wait for")
 	assert.Equal(t, []segment.State{segment.Member}, states(allCached))
 }
@@ -709,7 +711,7 @@ type blockingShutdown struct {
 	release chan struct{}
 }
 
-func (b blockingShutdown) Shutdown(context.Context) error {
+func (b blockingShutdown) Shutdown(context.Context) error { //nolint:unparam // the interface returns an error
 	b.entered <- struct{}{}
 
 	<-b.release
@@ -750,8 +752,8 @@ func TestEveryShutdownCallerIsBoundedByItsOwnContext(t *testing.T) {
 	}
 
 	select {
-	case <-first:
-		require.Fail(t, "the first Shutdown returned before the store did")
+	case err := <-first:
+		require.Fail(t, "the first Shutdown returned before the store did", "%v", err)
 	default:
 	}
 }

@@ -229,7 +229,10 @@ type existsStore struct {
 	*fakeStore
 }
 
-func (e existsStore) Exists(_ context.Context, names []string) ([]segment.State, error) {
+func (e existsStore) Exists(
+	_ context.Context,
+	names []string,
+) ([]segment.State, error) { //nolint:unparam // the interface returns an error
 	e.mu.Lock()
 	data := e.data
 	e.mu.Unlock()
