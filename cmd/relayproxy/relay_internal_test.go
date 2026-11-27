@@ -598,10 +598,10 @@ func TestRunHelpVersionPrecedence(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		args       []string
-		wantCode   int
 		wantStdout string
 		wantStderr string
+		args       []string
+		wantCode   int
 	}{
 		{name: "help=false and version", args: []string{"--help=false", versionFlag}, wantStdout: "semaphore "},
 		{name: "version=false starts normally", args: []string{"--version=false"}, wantCode: 1,
@@ -609,9 +609,9 @@ func TestRunHelpVersionPrecedence(t *testing.T) {
 		{name: "help and version", args: []string{helpFlag, versionFlag}, wantStdout: "Usage: semaphore"},
 		{name: "version and help", args: []string{versionFlag, helpFlag}, wantStdout: "Usage: semaphore"},
 		{name: "help and version, unknown flag", args: []string{helpFlag, versionFlag, unknownFlag},
-			wantCode: exitUsage, wantStderr: "unknown flag"},
+			wantCode: exitUsage, wantStderr: unknownFlagText},
 		{name: "version and help, unknown flag", args: []string{versionFlag, helpFlag, unknownFlag},
-			wantCode: exitUsage, wantStderr: "unknown flag"},
+			wantCode: exitUsage, wantStderr: unknownFlagText},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -941,7 +941,7 @@ func TestRunHelpAndUsage(t *testing.T) {
 	}{
 		{name: "long help", args: []string{helpFlag}, wantStdout: true},
 		{name: "short help", args: []string{"-h"}, wantStdout: true},
-		{name: "unknown flag", args: []string{unknownFlag}, wantCode: exitUsage},
+		{name: unknownFlagText, args: []string{unknownFlag}, wantCode: exitUsage},
 		{name: "unknown flag after --version", args: []string{versionFlag, unknownFlag}, wantCode: exitUsage},
 		{name: "unknown flag before --version", args: []string{unknownFlag, versionFlag}, wantCode: exitUsage},
 		{name: "unknown flag after --help", args: []string{helpFlag, unknownFlag}, wantCode: exitUsage},

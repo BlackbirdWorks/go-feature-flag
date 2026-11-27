@@ -23,6 +23,9 @@ const (
 	unknownFlag = "--nope"
 	versionFlag = "--version"
 	helpFlag    = "--help"
+
+	// unknownFlagText is what the parser says of an unknown flag.
+	unknownFlagText = "unknown flag"
 )
 
 func TestParseCommandLineHelpAndVersion(t *testing.T) {
