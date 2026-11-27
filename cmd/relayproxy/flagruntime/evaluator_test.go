@@ -175,90 +175,88 @@ func TestEvaluator_PerFlagSetEnrichment(t *testing.T) {
 	}
 }
 
-// The enrichment the caller passes is copied deeply: changing the input (nested containers too) after NewEvaluator
-// changes nothing, and so does changing what the evaluator returns. Each case would fail with a shallow copy.
+// The enrichment the caller passes is copied deeply, for the default and for a flag set that has its own: changing
+// the input of either, or the output of either, at the top level or in a nested map or slice, changes nothing: not
+// the other input's copy, not either output, not the evaluations. Each mutation runs against every target, and each
+// row asserts that its change took effect on its target, so none is vacuous. A shallow copy of any of the four fails.
 func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		change func(in map[string]any, out map[string]any)
-		name   string
-		// onInput says which side the row changes, and the test asserts that the change took effect on that side
-		onInput bool
+	targets := []struct {
+		pick func(defIn, namedIn, defOut, namedOut map[string]any) map[string]any
+		name string
 	}{
+		{name: "default input", pick: func(defIn, _, _, _ map[string]any) map[string]any { return defIn }},
+		{name: "named input", pick: func(_, namedIn, _, _ map[string]any) map[string]any { return namedIn }},
+		{name: "default output", pick: func(_, _, defOut, _ map[string]any) map[string]any { return defOut }},
+		{name: "named output", pick: func(_, _, _, namedOut map[string]any) map[string]any { return namedOut }},
+	}
+
+	mutations := []struct {
+		change func(target map[string]any)
+		name   string
+	}{
+		{name: "top level key", change: func(target map[string]any) { target[planAttr] = mutated }},
 		{
-			name:    "top level key of the input",
-			onInput: true,
-			change:  func(in, _ map[string]any) { in[planAttr] = mutated },
-		},
-		{name: "top level key of the output", change: func(_, out map[string]any) { out[planAttr] = mutated }},
-		{
-			name: "nested map of the input", onInput: true,
-			change: func(in, _ map[string]any) {
-				nested, _ := in[orgKey].(map[string]any)
-				nested["name"] = mutated
+			name: "nested map",
+			change: func(target map[string]any) {
+				nested, _ := target[orgKey].(map[string]any)
+				nested[nameKey] = mutated
 			},
 		},
 		{
-			name: "nested map of the output",
-			change: func(_, out map[string]any) {
-				nested, _ := out[orgKey].(map[string]any)
-				nested["name"] = mutated
-			},
-		},
-		{
-			name: "nested slice of the input", onInput: true,
-			change: func(in, _ map[string]any) {
-				tags, _ := in[tagsKey].([]any)
-				tags[0] = mutated
-			},
-		},
-		{
-			name: "nested slice of the output",
-			change: func(_, out map[string]any) {
-				tags, _ := out[tagsKey].([]any)
+			name: "nested slice",
+			change: func(target map[string]any) {
+				tags, _ := target[tagsKey].([]any)
 				tags[0] = mutated
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	newEnrichment := func() map[string]any {
+		return map[string]any{planAttr: proPlan, orgKey: map[string]any{nameKey: acmeOrg}, tagsKey: []any{"a", "b"}}
+	}
 
-			want := map[string]any{
-				planAttr: proPlan,
-				orgKey:   map[string]any{nameKey: acmeOrg},
-				tagsKey:  []any{"a", "b"},
-			}
-			input := map[string]any{
-				planAttr: proPlan,
-				orgKey:   map[string]any{nameKey: acmeOrg},
-				tagsKey:  []any{"a", "b"},
-			}
+	// two flag sets that use one flag, which is on only when the enrichment says the organisation is acme
+	data := []byte("org-flag:\n  variations:\n    on: true\n    off: false\n  targeting:\n" +
+		"    - query: org.name eq \"acme\"\n      variation: on\n  defaultRule:\n    variation: off\n")
+	run := runtimeWith(t, objs{
+		flagsName: obj(flagruntime.KindFlags, data),
+		setsName:  setsObj(t, fset(namedSet, src(flagsName), "key-named"), fset("other", src(flagsName), "key-other")),
+	})
 
-			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
-				EvaluationContextEnrichment: input,
-				FlagSetEnrichment:           map[string]map[string]any{namedSet: input},
-				Environment:                 prodEnv,
+	for _, target := range targets {
+		for _, mutation := range mutations {
+			t.Run(target.name+"/"+mutation.name, func(t *testing.T) {
+				t.Parallel()
+
+				defIn, namedIn := newEnrichment(), newEnrichment()
+				eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+					EvaluationContextEnrichment: defIn,
+					FlagSetEnrichment:           map[string]map[string]any{namedSet: namedIn},
+					Environment:                 prodEnv,
+				})
+
+				named, other := run.FlagSets[namedSet], run.FlagSets["other"]
+				defOut, namedOut := eval.EvaluationContextEnrichment(other), eval.EvaluationContextEnrichment(named)
+
+				picked := target.pick(defIn, namedIn, defOut, namedOut)
+				mutation.change(picked)
+
+				// the change took effect on the target of the row (the row is not vacuous)
+				assert.NotEqual(t, newEnrichment(), picked, "the target was changed")
+
+				// and reached nothing else: both outputs are fresh copies of the original, and so are the evaluations
+				assert.Equal(t, newEnrichment(), eval.EvaluationContextEnrichment(other), "the default output")
+				assert.Equal(t, newEnrichment(), eval.EvaluationContextEnrichment(named), "the named output")
+
+				for _, set := range []*flagruntime.FlagSet{named, other} {
+					res, err := eval.RawVariation(set, "org-flag", ffcontext.NewEvaluationContext("u"), nil)
+					require.NoError(t, err)
+					assert.Equal(t, true, res.Value, "the evaluation of %s", set.Name)
+				}
 			})
-
-			output := eval.EvaluationContextEnrichment(nil)
-			named := eval.EvaluationContextEnrichment(&flagruntime.FlagSet{Name: namedSet})
-
-			tt.change(input, output)
-
-			// the change took effect on the side the row names (the row is not vacuous), and reached nothing else
-			if tt.onInput {
-				assert.NotEqual(t, want, input, "the input was changed")
-			} else {
-				assert.NotEqual(t, want, output, "the output was changed")
-			}
-
-			assert.Equal(t, want, eval.EvaluationContextEnrichment(nil))
-			assert.Equal(t, want, eval.EvaluationContextEnrichment(&flagruntime.FlagSet{Name: namedSet}))
-			assert.Equal(t, want, named, "the copy that was handed out before the change")
-		})
+		}
 	}
 }
 
