@@ -10,6 +10,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.3
 	github.com/IBM/sarama v1.62.0
+	github.com/alecthomas/kong v1.17.0
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/atc0005/go-teams-notify/v2 v2.14.0
 	github.com/aws/aws-sdk-go-v2 v1.48.0

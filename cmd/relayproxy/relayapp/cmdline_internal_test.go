@@ -1,6 +1,9 @@
-package main
+package relayapp
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,6 +27,9 @@ const (
 	versionFlag = "--version"
 	helpFlag    = "--help"
 
+	stateDirValue = "/var/s"
+	helpName      = "help"
+
 	// unknownFlagText is what the parser says of an unknown flag.
 	unknownFlagText = "unknown flag"
 )
@@ -45,7 +51,7 @@ func TestParseCommandLineHelpAndVersion(t *testing.T) {
 		{name: "config only", args: []string{configXYaml}},
 		{name: "version=false", args: []string{"--version=false", configXYaml}},
 		{name: "help=false and version", args: []string{"--help=false", versionFlag}, wantVersion: true},
-		{name: "help", args: []string{helpFlag}, wantHelp: true},
+		{name: helpName, args: []string{helpFlag}, wantHelp: true},
 		{name: "short help", args: []string{"-h"}, wantHelp: true},
 		{name: "help and version", args: []string{helpFlag, versionFlag}, wantHelp: true, wantVersion: true},
 		{name: "version and help", args: []string{versionFlag, helpFlag}, wantHelp: true, wantVersion: true},
@@ -73,7 +79,7 @@ func TestParseCommandLineHelpAndVersion(t *testing.T) {
 func TestVersionText(t *testing.T) {
 	t.Parallel()
 
-	got := versionText()
+	got := versionText(Build{Version: "v1.2.3"})
 	assert.True(t, strings.HasPrefix(got, "semaphore "), got)
 	assert.Contains(t, got, "\nfips140: false\n")
 }
@@ -118,9 +124,19 @@ func TestOverridesFrom(t *testing.T) {
 		{
 			name: "state dir",
 			args: []string{"--state-dir=/var/s"},
-			want: bootstrap.Overrides{StateDir: "/var/s", StateDirGiven: true},
+			want: bootstrap.Overrides{StateDir: stateDirValue, StateDirGiven: true},
 		},
 		{name: "state dir given empty", args: []string{"--state-dir="}, want: bootstrap.Overrides{StateDirGiven: true}},
+		{
+			name: "state dir value as the next argument",
+			args: []string{"--state-dir", stateDirValue},
+			want: bootstrap.Overrides{StateDir: stateDirValue, StateDirGiven: true},
+		},
+		{
+			name: "state dir given as an empty next argument",
+			args: []string{"--state-dir", ""},
+			want: bootstrap.Overrides{StateDirGiven: true},
+		},
 		{name: "an unknown flag", args: []string{unknownFlag}, wantErr: true},
 		{
 			name: "version is not an override",
@@ -145,3 +161,75 @@ func TestOverridesFrom(t *testing.T) {
 		})
 	}
 }
+
+// The help text and the usage printed with an unknown flag are pinned by a golden file.
+func TestHelpGolden(t *testing.T) {
+	t.Parallel()
+
+	golden, err := os.ReadFile(filepath.Join("testdata", "help.golden"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		wantStderr string
+		args       []string
+		wantCode   int
+	}{
+		{name: helpName, args: []string{helpFlag}, wantStdout: string(golden)},
+		{
+			name: "unknown flag", args: []string{unknownFlag}, wantCode: exitUsage,
+			wantStderr: "semaphore: invalid command line: unknown flag --nope\n\n" + string(golden),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
+
+			assert.Equal(t, tt.wantCode, code)
+			// kong wraps the help at the width of the terminal (COLUMNS): the text is compared without its wrapping
+			assert.Equal(t, unwrapped(tt.wantStdout), unwrapped(stdout.String()))
+			assert.Equal(t, unwrapped(tt.wantStderr), unwrapped(stderr.String()))
+		})
+	}
+}
+
+// noEnv is the empty environment of the tests: none of them reads the real one.
+func noEnv(string) (string, bool) { return "", false }
+
+// Main wires the real environment: it answers --version with the stamped build and exits 0, and a start without a
+// file exits 1.
+func TestMain_Process(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantStdout string
+		wantStderr string
+		args       []string
+		wantCode   int
+	}{
+		{name: "version", args: []string{versionFlag}, wantStdout: "semaphore v1.2.3\n"},
+		{name: "no file", args: nil, wantCode: 1, wantStderr: "configuration error"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := Main(t.Context(), tt.args, &stdout, &stderr, noEnv, Build{Version: "v1.2.3"})
+
+			assert.Equal(t, tt.wantCode, code)
+			assert.Contains(t, stdout.String(), tt.wantStdout)
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+		})
+	}
+}
+
+// unwrapped collapses every run of white space, so that the wrapping of the help does not matter.
+func unwrapped(text string) string { return strings.Join(strings.Fields(text), " ") }

@@ -1,4 +1,4 @@
-package main
+package relayapp
 
 import (
 	"os"
@@ -33,7 +33,7 @@ func TestDocumentedFullExamplesLoad(t *testing.T) {
 		t.Run(tt.page, func(t *testing.T) {
 			t.Parallel()
 
-			page, err := os.ReadFile(filepath.Join("..", "..", tt.page))
+			page, err := os.ReadFile(filepath.Join("..", "..", "..", tt.page))
 			require.NoError(t, err)
 
 			_, after, found := strings.Cut(string(page), docExampleMarker)
