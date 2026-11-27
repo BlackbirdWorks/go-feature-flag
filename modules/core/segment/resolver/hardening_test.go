@@ -878,11 +878,12 @@ func TestAStoreThatPanicsInAnyMethodIsNotTrustedAndDoesNotCrash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			res := newResolver(
-				t,
+			// not newResolver: its cleanup shuts the resolver down, and a store that panics in Shutdown says so again
+			res, newErr := resolver.New(
 				panicky{fakeStore: betaStore(), panicIn: strings.ToLower(tt.name)},
 				&resolver.Options{},
 			)
+			require.NoError(t, newErr)
 
 			err := tt.call(res)
 
