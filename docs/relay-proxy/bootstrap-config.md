@@ -91,6 +91,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `version` | integer | required | `2` |
 | `server` | object | one api listener | see below |
 | `observability` | object | see below | see below |
+| `evaluation` | object | none | see below |
 | `auth` | object | none | see below |
 | `connections` | map of name to connection | none | see below |
 | `exporters` | map of name to exporter | none | see below |
@@ -122,6 +123,16 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `tracing.otlpEndpoint` | string | none | `host:port`, or an `http`/`https` URL, without credentials |
 | `tracing.serviceName` | string | `semaphore` | |
 | `tracing.sampler` | string | `parentbased_always_off` | `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
+
+### `evaluation`
+
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `contextEnrichment` | map | none | any values; merged into the context of every evaluation, the request context wins |
+| `environment` | string | none | added to the enrichment under the key `env` |
+| `disableSemaphoreMetadata` | boolean | `false` | keeps `semaphore_cacheable` out of the OFREP metadata; `gofeatureflag_cacheable` is always sent |
+
+A change of `evaluation` needs a restart (it is listed in `pendingRestart` after a reload).
 
 ### `auth`
 

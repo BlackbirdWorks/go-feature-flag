@@ -141,9 +141,12 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 		return &BuildError{Path: "exporters, notifiers", Err: err}
 	}
 
-	c.eval = flagruntime.NewEvaluator(c.svc, &flagruntime.EvaluatorConfig{TrackEvent: func(event events.Event) {
-		c.events.Collect(event)
-	}})
+	c.eval = flagruntime.NewEvaluator(c.svc, &flagruntime.EvaluatorConfig{
+		EvaluationContextEnrichment: cfg.Evaluation.ContextEnrichment,
+		Environment:                 cfg.Evaluation.Environment,
+		DisableSemaphoreMetadata:    cfg.Evaluation.DisableSemaphoreMetadata,
+		TrackEvent:                  func(event events.Event) { c.events.Collect(event) },
+	})
 
 	// the admin keys of the file reach the first runtime through the first round of the engine
 	c.engine.Reload(cfg)

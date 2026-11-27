@@ -184,6 +184,10 @@ observability:
     otlpEndpoint: otel-collector:4317
     serviceName: semaphore
     sampler: parentbased_always_off
+evaluation:
+  contextEnrichment:
+    region: us-east-1
+  environment: production
 auth:
   adminKeys:
     - '[REDACTED]'
