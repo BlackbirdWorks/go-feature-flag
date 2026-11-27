@@ -1,0 +1,28 @@
+# Example of a bootstrap file (config version 2) for the relay proxy.
+#
+# The flags live in the file store ./store: a manifest and the objects it lists (the flags of flags.goff.yaml and a
+# flag-set document whose API key is example-api-key). In production the same documents live in S3 and are
+# written by `semaphore-cli publish`.
+#
+# Run it from this directory:   semaphore --config bootstrap.yaml
+# Evaluate:  curl -H 'X-API-Key: example-api-key' -d '{"context":{"targetingKey":"u"}}' \
+#              localhost:1031/ofrep/v1/evaluate/flags/<flag>
+version: 2
+
+server:
+  listeners:
+    - {name: api, address: ":1031"}
+
+observability:
+  logging: {level: info, format: json}
+
+connections:
+  control: {type: file, path: ./store}
+
+controlPlane:
+  connection: control
+  manifest: {key: manifests/stable.yaml, channel: stable, pollInterval: 10s}
+
+# Optional admin keys (plain strings or {fromEnv: NAME} / {fromFile: PATH}):
+# auth:
+#   adminKeys: [{fromEnv: SEMAPHORE_ADMIN_KEY}]

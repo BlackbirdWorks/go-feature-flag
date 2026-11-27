@@ -11,10 +11,10 @@
 # ...or directly, from the repository root (the build context must be the root):
 #   docker build -f cmd/relayproxy/Dockerfile.local -t semaphore:local .
 #
-# Run it:
-#   docker run -p 1031:1031 \
-#     -v $(pwd)/semaphore-proxy.yaml:/semaphore/semaphore-proxy.yaml \
-#     semaphore:local
+# Run it (the example bootstrap file and its file store, read from the working directory):
+#   docker run -p 1031:1031 -w /semaphore \
+#     -v $(pwd)/cmd/relayproxy/testdata/dockerhub-example:/semaphore:ro \
+#     semaphore:local --config bootstrap.yaml
 
 FROM golang:1.27 AS build
 WORKDIR /src
