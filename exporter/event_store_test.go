@@ -204,7 +204,12 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 
 	go startEventProducer(ctx, eventStore, 100000, true)
 
-	time.Sleep(50 * time.Millisecond)
+	// wait for the producer to have produced events (the timeout only bounds a failure)
+	require.Eventually(t, func() bool {
+		pending, err := eventStore.GetPendingEventCount(consumerNames[0])
+
+		return err == nil && pending > 0
+	}, 10*time.Second, time.Millisecond, "the producer produced no event")
 
 	wg := &sync.WaitGroup{}
 
@@ -224,9 +229,13 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 				return nil
 			})
 		require.NoError(t, err)
-		time.Sleep(
-			50 * time.Millisecond,
-		) // we wait to be sure that the producer has produce new events
+
+		// the producer has to produce new events before the second call (this runs off the test goroutine)
+		assert.Eventually(t, func() bool {
+			pending, pendingErr := eventStore.GetPendingEventCount(consumerName)
+
+			return pendingErr == nil && pending > 0
+		}, 10*time.Second, time.Millisecond, "the producer produced no new event")
 
 		err = eventStore.ProcessPendingEvents(consumerName,
 			func(_ context.Context, events []testhelpers.ExportableMockEvent) error {

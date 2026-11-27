@@ -175,6 +175,8 @@ func setDurationDefaults(root *jsonschema.Schema) {
 	}
 }
 
+const kafkaProducerDef = "KafkaProducer"
+
 // allowEmptyEnums lets the enumerated settings be written as an empty string: the loader treats an empty value as
 // unset and applies the default. The discriminators (type, kind) stay strict, they have no default.
 func allowEmptyEnums(root *jsonschema.Schema) {
@@ -182,6 +184,8 @@ func allowEmptyEnums(root *jsonschema.Schema) {
 		{"Listener", "role"}, {"Logging", "level"}, {"Logging", keyFormat}, {"Tracing", "sampler"},
 		{"Credentials", keyType}, {defS3Connection, "requestChecksumCalculation"},
 		{defS3Connection, "responseChecksumValidation"}, {"Exporter", keyFormat},
+		{"KafkaSASL", "mechanism"}, {"KafkaGSSAPI", "authType"},
+		{kafkaProducerDef, "requiredAcks"}, {kafkaProducerDef, "compression"}, {kafkaProducerDef, "partitioner"},
 	} {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
 			prop.Enum = append(prop.Enum, "")

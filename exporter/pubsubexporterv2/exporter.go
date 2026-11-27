@@ -23,6 +23,7 @@ type Exporter struct {
 	newClientFunc func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error)
 	// publisher facilitates publishing messages on a PubSub topic.
 	publisher *pubsub.Publisher
+	client    *pubsub.Client
 	// ProjectID is a project to which the PubSub topic belongs.
 	ProjectID string
 	// Topic is the name of a topic on which messages will be published.
@@ -76,6 +77,30 @@ func (*Exporter) IsBulk() bool {
 	return false
 }
 
+// Close stops the publisher and closes the client of the exporter. It does nothing for an exporter that never
+// exported, and it can be called more than once. It must not run at the same time as Export: the relay calls it
+// after the final flush.
+func (e *Exporter) Close() error {
+	if e.publisher != nil {
+		e.publisher.Stop()
+		e.publisher = nil
+	}
+
+	client := e.client
+	e.client = nil
+
+	if client == nil {
+		return nil
+	}
+
+	err := client.Close()
+	if err != nil {
+		return fmt.Errorf("close pubsub client: %w", err)
+	}
+
+	return nil
+}
+
 // initPublisher inits PubSub publisher according to the provided configuration.
 func (e *Exporter) initPublisher(ctx context.Context) error {
 	if e.newClientFunc == nil {
@@ -95,6 +120,7 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	publisher.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = publisher
+	e.client = client
 
 	return nil
 }

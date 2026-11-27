@@ -119,6 +119,25 @@ func (*Exporter) IsBulk() bool {
 	return true
 }
 
+// Close closes the BigQuery client of the exporter. It does nothing for an exporter that never exported, and it can
+// be called more than once. It must not run at the same time as Export, and the exporter must not be used after it:
+// the relay calls it after the final flush.
+func (e *Exporter) Close() error {
+	client := e.client
+	e.client = nil
+
+	if client == nil {
+		return nil
+	}
+
+	err := client.Close()
+	if err != nil {
+		return fmt.Errorf("close BigQuery client: %w", err)
+	}
+
+	return nil
+}
+
 func (e *Exporter) tableName() string {
 	if e.TableName == "" {
 		return defaultTableName

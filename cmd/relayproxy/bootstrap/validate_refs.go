@@ -18,7 +18,7 @@ type exporterSpec struct {
 
 // exporterKind returns the keys of an exporter kind and the connection type it needs.
 func exporterKind(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", "format", "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
 
 	switch kind {
 	case ExporterFile:
@@ -30,11 +30,13 @@ func exporterKind(kind string) (exporterSpec, bool) {
 	case ExporterS3:
 		return exporterSpec{connType: TypeS3, allowed: append([]string{keyConnection}, formats...)}, true
 	case ExporterKinesis:
-		return exporterSpec{connType: TypeKinesis, allowed: []string{keyConnection, "streamArn", "streamName"}}, true
+		return exporterSpec{
+			connType: TypeKinesis, allowed: []string{keyConnection, "streamArn", "streamName", keyFormat},
+		}, true
 	case ExporterGoogleStorage:
 		return exporterSpec{allowed: append([]string{"bucket", keyGoogleCredentials}, formats...)}, true
 	case ExporterSQS:
-		return exporterSpec{connType: TypeSQS, allowed: []string{keyConnection, "queueUrl"}}, true
+		return exporterSpec{connType: TypeSQS, allowed: []string{keyConnection, "queueUrl", keyFormat}}, true
 	default:
 		return exporterKindCloud(kind)
 	}
@@ -42,15 +44,17 @@ func exporterKind(kind string) (exporterSpec, bool) {
 
 // exporterKindCloud is the second half of [exporterKind].
 func exporterKindCloud(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", "format", "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
 
 	switch kind {
 	case ExporterKafka:
-		return exporterSpec{allowed: []string{keyKafka}}, true
+		return exporterSpec{allowed: []string{keyKafka, keyFormat}}, true
 	case ExporterPubSub:
 		return exporterSpec{allowed: []string{keyProjectID, "topic", keyGoogleCredentials}}, true
 	case ExporterBigQuery:
-		return exporterSpec{allowed: []string{keyProjectID, "datasetId", "tableName", keyGoogleCredentials}}, true
+		return exporterSpec{
+			allowed: []string{keyProjectID, "datasetId", "tableName", keyGoogleCredentials, "autoMigrate"},
+		}, true
 	case ExporterRedshift:
 		return exporterSpec{connType: TypeRedshift, allowed: []string{keyConnection, "database", "clusterIdentifier",
 			"workgroupName", "dbUser", "secretArn", "tableName", "autoMigrate"}}, true
@@ -123,6 +127,8 @@ func (v *validator) exporter(path string, exp *Exporter) {
 		for i, address := range exp.Kafka.Addresses {
 			v.hostPort(path+".kafka.addresses["+strconv.Itoa(i)+"]", address)
 		}
+
+		v.kafka(path+".kafka", exp.Kafka)
 	}
 
 	var conn Connection
