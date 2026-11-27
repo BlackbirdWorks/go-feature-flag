@@ -145,6 +145,8 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 
 // sourceText gives the rule text the lexer read, once per compile.
 type sourceText struct {
+	// seg is set when the rule has segment() terms.
+	seg     *segmentCompiler
 	text    string
 	done    bool
 	isASCII bool

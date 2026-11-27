@@ -51,7 +51,10 @@ func fixtureFlags() controlplane.Flags {
 			Version:     new("1.2"),
 			Variations:  map[string]any{"on": true, variationOff: false},
 			Targeting: []controlplane.Rule{
-				{Name: new("beta"), Query: new(queryBeta), Percentage: map[string]float64{"on": 100, variationOff: 0}},
+				{
+					Name: new("beta"), Query: new(queryBeta), OnError: new("match"),
+					Percentage: map[string]float64{"on": 100, variationOff: 0},
+				},
 				{
 					Name:  new("ramp"),
 					Query: new(`country eq "FR"`),

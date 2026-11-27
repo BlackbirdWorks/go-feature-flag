@@ -10,6 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 var errWrongVariationUsed = errors.New("wrong variation used for flag")
@@ -56,6 +57,7 @@ func Evaluate[T model.JSONType](
 				Version:       targetFlag.GetVersion(),
 				Metadata:      flagdef.CloneMetadata(targetFlag.GetMetadata()),
 				Cacheable:     false,
+				SegmentStatus: segment.StatusNone,
 			}, fmt.Errorf("%w %v", errWrongVariationUsed, flagKey)
 		}
 	}
@@ -71,5 +73,6 @@ func Evaluate[T model.JSONType](
 		Version:       targetFlag.GetVersion(),
 		Cacheable:     resolutionDetails.Cacheable,
 		Metadata:      resolutionDetails.Metadata,
+		SegmentStatus: resolutionDetails.SegmentStatus,
 	}, nil
 }

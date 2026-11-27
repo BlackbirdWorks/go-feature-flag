@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 )
@@ -43,6 +44,16 @@ type Config struct {
 	// if in the evaluation context you have a field with the same name, it will override the common one.
 	// Default: nil
 	EvaluationContextEnrichment map[string]any
+	// Segments (optional) defines the named segments that the targeting rules can use,
+	// targetingKey in segment("beta-users"). When Segments is set, a rule that uses a segment it does not define is
+	// accepted with a warning, and the segment matches nobody. When Segments is nil, no warning is logged and
+	// SegmentProvider decides every segment term.
+	// Default: nil
+	Segments *segment.Catalog
+	// SegmentProvider (optional) answers the membership lookups of the segment terms of the rules. Without one,
+	// a rule that depends on a segment does not match (unless it says onError: match).
+	// Default: nil
+	SegmentProvider segment.Provider
 	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
 	//  to be able to serve the flags even if none of the retrievers is available during starting time.
 	//

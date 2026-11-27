@@ -176,6 +176,15 @@
                     "type": "boolean",
                     "title": "disable",
                     "description": "Indicates that this rule is disabled."
+                },
+                "onError": {
+                    "type": "string",
+                    "enum": [
+                        "skip",
+                        "match"
+                    ],
+                    "title": "onError",
+                    "description": "What the rule does when its result depends on a segment() term whose membership is unknown: skip (default) or match. It has no effect on a rule without segment() terms."
                 }
             },
             "additionalProperties": false,
