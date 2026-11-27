@@ -35,10 +35,22 @@ func BenchmarkResolverHit(b *testing.B) {
 	}
 }
 
+// answerAll answers every lookup NotMember and keeps no record of the calls, so that the cost of a benchmark does
+// not grow with its own history.
+type answerAll struct{}
+
+func (answerAll) Contains(_ context.Context, lookups []segment.Lookup) error {
+	for i := range lookups {
+		lookups[i].State = segment.NotMember
+	}
+
+	return nil
+}
+
 func BenchmarkResolverMiss(b *testing.B) {
 	for _, count := range []int{1, 8} {
 		b.Run(strconv.Itoa(count)+"lookups", func(b *testing.B) {
-			res, err := resolver.New(betaStore(), &resolver.Options{Default: resolver.SegmentOptions{NoCache: true}})
+			res, err := resolver.New(answerAll{}, &resolver.Options{Default: resolver.SegmentOptions{NoCache: true}})
 			require.NoError(b, err)
 
 			lookups := benchLookups(count)
