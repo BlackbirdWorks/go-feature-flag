@@ -171,6 +171,6 @@ client, err := ffclient.New(&ffclient.Config{
 
 ## What is not available yet
 
-- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the `valkey` provider with its cache, circuit breaker and per-request deadline.
+- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the cache, circuit breaker and singleflight of the `valkey` provider (the provider itself exists: see [Segments in Valkey](segments-valkey.md)).
 - The `segments` setting of the relay proxy, the segment lookups on the relay proxy evaluation endpoints, the `semaphore_segmentStatus` metadata, the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
 - Tools to import and swap members.
