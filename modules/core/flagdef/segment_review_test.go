@@ -68,6 +68,11 @@ func TestScheduledStepSegmentsAreValidated(t *testing.T) {
 			wantSegErr: true,
 		},
 		{
+			name:      "a jsonlogic query that does not decode is rejected like in a rule of the flag",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new(`{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, `targeting rule "r" (index 0)`, "invalid jsonlogic query"},
+		},
+		{
 			name:      "an invalid onError of a rule of a step",
 			step:      step([]flagdef.Rule{{Name: new("r"), OnError: new("ignore")}}, nil),
 			wantInErr: []string{whereStep0, `targeting rule "r" (index 0)`, errMsgBadOnError},

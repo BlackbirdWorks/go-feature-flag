@@ -45,8 +45,9 @@ type Config struct {
 	// Default: nil
 	EvaluationContextEnrichment map[string]any
 	// Segments (optional) defines the named segments that the targeting rules can use,
-	// targetingKey in segment("beta-users"). A rule that uses a segment that is not defined is accepted with a
-	// warning, and the segment matches nobody.
+	// targetingKey in segment("beta-users"). When Segments is set, a rule that uses a segment it does not define is
+	// accepted with a warning, and the segment matches nobody. When Segments is nil, no warning is logged and
+	// SegmentProvider decides every segment term.
 	// Default: nil
 	Segments *segment.Catalog
 	// SegmentProvider (optional) answers the membership lookups of the segment terms of the rules. Without one,

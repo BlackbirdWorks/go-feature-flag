@@ -329,6 +329,23 @@ func TestReadMemberSet(t *testing.T) {
 			wantErr: segment.ErrMembersTooLarge,
 		},
 		{
+			name:        "4096 bytes with LF",
+			in:          strings.Repeat("a", 4096) + "\n",
+			wantMembers: []string{strings.Repeat("a", 4096)},
+		},
+		{
+			name:        "4096 bytes with CRLF",
+			in:          strings.Repeat("a", 4096) + "\r\n",
+			wantMembers: []string{strings.Repeat("a", 4096)},
+		},
+		{
+			name:        "4096 bytes without a line end",
+			in:          strings.Repeat("a", 4096),
+			wantMembers: []string{strings.Repeat("a", 4096)},
+		},
+		{name: "4097 bytes with LF", in: strings.Repeat("a", 4097) + "\n", wantErr: segment.ErrMemberTooLong},
+		{name: "4097 bytes with CRLF", in: strings.Repeat("a", 4097) + "\r\n", wantErr: segment.ErrMemberTooLong},
+		{
 			name:        "bytes within the limit",
 			in:          "ab\ncd\n",
 			limits:      segment.Limits{MaxBytes: 6},

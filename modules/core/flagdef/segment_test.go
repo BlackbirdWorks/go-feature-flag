@@ -675,6 +675,10 @@ func TestSegmentRuleValidation(t *testing.T) {
 		{name: "valid nikunjy", rule: queryRule("r", `targetingKey in segment("a")`)},
 		{name: "valid json", rule: queryRule("r", `{"inSegment": [{"var": "targetingKey"}, "a"]}`)},
 		{
+			name: "valid json, the operator written with a unicode escape",
+			rule: queryRule("r", `{"in\u0053egment": [{"var": "targetingKey"}, "a"]}`),
+		},
+		{
 			name: "valid json nested",
 			rule: queryRule(
 				"r",

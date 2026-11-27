@@ -93,6 +93,7 @@ var (
 
 const (
 	maxMemberLen     = 4096
+	lineEndLen       = 2 // CRLF
 	initialMemberBuf = 512
 
 	// DefaultMaxMembers is the default Limits.MaxMembers.
@@ -124,7 +125,8 @@ func ReadMemberSet(r io.Reader, limits Limits) (*MemberSet, error) {
 	counted := &countingReader{reader: r, limit: limits.MaxBytes}
 
 	scanner := bufio.NewScanner(counted)
-	scanner.Buffer(make([]byte, 0, initialMemberBuf), maxMemberLen)
+	// the buffer holds a member of the longest length and its line end (LF or CRLF)
+	scanner.Buffer(make([]byte, 0, initialMemberBuf), maxMemberLen+lineEndLen)
 
 	set := &MemberSet{set: map[string]struct{}{}}
 	rows := 0
@@ -142,6 +144,10 @@ func ReadMemberSet(r io.Reader, limits Limits) (*MemberSet, error) {
 		member := strings.TrimSpace(string(line))
 		if member == "" {
 			continue
+		}
+
+		if len(member) > maxMemberLen {
+			return nil, ErrMemberTooLong
 		}
 
 		rows++

@@ -477,7 +477,13 @@ func (c *flagCheck) declared(path, name string) {
 // rule checks a rule. partial is set for the rules of a scheduled step: they may leave out what the rule they
 // update already has.
 func (c *flagCheck) rule(path string, rule *Rule, isDefault, partial bool) {
-	if rule == nil || !isDefault && rule.Disable != nil && *rule.Disable {
+	if rule == nil {
+		return
+	}
+
+	if !isDefault && rule.Disable != nil && *rule.Disable {
+		c.onError(path, rule) // the rest of a disabled rule is not checked, its onError is
+
 		return
 	}
 

@@ -238,12 +238,10 @@ func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator,
 	// Validate the query with the parser
 	switch r.GetQueryFormat() {
 	case JSONLogicQueryFormat:
-		if strings.Contains(r.GetQuery(), opInSegment) {
-			// the JsonLogic library does not know inSegment: the compilation validates the query
-			compiled := newCompiledQuery(r.GetQuery())
-			if compiled.segErr != nil || compiled.jlSeg != nil {
-				return nil, compiled.segErr
-			}
+		// the JsonLogic library does not know inSegment: the compilation of the decoded query validates it
+		compiled := newCompiledQuery(r.GetQuery())
+		if compiled.segErr != nil || compiled.jlSeg != nil {
+			return nil, compiled.segErr
 		}
 
 		if !jsonlogic.IsValid(strings.NewReader(r.GetQuery())) {

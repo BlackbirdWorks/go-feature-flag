@@ -130,6 +130,13 @@ func (r *Rule) validateStepSegments(svc *Service, isDefault bool) error {
 	}
 
 	trimmed := r.GetTrimmedQuery()
+
+	// a query that opens like a JsonLogic object and does not decode is rejected, as it is for the rules of the flag
+	// (it is not a valid Rules query either); the default rule ignores its query
+	if !isDefault && strings.HasPrefix(trimmed, "{") && queryFormatOf(trimmed) != JSONLogicQueryFormat {
+		return errInvalidJsonlogicQuery
+	}
+
 	if !hasSegmentTerm(trimmed) {
 		return nil
 	}

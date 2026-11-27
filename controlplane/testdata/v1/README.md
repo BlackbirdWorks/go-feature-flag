@@ -45,6 +45,7 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `flags-nan-variation.yaml`: NaN.
 - `flags-zero-percentages.yaml`, `flags-mixed-variation-types.yaml`, `flags-null-variation.yaml`, `flags-progressive-without-dates.yaml`, `flags-missing-default-rule.yaml`: flags that the engine would drop.
 - `flags-bad-on-error.yaml`: an `onError` other than `skip` or `match`.
+- `flags-bad-on-error-disabled-rule.yaml`: an `onError` other than `skip` or `match` on a disabled rule.
 - `flags-huge-integer-variation.yaml`: a variation above the int64 range (the engine does not know its type).
 - `manifest-recursive-merge.yaml`: a merge key that refers to itself.
 - `manifest-unknown-object-kind.yaml`: object kind other than `flags` or `flagSets`.
