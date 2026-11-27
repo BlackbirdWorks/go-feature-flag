@@ -27,6 +27,9 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	requests, err := filepath.Glob(testdataDir + "/ofrep/*.json")
 	require.NoError(f, err)
 
+	// the mux redirects a key that is a dot segment: no body
+	f.Add(".", "{}", false)
+
 	for _, file := range requests {
 		content, readFileErr := os.ReadFile(file)
 		require.NoError(f, readFileErr)
@@ -56,6 +59,14 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		mux.ServeHTTP(rec, req)
 
 		assert.Less(t, rec.Code, http.StatusInternalServerError, "body: %s", rec.Body.String())
+
+		if rec.Code >= http.StatusMultipleChoices && rec.Code < http.StatusBadRequest {
+			// the mux cleans a path such as ".." and redirects, with no body for a POST
+			assert.NotEmpty(t, rec.Header().Get("Location"), "a redirect names its target")
+
+			return
+		}
+
 		assert.True(t, json.Valid(rec.Body.Bytes()), "response is not JSON: %s", rec.Body.String())
 	})
 }
