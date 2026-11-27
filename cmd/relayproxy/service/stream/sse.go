@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,8 +50,10 @@ type SSEServiceImpl struct {
 	server *sse.Server
 	// activeStreams counts the connected clients per stream, used to send the heartbeats.
 	activeStreams map[string]int
-	done          chan struct{}
-	closeOnce     sync.Once
+	// anonymous is the connected clients that have no API key.
+	anonymous map[*anonymousClient]struct{}
+	done      chan struct{}
+	closeOnce sync.Once
 	// heartbeats joins the heartbeat goroutine: Close returns after it ended.
 	heartbeats      sync.WaitGroup
 	muActiveStreams sync.Mutex
@@ -65,6 +68,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 	svc := &SSEServiceImpl{
 		server:        server,
 		activeStreams: map[string]int{},
+		anonymous:     map[*anonymousClient]struct{}{},
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
@@ -111,24 +115,32 @@ func (s *SSEServiceImpl) Connections() int {
 	return total
 }
 
-// DisconnectAnonymous closes the streams of the clients without a key whose flag set is not keep.
+// DisconnectAnonymous ends the requests of the clients without a key whose flag set is not keep. It cancels their
+// request contexts, so the library ends each subscription itself: removing the stream under them would leave one
+// goroutine of the library blocked per client.
 func (s *SSEServiceImpl) DisconnectAnonymous(keep string) {
 	s.muActiveStreams.Lock()
 
-	var revoked []string
+	var revoked []context.CancelFunc
 
-	for streamID := range s.activeStreams {
-		name, anonymous := strings.CutPrefix(streamID, AnonymousStreamPrefix)
-		if anonymous && (name != keep || keep == "") {
-			revoked = append(revoked, streamID)
+	for client := range s.anonymous {
+		name := strings.TrimPrefix(client.streamID, AnonymousStreamPrefix)
+		if name != keep || keep == "" {
+			revoked = append(revoked, client.cancel)
 		}
 	}
 
 	s.muActiveStreams.Unlock()
 
-	for _, streamID := range revoked {
-		s.server.RemoveStream(streamID)
+	for _, cancel := range revoked {
+		cancel()
 	}
+}
+
+// anonymousClient is a connected client without a key: the way to end its request.
+type anonymousClient struct {
+	cancel   context.CancelFunc
+	streamID string
 }
 
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +148,25 @@ func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.trackStream(streamID, 1)
 	defer s.trackStream(streamID, -1)
+
+	if strings.HasPrefix(streamID, AnonymousStreamPrefix) {
+		ctx, cancel := context.WithCancel(r.Context())
+		client := &anonymousClient{cancel: cancel, streamID: streamID}
+
+		s.muActiveStreams.Lock()
+		s.anonymous[client] = struct{}{}
+		s.muActiveStreams.Unlock()
+
+		defer func() {
+			s.muActiveStreams.Lock()
+			delete(s.anonymous, client)
+			s.muActiveStreams.Unlock()
+
+			cancel()
+		}()
+
+		r = r.WithContext(ctx)
+	}
 
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}

@@ -92,6 +92,16 @@ func TestServerSettings(t *testing.T) {
 			wantErr: "invalid size: write it as a string such as \"64KiB\"",
 		},
 		{
+			name:    "a fraction of a byte",
+			doc:     settingsBase + "server:\n  validateFlags: {maxJsonBodySize: 0.5B}\n",
+			wantErr: "invalid size: expected a size such as \"64KiB\", with a fraction only above the byte",
+		},
+		{
+			name:    "a size below one byte",
+			doc:     settingsBase + "server:\n  validateFlags: {maxJsonBodySize: 0.0001KiB}\n",
+			wantErr: "invalid size: the size is below one byte",
+		},
+		{
 			name:    "a size that is not a size",
 			doc:     settingsBase + "server:\n  validateFlags: {maxTomlBodySize: lots}\n",
 			wantErr: "invalid size: expected a size",

@@ -5,7 +5,7 @@ The relay proxy can expose the Go `net/http/pprof` profiling endpoints under `/d
 > [!WARNING]
 > Profiling endpoints are disabled by default. They are served by the `ops` listener only, never by the `api` listener.
 >
-> The `ops` listener has **no authentication**, and pprof exposes the contents of the heap (which can hold flag data and keys in memory), the command line and the goroutines. Anyone who can reach the ops port can read them. Keep the ops port off public networks: close it with a network policy or a firewall, and do not publish it from the container. Give the ops listener an address of its own, such as loopback, as shown below.
+> The `ops` listener has **no authentication**, and pprof exposes details of the process: the heap profile shows sampled allocation sites and sizes, the goroutine dumps show stacks and their arguments, and the command line is public. This is sensitive for an attacker even though it is not a memory dump. Anyone who can reach the ops port can read them. Keep the ops port off public networks: close it with a network policy or a firewall, and do not publish it from the container. Give the ops listener an address of its own, such as loopback, as shown below.
 
 ## Enable profiling
 

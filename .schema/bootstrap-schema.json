@@ -44,8 +44,8 @@
         },
         "ByteSize": {
             "type": "string",
-            "pattern": "^[0-9]+(\\.[0-9]+)? ?([kKmMgGtT]i?[bB]?|[bB])?$",
-            "description": "Size string, for example 64KiB or 1MiB. Zero means the default of the setting."
+            "pattern": "^(\\d+ ?[bB]?|\\d+(\\.\\d+)? ?[kKmMgGtT]i?[bB]?)$",
+            "description": "Size string, for example 64KiB or 1MiB. A fraction is allowed above the byte (1.5MiB), not of a byte. Zero means the default of the setting."
         },
         "Config": {
             "properties": {

@@ -375,9 +375,28 @@ func TestSchemaByteSizePattern(t *testing.T) {
 		value      string
 		wantAccept bool
 	}{
-		{"1MiB", true}, {"64KiB", true}, {"1500B", true}, {"1.5MiB", true}, {"1 MiB", true}, {"2MB", true},
-		{"3GiB", true}, {"1TiB", true}, {"0B", true}, {"0", true}, {"100", true},
-		{"-1MiB", false}, {"lots", false}, {"", false}, {"MiB", false}, {"1XiB", false},
+		{"1MiB", true},
+		{"64KiB", true},
+		{"1500B", true},
+		{"1.5MiB", true},
+		{"1 MiB", true},
+		{"2MB", true},
+		{"3GiB", true},
+		{"1TiB", true},
+		{"0B", true},
+		{"0", true},
+		{"100", true},
+		{
+			"0.5B",
+			false,
+		},
+		{"0.5", false},
+		{"1.5B", false},
+		{"-1MiB", false},
+		{"lots", false},
+		{"", false},
+		{"MiB", false},
+		{"1XiB", false},
 	}
 
 	for _, tcase := range tests {

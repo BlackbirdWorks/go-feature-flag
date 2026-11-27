@@ -3,7 +3,9 @@ package bootstrap
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/invopop/jsonschema"
@@ -11,7 +13,10 @@ import (
 )
 
 // byteSizePattern is the string form of a [ByteSize]: a number and an optional unit, such as "1MiB" or "64KiB".
-const byteSizePattern = `^[0-9]+(\.[0-9]+)? ?([kKmMgGtT]i?[bB]?|[bB])?$`
+const byteSizePattern = `^(\d+ ?[bB]?|\d+(\.\d+)? ?[kKmMgGtT]i?[bB]?)$`
+
+// byteSizeRE is [byteSizePattern]: a fraction is only allowed with a unit above the byte.
+var byteSizeRE = regexp.MustCompile(byteSizePattern)
 
 // Byte units of the printed form of a [ByteSize].
 const (
@@ -29,12 +34,19 @@ func (b *ByteSize) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%w: write it as a string such as \"64KiB\"", ErrInvalidByteSize)
 	}
 
-	v, err := humanize.ParseBytes(node.Value)
-	if err != nil || v > math.MaxInt64 {
-		return fmt.Errorf("%w: expected a size such as \"64KiB\"", ErrInvalidByteSize)
+	size, err := humanize.ParseBytes(node.Value)
+	if err != nil || size > math.MaxInt64 || !byteSizeRE.MatchString(node.Value) {
+		return fmt.Errorf(
+			"%w: expected a size such as \"64KiB\", with a fraction only above the byte",
+			ErrInvalidByteSize,
+		)
 	}
 
-	*b = ByteSize(v)
+	if size == 0 && strings.ContainsAny(node.Value, "123456789") {
+		return fmt.Errorf("%w: the size is below one byte", ErrInvalidByteSize)
+	}
+
+	*b = ByteSize(size)
 
 	return nil
 }
@@ -64,8 +76,9 @@ func (b ByteSize) MarshalText() ([]byte, error) { //nolint:unparam // encoding.T
 // JSONSchema describes the string form.
 func (ByteSize) JSONSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Type:        jsonString,
-		Pattern:     byteSizePattern,
-		Description: "Size string, for example 64KiB or 1MiB. Zero means the default of the setting.",
+		Type:    jsonString,
+		Pattern: byteSizePattern,
+		Description: "Size string, for example 64KiB or 1MiB. A fraction is allowed above the byte (1.5MiB), not of a " +
+			"byte. Zero means the default of the setting.",
 	}
 }

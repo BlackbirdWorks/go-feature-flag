@@ -29,11 +29,15 @@ type threadSafeConn struct {
 }
 
 // WriteJSON satisfies stream.WebsocketConnector (used by BroadcastFlagChanges).
-func (c *threadSafeConn) WriteJSON(v any) error {
+func (c *threadSafeConn) WriteJSON(message any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	err := c.conn.WriteJSON(v)
+	// real time on purpose: a network deadline is enforced by the runtime poller. The service closes a client that
+	// misses its own timeout, this deadline ends the write that the close would otherwise have to interrupt.
+	_ = c.conn.SetWriteDeadline(time.Now().Add(writeDeadline))
+
+	err := c.conn.WriteJSON(message)
 	if err != nil {
 		return fmt.Errorf("write websocket JSON: %w", err)
 	}
@@ -63,6 +67,9 @@ func (c *threadSafeConn) ping() error {
 
 	return nil
 }
+
+// writeDeadline is the time the network gets to take one message.
+const writeDeadline = 10 * time.Second
 
 // defaultPingInterval is how often a keep-alive ping is sent to the client.
 const defaultPingInterval = 1 * time.Second
