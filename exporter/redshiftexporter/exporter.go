@@ -173,6 +173,10 @@ func trackingEventColumns() []column {
 // Exporter inserts events in an AWS Redshift table using the Redshift Data API.
 type Exporter struct {
 	initErr error
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// client is the Redshift Data API client, it can be set for testing purposes.
 	client redshiftDataClient
 	// AwsConfig is the AWS SDK configuration used to call the Redshift Data API.
@@ -325,7 +329,7 @@ func (e *Exporter) initClient(ctx context.Context) error {
 		}
 
 		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
+			cfg, err := e.defaultConfig(ctx)
 			if err != nil {
 				e.initErr = fmt.Errorf("redshift exporter: impossible to load AWS config: %w", err)
 
@@ -894,4 +898,19 @@ func quoteTableName(name string) string {
 	}
 
 	return strings.Join(parts, ".")
+}
+
+// defaultConfig loads the configuration of the default AWS chain; only an exporter used as a library, without an
+// AwsConfig, reaches it.
+func (e *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if e.loadConfig != nil {
+		return e.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }

@@ -77,6 +77,10 @@ func (k *DefaultKinesisSender) SendMessages(
 // Exporter sends evaluation events to Amazon Kinesis.
 type Exporter struct {
 	sender MessageSender
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
@@ -355,7 +359,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 		}
 
 		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
+			cfg, err := e.defaultConfig(ctx)
 			if err != nil {
 				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
 
@@ -453,4 +457,19 @@ func (*Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// defaultConfig loads the configuration of the default AWS chain; it is only reached by an exporter that is used as
+// a library and has no AwsConfig.
+func (e *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if e.loadConfig != nil {
+		return e.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }

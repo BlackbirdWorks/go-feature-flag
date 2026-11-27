@@ -22,6 +22,10 @@ var _ exporter.Exporter = &Exporter{}
 // Exporter uploads evaluation events to Amazon S3.
 type Exporter struct {
 	s3Uploader UploaderAPI
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
@@ -142,7 +146,7 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 		}
 
 		if f.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
+			cfg, err := f.defaultConfig(ctx)
 			if err != nil {
 				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
 
@@ -187,4 +191,19 @@ func (f *Exporter) uploadFile(
 	logger.InfoContext(ctx, "[S3Exporter] file uploaded.", slog.String("location", location))
 
 	return nil
+}
+
+// defaultConfig loads the configuration of the default AWS chain; only an exporter used as a library, without an
+// AwsConfig, reaches it.
+func (f *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if f.loadConfig != nil {
+		return f.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }

@@ -25,6 +25,10 @@ var _ exporter.Exporter = &Exporter{}
 // Exporter sends evaluation events to Amazon SQS.
 type Exporter struct {
 	sqsService SQSSendMessageAPI
+	// loadConfig loads the configuration of the default AWS chain when AwsConfig is nil. It is nil in production (then
+	// config.LoadDefaultConfig) and is replaced only by tests: an exporter that is given its configuration, as the
+	// relay proxy does from the connection factory, never calls it.
+	loadConfig func(context.Context) (aws.Config, error)
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
@@ -41,7 +45,7 @@ func (f *Exporter) Export(
 	events []exporter.ExportableEvent,
 ) error {
 	if f.AwsConfig == nil {
-		cfg, err := config.LoadDefaultConfig(ctx)
+		cfg, err := f.defaultConfig(ctx)
 		if err != nil {
 			return fmt.Errorf("impossible to init SQS exporter: %w", err)
 		}
@@ -94,4 +98,19 @@ type SQSSendMessageAPI interface {
 	SendMessage(ctx context.Context,
 		params *sqs.SendMessageInput,
 		optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
+}
+
+// defaultConfig loads the configuration of the default AWS chain; it is only reached by an exporter that is used as
+// a library and has no AwsConfig.
+func (f *Exporter) defaultConfig(ctx context.Context) (aws.Config, error) {
+	if f.loadConfig != nil {
+		return f.loadConfig(ctx)
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load the default AWS configuration: %w", err)
+	}
+
+	return cfg, nil
 }
