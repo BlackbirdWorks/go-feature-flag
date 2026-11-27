@@ -20,6 +20,7 @@ func TestMain(m *testing.M) {
 const (
 	configXYaml = "--config=/x.yaml"
 	configFlag  = "--config"
+	unknownFlag = "--nope"
 	versionFlag = "--version"
 )
 
@@ -36,7 +37,7 @@ func TestVersionRequested(t *testing.T) {
 		{name: "short flag", args: []string{"-v"}, want: true},
 		{name: "after the config flag", args: []string{configXYaml, versionFlag}, want: true},
 		{name: "config only", args: []string{configXYaml}, want: false},
-		{name: "unknown flags are ignored", args: []string{"--nope", "-v"}, want: true},
+		{name: "unknown flags are ignored", args: []string{unknownFlag, "-v"}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,7 +126,7 @@ func TestOverridesFrom(t *testing.T) {
 			want: bootstrap.Overrides{StateDir: "/var/s", StateDirGiven: true},
 		},
 		{name: "state dir given empty", args: []string{"--state-dir="}, want: bootstrap.Overrides{StateDirGiven: true}},
-		{name: "an unknown flag", args: []string{"--nope"}, wantErr: true},
+		{name: "an unknown flag", args: []string{unknownFlag}, wantErr: true},
 		{
 			name: "version is not an override",
 			args: []string{versionFlag, "--listen=:1"},

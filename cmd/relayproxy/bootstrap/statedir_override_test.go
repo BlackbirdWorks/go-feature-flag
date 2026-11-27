@@ -11,6 +11,8 @@ import (
 
 // A state directory flag that is given empty means "no state directory" and wins over the variable and the file; a
 // flag that is not given leaves them in charge.
+const fromEnvDir = "/from-env"
+
 func TestStateDirFlagGivenEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -25,16 +27,16 @@ func TestStateDirFlagGivenEmpty(t *testing.T) {
 		flagGiven bool
 	}{
 		{name: "not given, file only", wantDir: "/from-file"},
-		{name: "not given, env set", env: envMap{bootstrap.EnvStateDir: "/from-env"}, wantDir: "/from-env"},
+		{name: "not given, env set", env: envMap{bootstrap.EnvStateDir: fromEnvDir}, wantDir: fromEnvDir},
 		{name: "given empty, file set", flagGiven: true, wantDir: ""},
 		{
 			name:      "given empty, env and file set",
 			flagGiven: true,
-			env:       envMap{bootstrap.EnvStateDir: "/from-env"},
+			env:       envMap{bootstrap.EnvStateDir: fromEnvDir},
 			wantDir:   "",
 		},
 		{name: "given a value, env and file set", flagGiven: true, flag: "/from-flag",
-			env: envMap{bootstrap.EnvStateDir: "/from-env"}, wantDir: "/from-flag"},
+			env: envMap{bootstrap.EnvStateDir: fromEnvDir}, wantDir: "/from-flag"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

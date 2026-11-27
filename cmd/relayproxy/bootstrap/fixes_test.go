@@ -248,11 +248,11 @@ func TestOverrideErrorsNameTheirSource(t *testing.T) {
 		"controlPlane:\n  connection: control\n  manifest: {key: file.json}\n"
 
 	tests := []struct {
-		name     string
 		env      envMap
-		flags    bootstrap.Overrides
+		name     string
 		wantPath string
 		wantFrom string
+		flags    bootstrap.Overrides
 	}{
 		{
 			name: "variable", env: envMap{bootstrap.EnvLogLevel: levelLoud},

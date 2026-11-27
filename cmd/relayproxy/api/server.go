@@ -76,11 +76,11 @@ func WithListener(l net.Listener) Option {
 	return func(s *Server) { s.listener = l }
 }
 
-// ListenFunc binds an address: net.Listen for the network "tcp" is the default.
+// ListenFunc binds an address; the default binds with [net.ListenConfig].
 type ListenFunc func(ctx context.Context, network, address string) (net.Listener, error)
 
-// WithListenFunc replaces the binding of the configured addresses. A test that checks the address the server binds gives
-// it a function that records the address and returns a listener that is already bound.
+// WithListenFunc replaces the binding of the configured addresses. A test that checks the address the server binds
+// gives it a function that records the address and returns a listener that is already bound.
 func WithListenFunc(listen ListenFunc) Option {
 	return func(s *Server) { s.listen = listen }
 }

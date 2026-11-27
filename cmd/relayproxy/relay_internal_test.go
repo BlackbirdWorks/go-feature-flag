@@ -861,7 +861,7 @@ func TestRunHelpAndUsage(t *testing.T) {
 	}{
 		{name: "long help", args: []string{"--help"}, wantStdout: true},
 		{name: "short help", args: []string{"-h"}, wantStdout: true},
-		{name: "unknown flag", args: []string{"--nope"}, wantCode: exitUsage},
+		{name: "unknown flag", args: []string{unknownFlag}, wantCode: exitUsage},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -879,7 +879,7 @@ func TestRunHelpAndUsage(t *testing.T) {
 				assert.Empty(t, stderr.String())
 			} else {
 				assert.Empty(t, stdout.String())
-				assert.Contains(t, out, "unknown flag: --nope")
+				assert.Contains(t, out, "unknown flag: "+unknownFlag)
 			}
 
 			for _, name := range want {
@@ -906,9 +906,10 @@ func TestDocumentedFlagsAreTheFlagsOfTheCode(t *testing.T) {
 
 	paragraph, _, _ := strings.Cut(after, "\n- ")
 
-	var documented []string
+	matches := regexp.MustCompile("`(--[a-z-]+)`").FindAllStringSubmatch(paragraph, -1)
+	documented := make([]string, 0, len(matches))
 
-	for _, match := range regexp.MustCompile("`(--[a-z-]+)`").FindAllStringSubmatch(paragraph, -1) {
+	for _, match := range matches {
 		documented = append(documented, match[1])
 	}
 

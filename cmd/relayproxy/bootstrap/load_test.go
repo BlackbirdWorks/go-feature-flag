@@ -542,12 +542,12 @@ func TestLoad(t *testing.T) {
 	files := fileMap{etcA: v2Doc, etcBad: v1Doc}
 
 	tests := []struct {
-		name    string
-		flags   bootstrap.Overrides
-		env     envMap
-		opts    func(envMap) bootstrap.LoadOptions
 		wantErr error
+		opts    func(envMap) bootstrap.LoadOptions
+		env     envMap
+		name    string
 		wantMsg string
+		flags   bootstrap.Overrides
 	}{
 		{name: "flag path", flags: bootstrap.Overrides{Config: etcA}},
 		{name: "env path", env: envMap{bootstrap.EnvConfig: etcA}},
