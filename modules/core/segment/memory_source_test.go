@@ -147,8 +147,14 @@ func TestMemorySourceLookupAndExists(t *testing.T) {
 	}
 
 	require.NoError(t, src.Contains(context.Background(), lookups))
-	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.Unknown},
-		[]segment.State{lookups[0].State, lookups[1].State, lookups[2].State})
+	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember},
+		[]segment.State{lookups[0].State, lookups[1].State, lookups[2].State}, "a missing segment has no member")
+
+	src.SetMissing(segment.MissingUnknown)
+
+	again := []segment.Lookup{{Segment: segGhost, ID: "a"}}
+	require.NoError(t, src.Contains(context.Background(), again))
+	assert.Equal(t, segment.Unknown, again[0].State, "Unknown on request")
 
 	states, err := src.Exists(context.Background(), []string{segAlpha, segGhost})
 	require.NoError(t, err)

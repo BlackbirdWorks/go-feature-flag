@@ -173,3 +173,77 @@ func TestRequireVersioner(t *testing.T) {
 	require.ErrorContains(t, err, `segment "alpha"`)
 	assert.ErrorContains(t, err, `store "file"`)
 }
+
+func TestDefinitionMissingKeyAndLayout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		def     segment.Definition
+		wantErr string
+	}{
+		{name: "defaults", def: segment.Definition{Name: segAlpha, Type: segment.TypeRedis}},
+		{
+			name: "missing notMember",
+			def:  segment.Definition{Name: segAlpha, Type: segment.TypeRedis, MissingKey: segment.MissingNotMember},
+		},
+		{
+			name: "missing unknown",
+			def:  segment.Definition{Name: segAlpha, Type: segment.TypeRedis, MissingKey: segment.MissingUnknown},
+		},
+		{
+			name:    "missing invalid",
+			def:     segment.Definition{Name: segAlpha, Type: segment.TypeRedis, MissingKey: "nope"},
+			wantErr: `want notMember or unknown, got "nope"`,
+		},
+		{
+			name: "set layout, snapshot",
+			def:  segment.Definition{Name: segAlpha, Type: segment.TypeRedis, Layout: segment.LayoutSet},
+		},
+		{
+			name: "keys layout, lookup",
+			def: segment.Definition{
+				Name:   segAlpha,
+				Type:   segment.TypeRedis,
+				Layout: segment.LayoutKeys,
+				Mode:   segment.ModeLookup,
+			},
+		},
+		{
+			name: "keys layout, explicit snapshot",
+			def: segment.Definition{
+				Name: segAlpha, Type: segment.TypeRedis, Layout: segment.LayoutKeys, Mode: segment.ModeSnapshot,
+			},
+			wantErr: `"alpha": layout "keys" with mode "snapshot": the keys layout is lookup-only`,
+		},
+		{
+			name:    "keys layout, default mode is snapshot",
+			def:     segment.Definition{Name: segAlpha, Type: segment.TypeRedis, Layout: segment.LayoutKeys},
+			wantErr: `layout "keys" with mode "snapshot": the keys layout is lookup-only`,
+		},
+		{
+			name: "layout invalid", def: segment.Definition{Name: segAlpha, Type: segment.TypeRedis, Layout: "tree"},
+			wantErr: `want set or keys, got "tree"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.def.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, segment.ErrInvalidDefinition)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+
+	keys := segment.Definition{Name: segAlpha, Type: segment.TypeRedis, Layout: segment.LayoutKeys}
+	require.ErrorIs(t, keys.Validate(), segment.ErrKeysSnapshot)
+	assert.Equal(t, segment.MissingNotMember, segment.MissingKey("").Effective())
+}

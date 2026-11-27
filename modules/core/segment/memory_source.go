@@ -38,6 +38,7 @@ type MemorySource struct {
 	pinned   map[string]struct{} // every token ever pinned: a counter version never takes one
 	hook     func(segment string, yielded int)
 	midErr   error
+	missing  MissingKey
 	midAfter int
 	counter  int
 	mu       sync.Mutex
@@ -133,6 +134,13 @@ func (m *MemorySource) SetMembersHook(hook func(segment string, yielded int)) {
 	m.mu.Unlock()
 }
 
+// SetMissing sets what a lookup of a segment that does not exist answers: the default (empty) is NotMember.
+func (m *MemorySource) SetMissing(missing MissingKey) {
+	m.mu.Lock()
+	m.missing = missing
+	m.mu.Unlock()
+}
+
 // Calls is the number of calls of op so far.
 func (m *MemorySource) Calls(op Op) int {
 	m.mu.Lock()
@@ -201,7 +209,8 @@ func (m *MemorySource) Members(ctx context.Context, name string) iter.Seq2[strin
 	}
 }
 
-// Contains implements [Provider]: a segment the source does not hold stays Unknown.
+// Contains implements [Provider]: a segment the source does not hold is NotMember, or Unknown after
+// SetMissing(MissingUnknown).
 func (m *MemorySource) Contains(ctx context.Context, lookups []Lookup) error {
 	err := m.enter(ctx, OpContains)
 	if err != nil {
@@ -214,6 +223,10 @@ func (m *MemorySource) Contains(ctx context.Context, lookups []Lookup) error {
 	for i := range lookups {
 		set, ok := m.sets[lookups[i].Segment]
 		if !ok {
+			if m.missing.Effective() == MissingNotMember {
+				lookups[i].State = NotMember
+			}
+
 			continue
 		}
 

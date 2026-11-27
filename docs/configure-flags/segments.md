@@ -108,8 +108,8 @@ For each segment term the engine learns one of three answers:
 | Answer | Meaning |
 |---|---|
 | member | the value is in the segment |
-| not member | the value is not in the segment |
-| unknown | the answer could not be obtained (the store is down, the lookup timed out, there is no provider) |
+| not member | the value is not in the segment, or the segment does not exist in the store (the default, `missingKey: notMember`) |
+| unknown | the answer could not be obtained (the store is down, the lookup timed out, there is no provider), or the segment does not exist and `missingKey: unknown` was chosen |
 
 A rule combines its terms with three-valued logic. A result that does not depend on an unknown term is still known:
 

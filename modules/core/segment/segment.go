@@ -138,10 +138,14 @@ type Definition struct {
 	OnError OnError
 	// Mode is how a segment that lives in a store is served. Empty means ModeSnapshot.
 	Mode Mode
+	// MissingKey is what a segment that does not exist in the store means. Empty means MissingNotMember.
+	MissingKey MissingKey
+	// Layout is how a store of keys holds the members. Empty means LayoutSet; LayoutKeys is lookup-only.
+	Layout Layout
 }
 
 // Validate returns an error that wraps ErrInvalidDefinition when the definition is not valid.
-func (d Definition) Validate() error {
+func (d *Definition) Validate() error {
 	if !ValidName(d.Name) {
 		return fmt.Errorf("%w: %q: %w", ErrInvalidDefinition, d.Name, errInvalidName)
 	}
@@ -159,7 +163,7 @@ func (d Definition) Validate() error {
 }
 
 // Resolve applies the failure policy of the definition to a lookup state: an Unknown state becomes what OnError says.
-func (d Definition) Resolve(state State) State {
+func (d *Definition) Resolve(state State) State {
 	if state != Unknown {
 		return state
 	}

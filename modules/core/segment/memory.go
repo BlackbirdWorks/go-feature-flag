@@ -83,9 +83,11 @@ func (b *MemberSetBuilder) Build() *MemberSet {
 
 // MemoryProvider is a Provider of segments whose members are held in memory, as a hash set per segment. It serves
 // the segments of type file and the tests. It is immutable and safe for concurrent use: a change of the members is
-// a new MemoryProvider. It does not answer a lookup of a segment it does not hold (the state stays Unknown).
+// a new MemoryProvider. A lookup of a segment it does not hold is NotMember, or Unknown with
+// WithMissing(MissingUnknown).
 type MemoryProvider struct {
-	sets map[string]*MemberSet
+	sets    map[string]*MemberSet
+	missing MissingKey
 }
 
 // NewMemoryProvider returns a provider of the given members, indexed by segment name. The slices are copied.
@@ -104,6 +106,12 @@ func NewMemoryProviderFromSets(sets map[string]*MemberSet) *MemoryProvider {
 	return &MemoryProvider{sets: maps.Clone(sets)}
 }
 
+// WithMissing returns a provider that answers a lookup of a segment it does not hold as the policy says: the default
+// (empty) is MissingNotMember, MissingUnknown leaves the state Unknown.
+func (p *MemoryProvider) WithMissing(missing MissingKey) *MemoryProvider {
+	return &MemoryProvider{sets: p.sets, missing: missing}
+}
+
 // Contains implements Provider. It does not allocate.
 func (p *MemoryProvider) Contains(ctx context.Context, lookups []Lookup) error {
 	err := ctx.Err()
@@ -114,6 +122,10 @@ func (p *MemoryProvider) Contains(ctx context.Context, lookups []Lookup) error {
 	for i := range lookups {
 		set, ok := p.sets[lookups[i].Segment]
 		if !ok {
+			if p.missing.Effective() == MissingNotMember {
+				lookups[i].State = NotMember
+			}
+
 			continue
 		}
 

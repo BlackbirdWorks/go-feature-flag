@@ -208,7 +208,7 @@ func toyFactory(t *testing.T, defect string) segmenttest.Factory {
 		t.Cleanup(provider.stopLeaks)
 
 		return segmenttest.Fixture{
-			Provider: provider, Backend: provider, Bound: 300 * time.Millisecond,
+			Provider: provider, Backend: provider, Bound: 300 * time.Millisecond, Missing: segment.MissingUnknown,
 			Close: provider.Release,
 		}, nil
 	}
@@ -300,6 +300,7 @@ func waivingFactory(t *testing.T, fixtureWaivers segmenttest.Waivers) segmenttes
 
 		return segmenttest.Fixture{
 			Provider:    provider,
+			Missing:     segment.MissingUnknown,
 			Backend:     provider,
 			Unsupported: fixtureWaivers,
 			Close:       provider.Release,
@@ -375,7 +376,11 @@ func TestInvalidWaiversStopTheRun(t *testing.T) {
 				t.Helper()
 
 				return func(data segmenttest.Data) (segmenttest.Fixture, error) {
-					return segmenttest.Fixture{Provider: newToy(data, defectNone), Unsupported: w}, nil
+					return segmenttest.Fixture{
+						Provider:    newToy(data, defectNone),
+						Unsupported: w,
+						Missing:     segment.MissingUnknown,
+					}, nil
 				}
 			},
 			want: "a fixture without a Backend is wrapped by the suite and has nothing to waive",
@@ -429,12 +434,35 @@ func TestFactoryErrorFailsTheCase(t *testing.T) {
 func TestMemoryProviderConforms(t *testing.T) {
 	t.Parallel()
 
-	report := segmenttest.Run(t, func(data segmenttest.Data) (segmenttest.Fixture, error) {
-		return segmenttest.Fixture{Provider: segment.NewMemoryProvider(data)}, nil
+	for _, missing := range []segment.MissingKey{"", segment.MissingNotMember, segment.MissingUnknown} {
+		t.Run("missing "+string(missing), func(t *testing.T) {
+			t.Parallel()
+
+			report := segmenttest.Run(t, func(data segmenttest.Data) (segmenttest.Fixture, error) {
+				return segmenttest.Fixture{
+					Provider: segment.NewMemoryProvider(data).WithMissing(missing), Missing: missing,
+				}, nil
+			}, nil)
+
+			assertUnsupported(
+				t,
+				report,
+				map[string]string{segmenttest.CaseAfterShutdown: "the provider has no Shutdown"},
+			)
+			assert.Empty(t, report.Failed)
+		})
+	}
+}
+
+// A provider that leaves a missing segment Unknown fails the suite under the default policy (not a member).
+func TestTheDefaultPolicyIsNotAMember(t *testing.T) {
+	t.Parallel()
+
+	report := segmenttest.Check(func(data segmenttest.Data) (segmenttest.Fixture, error) {
+		return segmenttest.Fixture{Provider: segment.NewMemoryProvider(data).WithMissing(segment.MissingUnknown)}, nil
 	}, nil)
 
-	assertUnsupported(t, report, map[string]string{segmenttest.CaseAfterShutdown: "the provider has no Shutdown"})
-	assert.Empty(t, report.Failed)
+	assert.Contains(t, report.Failed, segmenttest.CaseUnknownSegment)
 }
 
 // Shutdown makes the toy refuse calls. It is idempotent.

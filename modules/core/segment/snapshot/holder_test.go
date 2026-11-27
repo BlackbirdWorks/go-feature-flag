@@ -41,7 +41,7 @@ func TestHoldersOfOneStoreAreIndependent(t *testing.T) {
 	require.NoError(t, err)
 
 	require.ErrorIs(t, other.Refresh(context.Background()), segment.ErrSegmentMissing)
-	assert.Equal(t, segment.Unknown, other.Lookup("a"))
+	assert.Equal(t, segment.NotMember, other.Lookup("a"), "a segment that does not exist has no member")
 	assert.Equal(t, segment.Member, holder.Lookup("a"))
 	assert.Equal(t, segment.NotMember, holder.Lookup("z"))
 }
@@ -162,12 +162,14 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		setup     func(*segment.MemorySource)
-		wantErr   error
-		name      string
-		wantClass snapshot.Class
-		wantVer   string
-		opts      snapshot.Options
+		setup      func(*segment.MemorySource)
+		wantErr    error
+		name       string
+		wantClass  snapshot.Class
+		wantVer    string
+		opts       snapshot.Options
+		wantState  segment.State
+		wantLoaded bool
 	}{
 		{
 			name: "version fails", setup: func(s *segment.MemorySource) { s.Fail(segment.OpVersion, errBoom) },
@@ -177,8 +179,21 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 			name: "stream fails", setup: func(s *segment.MemorySource) { s.FailMembersAfter(1, errBoom) },
 			wantErr: errBoom, wantClass: snapshot.ClassRead,
 		},
-		{name: "segment missing", setup: func(s *segment.MemorySource) { s.Delete("alpha") },
-			wantErr: segment.ErrSegmentMissing, wantClass: snapshot.ClassMissing, wantVer: segment.AbsentVersion},
+		{
+			name:       "segment missing, default policy: nobody is in it",
+			setup:      func(s *segment.MemorySource) { s.Delete("alpha") },
+			wantErr:    segment.ErrSegmentMissing,
+			wantClass:  snapshot.ClassMissing,
+			wantVer:    segment.AbsentVersion,
+			wantState:  segment.NotMember,
+			wantLoaded: true,
+		},
+		{
+			name: "segment missing, unknown policy", setup: func(s *segment.MemorySource) { s.Delete("alpha") },
+			opts:    snapshot.Options{Missing: segment.MissingUnknown},
+			wantErr: segment.ErrSegmentMissing, wantClass: snapshot.ClassMissing, wantVer: segment.AbsentVersion,
+			wantState: segment.Unknown,
+		},
 		{
 			name: "too many members", opts: snapshot.Options{MaxMembers: 2},
 			wantErr: segment.ErrTooManyMembers, wantClass: snapshot.ClassTooLarge,
@@ -202,8 +217,12 @@ func TestRefreshFailuresBeforeTheFirstPull(t *testing.T) {
 			require.NoError(t, err)
 			require.ErrorIs(t, holder.Refresh(context.Background()), tt.wantErr)
 
-			assert.Equal(t, snapshot.Status{Version: tt.wantVer, LastError: tt.wantClass}, holder.Status())
-			assert.Equal(t, segment.Unknown, holder.Lookup("a"))
+			assert.Equal(
+				t,
+				snapshot.Status{Version: tt.wantVer, LastError: tt.wantClass, Loaded: tt.wantLoaded},
+				holder.Status(),
+			)
+			assert.Equal(t, tt.wantState, holder.Lookup("a"))
 		})
 	}
 }

@@ -79,6 +79,9 @@ type Fixture struct {
 	Unsupported Waivers
 	// Close (optional) releases the provider after the case.
 	Close func()
+	// Missing is what the provider answers for a segment that does not exist: the default (empty) is
+	// segment.MissingNotMember, and segment.MissingUnknown is the explicit opt-in.
+	Missing segment.MissingKey
 	// Bound is how long a case waits for a call that is known to fail by never answering. Zero means ten seconds.
 	Bound time.Duration
 }
@@ -99,7 +102,7 @@ type Report struct {
 // The names of the cases.
 const (
 	CasePositions        = "positions-are-preserved"
-	CaseUnknownSegment   = "unknown-segment-stays-unknown"
+	CaseUnknownSegment   = "missing-segment-answers-its-policy"
 	CaseInputUntouched   = "segment-and-id-are-not-changed"
 	CaseDuplicates       = "duplicates-in-one-call-get-the-same-answer"
 	CaseEmptyCall        = "an-empty-call-is-not-an-error"
@@ -315,7 +318,7 @@ func runOne(factory Factory, declared Waivers, tcase testCase) outcome {
 		return outcome{unsupported: reason}
 	}
 
-	return outcome{ran: true, failures: runCase(tcase, prepared)} // runCase closes the fixture
+	return outcome{ran: true, failures: runCase(tcase, &prepared)} // runCase closes the fixture
 }
 
 // Check runs every case against the providers of the factory and returns the report. It never fails a test.
@@ -419,7 +422,7 @@ func prepare(fixture Fixture) prepared {
 	return prep
 }
 
-func (p prepared) skips(tcase testCase) (string, bool) {
+func (p *prepared) skips(tcase testCase) (string, bool) {
 	if tcase.need == capShutdown {
 		if p.shutdown == nil {
 			return "the provider has no Shutdown", true
@@ -456,7 +459,7 @@ func caseDeadline(tcase testCase, bound time.Duration) time.Duration {
 	return time.Duration(max(tcase.calls, 1)+aroundCalls) * bound
 }
 
-func runCase(tcase testCase, prep prepared) []string {
+func runCase(tcase testCase, prep *prepared) []string {
 	rep := &reporter{}
 	done := make(chan struct{})
 	label := fmt.Sprintf("%s-%p", tcase.name, rep) // unique to this run: runs in parallel must not see each other
@@ -501,7 +504,7 @@ func runCase(tcase testCase, prep prepared) []string {
 	return rep.failures
 }
 
-func (p prepared) bound() time.Duration {
+func (p *prepared) bound() time.Duration {
 	if p.fixture.Bound > 0 {
 		return p.fixture.Bound
 	}
@@ -759,7 +762,12 @@ func caseUnknownSegment(cas *scene) {
 
 	cas.require.NoError(cas.call(background(), lookups), "a segment that is not loaded is not a failure of the call")
 
-	cas.assert.Equal(segment.Unknown, lookups[0].State, "a segment the provider does not hold")
+	want := segment.NotMember
+	if cas.fx.Missing.Effective() == segment.MissingUnknown {
+		want = segment.Unknown
+	}
+
+	cas.assert.Equal(want, lookups[0].State, "a segment the provider does not hold")
 	cas.assert.Equal(segment.Member, lookups[1].State, "the other lookup is answered")
 }
 

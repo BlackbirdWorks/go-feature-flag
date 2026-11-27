@@ -224,7 +224,11 @@ func TestMemoryProvider(t *testing.T) {
 		states[i] = lookups[i].State
 	}
 
-	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember, segment.Unknown}, states)
+	assert.Equal(t, []segment.State{segment.Member, segment.NotMember, segment.NotMember, segment.NotMember}, states)
+
+	unknown := []segment.Lookup{{Segment: segGhost, ID: "x"}}
+	require.NoError(t, provider.WithMissing(segment.MissingUnknown).Contains(context.Background(), unknown))
+	assert.Equal(t, segment.Unknown, unknown[0].State, "a missing segment is Unknown on request")
 	assert.Equal(t, "a", lookups[0].Segment)
 	assert.Equal(t, "x", lookups[0].ID)
 }
