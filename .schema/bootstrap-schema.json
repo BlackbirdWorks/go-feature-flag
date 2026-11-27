@@ -115,6 +115,9 @@
                 },
                 {
                     "$ref": "#/$defs/RedshiftConnection"
+                },
+                {
+                    "$ref": "#/$defs/FileConnection"
                 }
             ]
         },
@@ -1108,6 +1111,24 @@
                 "kind"
             ]
         },
+        "FileConnection": {
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "file"
+                    ]
+                },
+                "path": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type"
+            ]
+        },
         "KafkaFlush": {
             "properties": {
                 "frequency": {
@@ -1437,6 +1458,9 @@
                 "endpoint": {
                     "type": "string"
                 },
+                "caBundleFile": {
+                    "type": "string"
+                },
                 "region": {
                     "type": "string"
                 },
@@ -1734,6 +1758,9 @@
                 "endpoint": {
                     "type": "string"
                 },
+                "caBundleFile": {
+                    "type": "string"
+                },
                 "region": {
                     "type": "string"
                 },
@@ -1778,6 +1805,9 @@
                     "$ref": "#/$defs/Retry"
                 },
                 "endpoint": {
+                    "type": "string"
+                },
+                "caBundleFile": {
                     "type": "string"
                 },
                 "region": {
@@ -1835,6 +1865,9 @@
                     "$ref": "#/$defs/Retry"
                 },
                 "endpoint": {
+                    "type": "string"
+                },
+                "caBundleFile": {
                     "type": "string"
                 },
                 "region": {

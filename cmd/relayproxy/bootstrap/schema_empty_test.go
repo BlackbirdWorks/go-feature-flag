@@ -101,6 +101,7 @@ func emptyValueCases() []emptyValueCase {
 		{setting: "KinesisConnection.type", doc: "connections: {a: {type: \"\", stream: s}}"},
 		{setting: "SQSConnection.type", doc: "connections: {a: {type: \"\", queueUrl: \"https://q.example/q\"}}"},
 		{setting: "RedshiftConnection.type", doc: "connections: {a: {type: \"\", region: us-east-1}}"},
+		{setting: "FileConnection.type", doc: "connections: {a: {type: \"\", path: /srv/control}}"},
 		{setting: "Config.version", doc: "version: \"\""},
 		{setting: "Exporter.kind", doc: "exporters: {a: {kind: \"\"}}"},
 		{setting: "Notifier.kind", doc: "notifiers: {a: {kind: \"\"}}"},

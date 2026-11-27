@@ -15,6 +15,7 @@ const (
 	TypeKinesis  = "kinesis"
 	TypeSQS      = "sqs"
 	TypeRedshift = "redshift"
+	TypeFile     = "file"
 )
 
 // Credential types.
@@ -38,6 +39,7 @@ type Connection struct {
 	Kinesis  *KinesisConnection  `json:"-" yaml:"-"`
 	SQS      *SQSConnection      `json:"-" yaml:"-"`
 	Redshift *RedshiftConnection `json:"-" yaml:"-"`
+	File     *FileConnection     `json:"-" yaml:"-"`
 }
 
 // Type returns the discriminator of the set member, or "" for an empty connection.
@@ -51,6 +53,8 @@ func (c Connection) Type() string {
 		return TypeSQS
 	case c.Redshift != nil:
 		return TypeRedshift
+	case c.File != nil:
+		return TypeFile
 	}
 
 	return ""
@@ -68,8 +72,10 @@ func connectionVariant(name string) (reflect.Type, error) {
 		return reflect.TypeFor[SQSConnection](), nil
 	case TypeRedshift:
 		return reflect.TypeFor[RedshiftConnection](), nil
+	case TypeFile:
+		return reflect.TypeFor[FileConnection](), nil
 	case "valkey", "redis", "webhook", keyKafka, "postgres", "mysql", "dynamodb", "gcs", "azureBlob", "pubsub",
-		"bigquery", "http", "file":
+		"bigquery", "http":
 		return nil, fmt.Errorf("%w: %q", ErrUnsupportedType, name)
 	}
 
@@ -98,10 +104,14 @@ func (c *Connection) UnmarshalYAML(node *yaml.Node) error {
 		c.SQS = new(SQSConnection)
 
 		return decodeVariant(node, c.SQS)
-	default:
+	case reflect.TypeFor[RedshiftConnection]():
 		c.Redshift = new(RedshiftConnection)
 
 		return decodeVariant(node, c.Redshift)
+	default:
+		c.File = new(FileConnection)
+
+		return decodeVariant(node, c.File)
 	}
 }
 
@@ -116,6 +126,8 @@ func (c Connection) MarshalYAML() (any, error) { //nolint:unparam // yaml.Marsha
 		return c.SQS, nil
 	case c.Redshift != nil:
 		return c.Redshift, nil
+	case c.File != nil:
+		return c.File, nil
 	}
 
 	return map[string]string{}, nil
@@ -135,7 +147,7 @@ func (c Connection) MarshalJSON() ([]byte, error) {
 
 // JSONSchema is a oneOf over the members, on the "type" discriminator.
 func (Connection) JSONSchema() *jsonschema.Schema {
-	names := []string{defS3Connection, "KinesisConnection", "SQSConnection", "RedshiftConnection"}
+	names := []string{defS3Connection, "KinesisConnection", "SQSConnection", "RedshiftConnection", "FileConnection"}
 	one := make([]*jsonschema.Schema, 0, len(names))
 
 	for _, n := range names {
@@ -168,6 +180,8 @@ type AWS struct {
 	Retry       *Retry       `json:"retry,omitempty"       yaml:"retry,omitempty"`
 	// Endpoint overrides the service endpoint, for emulators.
 	Endpoint string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	// CABundleFile is a PEM file of certificate authorities trusted in addition to the system roots.
+	CABundleFile string `json:"caBundleFile,omitempty" yaml:"caBundleFile,omitempty"`
 	Region   string `json:"region,omitempty"   yaml:"region,omitempty"`
 }
 

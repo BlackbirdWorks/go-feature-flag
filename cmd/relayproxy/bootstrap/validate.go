@@ -276,6 +276,12 @@ func (v *validator) connection(path string, conn Connection) {
 		return
 	}
 
+	if conn.File != nil {
+		v.require(path+".path", strings.TrimSpace(conn.File.Path) != "", "")
+
+		return
+	}
+
 	awsCfg := conn.aws()
 	v.credentials(path+".credentials", awsCfg.Credentials)
 

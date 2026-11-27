@@ -23,7 +23,7 @@ func JSONSchema() ([]byte, error) {
 
 	for _, t := range []reflect.Type{
 		reflect.TypeFor[S3Connection](), reflect.TypeFor[KinesisConnection](),
-		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](),
+		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](), reflect.TypeFor[FileConnection](),
 	} {
 		member := r.ReflectFromType(t)
 		maps.Copy(root.Definitions, member.Definitions)

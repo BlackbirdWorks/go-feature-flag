@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -68,9 +69,9 @@ func exporterKindCloud(kind string) (exporterSpec, bool) {
 }
 
 // connectionRef checks a reference to a connection by name and returns the connection.
-func (v *validator) connectionRef(path, name, wantType string) (Connection, bool) {
+func (v *validator) connectionRef(path, name string, wantTypes ...string) (Connection, bool) {
 	if name == "" {
-		v.failf(path, ErrMissingValue, "name a connection of type %s", wantType)
+		v.failf(path, ErrMissingValue, "name a connection of type %s", strings.Join(wantTypes, " or "))
 
 		return Connection{}, false
 	}
@@ -82,8 +83,8 @@ func (v *validator) connectionRef(path, name, wantType string) (Connection, bool
 		return Connection{}, false
 	}
 
-	if conn.Type() != wantType {
-		v.failf(path, ErrWrongConnectionType, "connection %q is not of type %s", name, wantType)
+	if !slices.Contains(wantTypes, conn.Type()) {
+		v.failf(path, ErrWrongConnectionType, "connection %q is not of type %s", name, strings.Join(wantTypes, " or "))
 
 		return Connection{}, false
 	}
@@ -259,7 +260,8 @@ func (v *validator) controlPlane() {
 		return
 	}
 
-	if conn, ok := v.connectionRef("controlPlane.connection", plane.Connection, TypeS3); ok && conn.S3.Bucket == "" {
+	conn, ok := v.connectionRef("controlPlane.connection", plane.Connection, TypeS3, TypeFile)
+	if ok && conn.S3 != nil && conn.S3.Bucket == "" {
 		v.failf("controlPlane.connection", ErrMissingValue, "connection %q sets no bucket", plane.Connection)
 	}
 

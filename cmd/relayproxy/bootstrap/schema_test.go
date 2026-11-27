@@ -54,7 +54,7 @@ func TestSchemaShape(t *testing.T) {
 	}{
 		{name: "root has the version key", def: "Config", wantProperty: "version", wantRequired: []string{"version"}},
 		{name: "control plane", def: defMaxManifest, wantProperty: "maxObjects"},
-		{name: "connection is a union", def: "Connection", wantOneOf: 4},
+		{name: "connection is a union", def: "Connection", wantOneOf: 5},
 		{name: "s3 member", def: "S3Connection", wantProperty: tcBucket, wantRequired: []string{typeKey}},
 		{name: "secret reference", def: "Secret", wantProperty: "fromEnv"},
 	}

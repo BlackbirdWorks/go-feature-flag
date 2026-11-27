@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -128,7 +127,7 @@ func targetFromConfig(flags *targetFlags, deps *Deps) (*target, error) {
 		return nil, fmt.Errorf("%s: connection %q: %w", flags.config, plane.Connection, ErrNotS3)
 	}
 
-	spec, err := s3Spec(conn.S3, opts)
+	spec, err := bootstrap.S3Spec(conn.S3, opts)
 	if err != nil {
 		return nil, fmt.Errorf("%s: connection %q: %w", flags.config, plane.Connection, err)
 	}
@@ -150,104 +149,4 @@ func orDefault(v, def string) string {
 	}
 
 	return v
-}
-
-// s3Spec turns the S3 connection of the bootstrap file into the spec of the factory, resolving the secrets.
-func s3Spec(conn *bootstrap.S3Connection, opts bootstrap.LoadOptions) (*connection.S3Spec, error) {
-	creds, err := credentials(conn.Credentials, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	spec := &connection.S3Spec{
-		Credentials:                creds,
-		Endpoint:                   conn.Endpoint,
-		Region:                     conn.Region,
-		Bucket:                     conn.Bucket,
-		RequestChecksumCalculation: connection.ChecksumMode(conn.RequestChecksumCalculation),
-		ResponseChecksumValidation: connection.ChecksumMode(conn.ResponseChecksumValidation),
-		PathStyle:                  conn.PathStyle,
-	}
-
-	if conn.Timeouts != nil {
-		spec.ConnectTimeout = duration(conn.Timeouts.Connect)
-		spec.RequestTimeout = duration(conn.Timeouts.Request)
-	}
-
-	if conn.Retry != nil {
-		spec.Retry.MaxBackoff = duration(conn.Retry.MaxBackoff)
-
-		if conn.Retry.MaxAttempts != nil {
-			spec.Retry.MaxAttempts = *conn.Retry.MaxAttempts
-		}
-	}
-
-	return spec, nil
-}
-
-func duration(d *bootstrap.Duration) time.Duration {
-	if d == nil {
-		return 0
-	}
-
-	return time.Duration(*d)
-}
-
-func credentials(cred *bootstrap.Credentials, opts bootstrap.LoadOptions) (connection.Credentials, error) {
-	if cred == nil {
-		return connection.Credentials{Type: connection.CredentialsChain}, nil
-	}
-
-	out := connection.Credentials{
-		Type:        connection.CredentialsType(cred.Type),
-		RoleARN:     cred.RoleARN,
-		SessionName: cred.SessionName,
-		TokenFile:   cred.TokenFile,
-	}
-
-	var err error
-
-	out.ExternalID, err = resolve(cred.ExternalID, opts)
-	if err != nil {
-		return out, fmt.Errorf("credentials.externalId: %w", err)
-	}
-
-	out.AccessKeyID, err = resolveSecret(cred.AccessKeyID, "accessKeyId", opts)
-	if err != nil {
-		return out, err
-	}
-
-	out.SecretAccessKey, err = resolveSecret(cred.SecretAccessKey, "secretAccessKey", opts)
-	if err != nil {
-		return out, err
-	}
-
-	out.SessionToken, err = resolveSecret(cred.SessionToken, "sessionToken", opts)
-	if err != nil {
-		return out, err
-	}
-
-	return out, nil
-}
-
-func resolve(s bootstrap.Secret, opts bootstrap.LoadOptions) (string, error) {
-	if !s.IsSet() {
-		return "", nil
-	}
-
-	r, err := s.Resolve(opts)
-	if err != nil {
-		return "", err //nolint:wrapcheck // names the variable or file, never the value
-	}
-
-	return r.Reveal(), nil
-}
-
-func resolveSecret(s bootstrap.Secret, field string, opts bootstrap.LoadOptions) (connection.Secret, error) {
-	v, err := resolve(s, opts)
-	if err != nil {
-		return connection.Secret{}, fmt.Errorf("credentials.%s: %w", field, err)
-	}
-
-	return connection.NewSecret(v), nil
 }
