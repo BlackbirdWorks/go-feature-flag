@@ -1,0 +1,450 @@
+## controlplane
+const (
+	APIVersion	= "semaphore/v1"
+
+	DocumentKindManifest	= "Manifest"
+
+	DocumentKindFlagSet	= "FlagSet"
+
+	KindFlags	= "flags"
+
+	KindFlagSets	= "flagSets"
+
+	FormatYAML	= "yaml"
+
+	FormatJSON	= "json"
+
+	FormatTOML	= "toml"
+
+	AlgorithmSHA256	= "sha256"
+
+	ObjectVersion1	= 1
+)
+const (
+	CodeUnresolvedSource	Code	= "unresolved-source"
+
+	CodeDuplicateKey	Code	= "duplicate-key"
+
+	CodeDuplicateName	Code	= "duplicate-name"
+
+	CodeInvalidName	Code	= "invalid-name"
+
+	CodeUnsupportedVersion	Code	= "unsupported-version"
+
+	CodeInvalidChecksum	Code	= "invalid-checksum"
+
+	CodeInvalidValue	Code	= "invalid-value"
+
+	CodeMissingValue	Code	= "missing-value"
+
+	CodeTooManyObjects	Code	= "too-many-objects"
+
+	CodeUndeclaredVariation	Code	= "undeclared-variation"
+)
+const (
+	DefaultMaxObjectBytes	int64	= 16 << 20
+
+	DefaultMaxTotalBytes	int64	= 1 << 30
+
+	DefaultMaxManifestBytes	int64	= 16 << 20
+)
+const (
+	EntryDocument	EntryKind	= "document"
+
+	EntryObject	EntryKind	= "object"
+
+	EntryFlagSet	EntryKind	= "flagSet"
+
+	EntryFlag	EntryKind	= "flag"
+)
+const DefaultMaxObjects = 20000
+const NoIndex = -1
+func (*ChecksumMismatchError) Is(target error) bool
+func (*DecodeError) Is(target error) bool
+func (*KindError) Is(target error) bool
+func (*UnsupportedVersionError) Is(target error) bool
+func (*ValidationError) Is(target error) bool
+func (e *ChecksumMismatchError) Error() string
+func (e *DecodeError) Error() string
+func (e *FieldError) Error() string
+func (e *KindError) Error() string
+func (e *UnsupportedVersionError) Error() string
+func (e *ValidationError) Error() string
+func ChecksumOf(data []byte) Checksum
+func MarshalFlagSet(d *FlagSetDocument) ([]byte, error)
+func MarshalFlagSetJSON(d *FlagSetDocument) ([]byte, error)
+func MarshalFlags(f Flags) ([]byte, error)
+func MarshalFlagsJSON(f Flags) ([]byte, error)
+func MarshalManifest(m *Manifest) ([]byte, error)
+func MarshalManifestJSON(m *Manifest) ([]byte, error)
+func ObjectKey(sum Checksum, ext string) (string, error)
+func UnmarshalFlagSet(data []byte) (*FlagSetDocument, DecodeInfo, error)
+func UnmarshalFlags(data []byte, format string) (Flags, DecodeInfo, error)
+func UnmarshalManifest(data []byte) (*Manifest, DecodeInfo, error)
+func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error
+func ValidateFlagSetDocuments(docs []*FlagSetDocument, manifest *Manifest) error
+func ValidateFlags(flags Flags) error
+func ValidateManifest(manifest *Manifest, opts ...ValidateOption) error
+func VerifyChecksum(data []byte, want Checksum) error
+func WithMaxObjects(limit int) ValidateOption
+type Checksum struct {
+	Algorithm	string	`json:"algorithm" yaml:"algorithm"`
+
+	Value	string	`json:"value" yaml:"value"`
+}
+type ChecksumMismatchError struct {
+	Want	string
+
+	Got	string
+}
+type Code string
+type DecodeError struct {
+	Path	string
+
+	Reason	string
+
+	Line	int
+}
+type DecodeInfo struct {
+	UnknownFields []string
+}
+type EntryKind string
+type Experimentation struct {
+	Start	*"time".Time	`json:"start,omitempty" yaml:"start,omitempty"`
+	End	*"time".Time	`json:"end,omitempty"   yaml:"end,omitempty"`
+}
+type FieldError struct {
+	Path	string
+
+	Reason	string
+
+	Code	Code
+
+	Kind	EntryKind
+
+	Name	string
+
+	Index	int
+}
+type Flag struct {
+	TrackEvents		*bool			`json:"trackEvents,omitempty"      yaml:"trackEvents,omitempty"`
+	Disable			*bool			`json:"disable,omitempty"          yaml:"disable,omitempty"`
+	Version			*string			`json:"version,omitempty"          yaml:"version,omitempty"`
+	Converter		*string			`json:"converter,omitempty"        yaml:"converter,omitempty"`
+	Variations		map[string]any		`json:"variations,omitempty"       yaml:"variations,omitempty"`
+	Targeting		[]Rule			`json:"targeting,omitempty"        yaml:"targeting,omitempty"`
+	BucketingKey		*string			`json:"bucketingKey,omitempty"     yaml:"bucketingKey,omitempty"`
+	DefaultRule		*Rule			`json:"defaultRule,omitempty"      yaml:"defaultRule,omitempty"`
+	ScheduledRollout	[]ScheduledStep		`json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty"`
+	Experimentation		*Experimentation	`json:"experimentation,omitempty"  yaml:"experimentation,omitempty"`
+	Metadata		map[string]any		`json:"metadata,omitempty"         yaml:"metadata,omitempty"`
+}
+type FlagSet struct {
+	Name	string	`json:"name" yaml:"name"`
+
+	Sources	[]string	`json:"sources" yaml:"sources"`
+
+	APIKeys	[]string	`json:"apiKeys,omitempty" yaml:"apiKeys,omitempty"`
+}
+type FlagSetDocument struct {
+	APIVersion	string	`json:"apiVersion" yaml:"apiVersion"`
+
+	Kind	string	`json:"kind" yaml:"kind"`
+
+	FlagSets	[]FlagSet	`json:"flagSets" yaml:"flagSets"`
+}
+type Flags map[string]Flag
+type KindError struct {
+	Got	string
+
+	Want	string
+}
+type Manifest struct {
+	APIVersion	string	`json:"apiVersion" yaml:"apiVersion"`
+
+	Kind	string	`json:"kind" yaml:"kind"`
+
+	Channel	string	`json:"channel" yaml:"channel"`
+
+	Generation	uint64	`json:"generation" yaml:"generation"`
+
+	CreatedAt	*"time".Time	`json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+
+	Objects	[]ManifestObject	`json:"objects" yaml:"objects"`
+}
+type ManifestObject struct {
+	Name	string	`json:"name" yaml:"name"`
+
+	Kind	string	`json:"kind" yaml:"kind"`
+
+	Connection	string	`json:"connection" yaml:"connection"`
+
+	Key	string	`json:"key" yaml:"key"`
+
+	Format	string	`json:"format" yaml:"format"`
+
+	Version	int	`json:"version,omitempty" yaml:"version,omitempty"`
+
+	Checksum	Checksum	`json:"checksum" yaml:"checksum"`
+
+	Size	int64	`json:"size" yaml:"size"`
+
+	VersionID	string	`json:"versionId,omitempty" yaml:"versionId,omitempty"`
+}
+type ProgressiveRollout struct {
+	Initial	*ProgressiveRolloutStep	`json:"initial,omitempty" yaml:"initial,omitempty"`
+	End	*ProgressiveRolloutStep	`json:"end,omitempty"     yaml:"end,omitempty"`
+}
+type ProgressiveRolloutStep struct {
+	Variation	*string		`json:"variation,omitempty"  yaml:"variation,omitempty"`
+	Percentage	*float64	`json:"percentage,omitempty" yaml:"percentage,omitempty"`
+	Date		*"time".Time	`json:"date,omitempty"       yaml:"date,omitempty"`
+}
+type Rule struct {
+	Name			*string			`json:"name,omitempty"               yaml:"name,omitempty"`
+	Query			*string			`json:"query,omitempty"              yaml:"query,omitempty"`
+	Variation		*string			`json:"variation,omitempty"          yaml:"variation,omitempty"`
+	Percentage		map[string]float64	`json:"percentage,omitempty"         yaml:"percentage,omitempty"`
+	ProgressiveRollout	*ProgressiveRollout	`json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty"`
+	Disable			*bool			`json:"disable,omitempty"            yaml:"disable,omitempty"`
+	OnError			*string			`json:"onError,omitempty"            yaml:"onError,omitempty"`
+}
+type ScheduledStep struct {
+	Date		*"time".Time		`json:"date,omitempty"            yaml:"date,omitempty"`
+	TrackEvents	*bool			`json:"trackEvents,omitempty"     yaml:"trackEvents,omitempty"`
+	Disable		*bool			`json:"disable,omitempty"         yaml:"disable,omitempty"`
+	Version		*string			`json:"version,omitempty"         yaml:"version,omitempty"`
+	Variations	map[string]any		`json:"variations,omitempty"      yaml:"variations,omitempty"`
+	Targeting	[]Rule			`json:"targeting,omitempty"       yaml:"targeting,omitempty"`
+	BucketingKey	*string			`json:"bucketingKey,omitempty"    yaml:"bucketingKey,omitempty"`
+	DefaultRule	*Rule			`json:"defaultRule,omitempty"     yaml:"defaultRule,omitempty"`
+	Experimentation	*Experimentation	`json:"experimentation,omitempty" yaml:"experimentation,omitempty"`
+	Metadata	map[string]any		`json:"metadata,omitempty"        yaml:"metadata,omitempty"`
+}
+type UnsupportedVersionError struct {
+	Got	string
+
+	Supported	string
+}
+type ValidateOption func(*validateConfig)
+type ValidationError struct {
+	Problems []FieldError
+}
+var (
+	ErrUnsupportedAPIVersion	= "errors".New("controlplane: unsupported apiVersion")
+
+	ErrWrongKind	= "errors".New("controlplane: wrong document kind")
+
+	ErrInvalid	= "errors".New("controlplane: invalid document")
+
+	ErrChecksumMismatch	= "errors".New("controlplane: checksum mismatch")
+
+	ErrUnsupportedChecksum	= "errors".New("controlplane: unsupported checksum algorithm")
+
+	ErrInvalidChecksum	= "errors".New("controlplane: invalid checksum value")
+
+	ErrInvalidExtension	= "errors".New("controlplane: invalid object extension")
+
+	ErrNilDocument	= "errors".New("controlplane: nil document")
+
+	ErrUnsupportedFormat	= "errors".New("controlplane: unsupported format")
+
+	ErrUnsupportedValue	= "errors".New("controlplane: unsupported value")
+
+	ErrDecode	= "errors".New("controlplane: decode")
+)
+
+## controlplane/flagcheck
+func (*Error) Is(target error) bool
+func (e *Error) Error() string
+func (p FlagProblem) Message() string
+func Check(body []byte, format string) error
+type Error struct {
+	Problems []FlagProblem
+}
+type FlagProblem struct {
+	Err	error
+
+	Flag	string
+}
+var ErrInvalid = "errors".New("flagcheck: invalid flag file")
+
+## controlplane/s3publish
+const (
+	ProblemManifestInvalid	= "manifest-invalid"
+
+	ProblemInvalidEntry	= "invalid-entry"
+
+	ProblemMissing	= "missing"
+
+	ProblemUnreadable	= "unreadable"
+
+	ProblemSizeMismatch	= "size-mismatch"
+
+	ProblemChecksumMismatch	= "checksum-mismatch"
+
+	ProblemInvalidContent	= "invalid-content"
+)
+const (
+	StatusUploaded	Status	= "uploaded"
+
+	StatusPresent	Status	= "present"
+
+	StatusWouldUpload	Status	= "would-upload"
+)
+const DefaultConcurrency = 8
+const MaxHookDetail = 200
+func (e *OperationError) Error() string
+func (e *OperationError) Unwrap() error
+func (p *Publisher) ManifestKey() string
+func (p *Publisher) Publish(ctx "context".Context, req Request) (*Result, error)
+func (p *Publisher) Verify(ctx "context".Context) (*Report, error)
+func (r *Report) OK() bool
+func (r Requests) Total() int
+func New(api API, cfg *Config) (*Publisher, error)
+type API interface {
+	GetObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".GetObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".GetObjectOutput, error)
+	HeadObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".HeadObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".HeadObjectOutput, error)
+	PutObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".PutObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".PutObjectOutput, error)
+}
+type Config struct {
+	Check	func(obj *Object) error
+
+	Bucket	string
+
+	Prefix	string
+
+	Channel	string
+
+	Connection	string
+
+	ManifestKey	string
+
+	MaxObjectBytes	int64
+
+	MaxTotalBytes	int64
+
+	MaxManifestBytes	int64
+
+	MaxObjects	int
+
+	Concurrency	int
+}
+type Object struct {
+	Name	string
+
+	Kind	string
+
+	Format	string
+
+	Source	string
+
+	Body	[]byte
+}
+type ObjectResult struct {
+	Name	string
+	Key	string
+	Status	Status
+	Size	int64
+}
+type OperationError struct {
+	Err	error
+
+	Operation	string
+
+	Key	string
+}
+type Problem struct {
+	Object	string
+
+	Key	string
+
+	Code	string
+
+	Detail	string
+}
+type Publisher struct {
+	// contains filtered or unexported fields
+}
+type Report struct {
+	Channel		string
+	ManifestKey	string
+	ManifestETag	string
+
+	Problems	[]Problem
+
+	Skipped	[]string
+
+	Requests	Requests
+	Generation	uint64
+
+	Attempted	int
+
+	Checked	int
+}
+type Request struct {
+	CreatedAt	*"time".Time
+
+	Objects	[]Object
+
+	Generation	uint64
+
+	DryRun	bool
+
+	ReplaceInvalidManifest	bool
+}
+type Requests struct {
+	Get	int
+	Head	int
+	Put	int
+}
+type Result struct {
+	Channel		string
+	ManifestKey	string
+
+	ManifestETag	string
+
+	Objects	[]ObjectResult
+
+	Warnings	[]string
+
+	Requests	Requests
+
+	Generation	uint64
+
+	Previous	uint64
+
+	UploadedBytes	int64
+
+	Uploaded	int
+	Present		int
+
+	Changed	bool
+
+	Written	bool
+
+	DryRun	bool
+}
+type Status string
+var (
+	ErrInvalid	= "errors".New("s3publish: invalid documents")
+
+	ErrConfig	= "errors".New("s3publish: invalid configuration")
+
+	ErrConflict	= "errors".New("s3publish: the manifest changed since it was read")
+
+	ErrGeneration	= "errors".New("s3publish: generation does not increase")
+
+	ErrChannelMismatch	= "errors".New("s3publish: the manifest in the bucket has another channel")
+
+	ErrPreviousManifest	= "errors".New("s3publish: the manifest in the bucket is not readable")
+
+	ErrObjectMismatch	= "errors".New("s3publish: an object exists with other content")
+
+	ErrLimit	= "errors".New("s3publish: over a limit of the reader")
+
+	ErrManifestKey	= "errors".New("s3publish: an object has the key of the manifest")
+
+	ErrNoManifest	= "errors".New("s3publish: no manifest in the bucket")
+)
+
