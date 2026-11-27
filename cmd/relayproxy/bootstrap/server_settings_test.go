@@ -35,8 +35,7 @@ func TestServerSettings(t *testing.T) {
 		wantHide      bool
 	}{
 		{
-			name: "defaults", doc: settingsBase,
-			wantJSON: 1 << 20, wantYAML: 64 << 10, wantTOML: 64 << 10,
+			name: "defaults stay unset: the endpoint applies 1MiB, 64KiB and 64KiB", doc: settingsBase,
 		},
 		{
 			name: "everything set", wantPprof: true, wantHide: true,
@@ -119,9 +118,9 @@ func TestServerSettings(t *testing.T) {
 			assert.Equal(t, tt.wantStreamURL, cfg.Server.OFREPEventStream.BaseURL)
 			assert.Equal(t, tt.wantDelay, cfg.Server.OFREPEventStream.InactivityDelaySec)
 			assert.Equal(t, tt.wantAnonymous, cfg.Auth.AnonymousFlagSet)
-			assert.Equal(t, tt.wantJSON, int64(*cfg.Server.ValidateFlags.MaxJSONBodySize))
-			assert.Equal(t, tt.wantYAML, int64(*cfg.Server.ValidateFlags.MaxYAMLBodySize))
-			assert.Equal(t, tt.wantTOML, int64(*cfg.Server.ValidateFlags.MaxTOMLBodySize))
+			assert.Equal(t, tt.wantJSON, sizeOf(cfg.Server.ValidateFlags.MaxJSONBodySize))
+			assert.Equal(t, tt.wantYAML, sizeOf(cfg.Server.ValidateFlags.MaxYAMLBodySize))
+			assert.Equal(t, tt.wantTOML, sizeOf(cfg.Server.ValidateFlags.MaxTOMLBodySize))
 		})
 	}
 }
@@ -159,4 +158,13 @@ func TestValidateFlagsPrintRoundTrip(t *testing.T) {
 			assert.Equal(t, *cfg.Server.ValidateFlags.MaxJSONBodySize, *again.Server.ValidateFlags.MaxJSONBodySize)
 		})
 	}
+}
+
+// sizeOf is the size in bytes of a limit, 0 when the file does not set it.
+func sizeOf(size *bootstrap.ByteSize) int64 {
+	if size == nil {
+		return 0
+	}
+
+	return int64(*size)
 }

@@ -2,13 +2,6 @@ package bootstrap
 
 import "strings"
 
-// The defaults of the validate flags limits, as in version 1.
-const (
-	DefaultValidateJSONBodySize = ByteSize(1 << 20)
-	DefaultValidateYAMLBodySize = ByteSize(64 << 10)
-	DefaultValidateTOMLBodySize = ByteSize(64 << 10)
-)
-
 // The paths of the settings of the server that are checked together.
 const (
 	pathOPSPprof    = "server.ops.pprof.enabled"
@@ -41,18 +34,12 @@ type OFREPEventStream struct {
 
 // ValidateFlags are the limits of the body of POST /admin/v1/flags/validate, by format.
 type ValidateFlags struct {
-	// MaxJSONBodySize is the largest JSON body. Default 1MiB.
+	// MaxJSONBodySize is the largest JSON body. Default 1MiB, applied by the endpoint when unset.
 	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema:"default=1MiB" yaml:"maxJsonBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// MaxYAMLBodySize is the largest YAML body. Default 64KiB.
 	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxYamlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// MaxTOMLBodySize is the largest TOML body. Default 64KiB.
 	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxTomlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
-}
-
-func (f *ValidateFlags) applyDefaults() {
-	f.MaxJSONBodySize = orDefault(f.MaxJSONBodySize, DefaultValidateJSONBodySize)
-	f.MaxYAMLBodySize = orDefault(f.MaxYAMLBodySize, DefaultValidateYAMLBodySize)
-	f.MaxTOMLBodySize = orDefault(f.MaxTOMLBodySize, DefaultValidateTOMLBodySize)
 }
 
 // serverSettings checks the settings of the server that are not listeners.

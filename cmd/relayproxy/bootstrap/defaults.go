@@ -68,7 +68,6 @@ func (c *Config) applyDefaults() {
 func (s *Server) applyDefaults() {
 	s.Shutdown.DrainDelay = orDefault(s.Shutdown.DrainDelay, Delay(0))
 	s.Shutdown.Timeout = orDefault(s.Shutdown.Timeout, Duration(DefaultShutdownTimeout))
-	s.ValidateFlags.applyDefaults()
 
 	if len(s.Listeners) == 0 {
 		s.Listeners = []Listener{{Name: RoleAPI, Address: DefaultAPIAddress}}
