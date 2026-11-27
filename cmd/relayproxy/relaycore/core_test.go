@@ -1,0 +1,430 @@
+package relaycore_test
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime/pprof"
+	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
+	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/connection"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+)
+
+const (
+	canaryKey    = "AKIA-CANARY-ACCESS-KEY"
+	canarySecret = "CANARY-SECRET-VALUE"
+)
+
+// hookServer is the endpoint of the webhook notifier: every call is signalled on the channel.
+func hookServer(t *testing.T) (string, <-chan struct{}) {
+	t.Helper()
+
+	calls := make(chan struct{}, 64)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls <- struct{}{}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv.URL, calls
+}
+
+func twoSets(t *testing.T, put func(string, []byte)) *publication {
+	t.Helper()
+
+	return &publication{
+		t: t, put: put,
+		flags: map[string][]byte{objA: flagsYAML(1), objB: flagsYAML(2)},
+		sets: []controlplane.FlagSet{
+			{Name: "one", Sources: []string{objA}, APIKeys: []string{"key-one"}},
+			{Name: "two", Sources: []string{objB}, APIKeys: []string{"key-two"}},
+		},
+	}
+}
+
+func TestNewErrors(t *testing.T) {
+	t.Parallel()
+
+	const awsDoc = "version: 2\nconnections:\n  s3c:\n    type: s3\n    bucket: b\n    credentials:\n" +
+		"      type: static\n      accessKeyId: {fromEnv: AK}\n      secretAccessKey: {fromEnv: SK}\n"
+
+	env := map[string]string{"AK": canaryKey, "SK": canarySecret}
+	hook := map[string]string{hookEnv: "http://127.0.0.1:1"}
+	dir := t.TempDir()
+
+	tests := []struct {
+		build    func(t *testing.T) *bootstrap.Config
+		wantErr  error
+		env      map[string]string
+		name     string
+		wantPath string
+	}{
+		{
+			name:    "no configuration",
+			build:   func(*testing.T) *bootstrap.Config { return nil },
+			wantErr: relaycore.ErrNilConfig,
+		},
+		{
+			name:     "no control plane",
+			build:    func(t *testing.T) *bootstrap.Config { return parse(t, "version: 2\n", secretOptions(nil)) },
+			wantErr:  relaycore.ErrNoControlPlane,
+			wantPath: "controlPlane",
+		},
+		{
+			name: "control plane names a connection that is not there",
+			build: func(t *testing.T) *bootstrap.Config {
+				cfg := parse(t, fileDoc(dir, ""), secretOptions(nil))
+				cfg.ControlPlane.Connection = "elsewhere"
+
+				return cfg
+			},
+			wantErr:  relaycore.ErrUnknownConnection,
+			wantPath: "controlPlane.connection",
+		},
+		{
+			name: "file connection whose directory is missing",
+			build: func(t *testing.T) *bootstrap.Config {
+				return parse(t, fileDoc(filepath.Join(dir, "missing"), ""), secretOptions(nil))
+			},
+			env:      hook,
+			wantErr:  manifestreader.ErrInvalidConfig,
+			wantPath: "connections." + connName + ".path",
+		},
+		{
+			name: "connection whose spec is invalid carries no credential",
+			build: func(t *testing.T) *bootstrap.Config {
+				return parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
+			},
+			env:      env,
+			wantErr:  connection.ErrInvalidSpec,
+			wantPath: "connections.s3c",
+		},
+		{
+			name: "secret that does not resolve",
+			build: func(t *testing.T) *bootstrap.Config {
+				cfg := parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
+				cfg.Connections["s3c"].S3.Region = "us-east-1"
+
+				return cfg
+			},
+			env:      nil,
+			wantErr:  bootstrap.ErrSecretUnresolved,
+			wantPath: "connections.s3c",
+		},
+		{
+			name: "poll interval the reader refuses",
+			build: func(t *testing.T) *bootstrap.Config {
+				cfg := parse(t, fileDoc(dir, ""), secretOptions(nil))
+				poll := bootstrap.Duration(time.Millisecond)
+				cfg.ControlPlane.Manifest.PollInterval = &poll
+
+				return cfg
+			},
+			env:      hook,
+			wantErr:  manifestreader.ErrInvalidConfig,
+			wantPath: "controlPlane.manifest",
+		},
+		{
+			name: "exporters that do not build",
+			build: func(t *testing.T) *bootstrap.Config {
+				return parse(t, fileDoc(dir, ""), secretOptions(nil))
+			},
+			env:      nil,
+			wantErr:  bootstrap.ErrSecretUnresolved,
+			wantPath: "exporters, notifiers",
+		},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			core, err := relaycore.New(tcase.build(t), &relaycore.Deps{Secrets: secretOptions(tcase.env)})
+			require.Error(t, err)
+			assert.Nil(t, core)
+
+			if tcase.wantErr != nil {
+				require.ErrorIs(t, err, tcase.wantErr)
+			}
+
+			if tcase.wantPath != "" {
+				var built *relaycore.BuildError
+
+				require.ErrorAs(t, err, &built)
+				assert.Equal(t, tcase.wantPath, built.Path)
+			}
+
+			assert.NotContains(t, err.Error(), canaryKey)
+			assert.NotContains(t, err.Error(), canarySecret)
+		})
+	}
+}
+
+// A build that fails after the state directory was opened releases it: the same directory opens again.
+func TestFailedBuildReleasesTheStateDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
+	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+
+	bad := parse(t, fileDoc(dir, state), opts)
+	poll := bootstrap.Duration(time.Millisecond)
+	bad.ControlPlane.Manifest.PollInterval = &poll
+
+	_, err := relaycore.New(bad, &relaycore.Deps{Secrets: opts})
+	require.ErrorIs(t, err, manifestreader.ErrInvalidConfig)
+
+	core, err := relaycore.New(parse(t, fileDoc(dir, state), opts), &relaycore.Deps{Secrets: opts})
+	require.NoError(t, err)
+
+	assert.Empty(t, core.Status().StateDirDisabled, "the failed build did not keep the lock")
+	require.NoError(t, core.Shutdown(t.Context()))
+}
+
+// The collector of the events is registered once and removed at shutdown.
+func TestCollectorLifecycle(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+	registry := prometheus.NewRegistry()
+	deps := &relaycore.Deps{Secrets: opts, Registerer: registry}
+
+	first, err := relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+	require.NoError(t, err)
+
+	_, err = relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+
+	var built *relaycore.BuildError
+
+	require.ErrorAs(t, err, &built)
+	assert.Equal(t, "observability.metrics", built.Path)
+
+	require.NoError(t, first.Shutdown(t.Context()))
+
+	second, err := relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+	require.NoError(t, err, "the first core unregistered its collector")
+	require.NoError(t, second.Shutdown(t.Context()))
+}
+
+func TestLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("run then shutdown leaves no goroutine", func(t *testing.T) {
+		t.Parallel()
+
+		dir, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
+		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		cfg := parse(t, fileDoc(dir, state), opts)
+		twoSets(t, filePut(t, dir)).publish()
+
+		deps, rg := newDeps(t, opts)
+		label := t.Name()
+
+		pprof.Do(t.Context(), pprof.Labels("relaycore-test", label), func(ctx context.Context) {
+			core, err := relaycore.New(cfg, deps)
+			require.NoError(t, err)
+
+			done := make(chan error, 1)
+
+			go func() { done <- core.Run(ctx) }()
+
+			rg.settle(t)
+			assert.NotEmpty(t, goroutinesLabelled("relaycore-test", label), "the label reaches the goroutines of the core")
+			require.NoError(t, core.Shutdown(ctx))
+			require.NoError(t, <-done)
+		})
+
+		assert.Empty(t, settledGoroutines("relaycore-test", label))
+	})
+
+	t.Run("shutdown without run", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		cfg := parse(t, fileDoc(dir, ""), opts)
+		label := t.Name()
+
+		pprof.Do(t.Context(), pprof.Labels("relaycore-test", label), func(ctx context.Context) {
+			core, err := relaycore.New(cfg, &relaycore.Deps{Secrets: opts})
+			require.NoError(t, err)
+
+			require.NoError(t, core.Shutdown(ctx))
+			require.ErrorIs(t, core.Run(ctx), relaycore.ErrClosed)
+			require.ErrorIs(t, core.Reload(cfg), relaycore.ErrClosed)
+		})
+
+		assert.Empty(t, settledGoroutines("relaycore-test", label))
+	})
+
+	t.Run("double shutdown and double run", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		deps, rg := newDeps(t, opts)
+		twoSets(t, filePut(t, dir)).publish()
+
+		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		rg.settle(t)
+
+		require.ErrorIs(t, rg.core.Run(t.Context()), relaycore.ErrAlreadyRunning)
+		require.NoError(t, rg.core.Shutdown(t.Context()))
+		require.NoError(t, rg.core.Shutdown(t.Context()))
+		require.NoError(t, <-rg.runDone)
+	})
+
+	t.Run("run ends with its context and shutdown still drains", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		deps, rg := newDeps(t, opts)
+		twoSets(t, filePut(t, dir)).publish()
+
+		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		rg.settle(t)
+		rg.cancel()
+
+		require.NoError(t, <-rg.runDone)
+		require.NoError(t, rg.core.Shutdown(t.Context()))
+	})
+
+	t.Run("shutdown is bounded by its context", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		deps, rg := newDeps(t, opts)
+		twoSets(t, filePut(t, dir)).publish()
+
+		// the engine is held in its first round, so the loops cannot end
+		entered, release := make(chan struct{}), make(chan struct{})
+		deps.Hooks.AfterRound = func(flagruntime.RoundResult) {
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
+
+			<-release
+		}
+
+		rg.wantShutdownErr = relaycore.ErrNotDrained
+		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		<-entered
+
+		expired, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		err := rg.core.Shutdown(expired)
+		require.ErrorIs(t, err, relaycore.ErrNotDrained)
+		require.ErrorIs(t, err, context.Canceled)
+
+		close(release)
+		require.NoError(t, <-rg.runDone)
+
+		// the first result stands for every later call
+		require.ErrorIs(t, rg.core.Shutdown(t.Context()), relaycore.ErrNotDrained)
+	})
+}
+
+func TestReload(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+	deps, rg := newDeps(t, opts)
+	twoSets(t, filePut(t, dir)).publish()
+
+	cfg := parse(t, fileDoc(dir, ""), opts)
+	rg.start(t, cfg, deps)
+	rg.settle(t)
+	rg.awaitGeneration(t, 1)
+
+	require.ErrorIs(t, rg.core.Reload(nil), relaycore.ErrNilConfig)
+	require.ErrorIs(t, rg.core.Reload(parse(t, "version: 2\n", opts)), relaycore.ErrNoControlPlane)
+
+	// an admin key applies live; a change of the exporters waits for a restart and is named in the status
+	next := parse(t, fileDoc(dir, "")+"auth:\n  adminKeys: [admin-key-1]\n", secretOptionsInline(opts))
+	next.Exporters = nil
+	require.NoError(t, rg.core.Reload(next))
+
+	require.Eventually(t, func() bool {
+		_, route := rg.core.Holder().Load().Route("admin-key-1")
+
+		return route == flagruntime.RouteAdmin
+	}, waitBound, time.Millisecond)
+
+	assert.Equal(t, []string{flagruntime.SettingExporters}, rg.core.Holder().Load().Status.PendingRestart)
+	assert.Equal(t, []string{flagruntime.SettingExporters}, rg.core.Status().Source.Runtime.PendingRestart)
+}
+
+func secretOptionsInline(opts bootstrap.LoadOptions) bootstrap.LoadOptions {
+	opts.AllowInlineSecrets = true
+
+	return opts
+}
+
+// Evaluating a flag that tracks its events reaches the exporter, a change of the manifest reaches the notifier,
+// and a state directory that cannot be used does not stop the relay.
+func TestWiring(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	hookURL, hooks := hookServer(t)
+	opts := secretOptions(map[string]string{hookEnv: hookURL})
+	deps, rg := newDeps(t, opts)
+	pub := twoSets(t, filePut(t, dir))
+	pub.publish()
+
+	// the state directory is a file: it is refused
+	notDir := filepath.Join(t.TempDir(), "state-file")
+	require.NoError(t, os.WriteFile(notDir, []byte("x"), 0o600))
+
+	rg.start(t, parse(t, fileDoc(dir, notDir), opts), deps)
+	rg.settle(t)
+	rg.awaitGeneration(t, 1)
+
+	assert.NotEmpty(t, rg.core.Status().StateDirDisabled, "the status says why there is no state directory")
+
+	got, route := rg.value("key-one")
+	assert.Equal(t, flagruntime.RouteFlagSet, route)
+	assert.EqualValues(t, 1, got, "the relay serves without a state directory")
+
+	select {
+	case event := <-rg.exports.got:
+		assert.Equal(t, flagName, event.Key)
+	case <-time.After(waitBound):
+		require.FailNow(t, "the evaluation of a tracked flag did not reach the exporter")
+	}
+
+	pub.flags[objA] = flagsYAML(10)
+	pub.publish()
+	rg.poll(t)
+	rg.awaitGeneration(t, 2)
+
+	select {
+	case <-hooks:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the change of the manifest did not reach the notifier")
+	}
+
+	status := rg.core.Status()
+	require.Len(t, status.Events.Notifiers, 1)
+	assert.Equal(t, "hook", status.Events.Notifiers[0].Name)
+	assert.Equal(t, uint64(2), status.Source.LastGeneration)
+}

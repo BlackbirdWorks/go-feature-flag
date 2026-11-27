@@ -133,7 +133,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
-| `connection` | string | required | name of an `s3` connection that sets a `bucket` |
+| `connection` | string | required | name of an `s3` connection that sets a `bucket`, or of a `file` connection |
 | `manifest.key` | string | required (or `SEMAPHORE_MANIFEST_KEY`) | object key in the connection's bucket |
 | `manifest.channel` | string | `stable` | the expected channel name, not blank |
 | `manifest.pollInterval` | duration | `60s` | positive; overrides the connection's `poll.interval` |
@@ -143,16 +143,17 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 
 ### `connections.<name>`
 
-Every connection has a `type`. The types `s3`, `kinesis`, `sqs` and `redshift` are supported. Types that are planned
+Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift` and `file` are supported. Types that are planned
 but not built yet (`valkey`, `redis`, `webhook`, `kafka`, `postgres`, `mysql`, `dynamodb`, `gcs`, `azureBlob`,
-`pubsub`, `bigquery`, `http`, `file`) fail with `type not supported yet`; any other value is an unknown type.
+`pubsub`, `bigquery`, `http`) fail with `type not supported yet`; any other value is an unknown type.
 
-Settings shared by the four AWS types:
+Settings shared by the AWS types (`s3`, `kinesis`, `sqs`, `redshift`):
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `endpoint` | string | none (the SDK endpoint) | an `http` or `https` URL without credentials, for emulators |
 | `region` | string | none (the SDK chain) | |
+| `caBundleFile` | string | none (the system roots) | a PEM file of certificate authorities trusted in addition, for TLS emulators and private stores |
 | `credentials.type` | string | `chain` | `chain`, `static`, `assumeRole`, `webIdentity` |
 | `credentials.accessKeyId` | secret | | `static` only, required |
 | `credentials.secretAccessKey` | secret | | `static` only, required |
@@ -176,6 +177,7 @@ Extra keys per type:
 | `s3` | `poll.jitter` | number | `0.1` | 0 to 1 |
 | `s3` | `requestChecksumCalculation` | string | `whenSupported` | `whenSupported`, `whenRequired` |
 | `s3` | `responseChecksumValidation` | string | `whenSupported` | `whenSupported`, `whenRequired` |
+| `file` | `path` | string | required | a directory; object keys are read below it, and no key can leave it |
 | `kinesis` | `stream` | string | none | |
 | `sqs` | `queueUrl` | string | none | an `http` or `https` URL without credentials |
 
@@ -287,6 +289,7 @@ connections:
     region: us-east-1
     bucket: dev-flags
     pathStyle: true
+    caBundleFile: /etc/ssl/emulator-ca.pem
     requestChecksumCalculation: whenRequired
     responseChecksumValidation: whenRequired
     credentials:
@@ -296,6 +299,7 @@ connections:
   events-kinesis: {type: kinesis, region: us-east-1, stream: acme-flag-evals}
   events-queue: {type: sqs, region: us-east-1, queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/evals"}
   warehouse: {type: redshift, region: us-east-1}
+  local-control: {type: file, path: /var/lib/semaphore/control}
 exporters:
   evals-kinesis:
     kind: kinesis
