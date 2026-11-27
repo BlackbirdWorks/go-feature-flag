@@ -160,11 +160,16 @@ func startLane(labels context.Context, label string, limit int, send func(*flagr
 		done: make(chan struct{}), started: make(chan struct{}), send: send, onExit: onExit, limit: limit,
 	}
 
-	go pprof.Do(
-		labelsOrBackground(labels),
-		pprof.Labels("corehttp_streams", label),
-		func(context.Context) { queue.run() },
-	)
+	go func() {
+		// done closes after the labels are restored: a closed worker is joined
+		defer close(queue.done)
+
+		pprof.Do(
+			labelsOrBackground(labels),
+			pprof.Labels("corehttp_streams", label),
+			func(context.Context) { queue.run() },
+		)
+	}()
 
 	return queue
 }
@@ -227,7 +232,6 @@ func (l *lane) next() (*flagruntime.Change, bool) {
 func (l *lane) run() {
 	close(l.started)
 
-	defer close(l.done)
 	defer l.onExit()
 
 	for {

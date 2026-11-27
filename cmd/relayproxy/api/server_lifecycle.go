@@ -267,9 +267,24 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 	}
 }
 
-// Stop shutdown the API server.
-// It waits for StartWithContext to return (servers drained) or for ctx to be done.
-func (s *Server) Stop(ctx context.Context) { _ = s.Shutdown(ctx) }
+// Stop shuts the API server down.
+// It waits for StartWithContext to return (servers drained) or for ctx to be done; a ctx without a deadline is
+// bounded by [gracefulShutdownTimeout], so that a caller that passes [context.Background] does not wait for ever.
+func (s *Server) Stop(ctx context.Context) {
+	bounded, cancel := boundedStop(ctx, gracefulShutdownTimeout)
+	defer cancel()
+
+	_ = s.Shutdown(bounded)
+}
+
+// boundedStop is ctx when it has a deadline, else ctx with the deadline of d.
+func boundedStop(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+	if _, bounded := ctx.Deadline(); bounded {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, d)
+}
 
 // Shutdown stops the servers gracefully: the listeners close and the requests in flight finish. When ctx ends first
 // the servers close hard, the requests still in flight are cut, and the error says so (it wraps [ErrCut]).

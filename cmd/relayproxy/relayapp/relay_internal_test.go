@@ -185,9 +185,11 @@ type rigOptions struct {
 	reads        chan string
 	drainWait    func(ctx context.Context, delay time.Duration) error
 	onDraining   func(ctx context.Context)
-	extra        string
-	manifestKey  string
-	flags        []string
+	// readFile replaces the reading of the bootstrap file (a gate of the test).
+	readFile    func(string) ([]byte, error)
+	extra       string
+	manifestKey string
+	flags       []string
 	// serverOptions are added to the options of the API server, listenFails makes it fail to bind its address.
 	serverOptions []api.Option
 	listenFails   bool
@@ -254,7 +256,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 	opts := &runOptions{
 		Args:   append([]string{configFlag, rig.cfgPath}, ropts.flags...),
 		Stdout: rig.stdout, Stderr: rig.stderr,
-		Load:   bootstrap.LoadOptions{ReadFile: os.ReadFile},
+		Load:   bootstrap.LoadOptions{ReadFile: readFileOf(ropts)},
 		Reload: rig.reload,
 		Deps: relaycore.Deps{
 			Scheduler: rig.sched,
@@ -1078,4 +1080,13 @@ func (r *relayRig) awaitTimeout() time.Duration {
 
 		return 0
 	}
+}
+
+// readFileOf is the file reader of the rig: the one of the options, else the real one.
+func readFileOf(ropts *rigOptions) func(string) ([]byte, error) {
+	if ropts.readFile != nil {
+		return ropts.readFile
+	}
+
+	return os.ReadFile
 }

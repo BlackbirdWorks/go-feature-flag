@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"runtime/pprof"
 	"strings"
 	"sync/atomic"
@@ -21,6 +22,9 @@ import (
 )
 
 const (
+	// logStreams and logCore are steps of the shutdown in the log.
+	logStreams = "shutdown: change streams closed"
+	logCore    = "shutdown: core stopped"
 	drainExtra = "server:\n  shutdown: {drainDelay: 20s}\n"
 	// slowBody is the body of the slow request, sent when the test says so.
 	slowBody = `{"context":{"targetingKey":"u"}}`
@@ -162,8 +166,8 @@ func TestShutdownLetsARequestInFlightFinish(t *testing.T) {
 	last := -1
 
 	for _, line := range []string{
-		"shutdown: readiness off", "shutdown: change streams closed", "shutdown: API server stopped",
-		"shutdown: core stopped",
+		"shutdown: readiness off", logStreams, "shutdown: API server stopped",
+		logCore,
 	} {
 		at := strings.Index(log, line)
 		require.Positive(t, at, "%q is logged", line)
@@ -381,6 +385,122 @@ func TestShutdownContextEndedDuringTheHTTPDrain(t *testing.T) {
 	require.Error(t, err, "the connection was cut")
 }
 
+// The run context ends while a reload is held on a gate: the watcher of the second stop request is already there,
+// so the shutdown context ends, the shutdown skips the drain delay, stops hard and exits 1.
+func TestSecondStopRequestIsNotLostDuringAReload(t *testing.T) {
+	t.Parallel()
+
+	var reloading atomic.Bool
+
+	entered := make(chan struct{})
+	gate := make(chan struct{})
+
+	rig := startRelay(t, &rigOptions{
+		extra: drainExtra,
+		readFile: func(name string) ([]byte, error) {
+			if reloading.Load() {
+				close(entered)
+				<-gate
+			}
+
+			return os.ReadFile(name)
+		},
+		drainWait: func(context.Context, time.Duration) error {
+			assert.Fail(t, "the drain delay ran after a hard stop")
+
+			return nil
+		},
+		// the shutdown ends its first step only once the hard stop reached its context
+		onDraining: func(ctx context.Context) {
+			select {
+			case <-ctx.Done():
+			case <-time.After(waitBound):
+				assert.Fail(t, "the shutdown context did not end")
+			}
+		},
+	})
+	rig.awaitGeneration(1)
+
+	// registered after the rig: it runs first, so the held reload ends before the rig is joined
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
+
+	reloading.Store(true)
+
+	rig.reload <- struct{}{}
+
+	select {
+	case <-entered:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the reload did not start")
+	}
+
+	rig.cancel() // the first stop request, while the loop is busy
+
+	select {
+	case endShutdown := <-rig.hardStop: // the watcher of the second one exists already
+		endShutdown()
+	case <-time.After(waitBound):
+		require.FailNow(t, "no watcher of the second stop request while the reload was held")
+	}
+
+	close(gate)
+
+	assert.Equal(t, 1, rig.awaitCode())
+	assert.Contains(t, rig.stderr.String(), "shutdown: stopped hard")
+	assert.NotContains(t, rig.stderr.String(), "still serving")
+}
+
+// A failure after the start begins the shutdown: the first stop request after it (a signal) is the operator's stop
+// and cleanup goes on, it is not a hard stop. The exit code is the failure's, and nothing is cut.
+func TestFirstStopRequestAfterAFailureIsNotAHardStop(t *testing.T) {
+	t.Parallel()
+
+	inCleanup := make(chan struct{})
+	release := make(chan struct{})
+
+	rig := startRelay(t, &rigOptions{
+		listenFails: true,
+		onDraining: func(context.Context) {
+			close(inCleanup)
+			<-release
+		},
+	})
+
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	select {
+	case <-inCleanup:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the cleanup after the failure did not start")
+	}
+
+	rig.cancel() // the first signal, during the cleanup
+
+	select {
+	case <-rig.hardStop: // the watcher of the next request exists; nobody ends the shutdown context
+	case <-time.After(waitBound):
+		require.FailNow(t, "no watcher of the next stop request after the first signal")
+	}
+
+	close(release)
+
+	assert.Equal(t, 1, rig.awaitCode(), "the exit code is the failure's")
+	assert.Contains(t, rig.stderr.String(), logCore, "the cleanup completed")
+	assert.NotContains(t, rig.stderr.String(), "stopped hard")
+}
+
 // The context given to the shutdown is not the signal context: it is alive when the signal context is done.
 func TestShutdownContextIsNotTheSignalContext(t *testing.T) {
 	t.Parallel()
@@ -420,8 +540,18 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 
 	// the workers of the two streams (websocket and SSE) keep the label that started them: wait until both entered
 	// their run loops, then count
-	started := <-rig.started
-	require.NoError(t, started.streams.AwaitStarted(t.Context()))
+	var started *relay
+
+	select {
+	case started = <-rig.started:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the relay did not report that it started")
+	}
+
+	awaitCtx, endAwait := context.WithTimeout(t.Context(), waitBound)
+	defer endAwait()
+
+	require.NoError(t, started.streams.AwaitStarted(awaitCtx), "the stream workers did not enter their run loops")
 
 	assert.Equal(t, 2, goroutinesRunning(rig.label, "(*lane).run"), "the stream workers carry the label")
 
@@ -430,7 +560,25 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 
 	<-rig.finished
 
-	// a goroutine that signalled its end may still be returning: wait, bounded, until none is left
-	assert.Eventually(t, func() bool { return goroutinesOf(rig.label) == 0 }, waitBound, time.Millisecond,
-		"goroutines of the relay are left")
+	// Shutdown joined everything it owns (the stream workers, the heartbeats, the loops): nothing is left
+	if left := labelled(rig.label); left != "" {
+		assert.Fail(t, "goroutines of the relay are left", left)
+	}
+}
+
+// labelled lists the stacks of the goroutines that carry the label of the rig.
+func labelled(label string) string {
+	var dump bytes.Buffer
+
+	_ = pprof.Lookup("goroutine").WriteTo(&dump, 1)
+
+	var out strings.Builder
+
+	for block := range strings.SplitSeq(dump.String(), "\n\n") {
+		if strings.Contains(block, fmt.Sprintf("%q:%q", rigLabel, label)) {
+			out.WriteString(block + "\n\n")
+		}
+	}
+
+	return out.String()
 }

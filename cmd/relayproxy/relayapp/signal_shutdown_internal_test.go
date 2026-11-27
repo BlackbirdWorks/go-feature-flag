@@ -31,12 +31,13 @@ func TestRealSignals(t *testing.T) {
 		wantLog   []string
 		signals   []syscall.Signal
 		wantCode  int
+		failStart bool
 	}{
 		{
 			name: "SIGTERM stops the relay in order", signals: []syscall.Signal{syscall.SIGTERM},
 			wantLog: []string{
-				"shutdown: readiness off", "shutdown: change streams closed", "shutdown: API server stopped",
-				"shutdown: core stopped",
+				"shutdown: readiness off", logStreams, "shutdown: API server stopped",
+				logCore,
 			},
 			wantNoLog: "stopped hard",
 		},
@@ -44,7 +45,14 @@ func TestRealSignals(t *testing.T) {
 			name: "a second SIGINT during the drain delay stops hard", extra: drainExtra,
 			signals:  []syscall.Signal{syscall.SIGTERM, syscall.SIGINT},
 			wantCode: 1,
-			wantLog:  []string{"shutdown: the drain delay was cut short", "shutdown: stopped hard"},
+			wantLog:  []string{"shutdown: stopped hard"}, // the signal may come before or during the drain delay
+		},
+		{
+			// the first signal after a failure is the operator's stop request: cleanup goes on, nothing is cut
+			name: "one SIGTERM after a failed start is not a hard stop", failStart: true, extra: drainExtra,
+			signals: []syscall.Signal{syscall.SIGTERM}, wantCode: 1,
+			wantLog:   []string{logStreams, logCore},
+			wantNoLog: "stopped hard",
 		},
 	}
 	for _, tt := range tests {
@@ -68,29 +76,57 @@ func TestRealSignals(t *testing.T) {
 			var stderr syncBuffer
 
 			draining := make(chan struct{})
+			release := make(chan struct{})
 			done := make(chan int, 1)
 
 			go func() {
 				done <- mainWith(ctx, []string{"--config", cfg}, &syncBuffer{}, &stderr, noEnv, Build{Version: testVersion},
 					func(opts *runOptions) {
 						opts.ServerOptions = []api.Option{api.WithListener(listener)}
+						if tt.failStart {
+							opts.ServerOptions = []api.Option{
+								api.WithListenFunc(func(context.Context, string, string) (net.Listener, error) {
+									return nil, errPortInUse
+								}),
+							}
+						}
+
 						// the drain delay of the real timer is long: only the second signal ends it
-						opts.OnDraining = func(context.Context) { close(draining) }
+						opts.OnDraining = func(context.Context) {
+							close(draining)
+
+							if tt.failStart {
+								<-release // the cleanup after the failure is held until the signal arrived
+							}
+						}
 					})
 			}()
 
-			require.Eventually(t, func() bool { return ready(t.Context(), address) }, waitBound, 20*time.Millisecond,
-				"the relay never became ready")
+			if tt.failStart {
+				awaitSignal(t, draining, "the cleanup after the failure did not start", &stderr)
+
+				t.Cleanup(func() {
+					select {
+					case <-release:
+					default:
+						close(release)
+					}
+				})
+			} else {
+				require.Eventually(t, func() bool { return ready(t.Context(), address) }, waitBound,
+					20*time.Millisecond, "the relay never became ready")
+			}
 
 			require.NoError(t, syscall.Kill(os.Getpid(), tt.signals[0]))
 
+			if tt.failStart {
+				<-ctx.Done() // the run context ended: the signal was seen by the first watcher only
+				close(release)
+			}
+
 			if len(tt.signals) > 1 {
 				// the shutdown context watches signals before the hook runs
-				select {
-				case <-draining:
-				case <-time.After(waitBound):
-					require.FailNow(t, "the shutdown did not start", stderr.String())
-				}
+				awaitSignal(t, draining, "the shutdown did not start", &stderr)
 
 				require.NoError(t, syscall.Kill(os.Getpid(), tt.signals[1]))
 			}
@@ -102,19 +138,10 @@ func TestRealSignals(t *testing.T) {
 				require.FailNow(t, "the relay did not exit", stderr.String())
 			}
 
-			log := stderr.String()
-			last := -1
-
-			for _, step := range tt.wantLog {
-				at := strings.Index(log, step)
-				require.Positive(t, at, "%q is logged", step)
-				assert.Greater(t, at, last, "%q follows the previous step", step)
-
-				last = at
-			}
+			assertSteps(t, stderr.String(), tt.wantLog)
 
 			if tt.wantNoLog != "" {
-				assert.NotContains(t, log, tt.wantNoLog)
+				assert.NotContains(t, stderr.String(), tt.wantNoLog)
 			}
 		})
 	}
@@ -135,4 +162,30 @@ func ready(ctx context.Context, address string) bool {
 	_ = resp.Body.Close()
 
 	return resp.StatusCode == http.StatusOK
+}
+
+// awaitSignal waits for the channel, within the failure bound.
+func awaitSignal(t *testing.T, signalled <-chan struct{}, failure string, stderr *syncBuffer) {
+	t.Helper()
+
+	select {
+	case <-signalled:
+	case <-time.After(waitBound):
+		require.FailNow(t, failure, stderr.String())
+	}
+}
+
+// assertSteps checks that every step is in the log, in the order given.
+func assertSteps(t *testing.T, log string, steps []string) {
+	t.Helper()
+
+	last := -1
+
+	for _, step := range steps {
+		at := strings.Index(log, step)
+		require.Positive(t, at, "%q is logged", step)
+		assert.Greater(t, at, last, "%q follows the previous step", step)
+
+		last = at
+	}
 }

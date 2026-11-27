@@ -139,8 +139,53 @@ func mainWith(
 	return run(ctx, opts)
 }
 
-// signalContext is the context of the shutdown: it is not derived from the cancelled context of the run, and a new
-// SIGINT or SIGTERM (the second one) ends it, which is the hard stop.
+// hardStop returns the shutdown context: it is not derived from runCtx, and it ends when a stop request comes after
+// the first one. The first request is the one that ends runCtx (a signal), or an internal failure that started the
+// shutdown before any signal; the watcher of the next request (newSignals) starts as soon as runCtx ends, so that
+// no request is lost while the relay is busy. release ends the context and joins the watcher; armed waits for the
+// watcher.
+func hardStop(
+	runCtx context.Context, newSignals func(context.Context) (context.Context, context.CancelFunc),
+) (context.Context, func(), func()) {
+	hard, endHard := context.WithCancel(context.WithoutCancel(runCtx))
+	watcherDone := make(chan struct{})
+	armedCh := make(chan struct{})
+
+	stopWatching := context.AfterFunc(runCtx, func() {
+		defer close(watcherDone)
+
+		next, stop := newSignals(runCtx)
+		defer stop()
+
+		close(armedCh)
+
+		select {
+		case <-next.Done():
+			endHard()
+		case <-hard.Done():
+		}
+	})
+
+	release := func() {
+		endHard()
+
+		if !stopWatching() {
+			<-watcherDone // the watcher started: it ends now that hard is done
+		}
+	}
+
+	// armed waits until the watcher of the next request exists, when runCtx has ended (the watcher is then on its
+	// way): the shutdown starts with the next request already watched.
+	armed := func() {
+		if runCtx.Err() != nil {
+			<-armedCh
+		}
+	}
+
+	return hard, release, armed
+}
+
+// signalContext watches the next SIGINT or SIGTERM: it ends when one arrives.
 func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.WithoutCancel(parent), os.Interrupt, syscall.SIGTERM)
 }
@@ -445,6 +490,15 @@ func shutdownTimeoutOf(d *bootstrap.Duration) time.Duration {
 func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error), opts *runOptions) int {
 	code := 0
 
+	newSignals := opts.ShutdownContext
+	if newSignals == nil {
+		newSignals = signalContext
+	}
+
+	// the watcher of the second stop request starts the moment the run context ends, whatever the loop is doing
+	shutdownCtx, release, armed := hardStop(ctx, newSignals)
+	defer release()
+
 	for done := false; !done; {
 		select {
 		case <-ctx.Done():
@@ -458,13 +512,7 @@ func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error)
 		}
 	}
 
-	newShutdownContext := opts.ShutdownContext
-	if newShutdownContext == nil {
-		newShutdownContext = signalContext
-	}
-
-	shutdownCtx, cancel := newShutdownContext(ctx)
-	defer cancel()
+	armed()
 
 	if r.Shutdown(shutdownCtx) != nil {
 		code = 1
@@ -500,8 +548,8 @@ func (r *relay) reload(ctx context.Context, load func() (*bootstrap.Config, erro
 
 // drain keeps serving for the drain delay: it ends early when ctx ends (the second signal).
 func (r *relay) drain(ctx context.Context) {
-	if r.drainDelay <= 0 {
-		return
+	if r.drainDelay <= 0 || ctx.Err() != nil {
+		return // no delay, or the shutdown is already a hard stop
 	}
 
 	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: draining, still serving", slog.Duration("drainDelay", r.drainDelay))
