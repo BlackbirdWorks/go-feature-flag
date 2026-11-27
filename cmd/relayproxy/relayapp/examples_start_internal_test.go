@@ -1,4 +1,4 @@
-package main
+package relayapp
 
 import (
 	"os"
@@ -18,7 +18,7 @@ import (
 func TestShippedExamplesStart(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	tests := []struct {
 		name     string
 		file     string
