@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 // fakeReply is the scripted reply of one command: an error or a value.
@@ -132,7 +132,7 @@ func (f *fakeStore) cache(name string, args []any) {
 		return
 	}
 
-	if text, _ := args[1].(string); text == valkeysegment.Script {
+	if text, _ := args[1].(string); text == redissegment.Script {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 
@@ -140,7 +140,7 @@ func (f *fakeStore) cache(name string, args []any) {
 			f.scripts = map[string]bool{}
 		}
 
-		f.scripts[valkeysegment.ScriptSHA] = true
+		f.scripts[redissegment.ScriptSHA] = true
 	}
 }
 

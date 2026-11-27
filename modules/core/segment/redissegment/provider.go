@@ -1,4 +1,4 @@
-package valkeysegment
+package redissegment
 
 import (
 	"context"
@@ -32,7 +32,7 @@ type segmentConfig struct {
 	layout Layout
 }
 
-// Provider is a [segment.Provider] over Valkey. It is safe for concurrent use.
+// Provider is a [segment.Provider] over Redis or Valkey through go-redis. It is safe for concurrent use.
 type Provider struct {
 	plans     sync.Pool
 	stopCtx   context.Context //nolint:containedctx // ends the calls in flight when Shutdown runs out of time
@@ -509,7 +509,7 @@ func (r *result) completed(cmd *redis.Cmd, err error, shape int) bool {
 // cmdErr returns the error of a command, or the pipeline error when the command has no reply.
 func (r *result) cmdErr(cmd *redis.Cmd, shape int) error {
 	if r.malformed != nil {
-		return fmt.Errorf("valkey segment: pipeline: %w", r.malformed)
+		return fmt.Errorf("redis segment: pipeline: %w", r.malformed)
 	}
 
 	if cmd == nil {
@@ -518,12 +518,12 @@ func (r *result) cmdErr(cmd *redis.Cmd, shape int) error {
 
 	err := cmd.Err()
 	if err != nil && !r.completed(cmd, err, shape) {
-		return fmt.Errorf("valkey segment: reply: %w", err)
+		return fmt.Errorf("redis segment: reply: %w", err)
 	}
 
 	if cmd.Val() == nil {
 		if r.execErr != nil {
-			return fmt.Errorf("valkey segment: pipeline: %w", r.execErr)
+			return fmt.Errorf("redis segment: pipeline: %w", r.execErr)
 		}
 
 		return ErrProtocol
@@ -733,7 +733,7 @@ func (p *Provider) Health() segment.Health {
 }
 
 // ErrInit is wrapped, with the sentinel of the class, by the error of Init.
-var ErrInit = errors.New("valkey segment: init failed")
+var ErrInit = errors.New("redis segment: init failed")
 
 // Init checks that the store answers (a PING under the timeout of the provider) and that it has the commands that
 // the layouts need: SMISMEMBER for a set segment, EXISTS for a keys segment, EVAL for Atomic. It also learns
@@ -788,7 +788,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	select {
 	case <-p.drained:
 	case <-ctx.Done():
-		waitErr = fmt.Errorf("valkey segment: shutdown: %w", ctx.Err())
+		waitErr = fmt.Errorf("redis segment: shutdown: %w", ctx.Err())
 	}
 
 	p.stopStore()
@@ -1285,7 +1285,7 @@ func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, sc
 
 	_, err := pipe.Exec(ctx) // the error of each command is on the command too
 	if err != nil {
-		return true, fmt.Errorf("valkey segment: script pipeline: %w", err)
+		return true, fmt.Errorf("redis segment: script pipeline: %w", err)
 	}
 
 	return true, nil

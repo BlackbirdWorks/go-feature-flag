@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 const (
@@ -24,8 +24,8 @@ const (
 	// panicText stands for a secret that a panic value could carry.
 	panicText = "secret-panic-text"
 	// msgUnavailable1of2 is the text of a failure of one lookup in two.
-	msgUnavailable1of2 = "valkey segment: unavailable: 1 of 2 lookups failed"
-	msgUnavailable2of2 = "valkey segment: unavailable: 2 of 2 lookups failed"
+	msgUnavailable1of2 = "redis segment: unavailable: 1 of 2 lookups failed"
+	msgUnavailable2of2 = "redis segment: unavailable: 2 of 2 lookups failed"
 	segOther           = "other"
 )
 
@@ -115,11 +115,11 @@ func TestClusterRedirectsAndCrossSlotAreServerFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassServer,
-			wantSentry:  valkeysegment.ErrServer,
+			wantClass:   redissegment.ClassServer,
+			wantSentry:  redissegment.ErrServer,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: server: 1 of 1 lookups failed",
+			wantMessage: "redis segment: server: 1 of 1 lookups failed",
 		}
 	}
 
@@ -143,29 +143,29 @@ func TestAPanickingClientIsRecovered(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	ctx := boundedCtx(t)
 
 	// Contains: the state the caller left is not kept, and the error has a fixed text
 	lookups := []segment.Lookup{{Segment: segBeta, ID: idAlice, State: segment.Member}, lk(segBeta, "zed")}
 	err := prov.Contains(ctx, lookups)
 
-	require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
-	assert.Equal(t, "valkey segment: unavailable: 2 of 2 lookups failed", err.Error())
+	require.ErrorIs(t, err, redissegment.ErrUnavailable)
+	assert.Equal(t, "redis segment: unavailable: 2 of 2 lookups failed", err.Error())
 	assert.Equal(t, []segment.State{segment.Unknown, segment.Unknown}, states(lookups))
-	assert.Equal(t, valkeysegment.ClassUnavailable, prov.Status().LastFailure)
+	assert.Equal(t, redissegment.ClassUnavailable, prov.Status().LastFailure)
 
 	// Init
 	err = prov.Init(ctx)
 
-	require.ErrorIs(t, err, valkeysegment.ErrInit)
-	require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
+	require.ErrorIs(t, err, redissegment.ErrInit)
+	require.ErrorIs(t, err, redissegment.ErrUnavailable)
 	assert.NotContains(t, err.Error(), panicText)
 
 	// Exists
 	got, err := prov.Exists(ctx, []string{segBeta})
 
-	require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
+	require.ErrorIs(t, err, redissegment.ErrUnavailable)
 	assert.NotContains(t, err.Error(), panicText)
 	assert.Equal(t, []segment.State{segment.Unknown}, got)
 
@@ -182,17 +182,17 @@ func TestACallAfterShutdownNeverReachesTheStore(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	require.NoError(t, prov.Shutdown(boundedCtx(t)))
 
 	lookups := []segment.Lookup{{Segment: segBeta, ID: idAlice, State: segment.Member}}
 	states2, existsErr := prov.Exists(boundedCtx(t), []string{segBeta})
 
-	require.ErrorIs(t, prov.Contains(boundedCtx(t), lookups), valkeysegment.ErrClosed)
+	require.ErrorIs(t, prov.Contains(boundedCtx(t), lookups), redissegment.ErrClosed)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
-	require.ErrorIs(t, prov.Init(boundedCtx(t)), valkeysegment.ErrClosed)
-	require.ErrorIs(t, existsErr, valkeysegment.ErrClosed)
+	require.ErrorIs(t, prov.Init(boundedCtx(t)), redissegment.ErrClosed)
+	require.ErrorIs(t, existsErr, redissegment.ErrClosed)
 	assert.Equal(t, []segment.State{segment.Unknown}, states2)
 	assert.Empty(t, store.commands())
 }
@@ -201,7 +201,7 @@ func TestAnEndedContextMakesNoCall(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cancel()
@@ -209,9 +209,9 @@ func TestAnEndedContextMakesNoCall(t *testing.T) {
 	initErr := prov.Init(ctx)
 	got, existsErr := prov.Exists(ctx, []string{segBeta})
 
-	require.ErrorIs(t, initErr, valkeysegment.ErrInit)
-	require.ErrorIs(t, initErr, valkeysegment.ErrCanceled)
-	require.ErrorIs(t, existsErr, valkeysegment.ErrCanceled)
+	require.ErrorIs(t, initErr, redissegment.ErrInit)
+	require.ErrorIs(t, initErr, redissegment.ErrCanceled)
+	require.ErrorIs(t, existsErr, redissegment.ErrCanceled)
 	assert.Equal(t, []segment.State{segment.Unknown}, got)
 	assert.Empty(t, store.commands())
 }
@@ -221,7 +221,7 @@ func TestShutdownWaitsForTheCallsInFlight(t *testing.T) {
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.hold}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	containsDone := make(chan error, 1)
 	shutdownDone := make(chan error, 1)
@@ -255,7 +255,7 @@ func TestShutdownThatRunsOutOfTimeEndsTheCallsInFlight(t *testing.T) {
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.holdCtx}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	containsDone := make(chan error, 1)
 
@@ -270,7 +270,7 @@ func TestShutdownThatRunsOutOfTimeEndsTheCallsInFlight(t *testing.T) {
 	err := prov.Shutdown(expired)
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.ErrorIs(t, <-containsDone, valkeysegment.ErrCanceled)
+	require.ErrorIs(t, <-containsDone, redissegment.ErrCanceled)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 	assert.Equal(t, [][]string{{cmdBeta + " " + idAlice, existsBeta}}, store.commands())
 }
@@ -279,7 +279,7 @@ func TestNoOpCallsAfterShutdownAreClosed(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	require.NoError(t, prov.Shutdown(boundedCtx(t)))
 
@@ -311,7 +311,7 @@ func TestNoOpCallsAfterShutdownAreClosed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.ErrorIs(t, tt.call(), valkeysegment.ErrClosed)
+			require.ErrorIs(t, tt.call(), redissegment.ErrClosed)
 		})
 	}
 
@@ -345,14 +345,14 @@ func goroutinesLabeled(t *testing.T, value, function string) int {
 	return total
 }
 
-const labelKey = "valkeysegment-test"
+const labelKey = "redissegment-test"
 
 func TestShutdownCallsShareOneWaiter(t *testing.T) {
 	t.Parallel()
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.hold}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	containsDone := make(chan error, 1)
 
 	go func() { containsDone <- prov.Contains(boundedCtx(t), []segment.Lookup{lk(segBeta, idAlice)}) }()

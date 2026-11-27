@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 	t.Parallel()
 
-	script := "eval " + valkeysegment.Script + " 1 "
-	bySHA := "evalsha " + valkeysegment.ScriptSHA + " 1 "
+	script := "eval " + redissegment.Script + " 1 "
+	bySHA := "evalsha " + redissegment.ScriptSHA + " 1 "
 
 	tests := []struct {
-		opts         *valkeysegment.Options
+		opts         *redissegment.Options
 		name         string
 		lookups      []segment.Lookup
 		wantCommands [][]string
@@ -28,14 +28,14 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 	}{
 		{
 			name:         "atomic is one script that checks the key and the ids (loaded by the first call)",
-			opts:         &valkeysegment.Options{Atomic: true, Segments: twoSegments()},
+			opts:         &redissegment.Options{Atomic: true, Segments: twoSegments()},
 			lookups:      []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantCommands: [][]string{{bySHA + keyBeta + " alice zed"}, {script + keyBeta + " alice zed"}},
 			wantStates:   []segment.State{segment.Member, segment.NotMember},
 		},
 		{
 			name:    "a script for each set in the same pipeline",
-			opts:    &valkeysegment.Options{Atomic: true, Segments: twoSegments()},
+			opts:    &redissegment.Options{Atomic: true, Segments: twoSegments()},
 			lookups: []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, idAlice), lk(segBeta, "zed")},
 			wantCommands: [][]string{
 				{bySHA + keyBeta + " alice zed", bySHA + keyChurned + " alice"},
@@ -45,15 +45,15 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 		},
 		{
 			name:         "without atomic it is two commands",
-			opts:         &valkeysegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{Segments: twoSegments()},
 			lookups:      []segment.Lookup{lk(segBeta, idAlice)},
 			wantCommands: [][]string{{cmdBeta + " alice", existsBeta}},
 			wantStates:   []segment.State{segment.Member},
 		},
 		{
 			name: "atomic without a key check has nothing to protect",
-			opts: &valkeysegment.Options{
-				Atomic: true, MissingKey: valkeysegment.MissingNotMember, Segments: twoSegments(),
+			opts: &redissegment.Options{
+				Atomic: true, MissingKey: redissegment.MissingNotMember, Segments: twoSegments(),
 			},
 			lookups:      []segment.Lookup{lk(segBeta, idAlice)},
 			wantCommands: [][]string{{cmdBeta + " alice"}},
@@ -61,10 +61,10 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 		},
 		{
 			name: "atomic with only a keys segment has nothing to protect",
-			opts: &valkeysegment.Options{
+			opts: &redissegment.Options{
 				Atomic: true,
-				Segments: map[string]valkeysegment.SegmentOptions{
-					"f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+				Segments: map[string]redissegment.SegmentOptions{
+					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
 			},
 			lookups:      []segment.Lookup{lk("f", idAlice)},
@@ -118,13 +118,13 @@ func TestAtomicScriptReplies(t *testing.T) {
 			name:       "too few replies",
 			reply:      []any{int64(1), int64(1)},
 			wantStates: []segment.State{segment.Unknown, segment.Unknown},
-			wantErr:    valkeysegment.ErrProtocol,
+			wantErr:    redissegment.ErrProtocol,
 		},
 		{
 			name:       "a reply that is not 0 or 1",
 			reply:      []any{int64(1), int64(5), int64(0)},
 			wantStates: []segment.State{segment.Unknown, segment.Unknown},
-			wantErr:    valkeysegment.ErrProtocol,
+			wantErr:    redissegment.ErrProtocol,
 		},
 	}
 
@@ -133,7 +133,7 @@ func TestAtomicScriptReplies(t *testing.T) {
 			t.Parallel()
 
 			store := &fakeStore{reply: func([]any) *fakeReply { return &fakeReply{value: tt.reply} }}
-			prov := newProvider(t, store, &valkeysegment.Options{Atomic: true, Segments: twoSegments()})
+			prov := newProvider(t, store, &redissegment.Options{Atomic: true, Segments: twoSegments()})
 			lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")}
 
 			err := prov.Contains(context.Background(), lookups)
@@ -156,42 +156,42 @@ func TestInitStatusAndShutdown(t *testing.T) {
 		wantErr    error
 		store      *fakeStore
 		name       string
-		wantStatus valkeysegment.Status
+		wantStatus redissegment.Status
 	}{
 		{
 			name:       "the store answers",
 			store:      &fakeStore{},
-			wantStatus: valkeysegment.Status{Ready: true},
+			wantStatus: redissegment.Status{Ready: true},
 		},
 		{
 			name:       nameStoreDown,
 			store:      &fakeStore{exec: func(context.Context) error { return errDial }},
-			wantErr:    valkeysegment.ErrUnavailable,
-			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassUnavailable},
+			wantErr:    redissegment.ErrUnavailable,
+			wantStatus: redissegment.Status{LastFailure: redissegment.ClassUnavailable},
 		},
 		{
 			name: "the reply is not a pong",
 			store: &fakeStore{reply: func([]any) *fakeReply {
 				return &fakeReply{}
 			}},
-			wantErr:    valkeysegment.ErrProtocol,
-			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassProtocol},
+			wantErr:    redissegment.ErrProtocol,
+			wantStatus: redissegment.Status{LastFailure: redissegment.ClassProtocol},
 		},
 		{
 			name: "the reply is another string than PONG",
 			store: &fakeStore{reply: func([]any) *fakeReply {
 				return &fakeReply{value: "OK"}
 			}},
-			wantErr:    valkeysegment.ErrProtocol,
-			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassProtocol},
+			wantErr:    redissegment.ErrProtocol,
+			wantStatus: redissegment.Status{LastFailure: redissegment.ClassProtocol},
 		},
 		{
 			name: "the reply is an error of the store",
 			store: &fakeStore{reply: func([]any) *fakeReply {
 				return &fakeReply{err: serverError{msg: "NOPERM"}}
 			}},
-			wantErr:    valkeysegment.ErrServer,
-			wantStatus: valkeysegment.Status{LastFailure: valkeysegment.ClassServer},
+			wantErr:    redissegment.ErrServer,
+			wantStatus: redissegment.Status{LastFailure: redissegment.ClassServer},
 		},
 	}
 
@@ -199,13 +199,13 @@ func TestInitStatusAndShutdown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov := newProvider(t, tt.store, &valkeysegment.Options{})
+			prov := newProvider(t, tt.store, &redissegment.Options{})
 
 			err := prov.Init(context.Background())
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
-				require.ErrorIs(t, err, valkeysegment.ErrInit)
+				require.ErrorIs(t, err, redissegment.ErrInit)
 			} else {
 				require.NoError(t, err)
 			}
@@ -235,22 +235,22 @@ func TestStatusFollowsTheCalls(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	require.NoError(t, prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}))
-	assert.Equal(t, valkeysegment.Status{Ready: true}, prov.Status())
+	assert.Equal(t, redissegment.Status{Ready: true}, prov.Status())
 
 	down = true
 
 	require.Error(t, prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}))
-	assert.Equal(t, valkeysegment.Status{Ready: true, LastFailure: valkeysegment.ClassUnavailable}, prov.Status())
+	assert.Equal(t, redissegment.Status{Ready: true, LastFailure: redissegment.ClassUnavailable}, prov.Status())
 }
 
 func TestExists(t *testing.T) {
 	t.Parallel()
 
-	segs := map[string]valkeysegment.SegmentOptions{
-		segBeta: {}, segGone: {}, "f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+	segs := map[string]redissegment.SegmentOptions{
+		segBeta: {}, segGone: {}, "f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 	}
 
 	tests := []struct {
@@ -287,7 +287,7 @@ func TestExists(t *testing.T) {
 			store:      &fakeStore{exec: func(context.Context) error { return errDial }},
 			names:      []string{segBeta},
 			wantStates: []segment.State{segment.Unknown},
-			wantErr:    valkeysegment.ErrUnavailable,
+			wantErr:    redissegment.ErrUnavailable,
 			wantCmds:   [][]string{{existsBeta}},
 		},
 		{
@@ -297,7 +297,7 @@ func TestExists(t *testing.T) {
 			}},
 			names:      []string{segBeta},
 			wantStates: []segment.State{segment.Unknown},
-			wantErr:    valkeysegment.ErrProtocol,
+			wantErr:    redissegment.ErrProtocol,
 			wantCmds:   [][]string{{existsBeta}},
 		},
 	}
@@ -306,7 +306,7 @@ func TestExists(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov := newProvider(t, tt.store, &valkeysegment.Options{Segments: segs})
+			prov := newProvider(t, tt.store, &redissegment.Options{Segments: segs})
 
 			got, err := prov.Exists(context.Background(), tt.names)
 
@@ -325,15 +325,15 @@ func TestExists(t *testing.T) {
 func TestDocumentedDefaults(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 100*time.Millisecond, valkeysegment.DefaultTimeout)
-	assert.Equal(t, "semaphore:segment:", valkeysegment.DefaultKeyPrefix)
+	assert.Equal(t, 100*time.Millisecond, redissegment.DefaultTimeout)
+	assert.Equal(t, "semaphore:segment:", redissegment.DefaultKeyPrefix)
 
 	tests := []struct {
 		name        string
 		timeout     time.Duration
 		wantTimeout time.Duration
 	}{
-		{name: "the default timeout", wantTimeout: valkeysegment.DefaultTimeout},
+		{name: "the default timeout", wantTimeout: redissegment.DefaultTimeout},
 		{name: "a configured timeout", timeout: 3 * time.Second, wantTimeout: 3 * time.Second},
 	}
 
@@ -351,9 +351,9 @@ func TestDocumentedDefaults(t *testing.T) {
 
 					return nil
 				}}
-				prov := newProvider(t, store, &valkeysegment.Options{
+				prov := newProvider(t, store, &redissegment.Options{
 					Timeout:  tt.timeout,
-					Segments: map[string]valkeysegment.SegmentOptions{"ghost": {}},
+					Segments: map[string]redissegment.SegmentOptions{"ghost": {}},
 				})
 				lookups := []segment.Lookup{lk("ghost", idAlice)}
 

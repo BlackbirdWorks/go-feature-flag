@@ -1,6 +1,6 @@
 //go:build docker
 
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -18,9 +18,9 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
 // seed loads the data of the suite into the server in the layout of the provider. The factory of the suite runs on
@@ -29,15 +29,15 @@ func seed(
 	srv *server,
 	tag string,
 	data segmenttest.Data,
-	layout valkeysegment.Layout,
-) (map[string]valkeysegment.SegmentOptions, error) {
+	layout redissegment.Layout,
+) (map[string]redissegment.SegmentOptions, error) {
 	ctx := context.Background()
-	segs := map[string]valkeysegment.SegmentOptions{}
+	segs := map[string]redissegment.SegmentOptions{}
 
 	for name, ids := range data {
-		if layout == valkeysegment.LayoutSet {
+		if layout == redissegment.LayoutSet {
 			key := "contract:" + tag + ":{" + name + "}"
-			segs[name] = valkeysegment.SegmentOptions{Key: key}
+			segs[name] = redissegment.SegmentOptions{Key: key}
 
 			err := srv.client.Del(ctx, key).Err()
 			if err != nil {
@@ -58,7 +58,7 @@ func seed(
 		}
 
 		prefix := "contract:" + tag + ":" + name + ":"
-		segs[name] = valkeysegment.SegmentOptions{Layout: valkeysegment.LayoutKeys, Key: prefix}
+		segs[name] = redissegment.SegmentOptions{Layout: redissegment.LayoutKeys, Key: prefix}
 
 		for _, id := range ids {
 			err := srv.client.Set(ctx, prefix+id, "1", 0).Err()
@@ -79,13 +79,13 @@ func TestE2EConformance(t *testing.T) {
 	var cases atomic.Int64
 
 	tests := []struct {
-		opts   *valkeysegment.Options
+		opts   *redissegment.Options
 		name   string
-		layout valkeysegment.Layout
+		layout redissegment.Layout
 	}{
-		{name: "set layout", layout: valkeysegment.LayoutSet},
-		{name: "set layout atomic", layout: valkeysegment.LayoutSet, opts: &valkeysegment.Options{Atomic: true}},
-		{name: nameKeysLayout, layout: valkeysegment.LayoutKeys},
+		{name: "set layout", layout: redissegment.LayoutSet},
+		{name: "set layout atomic", layout: redissegment.LayoutSet, opts: &redissegment.Options{Atomic: true}},
+		{name: nameKeysLayout, layout: redissegment.LayoutKeys},
 	}
 
 	for _, tt := range tests {
@@ -98,7 +98,7 @@ func TestE2EConformance(t *testing.T) {
 				caseSrv.pipelines = &caseSrv.fault.count
 				caseSrv.client = caseSrv.newClient(t, srv.address)
 
-				opts := &valkeysegment.Options{}
+				opts := &redissegment.Options{}
 
 				if tt.opts != nil {
 					*opts = *tt.opts
@@ -112,7 +112,7 @@ func TestE2EConformance(t *testing.T) {
 
 				opts.Segments = segs
 
-				prov, err := valkeysegment.New(caseSrv.client, opts)
+				prov, err := redissegment.New(caseSrv.client, opts)
 				if err != nil {
 					return segmenttest.Fixture{}, err
 				}
@@ -132,9 +132,9 @@ func TestE2EAtomicSetSwapNeverReadsAMissingKey(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, live, "stable").Err())
 
-	prov, err := valkeysegment.New(srv.client, &valkeysegment.Options{
+	prov, err := redissegment.New(srv.client, &redissegment.Options{
 		Atomic: true, Timeout: 5 * time.Second,
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: live}},
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: live}},
 	})
 	require.NoError(t, err)
 
@@ -192,13 +192,13 @@ func TestE2EInitStatusExists(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "life:{beta}", "alice").Err())
 
-	prov, err := valkeysegment.New(srv.client, &valkeysegment.Options{
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: "life:{beta}"}, segGone: {Key: "life:{gone}"}},
+	prov, err := redissegment.New(srv.client, &redissegment.Options{
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "life:{beta}"}, segGone: {Key: "life:{gone}"}},
 	})
 	require.NoError(t, err)
 
 	require.NoError(t, prov.Init(ctx))
-	assert.Equal(t, valkeysegment.Status{Ready: true}, prov.Status())
+	assert.Equal(t, redissegment.Status{Ready: true}, prov.Status())
 
 	got, err := prov.Exists(ctx, []string{segBeta, segGone, "unconfigured"})
 	require.NoError(t, err)
@@ -318,9 +318,9 @@ func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 	proxy := newOutageProxy(t, srv.address)
 	client := srv.newClient(t, proxy.addr())
 
-	inner, err := valkeysegment.New(client, &valkeysegment.Options{
+	inner, err := redissegment.New(client, &redissegment.Options{
 		Timeout:  2 * time.Second,
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: "breaker:{beta}"}},
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "breaker:{beta}"}},
 	})
 	require.NoError(t, err)
 
@@ -348,7 +348,7 @@ func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 
 	for range 3 {
 		got, err = call()
-		require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
+		require.ErrorIs(t, err, redissegment.ErrUnavailable)
 		assert.Equal(t, []segment.State{segment.Unknown}, got)
 	}
 
@@ -390,9 +390,9 @@ func TestE2EResolverCachesAndCoalescesOnARealServer(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "res:{beta}", "alice").Err())
 
-	inner, err := valkeysegment.New(srv.client, &valkeysegment.Options{
+	inner, err := redissegment.New(srv.client, &redissegment.Options{
 		Timeout:  5 * time.Second,
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: "res:{beta}"}},
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "res:{beta}"}},
 	})
 	require.NoError(t, err)
 
@@ -464,9 +464,9 @@ func BenchmarkE2EContains(b *testing.B) {
 
 	for _, atomicTx := range []bool{false, true} {
 		b.Run("atomic="+strconv.FormatBool(atomicTx), func(b *testing.B) {
-			prov, err := valkeysegment.New(srv.client, &valkeysegment.Options{
+			prov, err := redissegment.New(srv.client, &redissegment.Options{
 				Atomic: atomicTx, Timeout: 5 * time.Second,
-				Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: "bench:{beta}"}},
+				Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "bench:{beta}"}},
 			})
 			require.NoError(b, err)
 
