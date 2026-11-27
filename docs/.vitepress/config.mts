@@ -274,6 +274,7 @@ export default withMermaid({
           { text: 'Data Collection', link: '/go-module/data_collection' },
           { text: 'Notifiers', link: '/go-module/notifier' },
           { text: 'Control Plane Documents', link: '/go-module/controlplane' },
+          { text: 'Publish to S3', link: '/go-module/s3publish' },
         ],
       },
       {
@@ -300,6 +301,8 @@ export default withMermaid({
           { text: 'Evaluate Flags', link: '/tooling/evaluate' },
           { text: 'Lint Flags', link: '/tooling/linter' },
           { text: 'Generate Manifest', link: '/tooling/generate' },
+          { text: 'Publish', link: '/tooling/publish' },
+          { text: 'Config', link: '/tooling/config' },
           { text: 'JSON Schema Autocomplete', link: '/tooling/autocomplete' },
         ],
       },

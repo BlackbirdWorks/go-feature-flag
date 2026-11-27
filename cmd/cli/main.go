@@ -2,13 +2,16 @@ package main
 
 import (
 	"crypto/fips140"
+	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/config"
 	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
+	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
 )
 
@@ -20,13 +23,28 @@ var (
 )
 
 func main() {
-	err := initRootCmd().Execute()
-	if err != nil {
-		helper.PrintFatalAndExit(err)
-	}
+	os.Exit(execute(os.Args[1:]))
 }
 
-func initRootCmd() *cobra.Command {
+// execute runs the command line and returns the exit code of the process. One stream rule holds for every command:
+// stdout carries results only, stderr carries every diagnostic (Cobra's usage and errors, and the final error line).
+// The exit code is 1 unless the command defines another one (2, 3, 4 or 5, see helper.ExitError).
+func execute(args []string) int {
+	cmd := initRootCmd(args)
+	cmd.SetArgs(args)
+
+	err := cmd.Execute()
+	if err == nil {
+		return 0
+	}
+
+	code := helper.ExitCodeOf(err)
+	helper.PrintFatal(helper.FatalPrinter(os.Stderr), func(int) {}, err)
+
+	return code
+}
+
+func initRootCmd(args []string) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "semaphore-cli",
 		Short: "Semaphore CLI tool",
@@ -39,6 +57,17 @@ func initRootCmd() *cobra.Command {
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())
 	rootCmd.AddCommand(generate.NewGenerateCmd())
+	// The commands read the raw arguments to know about --output json when a flag does not parse.
+	rawArgs := func() []string { return args }
+
+	publishDeps := publish.DefaultDeps()
+	publishDeps.Args = rawArgs
+
+	configDeps := config.DefaultDeps()
+	configDeps.Args = rawArgs
+
+	rootCmd.AddCommand(publish.NewPublishCmdWith(publishDeps))
+	rootCmd.AddCommand(config.NewConfigCmdWith(configDeps))
 
 	return rootCmd
 }

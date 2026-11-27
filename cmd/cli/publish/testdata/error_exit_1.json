@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "usage",
+    "message": "usage: give --config, or --bucket and --region",
+    "details": []
+  }
+}

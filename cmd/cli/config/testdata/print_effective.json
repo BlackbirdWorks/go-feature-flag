@@ -1,0 +1,76 @@
+{
+  "connections": {
+    "control": {
+      "credentials": {
+        "type": "static",
+        "accessKeyId": {
+          "fromEnv": "CONTROL_KEY_ID"
+        },
+        "secretAccessKey": {
+          "fromFile": "/run/secrets/control-secret"
+        }
+      },
+      "timeouts": {
+        "connect": "10s",
+        "request": "30s"
+      },
+      "retry": {
+        "maxAttempts": 3,
+        "maxBackoff": "20s"
+      },
+      "region": "us-east-1",
+      "poll": {
+        "interval": "60s",
+        "jitter": 0.1
+      },
+      "type": "s3",
+      "bucket": "acme-control",
+      "requestChecksumCalculation": "whenSupported",
+      "responseChecksumValidation": "whenSupported"
+    }
+  },
+  "controlPlane": {
+    "manifest": {
+      "pollInterval": "60s",
+      "jitter": 0.1,
+      "maxObjects": 20000,
+      "key": "manifests/stable.yaml",
+      "channel": "stable"
+    },
+    "connection": "control"
+  },
+  "server": {
+    "listeners": [
+      {
+        "name": "api",
+        "address": ":1031",
+        "role": "api",
+        "protocols": [
+          "http1"
+        ]
+      }
+    ]
+  },
+  "observability": {
+    "logging": {
+      "level": "debug",
+      "format": "json"
+    },
+    "metrics": {
+      "enabled": true
+    },
+    "tracing": {
+      "serviceName": "semaphore",
+      "sampler": "parentbased_always_off"
+    }
+  },
+  "auth": {
+    "adminKeys": [
+      "[REDACTED]",
+      {
+        "fromEnv": "ADMIN_KEY"
+      }
+    ]
+  },
+  "version": 2
+}

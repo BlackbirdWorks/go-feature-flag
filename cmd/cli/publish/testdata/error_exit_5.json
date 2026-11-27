@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "bad-state",
+    "message": "s3publish: the manifest in the bucket is not readable: manifests/stable.yaml: decode manifest: controlplane: wrong document kind: got \"\", want \"Manifest\"; to replace it set Request.ReplaceInvalidManifest (CLI: --replace-invalid-manifest) together with an explicit generation",
+    "details": []
+  }
+}

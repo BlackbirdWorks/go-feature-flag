@@ -1,0 +1,5 @@
+dry run: would write generation 1 (the bucket holds 0) to manifests/stable.yaml, channel stable; nothing written
+objects: 2 to upload, 0 already present, 225 bytes to upload
+requests: 1 get, 2 head, 0 put
+  would-upload  checkout  objects/sha256/85/8500b7b202c6d6ba249f43494e2f7ef51a0bad128c2e20a4e0a4ce0265f5c9f7.yaml (96 bytes)
+  would-upload  checkout-sets  objects/sha256/c4/c4ef26315e1f35c8e7e5059bd9ef09dcae019d4ae3cf0d12172c0e0b5147eb5a.yaml (129 bytes)

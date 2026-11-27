@@ -65,7 +65,7 @@ objects:
 | `objects[].format` | `yaml`, `json` (and `toml` for `flags`) |
 | `objects[].version` | optional integer; 1 (the default) is the headerless flag format; a newer one is an entry problem |
 | `objects[].checksum` | `sha256` and 64 lower-case hex characters |
-| `objects[].size` | bytes, 0 or more |
+| `objects[].size` | bytes. Size 0 is valid for the format, but the relay reader marks that entry `invalid-size` and skips it (the other entries still load), and `s3publish` refuses to write an empty object. A negative size makes the whole manifest invalid |
 | `objects[].versionId` | optional version id of the store |
 
 ### Flag-set document
@@ -226,6 +226,7 @@ object keys are content addressed and immutable, so two writers never overwrite 
 | `MarshalManifestJSON`, `MarshalFlagSetJSON`, `MarshalFlagsJSON` | the same documents as indented JSON |
 | `UnmarshalManifest`, `UnmarshalFlagSet`, `UnmarshalFlags(data, format)` | read YAML or JSON; return `DecodeInfo` |
 | `ValidateManifest(m, opts...)`, `ValidateFlagSet(d, m)`, `ValidateFlags(f)` | the checks the relay runs |
+| `ValidateFlagSetDocuments(docs, m)` | the flag-set documents of a manifest together: a name or an API key used in two documents is a problem (`documents[1].flagSets[0].apiKeys[0]`, never the key text) |
 | `ChecksumOf(data)`, `VerifyChecksum(data, sum)` | sha256 of the exact bytes |
 | `ObjectKey(sum, ext) (string, error)` | `objects/sha256/<2 hex>/<hex>.<ext>`; `ext` is `[a-z0-9]+`, the checksum a valid sha256 |
 | `WithMaxObjects(n)` | validation option; the manifest object limit (default `DefaultMaxObjects`, 20000) |
@@ -287,6 +288,11 @@ A reader that wants a last-known-good per entry uses the `FieldError` fields, no
   mismatch.
 - The key is `objects/sha256/<first two hex>/<hex>.<ext>`: the content decides the key.
 - A reader downloads an object, runs `VerifyChecksum` and compares the size; a mismatch rejects the object.
+- The reader limits what it downloads: an object of 16 MiB at most (`DefaultMaxObjectBytes`), 1 GiB for the distinct
+  objects of a manifest (`DefaultMaxTotalBytes`), a manifest of 16 MiB at most (`DefaultMaxManifestBytes`) and
+  `DefaultMaxObjects` entries. A publisher must stay inside them ([`s3publish`](s3publish.md) does).
+- The `key` of an object is the absolute key in the bucket of its connection. A prefix is the business of the publisher;
+  the reader never adds one.
 
 ## Versions and forward compatibility
 

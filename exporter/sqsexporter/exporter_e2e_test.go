@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,9 +27,16 @@ import (
 
 func createQueue(t *testing.T, client *sqs.Client) string {
 	t.Helper()
+	// A message that a receive hands out stays invisible for the visibility timeout (30 s by default, as long as the
+	// deadline of receiveAll). When the response of a receive is lost (the SDK retries a request after a connection
+	// error, under load) the messages of the lost response come back only after that timeout, so it is short here:
+	// they are received by a later poll, as a consumer of a real queue would.
 	out, err := client.CreateQueue(
 		t.Context(),
-		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
+		&sqs.CreateQueueInput{
+			QueueName:  aws.String(gopherstack.UniqueName(t, "queue")),
+			Attributes: map[string]string{string(sqstypes.QueueAttributeNameVisibilityTimeout): "2"},
+		},
 	)
 	require.NoError(t, err)
 
@@ -39,14 +48,42 @@ type received struct {
 	emitter string
 }
 
+const (
+	// receiveDeadline is the deadline of the whole wait, and callTimeout bounds one call of the emulator (the long poll
+	// of a receive is one second): a call that hangs is stopped and reported, and no call runs past the deadline.
+	receiveDeadline = 30 * time.Second
+	callTimeout     = 10 * time.Second
+)
+
+// errDelete is the error of a message that could not be deleted. It carries the code of the API error and not its
+// text, which can repeat the receipt handle.
+var errDelete = errors.New("the message could not be deleted")
+
+// receiveAll polls the queue until want messages were received and deleted. When the deadline passes it fails with
+// what the polling saw: the polls and the last error of the API.
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {
 	t.Helper()
 
-	var got []received
-	require.Eventually(t, func() bool {
-		out, err := client.ReceiveMessage(t.Context(), &sqs.ReceiveMessageInput{
-			QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
-			MessageAttributeNames: []string{"All"},
+	ctx, cancel := context.WithTimeout(t.Context(), receiveDeadline)
+	defer cancel()
+
+	var (
+		got       []received
+		deleteErr error
+	)
+
+	rep := gopherstack.Poll(ctx, callTimeout, 50*time.Millisecond, func(calls *gopherstack.Calls) bool {
+		var out *sqs.ReceiveMessageOutput
+
+		err := calls.Do("ReceiveMessage", func(ctx context.Context) error {
+			var receiveErr error
+
+			out, receiveErr = client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+				QueueUrl: aws.String(queueURL), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
+				MessageAttributeNames: []string{"All"},
+			})
+
+			return receiveErr
 		})
 		if err != nil {
 			return false
@@ -61,16 +98,40 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 
+			// A failed delete fails the test: the polling stops after this step and the test reports the delete
+			// error, whatever the receives would have done afterwards.
+			deleteErr = calls.Do("DeleteMessage", func(ctx context.Context) error {
+				_, delErr := client.DeleteMessage(
+					ctx,
+					&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
+				)
+				if delErr == nil {
+					return nil
+				}
+
+				code := "no API code"
+				if apiErr, ok := errors.AsType[smithy.APIError](delErr); ok {
+					code = apiErr.ErrorCode()
+				}
+
+				return fmt.Errorf("%w (%s)", errDelete, code)
+			})
+			if deleteErr != nil {
+				calls.Stop()
+
+				return false
+			}
+
 			got = append(got, r)
-			_, deleteMessageErr := client.DeleteMessage(
-				t.Context(),
-				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: msg.ReceiptHandle},
-			)
-			require.NoError(t, deleteMessageErr)
 		}
 
 		return len(got) >= want
-	}, 30*time.Second, 100*time.Millisecond, "got %d/%d messages", len(got), want)
+	})
+
+	// The messages are built here, after the polling. A delete that failed fails the test with its own error, whatever
+	// the receives did afterwards.
+	require.NoError(t, deleteErr, "a message could not be deleted: %s", rep)
+	require.Len(t, got, want, "%s", rep)
 
 	return got
 }
