@@ -1,4 +1,4 @@
-package main
+package cliapp_test
 
 import (
 	"testing"

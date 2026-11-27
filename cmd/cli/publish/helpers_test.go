@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
@@ -19,28 +20,30 @@ import (
 )
 
 const (
-	secretKeyPath = "/run/secret-key"
-	flagsB        = "flags/b.yaml"
-	jsonFlag      = "json"
-	bootstrapPath = "/etc/bootstrap.yaml"
-	opOpen        = "open"
-	optChannel    = "--channel"
-	optEndpoint   = "--endpoint"
-	optPrefix     = "--prefix"
-	chanCanary    = "canary"
-	connEU        = "flags-eu"
-	verifyWord    = "verify"
-	badFile       = "flags/bad.yaml"
-	regionUSEast  = "us-east-1"
-	srcDir        = "src"
-	flagsA        = "flags/a.yaml"
-	optConfig     = "--config"
-	optBucket     = "--bucket"
-	optRegion     = "--region"
-	envKeyID      = "PUBLISH_KEY_ID"
-	cfgOK         = "/ok.yaml"
-	cfgV1         = "/v1.yaml"
-	cfgUnknown    = "/unknown.yaml"
+	secretKeyPath    = "/run/secret-key"
+	flagsB           = "flags/b.yaml"
+	jsonFlag         = "json"
+	bootstrapPath    = "/etc/bootstrap.yaml"
+	opOpen           = "open"
+	optChannel       = "--channel"
+	optEndpoint      = "--endpoint"
+	optPrefix        = "--prefix"
+	chanCanary       = "canary"
+	connEU           = "flags-eu"
+	verifyWord       = "verify"
+	badFile          = "flags/bad.yaml"
+	regionUSEast     = "us-east-1"
+	srcDir           = "src"
+	flagsA           = "flags/a.yaml"
+	optConfig        = "--config"
+	optBucket        = "--bucket"
+	optRegion        = "--region"
+	envKeyID         = "PUBLISH_KEY_ID"
+	cfgOK            = "/ok.yaml"
+	cfgV1            = "/v1.yaml"
+	cfgUnknown       = "/unknown.yaml"
+	publishedGen1    = "published generation 1"
+	checkoutSetsFlag = "checkout-sets"
 
 	// canaryAPIKey is an API key of a flag-set document: it must never appear in any output.
 	canaryAPIKey = "canary-api-key-7f3a9c"
@@ -129,6 +132,12 @@ func sourceDirArg(args []string) string {
 		arg := args[i]
 
 		switch {
+		case arg == "--":
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+
+			return ""
 		case arg == verifyWord:
 			return ""
 		case strings.HasPrefix(arg, "-"):
@@ -158,19 +167,10 @@ func takesValue(flag string) bool {
 func (rig *harness) run(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
-	deps := rig.deps
-	deps.Args = func() []string { return args }
-
-	cmd := publish.NewPublishCmdWith(deps)
-
 	var stdout, stderr bytes.Buffer
 
-	cmd.SetOut(&stdout)
-	cmd.SetErr(&stderr)
-	cmd.SetArgs(args)
-
 	before := len(rig.opened)
-	err := cmd.ExecuteContext(t.Context())
+	err := publish.Run(t.Context(), args, &helper.Streams{Stdout: &stdout, Stderr: &stderr}, rig.deps)
 
 	assertOpened(t, sourceDirArg(args), rig.opened[before:], err == nil)
 

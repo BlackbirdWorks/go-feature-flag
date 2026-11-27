@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kong"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -19,46 +21,158 @@ const (
 	outputJSON = "json"
 )
 
+// HelpVars returns the kong interpolation variables used by [Cmd] help tags.
+func HelpVars() kong.Vars {
+	return kong.Vars{
+		"helpConfigOutput":   "output format: text or json (YAML for print)",
+		"helpConfigValidate": "Check a bootstrap file with the loader of the relay proxy",
+		"helpConfigPrint": "Print the effective bootstrap file: defaults and environment overrides applied, " +
+			"secrets redacted",
+	}
+}
+
 // Deps are the parts of the outside world that the commands use.
 type Deps struct {
 	// LookupEnv reads an environment variable: the SEMAPHORE_* overrides apply to the effective configuration.
 	LookupEnv func(string) (string, bool)
 	// ReadFile reads the bootstrap file.
 	ReadFile func(string) ([]byte, error)
-	// Args returns the raw command-line arguments (nil: os.Args[1:]); see publish.Deps.Args.
-	Args func() []string
 }
 
 // DefaultDeps returns the dependencies of the real command.
 func DefaultDeps() Deps { return Deps{LookupEnv: os.LookupEnv, ReadFile: os.ReadFile} }
 
-// NewConfigCmd returns the config command group, wired to the real environment.
-func NewConfigCmd() *cobra.Command { return NewConfigCmdWith(DefaultDeps()) }
+// Cmd is the kong command group for validating and printing the version 2 bootstrap file of the relay proxy.
+type Cmd struct {
+	Output   string      `default:"text" help:"${helpConfigOutput}"   name:"output" short:"o"`
+	Validate ValidateCmd `cmd:""         help:"${helpConfigValidate}"`
+	Print    PrintCmd    `cmd:""         help:"${helpConfigPrint}"`
+}
 
-// NewConfigCmdWith returns the config command group with the given dependencies.
-func NewConfigCmdWith(deps Deps) *cobra.Command {
-	var output string
+// ValidateCmd checks a bootstrap file with the loader of the relay proxy.
+type ValidateCmd struct {
+	File string `arg:"" help:"Bootstrap file to check." name:"file"`
+}
 
-	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Validate and print the version 2 bootstrap file of the relay proxy",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-		SilenceErrors: true,
-		SilenceUsage:  true,
+// Help returns the detailed description of config validate for kong's help output.
+func (ValidateCmd) Help() string {
+	return `Reads <file> with the strict loader of the relay proxy: version 2 required, unknown keys, bad references and
+bad values are errors that name the file, the path of the key and the line. Secret references are checked for their
+shape, not resolved. Exit code 0 when valid, 2 when invalid, 1 on another failure.`
+}
+
+// Run validates the bootstrap file and writes the result to streams.Stdout.
+func (v ValidateCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	err := helper.ReportJSONError(
+		streams.Stdout,
+		parent.Output == outputJSON,
+		nil,
+		runValidate(streams.Stdout, v.File, parent.Output, deps),
+	)
+	if err != nil {
+		return fmt.Errorf("%w", err)
 	}
 
-	cmd.PersistentFlags().StringVarP(&output, "output", "o", outputText, "output format: text or json (YAML for print)")
-	cmd.AddCommand(newValidateCmd(&deps, &output), newPrintCmd(&deps, &output))
+	return nil
+}
 
-	// Every failure of the group, argument and flag errors included, follows the one JSON error mechanism.
-	helper.JSONErrors(cmd, helper.JSONErrorOptions{
-		Enabled: func() bool { return output == outputJSON }, RawArgs: deps.Args,
-	})
+// PrintCmd prints the effective bootstrap configuration with defaults and environment overrides applied.
+type PrintCmd struct {
+	File      string `arg:""                                              help:"Bootstrap file to print." name:"file"`
+	Effective bool   `help:"print the effective configuration (required)" name:"effective"`
+}
 
-	return cmd
+// Help returns the detailed description of config print for kong's help output.
+func (PrintCmd) Help() string {
+	return `Prints what the relay proxy would run with: the file after the SEMAPHORE_* environment overrides and the
+defaults. Secrets, API keys and admin keys print as [REDACTED]; references (fromEnv, fromFile) print as written.
+--effective is required. Exit code 2 when the file is invalid.`
+}
+
+// Run prints the effective bootstrap file to streams.Stdout.
+func (p PrintCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	var err error
+	if !p.Effective {
+		err = fmt.Errorf("%w: --effective is required", helper.ErrUsage)
+	} else {
+		err = runPrint(streams.Stdout, p.File, parent.Output, deps)
+	}
+
+	repErr := helper.ReportJSONError(streams.Stdout, parent.Output == outputJSON, nil, err)
+	if repErr != nil {
+		return fmt.Errorf("%w", repErr)
+	}
+
+	return nil
+}
+
+// Run parses args against the config command tree and executes the selected subcommand with injected streams and deps.
+// Running without a subcommand prints config help to streams.Stdout and returns nil.
+func Run(args []string, streams *helper.Streams, deps Deps) error {
+	var runner struct {
+		Cmd
+
+		Help helper.HelpFlag `help:"Show context-sensitive help." name:"help" short:"h"`
+	}
+
+	parser, err := kong.New(&runner,
+		kong.Name("config"),
+		kong.Description("Validate and print the version 2 bootstrap file of the relay proxy"),
+		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
+		kong.Writers(streams.Stdout, streams.Stderr),
+		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
+		HelpVars(),
+	)
+	if err != nil {
+		return fmt.Errorf("build config parser: %w", err)
+	}
+
+	if len(args) == 0 {
+		traceCtx, traceErr := kong.Trace(parser, nil)
+		if traceErr != nil {
+			return fmt.Errorf("trace config help: %w", traceErr)
+		}
+
+		return traceCtx.PrintUsage(false) //nolint:wrapcheck // PrintUsage writes directly to stdout
+	}
+
+	kctx, exited, err := helper.Parse(parser, args)
+	if exited {
+		return nil
+	}
+
+	if err != nil {
+		return handleParseError(err, args, streams)
+	}
+
+	//nolint:wrapcheck // subcommand Run already formats and wraps its error
+	return kctx.Run(&runner.Cmd, streams, &deps)
+}
+
+func handleParseError(err error, args []string, streams *helper.Streams) error {
+	var parseErr *kong.ParseError
+	if !errors.As(err, &parseErr) {
+		return fmt.Errorf("%w: %w", helper.ErrUsage, err)
+	}
+
+	if parseErr.Context.Selected() == nil && strings.HasPrefix(parseErr.Error(), "expected one of ") {
+		return parseErr.Context.PrintUsage(false) //nolint:wrapcheck // PrintUsage writes directly to stdout
+	}
+
+	val, found := helper.ScanOutputFlag(parseErr.Context.Flags(), args)
+
+	repErr := helper.ReportJSONError(
+		streams.Stdout,
+		found && val == outputJSON,
+		nil,
+		fmt.Errorf("%w: %w", helper.ErrUsage, err),
+	)
+	if repErr != nil {
+		return fmt.Errorf("%w", repErr)
+	}
+
+	return nil
 }
 
 // load reads and validates the file the way the relay does.
@@ -102,24 +216,6 @@ type jsonError struct {
 	Path    string `json:"path,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`
-}
-
-func newValidateCmd(deps *Deps, output *string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "validate <file>",
-		Short: "Check a bootstrap file with the loader of the relay proxy",
-		Long: `Reads <file> with the strict loader of the relay proxy: version 2 required, unknown keys, bad references and
-bad values are errors that name the file, the path of the key and the line. Secret references are checked for their
-shape, not resolved. Exit code 0 when valid, 2 when invalid, 1 on another failure.`,
-		Args:          cobra.ExactArgs(1),
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runValidate(cmd.OutOrStdout(), args[0], *output, deps)
-		},
-	}
-
-	return cmd
 }
 
 func runValidate(w io.Writer, file, output string, deps *Deps) error {
@@ -176,31 +272,6 @@ func writeJSON(w io.Writer, v any) error {
 	}
 
 	return nil
-}
-
-func newPrintCmd(deps *Deps, output *string) *cobra.Command {
-	var effective bool
-
-	cmd := &cobra.Command{
-		Use:   "print --effective <file>",
-		Short: "Print the effective bootstrap file: defaults and environment overrides applied, secrets redacted",
-		Long: `Prints what the relay proxy would run with: the file after the SEMAPHORE_* environment overrides and the
-defaults. Secrets, API keys and admin keys print as [REDACTED]; references (fromEnv, fromFile) print as written.
---effective is required. Exit code 2 when the file is invalid.`,
-		Args:          cobra.ExactArgs(1),
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !effective {
-				return fmt.Errorf("%w: --effective is required", helper.ErrUsage)
-			}
-
-			return runPrint(cmd.OutOrStdout(), args[0], *output, deps)
-		},
-	}
-	cmd.Flags().BoolVar(&effective, "effective", false, "print the effective configuration (required)")
-
-	return cmd
 }
 
 func runPrint(w io.Writer, file, output string, deps *Deps) error {
