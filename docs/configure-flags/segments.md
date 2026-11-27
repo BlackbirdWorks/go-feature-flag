@@ -83,7 +83,7 @@ targeting rule (index 2): invalid segment() term at $.and[1]: inSegment is only 
 | `inSegment` in an iterator, or under another operation | not allowed inside the operation |
 | A segment term in the `defaultRule` | segment terms are not allowed in the defaultRule |
 
-In the Rules format the offset is the position in the query as the engine parses it, counted in bytes (not characters) from 0: the engine first joins the lines of a query and removes the leading spaces of each line, so a multi-line query counts from the joined text, and a multibyte character before the term counts for all its bytes. The syntax errors of the parser itself count in characters. In the JsonLogic format the place is a path such as `$.and[1]`.
+In the Rules format the offset is the position in the query as the engine parses it, counted in bytes (not characters) from 0: the engine first joins the lines of a query with a space (none where a line already ends with one or the join sits next to a bracket or a comma) and removes the leading spaces of each line, so a multi-line query counts from the joined text (a JsonLogic query is read as written), and a multibyte character before the term counts for all its bytes. The syntax errors of the parser itself count in characters. In the JsonLogic format the place is a path such as `$.and[1]`.
 
 The rules that a [scheduled step](rollout-strategies/scheduled.md) carries are checked too when the flags are loaded: a segment term that is not valid, a segment term in the default rule of a step, and an `onError` that is not `skip` or `match` reject the flag, with `scheduled step <index>` in the message. So does a query that starts with `{` (after any spaces, tabs or line breaks) and does not decode as JsonLogic.
 

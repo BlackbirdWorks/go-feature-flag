@@ -52,6 +52,7 @@ Semaphore's native query engine lives in `rules/` and is derived from [`nikunjy/
 
 - Operators are case-insensitive (for example, `eq` or `EQ`).
 - Combine expressions with logical `AND` and `OR`.
+- A query can span lines: the lines are joined with a space, so two lines never merge into one token. A line break inside a quoted value becomes exactly one space.
 
 Comparison operators (`a`, `b` denote equivalent aliases):
 
@@ -87,7 +88,7 @@ Comparison operators (`a`, `b` denote equivalent aliases):
 
 Semaphore also supports [`JsonLogic`](http://jsonlogic.com/) queries via [`diegoholiveira/jsonlogic`](https://github.com/diegoholiveira/jsonlogic).
 
-Write the `query` field as a valid JSON string representing a `JsonLogic` expression. The rule matches when the expression evaluates to `true`; any other result is treated as `false`.
+Write the `query` field as a valid JSON string representing a `JsonLogic` expression. The text is read as written, so it can span lines wherever JSON allows whitespace; a line break inside a string literal makes the query invalid. The rule matches when the expression evaluates to `true`; any other result is treated as `false`.
 
 > [!NOTE]
 > See the [JsonLogic operations reference](http://jsonlogic.com/operations.html) for all supported operators.
