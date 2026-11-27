@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
@@ -326,7 +327,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 	deps := opts.Deps
 	deps.Logger = logger
 	deps.Secrets = opts.Load
-	deps.Broadcast = streams.Broadcast
+	wireStreams(&deps, streams)
 
 	if metrics.Enabled() {
 		deps.Registerer = metrics.Registry
@@ -654,5 +655,20 @@ func (r *relay) joinLoops(ctx context.Context) error {
 			"the loops of the relay did not stop within the shutdown deadline, the process exits without them")
 
 		return fmt.Errorf("%w: %w", errLoopsNotStopped, ctx.Err())
+	}
+}
+
+// wireStreams makes the core feed the streams: it broadcasts the changes, and after every swap it closes the streams of
+// the clients that the new runtime does not entitle anymore, before the changes of the swap are queued.
+func wireStreams(deps *relaycore.Deps, streams *corehttp.Streams) {
+	deps.Broadcast = streams.Broadcast
+
+	next := deps.Hooks.AfterSwap
+	deps.Hooks.AfterSwap = func(rt *flagruntime.Runtime) {
+		streams.Revalidate(rt)
+
+		if next != nil {
+			next(rt)
+		}
 	}
 }

@@ -34,12 +34,12 @@ type OFREPEventStream struct {
 
 // ValidateFlags are the limits of the body of POST /admin/v1/flags/validate, by format.
 type ValidateFlags struct {
-	// MaxJSONBodySize is the largest JSON body. Default 1MiB, applied by the endpoint when unset.
-	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema:"default=1MiB" yaml:"maxJsonBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
-	// MaxYAMLBodySize is the largest YAML body. Default 64KiB.
-	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxYamlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
-	// MaxTOMLBodySize is the largest TOML body. Default 64KiB.
-	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema:"default=64KiB" yaml:"maxTomlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
+	// MaxJSONBodySize is the largest JSON body. Default 1MiB, applied by the endpoint when unset or zero.
+	MaxJSONBodySize *ByteSize `json:"maxJsonBodySize,omitempty" jsonschema_description:"Largest JSON body. Default 1MiB, applied by the endpoint when unset or zero." yaml:"maxJsonBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
+	// MaxYAMLBodySize is the largest YAML body. Default 64KiB, applied by the endpoint when unset or zero.
+	MaxYAMLBodySize *ByteSize `json:"maxYamlBodySize,omitempty" jsonschema_description:"Largest YAML body. Default 64KiB, applied by the endpoint when unset or zero." yaml:"maxYamlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
+	// MaxTOMLBodySize is the largest TOML body. Default 64KiB, applied by the endpoint when unset or zero.
+	MaxTOMLBodySize *ByteSize `json:"maxTomlBodySize,omitempty" jsonschema_description:"Largest TOML body. Default 64KiB, applied by the endpoint when unset or zero." yaml:"maxTomlBodySize,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
 // serverSettings checks the settings of the server that are not listeners.

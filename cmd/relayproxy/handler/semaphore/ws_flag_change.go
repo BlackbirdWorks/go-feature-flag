@@ -41,6 +41,16 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 	return nil
 }
 
+// Close closes the connection: the relay does it when the access of the client ends.
+func (c *threadSafeConn) Close() error {
+	err := c.conn.Close()
+	if err != nil {
+		return fmt.Errorf("close websocket: %w", err)
+	}
+
+	return nil
+}
+
 // ping sends a ping control message to the client.
 func (c *threadSafeConn) ping() error {
 	c.mu.Lock()
@@ -93,7 +103,9 @@ func (f *WSFlagChange) LegacyHandler(w http.ResponseWriter, r *http.Request) err
 // Handler is the entry point for the websocket endpoint to get notified when a flag has been edited.
 func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
-	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, r.URL.Query().Get("apiKey"))
+	apiKey := r.URL.Query().Get("apiKey")
+
+	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, apiKey)
 	if err != nil {
 		return fmt.Errorf(
 			"binding the request of the flag change websocket: %w",
@@ -115,7 +127,12 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// concurrent writer.
 	safeConn := &threadSafeConn{conn: conn}
 
-	f.websocketService.Register(safeConn, flagsetName)
+	if apiKey == "" {
+		f.websocketService.RegisterAnonymous(safeConn, flagsetName)
+	} else {
+		f.websocketService.Register(safeConn, flagsetName)
+	}
+
 	defer f.websocketService.Deregister(safeConn)
 
 	logger := logging.FromContext(r.Context())

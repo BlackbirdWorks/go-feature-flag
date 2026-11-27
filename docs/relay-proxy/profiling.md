@@ -3,7 +3,9 @@
 The relay proxy can expose the Go `net/http/pprof` profiling endpoints under `/debug/pprof/` to help diagnose CPU, memory, and goroutine behavior.
 
 > [!WARNING]
-> Profiling endpoints are disabled by default. They are served by the `ops` listener only, never by the `api` listener, so they stay off the network that serves the flags.
+> Profiling endpoints are disabled by default. They are served by the `ops` listener only, never by the `api` listener.
+>
+> The `ops` listener has **no authentication**, and pprof exposes the contents of the heap (which can hold flag data and keys in memory), the command line and the goroutines. Anyone who can reach the ops port can read them. Keep the ops port off public networks: close it with a network policy or a firewall, and do not publish it from the container. Binding the ops listener to a separate address, such as loopback, comes with the next part of [#112](https://github.com/BlackbirdWorks/semaphore/issues/112); until then it listens on the host of the `api` listener.
 
 ## Enable profiling
 

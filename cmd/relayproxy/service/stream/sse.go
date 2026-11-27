@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,12 +28,21 @@ type SSEService interface {
 	// ServeHTTP handles incoming SSE client connections. The request must
 	// carry a "stream" query parameter set to the target flagset name.
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	// DisconnectAnonymous closes the streams of the clients without a key whose flag set is not keep; an empty keep
+	// closes all of them. A client with a key is never touched.
+	DisconnectAnonymous(keep string)
+	// Connections is the number of connected clients.
+	Connections() int
 	// SetOnSubscribe registers a callback invoked when a client subscribes to
 	// any stream. The streamID matches the flagset name used in BroadcastFlagChanges.
 	SetOnSubscribe(fn func(streamID string))
 	// Close shuts down the SSE server and disconnects all clients.
 	Close()
 }
+
+// AnonymousStreamPrefix starts the stream ID of the clients that have no API key: they have a stream of their own
+// next to the one of the flag set, so that the relay can close them when the anonymous access ends.
+const AnonymousStreamPrefix = "anonymous:"
 
 // SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
 type SSEServiceImpl struct {
@@ -77,13 +87,48 @@ func (s *SSEServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 		return fmt.Errorf("sse: failed to marshal OFREP event for stream %q: %w", flagsetName, err)
 	}
 
-	s.server.Publish(flagsetName, &sse.Event{
-		ID:    []byte(strconv.FormatInt(now.UnixNano(), 10)),
-		Event: []byte("message"),
-		Data:  data,
-	})
+	for _, streamID := range []string{flagsetName, AnonymousStreamPrefix + flagsetName} {
+		s.server.Publish(streamID, &sse.Event{
+			ID:    []byte(strconv.FormatInt(now.UnixNano(), 10)),
+			Event: []byte("message"),
+			Data:  data,
+		})
+	}
 
 	return nil
+}
+
+// Connections is the number of connected clients.
+func (s *SSEServiceImpl) Connections() int {
+	s.muActiveStreams.Lock()
+	defer s.muActiveStreams.Unlock()
+
+	total := 0
+	for _, count := range s.activeStreams {
+		total += count
+	}
+
+	return total
+}
+
+// DisconnectAnonymous closes the streams of the clients without a key whose flag set is not keep.
+func (s *SSEServiceImpl) DisconnectAnonymous(keep string) {
+	s.muActiveStreams.Lock()
+
+	var revoked []string
+
+	for streamID := range s.activeStreams {
+		name, anonymous := strings.CutPrefix(streamID, AnonymousStreamPrefix)
+		if anonymous && (name != keep || keep == "") {
+			revoked = append(revoked, streamID)
+		}
+	}
+
+	s.muActiveStreams.Unlock()
+
+	for _, streamID := range revoked {
+		s.server.RemoveStream(streamID)
+	}
 }
 
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +147,7 @@ func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // SetOnSubscribe sets the callback called when a client subscribes to a stream.
 func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
 	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
-		fn(streamID)
+		fn(strings.TrimPrefix(streamID, AnonymousStreamPrefix))
 	}
 }
 

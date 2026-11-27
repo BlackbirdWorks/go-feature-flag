@@ -25,6 +25,8 @@ type Hooks struct {
 	BeforeSwap func(candidate *Runtime) error
 	// OnEmit is called after a change was handed to the channel of [Engine.Changes].
 	OnEmit func(Change)
+	// AfterSwap is called with the new runtime right after it is stored, before the changes of the swap are queued.
+	AfterSwap func(*Runtime)
 	// AfterRound is called at the end of every round, after the store and the change notifications.
 	AfterRound func(RoundResult)
 }
@@ -358,6 +360,10 @@ func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*
 	e.snapshot = candidate.Snapshot
 
 	e.warnAnonymous(ctx, previous, candidate)
+
+	if e.hooks.AfterSwap != nil {
+		e.hooks.AfterSwap(candidate)
+	}
 
 	events := 0
 

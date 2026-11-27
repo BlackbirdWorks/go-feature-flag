@@ -1,15 +1,19 @@
 package relayapp
 
 import (
+	"bufio"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 )
 
@@ -34,6 +38,25 @@ func (r *relayRig) applyReload(t *testing.T) {
 	r.reload <- struct{}{}
 
 	r.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
+}
+
+// pollNext is poll for a relay that already polled: the reader waits for its tick, the first round signal was taken.
+func (r *relayRig) pollNext(gen uint64) {
+	r.store.t.Helper()
+
+	select {
+	case r.sched.release <- struct{}{}:
+	case <-time.After(waitBound):
+		require.FailNow(r.store.t, "the reader is not waiting for a tick")
+	}
+
+	select {
+	case <-r.sched.entered:
+	case <-time.After(waitBound):
+		require.FailNow(r.store.t, "the reader did not end its next round")
+	}
+
+	r.awaitGeneration(gen)
 }
 
 func (r *relayRig) infoAnonymous(t *testing.T) string {
@@ -252,4 +275,167 @@ func TestRunAppliesTheStreamAndValidateSettings(t *testing.T) {
 
 	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, `{"x":1}`, headers)
 	assert.NotEqual(t, http.StatusRequestEntityTooLarge, status, "a small body is read")
+}
+
+const (
+	wsPath  = "/stream/v1/ws/flag/change"
+	ssePath = "/stream/v1/sse/flag/change"
+)
+
+// streamClient is a client of the change streams: it reads what the relay sends until it is closed.
+type streamClient struct {
+	events chan string
+	closed chan error
+}
+
+func dialWebsocket(t *testing.T, base, key string) *streamClient {
+	t.Helper()
+
+	target := "ws" + strings.TrimPrefix(base, "http") + wsPath
+	if key != "" {
+		target += "?apiKey=" + key
+	}
+
+	conn, resp, err := (&websocket.Dialer{}).DialContext(t.Context(), target, nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	t.Cleanup(func() { _ = conn.Close() })
+
+	client := &streamClient{events: make(chan string, 16), closed: make(chan error, 1)}
+
+	go func() {
+		for {
+			_, msg, readErr := conn.ReadMessage()
+			if readErr != nil {
+				client.closed <- readErr
+
+				return
+			}
+
+			client.events <- string(msg)
+		}
+	}()
+
+	return client
+}
+
+func dialSSE(t *testing.T, base, key string) *streamClient {
+	t.Helper()
+
+	target := base + ssePath
+	if key != "" {
+		target += "?apiKey=" + key
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	client := &streamClient{events: make(chan string, 16), closed: make(chan error, 1)}
+
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			if line := scanner.Text(); strings.HasPrefix(line, "data:") {
+				client.events <- line
+			}
+		}
+
+		client.closed <- scanner.Err()
+	}()
+
+	return client
+}
+
+func (c *streamClient) awaitEvent(t *testing.T, want string) {
+	t.Helper()
+
+	select {
+	case got := <-c.events:
+		assert.Contains(t, got, want)
+	case err := <-c.closed:
+		require.FailNow(t, "the stream was closed before the change", "%v", err)
+	case <-time.After(waitBound):
+		require.FailNow(t, "the change did not arrive")
+	}
+}
+
+func (c *streamClient) awaitClosed(t *testing.T) {
+	t.Helper()
+
+	select {
+	case closeErr := <-c.closed:
+		t.Logf("the stream ended: %v", closeErr)
+	case <-time.After(waitBound):
+		require.FailNow(t, "the stream was not closed")
+	}
+
+	assert.Empty(t, c.events, "nothing arrived after the close")
+}
+
+// A client without a key gets the changes of the anonymous flag set, on the websocket and on the SSE stream. When a
+// reload clears the setting, or names another flag set, they are closed at once and get no further change. A client
+// with a key of the flag set is never touched.
+func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// reloaded is the auth block of the file that ends the anonymous access of the flag set tenant.
+		reloaded string
+	}{
+		{name: "the setting is cleared", reloaded: "auth:\n  adminKeys: [" + adminKey + "]\n"},
+		{
+			name:     "the setting names a flag set that is not held",
+			reloaded: "auth:\n  anonymousFlagSet: ghost\n  adminKeys: [" + adminKey + "]\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rig := startRelay(
+				t,
+				&rigOptions{extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n"},
+			)
+			rig.awaitGeneration(1)
+
+			rel := <-rig.started
+
+			anonWS, anonSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
+			keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
+
+			require.Eventually(t, func() bool {
+				return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
+			}, waitBound, time.Millisecond, "the four clients are registered")
+
+			rig.store.publish(2)
+			rig.poll(2)
+
+			anonWS.awaitEvent(t, flagKey)
+			anonSSE.awaitEvent(t, "refetchEvaluation")
+			keyedWS.awaitEvent(t, flagKey)
+			keyedSSE.awaitEvent(t, "refetchEvaluation")
+
+			rig.writeConfig(tt.reloaded)
+			rig.applyReload(t)
+
+			anonWS.awaitClosed(t)
+			anonSSE.awaitClosed(t)
+
+			rig.store.publish(3)
+			rig.pollNext(3)
+
+			keyedWS.awaitEvent(t, flagKey)
+			keyedSSE.awaitEvent(t, "refetchEvaluation")
+			assert.Empty(t, anonWS.events)
+			assert.Empty(t, anonSSE.events)
+			assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
+		})
+	}
 }

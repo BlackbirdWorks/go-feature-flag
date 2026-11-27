@@ -353,3 +353,42 @@ func TestSchemaDurationPattern(t *testing.T) {
 		})
 	}
 }
+
+// The size pattern of the schema and the loader agree on what a size is.
+func TestSchemaByteSizePattern(t *testing.T) {
+	t.Parallel()
+
+	raw, err := bootstrap.JSONSchema()
+	require.NoError(t, err)
+
+	var doc struct {
+		Defs map[string]struct {
+			Pattern string `json:"pattern"`
+		} `json:"$defs"`
+	}
+
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	pattern := regexp.MustCompile(doc.Defs["ByteSize"].Pattern)
+
+	tests := []struct {
+		value      string
+		wantAccept bool
+	}{
+		{"1MiB", true}, {"64KiB", true}, {"1500B", true}, {"1.5MiB", true}, {"1 MiB", true}, {"2MB", true},
+		{"3GiB", true}, {"1TiB", true}, {"0B", true}, {"0", true}, {"100", true},
+		{"-1MiB", false}, {"lots", false}, {"", false}, {"MiB", false}, {"1XiB", false},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.value, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nserver:\n  validateFlags: {maxJsonBodySize: \"" + tcase.value + "\"}\n"
+			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+
+			assert.Equal(t, tcase.wantAccept, pattern.MatchString(tcase.value), "the schema pattern")
+			assert.Equal(t, tcase.wantAccept, parseErr == nil, "the loader")
+		})
+	}
+}

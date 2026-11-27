@@ -82,6 +82,30 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	return out
 }
 
+// Revalidate closes the streams of the clients without a key that the runtime does not entitle anymore: all of them
+// when it names no anonymous flag set or its flag set is not held, the ones of another flag set when it names a
+// different one. The clients with a key are not touched. Set it as the AfterSwap hook of the core: it runs before the
+// changes of the swap are queued, so a closed client gets none of them.
+func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
+	keep := ""
+	if anon := rt.Status.Anonymous; anon != nil && anon.State != flagruntime.StateMissing {
+		keep = anon.FlagSet
+	}
+
+	s.ws.DisconnectAnonymous(keep)
+	s.sse.DisconnectAnonymous(keep)
+}
+
+// ClientCounts are the clients connected to each stream service.
+type ClientCounts struct {
+	Websocket, SSE int
+}
+
+// Connected is the number of clients connected to each stream service.
+func (s *Streams) Connected() ClientCounts {
+	return ClientCounts{Websocket: s.ws.Connections(), SSE: s.sse.Connections()}
+}
+
 // Broadcast queues the change of a flag set for the clients connected to it and returns at once. A change that
 // changes no flag is not queued. Changes of one flag set that wait together are merged into one (the SSE event only
 // tells the client to fetch again, the websocket message carries the diff, so the diffs are merged to their net

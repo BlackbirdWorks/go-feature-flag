@@ -3,7 +3,9 @@ package api
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -34,9 +36,23 @@ const (
 	etagExample = `Etag: "117-0193435c612c50d93b798619d9464856263dbf9f"`
 )
 
-// securityAll is the security of the endpoints that accept an API key in any of the two headers.
+// keylessNote is added to the description of the operations that accept a request without a key.
+const keylessNote = "\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): " +
+	"a request without a key is then served by that flag set. Without that setting every request needs a key. " +
+	"A wrong key is always refused."
+
+// securityAll is the security of the endpoints that accept an API key in any of the two headers, or none when the
+// relay has an anonymous flag set: the empty requirement is how OpenAPI says that the security is optional.
 func securityAll() []map[string][]string {
-	return []map[string][]string{{securityAPIKey: {}}, {securityXAPIKey: {}}}
+	return []map[string][]string{{securityAPIKey: {}}, {securityXAPIKey: {}}, {}}
+}
+
+// withKeylessNote adds the note to the description of an operation whose security is optional.
+func withKeylessNote(op *huma.Operation) {
+	if slices.ContainsFunc(op.Security, func(requirement map[string][]string) bool { return len(requirement) == 0 }) &&
+		!strings.HasSuffix(op.Description, keylessNote) {
+		op.Description += keylessNote
+	}
 }
 
 // securityAuthorization is the security of the endpoints that only document the Authorization header.
@@ -242,7 +258,7 @@ func operationValidate(api huma.API) *huma.Operation {
 			"The flag file is not loaded, nothing is changed on the flags served by the relay proxy.\n" +
 			"The format of the body is selected with the `Content-Type` header (`application/json`,\n" +
 			"`application/yaml`, `application/x-yaml`, `text/yaml` or `application/toml`).\n" +
-			"The maximum size of the body is configurable per format with `endpoints.validateFlags`\n" +
+			"The maximum size of the body is configurable per format with `server.validateFlags`\n" +
 			"(defaults: 1 MiB for JSON, 64 KiB for YAML and TOML).",
 		RequestBody: &huma.RequestBody{Description: "The flag file to validate", Required: true, Content: content},
 		Responses: map[string]*huma.Response{

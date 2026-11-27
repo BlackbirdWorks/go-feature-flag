@@ -86,6 +86,7 @@ func register[I, O any](
 ) {
 	// the operation of the caller is not changed: huma registers a copy.
 	operation := *operationConf
+	withKeylessNote(&operation)
 	operation.Middlewares = append(operation.Middlewares, humaMiddleware...)
 	// the error responses are documented with the body the relay proxy sends, not huma's RFC 9457 model.
 	errorStatuses := operation.Errors
@@ -110,6 +111,7 @@ func register[I, O any](
 // streams, the endpoint that reads its body itself), the operation is only documented, from the same types.
 // pattern is the route of the mux, the parameters of the path are read with [http.Request.PathValue].
 func (rs *routeSet) raw(op *huma.Operation, pattern string, h http.Handler, mws ...middleware.Func) {
+	withKeylessNote(op)
 	rs.api.OpenAPI().AddOperation(op)
 	rs.mux.Handle(op.Method+" "+pattern, middleware.Chain(h, mws...))
 }

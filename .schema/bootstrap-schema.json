@@ -44,8 +44,8 @@
         },
         "ByteSize": {
             "type": "string",
-            "pattern": "^[0-9]+(\\.[0-9]+)? ?([kKmMgG]i?[bB]?|[bB])?$",
-            "description": "Size string, for example 64KiB or 1MiB. It must be greater than zero."
+            "pattern": "^[0-9]+(\\.[0-9]+)? ?([kKmMgGtT]i?[bB]?|[bB])?$",
+            "description": "Size string, for example 64KiB or 1MiB. Zero means the default of the setting."
         },
         "Config": {
             "properties": {
@@ -2299,13 +2299,16 @@
         "ValidateFlags": {
             "properties": {
                 "maxJsonBodySize": {
-                    "$ref": "#/$defs/ByteSize"
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest JSON body. Default 1MiB, applied by the endpoint when unset or zero."
                 },
                 "maxYamlBodySize": {
-                    "$ref": "#/$defs/ByteSize"
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest YAML body. Default 64KiB, applied by the endpoint when unset or zero."
                 },
                 "maxTomlBodySize": {
-                    "$ref": "#/$defs/ByteSize"
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest TOML body. Default 64KiB, applied by the endpoint when unset or zero."
                 }
             },
             "additionalProperties": false,

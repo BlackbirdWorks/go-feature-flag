@@ -47,6 +47,10 @@ func TestServerSettings(t *testing.T) {
 			wantJSON: 2 << 20, wantYAML: 100 << 10, wantTOML: 1500,
 		},
 		{
+			name: "a size of zero is the default of the endpoint", doc: settingsBase +
+				"server:\n  validateFlags: {maxJsonBodySize: 0B}\n",
+		},
+		{
 			name: "pprof needs an ops listener",
 			doc:  settingsBase + "server:\n  ops: {pprof: {enabled: true}}\n",
 			wantErr: "server.ops.pprof.enabled (line 8): invalid value: needs a listener with role ops, " +
@@ -88,14 +92,9 @@ func TestServerSettings(t *testing.T) {
 			wantErr: "invalid size: write it as a string such as \"64KiB\"",
 		},
 		{
-			name:    "a size of zero",
-			doc:     settingsBase + "server:\n  validateFlags: {maxYamlBodySize: 0B}\n",
-			wantErr: "invalid size: expected a positive size",
-		},
-		{
 			name:    "a size that is not a size",
 			doc:     settingsBase + "server:\n  validateFlags: {maxTomlBodySize: lots}\n",
-			wantErr: "invalid size: expected a positive size",
+			wantErr: "invalid size: expected a size",
 		},
 	}
 

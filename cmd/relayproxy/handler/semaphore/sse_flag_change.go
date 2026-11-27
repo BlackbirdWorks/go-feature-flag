@@ -53,10 +53,16 @@ func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// We also need to delete the "apiKey" query parameter.
 	// This is because the r3labs/sse server will use the "stream" query parameter to route the
 	// request to the correct flagset. After that point the apiKey is not needed anymore, so we delete it.
-	q := r.URL.Query()
-	q.Set("stream", flagsetName)
-	q.Del("apiKey")
-	r.URL.RawQuery = q.Encode()
+	query := r.URL.Query()
+	if apiKey == "" {
+		// no key: the stream of the clients of the anonymous flag set, closed when the access ends
+		query.Set("stream", stream.AnonymousStreamPrefix+flagsetName)
+	} else {
+		query.Set("stream", flagsetName)
+	}
+
+	query.Del("apiKey")
+	r.URL.RawQuery = query.Encode()
 
 	h.sseService.ServeHTTP(w, r)
 
