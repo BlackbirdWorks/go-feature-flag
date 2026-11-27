@@ -4,6 +4,7 @@ package valkeysegment_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -22,16 +23,14 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
-// seed loads the data of the suite into the server in the layout of the provider.
+// seed loads the data of the suite into the server in the layout of the provider. The factory of the suite runs on
+// the goroutine of each case, so a failure is returned and never asserted on the test of a parent.
 func seed(
-	t *testing.T,
 	srv *server,
 	tag string,
 	data segmenttest.Data,
 	layout valkeysegment.Layout,
-) map[string]valkeysegment.SegmentOptions {
-	t.Helper()
-
+) (map[string]valkeysegment.SegmentOptions, error) {
 	ctx := context.Background()
 	segs := map[string]valkeysegment.SegmentOptions{}
 
@@ -40,14 +39,20 @@ func seed(
 			key := "contract:" + tag + ":{" + name + "}"
 			segs[name] = valkeysegment.SegmentOptions{Key: key}
 
-			require.NoError(t, srv.client.Del(ctx, key).Err())
+			err := srv.client.Del(ctx, key).Err()
+			if err != nil {
+				return nil, fmt.Errorf("seed %s: %w", key, err)
+			}
 
 			args := make([]any, len(ids))
 			for i, id := range ids {
 				args[i] = id
 			}
 
-			require.NoError(t, srv.client.SAdd(ctx, key, args...).Err())
+			err = srv.client.SAdd(ctx, key, args...).Err()
+			if err != nil {
+				return nil, fmt.Errorf("seed %s: %w", key, err)
+			}
 
 			continue
 		}
@@ -56,11 +61,14 @@ func seed(
 		segs[name] = valkeysegment.SegmentOptions{Layout: valkeysegment.LayoutKeys, Key: prefix}
 
 		for _, id := range ids {
-			require.NoError(t, srv.client.Set(ctx, prefix+id, "1", 0).Err())
+			err := srv.client.Set(ctx, prefix+id, "1", 0).Err()
+			if err != nil {
+				return nil, fmt.Errorf("seed %s: %w", prefix+id, err)
+			}
 		}
 	}
 
-	return segs
+	return segs, nil
 }
 
 func TestE2EConformance(t *testing.T) {
@@ -96,13 +104,13 @@ func TestE2EConformance(t *testing.T) {
 					*opts = *tt.opts
 				}
 
-				opts.Segments = seed(
-					t,
-					caseSrv,
-					strconv.FormatInt(cases.Add(1), 10),
-					data,
-					tt.layout,
-				) // a key space of its own: the cases run in parallel
+				// a key space of its own: the cases run in parallel
+				segs, seedErr := seed(caseSrv, strconv.FormatInt(cases.Add(1), 10), data, tt.layout)
+				if seedErr != nil {
+					return segmenttest.Fixture{}, seedErr
+				}
+
+				opts.Segments = segs
 
 				prov, err := valkeysegment.New(caseSrv.client, opts)
 				if err != nil {
@@ -293,6 +301,9 @@ func (p *outageProxy) accept() {
 	}
 }
 
+// breakerCooldown is ten minutes of the stepping clock (see TestMain), which is 600000 reads.
+const breakerCooldown = 10 * time.Minute
+
 func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 	t.Parallel()
 
@@ -314,7 +325,7 @@ func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 	res, err := resolver.New(inner, &resolver.Options{
 		Observer: counters,
 		Segments: map[string]resolver.SegmentOptions{
-			segBeta: {NoCache: true, BreakerFailures: 3, BreakerCooldown: 50 * time.Millisecond},
+			segBeta: {NoCache: true, BreakerFailures: 3, BreakerCooldown: breakerCooldown},
 		},
 	})
 	require.NoError(t, err)
@@ -351,7 +362,9 @@ func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 
 	proxy.setDown(false)
 
-	for range 200 { // the clock steps on every read: this is more than the cool-down
+	// The clock is shared with the tests that run in parallel and steps on every read. The cool-down is long, so
+	// that no other test can reach it while the breaker is asserted open, and the test steps past it by reading.
+	for range breakerCooldown/callStep + 1 {
 		clock.Now()
 	}
 

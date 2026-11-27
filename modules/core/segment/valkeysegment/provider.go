@@ -74,8 +74,9 @@ type (
 
 // checkContextTimeout rejects a go-redis client that ignores the deadline of the context: it would keep a call
 // waiting on the socket past the timeout of the provider. That is a client without ContextTimeoutEnabled, and one
-// whose read or write timeout is disabled (go-redis normalises -2 to -1, and with -1 it sets no socket deadline at
-// all). A client that does not expose its options (a test double) is accepted.
+// whose read or write timeout is negative: go-redis sets no socket deadline for it. A node client normalises the
+// -2 of a caller to -1, a cluster client keeps the -2 as set, and both read a -1 as the default, so the rule is on
+// the value that the client reports. A client that does not expose its options (a test double) is accepted.
 func checkContextTimeout(client Client) error {
 	enabled, read, write := true, time.Second, time.Second
 
@@ -92,18 +93,15 @@ func checkContextTimeout(client Client) error {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, ErrContextTimeoutDisabled)
 	}
 
-	if read == noSocketTimeout || write == noSocketTimeout {
+	if read < 0 || write < 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, ErrSocketDeadlineDisabled)
 	}
 
 	return nil
 }
 
-// noSocketTimeout is the normalised read or write timeout of go-redis that sets no deadline on the socket.
-const noSocketTimeout = -1
-
-// MaxInitProbes is the most namespaces that Init probes: a provider with segments in more namespaces checks the
-// first MaxInitProbes of them by name, so startup stays one small pipeline.
+// MaxInitProbes is the most namespaces that Init probes, the set and the keys layouts together: a provider with
+// segments in more namespaces checks the first MaxInitProbes of them by name, so startup stays one small pipeline.
 const MaxInitProbes = 16
 
 // probeKeys returns the keys that Init probes. A namespace is the key of a set up to its hash tag, or the prefix of
@@ -134,7 +132,7 @@ func probeKeys(segs map[string]*segmentConfig) ([]string, []string) {
 		}
 
 		id := string(cfg.layout) + "|" + namespace
-		if seen[id] || len(*list) >= MaxInitProbes {
+		if seen[id] || len(sets)+len(members) >= MaxInitProbes {
 			continue
 		}
 
@@ -376,23 +374,58 @@ type result struct {
 	ctx       context.Context //nolint:containedctx // the scratch of one call, never stored
 	callCtx   context.Context //nolint:containedctx // the scratch of one call, never stored
 	execErr   error
+	malformed error // the first parse or protocol error of the call: no reply of the call is trusted
 	answered  int
 	failed    int
 	class     Class
-	untrusted bool // the pipeline ended with a parse or protocol error: no reply of the call is trusted
 }
 
-// newResult starts the outcome of a pipeline. An error of Exec that is neither a transport or context error nor an
-// error reply of the store is a parse or protocol error: the stream cannot be trusted, and nothing of the call is
-// kept. The unit is the whole call, whatever the client: a cluster client has one batch per node and returns the
-// first error, and a standalone one stamps the error on the commands that follow. Keeping the call whole makes
-// both behave alike.
-func newResult(ctx, callCtx context.Context, execErr error) result {
-	_, isReply := errors.AsType[redis.Error](execErr)
+// isMalformed tells whether err is a parse or protocol error: not a transport, context or connection error and not
+// an error reply of the store.
+func isMalformed(err error) bool {
+	if err == nil {
+		return false
+	}
 
-	return result{
-		ctx: ctx, callCtx: callCtx, execErr: execErr,
-		untrusted: execErr != nil && !isReply && !isTransportErr(execErr),
+	_, isReply := errors.AsType[redis.Error](err)
+
+	return !isReply && !isTransportErr(err)
+}
+
+// newResult starts the outcome of a pipeline. An error of Exec that is a parse or protocol error means the stream
+// cannot be trusted, and nothing of the call is kept. The unit is the whole call, whatever the client: a cluster
+// client has one batch per node and returns the first error, and a standalone one stamps the error on the commands
+// that follow. Keeping the call whole makes both behave alike. See also scan.
+func newResult(ctx, callCtx context.Context, execErr error) result {
+	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+	res.note(execErr)
+
+	return res
+}
+
+// note keeps the first parse or protocol error that it is given.
+func (r *result) note(err error) {
+	if r.malformed == nil && isMalformed(err) {
+		r.malformed = err
+	}
+}
+
+// scan looks at the error of every command of the call: Exec returns only the first error of a pipeline, and in a
+// cluster an earlier error of another node can hide a parse error.
+func (r *result) scan(scr *plan) {
+	for i := range scr.groups {
+		r.noteCmd(scr.groups[i].members)
+		r.noteCmd(scr.groups[i].exists)
+	}
+
+	for i := range scr.keys {
+		r.noteCmd(scr.keys[i].cmd)
+	}
+}
+
+func (r *result) noteCmd(cmd *redis.Cmd) {
+	if cmd != nil {
+		r.note(cmd.Err())
 	}
 }
 
@@ -442,12 +475,14 @@ func validShape(val any, shape int) bool {
 }
 
 // isTransportErr tells whether err is the end of the connection or of the context: EOF, a reset, a closed or timed
-// out socket, a cancelled or expired context. A parse error or any other protocol error is not.
+// out socket, a failure to get a connection (a dial error, a pool timeout, a closed client), a cancelled or expired
+// context. A parse error or any other protocol error is not.
 func isTransportErr(err error) bool {
 	switch {
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
 		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE):
+		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE),
+		errors.Is(err, redis.ErrPoolTimeout), errors.Is(err, redis.ErrClosed):
 		return true
 	}
 
@@ -469,8 +504,8 @@ func (r *result) completed(cmd *redis.Cmd, err error, shape int) bool {
 
 // cmdErr returns the error of a command, or the pipeline error when the command has no reply.
 func (r *result) cmdErr(cmd *redis.Cmd, shape int) error {
-	if r.untrusted {
-		return fmt.Errorf("valkey segment: pipeline: %w", r.execErr)
+	if r.malformed != nil {
+		return fmt.Errorf("valkey segment: pipeline: %w", r.malformed)
 	}
 
 	if cmd == nil {
@@ -1072,11 +1107,14 @@ func (p *Provider) lookup(ctx context.Context, lookups []segment.Lookup, scr *pl
 	_, execErr := pipe.Exec(callCtx)
 	obs.RoundTrips = 1
 
-	if p.loadScripts(callCtx, lookups, scr) {
+	sent, retryErr := p.loadScripts(callCtx, lookups, scr)
+	if sent {
 		obs.RoundTrips = 2
 	}
 
 	res := newResult(ctx, callCtx, execErr)
+	res.note(retryErr)
+	res.scan(scr)
 
 	for i := range scr.groups {
 		res.readGroup(&scr.groups[i], lookups)
@@ -1213,8 +1251,8 @@ func isNoScript(err error) bool {
 
 // loadScripts sends again, with the text of the script, the commands that the store refused with NOSCRIPT, in one
 // more pipeline. The store caches the script when it runs it, so this happens once for a store that was restarted
-// or flushed. It returns true when it sent the pipeline.
-func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, scr *plan) bool {
+// or flushed. It returns true when it sent the pipeline, and the error of that pipeline.
+func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, scr *plan) (bool, error) {
 	var pipe redis.Pipeliner
 
 	for i := range scr.groups {
@@ -1238,10 +1276,13 @@ func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, sc
 	}
 
 	if pipe == nil {
-		return false
+		return false, nil
 	}
 
-	_, _ = pipe.Exec(ctx) // the error of each command is on the command
+	_, err := pipe.Exec(ctx) // the error of each command is on the command too
+	if err != nil {
+		return true, fmt.Errorf("valkey segment: script pipeline: %w", err)
+	}
 
-	return true
+	return true, nil
 }

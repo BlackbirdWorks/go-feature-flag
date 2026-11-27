@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,28 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		}
 	}
 
+	// both layouts: the cap is shared, and the first namespaces by name are probed
+	mixed := map[string]valkeysegment.SegmentOptions{}
+	wantMixed := make([]string, 1, 23)
+	wantMixed[0] = cmdPing
+
+	for i := range 10 {
+		mixed[fmt.Sprintf("k%02d", i)] = valkeysegment.SegmentOptions{
+			Layout: valkeysegment.LayoutKeys, Key: fmt.Sprintf("kp%02d:", i),
+		}
+		mixed[fmt.Sprintf("s%02d", i)] = valkeysegment.SegmentOptions{Key: fmt.Sprintf("sp%02d:{s%02d}", i, i)}
+	}
+
+	// by name: k00 to k09 first, then s00 to s05; the sets are sent before the keys
+	for i := range 6 {
+		key := fmt.Sprintf("sp%02d:{s%02d}", i, i)
+		wantMixed = append(wantMixed, smis(key), "exists "+key)
+	}
+
+	for i := range 10 {
+		wantMixed = append(wantMixed, fmt.Sprintf("exists kp%02d:%s", i, probe))
+	}
+
 	tests := []struct {
 		store         *fakeStore
 		opts          *valkeysegment.Options
@@ -92,6 +115,10 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 			wantPipelines: [][]string{{
 				cmdPing, smis("audience:{a}"), existsAud, smis("restricted:{s}"), existsRes,
 			}},
+		},
+		{
+			name: "the cap is shared by the two layouts", store: &fakeStore{},
+			opts: &valkeysegment.Options{Segments: mixed}, wantPipelines: [][]string{wantMixed},
 		},
 		{
 			name: "at most MaxInitProbes namespaces are probed", store: &fakeStore{},
@@ -264,4 +291,37 @@ func TestNegativeMaxIDBytesIsNamed(t *testing.T) {
 
 	require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
 	assert.Equal(t, "valkey segment: invalid options: max id bytes must not be negative", err.Error())
+}
+
+func TestAParseErrorOfTheScriptRetryTrustsNothing(t *testing.T) {
+	t.Parallel()
+
+	var execs atomic.Int32
+
+	store := &fakeStore{
+		sets: failureSetBeta(),
+		exec: func(context.Context) error {
+			if execs.Add(1) == 2 { // the pipeline that sends the script again
+				return errParse()
+			}
+
+			return nil
+		},
+		reply: func(args []any) *fakeReply {
+			// the store has the script for the first set only
+			if name, _ := args[0].(string); name == cmdEvalSHA && args[3] == keyChurned {
+				return &fakeReply{err: serverError{msg: "NOSCRIPT No matching script"}}
+			}
+
+			return nil
+		},
+	}
+	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments(), Atomic: true})
+	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, carolID)}
+
+	err := prov.Contains(boundedCtx(t), lookups)
+
+	require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
+	assert.Equal(t, []segment.State{segment.Unknown, segment.Unknown}, states(lookups))
+	assert.Len(t, store.commands(), 2, "the script was sent again")
 }

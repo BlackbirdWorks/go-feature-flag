@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +170,10 @@ func dialLoopback(t *testing.T, addr string, timeout time.Duration) *valkeysegme
 	return prov
 }
 
+// socketDeadline is the timeout of the call in the test below. It is long enough for the dial and the handshake of a
+// loaded machine to be done before it ends, so the call ends in the read of the pipeline that the store received.
+const socketDeadline = 2 * time.Second
+
 // A client that does not honour the deadline of the context keeps the call on the socket until its own read
 // timeout. Dial sets ContextTimeoutEnabled, so the call ends at the timeout of the provider: the read timeout of this
 // client is an hour, and the test waits for the call under a bound, never for a measured time. The store refuses the
@@ -180,7 +183,7 @@ func TestDialEndsACallAtItsDeadlineOnTheSocket(t *testing.T) {
 
 	request := resp("smismember", keyBeta, idAlice) + resp("exists", keyBeta)
 	addr, received := loopback(t, request, "", false)
-	prov := dialLoopback(t, addr, 50*time.Millisecond)
+	prov := dialLoopback(t, addr, socketDeadline)
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	done := make(chan error, 1)
 
@@ -306,7 +309,56 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			store: &fakeStore{
 				keys: keys, completed: 1, unstamped: true,
 				exec: func(context.Context) error {
-					return &strconv.NumError{Func: "ParseInt", Num: "invalid", Err: strconv.ErrSyntax}
+					return errParse()
+				},
+			},
+			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
+			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
+			wantClass:   valkeysegment.ClassUnavailable,
+			wantSentry:  valkeysegment.ErrUnavailable,
+			wantFailed:  2,
+			wantPipes:   1,
+			wantMessage: msgUnavailable2of2,
+		},
+		{
+			name: "a pool timeout on one node keeps the replies of the others",
+			store: &fakeStore{
+				keys:      keys,
+				exec:      func(context.Context) error { return redis.ErrPoolTimeout },
+				completed: 1,
+				unstamped: true,
+			},
+			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
+			wantStates:  []segment.State{segment.Member, segment.Unknown},
+			wantClass:   valkeysegment.ClassUnavailable,
+			wantSentry:  valkeysegment.ErrUnavailable,
+			wantFailed:  1,
+			wantPipes:   1,
+			wantMessage: msgUnavailable1of2,
+		},
+		{
+			name: "a closed client on one node keeps the replies of the others",
+			store: &fakeStore{
+				keys: keys, exec: func(context.Context) error { return redis.ErrClosed }, completed: 1, unstamped: true,
+			},
+			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
+			wantStates:  []segment.State{segment.Member, segment.Unknown},
+			wantClass:   valkeysegment.ClassUnavailable,
+			wantSentry:  valkeysegment.ErrUnavailable,
+			wantFailed:  1,
+			wantPipes:   1,
+			wantMessage: msgUnavailable1of2,
+		},
+		{
+			name: "a transport error first and a parse error on a later command: nothing is trusted",
+			store: &fakeStore{
+				keys: keys, exec: func(context.Context) error { return errDial }, completed: 2, unstamped: true,
+				reply: func(args []any) *fakeReply {
+					if args[1] == flagPrefix+"bob" {
+						return &fakeReply{err: errParse()}
+					}
+
+					return nil
 				},
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
@@ -363,5 +415,73 @@ func TestDialRefusesDisabledSocketDeadlines(t *testing.T) {
 			require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
 			assert.Nil(t, prov)
 		})
+	}
+}
+
+func TestNewSocketTimeoutsOfBothClientKinds(t *testing.T) {
+	t.Parallel()
+
+	const addr = "127.0.0.1:1" // never dialed
+
+	tests := []struct {
+		name         string
+		read, write  time.Duration
+		wantNodeErr  bool
+		wantClustErr bool
+	}{
+		{name: "both default", read: 0, write: 0},
+		{name: "both positive", read: time.Second, write: time.Second},
+		// go-redis reads a -1 as "default" for both kinds, and keeps the -2 of a cluster client as it is
+		{name: "read -1", read: -1},
+		{name: "write -1", read: time.Second, write: -1},
+		{name: "read -2", read: -2, wantNodeErr: true, wantClustErr: true},
+		{name: "write -2", read: time.Second, write: -2, wantNodeErr: true, wantClustErr: true},
+		{name: "write follows a read of -2", read: -2, write: 0, wantNodeErr: true, wantClustErr: true},
+	}
+
+	for _, tt := range tests {
+		for _, kind := range []string{"node", "cluster"} {
+			t.Run(tt.name+" "+kind, func(t *testing.T) {
+				t.Parallel()
+
+				var client valkeysegment.Client
+
+				wantErr := tt.wantNodeErr
+
+				if kind == "node" {
+					node := redis.NewClient(&redis.Options{
+						Addr: addr, ContextTimeoutEnabled: true, ReadTimeout: tt.read, WriteTimeout: tt.write,
+					})
+
+					t.Cleanup(func() { _ = node.Close() })
+
+					client = node
+				} else {
+					clust := redis.NewClusterClient(&redis.ClusterOptions{
+						Addrs: []string{
+							addr,
+						},
+						ContextTimeoutEnabled: true,
+						ReadTimeout:           tt.read,
+						WriteTimeout:          tt.write,
+					})
+
+					t.Cleanup(func() { _ = clust.Close() })
+
+					client, wantErr = clust, tt.wantClustErr
+				}
+
+				_, err := valkeysegment.New(client, &valkeysegment.Options{})
+
+				if wantErr {
+					require.ErrorIs(t, err, valkeysegment.ErrSocketDeadlineDisabled)
+					require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+
+					return
+				}
+
+				require.NoError(t, err)
+			})
+		}
 	}
 }

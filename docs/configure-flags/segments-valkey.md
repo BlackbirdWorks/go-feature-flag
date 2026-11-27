@@ -61,7 +61,7 @@ client, err := ffclient.New(&ffclient.Config{ /* ... */ Segments: catalog, Segme
 ```
 
 - `valkeysegment.New` takes any go-redis client (a single node, a failover set or a cluster), so the relay can share its connection. `Dial` builds the client from `redis.UniversalOptions`, sets `ContextTimeoutEnabled` on a copy of them, and the provider owns the client.
-- A client passed to `New` must have `ContextTimeoutEnabled` set and must not disable its read or write timeout (`ReadTimeout` or `WriteTimeout` of `-2`): without them the socket ignores the deadline of the call, and `New` returns an error that wraps `ErrInvalidOptions` (`ErrContextTimeoutDisabled` or `ErrSocketDeadlineDisabled`). A client that does not show its options is accepted.
+- A client passed to `New` must have `ContextTimeoutEnabled` set and must not disable its read or write timeout (`ReadTimeout` or `WriteTimeout` of `-2`; the value that the client reports must not be negative, for a node and for a cluster client): without them the socket ignores the deadline of the call, and `New` returns an error that wraps `ErrInvalidOptions` (`ErrContextTimeoutDisabled` or `ErrSocketDeadlineDisabled`). A client that does not show its options is accepted.
 - The resolver is optional: without it every call goes to Valkey. With it, a call is: normalise, cache, breaker, one coalesced call to the store.
 
 ## Defaults
@@ -147,8 +147,8 @@ When a call returns an error, the engine keeps the answers (member or not member
 | The caller's context ended (before or during the call) | the ones answered before keep their answer, the others are unknown | `valkeysegment.ErrCanceled`, or `resolver.ErrWaiting` when it ended while waiting |
 | The store replied with an error (no permission, wrong type, loading) for one command | the lookups of that command are unknown, the others keep their answer | `valkeysegment.ErrServer` |
 | A reply that does not fit the command | the lookups of that command are unknown | `valkeysegment.ErrProtocol` |
-| A reply that cannot be parsed (a malformed integer, a broken frame) | **every** lookup of the call is unknown, even the ones answered before it | `valkeysegment.ErrUnavailable` |
-| The connection ends mid-call (EOF, reset) after some replies | the replies that were complete keep their answer, the others are unknown | `valkeysegment.ErrUnavailable` |
+| A reply that cannot be parsed (a malformed integer, a broken frame) on any command of the call, or of the script retry | **every** lookup of the call is unknown, even the ones answered before it | `valkeysegment.ErrUnavailable` |
+| The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `valkeysegment.ErrUnavailable` |
 | The breaker of the segment is open | unknown, no call | `resolver.ErrCircuitOpen` |
 | Segment not in the options | unknown | none |
 | Set key missing (default) | non-members unknown | none |
@@ -162,7 +162,7 @@ The errors hold a class and counts, never an id, a key or an address: the resolv
 
 `segment.Initializer`, `segment.Shutdowner`, `segment.Existencer` and `segment.HealthReporter` are optional interfaces in the `segment` package (the `Provider` interface does not change). `valkeysegment.Provider` and `resolver.Resolver` implement them, and the relay will reach them with a type assertion.
 
-- `Init` sends one pipeline with the commands that the lookups will use, on the keys that you configured: `SMISMEMBER` and `EXISTS` for a set segment (only `SMISMEMBER` with `MissingKey: notMember`), the script commands for `Atomic` (the `_RO` pair first, then `EVAL` and `EVALSHA`), `EXISTS` for a keys segment. It checks that `PING` answers `PONG` and that each reply has the shape of its command. It fails with `ErrInit`, naming the command that the store refuses, so an old server or a restricted user is found at the start. It probes each distinct namespace once (the key of a set up to its `{tag}`, or the prefix of a keys segment) with the key of its first segment by name, and at most 16 namespaces (`MaxInitProbes`); the others are not probed. `Provider.Exists` needs `EXISTS` even with `notMember`, and `Init` does not check it in that mode.
+- `Init` sends one pipeline with the commands that the lookups will use, on the keys that you configured: `SMISMEMBER` and `EXISTS` for a set segment (only `SMISMEMBER` with `MissingKey: notMember`), the script commands for `Atomic` (the `_RO` pair first, then `EVAL` and `EVALSHA`), `EXISTS` for a keys segment. It checks that `PING` answers `PONG` and that each reply has the shape of its command. It fails with `ErrInit`, naming the command that the store refuses, so an old server or a restricted user is found at the start. It probes each distinct namespace once (the key of a set up to its `{tag}`, or the prefix of a keys segment) with the key of its first segment by name, and at most 16 namespaces in all (`MaxInitProbes`, the set and keys layouts together, the first ones by name); the others are not probed. `Provider.Exists` needs `EXISTS` even with `notMember`, and `Init` does not check it in that mode.
 - `Shutdown` is safe to call twice. It stops new calls (`Contains`, `Init` and `Exists` return `ErrClosed`, `Contains` with every lookup unknown), waits for the calls in flight until its context ends, then ends them: no call reaches the store after it returns. The resolver waits for the calls in flight, until the context of `Shutdown` ends.
 - `Health()` reports whether the provider is ready, closed, and the class of the last failure. `Exists` tells whether the key of each segment is there.
 
