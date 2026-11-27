@@ -12,6 +12,17 @@ import (
 // relay makes it a setting with the same default; pass WithMaxObjects to change it.
 const DefaultMaxObjects = 20000
 
+// The limits the relay reader applies to what it downloads. A publisher must stay inside them, or the reader
+// rejects what was published; the s3publish package uses these values as its defaults.
+const (
+	// DefaultMaxObjectBytes is the largest size of one object (16 MiB).
+	DefaultMaxObjectBytes int64 = 16 << 20
+	// DefaultMaxTotalBytes is the largest sum of the sizes of the distinct objects of a manifest (1 GiB).
+	DefaultMaxTotalBytes int64 = 1 << 30
+	// DefaultMaxManifestBytes is the largest size of the marshalled manifest (16 MiB).
+	DefaultMaxManifestBytes int64 = 16 << 20
+)
+
 const (
 	maxNameLen = 63
 	// percentageMultiplier is the engine's scale of a percentage; the scaled sum must fit a uint32.
@@ -163,6 +174,48 @@ func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 		return err
 	}
 
+	var probs problems
+
+	flagObjects := flagObjectNames(manifest)
+	names := map[string]string{}
+	keys := map[string]string{}
+
+	validateFlagSets(&probs, "", doc, manifest != nil, flagObjects, names, keys)
+
+	return probs.err()
+}
+
+// ValidateFlagSetDocuments checks a set of flag-set documents together, as the relay sees them: the flag sets of
+// every document share one namespace. On top of what ValidateFlagSet checks per document, a flag-set name used in
+// two documents is CodeDuplicateName and an API key held by flag sets of two documents is CodeDuplicateKey.
+// The first in document order keeps the name or key and the later flag set has the problem. Paths are prefixed
+// with the position of the document (documents[1].flagSets[0].apiKeys[0]) and a duplicate key names the path of
+// the first use, never the text of the key. When manifest is not nil every source must resolve in it.
+func ValidateFlagSetDocuments(docs []*FlagSetDocument, manifest *Manifest) error {
+	var probs problems
+
+	flagObjects := flagObjectNames(manifest)
+	names := map[string]string{}
+	keys := map[string]string{}
+
+	for i, doc := range docs {
+		if doc == nil {
+			return ErrNilDocument
+		}
+
+		err := checkHeader(orDefault(doc.APIVersion, APIVersion), orDefault(doc.Kind, DocumentKindFlagSet),
+			DocumentKindFlagSet)
+		if err != nil {
+			return err
+		}
+
+		validateFlagSets(&probs, "documents["+strconv.Itoa(i)+"].", doc, manifest != nil, flagObjects, names, keys)
+	}
+
+	return probs.err()
+}
+
+func flagObjectNames(manifest *Manifest) map[string]struct{} {
 	flagObjects := map[string]struct{}{}
 
 	if manifest != nil {
@@ -173,31 +226,37 @@ func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 		}
 	}
 
-	var probs problems
+	return flagObjects
+}
 
-	names := make(map[string]struct{}, len(doc.FlagSets))
-	keys := map[string]string{}
-
+// validateFlagSets checks the flag sets of one document; names and keys map a name or key to the path of its
+// first use and are shared by all the documents of a set.
+func validateFlagSets(
+	probs *problems,
+	prefix string,
+	doc *FlagSetDocument,
+	resolve bool,
+	flagObjects map[string]struct{},
+	names, keys map[string]string,
+) {
 	for i := range doc.FlagSets {
 		set := &doc.FlagSets[i]
 		owner := entry{kind: EntryFlagSet, name: set.Name, index: i}
-		path := "flagSets[" + strconv.Itoa(i) + "]"
+		path := prefix + "flagSets[" + strconv.Itoa(i) + "]"
 
 		if !validName(set.Name) {
 			probs.addf(owner, CodeInvalidName, path+".name", "%q does not match ^[a-z][a-z0-9-]{0,62}$", set.Name)
 		}
 
-		if _, dup := names[set.Name]; dup {
-			probs.addf(owner, CodeDuplicateName, path+".name", "duplicate name %q", set.Name)
+		if first, dup := names[set.Name]; dup {
+			probs.addf(owner, CodeDuplicateName, path+".name", "duplicate name %q, first used at %s", set.Name, first)
+		} else {
+			names[set.Name] = path + ".name"
 		}
 
-		names[set.Name] = struct{}{}
-
-		validateSources(&probs, owner, path, set, manifest != nil, flagObjects)
-		validateAPIKeys(&probs, owner, path, set, keys)
+		validateSources(probs, owner, path, set, resolve, flagObjects)
+		validateAPIKeys(probs, owner, path, set, keys)
 	}
-
-	return probs.err()
 }
 
 func validateSources(

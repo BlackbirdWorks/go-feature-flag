@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid",
+    "message": "v1.yaml: version (line 1): bootstrap config: version 2 required",
+    "details": []
+  }
+}

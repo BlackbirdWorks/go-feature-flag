@@ -23,65 +23,122 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
+const (
+	// waitDeadline is the deadline of a whole wait, and callTimeout bounds one call of the emulator: a call that hangs
+	// is stopped and reported, and no call runs past the deadline.
+	waitDeadline = 30 * time.Second
+	callTimeout  = 10 * time.Second
+)
+
 func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), waitDeadline)
+	defer cancel()
+
 	name := gopherstack.UniqueName(t, "stream")
-	_, err := client.CreateStream(t.Context(), &kinesis.CreateStreamInput{
+
+	callCtx, cancelCall := gopherstack.Within(ctx, callTimeout)
+	_, err := client.CreateStream(callCtx, &kinesis.CreateStreamInput{
 		StreamName: aws.String(name), ShardCount: aws.Int32(shards),
 	})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		out, describeStreamErr := client.DescribeStream(
-			t.Context(),
-			&kinesis.DescribeStreamInput{StreamName: aws.String(name)},
-		)
 
-		return describeStreamErr == nil && out.StreamDescription.StreamStatus == types.StreamStatusActive
-	}, 30*time.Second, 100*time.Millisecond, "stream not ACTIVE")
+	cancelCall()
+	require.NoError(t, err)
+
+	rep := gopherstack.Poll(ctx, callTimeout, 100*time.Millisecond, func(calls *gopherstack.Calls) bool {
+		active := false
+
+		describeErr := calls.Do("DescribeStream", func(ctx context.Context) error {
+			out, describeStreamErr := client.DescribeStream(
+				ctx,
+				&kinesis.DescribeStreamInput{StreamName: aws.String(name)},
+			)
+			if describeStreamErr != nil {
+				return describeStreamErr
+			}
+
+			active = out.StreamDescription.StreamStatus == types.StreamStatusActive
+
+			return nil
+		})
+
+		return describeErr == nil && active
+	})
+	require.True(t, rep.Done, "stream %s not ACTIVE %s", name, rep)
 
 	return name
 }
 
-// readAll reads every shard of the stream from the beginning until want records are received.
+// readAll reads every shard of the stream from the beginning until want distinct events (by user key) are received.
+// When the deadline
+// passes it fails with what the polling saw: the polls and every distinct error of the API.
 func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []*exporter.FeatureEvent {
 	t.Helper()
-	desc, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+
+	ctx, cancel := context.WithTimeout(t.Context(), waitDeadline)
+	defer cancel()
+
+	callCtx, cancelCall := gopherstack.Within(ctx, callTimeout)
+	desc, err := client.DescribeStream(callCtx, &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+
+	cancelCall()
 	require.NoError(t, err)
 
 	iterators := map[string]*string{}
 
 	for _, shard := range desc.StreamDescription.Shards {
-		iter, getShardIteratorErr := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
+		iterCtx, cancelIter := gopherstack.Within(ctx, callTimeout)
+		iter, getShardIteratorErr := client.GetShardIterator(iterCtx, &kinesis.GetShardIteratorInput{
 			StreamName:        aws.String(stream),
 			ShardId:           shard.ShardId,
 			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 		})
+
+		cancelIter()
 		require.NoError(t, getShardIteratorErr)
 
 		iterators[aws.ToString(shard.ShardId)] = iter.ShardIterator
 	}
 
 	var got []*exporter.FeatureEvent
-	require.Eventually(t, func() bool {
-		for id, it := range iterators {
-			out, getRecordsErr := client.GetRecords(
-				t.Context(),
-				&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
-			)
-			if getRecordsErr != nil {
-				return false
-			}
 
-			iterators[id] = out.NextShardIterator
-			for _, r := range out.Records {
-				var e *exporter.FeatureEvent
-				require.NoError(t, json.Unmarshal(r.Data, &e))
-				got = append(got, e)
-			}
+	seen := map[string]struct{}{}
+
+	rep := gopherstack.Poll(ctx, callTimeout, 200*time.Millisecond, func(calls *gopherstack.Calls) bool {
+		for id, it := range iterators {
+			// Each shard gets its own call, with its own bound.
+			_ = calls.Do("GetRecords", func(ctx context.Context) error {
+				out, getRecordsErr := client.GetRecords(
+					ctx,
+					&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
+				)
+				if getRecordsErr != nil {
+					return getRecordsErr
+				}
+
+				iterators[id] = out.NextShardIterator
+				for _, r := range out.Records {
+					var event *exporter.FeatureEvent
+					require.NoError(t, json.Unmarshal(r.Data, &event))
+
+					// PutRecords is at-least-once: under load the SDK retries a request whose answer was lost,
+					// and the emulator has stored its records already. An event is counted once.
+					if _, dup := seen[event.UserKey]; !dup {
+						seen[event.UserKey] = struct{}{}
+						got = append(got, event)
+					}
+				}
+
+				return nil
+			})
 		}
 
 		return len(got) >= want
-	}, 30*time.Second, 200*time.Millisecond, "got %d/%d records", len(got), want)
+	})
+
+	// The message is built here, after the polling: it carries the real counts.
+	require.GreaterOrEqual(t, len(got), want, "records read %s", rep)
 
 	return got
 }
