@@ -25,6 +25,7 @@ const (
 	panicText = "secret-panic-text"
 	// msgUnavailable1of2 is the text of a failure of one lookup in two.
 	msgUnavailable1of2 = "valkey segment: unavailable: 1 of 2 lookups failed"
+	msgUnavailable2of2 = "valkey segment: unavailable: 2 of 2 lookups failed"
 	segOther           = "other"
 )
 

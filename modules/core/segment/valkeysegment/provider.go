@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,9 +42,9 @@ type Provider struct {
 	closer    func() error
 	segs      map[string]*segmentConfig
 	drained   chan struct{}
-	probeSet  string // key of the set segment that Init probes (the first by name), empty when there is none
-	probeKeys string // key that Init probes for the keys layout
 	missing   MissingKey
+	probeSets []string // keys of the set segments that Init probes: one per namespace, see probeKeys
+	probeKeys []string // member keys that Init probes for the keys layout, one per namespace
 	timeout   time.Duration
 	maxID     int
 	inflight  sync.WaitGroup
@@ -71,50 +73,75 @@ type (
 )
 
 // checkContextTimeout rejects a go-redis client that ignores the deadline of the context: it would keep a call
-// waiting on the socket past the timeout of the provider. A client that does not expose its options (a test double)
-// is accepted.
+// waiting on the socket past the timeout of the provider. That is a client without ContextTimeoutEnabled, and one
+// whose read or write timeout is negative: go-redis sets no socket deadline for it. A node client normalises the
+// -2 of a caller to -1, a cluster client keeps the -2 as set, and both read a -1 as the default, so the rule is on
+// the value that the client reports. A client that does not expose its options (a test double) is accepted.
 func checkContextTimeout(client Client) error {
-	enabled := true
+	enabled, read, write := true, time.Second, time.Second
 
 	switch typed := client.(type) {
 	case nodeOptions:
-		enabled = typed.Options().ContextTimeoutEnabled
+		opts := typed.Options()
+		enabled, read, write = opts.ContextTimeoutEnabled, opts.ReadTimeout, opts.WriteTimeout
 	case clusterOptions:
-		enabled = typed.Options().ContextTimeoutEnabled
+		opts := typed.Options()
+		enabled, read, write = opts.ContextTimeoutEnabled, opts.ReadTimeout, opts.WriteTimeout
 	}
 
 	if !enabled {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, ErrContextTimeoutDisabled)
 	}
 
+	if read < 0 || write < 0 {
+		return fmt.Errorf("%w: %w", ErrInvalidOptions, ErrSocketDeadlineDisabled)
+	}
+
 	return nil
 }
 
-// probeKeys returns the keys that Init probes: the key of the first set segment by name, and the member key of the
-// first keys segment by name. Both are in the namespace that the operator configured for the segments.
-func probeKeys(segs map[string]*segmentConfig) (string, string) {
-	var setName, keysName string
+// MaxInitProbes is the most namespaces that Init probes, the set and the keys layouts together: a provider with
+// segments in more namespaces checks the first MaxInitProbes of them by name, so startup stays one small pipeline.
+const MaxInitProbes = 16
 
-	for name, cfg := range segs {
-		switch {
-		case cfg.layout == LayoutSet && (setName == "" || name < setName):
-			setName = name
-		case cfg.layout == LayoutKeys && (keysName == "" || name < keysName):
-			keysName = name
+// probeKeys returns the keys that Init probes. A namespace is the key of a set up to its hash tag, or the prefix of
+// the member keys. Each distinct namespace is probed once, with the key of its first segment by name, and at most
+// MaxInitProbes namespaces are probed (the first ones by namespace and name), sets and keys layouts each.
+func probeKeys(segs map[string]*segmentConfig) ([]string, []string) {
+	names := make([]string, 0, len(segs))
+	for name := range segs {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	var sets, members []string
+
+	seen := map[string]bool{}
+
+	for _, name := range names {
+		cfg := segs[name]
+
+		namespace, probe := cfg.key, cfg.key
+		list := &sets
+
+		if cfg.layout == LayoutKeys {
+			probe, list = cfg.key+probeID, &members
+		} else if tag := strings.IndexByte(cfg.key, '{'); tag >= 0 {
+			namespace = cfg.key[:tag]
 		}
+
+		id := string(cfg.layout) + "|" + namespace
+		if seen[id] || len(sets)+len(members) >= MaxInitProbes {
+			continue
+		}
+
+		seen[id] = true
+
+		*list = append(*list, probe)
 	}
 
-	var setKey, memberKey string
-
-	if setName != "" {
-		setKey = segs[setName].key
-	}
-
-	if keysName != "" {
-		memberKey = segs[keysName].key + probeID
-	}
-
-	return setKey, memberKey
+	return sets, members
 }
 
 // probeID is the id that the probes of Init look up.
@@ -189,7 +216,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 		prov.segs[name] = cfg
 	}
 
-	prov.probeSet, prov.probeKeys = probeKeys(prov.segs)
+	prov.probeSets, prov.probeKeys = probeKeys(prov.segs)
 
 	return prov, nil
 }
@@ -266,11 +293,11 @@ func (pl *plan) reset() {
 	pl.args = pl.args[:0]
 }
 
-// group returns the group of cfg that has room for one more id: a segment with more than MaxIDsPerCommand ids in a
-// call is several commands in the same pipeline.
-func (pl *plan) group(cfg *segmentConfig) *group {
+// group returns the group of cfg that has room for one more id under the limit: a segment with more ids in a call
+// is several commands in the same pipeline.
+func (pl *plan) group(cfg *segmentConfig, limit int) *group {
 	for i := len(pl.groups) - 1; i >= 0; i-- {
-		if pl.groups[i].cfg == cfg && len(pl.groups[i].idx) < MaxIDsPerCommand {
+		if pl.groups[i].cfg == cfg && len(pl.groups[i].idx) < limit {
 			return &pl.groups[i]
 		}
 	}
@@ -327,8 +354,11 @@ func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error
 	}()
 
 	obs := Observation{Lookups: len(lookups)}
+
 	err := p.lookup(ctx, lookups, scr, &obs)
-	p.record(obs.Failure)
+	if obs.RoundTrips > 0 || obs.Failure != ClassNone {
+		p.record(obs.Failure) // a call that reached no store operation says nothing of the store
+	}
 
 	obs.Duration = clock.Now().Sub(started)
 
@@ -341,12 +371,62 @@ func (p *Provider) Contains(ctx context.Context, lookups []segment.Lookup) error
 
 // result accumulates the outcome of the commands of one call.
 type result struct {
-	ctx      context.Context //nolint:containedctx // the scratch of one call, never stored
-	callCtx  context.Context //nolint:containedctx // the scratch of one call, never stored
-	execErr  error
-	answered int
-	failed   int
-	class    Class
+	ctx       context.Context //nolint:containedctx // the scratch of one call, never stored
+	callCtx   context.Context //nolint:containedctx // the scratch of one call, never stored
+	execErr   error
+	malformed error // the first parse or protocol error of the call: no reply of the call is trusted
+	answered  int
+	failed    int
+	class     Class
+}
+
+// isMalformed tells whether err is a parse or protocol error: not a transport, context or connection error and not
+// an error reply of the store.
+func isMalformed(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	_, isReply := errors.AsType[redis.Error](err)
+
+	return !isReply && !isTransportErr(err)
+}
+
+// newResult starts the outcome of a pipeline. An error of Exec that is a parse or protocol error means the stream
+// cannot be trusted, and nothing of the call is kept. The unit is the whole call, whatever the client: a cluster
+// client has one batch per node and returns the first error, and a standalone one stamps the error on the commands
+// that follow. Keeping the call whole makes both behave alike. See also scan.
+func newResult(ctx, callCtx context.Context, execErr error) result {
+	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+	res.note(execErr)
+
+	return res
+}
+
+// note keeps the first parse or protocol error that it is given.
+func (r *result) note(err error) {
+	if r.malformed == nil && isMalformed(err) {
+		r.malformed = err
+	}
+}
+
+// scan looks at the error of every command of the call: Exec returns only the first error of a pipeline, and in a
+// cluster an earlier error of another node can hide a parse error.
+func (r *result) scan(scr *plan) {
+	for i := range scr.groups {
+		r.noteCmd(scr.groups[i].members)
+		r.noteCmd(scr.groups[i].exists)
+	}
+
+	for i := range scr.keys {
+		r.noteCmd(scr.keys[i].cmd)
+	}
+}
+
+func (r *result) noteCmd(cmd *redis.Cmd) {
+	if cmd != nil {
+		r.note(cmd.Err())
+	}
 }
 
 func (r *result) fail(n int, class Class) {
@@ -394,14 +474,20 @@ func validShape(val any, shape int) bool {
 	return false
 }
 
-// isTransportErr tells whether err is the end of the connection or of the context: EOF, a reset, a closed or timed
-// out socket, a cancelled or expired context. A parse error or any other protocol error is not.
+// isTransportErr tells whether err is the end of the connection or of the context, or a failure to get a
+// connection: EOF, a reset, a closed or timed out socket, a dial error, a cancelled or expired context, and the
+// sentinels of go-redis v9 for a connection that cannot be had (ErrClosed, ErrPoolExhausted, ErrPoolTimeout: they
+// are all the exported errors of the client that are not replies of the store; ErrCrossSlot and ErrNoScript are
+// replies). A parse error or any other protocol error is not.
 func isTransportErr(err error) bool {
-	switch {
-	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
-		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE):
-		return true
+	for _, sentinel := range [...]error{
+		io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, context.Canceled, context.DeadlineExceeded,
+		syscall.ECONNRESET, syscall.EPIPE,
+		redis.ErrClosed, redis.ErrPoolExhausted, redis.ErrPoolTimeout,
+	} {
+		if errors.Is(err, sentinel) {
+			return true
+		}
 	}
 
 	_, ok := errors.AsType[net.Error](err)
@@ -422,6 +508,10 @@ func (r *result) completed(cmd *redis.Cmd, err error, shape int) bool {
 
 // cmdErr returns the error of a command, or the pipeline error when the command has no reply.
 func (r *result) cmdErr(cmd *redis.Cmd, shape int) error {
+	if r.malformed != nil {
+		return fmt.Errorf("valkey segment: pipeline: %w", r.malformed)
+	}
+
 	if cmd == nil {
 		return ErrProtocol
 	}
@@ -774,7 +864,7 @@ func (p *Provider) askExists(ctx context.Context, names []string, asked int, out
 	}
 
 	_, execErr := pipe.Exec(callCtx)
-	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+	res := newResult(ctx, callCtx, execErr)
 
 	for i, cmd := range cmds {
 		if cmd == nil {
@@ -807,49 +897,58 @@ func (p *Provider) askExists(ctx context.Context, names []string, asked int, out
 		return &LookupError{Class: res.class, Failed: res.failed, Total: len(names)}
 	}
 
+	p.record(ClassNone)
+
 	return nil
 }
 
-// initCheck is one probe of Init: the command, and the name that an error of Init gives.
+// initCheck is one probe of Init: the command, the name that an error of Init gives, and the shape of its reply.
 type initCheck struct {
-	cmd  *redis.Cmd
-	name string
+	cmd   *redis.Cmd
+	name  string
+	shape int
 }
 
-// probe sends the probes of Init: exactly the commands that the provider will use. A set segment is probed with
-// SMISMEMBER and EXISTS, or with the script when Atomic applies (see queue); a keys segment with EXISTS. The key
-// is one the operator configured, so a user limited to that namespace can pass.
+// scriptShape is the reply of the script for one id: the key check, then the answer of the id.
+const scriptShape = 2
+
+// probe sends the probes of Init: exactly the commands that the provider will use, on the keys of each configured
+// namespace (at most MaxInitProbes of them). A set segment is probed with SMISMEMBER and EXISTS, or with the script
+// when Atomic applies (see queue); a keys segment with EXISTS. The keys are the ones the operator configured, so a
+// user limited to those namespaces can pass. EXISTS of Provider.Exists is probed only when the lookups need it.
 func (p *Provider) probe(ctx context.Context) error {
 	callCtx, cancel := p.callContext(ctx)
 	defer cancel()
 
 	pipe := p.client.Pipeline()
 	ping := pipe.Do(callCtx, "ping")
-	checks := []initCheck{{ping, "PING"}}
+	checks := []initCheck{{ping, "PING", shapeNone}}
+	scripted := p.atomicTx && p.missing == MissingUnknown
 
 	var scripts []initCheck
 
-	switch {
-	case p.probeSet == "":
-	case p.atomicTx && p.missing == MissingUnknown:
-		scripts = []initCheck{
-			{pipe.Do(callCtx, "eval_ro", Script, 1, p.probeSet, probeID), "EVAL_RO"},
-			{pipe.Do(callCtx, "evalsha_ro", ScriptSHA, 1, p.probeSet, probeID), "EVALSHA_RO"},
-		}
-	default:
-		checks = append(checks, initCheck{pipe.Do(callCtx, "smismember", p.probeSet, probeID), "SMISMEMBER"})
+	for _, key := range p.probeSets {
+		switch {
+		case scripted:
+			scripts = append(scripts,
+				initCheck{pipe.Do(callCtx, "eval_ro", Script, 1, key, probeID), "EVAL_RO", scriptShape},
+				initCheck{pipe.Do(callCtx, "evalsha_ro", ScriptSHA, 1, key, probeID), "EVALSHA_RO", scriptShape},
+			)
+		default:
+			checks = append(checks, initCheck{pipe.Do(callCtx, "smismember", key, probeID), "SMISMEMBER", 1})
 
-		if p.missing == MissingUnknown {
-			checks = append(checks, initCheck{pipe.Do(callCtx, "exists", p.probeSet), "EXISTS"})
+			if p.missing == MissingUnknown {
+				checks = append(checks, initCheck{pipe.Do(callCtx, "exists", key), "EXISTS", shapeInt})
+			}
 		}
 	}
 
-	if p.probeKeys != "" {
-		checks = append(checks, initCheck{pipe.Do(callCtx, "exists", p.probeKeys), "EXISTS"})
+	for _, key := range p.probeKeys {
+		checks = append(checks, initCheck{pipe.Do(callCtx, "exists", key), "EXISTS", shapeInt})
 	}
 
 	_, execErr := pipe.Exec(callCtx)
-	res := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+	res := newResult(ctx, callCtx, execErr)
 
 	err := p.initFailure(&res, checks)
 	if err != nil {
@@ -858,9 +957,7 @@ func (p *Provider) probe(ctx context.Context) error {
 
 	pong, _ := ping.Val().(string)
 	if pong != "PONG" {
-		p.record(ClassProtocol)
-
-		return fmt.Errorf("%w: %w", ErrInit, ErrProtocol)
+		return p.initProtocol()
 	}
 
 	if len(scripts) > 0 {
@@ -875,12 +972,24 @@ func (p *Provider) probe(ctx context.Context) error {
 	return nil
 }
 
-// initFailure returns the error of Init for the first probe that failed, or nil.
+// initProtocol is the error of Init for a reply that is not the one of the command.
+func (p *Provider) initProtocol() error {
+	p.record(ClassProtocol)
+
+	return fmt.Errorf("%w: %w", ErrInit, ErrProtocol)
+}
+
+// initFailure returns the error of Init for the first probe that failed or answered something else than its
+// command returns, or nil.
 func (p *Provider) initFailure(res *result, checks []initCheck) error {
 	for _, each := range checks {
 		err := res.cmdErr(each.cmd, shapeNone)
 		if err == nil {
-			continue
+			if each.shape == shapeNone || validShape(each.cmd.Val(), each.shape) {
+				continue
+			}
+
+			return p.initProtocol()
 		}
 
 		class := res.classify(err)
@@ -912,13 +1021,18 @@ func (p *Provider) probeScripts(res *result, readOnly []initCheck) error {
 
 	pipe := p.client.Pipeline()
 	callCtx := res.callCtx // one timeout of Init for both pipelines
-	plain := []initCheck{
-		{pipe.Do(callCtx, "eval", Script, 1, p.probeSet, probeID), "EVAL"},
-		{pipe.Do(callCtx, "evalsha", ScriptSHA, 1, p.probeSet, probeID), "EVALSHA"},
+
+	var plain []initCheck
+
+	for _, key := range p.probeSets {
+		plain = append(plain,
+			initCheck{pipe.Do(callCtx, "eval", Script, 1, key, probeID), "EVAL", scriptShape},
+			initCheck{pipe.Do(callCtx, "evalsha", ScriptSHA, 1, key, probeID), "EVALSHA", scriptShape},
+		)
 	}
 
 	_, execErr := pipe.Exec(callCtx)
-	again := result{ctx: res.ctx, callCtx: callCtx, execErr: execErr}
+	again := newResult(res.ctx, callCtx, execErr)
 
 	err = p.initFailure(&again, plain)
 	if err != nil {
@@ -997,13 +1111,14 @@ func (p *Provider) lookup(ctx context.Context, lookups []segment.Lookup, scr *pl
 	_, execErr := pipe.Exec(callCtx)
 	obs.RoundTrips = 1
 
-	if p.loadScripts(callCtx, lookups, scr) {
+	sent, retryErr := p.loadScripts(callCtx, lookups, scr)
+	if sent {
 		obs.RoundTrips = 2
 	}
 
-	var res result
-
-	res.ctx, res.callCtx, res.execErr = ctx, callCtx, execErr
+	res := newResult(ctx, callCtx, execErr)
+	res.note(retryErr)
+	res.scan(scr)
 
 	for i := range scr.groups {
 		res.readGroup(&scr.groups[i], lookups)
@@ -1027,6 +1142,13 @@ func (p *Provider) lookup(ctx context.Context, lookups []segment.Lookup, scr *pl
 
 // build groups the lookups by store command.
 func (p *Provider) build(lookups []segment.Lookup, scr *plan, obs *Observation) {
+	// SMISMEMBER takes at most MaxIDsPerCommand ids. A script does not unpack them, and it is the unit of atomicity:
+	// all the ids of a set go in one script, so a set that is deleted during the call is seen whole or not at all.
+	limit := MaxIDsPerCommand
+	if p.atomicTx && p.missing == MissingUnknown {
+		limit = math.MaxInt
+	}
+
 	for i := range lookups {
 		cfg := p.segs[lookups[i].Segment]
 		if cfg == nil {
@@ -1040,7 +1162,7 @@ func (p *Provider) build(lookups []segment.Lookup, scr *plan, obs *Observation) 
 		}
 
 		if cfg.layout == LayoutSet {
-			g := scr.group(cfg)
+			g := scr.group(cfg, limit)
 			g.idx = append(g.idx, i)
 
 			continue
@@ -1133,8 +1255,8 @@ func isNoScript(err error) bool {
 
 // loadScripts sends again, with the text of the script, the commands that the store refused with NOSCRIPT, in one
 // more pipeline. The store caches the script when it runs it, so this happens once for a store that was restarted
-// or flushed. It returns true when it sent the pipeline.
-func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, scr *plan) bool {
+// or flushed. It returns true when it sent the pipeline, and the error of that pipeline.
+func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, scr *plan) (bool, error) {
 	var pipe redis.Pipeliner
 
 	for i := range scr.groups {
@@ -1158,10 +1280,13 @@ func (p *Provider) loadScripts(ctx context.Context, lookups []segment.Lookup, sc
 	}
 
 	if pipe == nil {
-		return false
+		return false, nil
 	}
 
-	_, _ = pipe.Exec(ctx) // the error of each command is on the command
+	_, err := pipe.Exec(ctx) // the error of each command is on the command too
+	if err != nil {
+		return true, fmt.Errorf("valkey segment: script pipeline: %w", err)
+	}
 
-	return true
+	return true, nil
 }

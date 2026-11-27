@@ -57,7 +57,8 @@ type Options struct {
 	// Segments maps a segment name to where its members are. A lookup of a segment that is not here stays Unknown:
 	// a flag can never choose a key.
 	Segments map[string]SegmentOptions
-	// Observer (optional) receives one Observation per call.
+	// Observer (optional) receives one Observation per call, except for a call with no lookup and a call after
+	// Shutdown.
 	Observer Observer
 	// KeyPrefix is the default prefix of the keys. Empty means DefaultKeyPrefix.
 	KeyPrefix string
@@ -76,8 +77,12 @@ type Options struct {
 }
 
 func (o *Options) validate() error {
-	if o.Timeout < 0 || o.MaxIDBytes < 0 {
+	if o.Timeout < 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, errNegativeTimeout)
+	}
+
+	if o.MaxIDBytes < 0 {
+		return fmt.Errorf("%w: %w", ErrInvalidOptions, errNegativeMaxID)
 	}
 
 	switch o.MissingKey {

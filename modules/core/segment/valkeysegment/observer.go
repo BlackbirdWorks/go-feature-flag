@@ -15,7 +15,8 @@ type Observation struct {
 	Oversized int
 	// Unknown is the number of lookups left Unknown (a failure, an unconfigured segment, a missing key).
 	Unknown int
-	// RoundTrips is 1 when a pipeline was sent and 0 when nothing was sent.
+	// RoundTrips is the number of pipelines the call sent: 0 when nothing was sent, 1 usually, 2 when the store
+	// answered NOSCRIPT and the script was sent again with its text.
 	RoundTrips int
 	// Duration is the time of the call, read from the clock package.
 	Duration time.Duration
@@ -23,8 +24,9 @@ type Observation struct {
 	Failure Class
 }
 
-// Observer receives one Observation per call. It is called on the goroutine of the caller, so it must be fast and
-// safe for concurrent use. The relay proxy wires its metrics through it.
+// Observer receives one Observation per call of Contains that reached the provider: a call with no lookup and a
+// call after Shutdown return before it and are not observed. It is called on the goroutine of the caller, so it
+// must be fast and safe for concurrent use. The relay proxy wires its metrics through it.
 type Observer interface {
 	Observe(Observation)
 }

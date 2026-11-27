@@ -70,10 +70,14 @@ var (
 	ErrClosed = errors.New("valkey segment: closed")
 	// ErrContextTimeoutDisabled is wrapped by the error of New for a go-redis client without ContextTimeoutEnabled.
 	ErrContextTimeoutDisabled = errors.New("valkey segment: the client must set ContextTimeoutEnabled")
+	// ErrSocketDeadlineDisabled is wrapped by the error of New and Dial for a go-redis client whose read or write
+	// timeout is disabled: the socket then has no deadline, whatever the context says.
+	ErrSocketDeadlineDisabled = errors.New("valkey segment: the client must not disable its read and write timeouts")
 	// ErrNilClient is returned when the client is nil.
 	ErrNilClient = errors.New("valkey segment: nil client")
 
 	errNegativeTimeout = errors.New("timeout must not be negative")
+	errNegativeMaxID   = errors.New("max id bytes must not be negative")
 	errInvalidName     = errors.New("invalid segment name")
 	errInvalidLayout   = errors.New("invalid layout: want set or keys")
 	errInvalidMissing  = errors.New("invalid missingKey: want unknown or notMember")
