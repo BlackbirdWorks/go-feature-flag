@@ -24,13 +24,14 @@ import (
 )
 
 const (
-	loadIDSpace   = 400 // ids m0..m399, the even ones are members
-	loadTotal     = 12000
-	loadMargin    = time.Second // the most that a call may take beyond its timeout
-	loadSteadyTTL = 5 * time.Second
-	loadSlowTTL   = 100 * time.Millisecond
-	loadPauseMS   = "300"
-	loadRecovery  = 200
+	loadIDSpace    = 400 // ids m0..m399, the even ones are members
+	loadTotal      = 12000
+	loadSlowMargin = 400 * time.Millisecond // a call that ignored its 100 ms deadline would last the 300 ms pause or more
+	loadMargin     = time.Second            // the most that a call may take beyond its timeout
+	loadSteadyTTL  = 5 * time.Second
+	loadSlowTTL    = 100 * time.Millisecond
+	loadPauseMS    = "300"
+	loadRecovery   = 200
 )
 
 // loadSize is the batch size of a call: 1, 10 or 100 ids.
@@ -49,10 +50,7 @@ func loadProviders() []loadProvider {
 			build: func(tb testing.TB, srv *e2eServer, timeout time.Duration) (segment.Provider, func()) {
 				tb.Helper()
 
-				opt := srv.option(plainDial)
-				opt.PipelineMultiplex = 0 // the default of valkey-go: the load uses several connections
-
-				prov, err := valkeysegment.Dial(opt, &valkeysegment.Options{
+				prov, err := valkeysegment.Dial(srv.defaultOption(), &valkeysegment.Options{
 					Timeout: timeout, Pipelining: mode, Segments: loadSegments(),
 				})
 				require.NoError(tb, err)
@@ -166,7 +164,7 @@ func runLoad(tb testing.TB, prov segment.Provider, goroutines, total int, atMid 
 	)
 
 	stats := &loadStats{classes: map[string]int{}}
-	perG := total / goroutines
+	perG, extra := total/goroutines, total%goroutines // the remainder goes to the first workers: exactly total calls
 	before, after := runtime.MemStats{}, runtime.MemStats{}
 
 	runtime.ReadMemStats(&before)
@@ -175,9 +173,14 @@ func runLoad(tb testing.TB, prov segment.Provider, goroutines, total int, atMid 
 
 	for gor := range goroutines {
 		wg.Go(func() {
-			own := make([]time.Duration, 0, perG)
+			count := perG
+			if gor < extra {
+				count++
+			}
 
-			for i := range perG {
+			own := make([]time.Duration, 0, count)
+
+			for i := range count {
 				if atMid != nil && done.Load() >= int64(total/3) {
 					midOnce.Do(atMid)
 				}
@@ -206,18 +209,10 @@ func runLoad(tb testing.TB, prov segment.Provider, goroutines, total int, atMid 
 				done.Add(1)
 				lookups.Add(int64(size))
 
-				for pos := range calls {
-					want := segment.NotMember
-					if ids[pos]%2 == 0 {
-						want = segment.Member
-					}
+				bad, missing := checkAnswers(calls, ids)
 
-					if calls[pos].State == segment.Unknown {
-						unknown.Add(1)
-					} else if calls[pos].State != want {
-						wrong.Add(1)
-					}
-				}
+				wrong.Add(bad)
+				unknown.Add(missing)
 
 				if err != nil {
 					failed.Add(1)
@@ -253,6 +248,27 @@ func runLoad(tb testing.TB, prov segment.Provider, goroutines, total int, atMid 
 	}
 
 	return stats
+}
+
+// checkAnswers counts the answers that are wrong (a member reported as not a member, or the reverse) and the ones
+// that are unknown, against the seeded membership: the even ids are members.
+func checkAnswers(calls []segment.Lookup, ids []int) (int64, int64) {
+	var wrong, unknown int64
+
+	for pos := range calls {
+		want := segment.NotMember
+		if ids[pos]%2 == 0 {
+			want = segment.Member
+		}
+
+		if calls[pos].State == segment.Unknown {
+			unknown++
+		} else if calls[pos].State != want {
+			wrong++
+		}
+	}
+
+	return wrong, unknown
 }
 
 func (s *loadStats) percentile(p float64) time.Duration {
@@ -321,13 +337,16 @@ func TestE2ELoad(t *testing.T) {
 
 	allowed := []string{valkeysegment.ClassUnavailable.String(), valkeysegment.ClassTimeout.String()}
 	faults := []struct {
-		inject  func()
-		name    string
-		timeout time.Duration
+		inject       func()
+		name         string
+		timeout      time.Duration
+		bound        time.Duration // the longest that a call may take
+		wantTimeouts bool          // the fault must make deadlines fire
 	}{
 		{
 			name:    "client kill of every connection",
 			timeout: loadSteadyTTL,
+			bound:   loadSteadyTTL + loadMargin,
 			inject: func() {
 				res := admin.Do(
 					context.Background(),
@@ -337,8 +356,10 @@ func TestE2ELoad(t *testing.T) {
 			},
 		},
 		{
-			name:    "slow server so that deadlines fire",
-			timeout: loadSlowTTL,
+			name:         "slow server so that deadlines fire",
+			timeout:      loadSlowTTL,
+			bound:        loadSlowTTL + loadSlowMargin,
+			wantTimeouts: true,
 			inject: func() {
 				res := admin.Do(
 					context.Background(),
@@ -354,12 +375,15 @@ func TestE2ELoad(t *testing.T) {
 			for _, goroutines := range []int{64, 256} {
 				baseline := runtime.NumGoroutine()
 				prov, stop := each.build(t, srv, loadSteadyTTL)
+
+				t.Cleanup(stop) // runs even when an assertion ends the subtest early
 				stats := runLoad(t, prov, goroutines, loadTotal, nil)
 
 				stats.report(t, each.name+" steady "+strconv.Itoa(goroutines)+" goroutines")
 				assert.Zero(t, stats.wrong, "wrong answers")
 				assert.Zero(t, stats.unknown, "unknown answers without a fault")
 				assert.Zero(t, stats.failed, "failed calls without a fault: %v", stats.classes)
+				assert.Equal(t, int64(loadTotal), stats.calls, "calls made")
 				assert.Less(t, stats.maxCall, loadSteadyTTL+loadMargin, "a call went past its deadline")
 
 				stop()
@@ -370,11 +394,18 @@ func TestE2ELoad(t *testing.T) {
 				t.Run(fault.name, func(t *testing.T) {
 					baseline := runtime.NumGoroutine()
 					prov, stop := each.build(t, srv, fault.timeout)
+
+					t.Cleanup(stop)
 					stats := runLoad(t, prov, 64, loadTotal, fault.inject)
 
 					stats.report(t, each.name+" "+fault.name)
 					assert.Zero(t, stats.wrong, "wrong answers under a fault")
-					assert.Less(t, stats.maxCall, fault.timeout+loadMargin, "a call went past its deadline")
+					assert.Equal(t, int64(loadTotal), stats.calls, "calls made")
+					assert.Less(t, stats.maxCall, fault.bound, "a call went past its deadline")
+
+					if fault.wantTimeouts {
+						assert.Positive(t, stats.classes[valkeysegment.ClassTimeout.String()], "no deadline fired")
+					}
 
 					for class := range stats.classes {
 						assert.Contains(t, allowed, class, "a class that the fault should not produce")

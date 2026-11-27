@@ -199,4 +199,9 @@ The relay proxy will export the observations of the resolver (issue 16 and 18): 
 
 ## Retries of go-redis
 
-`Dial` does not set `MaxRetries`: the go-redis default of 3 retries applies unless you set it in `redis.UniversalOptions`. A retry runs under the call timeout of the provider, so it cannot make a call longer than `Timeout`, but a command may be sent more than once and a killed connection is often hidden from the caller (in the load test, killing every connection gave no failed call with the `redis` type, where the `valkey` type returned `unavailable` for the calls that met the dead connection). Set `MaxRetries: -1` to see every transport failure as an unknown lookup at once, or keep the default to hide short disconnects at the cost of the extra attempts inside the timeout.
+`Dial` does not set the retry options of go-redis, so its defaults apply unless you set them in `redis.UniversalOptions`:
+
+- **Single node:** `MaxRetries` (default 3) retries a pipeline after a network error.
+- **Cluster:** a pipeline is also retried, up to `MaxRedirects` times (default 3), for the failures that go-redis treats as retryable; `MaxRetries` alone does not turn that off.
+
+A retry runs inside the call timeout of the provider, so it cannot make a call longer than `Timeout`, but a command may be sent more than once, and a short disconnect (a killed connection) is often hidden from the caller: in the load test, killing every connection gave no failed call with the `redis` type on a single node, where the `valkey` type returned `unavailable` for the calls that met the dead connection. To see every transport failure as an unknown lookup at once, set `MaxRetries: -1` (and `MaxRedirects: -1` on a cluster); keep the defaults to hide short disconnects at the cost of the extra attempts inside the timeout. The cluster behaviour was read in the go-redis source, not tested here.

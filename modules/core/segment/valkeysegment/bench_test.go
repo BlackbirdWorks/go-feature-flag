@@ -21,7 +21,7 @@ import (
 // the two pipelining modes of the valkey provider. Run it with -cpu 1,4,8 for the scaling of the parallel runs.
 func BenchmarkContains(b *testing.B) {
 	srv := startServerImage(b, valkeyImage)
-	opt := srv.option(plainDial)
+	opt := srv.defaultOption() // both providers use their default connection and pool settings
 	client := seed(b, opt)
 
 	members := make([]string, 0, 50)

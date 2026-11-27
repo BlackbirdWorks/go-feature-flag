@@ -45,8 +45,8 @@ Client-side caching is not used: lookups go through `DoMulti`, which valkey-go n
 ## Failures and shutdown
 
 - A transport error keeps the answers that were read (a healthy cluster node keeps its answers); the rest stay unknown with class `unavailable`, `timeout` or `canceled`.
-- An error reply (`WRONGTYPE`, `NOPERM`) is class `server`. A reply that is not the one the command returns, or a stream that does not parse, is class `protocol` and nothing of the call is kept.
-- The call ends at its `Timeout` at the latest. With `pipelining: always` (default) a cancel by the caller also ends it at once and a disconnect inside a batch keeps the replies already read; with `auto` and `off` it does not (see Client settings). A client you pass to `New` should be created with `AlwaysPipelining`.
+- An error reply (`WRONGTYPE`, `NOPERM`) is class `server` and fails only its command. A reply that is not the one the command returns (not an integer 0 or 1, a list of the wrong length or with a null, a bulk string instead of an integer), or a stream that does not parse, is class `protocol` and nothing of the call is kept: every lookup of the call is unknown. The `redis` type keeps the answers of the other commands when one reply has the wrong shape (see [Which type to choose](segments-dynamic.md#which-type-to-choose)).
+- The call ends at its `Timeout` at the latest, with one exception: when a slow peer stops reading until the ring of a connection is full, the wait for a ring slot ignores the deadline (see [Limits](#limits)). With `pipelining: always` (default) a cancel by the caller also ends the call at once and a disconnect inside a batch keeps the replies already read; with `auto` it does not (see Client settings). A client you pass to `New` should be created with `AlwaysPipelining`.
 - `Shutdown` stops new calls, waits for the calls in flight until its context ends, then closes an owned client: that ends a call still in flight. It is safe to call twice.
 - Errors, status and metrics hold classes and counts only: never an id, a key, an address or a password.
 
@@ -60,14 +60,16 @@ Client-side caching is not used: lookups go through `DoMulti`, which valkey-go n
 
 ## Throughput
 
-`TestE2ELoad` (docker tag) drives each provider with 64 and 256 goroutines, batches of 1, 10 and 100 ids over both layouts, and checks every answer against the seeded members. It also runs `CLIENT KILL` of every connection and `CLIENT PAUSE` so that deadlines fire, and checks that there is no wrong answer, no call past its deadline plus a second, no goroutine left, and that the same provider answers correctly again.
+`TestE2ELoad` (docker tag) drives each provider with 64 and 256 goroutines and exactly 12000 calls, batches of 1, 10 and 100 ids over both layouts, and checks every answer against the seeded members. It also runs `CLIENT KILL` of every connection and `CLIENT PAUSE` so that deadlines fire, and checks that there is no wrong answer, that no call goes past its deadline by more than a tight bound, that deadlines do fire under the pause, that no goroutine is left, and that the same provider answers correctly again.
 
-Measured on a commodity 4-core Linux machine against one Valkey 8 container, 12000 calls per run, race detector off:
+Measured on a commodity 4-core Linux machine against one Valkey 8 container, race detector off, both providers with the default connection and pool settings of their clients, median of 3 runs. The machine was also busy with other work (load average above 3), so read the numbers as a comparison, not as absolute figures:
 
 | Provider | calls/s, 64 goroutines | p50 / p99, 64 | calls/s, 256 goroutines | p50 / p99, 256 | allocations per call |
 |---|---|---|---|---|---|
-| `redis` | 46700 | 1.3 / 2.6 ms | 47500 | 6.2 / 8.2 ms | 166 |
-| `valkey`, `always` | 73400 | 0.8 / 1.9 ms | 77000 | 3.2 / 5.9 ms | 128 |
-| `valkey`, `auto` | 72600 | 0.8 / 2.0 ms | 77100 | 3.0 / 6.6 ms | 128 |
+| `redis` | 32300 | 1.9 / 4.4 ms | 33100 | 9.0 / 12.2 ms | 166 |
+| `valkey`, `always` | 54100 | 1.1 / 2.8 ms | 52700 | 4.6 / 10.4 ms | 129 |
+| `valkey`, `auto` | 51700 | 1.1 / 3.0 ms | 51300 | 4.6 / 9.5 ms | 130 |
 
-The load generator shares the machine with the store, so read the numbers as a comparison. Under a fault no run had a wrong answer; failed calls had the classes `unavailable` (kill) or `timeout` (pause). With a single caller one call costs about 45 to 55 microseconds with all providers. Run the benchmark with `go test -tags=docker,bench -run '^$' -bench Contains -cpu 1,4,8 ./modules/core/segment/valkeysegment`.
+Under a fault no run had a wrong answer; failed calls had the classes `unavailable` (kill) or `timeout` (pause).
+
+The benchmark (`go test -tags=docker,bench -run '^$' -bench Contains -cpu 1,4,8 ./modules/core/segment/valkeysegment`) measures one call of 1, 10 and 100 ids. With one caller the three providers are within about 10 percent of each other (about 55 to 65 microseconds for 1 and 10 ids, about 95 to 115 microseconds for 100 ids). With parallel callers a call costs about 25 microseconds at `-cpu 4` and 16 to 20 microseconds at `-cpu 8` for 1 and 10 ids, again within about 20 percent. `valkey` allocates fewer objects per call (about 18 to 26 against 24 to 123 for `redis`).

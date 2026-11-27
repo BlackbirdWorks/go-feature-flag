@@ -72,6 +72,12 @@ func (s *e2eServer) option(dial func(context.Context, string, *net.Dialer) (net.
 	}
 }
 
+// defaultOption is the client option with the connection settings of valkey-go left at their defaults: no single
+// connection and no counting dialer. The load test and the benchmark use it.
+func (s *e2eServer) defaultOption() *valkey.ClientOption {
+	return &valkey.ClientOption{InitAddress: []string{s.address}}
+}
+
 func plainDial(ctx context.Context, addr string, dialer *net.Dialer) (net.Conn, error) {
 	return dialer.DialContext(ctx, "tcp", addr)
 }

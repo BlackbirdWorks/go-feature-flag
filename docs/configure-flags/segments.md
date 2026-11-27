@@ -9,9 +9,9 @@ There are two kinds of segment, chosen by the `type` of the segment definition:
 | | [Static segment](segments-static.md) (`file`) | [Dynamic segment](segments-dynamic.md) (`redis`, `valkey`) |
 |---|---|---|
 | Where the members live | in the memory of the process, loaded from a member file | in the store (Redis or Valkey); never copied whole |
-| Memory use | grows with the list | bounded cache of recent answers |
-| Freshness | as of the last load of the file | as of the last lookup (cache TTL) |
-| Cost of a lookup | a hash lookup in memory | one batched round trip, with a cache in front |
+| Memory use | grows with the list | bounded cache of recent answers, when the resolver is used |
+| Freshness | as of the last load of the file | as of the last lookup (cache TTL, when the resolver is used) |
+| Cost of a lookup | a hash lookup in memory | one batched call to the store for the lookups of a rule (one round trip on a single node), plus the cache when the resolver is used |
 | Use it for | small, rarely changing lists | large or fast changing audiences |
 
 The rule syntax, the three answers and the failure policy on this page are the same for both kinds.
@@ -30,7 +30,7 @@ beta-feature:
 ```
 
 > [!NOTE]
-> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. Looking members up in a store (dynamic segments) and the relay proxy settings that define segments are not available yet: they will come with the segment providers and the relay proxy wiring. Until then segments are available to the Go module (see [Use segments in the Go module](#use-segments-in-the-go-module)).
+> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. The relay proxy settings that define segments, and looking members up in a store from the relay proxy, are not available yet: the relay wiring is tracked in issue 16. Go applications can use the dynamic providers today (see [Segments - dynamic](segments-dynamic.md)) and the static ones (see [Use segments in the Go module](#use-segments-in-the-go-module)).
 
 ## Syntax
 
