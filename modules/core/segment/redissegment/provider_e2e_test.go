@@ -1,6 +1,6 @@
 //go:build docker
 
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -25,11 +25,14 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
-const valkeyImage = "docker.io/valkey/valkey:8-alpine"
+const (
+	valkeyImage = "docker.io/valkey/valkey:8-alpine"
+	redisImage  = "docker.io/redis:7-alpine"
+)
 
 type server struct {
 	container *testcontainerredis.RedisContainer
@@ -150,9 +153,15 @@ func (h *faultHook) Heal() {
 func startServer(tb testing.TB) *server {
 	tb.Helper()
 
+	return startServerImage(tb, valkeyImage)
+}
+
+func startServerImage(tb testing.TB, image string) *server {
+	tb.Helper()
+
 	ctx := context.Background()
 
-	container, err := testcontainerredis.Run(ctx, valkeyImage)
+	container, err := testcontainerredis.Run(ctx, image)
 	testcontainers.CleanupContainer(tb, container)
 	require.NoError(tb, err)
 
@@ -203,20 +212,20 @@ func (srv *server) commandCalls(tb testing.TB, name string) int64 {
 	return 0
 }
 
-func e2eProvider(t *testing.T, srv *server, opts *valkeysegment.Options) *valkeysegment.Provider {
+func e2eProvider(t *testing.T, srv *server, opts *redissegment.Options) *redissegment.Provider {
 	t.Helper()
 
 	if opts == nil {
-		opts = &valkeysegment.Options{}
+		opts = &redissegment.Options{}
 	}
 
 	if opts.Segments == nil {
-		opts.Segments = map[string]valkeysegment.SegmentOptions{
-			segBeta: {}, "flags": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+		opts.Segments = map[string]redissegment.SegmentOptions{
+			segBeta: {}, "flags": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 		}
 	}
 
-	prov, err := valkeysegment.New(srv.client, opts)
+	prov, err := redissegment.New(srv.client, opts)
 	require.NoError(t, err)
 
 	return prov
@@ -225,14 +234,26 @@ func e2eProvider(t *testing.T, srv *server, opts *valkeysegment.Options) *valkey
 func TestE2EContains(t *testing.T) {
 	t.Parallel()
 
-	srv := startServer(t)
+	for _, image := range []string{valkeyImage, redisImage} {
+		t.Run(image, func(t *testing.T) {
+			t.Parallel()
+
+			e2eContains(t, image)
+		})
+	}
+}
+
+func e2eContains(t *testing.T, image string) {
+	t.Helper()
+
+	srv := startServerImage(t, image)
 	ctx := context.Background()
 
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice, "carol").Err())
 	require.NoError(t, srv.client.Set(ctx, keyFlagAlice, "1", 0).Err())
 
 	tests := []struct {
-		opts       *valkeysegment.Options
+		opts       *redissegment.Options
 		name       string
 		lookups    []segment.Lookup
 		wantStates []segment.State
@@ -245,15 +266,15 @@ func TestE2EContains(t *testing.T) {
 		{
 			name:       "missing key is unknown",
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
-			opts:       &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{segGhost: {}}},
+			opts:       &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{segGhost: {}}},
 			wantStates: []segment.State{segment.Unknown},
 		},
 		{
 			name:    "missing key is not member on request",
 			lookups: []segment.Lookup{lk(segGhost, idAlice)},
-			opts: &valkeysegment.Options{
-				MissingKey: valkeysegment.MissingNotMember,
-				Segments:   map[string]valkeysegment.SegmentOptions{segGhost: {}},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingNotMember,
+				Segments:   map[string]redissegment.SegmentOptions{segGhost: {}},
 			},
 			wantStates: []segment.State{segment.NotMember},
 		},
@@ -294,7 +315,7 @@ func TestE2EOneRoundTrip(t *testing.T) {
 		lookups[i] = lk(segBeta, "id"+strconv.Itoa(i))
 	}
 
-	prov := e2eProvider(t, srv, &valkeysegment.Options{})
+	prov := e2eProvider(t, srv, &redissegment.Options{})
 
 	// a new connection sends its handshake in pipelines: warm the pool with one call before counting
 	require.NoError(t, prov.Contains(ctx, []segment.Lookup{lk(segBeta, "warm")}))
@@ -325,7 +346,7 @@ func TestE2EServerStopped(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice).Err())
 
-	prov := e2eProvider(t, srv, &valkeysegment.Options{Timeout: 2 * time.Second})
+	prov := e2eProvider(t, srv, &redissegment.Options{Timeout: 2 * time.Second})
 	before := []segment.Lookup{lk(segBeta, idAlice)}
 	require.NoError(t, prov.Contains(ctx, before))
 	require.Equal(t, []segment.State{segment.Member}, states(before))
@@ -335,12 +356,12 @@ func TestE2EServerStopped(t *testing.T) {
 	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")}
 	err := prov.Contains(ctx, lookups)
 
-	var lookupErr *valkeysegment.LookupError
+	var lookupErr *redissegment.LookupError
 
 	require.ErrorAs(t, err, &lookupErr)
 	assert.Contains(
 		t,
-		[]valkeysegment.Class{valkeysegment.ClassUnavailable, valkeysegment.ClassTimeout},
+		[]redissegment.Class{redissegment.ClassUnavailable, redissegment.ClassTimeout},
 		lookupErr.Class,
 	)
 	assert.Equal(t, 2, lookupErr.Failed)
@@ -397,9 +418,9 @@ func TestE2ETimeout(t *testing.T) {
 
 	t.Cleanup(func() { _ = client.Close() })
 
-	prov, err := valkeysegment.New(client, &valkeysegment.Options{
+	prov, err := redissegment.New(client, &redissegment.Options{
 		Timeout:  50 * time.Millisecond,
-		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {}},
+		Segments: map[string]redissegment.SegmentOptions{segBeta: {}},
 	})
 	require.NoError(t, err)
 
@@ -407,7 +428,7 @@ func TestE2ETimeout(t *testing.T) {
 
 	callErr := prov.Contains(context.Background(), lookups)
 
-	require.ErrorIs(t, callErr, valkeysegment.ErrTimeout)
+	require.ErrorIs(t, callErr, redissegment.ErrTimeout)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 }
 
@@ -420,7 +441,7 @@ func TestE2ESwapWhileLookups(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, live, "stable", "gen0").Err())
 
-	prov := e2eProvider(t, srv, &valkeysegment.Options{Timeout: 5 * time.Second})
+	prov := e2eProvider(t, srv, &redissegment.Options{Timeout: 5 * time.Second})
 
 	const swaps = 100
 
@@ -505,9 +526,9 @@ func TestE2EEngine(t *testing.T) {
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice).Err())
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{blocked}", "mallory").Err())
 
-	provider, err := valkeysegment.New(srv.client, &valkeysegment.Options{
+	provider, err := redissegment.New(srv.client, &redissegment.Options{
 		Timeout: 2 * time.Second,
-		Segments: map[string]valkeysegment.SegmentOptions{
+		Segments: map[string]redissegment.SegmentOptions{
 			segBeta: {}, "blocked": {},
 		},
 	})

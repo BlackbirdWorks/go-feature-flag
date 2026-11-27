@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 // denyingKey is a store that refuses every command on a key with the prefix, as an ACL on a namespace does.
@@ -36,39 +36,39 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		existsRes = "exists restricted:{s}"
 	)
 
-	two := map[string]valkeysegment.SegmentOptions{
+	two := map[string]redissegment.SegmentOptions{
 		"a": {Key: "audience:{a}"}, "s": {Key: "restricted:{s}"},
 	}
-	sameNamespace := map[string]valkeysegment.SegmentOptions{
+	sameNamespace := map[string]redissegment.SegmentOptions{
 		"a": {Key: "audience:{a}"}, "b": {Key: "audience:{b}"},
 	}
 	smis := func(key string) string { return "smismember " + key + " " + probe }
-	script := " " + valkeysegment.Script + " 1 %s " + probe
-	sha := " " + valkeysegment.ScriptSHA + " 1 %s " + probe
+	script := " " + redissegment.Script + " 1 %s " + probe
+	sha := " " + redissegment.ScriptSHA + " 1 %s " + probe
 
 	// more namespaces than the bound: the first ones by name are probed
-	many := map[string]valkeysegment.SegmentOptions{}
+	many := map[string]redissegment.SegmentOptions{}
 	wantMany := []string{cmdPing}
 
-	for i := range valkeysegment.MaxInitProbes + 4 {
+	for i := range redissegment.MaxInitProbes + 4 {
 		key := fmt.Sprintf("ns%02d:{s%02d}", i, i)
-		many[fmt.Sprintf("s%02d", i)] = valkeysegment.SegmentOptions{Key: key}
+		many[fmt.Sprintf("s%02d", i)] = redissegment.SegmentOptions{Key: key}
 
-		if i < valkeysegment.MaxInitProbes {
+		if i < redissegment.MaxInitProbes {
 			wantMany = append(wantMany, smis(key), "exists "+key)
 		}
 	}
 
 	// both layouts: the cap is shared, and the first namespaces by name are probed
-	mixed := map[string]valkeysegment.SegmentOptions{}
+	mixed := map[string]redissegment.SegmentOptions{}
 	wantMixed := make([]string, 1, 23)
 	wantMixed[0] = cmdPing
 
 	for i := range 10 {
-		mixed[fmt.Sprintf("k%02d", i)] = valkeysegment.SegmentOptions{
-			Layout: valkeysegment.LayoutKeys, Key: fmt.Sprintf("kp%02d:", i),
+		mixed[fmt.Sprintf("k%02d", i)] = redissegment.SegmentOptions{
+			Layout: redissegment.LayoutKeys, Key: fmt.Sprintf("kp%02d:", i),
 		}
-		mixed[fmt.Sprintf("s%02d", i)] = valkeysegment.SegmentOptions{Key: fmt.Sprintf("sp%02d:{s%02d}", i, i)}
+		mixed[fmt.Sprintf("s%02d", i)] = redissegment.SegmentOptions{Key: fmt.Sprintf("sp%02d:{s%02d}", i, i)}
 	}
 
 	// by name: k00 to k09 first, then s00 to s05; the sets are sent before the keys
@@ -83,25 +83,25 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 
 	tests := []struct {
 		store         *fakeStore
-		opts          *valkeysegment.Options
+		opts          *redissegment.Options
 		name          string
 		wantMsg       string
 		wantPipelines [][]string
 	}{
 		{
-			name: "two namespaces are both probed", store: &fakeStore{}, opts: &valkeysegment.Options{Segments: two},
+			name: "two namespaces are both probed", store: &fakeStore{}, opts: &redissegment.Options{Segments: two},
 			wantPipelines: [][]string{{
 				cmdPing, smis("audience:{a}"), existsAud, smis("restricted:{s}"), existsRes,
 			}},
 		},
 		{
 			name: "segments of one namespace are probed once", store: &fakeStore{},
-			opts:          &valkeysegment.Options{Segments: sameNamespace},
+			opts:          &redissegment.Options{Segments: sameNamespace},
 			wantPipelines: [][]string{{cmdPing, smis("audience:{a}"), existsAud}},
 		},
 		{
 			name: "atomic probes the script on each namespace", store: &fakeStore{},
-			opts: &valkeysegment.Options{Segments: two, Atomic: true},
+			opts: &redissegment.Options{Segments: two, Atomic: true},
 			wantPipelines: [][]string{{
 				cmdPing,
 				"eval_ro" + fmt.Sprintf(script, "audience:{a}"), "evalsha_ro" + fmt.Sprintf(sha, "audience:{a}"),
@@ -110,7 +110,7 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		},
 		{
 			name: "a namespace the client cannot read fails Init", store: denyingKey("restricted:"),
-			opts:    &valkeysegment.Options{Segments: two},
+			opts:    &redissegment.Options{Segments: two},
 			wantMsg: msgInit + "the command SMISMEMBER is not available: " + msgServer,
 			wantPipelines: [][]string{{
 				cmdPing, smis("audience:{a}"), existsAud, smis("restricted:{s}"), existsRes,
@@ -118,11 +118,11 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		},
 		{
 			name: "the cap is shared by the two layouts", store: &fakeStore{},
-			opts: &valkeysegment.Options{Segments: mixed}, wantPipelines: [][]string{wantMixed},
+			opts: &redissegment.Options{Segments: mixed}, wantPipelines: [][]string{wantMixed},
 		},
 		{
 			name: "at most MaxInitProbes namespaces are probed", store: &fakeStore{},
-			opts: &valkeysegment.Options{Segments: many}, wantPipelines: [][]string{wantMany},
+			opts: &redissegment.Options{Segments: many}, wantPipelines: [][]string{wantMany},
 		},
 	}
 
@@ -135,7 +135,7 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 			err := prov.Init(boundedCtx(t))
 
 			if tt.wantMsg != "" {
-				require.ErrorIs(t, err, valkeysegment.ErrServer)
+				require.ErrorIs(t, err, redissegment.ErrServer)
 				assert.Equal(t, tt.wantMsg, err.Error())
 			} else {
 				require.NoError(t, err)
@@ -150,13 +150,13 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		opts  *valkeysegment.Options
+		opts  *redissegment.Options
 		reply func(args []any) *fakeReply
 		name  string
 	}{
 		{
 			name: "SMISMEMBER answers a string",
-			opts: &valkeysegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdSMIsMember {
 					return &fakeReply{value: "OK"}
@@ -167,7 +167,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "SMISMEMBER answers a list of the wrong length",
-			opts: &valkeysegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdSMIsMember {
 					return &fakeReply{value: []any{int64(0), int64(0)}}
@@ -178,7 +178,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "EXISTS answers a string",
-			opts: &valkeysegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdExists {
 					return &fakeReply{value: "yes"}
@@ -189,7 +189,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "the script answers a string",
-			opts: &valkeysegment.Options{Segments: twoSegments(), Atomic: true},
+			opts: &redissegment.Options{Segments: twoSegments(), Atomic: true},
 			reply: func(args []any) *fakeReply {
 				if name, _ := args[0].(string); strings.HasPrefix(name, "eval") {
 					return &fakeReply{value: "OK"}
@@ -208,9 +208,9 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 
 			err := prov.Init(boundedCtx(t))
 
-			require.ErrorIs(t, err, valkeysegment.ErrInit)
-			require.ErrorIs(t, err, valkeysegment.ErrProtocol)
-			assert.Equal(t, valkeysegment.Status{LastFailure: valkeysegment.ClassProtocol}, prov.Status())
+			require.ErrorIs(t, err, redissegment.ErrInit)
+			require.ErrorIs(t, err, redissegment.ErrProtocol)
+			assert.Equal(t, redissegment.Status{LastFailure: redissegment.ClassProtocol}, prov.Status())
 		})
 	}
 }
@@ -218,7 +218,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 func TestAnAtomicSetIsOneScriptWhateverItsSize(t *testing.T) {
 	t.Parallel()
 
-	const total = valkeysegment.MaxIDsPerCommand + 1
+	const total = redissegment.MaxIDsPerCommand + 1
 
 	lookups := make([]segment.Lookup, total)
 	want := make([]segment.State, total)
@@ -232,7 +232,7 @@ func TestAnAtomicSetIsOneScriptWhateverItsSize(t *testing.T) {
 	}
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: members}}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments(), Atomic: true})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments(), Atomic: true})
 
 	require.NoError(t, prov.Contains(boundedCtx(t), lookups))
 	assert.Equal(t, want, states(lookups))
@@ -258,17 +258,17 @@ func TestHealthFollowsTheStoreOperationsOnly(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	// a call that reaches no store operation neither makes the provider ready nor clears a failure
 	require.NoError(t, prov.Contains(boundedCtx(t), []segment.Lookup{lk(segOther, idAlice)}))
-	assert.Equal(t, valkeysegment.Status{}, prov.Status())
+	assert.Equal(t, redissegment.Status{}, prov.Status())
 
 	down = true
 
 	require.Error(t, prov.Contains(boundedCtx(t), []segment.Lookup{lk(segBeta, idAlice)}))
 
-	failed := valkeysegment.Status{LastFailure: valkeysegment.ClassUnavailable}
+	failed := redissegment.Status{LastFailure: redissegment.ClassUnavailable}
 
 	assert.Equal(t, failed, prov.Status())
 
@@ -281,16 +281,16 @@ func TestHealthFollowsTheStoreOperationsOnly(t *testing.T) {
 	_, err := prov.Exists(boundedCtx(t), []string{segBeta})
 
 	require.NoError(t, err)
-	assert.Equal(t, valkeysegment.Status{Ready: true}, prov.Status())
+	assert.Equal(t, redissegment.Status{Ready: true}, prov.Status())
 }
 
 func TestNegativeMaxIDBytesIsNamed(t *testing.T) {
 	t.Parallel()
 
-	_, err := valkeysegment.New(&fakeStore{}, &valkeysegment.Options{MaxIDBytes: -1})
+	_, err := redissegment.New(&fakeStore{}, &redissegment.Options{MaxIDBytes: -1})
 
-	require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
-	assert.Equal(t, "valkey segment: invalid options: max id bytes must not be negative", err.Error())
+	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
+	assert.Equal(t, "redis segment: invalid options: max id bytes must not be negative", err.Error())
 }
 
 func TestAParseErrorOfTheScriptRetryTrustsNothing(t *testing.T) {
@@ -316,12 +316,12 @@ func TestAParseErrorOfTheScriptRetryTrustsNothing(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments(), Atomic: true})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments(), Atomic: true})
 	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, carolID)}
 
 	err := prov.Contains(boundedCtx(t), lookups)
 
-	require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
+	require.ErrorIs(t, err, redissegment.ErrUnavailable)
 	assert.Equal(t, []segment.State{segment.Unknown, segment.Unknown}, states(lookups))
 	assert.Len(t, store.commands(), 2, "the script was sent again")
 }

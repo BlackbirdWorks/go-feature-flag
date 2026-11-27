@@ -1,6 +1,6 @@
 //go:build docker
 
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 const (
@@ -144,13 +144,13 @@ func TestE2ECluster(t *testing.T) {
 	ctx := context.Background()
 
 	names := []string{"alpha", segBeta, "gamma"}
-	segs := map[string]valkeysegment.SegmentOptions{}
+	segs := map[string]redissegment.SegmentOptions{}
 
 	for _, name := range names {
-		segs[name] = valkeysegment.SegmentOptions{} // the default key has the hash tag
+		segs[name] = redissegment.SegmentOptions{} // the default key has the hash tag
 	}
 
-	segs["flags"] = valkeysegment.SegmentOptions{Layout: valkeysegment.LayoutKeys, Key: flagPrefix}
+	segs["flags"] = redissegment.SegmentOptions{Layout: redissegment.LayoutKeys, Key: flagPrefix}
 
 	for _, name := range names {
 		require.NoError(t, client.SAdd(ctx, "semaphore:segment:{"+name+"}", idAlice, name+"-only").Err())
@@ -170,7 +170,7 @@ func TestE2ECluster(t *testing.T) {
 		require.Len(t, slots, len(names), "the segments are in different slots")
 
 		for _, atomicTx := range []bool{false, true} {
-			prov, err := valkeysegment.New(client, &valkeysegment.Options{Segments: segs, Atomic: atomicTx})
+			prov, err := redissegment.New(client, &redissegment.Options{Segments: segs, Atomic: atomicTx})
 			require.NoError(t, err)
 
 			lookups := []segment.Lookup{
@@ -196,9 +196,9 @@ func TestE2ECluster(t *testing.T) {
 		t.Parallel()
 
 		live := "semaphore:segment:{swap}"
-		prov, err := valkeysegment.New(client, &valkeysegment.Options{
+		prov, err := redissegment.New(client, &redissegment.Options{
 			Atomic: true, Timeout: 5 * time.Second,
-			Segments: map[string]valkeysegment.SegmentOptions{"swap": {}},
+			Segments: map[string]redissegment.SegmentOptions{"swap": {}},
 		})
 		require.NoError(t, err)
 

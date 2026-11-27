@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 	cmdEvalSHA         = "evalsha"
 	msgWrongType       = "WRONGTYPE"
 	flagPrefix         = "flag:"
-	msgProtocol1       = "valkey segment: protocol: 1 of 1 lookups failed"
+	msgProtocol1       = "redis segment: protocol: 1 of 1 lookups failed"
 	keyBeta            = "semaphore:segment:{beta}"
 	keyChurned         = "semaphore:segment:{churned}"
 	cmdBeta            = "smismember " + keyBeta
@@ -78,14 +78,14 @@ func states(lookups []segment.Lookup) []segment.State {
 	return out
 }
 
-func twoSegments() map[string]valkeysegment.SegmentOptions {
-	return map[string]valkeysegment.SegmentOptions{segBeta: {}, segChurned: {}}
+func twoSegments() map[string]redissegment.SegmentOptions {
+	return map[string]redissegment.SegmentOptions{segBeta: {}, segChurned: {}}
 }
 
-func newProvider(t *testing.T, store *fakeStore, opts *valkeysegment.Options) *valkeysegment.Provider {
+func newProvider(t *testing.T, store *fakeStore, opts *redissegment.Options) *redissegment.Provider {
 	t.Helper()
 
-	prov, err := valkeysegment.New(store, opts)
+	prov, err := redissegment.New(store, opts)
 	require.NoError(t, err)
 
 	return prov
@@ -105,7 +105,7 @@ func TestContainsAnswers(t *testing.T) {
 	}
 
 	tests := []struct {
-		opts         *valkeysegment.Options
+		opts         *redissegment.Options
 		name         string
 		lookups      []segment.Lookup
 		wantStates   []segment.State
@@ -113,7 +113,7 @@ func TestContainsAnswers(t *testing.T) {
 	}{
 		{
 			name:       "member and not member of one set in one command",
-			opts:       &valkeysegment.Options{Segments: twoSegments()},
+			opts:       &redissegment.Options{Segments: twoSegments()},
 			lookups:    []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantStates: []segment.State{segment.Member, segment.NotMember},
 			wantCommands: [][]string{
@@ -122,7 +122,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "two segments interleaved keep their positions",
-			opts: &valkeysegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{Segments: twoSegments()},
 			lookups: []segment.Lookup{
 				lk(segBeta, idAlice), lk(segChurned, idAlice), lk(segBeta, "zed"), lk(segChurned, carolID),
 			},
@@ -138,7 +138,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name:       "missing key is unknown by default",
-			opts:       &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{segGhost: {}}},
+			opts:       &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{segGhost: {}}},
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
 			wantStates: []segment.State{segment.Unknown},
 			wantCommands: [][]string{
@@ -147,9 +147,9 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "missing key is not member on request, without the exists command",
-			opts: &valkeysegment.Options{
-				Segments:   map[string]valkeysegment.SegmentOptions{segGhost: {}},
-				MissingKey: valkeysegment.MissingNotMember,
+			opts: &redissegment.Options{
+				Segments:   map[string]redissegment.SegmentOptions{segGhost: {}},
+				MissingKey: redissegment.MissingNotMember,
 			},
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
 			wantStates: []segment.State{segment.NotMember},
@@ -159,9 +159,9 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "custom key and prefix",
-			opts: &valkeysegment.Options{
+			opts: &redissegment.Options{
 				KeyPrefix: "prov:",
-				Segments: map[string]valkeysegment.SegmentOptions{
+				Segments: map[string]redissegment.SegmentOptions{
 					"a": {}, "b": {Key: keyBeta},
 				},
 			},
@@ -173,9 +173,9 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "keys layout is one exists per id",
-			opts: &valkeysegment.Options{
-				Segments: map[string]valkeysegment.SegmentOptions{
-					"f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+			opts: &redissegment.Options{
+				Segments: map[string]redissegment.SegmentOptions{
+					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
 			},
 			lookups:    []segment.Lookup{lk("f", idAlice), lk("f", "zed")},
@@ -186,8 +186,8 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "keys layout default prefix, empty id is not asked",
-			opts: &valkeysegment.Options{
-				Segments: map[string]valkeysegment.SegmentOptions{"f": {Layout: valkeysegment.LayoutKeys}},
+			opts: &redissegment.Options{
+				Segments: map[string]redissegment.SegmentOptions{"f": {Layout: redissegment.LayoutKeys}},
 			},
 			lookups:    []segment.Lookup{lk("f", ""), lk("f", "x")},
 			wantStates: []segment.State{segment.Unknown, segment.NotMember},
@@ -197,9 +197,9 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "set and keys segments share one pipeline",
-			opts: &valkeysegment.Options{
-				Segments: map[string]valkeysegment.SegmentOptions{
-					segBeta: {}, "f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+			opts: &redissegment.Options{
+				Segments: map[string]redissegment.SegmentOptions{
+					segBeta: {}, "f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
 			},
 			lookups:    []segment.Lookup{lk("f", idAlice), lk(segBeta, idAlice)},
@@ -210,14 +210,14 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name:         "segment that is not configured stays unknown and sends nothing",
-			opts:         &valkeysegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{Segments: twoSegments()},
 			lookups:      []segment.Lookup{lk("other", idAlice)},
 			wantStates:   []segment.State{segment.Unknown},
 			wantCommands: [][]string{},
 		},
 		{
 			name:         "no lookups sends nothing",
-			opts:         &valkeysegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{Segments: twoSegments()},
 			lookups:      []segment.Lookup{},
 			wantStates:   []segment.State{},
 			wantCommands: [][]string{},
@@ -244,7 +244,7 @@ func TestContainsDoesNotChangeSegmentOrID(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, "bob")}
 
 	require.NoError(t, prov.Contains(context.Background(), lookups))
@@ -266,7 +266,7 @@ type failureCase struct {
 	timeout     time.Duration
 	wantFailed  int
 	wantPipes   int
-	wantClass   valkeysegment.Class
+	wantClass   redissegment.Class
 }
 
 func runFailureCases(t *testing.T, tests []failureCase) {
@@ -285,16 +285,16 @@ func runFailureCases(t *testing.T, tests []failureCase) {
 
 			defer cancel()
 
-			prov := newProvider(t, tt.store, &valkeysegment.Options{
+			prov := newProvider(t, tt.store, &redissegment.Options{
 				Timeout: tt.timeout,
-				Segments: map[string]valkeysegment.SegmentOptions{
-					segBeta: {}, segChurned: {}, "f": {Layout: valkeysegment.LayoutKeys, Key: flagPrefix},
+				Segments: map[string]redissegment.SegmentOptions{
+					segBeta: {}, segChurned: {}, "f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
 			})
 
 			err := prov.Contains(ctx, tt.lookups)
 
-			var lookupErr *valkeysegment.LookupError
+			var lookupErr *redissegment.LookupError
 
 			require.ErrorAs(t, err, &lookupErr)
 			assert.Equal(t, tt.wantClass, lookupErr.Class)
@@ -323,8 +323,8 @@ func TestContainsFailures(t *testing.T) {
 			store:       &fakeStore{sets: setBeta, exec: func(context.Context) error { return errDial }},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, carolID)},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
 			wantMessage: msgUnavailable2of2,
@@ -339,11 +339,11 @@ func TestContainsFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassServer,
-			wantSentry:  valkeysegment.ErrServer,
+			wantClass:   redissegment.ClassServer,
+			wantSentry:  redissegment.ErrServer,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: server: 1 of 1 lookups failed",
+			wantMessage: "redis segment: server: 1 of 1 lookups failed",
 		},
 		{
 			name: "one segment fails, the other keeps its answers",
@@ -359,11 +359,11 @@ func TestContainsFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, carolID), lk(segBeta, "zed")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown, segment.NotMember},
-			wantClass:   valkeysegment.ClassServer,
-			wantSentry:  valkeysegment.ErrServer,
+			wantClass:   redissegment.ClassServer,
+			wantSentry:  redissegment.ErrServer,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: server: 1 of 3 lookups failed",
+			wantMessage: "redis segment: server: 1 of 3 lookups failed",
 		},
 		{
 			name: "the key check fails: members are certain, the others unknown",
@@ -379,8 +379,8 @@ func TestContainsFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -399,8 +399,8 @@ func TestContainsFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, "zed")},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgProtocol1,
@@ -422,8 +422,8 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgProtocol1,
@@ -442,11 +442,11 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  2,
 			wantPipes:   1,
-			wantMessage: "valkey segment: protocol: 2 of 2 lookups failed",
+			wantMessage: "redis segment: protocol: 2 of 2 lookups failed",
 		},
 		{
 			name: "reply with an answer that is not 0 or 1",
@@ -462,8 +462,8 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgProtocol1,
@@ -476,8 +476,8 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgProtocol1,
@@ -489,8 +489,8 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassProtocol,
-			wantSentry:  valkeysegment.ErrProtocol,
+			wantClass:   redissegment.ClassProtocol,
+			wantSentry:  redissegment.ErrProtocol,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgProtocol1,
@@ -509,8 +509,8 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "zed")},
 			wantStates:  []segment.State{segment.Member, segment.Unknown},
-			wantClass:   valkeysegment.ClassUnavailable,
-			wantSentry:  valkeysegment.ErrUnavailable,
+			wantClass:   redissegment.ClassUnavailable,
+			wantSentry:  redissegment.ErrUnavailable,
 			wantFailed:  1,
 			wantPipes:   1,
 			wantMessage: msgUnavailable1of2,
@@ -525,22 +525,22 @@ func TestContainsReplyFailures(t *testing.T) {
 			timeout:     time.Nanosecond,
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassTimeout,
-			wantSentry:  valkeysegment.ErrTimeout,
+			wantClass:   redissegment.ClassTimeout,
+			wantSentry:  redissegment.ErrTimeout,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: timeout: 1 of 1 lookups failed",
+			wantMessage: "redis segment: timeout: 1 of 1 lookups failed",
 		},
 		{
 			name:        "a network timeout is a timeout",
 			store:       &fakeStore{sets: setBeta, exec: func(context.Context) error { return timeoutError{} }},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassTimeout,
-			wantSentry:  valkeysegment.ErrTimeout,
+			wantClass:   redissegment.ClassTimeout,
+			wantSentry:  redissegment.ErrTimeout,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: timeout: 1 of 1 lookups failed",
+			wantMessage: "redis segment: timeout: 1 of 1 lookups failed",
 		},
 		{
 			name:  "the context ends before the call: nothing is sent",
@@ -553,22 +553,22 @@ func TestContainsReplyFailures(t *testing.T) {
 			},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassCanceled,
-			wantSentry:  valkeysegment.ErrCanceled,
+			wantClass:   redissegment.ClassCanceled,
+			wantSentry:  redissegment.ErrCanceled,
 			wantFailed:  1,
 			wantPipes:   0,
-			wantMessage: "valkey segment: canceled: 1 of 1 lookups failed",
+			wantMessage: "redis segment: canceled: 1 of 1 lookups failed",
 		},
 		{
 			name:        "a context error that is not from the caller is a cancel",
 			store:       &fakeStore{sets: setBeta, exec: func(context.Context) error { return context.Canceled }},
 			lookups:     []segment.Lookup{lk(segBeta, idAlice)},
 			wantStates:  []segment.State{segment.Unknown},
-			wantClass:   valkeysegment.ClassCanceled,
-			wantSentry:  valkeysegment.ErrCanceled,
+			wantClass:   redissegment.ClassCanceled,
+			wantSentry:  redissegment.ErrCanceled,
 			wantFailed:  1,
 			wantPipes:   1,
-			wantMessage: "valkey segment: canceled: 1 of 1 lookups failed",
+			wantMessage: "redis segment: canceled: 1 of 1 lookups failed",
 		},
 	})
 }
@@ -587,12 +587,12 @@ func TestContainsCancelMidCall(t *testing.T) {
 			return context.Canceled
 		},
 	}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 
 	err := prov.Contains(ctx, lookups)
 
-	require.ErrorIs(t, err, valkeysegment.ErrCanceled)
+	require.ErrorIs(t, err, redissegment.ErrCanceled)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 }
 
@@ -600,12 +600,12 @@ func TestErrorMessageHasNoIDsNorKeys(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{exec: func(context.Context) error { return serverError{msg: "secret-key alice"} }}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	err := prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)})
 
 	require.Error(t, err)
-	assert.Equal(t, "valkey segment: server: 1 of 1 lookups failed", err.Error())
+	assert.Equal(t, "redis segment: server: 1 of 1 lookups failed", err.Error())
 	assert.NotContains(t, err.Error(), idAlice)
 	assert.NotContains(t, err.Error(), "secret-key")
 }
@@ -620,14 +620,14 @@ func TestContainsObserver(t *testing.T) {
 		wantStatsFail map[string]uint64
 		name          string
 		lookups       []segment.Lookup
-		wantObserved  valkeysegment.Observation
-		wantFailure   valkeysegment.Class
+		wantObserved  redissegment.Observation
+		wantFailure   redissegment.Class
 	}{
 		{
 			name:    "answered",
 			store:   &fakeStore{sets: setBeta},
 			lookups: []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
-			wantObserved: valkeysegment.Observation{
+			wantObserved: redissegment.Observation{
 				Lookups: 2, Answered: 2, Unknown: 0, RoundTrips: 1,
 			},
 			wantStatsFail: map[string]uint64{},
@@ -636,8 +636,8 @@ func TestContainsObserver(t *testing.T) {
 			name:    "failed",
 			store:   &fakeStore{exec: func(context.Context) error { return errDial }},
 			lookups: []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
-			wantObserved: valkeysegment.Observation{
-				Lookups: 2, Unknown: 2, RoundTrips: 1, Failure: valkeysegment.ClassUnavailable,
+			wantObserved: redissegment.Observation{
+				Lookups: 2, Unknown: 2, RoundTrips: 1, Failure: redissegment.ClassUnavailable,
 			},
 			wantStatsFail: map[string]uint64{classUnavailable: 1},
 		},
@@ -645,7 +645,7 @@ func TestContainsObserver(t *testing.T) {
 			name:    "nothing to ask",
 			store:   &fakeStore{},
 			lookups: []segment.Lookup{lk("other", "x")},
-			wantObserved: valkeysegment.Observation{
+			wantObserved: redissegment.Observation{
 				Lookups: 1, Unknown: 1,
 			},
 			wantStatsFail: map[string]uint64{},
@@ -657,8 +657,8 @@ func TestContainsObserver(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
-			counters := &valkeysegment.Counters{}
-			prov := newProvider(t, tt.store, &valkeysegment.Options{
+			counters := &redissegment.Counters{}
+			prov := newProvider(t, tt.store, &redissegment.Options{
 				Segments: twoSegments(),
 				Observer: multi{rec, counters},
 			})
@@ -688,34 +688,34 @@ func TestNoLookupsIsNotObserved(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	prov := newProvider(t, &fakeStore{}, &valkeysegment.Options{Observer: rec})
+	prov := newProvider(t, &fakeStore{}, &redissegment.Options{Observer: rec})
 
 	require.NoError(t, prov.Contains(context.Background(), nil))
 	assert.Empty(t, rec.all())
 }
 
 type recorder struct {
-	obs []valkeysegment.Observation
+	obs []redissegment.Observation
 	mu  sync.Mutex
 }
 
-func (r *recorder) Observe(o valkeysegment.Observation) {
+func (r *recorder) Observe(o redissegment.Observation) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.obs = append(r.obs, o)
 }
 
-func (r *recorder) all() []valkeysegment.Observation {
+func (r *recorder) all() []redissegment.Observation {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return append([]valkeysegment.Observation{}, r.obs...)
+	return append([]redissegment.Observation{}, r.obs...)
 }
 
-type multi []valkeysegment.Observer
+type multi []redissegment.Observer
 
-func (m multi) Observe(o valkeysegment.Observation) {
+func (m multi) Observe(o redissegment.Observation) {
 	for _, each := range m {
 		each.Observe(o)
 	}
@@ -725,7 +725,7 @@ func TestContainsConcurrent(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &valkeysegment.Options{Segments: twoSegments()})
+	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
 
 	const workers = 16
 
@@ -758,30 +758,30 @@ func TestOptionsValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		client  valkeysegment.Client
+		client  redissegment.Client
 		wantErr error
-		opts    *valkeysegment.Options
+		opts    *redissegment.Options
 		name    string
 	}{
-		{name: "valid", client: &fakeStore{}, opts: &valkeysegment.Options{Segments: twoSegments()}},
-		{name: "nil client", wantErr: valkeysegment.ErrNilClient},
+		{name: "valid", client: &fakeStore{}, opts: &redissegment.Options{Segments: twoSegments()}},
+		{name: "nil client", wantErr: redissegment.ErrNilClient},
 		{
-			name: "negative timeout", client: &fakeStore{}, opts: &valkeysegment.Options{Timeout: -1},
-			wantErr: valkeysegment.ErrInvalidOptions,
+			name: "negative timeout", client: &fakeStore{}, opts: &redissegment.Options{Timeout: -1},
+			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
-			name: "bad missing key", client: &fakeStore{}, opts: &valkeysegment.Options{MissingKey: "x"},
-			wantErr: valkeysegment.ErrInvalidOptions,
+			name: "bad missing key", client: &fakeStore{}, opts: &redissegment.Options{MissingKey: "x"},
+			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
 			name: "bad segment name", client: &fakeStore{},
-			opts:    &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{"Bad Name": {}}},
-			wantErr: valkeysegment.ErrInvalidOptions,
+			opts:    &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{"Bad Name": {}}},
+			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
 			name: "bad layout", client: &fakeStore{},
-			opts:    &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{"a": {Layout: "x"}}},
-			wantErr: valkeysegment.ErrInvalidOptions,
+			opts:    &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{"a": {Layout: "x"}}},
+			wantErr: redissegment.ErrInvalidOptions,
 		},
 	}
 
@@ -789,7 +789,7 @@ func TestOptionsValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov, err := valkeysegment.New(tt.client, tt.opts)
+			prov, err := redissegment.New(tt.client, tt.opts)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -808,16 +808,16 @@ func TestOptionsValidation(t *testing.T) {
 func TestDial(t *testing.T) {
 	t.Parallel()
 
-	_, err := valkeysegment.Dial(nil, &valkeysegment.Options{})
-	require.ErrorIs(t, err, valkeysegment.ErrNilClient)
+	_, err := redissegment.Dial(nil, &redissegment.Options{})
+	require.ErrorIs(t, err, redissegment.ErrNilClient)
 
-	_, err = valkeysegment.Dial(
+	_, err = redissegment.Dial(
 		&redis.UniversalOptions{Addrs: []string{unreachableAddr}},
-		&valkeysegment.Options{Timeout: -1},
+		&redissegment.Options{Timeout: -1},
 	)
-	require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 
-	prov, err := valkeysegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &valkeysegment.Options{})
+	prov, err := redissegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &redissegment.Options{})
 	require.NoError(t, err)
 	require.NoError(t, prov.Close())
 }
@@ -828,15 +828,15 @@ func TestClassAndLookupError(t *testing.T) {
 	tests := []struct {
 		wantSentry error
 		wantString string
-		class      valkeysegment.Class
+		class      redissegment.Class
 	}{
-		{class: valkeysegment.ClassNone, wantString: "none", wantSentry: nil},
-		{class: valkeysegment.ClassCanceled, wantString: "canceled", wantSentry: valkeysegment.ErrCanceled},
-		{class: valkeysegment.ClassTimeout, wantString: "timeout", wantSentry: valkeysegment.ErrTimeout},
-		{class: valkeysegment.ClassUnavailable, wantString: classUnavailable, wantSentry: valkeysegment.ErrUnavailable},
-		{class: valkeysegment.ClassServer, wantString: "server", wantSentry: valkeysegment.ErrServer},
-		{class: valkeysegment.ClassProtocol, wantString: "protocol", wantSentry: valkeysegment.ErrProtocol},
-		{class: valkeysegment.Class(99), wantString: "invalid", wantSentry: nil},
+		{class: redissegment.ClassNone, wantString: "none", wantSentry: nil},
+		{class: redissegment.ClassCanceled, wantString: "canceled", wantSentry: redissegment.ErrCanceled},
+		{class: redissegment.ClassTimeout, wantString: "timeout", wantSentry: redissegment.ErrTimeout},
+		{class: redissegment.ClassUnavailable, wantString: classUnavailable, wantSentry: redissegment.ErrUnavailable},
+		{class: redissegment.ClassServer, wantString: "server", wantSentry: redissegment.ErrServer},
+		{class: redissegment.ClassProtocol, wantString: "protocol", wantSentry: redissegment.ErrProtocol},
+		{class: redissegment.Class(99), wantString: "invalid", wantSentry: nil},
 	}
 
 	for _, tt := range tests {
@@ -844,23 +844,23 @@ func TestClassAndLookupError(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.wantString, tt.class.String())
-			assert.Equal(t, tt.wantSentry, (&valkeysegment.LookupError{Class: tt.class}).Unwrap())
+			assert.Equal(t, tt.wantSentry, (&redissegment.LookupError{Class: tt.class}).Unwrap())
 		})
 	}
 
-	assert.Equal(t, []valkeysegment.Class{
-		valkeysegment.ClassCanceled, valkeysegment.ClassTimeout, valkeysegment.ClassUnavailable,
-		valkeysegment.ClassServer, valkeysegment.ClassProtocol,
-	}, valkeysegment.Classes())
+	assert.Equal(t, []redissegment.Class{
+		redissegment.ClassCanceled, redissegment.ClassTimeout, redissegment.ClassUnavailable,
+		redissegment.ClassServer, redissegment.ClassProtocol,
+	}, redissegment.Classes())
 }
 
 func TestCountersIgnoreInvalidValues(t *testing.T) {
 	t.Parallel()
 
-	c := &valkeysegment.Counters{}
+	c := &redissegment.Counters{}
 	c.Observe(
-		valkeysegment.Observation{Lookups: -1, Answered: -1, Unknown: -1, RoundTrips: -1, Duration: -1, Failure: 99},
+		redissegment.Observation{Lookups: -1, Answered: -1, Unknown: -1, RoundTrips: -1, Duration: -1, Failure: 99},
 	)
 
-	assert.Equal(t, valkeysegment.Stats{Calls: 1, Failures: map[string]uint64{}}, c.Snapshot())
+	assert.Equal(t, redissegment.Stats{Calls: 1, Failures: map[string]uint64{}}, c.Snapshot())
 }

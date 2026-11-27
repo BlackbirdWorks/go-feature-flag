@@ -1,4 +1,4 @@
-package valkeysegment_test
+package redissegment_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 // benchClient answers from constants and records nothing, so the benchmark counts the allocations of the
@@ -52,7 +52,7 @@ func (prov *benchPipe) Exec(context.Context) ([]redis.Cmder, error) {
 func BenchmarkContains(b *testing.B) {
 	for _, cnt := range []int{1, 8} {
 		b.Run(strconv.Itoa(cnt)+"lookups", func(b *testing.B) {
-			prov, err := valkeysegment.New(benchClient{}, &valkeysegment.Options{Segments: twoSegments()})
+			prov, err := redissegment.New(benchClient{}, &redissegment.Options{Segments: twoSegments()})
 			require.NoError(b, err)
 
 			lookups := make([]segment.Lookup, cnt)
