@@ -125,7 +125,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		return nil, fmt.Errorf("init relay metrics: %w", err)
 	}
 
-	r.streams = corehttp.NewStreams()
+	r.streams = corehttp.NewStreams(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel

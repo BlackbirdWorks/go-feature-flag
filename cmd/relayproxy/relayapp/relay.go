@@ -24,10 +24,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
 
-// shutdownTimeout bounds the whole ordered shutdown: the server, the core (the exporters drain within it) and the
-// streams.
-const shutdownTimeout = 15 * time.Second
-
 // logFormatText is the format of the file that the logger calls logfmt.
 const logFormatText = "text"
 
@@ -35,7 +31,7 @@ const logFormatText = "text"
 const exitUsage = 2
 
 // stopSteps is the number of steps of the shutdown that can fail.
-const stopSteps = 3
+const stopSteps = 4
 
 // errLoopsNotStopped is wrapped by the error of a shutdown whose loops outlived its deadline.
 var errLoopsNotStopped = errors.New("the loops of the relay did not stop")
@@ -48,8 +44,21 @@ type runOptions struct {
 	// Stdout receives the version and the banner, Stderr the logs.
 	Stdout io.Writer
 	Stderr io.Writer
-	// OnDraining is called once the readiness answers shutting-down and before the listeners close.
-	OnDraining func()
+	// OnDraining is called with the context of the shutdown once the readiness answers shutting-down and before the
+	// drain delay starts.
+	OnDraining func(ctx context.Context)
+	// OnStarted is called with the relay once its parts run; a test uses it to reach them.
+	OnStarted func(*relay)
+	// ShutdownContext returns the context of the shutdown, which must not be derived from the cancelled context of
+	// the run. It ends when the relay is told to stop hard (the second signal). The context of a new signal
+	// watcher when nil.
+	ShutdownContext func(parent context.Context) (context.Context, context.CancelFunc)
+	// DrainWait waits for the drain delay or for ctx; a test replaces it with a gate. The timer of the process
+	// when nil.
+	DrainWait func(ctx context.Context, delay time.Duration) error
+	// WithTimeout bounds the stop that follows the drain delay, like [context.WithTimeout]; a test replaces it
+	// with a context that it ends itself.
+	WithTimeout func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc)
 	// Reload asks for a reload of the bootstrap file (SIGHUP).
 	Reload <-chan struct{}
 	// Load reads the file and the environment.
@@ -63,8 +72,13 @@ type runOptions struct {
 	Args []string
 	// ServerOptions are added to the options of the API server (a test gives it its listeners).
 	ServerOptions []api.Option
-	// ShutdownTimeout bounds the shutdown, [shutdownTimeout] when zero.
-	ShutdownTimeout time.Duration
+}
+
+// announce tells the hook of a test that the relay runs.
+func (o *runOptions) announce(rel *relay) {
+	if o.OnStarted != nil {
+		o.OnStarted(rel)
+	}
 }
 
 const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ █ █ █▀█ █▀▀   █▀▀ █   ▄▀█ █▀▀
@@ -81,6 +95,15 @@ _____________________________________________`
 // SIGHUP reloads the bootstrap file.
 func Main(
 	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
+) int {
+	return mainWith(ctx, args, stdout, stderr, lookupEnv, build, nil)
+}
+
+// mainWith is [Main] with a function that changes the options of the run (a test gives it its listener and its
+// contexts).
+func mainWith(
+	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
+	tweak func(*runOptions),
 ) int {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
@@ -101,14 +124,70 @@ func Main(
 		forwarder.Wait()
 	}()
 
-	return run(ctx, &runOptions{
+	opts := &runOptions{
 		Args:   args,
 		Stdout: stdout,
 		Stderr: stderr,
 		Build:  build,
 		Load:   bootstrap.LoadOptions{LookupEnv: lookupEnv, ReadFile: os.ReadFile},
 		Reload: reload,
+	}
+	if tweak != nil {
+		tweak(opts)
+	}
+
+	return run(ctx, opts)
+}
+
+// hardStop returns the shutdown context: it is not derived from runCtx, and it ends when a stop request comes after
+// the first one. The first request is the one that ends runCtx (a signal), or an internal failure that started the
+// shutdown before any signal; the watcher of the next request (newSignals) starts as soon as runCtx ends, so that
+// no request is lost while the relay is busy. release ends the context and joins the watcher; armed waits for the
+// watcher.
+func hardStop(
+	runCtx context.Context, newSignals func(context.Context) (context.Context, context.CancelFunc),
+) (context.Context, func(), func()) {
+	hard, endHard := context.WithCancel(context.WithoutCancel(runCtx))
+	watcherDone := make(chan struct{})
+	armedCh := make(chan struct{})
+
+	stopWatching := context.AfterFunc(runCtx, func() {
+		defer close(watcherDone)
+
+		next, stop := newSignals(runCtx)
+		defer stop()
+
+		close(armedCh)
+
+		select {
+		case <-next.Done():
+			endHard()
+		case <-hard.Done():
+		}
 	})
+
+	release := func() {
+		endHard()
+
+		if !stopWatching() {
+			<-watcherDone // the watcher started: it ends now that hard is done
+		}
+	}
+
+	// armed waits until the watcher of the next request exists, when runCtx has ended (the watcher is then on its
+	// way): the shutdown starts with the next request already watched.
+	armed := func() {
+		if runCtx.Err() != nil {
+			<-armedCh
+		}
+	}
+
+	return hard, release, armed
+}
+
+// signalContext watches the next SIGINT or SIGTERM: it ends when one arrives.
+func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.WithoutCancel(parent), os.Interrupt, syscall.SIGTERM)
 }
 
 // forwardSignals turns every signal of in into a reload request: requests that arrive while one waits are merged.
@@ -204,17 +283,22 @@ func logFatal(ctx context.Context, logger *slog.Logger, msg string, attrs ...slo
 
 // relay is a started relay: the core, the streams and the HTTP server.
 type relay struct {
-	// failed is closed when the core or a listener failed after the start.
-	failed    chan struct{}
-	runCancel context.CancelFunc
+	log       *slog.Logger
+	drainWait func(ctx context.Context, delay time.Duration) error
 	core      *relaycore.Core
 	streams   *corehttp.Streams
 	ready     *corehttp.Readiness
 	server    *api.Server
-	log       *slog.Logger
-	// loops ends when the core and the server returned.
-	loops    sync.WaitGroup
-	failOnce sync.Once
+	runCancel context.CancelFunc
+	loopsDone chan struct{}
+	// failedCtx ends when the core or a listener failed after the start; fail ends it.
+	failedCtx   context.Context //nolint:containedctx // the failure of the relay, read by wait
+	fail        context.CancelFunc
+	onDraining  func(ctx context.Context)
+	withTimeout func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc)
+	loops       sync.WaitGroup
+	timeout     time.Duration
+	drainDelay  time.Duration
 }
 
 // start builds the core, the streams and the server from the file and starts them. The core and the server run until
@@ -236,7 +320,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		}
 	}
 
-	streams := corehttp.NewStreams() //nolint:contextcheck // the stream workers outlive the context of the start
+	streams := corehttp.NewStreams(ctx) // the workers outlive the start: only their profiler labels come from ctx
 	deps := opts.Deps
 	deps.Logger = logger
 	deps.Secrets = opts.Load
@@ -258,8 +342,24 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		return nil, fmt.Errorf("core: %w", err)
 	}
 
-	rel := &relay{core: core, streams: streams, ready: corehttp.NewReadiness(core), log: logger,
-		failed: make(chan struct{}), runCancel: cancel}
+	failedCtx, fail := context.WithCancel(context.WithoutCancel(ctx))
+
+	rel := &relay{
+		core:        core,
+		streams:     streams,
+		ready:       corehttp.NewReadiness(core),
+		log:         logger,
+		failedCtx:   failedCtx,
+		fail:        fail,
+		runCancel:   cancel,
+		drainWait:   opts.DrainWait,
+		withTimeout: opts.WithTimeout,
+		onDraining:  opts.OnDraining,
+		drainDelay: shutdownDelay(
+			cfg.Server.Shutdown.DrainDelay,
+		),
+		timeout: shutdownTimeoutOf(cfg.Server.Shutdown.Timeout),
+	}
 
 	// the OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only
 	opentelemetry.ExportEnvironment(&settings.Telemetry)
@@ -275,7 +375,9 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		serverCfg,
 		serverOpts...)
 	if err != nil {
-		_ = rel.stopAll(ctx, opts)
+		rel.drainDelay = 0 // the start failed: there is no traffic to drain
+
+		_ = rel.Shutdown(context.WithoutCancel(ctx))
 
 		return nil, fmt.Errorf("server: %w", err)
 	}
@@ -291,29 +393,128 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 	})
 	rel.loops.Go(func() { server.StartWithContext(runCtx) })
 
+	rel.loopsDone = make(chan struct{})
+
+	go func() {
+		rel.loops.Wait()
+		close(rel.loopsDone)
+	}()
+
+	opts.announce(rel)
+
 	return rel, nil
 }
 
-// fail records that the relay can not go on: wait then stops it and the process exits non-zero.
-func (r *relay) fail() { r.failOnce.Do(func() { close(r.failed) }) }
+// Shutdown stops the relay in order and returns the errors of the steps. ctx is the shutdown context: it is not
+// derived from the signal context, and ending it (the second signal) stops the relay hard.
+//
+//  1. the readiness answers 503 shutting-down while the listeners stay open;
+//  2. the drain delay: the relay keeps serving, so that the load balancers stop sending traffic;
+//  3. from here the timeout bounds the rest: the change streams close, so that their clients let the server drain;
+//  4. the HTTP servers stop gracefully, the requests in flight finish;
+//  5. the core stops: the event queues are flushed and the state is written.
+//
+// When the timeout ends first the servers close, the requests still in flight are cut and the error says so.
+func (r *relay) Shutdown(ctx context.Context) error {
+	r.ready.BeginShutdown()
+	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: readiness off, /readyz answers 503")
 
-// wait serves until ctx is cancelled (a signal) or the relay failed, applies the reloads meanwhile, then stops in
-// order. It returns the exit code.
+	if r.onDraining != nil {
+		r.onDraining(ctx)
+	}
+
+	r.drain(ctx)
+
+	withTimeout := r.withTimeout
+	if withTimeout == nil {
+		withTimeout = context.WithTimeout
+	}
+
+	stopCtx, cancel := withTimeout(ctx, r.timeout)
+	defer cancel()
+
+	errs := make([]error, 0, stopSteps)
+
+	errs = append(
+		errs,
+		r.closeStreams(stopCtx),
+	)
+
+	if r.server != nil {
+		errs = append(
+			errs,
+			r.stopServer(stopCtx),
+		)
+	}
+
+	errs = append(errs, r.stopCore(stopCtx))
+
+	r.runCancel()
+
+	errs = append(errs, r.joinLoops(stopCtx))
+
+	err := errors.Join(errs...)
+	if err != nil {
+		r.log.LogAttrs(
+			context.WithoutCancel(ctx),
+			slog.LevelError,
+			"shutdown: stopped hard, what was cut is listed above",
+			cmdlog.Err(err),
+		)
+	}
+
+	return err
+}
+
+// shutdownDelay is the value of an optional duration of the file; unset is zero.
+func shutdownDelay(d *bootstrap.Delay) time.Duration {
+	if d == nil {
+		return 0
+	}
+
+	return time.Duration(*d)
+}
+
+// shutdownTimeoutOf is the timeout of the file, or the default when it is unset.
+func shutdownTimeoutOf(d *bootstrap.Duration) time.Duration {
+	if d == nil {
+		return bootstrap.DefaultShutdownTimeout
+	}
+
+	return time.Duration(*d)
+}
+
+// wait serves until ctx is cancelled (a signal) or the relay failed, applies the reloads meanwhile, then shuts down.
+// The shutdown runs on a new context that the signal does not cancel: only the second signal does (it is the
+// context of a new signal watcher), and that is the hard stop. It returns the exit code.
 func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error), opts *runOptions) int {
 	code := 0
+
+	newSignals := opts.ShutdownContext
+	if newSignals == nil {
+		newSignals = signalContext
+	}
+
+	// the watcher of the second stop request starts the moment the run context ends, whatever the loop is doing
+	shutdownCtx, release, armed := hardStop(ctx, newSignals)
+	defer release()
 
 	for done := false; !done; {
 		select {
 		case <-ctx.Done():
 			done = true
-		case <-r.failed:
+		case <-r.failedCtx.Done():
+			// nothing serves any more: the drain delay would only keep a failed relay alive
+			r.drainDelay = 0
 			code, done = 1, true
 		case <-opts.Reload:
 			r.reload(ctx, load)
 		}
 	}
 
-	if r.stopAll(ctx, opts) != nil {
+	armed()
+
+	if r.Shutdown(shutdownCtx) != nil {
 		code = 1
 	}
 
@@ -345,56 +546,106 @@ func (r *relay) reload(ctx context.Context, load func() (*bootstrap.Config, erro
 	)
 }
 
-// stopAll stops the relay in order and returns the first error: the readiness fails first (the probes answer
-// shutting-down while the listeners are still open), then the streams close so that their clients let the server
-// drain, the server stops, and the core stops last, draining the exporters. One deadline bounds all of it.
-func (r *relay) stopAll(ctx context.Context, opts *runOptions) error {
-	timeout := opts.ShutdownTimeout
-	if timeout == 0 {
-		timeout = shutdownTimeout
+// drain keeps serving for the drain delay: it ends early when ctx ends (the second signal).
+func (r *relay) drain(ctx context.Context) {
+	if r.drainDelay <= 0 || ctx.Err() != nil {
+		return // no delay, or the shutdown is already a hard stop
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
-	defer cancel()
+	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: draining, still serving", slog.Duration("drainDelay", r.drainDelay))
 
-	r.ready.BeginShutdown()
-
-	if opts.OnDraining != nil {
-		opts.OnDraining()
+	wait := r.drainWait
+	if wait == nil {
+		wait = sleepContext
 	}
 
-	r.log.LogAttrs(stopCtx, slog.LevelInfo, "Stopping API server")
+	err := wait(ctx, r.drainDelay)
+	if err != nil {
+		r.log.LogAttrs(
+			context.WithoutCancel(ctx),
+			slog.LevelWarn,
+			"shutdown: the drain delay was cut short",
+			cmdlog.Err(err),
+		)
+	}
+}
 
-	errs := make([]error, 0, stopSteps)
+// sleepContext waits for d or for ctx.
+func sleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
 
-	errs = append(errs, r.streams.Close(stopCtx))
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("drain: %w", ctx.Err())
+	}
+}
 
-	if r.server != nil {
-		r.server.Stop(stopCtx)
+// closeStreams is the step that closes the change streams.
+func (r *relay) closeStreams(ctx context.Context) error {
+	err := r.streams.Close(ctx)
+	if err != nil {
+		r.log.LogAttrs(
+			context.WithoutCancel(ctx),
+			slog.LevelError,
+			"shutdown: change streams did not close",
+			cmdlog.Err(err),
+		)
+
+		return fmt.Errorf("streams: %w", err)
 	}
 
-	errs = append(errs, r.core.Shutdown(stopCtx))
+	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: change streams closed")
 
-	r.runCancel()
+	return nil
+}
 
-	errs = append(errs, r.joinLoops(stopCtx))
+// stopServer is the step that stops the HTTP servers gracefully.
+func (r *relay) stopServer(ctx context.Context) error {
+	err := r.server.Shutdown(ctx)
+	if err != nil {
+		r.log.LogAttrs(context.WithoutCancel(ctx), slog.LevelError, "shutdown: API server did not stop gracefully",
+			cmdlog.Err(err))
 
-	return errors.Join(errs...)
+		return fmt.Errorf("api server: %w", err)
+	}
+
+	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: API server stopped")
+
+	return nil
+}
+
+// stopCore is the step that flushes the event queues, stops the engine and writes the state.
+func (r *relay) stopCore(ctx context.Context) error {
+	err := r.core.Shutdown(ctx)
+	if err != nil {
+		r.log.LogAttrs(
+			context.WithoutCancel(ctx),
+			slog.LevelError,
+			"shutdown: core did not stop cleanly",
+			cmdlog.Err(err),
+		)
+
+		return fmt.Errorf("core: %w", err)
+	}
+
+	r.log.LogAttrs(ctx, slog.LevelInfo, "shutdown: core stopped, events flushed and state written")
+
+	return nil
 }
 
 // joinLoops waits for the core and the server to return, within the shutdown deadline: the core joins its state
 // writer, and a write that the disk does not finish must not keep the process from exiting. What did not stop ends
 // with the process.
 func (r *relay) joinLoops(ctx context.Context) error {
-	stopped := make(chan struct{})
-
-	go func() {
-		r.loops.Wait()
-		close(stopped)
-	}()
+	if r.loopsDone == nil {
+		return nil // nothing was started
+	}
 
 	select {
-	case <-stopped:
+	case <-r.loopsDone:
 		return nil
 	case <-ctx.Done():
 		r.log.LogAttrs(context.WithoutCancel(ctx), slog.LevelError,

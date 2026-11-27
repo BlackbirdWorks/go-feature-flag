@@ -320,6 +320,7 @@ func TestUnrelatedVariablesAreNeverRead(t *testing.T) {
 
 	want := []string{
 		bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen, bootstrap.EnvOpsListen,
+		bootstrap.EnvShutdownDrainDelay, bootstrap.EnvShutdownTimeout,
 	}
 	assert.Equal(t, want, read)
 }

@@ -13,6 +13,7 @@ const (
 	SettingVersion           = "version"
 	SettingServerListeners   = "server.listeners"
 	SettingServerUnixSocket  = "server.unixSocketPath"
+	SettingServerShutdown    = "server.shutdown"
 	SettingConnections       = "connections"
 	SettingControlPlane      = "controlPlane"
 	SettingControlPlaneConn  = "controlPlane.connection"
@@ -57,6 +58,7 @@ func pendingRestart(base, cfg *bootstrap.Config) []string {
 	add(base.Version != cfg.Version, SettingVersion)
 	add(!reflect.DeepEqual(base.Server.Listeners, cfg.Server.Listeners), SettingServerListeners)
 	add(base.Server.UnixSocketPath != cfg.Server.UnixSocketPath, SettingServerUnixSocket)
+	add(!reflect.DeepEqual(base.Server.Shutdown, cfg.Server.Shutdown), SettingServerShutdown)
 	add(!reflect.DeepEqual(base.Connections, cfg.Connections), SettingConnections)
 
 	switch {
