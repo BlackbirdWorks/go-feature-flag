@@ -439,6 +439,8 @@ func (r *Resolver) Invalidate(name string) {
 
 // SegmentStatus is the state of one segment of the resolver.
 type SegmentStatus struct {
+	// Version is the segment version that cached answers must match, empty when none was learned.
+	Version string
 	// Breaker is the state of the breaker, BreakerClosed when there is none.
 	Breaker BreakerState
 	// Failures is the number of consecutive failed calls counted by a closed breaker.
@@ -485,6 +487,7 @@ func (r *Resolver) Status() Status {
 
 		if sst.cache != nil {
 			seg.Entries = sst.cache.len()
+			seg.Version = sst.cache.current()
 		}
 
 		status.Segments[name] = seg

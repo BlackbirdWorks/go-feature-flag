@@ -7,6 +7,30 @@ A dynamic segment is a segment of type `redis` or `valkey`: the members stay in 
 - When the store cannot answer, the lookup is unknown and the failure policy of the segment (`onError`) decides. With the store down, a request takes at most its deadline plus a small margin. Exception: for a `valkey` segment whose peer stops reading until the connection ring is full, the wait can last until the `ConnWriteTimeout` of the client closes the connection (about 10 seconds by default), see [Limits](segments-valkey.md#limits).
 - The provider only reads, so a read-only ACL user is enough.
 
+## Modes
+
+> Library level today: the modes are interfaces and reference implementations in `modules/core/segment`. The relay does not read a `mode` or a `version` yet; its configuration comes with [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). The Redis and Valkey stores keep the `lookup` behaviour described above.
+
+A segment that lives in a store has a mode. A definition with no `mode` is a `snapshot` segment.
+
+| | `snapshot` (default) | `lookup` |
+|---|---|---|
+| Where the members live | in relay memory, one immutable set, pulled from the store like a retriever | in the store; the relay keeps a bounded LRU of answers |
+| Cost per evaluation | a hash lookup, no network, no allocation | a cache hit costs the same; a miss is one batched network call |
+| Memory | the whole set (guarded by a maximum of members and bytes) | the LRU only (the least of the two modes) |
+| Freshness | as of the last pull; the relay polls the version and pulls again only when it changed | as of the version of the cached entry; entries of another version are misses, and the time-to-live is the fallback |
+| Change detection | version token, compared for equality | the same version token, learned off the request path |
+| Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
+| Segment missing in the store (the store answered) | the old set is dropped and nobody is in the segment (not a member); it is served again when the segment comes back. With `missingKey: unknown` the lookups are unknown instead | not a member, or unknown with `missingKey: unknown` |
+
+- A segment that does not exist in the store has no member: the default `missingKey` is `notMember`, for both modes. `missingKey: unknown` is an opt-in that sends the lookups to the failure policy (`onError`). Consequence: an expired or deleted set means "nobody is in the segment". Replace a segment atomically (build the new set under another key and rename it over the old one), not by deleting it and adding the members again. Last known good is for errors only, never for a segment that is gone.
+- The `keys` layout is lookup-only. A definition with the `keys` layout and the `snapshot` mode (the default) is invalid and `segment.Definition.Validate` rejects it, naming the segment, the layout and the mode: its members cannot be listed without scanning the whole keyspace.
+- The Redis and Valkey providers of this page still answer a missing set as unknown by default; their default follows the model in the next change.
+- A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay will run it when it builds a generation.
+- A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h).
+- A store that can push changes also implements `ChangeNotifier`; polling the version stays the baseline.
+- Nothing in the library starts a goroutine or a timer for this: the relay calls `Holder.Refresh` (snapshot) and `Resolver.RefreshVersions` (lookup) on its own schedule.
+
 ## Which type to choose
 
 | | `redis` ([page](segments-redis.md)) | `valkey` ([page](segments-valkey.md)) |

@@ -117,7 +117,12 @@ func TestE2EConformance(t *testing.T) {
 					return segmenttest.Fixture{}, err
 				}
 
-				return segmenttest.Fixture{Provider: prov, Backend: caseSrv.fault, Close: caseSrv.fault.Release}, nil
+				return segmenttest.Fixture{
+					Provider: prov,
+					Missing:  segment.MissingUnknown,
+					Backend:  caseSrv.fault,
+					Close:    caseSrv.fault.Release,
+				}, nil
 			}, nil)
 		})
 	}

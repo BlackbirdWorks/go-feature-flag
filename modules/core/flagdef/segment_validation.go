@@ -176,7 +176,7 @@ func (s *Service) warnUndefinedSegments(rule *Rule, index int, ev *parser.Evalua
 	}
 
 	for _, term := range s.queryTerms(rule, ev) {
-		if _, ok := s.segments.Lookup(term.Name); !ok {
+		if !s.segments.Has(term.Name) {
 			s.logger.Warn("the rule uses a segment that is not defined: it matches nobody",
 				slog.String("rule", ruleLabel(index, rule)), slog.String("segment", term.Name))
 		}
