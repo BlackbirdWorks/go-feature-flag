@@ -14,6 +14,7 @@
 // time, without blocking the poller, from [Reader.Status].
 //
 // The reader talks to a backend through the small [ObjectStore] interface; [S3Store] is the implementation on
-// the S3 client of a named connection of the connection factory. The package is built beside the relay and no
-// running code uses it yet.
+// the S3 client of a named connection of the connection factory, and [FileStore] the one on a local
+// directory (a volume mount, a ConfigMap). The storetest package holds the conformance suite every store passes.
+// The package is built beside the relay and no running code uses it yet.
 package manifestreader
