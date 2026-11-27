@@ -6,10 +6,11 @@ and [UPSTREAM.md](../../UPSTREAM.md).
 
 The wire protocol did not change: standard OpenFeature SDKs and GO Feature Flag OpenFeature providers keep working
 against the relay proxy without changes. Operator- and client-facing names now use Semaphore names; legacy names are
-still accepted (or emitted alongside new ones) unless the table says otherwise.
+still accepted (or emitted alongside new ones) unless the table says otherwise. The relay proxy reads one version 2
+[bootstrap file](../relay-proxy/bootstrap-config.md): the legacy configuration file and environment names are gone.
 
-When the relay proxy *reads* a legacy name (config file, `GOFF` environment prefix, or evaluation context key), it logs **one**
-warning per process and per kind of name—never one per request. When both names are set, the Semaphore name wins.
+When the relay proxy *reads* the legacy evaluation context key, it logs **one** warning per process. When both names are
+set, the Semaphore name wins.
 
 | Old name (GO Feature Flag) | New name (Semaphore) | Old name still accepted? |
 |---|---|---|
@@ -19,18 +20,14 @@ warning per process and per kind of name—never one per request. When both name
 | Binary path in the image `/go-feature-flag` | `/usr/local/bin/semaphore` (now the image `ENTRYPOINT`: arguments are passed directly, `docker run IMAGE --config=...`; use `--entrypoint` to run something else) | No: update any `command:` / `docker run ... /go-feature-flag` override; a `command:` that repeated the binary path must become `args:` without it (or be removed) |
 | Image `thomaspoignant/go-feature-flag` | `ghcr.io/blackbirdworks/semaphore` | No (different registry) |
 | Image `thomaspoignant/go-feature-flag-cli` | `ghcr.io/blackbirdworks/semaphore-cli` | No |
-| Relay proxy config file `goff-proxy.<yaml\|toml\|json\|yml>` | `semaphore-proxy.<yaml\|toml\|json\|yml>` | Yes, searched after the new name in every folder; warns once |
-| Config folders `/goff/`, `/etc/opt/goff/` | `/semaphore/`, `/etc/opt/semaphore/` | Yes (searched after the new folders) |
+| Relay proxy config file `goff-proxy.<yaml\|toml\|json\|yml>`, folders `/goff/`, `/etc/opt/goff/`, the `GOFF` environment prefix | `--config` (or `SEMAPHORE_CONFIG`) of a version 2 bootstrap file | No: the relay reads one version 2 file, the legacy names are gone |
 | Default flag file of the CLI `flags.goff.<ext>` | `flags.semaphore.<ext>` | Yes; warns once |
-| Environment variables, no prefix (`SERVER_PORT`, ...) | unchanged; plus `SEMAPHORE_SERVER_PORT` | Yes, both forms work and `SEMAPHORE_` wins |
-| `envVariablePrefix: GOFF_` (or any other prefix) | `SEMAPHORE_` is always read | Yes; a prefix starting with `GOFF` warns once |
 | Evaluation context key `gofeatureflag` (`gofeatureflag.flagList`, `.currentDateTime`, `.exporterMetadata`) | `semaphore` (same sub-keys) | Yes, field by field; `semaphore` wins; warns once |
-| OFREP response metadata `gofeatureflag_cacheable` | `semaphore_cacheable` | Both are sent; `disableSemaphoreMetadata: true` sends only the legacy one |
-| Response header `X-GOFEATUREFLAG-VERSION` | `X-SEMAPHORE-VERSION` | Both are sent; `disableVersionHeader: true` removes both |
-| Prometheus series `gofeatureflag_*` | `semaphore_*` | Opt in: `exposeLegacyMetrics: true` exposes both |
+| OFREP response metadata `gofeatureflag_cacheable` | `semaphore_cacheable` | Both are sent; `evaluation.disableSemaphoreMetadata: true` sends only the legacy one |
+| Response header `X-GOFEATUREFLAG-VERSION` | `X-SEMAPHORE-VERSION` | Both are sent |
+| Prometheus series `gofeatureflag_*` | `semaphore_*` | Opt in: `observability.metrics.legacyNames: true` exposes both |
 | OpenTelemetry service name and tracer `go-feature-flag` | `semaphore` | Overridable (`otel.service.name`, `tracerName` of the OpenTelemetry exporter); the old default is gone |
 | Slack notifier footer and Teams message title `GO Feature Flag` | `Semaphore` | No (text shown to people) |
-| Config file mounted in `/goff` | `semaphore-proxy.yml` in `/semaphore` | The relay proxy reads both folders |
 
 ## What did not change
 
@@ -43,13 +40,10 @@ warning per process and per kind of name—never one per request. When both name
 
 ## Migrating step by step
 
-1. Deploy the new binary or image. Nothing else has to change immediately; warnings tell you which legacy names are still in use.
-2. Rename the configuration file to `semaphore-proxy.yaml` (or keep passing `--config`).
-3. If you set `envVariablePrefix: GOFF_`, switch your variables to `SEMAPHORE_` or the unprefixed form.
-   A Kubernetes Service named `semaphore` causes Kubernetes to inject `SEMAPHORE_SERVICE_HOST`, `SEMAPHORE_PORT=tcp://...`, and
-   similar variables into pods in that namespace. The relay proxy ignores variables matching the name and value of such a service link (logged at debug level); set `enableServiceLinks: false` on your pods to avoid them. Your own settings, such as `SEMAPHORE_SERVER_PORT=1031`, are read as usual.
-4. Move your dashboards and alerts to the `semaphore_` series; set `exposeLegacyMetrics: true` until complete.
-5. Update Go imports:
+1. Deploy the new binary or image.
+2. Write the version 2 [bootstrap file](../relay-proxy/bootstrap-config.md) and pass it with `--config`.
+3. Move your dashboards and alerts to the `semaphore_` series; set `observability.metrics.legacyNames: true` until complete.
+4. Update Go imports:
 
 ```shell
 sed -i 's#github.com/thomaspoignant/go-feature-flag#github.com/blackbirdworks/semaphore#g'
