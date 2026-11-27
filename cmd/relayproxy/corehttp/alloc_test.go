@@ -18,31 +18,31 @@ type hotPath struct {
 	resolver service.FlagSetResolver
 }
 
-func (h hotPath) authenticate(t testing.TB) {
-	t.Helper()
+func (h hotPath) authenticate(tb testing.TB) {
+	tb.Helper()
 
-	_, ok := helper.AuthenticateFlagSet(t.Context(), h.resolver, tenantKey)
-	require.True(t, ok)
+	_, ok := helper.AuthenticateFlagSet(tb.Context(), h.resolver, tenantKey)
+	require.True(tb, ok)
 }
 
 // evaluate uses a flag that does not track its events: the evaluation of a tracked flag makes an event for the
 // exporters of the core, which the v1 relay without exporters does not.
-func (h hotPath) evaluate(t testing.TB) {
-	t.Helper()
+func (h hotPath) evaluate(tb testing.TB) {
+	tb.Helper()
 
 	flagSet, err := h.resolver.FlagSet(tenantKey)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	evalCtx := ffcontext.NewEvaluationContext("user-1")
 	_, err = flagSet.RawVariation("untracked-flag", evalCtx, nil)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 }
 
-func hotPaths(t testing.TB) (v1, v2 hotPath) {
-	t.Helper()
+func hotPaths(tb testing.TB) (hotPath, hotPath) {
+	tb.Helper()
 
-	_, manager := newV1Manager(t)
-	rig := newV2(t)
+	_, manager := newV1Manager(tb)
+	rig := newV2(tb)
 
 	return hotPath{resolver: manager}, hotPath{resolver: corehttp.NewAdapter(rig.core)}
 }
@@ -53,18 +53,18 @@ func hotPaths(t testing.TB) (v1, v2 hotPath) {
 //
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestHotPath_AllocationsNotAboveV1(t *testing.T) {
-	v1, v2 := hotPaths(t)
+	baseline, current := hotPaths(t)
 
 	tests := []struct {
 		run  func(hotPath, testing.TB)
 		name string
 	}{
-		{name: "authentication", run: func(h hotPath, tb testing.TB) { h.authenticate(tb) }},
-		{name: "single evaluation", run: func(h hotPath, tb testing.TB) { h.evaluate(tb) }},
+		{name: "authentication", run: hotPath.authenticate},
+		{name: "single evaluation", run: hotPath.evaluate},
 	}
 	for _, tt := range tests {
-		base := testing.AllocsPerRun(200, func() { tt.run(v1, t) })
-		got := testing.AllocsPerRun(200, func() { tt.run(v2, t) })
+		base := testing.AllocsPerRun(200, func() { tt.run(baseline, t) })
+		got := testing.AllocsPerRun(200, func() { tt.run(current, t) })
 
 		assert.LessOrEqual(t, got, base, "%s: allocations per operation: v2 %v, v1 %v", tt.name, got, base)
 		t.Logf("%-18s v1 %v allocs, v2 %v allocs", tt.name, base, got)
@@ -72,9 +72,9 @@ func TestHotPath_AllocationsNotAboveV1(t *testing.T) {
 }
 
 func BenchmarkAuthenticateFlagSet(b *testing.B) {
-	v1, v2 := hotPaths(b)
+	baseline, current := hotPaths(b)
 
-	for name, path := range map[string]hotPath{"v1": v1, "v2": v2} {
+	for name, path := range map[string]hotPath{"v1": baseline, "v2": current} {
 		b.Run(name, func(b *testing.B) {
 			b.ReportAllocs()
 
@@ -86,9 +86,9 @@ func BenchmarkAuthenticateFlagSet(b *testing.B) {
 }
 
 func BenchmarkSingleEvaluation(b *testing.B) {
-	v1, v2 := hotPaths(b)
+	baseline, current := hotPaths(b)
 
-	for name, path := range map[string]hotPath{"v1": v1, "v2": v2} {
+	for name, path := range map[string]hotPath{"v1": baseline, "v2": current} {
 		b.Run(name, func(b *testing.B) {
 			b.ReportAllocs()
 

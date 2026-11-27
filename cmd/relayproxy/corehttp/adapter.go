@@ -60,56 +60,9 @@ type viewTable struct {
 	views map[*flagruntime.FlagSet]*view
 }
 
-// views returns the views of the flag sets of the runtime. A flag set that did not change keeps its pointer across
-// the generations, so its view is reused.
-func (a *Adapter) views(rt *flagruntime.Runtime) map[*flagruntime.FlagSet]*view {
-	prev := a.table.Load()
-	if prev != nil && prev.rt == rt {
-		return prev.views
-	}
-
-	views := make(map[*flagruntime.FlagSet]*view, len(rt.FlagSets))
-
-	for _, set := range rt.FlagSets {
-		if prev != nil {
-			if old, ok := prev.views[set]; ok {
-				views[set] = old
-
-				continue
-			}
-		}
-
-		views[set] = &view{adapter: a, set: set}
-	}
-
-	a.table.Store(&viewTable{rt: rt, views: views})
-
-	return views
-}
-
-// lookup routes a key to the view of its flag set. A flag set that is known but not loaded (pending) is routed too:
-// it serves no flags. An admin key, an unknown key and an empty key have no flag set.
-func (a *Adapter) lookup(apiKey string) (*view, error) {
-	if apiKey == "" {
-		return nil, errNoAPIKey
-	}
-
-	rt := a.holder.Load()
-
-	set, route := rt.Route(apiKey)
-	if route != flagruntime.RouteFlagSet && route != flagruntime.RoutePending {
-		return nil, errFlagSetNotFound
-	}
-
-	found, ok := a.views(rt)[set]
-	if !ok {
-		return nil, errFlagSetNotFound
-	}
-
-	return found, nil
-}
-
 // FlagSet returns the flag set of the API key.
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
 func (a *Adapter) FlagSet(apiKey string) (service.FlagSet, error) {
 	found, err := a.lookup(apiKey)
 	if err != nil {
@@ -147,6 +100,55 @@ func (a *Adapter) AdminKeyExists(apiKey string) bool {
 	_, route := a.holder.Load().Route(apiKey)
 
 	return route == flagruntime.RouteAdmin
+}
+
+// views returns the views of the flag sets of the runtime. A flag set that did not change keeps its pointer across
+// the generations, so its view is reused.
+func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*view {
+	prev := a.table.Load()
+	if prev != nil && prev.rt == current {
+		return prev.views
+	}
+
+	views := make(map[*flagruntime.FlagSet]*view, len(current.FlagSets))
+
+	for _, set := range current.FlagSets {
+		if prev != nil {
+			if old, ok := prev.views[set]; ok {
+				views[set] = old
+
+				continue
+			}
+		}
+
+		views[set] = &view{adapter: a, set: set}
+	}
+
+	a.table.Store(&viewTable{rt: current, views: views})
+
+	return views
+}
+
+// lookup routes a key to the view of its flag set. A flag set that is known but not loaded (pending) is routed too:
+// it serves no flags. An admin key, an unknown key and an empty key have no flag set.
+func (a *Adapter) lookup(apiKey string) (*view, error) {
+	if apiKey == "" {
+		return nil, errNoAPIKey
+	}
+
+	current := a.holder.Load()
+
+	set, route := current.Route(apiKey)
+	if route != flagruntime.RouteFlagSet && route != flagruntime.RoutePending {
+		return nil, errFlagSetNotFound
+	}
+
+	found, ok := a.views(current)[set]
+	if !ok {
+		return nil, errFlagSetNotFound
+	}
+
+	return found, nil
 }
 
 // view is the flag set of one runtime, the handlers read from.

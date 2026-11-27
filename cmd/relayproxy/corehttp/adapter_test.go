@@ -108,6 +108,7 @@ func TestAdapter_FlagSetView(t *testing.T) {
 
 	states := flagSet.GetFlagStates(ffcontext.NewEvaluationContext("u"), []string{"string-flag"})
 	assert.Len(t, states.GetFlags(), 1)
+
 	all := flagSet.AllFlagsState(ffcontext.NewEvaluationContext("u"))
 	assert.Len(t, all.GetFlags(), len(set.Flags))
 

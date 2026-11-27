@@ -270,6 +270,8 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 }
 
 // FlagSet is returning the flag set linked to the API Key.
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
 func (m *FlagsetManagerImpl) FlagSet(apiKey string) (FlagSet, error) {
 	if m.mode == flagsetManagerModeFlagsets {
 		if apiKey == "" {

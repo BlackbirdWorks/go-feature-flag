@@ -23,7 +23,9 @@ type FlagConfigurationAPICtrl struct {
 }
 
 // NewAPIFlagConfiguration returns the controller that serves the flag configuration API.
-func NewAPIFlagConfiguration(flagsetManager service.FlagSetResolver, metrics *metric.Metrics) *FlagConfigurationAPICtrl {
+func NewAPIFlagConfiguration(
+	flagsetManager service.FlagSetResolver, metrics *metric.Metrics,
+) *FlagConfigurationAPICtrl {
 	return &FlagConfigurationAPICtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,

@@ -133,20 +133,6 @@ func WithFlagSetResolver(resolver service.FlagSetResolver) Option {
 	return func(s *Server) { s.resolver = resolver }
 }
 
-// flagSets returns what finds the flag set of an API key: the resolver of the option, else the flag set manager. It
-// returns a nil interface when there is none, the handlers answer 500 then.
-func (s *Server) flagSets() service.FlagSetResolver {
-	if s.resolver != nil {
-		return s.resolver
-	}
-
-	if s.services.FlagsetManager == nil {
-		return nil
-	}
-
-	return s.services.FlagsetManager
-}
-
 // Server is the struct that represents the API server.
 type Server struct {
 	resolver               service.FlagSetResolver
@@ -172,3 +158,19 @@ type Server struct {
 
 // Handler returns the handler that serves the API listener.
 func (s *Server) Handler() http.Handler { return s.apiHandler }
+
+// flagSets returns what finds the flag set of an API key: the resolver of the option, else the flag set manager. It
+// returns a nil interface when there is none, the handlers answer 500 then.
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 manager and the v2 adapter are two implementations
+func (s *Server) flagSets() service.FlagSetResolver {
+	if s.resolver != nil {
+		return s.resolver
+	}
+
+	if s.services.FlagsetManager == nil {
+		return nil
+	}
+
+	return s.services.FlagsetManager
+}

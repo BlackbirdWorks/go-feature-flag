@@ -50,6 +50,7 @@ type routingLostManager struct {
 	lostKeys map[string]bool
 }
 
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
 func (m routingLostManager) FlagSet(apiKey string) (service.FlagSet, error) {
 	if m.lostKeys[apiKey] {
 		return nil, errFlagsetNotFoundFor

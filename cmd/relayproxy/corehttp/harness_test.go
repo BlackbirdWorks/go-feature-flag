@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,21 +95,21 @@ scheduled-future-flag:
 `
 
 // serve starts a server on the handler of the API server; the listener is open from the start.
-func serve(t testing.TB, srv *api.Server) string {
-	t.Helper()
+func serve(tb testing.TB, srv *api.Server) string {
+	tb.Helper()
 
 	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	tb.Cleanup(ts.Close)
 
 	return ts.URL
 }
 
 // newV1Manager is the v1 flag set manager of flagsYAML, with a file retriever.
-func newV1Manager(t testing.TB) (*config.Config, *service.FlagsetManagerImpl) {
-	t.Helper()
+func newV1Manager(tb testing.TB) (*config.Config, *service.FlagsetManagerImpl) {
+	tb.Helper()
 
-	path := filepath.Join(t.TempDir(), "flags.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(flagsYAML), 0o600))
+	path := filepath.Join(tb.TempDir(), "flags.yaml")
+	require.NoError(tb, os.WriteFile(path, []byte(flagsYAML), 0o600))
 
 	conf := &config.Config{
 		FlagSets: []config.FlagSet{{
@@ -120,21 +121,21 @@ func newV1Manager(t testing.TB) (*config.Config, *service.FlagsetManagerImpl) {
 	conf.ForceReloadAPIKeys()
 
 	manager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-	require.NoError(t, err)
-	t.Cleanup(manager.Close)
+	require.NoError(tb, err)
+	tb.Cleanup(manager.Close)
 
 	return conf, manager
 }
 
 // newV1 serves flagsYAML from the v1 relay behind the same handlers.
-func newV1(t testing.TB) string {
-	t.Helper()
+func newV1(tb testing.TB) string {
+	tb.Helper()
 
-	conf, manager := newV1Manager(t)
+	conf, manager := newV1Manager(tb)
 	logger := slog.New(slog.DiscardHandler)
 
 	metrics, err := metric.NewMetrics()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	srv := api.New(&api.Settings{}, service.NewAPIKeys(conf), &service.Services{
 		MonitoringService: service.NewMonitoring(manager),
@@ -142,7 +143,7 @@ func newV1(t testing.TB) string {
 		Metrics:           metrics,
 	}, logger)
 
-	return serve(t, &srv)
+	return serve(tb, &srv)
 }
 
 // tickScheduler is the scheduler of the reader that the test drives: a round per tick, no timer.
@@ -179,31 +180,31 @@ type v2 struct {
 	events  *recorder
 	streams *corehttp.Streams
 	put     func(key string, data []byte)
-	sets    []controlplane.FlagSet
 	flags   map[string][]byte
 	url     string
+	sets    []controlplane.FlagSet
 	gen     uint64
 }
 
 // publish writes the objects, then the manifest of the next generation.
-func (c *v2) publish(t testing.TB) {
-	t.Helper()
+func (rig *v2) publish(tb testing.TB) {
+	tb.Helper()
 
-	c.gen++
+	rig.gen++
 
-	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: c.sets})
-	require.NoError(t, err)
+	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: rig.sets})
+	require.NoError(tb, err)
 
 	manifest := &controlplane.Manifest{
 		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindManifest, Channel: channelName,
-		Generation: c.gen,
+		Generation: rig.gen,
 	}
 
 	add := func(name, kind string, data []byte) {
 		sum := controlplane.ChecksumOf(data)
 		key, keyErr := controlplane.ObjectKey(sum, controlplane.FormatYAML)
-		require.NoError(t, keyErr)
-		c.put(key, data)
+		require.NoError(tb, keyErr)
+		rig.put(key, data)
 
 		manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
 			Name: name, Kind: kind, Connection: connName, Key: key, Format: controlplane.FormatYAML,
@@ -213,66 +214,66 @@ func (c *v2) publish(t testing.TB) {
 
 	add(setsObject, controlplane.KindFlagSets, doc)
 
-	for name, data := range c.flags {
+	for name, data := range rig.flags {
 		add(name, controlplane.KindFlags, data)
 	}
 
 	data, err := controlplane.MarshalManifest(manifest)
-	require.NoError(t, err)
-	c.put(manifestKey, data)
+	require.NoError(tb, err)
+	rig.put(manifestKey, data)
 }
 
 // poll ticks the reader once, waits for its round to end and for the engine to apply the generation.
-func (c *v2) poll(t testing.TB) {
-	t.Helper()
+func (rig *v2) poll(tb testing.TB) {
+	tb.Helper()
 
 	select {
-	case c.sched.release <- struct{}{}:
+	case rig.sched.release <- struct{}{}:
 	case <-time.After(waitBound):
-		require.FailNow(t, "the reader is not waiting for a tick")
+		require.FailNow(tb, "the reader is not waiting for a tick")
 	}
 
-	c.settle(t)
-	c.awaitGeneration(t, c.gen)
+	rig.settle(tb)
+	rig.awaitGeneration(tb, rig.gen)
 }
 
 // settle waits until the reader ended a round and waits for its next tick.
-func (c *v2) settle(t testing.TB) {
-	t.Helper()
+func (rig *v2) settle(tb testing.TB) {
+	tb.Helper()
 
 	select {
-	case <-c.sched.entered:
+	case <-rig.sched.entered:
 	case <-time.After(waitBound):
-		require.FailNow(t, "the reader did not end its round")
+		require.FailNow(tb, "the reader did not end its round")
 	}
 }
 
 // awaitGeneration waits for the engine to apply the generation.
-func (c *v2) awaitGeneration(t testing.TB, gen uint64) {
-	t.Helper()
+func (rig *v2) awaitGeneration(tb testing.TB, gen uint64) {
+	tb.Helper()
 
 	timeout := time.After(waitBound)
 
 	for {
 		select {
-		case res := <-c.rounds:
+		case res := <-rig.rounds:
 			if res.Outcome == flagruntime.OutcomeApplied && res.Generation == gen {
 				return
 			}
 		case <-timeout:
-			require.FailNow(t, "the engine did not apply the generation", "generation %d", gen)
+			require.FailNow(tb, "the engine did not apply the generation", "generation %d", gen)
 		}
 	}
 }
 
 // newV2 serves flagsYAML from a core on a directory, behind the HTTP server of the core.
-func newV2(t testing.TB) *v2 {
-	t.Helper()
+func newV2(tb testing.TB) *v2 {
+	tb.Helper()
 
-	dir := filepath.Join(t.TempDir(), "control")
-	require.NoError(t, os.MkdirAll(dir, 0o750))
+	dir := filepath.Join(tb.TempDir(), "control")
+	require.NoError(tb, os.MkdirAll(dir, 0o750))
 
-	c := &v2{
+	rig := &v2{
 		sched:   &tickScheduler{entered: make(chan struct{}, 64), release: make(chan struct{})},
 		rounds:  make(chan flagruntime.RoundResult, 256),
 		events:  &recorder{got: make(chan *exporter.FeatureEvent, 256)},
@@ -281,86 +282,84 @@ func newV2(t testing.TB) *v2 {
 		sets:    []controlplane.FlagSet{{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}}},
 		put: func(key string, data []byte) {
 			path := filepath.Join(dir, key)
-			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
-			require.NoError(t, os.WriteFile(path, data, 0o600))
+			require.NoError(tb, os.MkdirAll(filepath.Dir(path), 0o750))
+			require.NoError(tb, os.WriteFile(path, data, 0o600))
 		},
 	}
-	t.Cleanup(c.streams.Close)
-	c.publish(t)
+	tb.Cleanup(rig.streams.Close)
+	rig.publish(tb)
 
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\nexporters:\n  tracked: {kind: log}\nauth:\n  adminKeys: [" + adminKey + "]\n"
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	deps := &relaycore.Deps{
-		Scheduler: c.sched,
-		Broadcast: c.streams.Broadcast,
+		Scheduler: rig.sched,
+		Broadcast: rig.streams.Broadcast,
 		NewManager: func(string, exporter.Config, *slog.Logger) events.FeatureManager {
-			return c.events
+			return rig.events
 		},
-		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { c.rounds <- res }},
+		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
 		TuneReader: func(rc *manifestreader.Config) {
 			rc.FetchConcurrency = 1
 			rc.DisableFetchSpread = true
 		},
 	}
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(tb.Context())
 
 	core, err := relaycore.New(ctx, cfg, deps)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
-	c.core = core
+	rig.core = core
 	done := make(chan error, 1)
 
 	go func() { done <- core.Run(ctx) }()
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		cancel()
 
 		stop, stopCancel := context.WithTimeout(context.Background(), waitBound)
 		defer stopCancel()
 
-		require.NoError(t, core.Shutdown(stop))
+		require.NoError(tb, core.Shutdown(stop))
 	})
 
-	c.settle(t)
-	c.awaitGeneration(t, 1)
+	rig.settle(tb)
+	rig.awaitGeneration(tb, 1)
 
-	srv, err := corehttp.New(core, &corehttp.Config{Settings: &api.Settings{}, Streams: c.streams})
-	require.NoError(t, err)
+	srv, err := corehttp.New(core, &corehttp.Config{Settings: &api.Settings{}, Streams: rig.streams})
+	require.NoError(tb, err)
 
-	c.url = serve(t, &srv)
+	rig.url = serve(tb, &srv)
 
-	return c
+	return rig
 }
 
 // do sends a request with the headers and returns the status, the headers and the body.
-func do(t testing.TB, method, url, body string, headers http.Header) (status int, header http.Header, out []byte) {
-	t.Helper()
+func do(tb testing.TB, method, url, body string, headers http.Header) (int, http.Header, []byte) {
+	tb.Helper()
 
 	var reader io.Reader = http.NoBody
 	if body != "" {
 		reader = strings.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(t.Context(), method, url, reader)
-	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(tb.Context(), method, url, reader)
+	require.NoError(tb, err)
 
-	for name, values := range headers {
-		req.Header[name] = values
-	}
+	maps.Copy(req.Header, headers)
 
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
-	defer func() { require.NoError(t, resp.Body.Close()) }()
+	defer func() { require.NoError(tb, resp.Body.Close()) }()
 
-	out, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	out, err := io.ReadAll(resp.Body)
+	require.NoError(tb, err)
 
 	return resp.StatusCode, resp.Header, out
 }

@@ -22,6 +22,7 @@ const (
 	pathCollector = "/v1/data/collector"
 	pathRefresh   = "/admin/v1/retriever/refresh"
 	xAPIKey       = "X-Api-Key"
+	contentType   = "Content-Type"
 	authorization = "Authorization"
 )
 
@@ -44,11 +45,11 @@ type equivCase struct {
 }
 
 func keyHeader(key string) http.Header {
-	return http.Header{xAPIKey: {key}, "Content-Type": {"application/json"}}
+	return http.Header{xAPIKey: {key}, contentType: {"application/json"}}
 }
 
 func withJSON(h http.Header) http.Header {
-	h.Set("Content-Type", "application/json")
+	h.Set(contentType, "application/json")
 
 	return h
 }
@@ -62,7 +63,7 @@ func unorderedBulk() *allowance {
 }
 
 func bearer(key string) http.Header {
-	return http.Header{authorization: {"Bearer " + key}, "Content-Type": {"application/json"}}
+	return http.Header{authorization: {"Bearer " + key}, contentType: {"application/json"}}
 }
 
 func post(name, path, body string) equivCase {
@@ -76,7 +77,9 @@ func ofrep(name, flag, body string) equivCase {
 func evalCases() []equivCase {
 	vip := `{"context":{"targetingKey":"user-1","tier":"vip"}}`
 	plain := `{"context":{"targetingKey":"user-1"}}`
-	legacy := func(name, flag, body string) equivCase { return post(name, strings.Replace(pathEval, "%s", flag, 1), body) }
+	legacy := func(name, flag, body string) equivCase {
+		return post(name, strings.Replace(pathEval, "%s", flag, 1), body)
+	}
 
 	cases := []equivCase{
 		ofrep("ofrep bool vip", "bool-flag", vip),
@@ -103,14 +106,17 @@ func evalCases() []equivCase {
 			`{"context":{"targetingKey":"u","semaphore":{"flagList":["bool-flag","no-such-flag","string-flag"]}}}`),
 		post("ofrep bulk legacy flag list", pathOFREPBulk,
 			`{"context":{"targetingKey":"u","gofeatureflag":{"flagList":["bool-flag"]}}}`),
-		legacy("legacy bool vip", "bool-flag", `{"evaluationContext":{"key":"u","custom":{"tier":"vip"}},"defaultValue":false}`),
+		legacy("legacy bool vip", "bool-flag",
+			`{"evaluationContext":{"key":"u","custom":{"tier":"vip"}},"defaultValue":false}`),
 		legacy("legacy bool default", "bool-flag", `{"evaluationContext":{"key":"u"},"defaultValue":false}`),
 		legacy("legacy wrong type default", "bool-flag", `{"evaluationContext":{"key":"u"},"defaultValue":"text"}`),
-		legacy("legacy number", "number-flag", `{"evaluationContext":{"key":"u","custom":{"size":50}},"defaultValue":0}`),
+		legacy("legacy number", "number-flag",
+			`{"evaluationContext":{"key":"u","custom":{"size":50}},"defaultValue":0}`),
 		legacy("legacy json", "json-flag", `{"evaluationContext":{"key":"u"},"defaultValue":{}}`),
 		legacy("legacy disabled", "disabled-flag", `{"evaluationContext":{"key":"u"},"defaultValue":7}`),
 		legacy("legacy unknown flag", "no-such-flag", `{"evaluationContext":{"key":"u"},"defaultValue":"fallback"}`),
-		legacy("legacy key missing", "bool-flag", `{"evaluationContext":{"custom":{"tier":"vip"}},"defaultValue":false}`),
+		legacy("legacy key missing", "bool-flag",
+			`{"evaluationContext":{"custom":{"tier":"vip"}},"defaultValue":false}`),
 		legacy("legacy invalid body", "bool-flag", `{`),
 		legacy("legacy scheduled over", "scheduled-over-flag", `{"evaluationContext":{"key":"u"},"defaultValue":""}`),
 		post("allflags", pathAllFlags, `{"evaluationContext":{"key":"u","custom":{"tier":"vip"}}}`),
@@ -134,25 +140,25 @@ func evalCases() []equivCase {
 func authCases() []equivCase {
 	body := `{"context":{"targetingKey":"u"}}`
 	path := pathOFREPOne + "bool-flag"
-	mk := func(name string, headers http.Header) equivCase {
+	request := func(name string, headers http.Header) equivCase {
 		return equivCase{name: name, method: http.MethodPost, path: path, body: body, headers: headers}
 	}
 
 	return []equivCase{
-		mk("auth X-API-Key", keyHeader(tenantKey)),
-		mk("auth bearer", bearer(tenantKey)),
-		mk("auth bearer lower case", withJSON(http.Header{authorization: {"bearer " + tenantKey}})),
-		mk("auth bearer with spaces", withJSON(http.Header{authorization: {"Bearer   " + tenantKey + "  "}})),
-		mk("auth raw authorization", withJSON(http.Header{authorization: {tenantKey}})),
-		mk("auth X-API-Key wins over authorization",
+		request("auth X-API-Key", keyHeader(tenantKey)),
+		request("auth bearer", bearer(tenantKey)),
+		request("auth bearer lower case", withJSON(http.Header{authorization: {"bearer " + tenantKey}})),
+		request("auth bearer with spaces", withJSON(http.Header{authorization: {"Bearer   " + tenantKey + "  "}})),
+		request("auth raw authorization", withJSON(http.Header{authorization: {tenantKey}})),
+		request("auth X-API-Key wins over authorization",
 			withJSON(http.Header{xAPIKey: {tenantKey}, authorization: {"Bearer unknown-key"}})),
-		mk("auth bad X-API-Key wins over authorization",
+		request("auth bad X-API-Key wins over authorization",
 			withJSON(http.Header{xAPIKey: {"unknown-key"}, authorization: {"Bearer " + tenantKey}})),
-		mk("auth no key", withJSON(http.Header{})),
-		mk("auth empty key", keyHeader("")),
-		mk("auth unknown key", keyHeader("unknown-key")),
-		mk("auth unknown bearer", bearer("unknown-key")),
-		mk("auth admin key", keyHeader(adminKey)),
+		request("auth no key", withJSON(http.Header{})),
+		request("auth empty key", keyHeader("")),
+		request("auth unknown key", keyHeader("unknown-key")),
+		request("auth unknown bearer", bearer("unknown-key")),
+		request("auth admin key", keyHeader(adminKey)),
 		{name: "auth unknown key on bulk", method: http.MethodPost, path: pathOFREPBulk, body: body,
 			headers: keyHeader("unknown-key"), allow: unorderedBulk()},
 		{name: "auth unknown key on legacy eval", method: http.MethodPost, path: "/v1/feature/bool-flag/eval",
@@ -190,7 +196,9 @@ func normalized(t *testing.T, body []byte, unordered bool) any {
 	}
 
 	var doc any
-	if err := json.Unmarshal(body, &doc); err != nil {
+
+	err := json.Unmarshal(body, &doc)
+	if err != nil {
 		return string(body)
 	}
 
@@ -217,7 +225,7 @@ func keyOf(v any) string {
 
 // contractHeaders are the response headers that are part of the contract.
 func contractHeaders() []string {
-	return []string{"Content-Type", "Etag", "Last-Modified", "Cache-Control", "Www-Authenticate", "Allow", "Vary"}
+	return []string{contentType, "Etag", "Last-Modified", "Cache-Control", "Www-Authenticate", "Allow", "Vary"}
 }
 
 // TestEquivalence_V1V2 serves the same flags from a v1 relay and from a v2 core, with the same handlers, and asks both
@@ -254,7 +262,8 @@ func TestEquivalence_V1V2(t *testing.T) {
 				assert.Equal(t, header1.Values(name), header2.Values(name), name)
 			}
 
-			assert.Equal(t, normalized(t, body1, allow.unorderedBody), normalized(t, body2, allow.unorderedBody), "body")
+			want := normalized(t, body1, allow.unorderedBody)
+			assert.Equal(t, want, normalized(t, body2, allow.unorderedBody), "body")
 		})
 	}
 }
