@@ -106,8 +106,18 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	}
 
 	c.svc = flagdef.NewService(flagdef.WithLogger(c.log))
+	engineHooks := deps.Hooks
+	afterRound := engineHooks.AfterRound
+	engineHooks.AfterRound = func(res flagruntime.RoundResult) {
+		c.reloads.record(res)
+
+		if afterRound != nil {
+			afterRound(res)
+		}
+	}
+
 	c.engine = flagruntime.NewEngine(c.log, c.svc, c.holder,
-		flagruntime.WithHooks(deps.Hooks),
+		flagruntime.WithHooks(engineHooks),
 		flagruntime.WithSecretOptions(deps.Secrets),
 		flagruntime.WithInitialBootstrap(cfg),
 	)

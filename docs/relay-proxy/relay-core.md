@@ -66,8 +66,8 @@ version 1 relay: they find the flag set of an API key through `service.FlagSetRe
 `service.FlagSet`. The v1 flag set manager and the core are two implementations of that seam.
 
 - **Served from the core**: OFREP single and bulk evaluation, the legacy `/v1/feature/{flag}/eval` and `/v1/allflags`,
-  flag configuration, flag change, the manifest, the collection of events, the SSE and websocket streams, `/health`
-  and `/info`.
+  flag configuration, flag change, the manifest, the collection of events, the SSE and websocket streams, `/health`,
+  `/info` (with the state of the runtime), `/livez`, `/readyz` and `/startupz`; see [probes](probes.md).
 - **Keys**: every request needs a key. A flag set key routes to its flag set, an admin key is accepted and then
   answered with 400, as in v1, an unknown key or the key of a removed flag set is answered with 401.
 - **Unavailable flag set** (known, never loaded): a single evaluation answers `FLAG_NOT_FOUND`, a bulk evaluation
@@ -94,6 +94,7 @@ version 1 relay: they find the flag set of an API key through `service.FlagSetRe
 - Evaluation context enrichment: the bootstrap file has no setting for it.
 - The retriever refresh endpoint (a core only polls).
 
+Pass a `Readiness` (`corehttp.NewReadiness(core)`) in the config and call `BeginShutdown` on SIGTERM before the server stops.
 The server is not started by `main.go`. Equivalence tests serve the same flags from a v1 relay and from a core and
 compare the status, the contract headers and the body of every evaluation endpoint, with an explicit list of
 the intended differences.

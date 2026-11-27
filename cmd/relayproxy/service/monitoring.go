@@ -18,6 +18,15 @@ type Monitoring interface {
 	Info() (model.InfoResponse, error)
 }
 
+// Probes is implemented by a monitoring service that serves the probe endpoints /readyz and /startupz. The v1
+// service does not implement it: the endpoints are then not served.
+type Probes interface {
+	// Ready answers /readyz: the status code and the body.
+	Ready() (int, model.ReadyResponse)
+	// Started answers /startupz: the status code and the body.
+	Started() (int, model.ReadyResponse)
+}
+
 // MonitoringImpl is one implementation of the Monitoring interface.
 type MonitoringImpl struct {
 	flagsetManager FlagsetManager
@@ -58,6 +67,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 		return model.InfoResponse{
 			LatestCacheRefresh: &cacheRefreshDate,
 			Flagsets:           nil,
+			Config:             nil,
 		}, nil
 	}
 
@@ -74,5 +84,6 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 	return model.InfoResponse{
 		Flagsets:           refreshDates,
 		LatestCacheRefresh: &latestRefreshDate,
+		Config:             nil,
 	}, nil
 }

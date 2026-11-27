@@ -113,6 +113,10 @@ type Engine struct {
 	withdrawnCap int
 	changeBuf    int
 	snapshot     uint64
+	// bootstrapped is true once a round that carried a bootstrap file ended, whatever its outcome.
+	bootstrapped atomic.Bool
+	// roundHadBoot is set by round for finish; the engine goroutine only.
+	roundHadBoot bool
 }
 
 // NewEngine returns an engine that stores into holder. svc validates the flags and owns the compiled-query
@@ -180,6 +184,11 @@ func (e *Engine) Reload(cfg *bootstrap.Config) {
 // Changes returns the channel of change events; it is closed when Run returns. See [Engine] for when an event can
 // still be merged or cancelled: only before the engine hands it to this channel.
 func (e *Engine) Changes() <-chan Change { return e.changes }
+
+// Bootstrapped reports whether the first round that carried a bootstrap file has ended, applied, ignored or
+// rejected: the relay then knows what its bootstrap file says, although the runtime may not have swapped (a file
+// equal to the empty runtime leaves the snapshot at zero).
+func (e *Engine) Bootstrapped() bool { return e.bootstrapped.Load() }
 
 // Result returns the result of the last round, applied, ignored or rejected. A rejected round stores nothing, so
 // its reason is not in the status of the running Runtime: it is read here (the wiring of the relay exposes it),
@@ -271,6 +280,8 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		boot    bootPlan
 		results []Reload
 	)
+
+	e.roundHadBoot = cfg != nil
 
 	if content != nil {
 		plan = e.planContent(ctx, content)
@@ -707,6 +718,10 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 	}
 
 	e.last.Store(&result)
+
+	if e.roundHadBoot {
+		e.bootstrapped.Store(true)
+	}
 
 	if e.hooks.AfterRound != nil {
 		e.hooks.AfterRound(result)

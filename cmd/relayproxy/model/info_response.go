@@ -11,4 +11,8 @@ type InfoResponse struct {
 	// Flagsets contains the cache refresh dates for each flagset when using multiple flagsets.
 	// The format is {"flagset name": "2022-06-13T11:22:55.941628+02:00"}
 	Flagsets map[string]time.Time `example:"{\"default\":\"2022-06-13T11:22:55.941628+02:00\"}" json:"flagsets,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+
+	// Config is the state of the config v2 runtime: generation, reloads, flag sets and objects. It is absent from the
+	// v1 relay.
+	Config *ConfigInfo `json:"config,omitempty"`
 }
