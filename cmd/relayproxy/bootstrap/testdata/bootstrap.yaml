@@ -34,6 +34,7 @@ connections:
     region: us-east-1
     bucket: dev-flags
     pathStyle: true
+    caBundleFile: /etc/ssl/emulator-ca.pem
     requestChecksumCalculation: whenRequired
     responseChecksumValidation: whenRequired
     credentials:
@@ -43,6 +44,7 @@ connections:
   events-kinesis: {type: kinesis, region: us-east-1, stream: acme-flag-evals}
   events-queue: {type: sqs, region: us-east-1, queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/evals"}
   warehouse: {type: redshift, region: us-east-1}
+  local-control: {type: file, path: /var/lib/semaphore/control}
 exporters:
   evals-kinesis:
     kind: kinesis

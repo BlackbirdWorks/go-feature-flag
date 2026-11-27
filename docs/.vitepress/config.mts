@@ -150,6 +150,7 @@ export default withMermaid({
         items: [
           { text: 'Documentation Index', link: '/overview' },
           { text: 'Performance', link: '/performance' },
+          { text: 'Scale', link: '/scale' },
           { text: 'Releasing', link: '/RELEASING' },
           { text: 'GitHub Releases', link: 'https://github.com/BlackbirdWorks/semaphore/releases' },
         ],
@@ -174,6 +175,7 @@ export default withMermaid({
           { text: 'Overview', link: '/relay-proxy/' },
           { text: 'Configuration Reference', link: '/relay-proxy/configuration' },
           { text: 'Bootstrap File v2', link: '/relay-proxy/bootstrap-config' },
+          { text: 'Config v2 Relay Core', link: '/relay-proxy/relay-core' },
           { text: 'API Endpoints', link: '/relay-proxy/endpoints' },
           { text: 'Observability', link: '/relay-proxy/observability' },
           { text: 'Profiling', link: '/relay-proxy/profiling' },
@@ -314,6 +316,7 @@ export default withMermaid({
         collapsed: true,
         items: [
           { text: 'Performance', link: '/performance' },
+          { text: 'Scale', link: '/scale' },
           { text: 'Releasing', link: '/RELEASING' },
           { text: 'Rename to Semaphore', link: '/migration/rename-to-semaphore' },
           { text: 'Prometheus Metric Renames', link: '/migration/metric-renames' },

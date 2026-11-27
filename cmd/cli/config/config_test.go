@@ -48,6 +48,11 @@ controlPlane:
 `
 )
 
+func pollingFile(setting string) string {
+	return "version: 2\nconnections:\n  control: {type: s3, region: us-east-1, bucket: b}\n" +
+		"controlPlane:\n  connection: control\n  manifest: {key: m.yaml, " + setting + "}\n"
+}
+
 func testFiles() map[string]string {
 	return map[string]string{
 		validName:      validFile,
@@ -61,6 +66,8 @@ controlPlane:
   connection: missing
   manifest: {key: m.yaml}
 `,
+		"fastpoll.yaml":  pollingFile("pollInterval: 500ms"),
+		"jitterone.yaml": pollingFile("jitter: 1"),
 	}
 }
 
@@ -152,6 +159,16 @@ func TestValidate(t *testing.T) {
 		{
 			name: "dangling reference", args: []string{cmdValidate, "dangling.yaml"}, wantCode: helper.ExitInvalid,
 			wantErr: "dangling.yaml: controlPlane.connection (line 5): unknown connection",
+		},
+		{
+			name: "poll interval the reader refuses", args: []string{cmdValidate, "fastpoll.yaml"},
+			wantCode: helper.ExitInvalid,
+			wantErr:  "fastpoll.yaml: controlPlane.manifest.pollInterval (line 6): invalid value: expected at least 1s",
+		},
+		{
+			name: "jitter the reader refuses", args: []string{cmdValidate, "jitterone.yaml"},
+			wantCode: helper.ExitInvalid,
+			wantErr:  "jitterone.yaml: controlPlane.manifest.jitter (line 6): invalid value",
 		},
 		{
 			name:     "missing file",

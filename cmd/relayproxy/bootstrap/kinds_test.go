@@ -16,8 +16,8 @@ import (
 
 const kindConns = `version: 2
 connections:
-  s: {type: s3, bucket: b}
-  nobucket: {type: s3}
+  s: {type: s3, region: r, bucket: b}
+  nobucket: {type: s3, region: r}
   k: {type: kinesis}
   ks: {type: kinesis, stream: st}
   q: {type: sqs}
@@ -248,7 +248,7 @@ func TestConnectionTypes(t *testing.T) {
 		body     string
 		wantType string
 	}{
-		{name: "s3", body: "{type: s3, bucket: b}", wantType: bootstrap.TypeS3},
+		{name: "s3", body: "{type: s3, region: r, bucket: b}", wantType: bootstrap.TypeS3},
 		{name: "kinesis", body: "{type: kinesis, stream: s}", wantType: bootstrap.TypeKinesis},
 		{name: "sqs", body: "{type: sqs}", wantType: bootstrap.TypeSQS},
 		{name: "redshift", body: "{type: redshift, region: eu-west-1}", wantType: bootstrap.TypeRedshift},

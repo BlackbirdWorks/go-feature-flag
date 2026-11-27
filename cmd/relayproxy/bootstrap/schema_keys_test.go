@@ -367,7 +367,10 @@ func TestKeysOfEveryCredentialsType(t *testing.T) {
 						all = append(all, extra)
 					}
 
-					return "version: 2\nconnections:\n  a: {type: s3, credentials: {" + strings.Join(all, ", ") + "}}\n"
+					return "version: 2\nconnections:\n  a: {type: s3, region: r, credentials: {" + strings.Join(
+						all,
+						", ",
+					) + "}}\n"
 				},
 				skip:    append([]string{"type"}, tcase.skip...),
 				allowed: tcase.allowed,

@@ -1,0 +1,68 @@
+# Config v2 relay core
+
+> Status: the core is in the code base (`cmd/relayproxy/relaycore`) and tested, but it is **not the default binary
+> path yet**. The `semaphore` binary still runs on the version 1 configuration. The core has no HTTP handlers, no
+> probes and no metrics endpoint; they come with the switch to config v2 (epic #19, issue #3).
+
+The core is the part of the relay that turns a [bootstrap file, version 2](bootstrap-config.md) into a running
+flag runtime. It is one object with no global state.
+
+## What it assembles
+
+- **Connections**: one client per AWS connection, built by the connection factory with secrets resolved from the
+  environment or files.
+- **Control plane store**: S3 or a directory, by the type of the `controlPlane.connection`. A manifest can list
+  objects of any `s3` or `file` connection of the file.
+- **State directory**: opened if `controlPlane.stateDir` is set. A directory that cannot be used (a file, a
+  world-writable directory, locked by another process) never stops the relay: it runs without one and the status
+  says why.
+- **Manifest reader**: polls the manifest with conditional requests and fetches only the objects that changed.
+- **Engine and holder**: build an immutable runtime from each snapshot and swap it in with one atomic store.
+- **Evaluator**: evaluates a flag of a flag set. It is the one place the relay hands tracked evaluations to the
+  exporters.
+- **Exporters and notifiers**: the runtime-level pipelines from the `exporters` and `notifiers` sections. A change
+  of a flag set reaches every notifier.
+
+## Start
+
+1. `New` takes the loaded bootstrap file and the injected dependencies (logger, metrics registerer, scheduler,
+   secrets, state directory file system). It builds everything, opens the state directory and starts the exporters
+   and notifiers. It starts none of the loops. An error names the setting at fault, for example
+   `connections.control.path`, and never holds a credential.
+2. `Run` starts the reader, the source, the engine and the state directory writer, and blocks until its context ends
+   or `Shutdown` is called.
+
+The relay serves an empty runtime until the first manifest is applied. The first round of the engine also takes the
+admin keys of the file.
+
+## Reload in place
+
+- A new manifest or changed object goes live after one poll, without a restart: the engine rebuilds only the flag
+  sets that use a changed object, and swaps the runtime atomically. Added and removed flag sets take effect the same
+  way, and the keys of a removed flag set are unknown from that generation.
+- `Reload` takes a new bootstrap file. Only the admin keys apply live. Every other change (connections, control plane,
+  exporters, notifiers, listeners, observability) is kept out and named in the `pendingRestart` list of the status.
+  Values are never listed.
+- If the store is unreachable the relay keeps serving the last runtime, and the reader status shows the failed poll.
+
+## Shut down
+
+`Shutdown` stops in order:
+
+1. It cancels the reader, the source and the engine, so nothing new enters the runtime, and waits for them.
+2. The state directory writes the last snapshot.
+3. The exporters and notifiers drain until the deadline of the context of `Shutdown`.
+4. It unregisters the collector and releases the connections and the state directory.
+
+`Shutdown` is safe without `Run`, and a second call returns the result of the first. When the deadline passes first,
+it returns an error that says so and what did not stop ends in the background. A relay must always call it, also
+after `Run` returned.
+
+## Tests
+
+- Unit tests: path-addressed construction errors without credentials, the lifecycle (no goroutine left after
+  shutdown, shutdown without run, twice, bounded by its context), and the wiring (a tracked evaluation reaches the
+  exporter, a manifest change reaches the notifier, an unusable state directory still serves).
+- End to end, driven by a test scheduler instead of timers: a publisher writes objects and manifests to a directory
+  (always runs) or to a gopherstack bucket (`task test-e2e`), and the test checks a change, a new flag set, a removed
+  flag set and a store outage.

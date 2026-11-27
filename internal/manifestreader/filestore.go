@@ -137,7 +137,7 @@ func (s *FileStore) Get(ctx context.Context, req GetRequest) (Object, error) {
 		return Object{}, interrupted(err)
 	}
 
-	if !validFileKey(req.Key) {
+	if !ValidFileKey(req.Key) {
 		return Object{}, &FetchError{Err: ErrKeyRefused, Reason: ReasonDenied}
 	}
 
@@ -218,8 +218,8 @@ func (s *FileStore) open(key string) (*os.File, int64, error) {
 	return file, info.Size(), nil
 }
 
-// validFileKey reports whether key is a clean relative slash path.
-func validFileKey(key string) bool {
+// ValidFileKey reports whether key is a clean relative slash path.
+func ValidFileKey(key string) bool {
 	return fs.ValidPath(key) && key != "." && !strings.ContainsAny(key, "\\\x00")
 }
 

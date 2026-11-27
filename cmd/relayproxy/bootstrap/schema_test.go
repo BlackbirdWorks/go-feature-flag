@@ -54,8 +54,8 @@ func TestSchemaShape(t *testing.T) {
 	}{
 		{name: "root has the version key", def: "Config", wantProperty: "version", wantRequired: []string{"version"}},
 		{name: "control plane", def: defMaxManifest, wantProperty: "maxObjects"},
-		{name: "connection is a union", def: "Connection", wantOneOf: 4},
-		{name: "s3 member", def: "S3Connection", wantProperty: tcBucket, wantRequired: []string{typeKey}},
+		{name: "connection is a union", def: "Connection", wantOneOf: 5},
+		{name: "s3 member", def: "S3Connection", wantProperty: tcBucket, wantRequired: []string{typeKey, "region"}},
 		{name: "secret reference", def: "Secret", wantProperty: "fromEnv"},
 	}
 
@@ -128,12 +128,12 @@ func TestSchemaRejectsWhatTheLoaderRejects(t *testing.T) {
 		},
 		{
 			name: "jitter above one",
-			doc:  "version: 2\nconnections: {a: {type: s3, poll: {jitter: 2}}}\n",
+			doc:  "version: 2\nconnections: {a: {type: s3, region: r, poll: {jitter: 2}}}\n",
 			want: ".jitter: above the maximum",
 		},
 		{
 			name: "attempts",
-			doc:  "version: 2\nconnections: {a: {type: s3, retry: {maxAttempts: 0}}}\n",
+			doc:  "version: 2\nconnections: {a: {type: s3, region: r, retry: {maxAttempts: 0}}}\n",
 			want: ".maxAttempts: below the minimum",
 		},
 		{
@@ -143,7 +143,7 @@ func TestSchemaRejectsWhatTheLoaderRejects(t *testing.T) {
 		},
 		{
 			name: "checksum",
-			doc:  "version: 2\nconnections: {a: {type: s3, requestChecksumCalculation: never}}\n",
+			doc:  "version: 2\nconnections: {a: {type: s3, region: r, requestChecksumCalculation: never}}\n",
 			want: "not in the enum",
 		},
 		{
@@ -151,8 +151,8 @@ func TestSchemaRejectsWhatTheLoaderRejects(t *testing.T) {
 			doc:  "version: 2\nconnections: {a: {type: valkey}}\n",
 			want: "matches 0 of the oneOf",
 		},
-		{name: "reserved name", doc: "version: 2\nconnections: {default: {type: s3}}\n", want: "{default}"},
-		{name: "bad name", doc: "version: 2\nconnections: {Bad: {type: s3}}\n", want: "{Bad}"},
+		{name: "reserved name", doc: "version: 2\nconnections: {default: {type: s3, region: r}}\n", want: "{default}"},
+		{name: "bad name", doc: "version: 2\nconnections: {Bad: {type: s3, region: r}}\n", want: "{Bad}"},
 		{name: "exporter kind", doc: "version: 2\nexporters: {a: {kind: pigeon}}\n", want: ".kind: not in the enum"},
 		{
 			name: "exporter format",
@@ -170,8 +170,33 @@ func TestSchemaRejectsWhatTheLoaderRejects(t *testing.T) {
 			want: "missing webhookUrl",
 		},
 		{
+			name: "s3 connection without a region",
+			doc:  "version: 2\nconnections: {a: {type: s3}}\n",
+			want: "missing region",
+		},
+		{
+			name: "s3 connection with a blank region",
+			doc:  "version: 2\nconnections: {a: {type: s3, region: \"  \"}}\n",
+			want: ".region: does not match the pattern",
+		},
+		{
+			name: "file connection without a path",
+			doc:  "version: 2\nconnections: {a: {type: file}}\n",
+			want: "missing path",
+		},
+		{
+			name: "file connection with a blank path",
+			doc:  "version: 2\nconnections: {a: {type: file, path: \" \"}}\n",
+			want: ".path: does not match the pattern",
+		},
+		{
+			name: "manifest jitter of one",
+			doc:  "version: 2\ncontrolPlane: {connection: a, manifest: {key: k, jitter: 1}}\n",
+			want: ".jitter: at or above the exclusive maximum",
+		},
+		{
 			name: "static credentials",
-			doc:  "version: 2\nconnections: {a: {type: s3, credentials: {type: static}}}\n",
+			doc:  "version: 2\nconnections: {a: {type: s3, region: r, credentials: {type: static}}}\n",
 			want: "missing accessKeyId",
 		},
 		{
@@ -203,7 +228,7 @@ func TestSchemaAcceptsFilesThatRelyOnOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	// the manifest key comes from SEMAPHORE_MANIFEST_KEY and the listener address from SEMAPHORE_LISTEN
-	file := "version: 2\nconnections: {control: {type: s3, bucket: b}}\ncontrolPlane: {connection: control}\n" +
+	file := "version: 2\nconnections: {control: {type: s3, region: r, bucket: b}}\ncontrolPlane: {connection: control}\n" +
 		"server: {listeners: [{name: api}]}\n"
 
 	var value any
@@ -294,7 +319,7 @@ func TestSchemaDurationPattern(t *testing.T) {
 
 			inSchema := rest.MatchString(tcase.value) && nonZero.MatchString(tcase.value)
 
-			doc := "version: 2\nconnections:\n  a: {type: s3, poll: {interval: \"" + tcase.value + "\"}}\n"
+			doc := "version: 2\nconnections:\n  a: {type: s3, region: r, poll: {interval: \"" + tcase.value + "\"}}\n"
 			_, parseErr := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 
 			assert.Equal(t, tcase.wantAccept, inSchema, "the schema pattern")
