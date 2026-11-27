@@ -266,7 +266,11 @@ func (r *relay) reload(ctx context.Context, load func() (*bootstrap.Config, erro
 		return
 	}
 
-	r.log.LogAttrs(ctx, slog.LevelInfo, "reload queued: the outcome is logged by the engine (runtime reload) and shown in the status")
+	r.log.LogAttrs(
+		ctx,
+		slog.LevelInfo,
+		"reload queued: the outcome is logged by the engine (runtime reload) and shown in the status",
+	)
 }
 
 // stopAll stops the relay in order and returns the first error: the readiness fails first (the probes answer
