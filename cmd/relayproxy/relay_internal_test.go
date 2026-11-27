@@ -28,6 +28,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 )
 
 const (
@@ -177,6 +178,10 @@ type rigOptions struct {
 	port string
 	// flags are added to the command line.
 	flags []string
+	// stateFS replaces the file system of the state directory.
+	stateFS statedir.FS
+	// shutdownTimeout bounds the shutdown of the relay.
+	shutdownTimeout time.Duration
 	// watchDrain records the readiness at the start of the shutdown.
 	watchDrain bool
 }
@@ -224,12 +229,14 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		Reload: rig.reload,
 		Deps: relaycore.Deps{
 			Scheduler: rig.sched,
+			StateFS:   ropts.stateFS,
 			TuneReader: func(cfg *manifestreader.Config) {
 				cfg.DisableFetchSpread = true
 			},
 			Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
 		},
-		ServerOptions: serverOpts,
+		ServerOptions:   serverOpts,
+		ShutdownTimeout: ropts.shutdownTimeout,
 	}
 	if ropts.watchDrain {
 		opts.OnDraining = rig.onDraining
@@ -777,4 +784,69 @@ func TestReloadWithAnUnresolvedAdminKeyKeepsTheKeys(t *testing.T) {
 			require.FailNow(t, "the reload was not rejected")
 		}
 	}
+}
+
+// heldFS is a state directory file system whose first rename waits for the test: a write that the disk does not finish.
+type heldFS struct {
+	statedir.FS
+
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (h *heldFS) Open(dir string) (statedir.Root, error) {
+	root, err := h.FS.Open(dir)
+	if err != nil {
+		return nil, err //nolint:wrapcheck // a test double passes the error of the real file system
+	}
+
+	return &heldRoot{Root: root, held: h}, nil
+}
+
+type heldRoot struct {
+	statedir.Root
+
+	held *heldFS
+}
+
+func (r *heldRoot) Rename(oldname, newname string) error {
+	r.held.once.Do(func() { close(r.held.entered) })
+	<-r.held.release
+
+	return r.Root.Rename(oldname, newname) //nolint:wrapcheck // a test double passes the error of the real file system
+}
+
+// A state write that does not finish must not keep the process from exiting: the shutdown is bounded, says so, and
+// the exit code is not zero.
+func TestRunExitsWhenAStateWriteHoldsTheShutdown(t *testing.T) {
+	t.Parallel()
+
+	held := &heldFS{FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{})}
+	rig := startRelay(t, &rigOptions{
+		stateFS: held, shutdownTimeout: 100 * time.Millisecond,
+		flags: []string{"--state-dir=" + filepath.Join(t.TempDir(), "state")},
+	})
+
+	// registered after the rig: it runs first, so the held write ends before the rig waits for the relay
+	t.Cleanup(func() { close(held.release) })
+
+	rig.awaitGeneration(1)
+
+	select {
+	case <-held.entered:
+	case <-time.After(waitBound):
+		require.FailNow(t, "no state write started", rig.stderr.String())
+	}
+
+	rig.cancel()
+
+	select {
+	case code := <-rig.done:
+		assert.Equal(t, 1, code)
+	case <-time.After(waitBound):
+		require.FailNow(t, "the relay did not exit while a state write was held")
+	}
+
+	assert.Contains(t, rig.stderr.String(), "the loops of the relay did not stop within the shutdown deadline")
 }

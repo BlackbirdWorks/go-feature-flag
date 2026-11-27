@@ -28,7 +28,10 @@ const shutdownTimeout = 15 * time.Second
 const logFormatText = "text"
 
 // stopSteps is the number of steps of the shutdown that can fail.
-const stopSteps = 2
+const stopSteps = 3
+
+// errLoopsNotStopped is wrapped by the error of a shutdown whose loops outlived its deadline.
+var errLoopsNotStopped = errors.New("the loops of the relay did not stop")
 
 // errMetricsSetup is wrapped by the error of the metrics that can not be set up.
 var errMetricsSetup = errors.New("impossible to initialize the prometheus metrics")
@@ -297,7 +300,30 @@ func (r *relay) stopAll(ctx context.Context, opts *runOptions) error {
 	errs = append(errs, r.core.Shutdown(stopCtx))
 
 	r.runCancel()
-	r.loops.Wait()
+
+	errs = append(errs, r.joinLoops(stopCtx))
 
 	return errors.Join(errs...)
+}
+
+// joinLoops waits for the core and the server to return, within the shutdown deadline: the core joins its state
+// writer, and a write that the disk does not finish must not keep the process from exiting. What did not stop ends
+// with the process.
+func (r *relay) joinLoops(ctx context.Context) error {
+	stopped := make(chan struct{})
+
+	go func() {
+		r.loops.Wait()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		return nil
+	case <-ctx.Done():
+		r.log.LogAttrs(context.WithoutCancel(ctx), slog.LevelError,
+			"the loops of the relay did not stop within the shutdown deadline, the process exits without them")
+
+		return fmt.Errorf("%w: %w", errLoopsNotStopped, ctx.Err())
+	}
 }
