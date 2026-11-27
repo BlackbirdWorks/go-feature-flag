@@ -165,6 +165,7 @@ func (f *fakeStore) Release() {
 		}
 
 		f.gate = nil
+		f.entered = nil // a call that comes after the release does not signal
 	}
 }
 
@@ -214,4 +215,34 @@ func gateFor(t *testing.T) chan struct{} {
 	})
 
 	return gate
+}
+
+// storeUnderTest is a store with the call list of the fake.
+type storeUnderTest interface {
+	segment.Provider
+	callList() [][]string
+}
+
+// existsStore is a fake store that also answers Exists, the way a store that can tell does: a segment that its data
+// do not hold is not loaded (NotMember).
+type existsStore struct {
+	*fakeStore
+}
+
+func (e existsStore) Exists(_ context.Context, names []string) ([]segment.State, error) {
+	e.mu.Lock()
+	data := e.data
+	e.mu.Unlock()
+
+	out := make([]segment.State, len(names))
+
+	for i, name := range names {
+		out[i] = segment.NotMember
+
+		if _, held := data[name]; held {
+			out[i] = segment.Member
+		}
+	}
+
+	return out, nil
 }

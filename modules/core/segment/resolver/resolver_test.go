@@ -75,7 +75,7 @@ func TestContainsCaching(t *testing.T) {
 	}
 
 	tests := []struct {
-		store     *fakeStore
+		store     storeUnderTest
 		opts      *resolver.Options
 		name      string
 		steps     []step
@@ -96,13 +96,13 @@ func TestContainsCaching(t *testing.T) {
 			wantCalls: [][]string{{callAlice, callZed}},
 		},
 		{
-			name:  "an unknown answer is never cached: the segment that is not loaded is not asked again for a while",
+			name:  "an unknown answer is never cached: the store is asked again, since it did not say that the segment is not loaded",
 			store: &fakeStore{data: members(map[string][]string{segOther: {idAlice}})},
 			steps: []step{
 				{lookups: []segment.Lookup{lk(segBeta, idAlice)}, wantStates: []segment.State{segment.Unknown}},
 				{lookups: []segment.Lookup{lk(segBeta, idAlice)}, wantStates: []segment.State{segment.Unknown}},
 			},
-			wantCalls: [][]string{{callAlice}},
+			wantCalls: [][]string{{callAlice}, {callAlice}},
 		},
 		{
 			name:  "an error is never cached",
@@ -230,7 +230,7 @@ func TestBreakerThroughTheResolver(t *testing.T) {
 	unknown := []segment.State{segment.Unknown}
 
 	tests := []struct {
-		store        *fakeStore
+		store        storeUnderTest
 		opts         *resolver.Options
 		wantBreakers map[string]resolver.BreakerState
 		name         string
@@ -311,8 +311,20 @@ func TestBreakerThroughTheResolver(t *testing.T) {
 			wantStats:    resolver.Stats{Calls: 3, Lookups: 3, Misses: 3, Unknown: 3, Failed: 3},
 		},
 		{
-			name:  "a segment that is not loaded is neither a failure nor a success",
+			name:  "an unanswered lookup is neither a failure nor a success, and says nothing about the segment",
 			store: &fakeStore{data: members(map[string][]string{segOther: {idAlice}})},
+			opts:  &resolver.Options{Default: resolver.SegmentOptions{BreakerFailures: 1, NoCache: true}},
+			steps: []step{
+				{lookups: alice(), wantStates: unknown},
+				{lookups: alice(), wantStates: unknown},
+			},
+			wantCalls:    [][]string{{callAlice}, {callAlice}},
+			wantBreakers: map[string]resolver.BreakerState{segBeta: resolver.BreakerClosed},
+			wantStats:    resolver.Stats{Calls: 2, Lookups: 2, Misses: 2, Unknown: 2},
+		},
+		{
+			name:  "a segment that the store says is not loaded is neither a failure nor a success, and is not asked again",
+			store: existsStore{&fakeStore{data: members(map[string][]string{segOther: {idAlice}})}},
 			opts:  &resolver.Options{Default: resolver.SegmentOptions{BreakerFailures: 1, NoCache: true}},
 			steps: []step{
 				{lookups: alice(), wantStates: unknown},
@@ -553,6 +565,7 @@ func TestShutdownWaitsForTheCallsInFlightUntilItsContextEnds(t *testing.T) {
 	store := betaStore()
 	store.gate = gateFor(t)
 	store.entered = make(chan struct{}, 1)
+	store.deaf = true // only opening the gate lets the call return, whatever the speed of the test
 	res := newResolver(t, store, &resolver.Options{})
 
 	var wg sync.WaitGroup

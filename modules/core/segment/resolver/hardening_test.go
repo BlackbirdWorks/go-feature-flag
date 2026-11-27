@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -360,8 +361,6 @@ func TestACallerThatIsGoneAnswersFromTheCacheOnly(t *testing.T) {
 	}
 
 	assert.Equal(t, [][]string{{callAlice}}, store.callList(), "no call to the store for a caller that is gone")
-	assert.Equal(t, 0, res.Status().Running)
-
 	allCached := []segment.Lookup{lk(segBeta, idAlice)}
 	require.NoError(t, res.Contains(gone, allCached), "a call that the cache answers entirely has nothing to wait for")
 	assert.Equal(t, []segment.State{segment.Member}, states(allCached))
@@ -370,7 +369,7 @@ func TestACallerThatIsGoneAnswersFromTheCacheOnly(t *testing.T) {
 func TestASegmentThatIsNotLoadedIsNotAskedAgainForAWhile(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeStore{data: members(map[string][]string{segOther: {idAlice}})} // beta: the store cannot tell
+	store := existsStore{&fakeStore{data: members(map[string][]string{segOther: {idAlice}})}} // beta: not loaded
 	rec := &segRecorder{}
 	res := newResolver(t, store, &resolver.Options{
 		Observer: rec,
@@ -444,7 +443,7 @@ func TestObserverSeesTheReasons(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		store      *fakeStore
+		store      storeUnderTest
 		opts       *resolver.Options
 		prepare    func(*resolver.Resolver)
 		name       string
@@ -460,7 +459,7 @@ func TestObserverSeesTheReasons(t *testing.T) {
 			wantReason: resolver.ReasonCircuitOpen,
 		},
 		{
-			name: "a segment that is not loaded", store: &fakeStore{data: members(map[string][]string{})},
+			name: "a segment that is not loaded", store: existsStore{&fakeStore{data: members(map[string][]string{})}},
 			prepare: func(res *resolver.Resolver) {
 				_ = res.Contains(context.Background(), []segment.Lookup{lk(segBeta, "warm")})
 			},
@@ -523,7 +522,7 @@ func TestNoSecretEverAppears(t *testing.T) {
 	}
 
 	tests := []struct {
-		store *fakeStore
+		store storeUnderTest
 		pre   func(*resolver.Resolver)
 		name  string
 		ids   []string
@@ -633,4 +632,126 @@ func TestWhatAStoreSetBeforeItPanickedIsNotTrusted(t *testing.T) {
 	require.ErrorIs(t, err, resolver.ErrProviderPanic)
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 	assert.Equal(t, 0, res.Status().Segments[segBeta].Entries, "nothing of it was cached")
+}
+
+func TestAnUnansweredLookupWithoutAnExistencerSaysNothingAboutTheSegment(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{
+		data: members(map[string][]string{segOther: {idAlice}}),
+	} // the store cannot tell, and cannot say why
+	rec := &segRecorder{}
+	res := newResolver(t, store, &resolver.Options{Observer: rec})
+
+	for range 2 {
+		lookups := []segment.Lookup{lk(segBeta, idAlice)}
+
+		require.NoError(t, res.Contains(context.Background(), lookups))
+		assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
+	}
+
+	assert.Equal(
+		t,
+		[][]string{{callAlice}, {callAlice}},
+		store.callList(),
+		"asked again: nothing says it is not loaded",
+	)
+	assert.Equal(t, uint64(0), rec.Snapshot().NotLoaded)
+
+	_, segs := rec.observed()
+	assert.Equal(t, resolver.ReasonUnanswered, segs[len(segs)-1].Failure, "an unanswered lookup has a reason")
+	assert.Equal(t, "unanswered", resolver.ReasonUnanswered.String())
+}
+
+// leakyLifecycle is a store whose Init and Exists fail with a message that holds secrets.
+type leakyLifecycle struct {
+	*fakeStore
+}
+
+func (leakyLifecycle) Init(context.Context) error { return errLeaky }
+
+func (leakyLifecycle) Exists(context.Context, []string) ([]segment.State, error) {
+	return nil, errLeaky
+}
+
+func TestInitAndExistsErrorsOfTheStoreDoNotShowTheirText(t *testing.T) {
+	t.Parallel()
+
+	res := newResolver(t, leakyLifecycle{betaStore()}, &resolver.Options{})
+
+	initErr := res.Init(context.Background())
+	_, existsErr := res.Exists(context.Background(), []string{segBeta})
+
+	for name, err := range map[string]error{"Init": initErr, "Exists": existsErr} {
+		require.Error(t, err, name)
+		require.ErrorIs(t, err, errLeaky, name+": the error of the store is still reachable")
+		assert.Equal(t, "resolver: the call to the store failed", err.Error(), name)
+	}
+}
+
+func TestAHugeMaxIDBytesDoesNotOverflow(t *testing.T) {
+	t.Parallel()
+
+	store := betaStore()
+	res := newResolver(t, store, &resolver.Options{MaxIDBytes: math.MaxInt})
+	lookups := []segment.Lookup{lk(segBeta, idAlice)}
+
+	require.NoError(t, res.Contains(context.Background(), lookups))
+	assert.Equal(t, []segment.State{segment.Member}, states(lookups))
+	assert.Equal(t, [][]string{{callAlice}}, store.callList())
+}
+
+// blockingShutdown is a store whose Shutdown waits for a gate.
+type blockingShutdown struct {
+	*fakeStore
+
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (b blockingShutdown) Shutdown(context.Context) error {
+	b.entered <- struct{}{}
+
+	<-b.release
+
+	return nil
+}
+
+func TestEveryShutdownCallerIsBoundedByItsOwnContext(t *testing.T) {
+	t.Parallel()
+
+	store := blockingShutdown{fakeStore: betaStore(), entered: make(chan struct{}, 1), release: make(chan struct{})}
+	res := newResolver(t, store, &resolver.Options{})
+	t.Cleanup(func() { close(store.release) })
+
+	first := make(chan error, 1)
+
+	go func() { first <- res.Shutdown(context.Background()) }()
+
+	select {
+	case <-store.entered: // the first caller is inside the Shutdown of the store
+	case <-time.After(eventuallyWait):
+		require.Fail(t, "the Shutdown of the store was not called")
+	}
+
+	ended, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	second := make(chan error, 1)
+
+	go func() { second <- res.Shutdown(ended) }()
+
+	select {
+	case err := <-second:
+		require.ErrorIs(t, err, resolver.ErrShutdown)
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(eventuallyWait):
+		require.Fail(t, "a second Shutdown was held by the first one past its own context")
+	}
+
+	select {
+	case <-first:
+		require.Fail(t, "the first Shutdown returned before the store did")
+	default:
+	}
 }

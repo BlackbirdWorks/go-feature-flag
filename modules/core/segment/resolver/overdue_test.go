@@ -43,7 +43,7 @@ func TestStuckCallsAreBreakerFailuresWhenTheyBecomeOverdue(t *testing.T) {
 		require.ErrorIs(t, err, resolver.ErrWaiting, "round %d", round)
 		assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 
-		<-store.entered // the call is in the store, and it does not return
+		awaitEntered(t, store.entered, store.gate) // the call is in the store, and it does not return
 
 		want := round + 1
 
@@ -85,7 +85,7 @@ func TestTooManyOverdueCallsStopNewOnes(t *testing.T) {
 	for _, id := range []string{"a", "b"} {
 		require.ErrorIs(t, res.Contains(context.Background(), []segment.Lookup{lk(segBeta, id)}), resolver.ErrWaiting)
 
-		<-store.entered
+		awaitEntered(t, store.entered, store.gate)
 	}
 
 	require.Eventually(t, func() bool { return res.Status().Overdue == 2 }, eventuallyWait, eventuallyTick)
@@ -109,6 +109,19 @@ type gatedLifecycle struct {
 	existsGate    chan struct{}
 	events        []string
 	mu            sync.Mutex
+}
+
+// Release opens the gate of Exists too, so that a test that ends early does not leave a call waiting.
+func (g *gatedLifecycle) Release() {
+	g.fakeStore.Release()
+
+	select {
+	case <-g.existsGate:
+	default:
+		if g.existsGate != nil {
+			close(g.existsGate)
+		}
+	}
 }
 
 func (g *gatedLifecycle) Init(context.Context) error { //nolint:unparam // the interface returns an error

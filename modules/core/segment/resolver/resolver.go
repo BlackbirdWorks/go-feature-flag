@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -63,6 +64,12 @@ type call struct {
 
 // callState decides how a shared call ended, exactly once, under one lock: either the store returned in time or its
 // deadline fired first. Whichever takes the lock first wins; the other then counts for nothing.
+//
+// The rule is by the order of the two events at the lock, not by the instants of the reply and of the deadline: the
+// deadline of a call is a runtime timer, and the clock package of the repository cannot stand in for it, so a
+// comparison of instants would not be deterministic in a test. A reply that comes a hair before the deadline but
+// takes the lock after the callback counts as overdue; the window is the time between the return of the store and the
+// next few instructions.
 type callState struct {
 	mu       sync.Mutex
 	returned bool // the store returned before its deadline fired
@@ -123,6 +130,10 @@ type Resolver struct {
 	timeout    time.Duration
 	admit      sync.RWMutex
 	stopOnce   sync.Once
+	drainOnce  sync.Once
+	drained    chan struct{}
+	stopDone   chan struct{}
+	rawLimit   int
 	mu         sync.Mutex
 	closed     bool
 }
@@ -160,6 +171,11 @@ func New(inner segment.Provider, opts *Options) (*Resolver, error) {
 
 	if res.maxID == 0 {
 		res.maxID = DefaultMaxIDBytes
+	}
+
+	res.rawLimit = math.MaxInt
+	if res.maxID <= math.MaxInt/maxRawFactor {
+		res.rawLimit = maxRawFactor * res.maxID // not overflowing: MaxIDBytes can be as large as an int
 	}
 
 	if res.maxOver == 0 {
@@ -265,7 +281,7 @@ type decision struct {
 // that times out leaves its lookups Unknown and the others go on waiting for theirs. An answer that is already there
 // wins over a context that ended too.
 func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs *segAccs) error {
-	var storeErr, waitErr error
+	var storeErrs, waitErrs []error
 
 	for i := range pend {
 		pnd := &pend[i]
@@ -279,25 +295,50 @@ func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs
 		case flightAnswered:
 			lookups[pnd.idx].State = pnd.flt.state
 
-			if pnd.flt.err != nil {
+			switch {
+			case pnd.flt.err != nil:
 				accs.of(pnd.sst.name).mark(ReasonStore)
 
-				storeErr = firstOf(storeErr, pnd.flt.err)
+				storeErrs = appendOnce(storeErrs, pnd.flt.err)
+			case pnd.flt.state == segment.Unknown:
+				accs.of(pnd.sst.name).mark(ReasonUnanswered) // the store replied without an answer for it
 			}
 		case flightTimedOut:
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 
-			waitErr = firstOf(waitErr, fmt.Errorf("%w: %w", ErrWaiting, cause))
+			waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, cause))
 		case callerGone:
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
-			keepAnswered(lookups, pend[i+1:])
 
-			return errors.Join(storeErr, firstOf(waitErr, fmt.Errorf("%w: %w", ErrWaiting, cause)))
+			waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, cause))
+
+			// the caller is gone: what is already known of the others is kept, and so are the causes, whatever the order
+			if pnd.flt.call.ctx.Err() != nil {
+				waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, pnd.flt.call.ctx.Err()))
+			}
+
+			storeErrs, waitErrs = keepAnswered(lookups, pend[i+1:], storeErrs, waitErrs)
+
+			return joinCauses(storeErrs, waitErrs)
 		}
 	}
 
-	// both kinds are reported, in this order, whatever the order of the lookups: a caller can detect either
-	return errors.Join(storeErr, waitErr)
+	return joinCauses(storeErrs, waitErrs)
+}
+
+// appendOnce adds an error unless the same one is there: the lookups of a call share its error.
+func appendOnce(errs []error, err error) []error {
+	if slices.Contains(errs, err) {
+		return errs
+	}
+
+	return append(errs, err)
+}
+
+// joinCauses joins every cause, the errors of the store first and then the waits, so that a caller can detect each
+// of them with errors.Is whatever the order of its lookups.
+func joinCauses(storeErrs, waitErrs []error) error {
+	return errors.Join(append(slices.Clone(storeErrs), waitErrs...)...)
 }
 
 func firstOf(first, next error) error {
@@ -309,12 +350,28 @@ func firstOf(first, next error) error {
 }
 
 // keepAnswered sets the lookups whose flights are already done: the caller leaves, and what it has keeps its answer.
-func keepAnswered(lookups []segment.Lookup, rest []pending) {
+// It returns the errors with the causes of the other flights: the error of a flight that completed with one, and the
+// timeout of a flight that is past its deadline.
+func keepAnswered(lookups []segment.Lookup, rest []pending, storeErrs, waitErrs []error) ([]error, []error) {
 	for i := range rest {
-		if rest[i].flt != nil && isDone(rest[i].flt) {
-			lookups[rest[i].idx].State = rest[i].flt.state
+		flt := rest[i].flt
+		if flt == nil {
+			continue
+		}
+
+		switch {
+		case isDone(flt):
+			lookups[rest[i].idx].State = flt.state
+
+			if flt.err != nil {
+				storeErrs = appendOnce(storeErrs, flt.err)
+			}
+		case flt.call.ctx.Err() != nil:
+			waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, flt.call.ctx.Err()))
 		}
 	}
+
+	return storeErrs, waitErrs
 }
 
 // flightVerdict is how the wait for one flight ended.
@@ -454,6 +511,15 @@ func (r *Resolver) Health() segment.Health {
 	return health
 }
 
+// wrapStore wraps an error of the store in a StoreError, whose message is fixed.
+func wrapStore(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return &StoreError{Err: err}
+}
+
 // Init calls Init of the store when it has one.
 func (r *Resolver) Init(ctx context.Context) error {
 	init, ok := r.inner.(segment.Initializer)
@@ -468,7 +534,7 @@ func (r *Resolver) Init(ctx context.Context) error {
 
 	defer leave()
 
-	return init.Init(ctx) //nolint:wrapcheck // the store's own error
+	return wrapStore(init.Init(ctx))
 }
 
 // Exists asks the store whether the segments are loaded. It returns ErrUnsupported when the store cannot tell.
@@ -485,7 +551,9 @@ func (r *Resolver) Exists(ctx context.Context, names []string) ([]segment.State,
 
 	defer leave()
 
-	return existencer.Exists(ctx, names) //nolint:wrapcheck // the store's own error
+	states, err := existencer.Exists(ctx, names)
+
+	return states, wrapStore(err)
 }
 
 // Shutdown stops accepting calls, waits for the calls to the store that are in flight (until ctx ends), and calls
@@ -496,26 +564,44 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 	r.closed = true
 	r.admit.Unlock()
 
-	drained := make(chan struct{})
+	// one wait for the calls in flight, shared by every Shutdown: a caller that gives up leaves no goroutine behind
+	r.drainOnce.Do(func() {
+		r.drained = make(chan struct{})
 
-	go func() {
-		r.wg.Wait()
-		close(drained)
-	}()
+		go func() {
+			r.wg.Wait()
+			close(r.drained)
+		}()
+	})
 
 	select {
-	case <-drained:
+	case <-r.drained:
 	case <-ctx.Done():
 		return fmt.Errorf("%w: %d calls still running: %w", ErrShutdown, r.inflight.Load(), ctx.Err())
 	}
 
-	if stopper, ok := r.inner.(segment.Shutdowner); ok {
-		r.stopOnce.Do(func() { r.stopErr = stopper.Shutdown(ctx) })
-
-		return r.stopErr
+	stopper, ok := r.inner.(segment.Shutdowner)
+	if !ok {
+		return nil
 	}
 
-	return nil
+	// the store's Shutdown runs once, in its own goroutine, and every caller waits for it under its own context
+	r.stopOnce.Do(func() {
+		r.stopDone = make(chan struct{})
+
+		go func() {
+			defer close(r.stopDone)
+
+			r.stopErr = stopper.Shutdown(ctx)
+		}()
+	})
+
+	select {
+	case <-r.stopDone:
+		return r.stopErr
+	case <-ctx.Done():
+		return fmt.Errorf("%w: the shutdown of the store did not finish: %w", ErrShutdown, ctx.Err())
+	}
 }
 
 // state returns the state of a segment, and creates it with the default settings the first time a segment that
@@ -567,6 +653,16 @@ func (r *Resolver) register(
 		sst.mu.Lock()
 
 		flt := sst.flights[pnd.key]
+
+		// a flight whose shared deadline passed without an answer is not joined: it is detached, so that a retry
+		// makes a call of its own (the breaker and the overdue bound decide whether it may); the old call, when it
+		// returns, settles only itself
+		if flt != nil && !isDone(flt) && flt.call.ctx.Err() != nil {
+			delete(sst.flights, pnd.key)
+
+			flt = nil
+		}
+
 		if flt != nil {
 			sst.joined.Add(1)
 			sst.mu.Unlock()
@@ -739,7 +835,10 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	now := clock.Now()
 
-	r.settle(leaders, sub, callErr, now, late)
+	neutral := r.settle(leaders, sub, callErr, now, late)
+
+	// before the answers are delivered, so that a caller that comes back at once sees the memory
+	r.confirmNotLoaded(shared, neutral, now)
 
 	for i := range leaders {
 		lead := &leaders[i]
@@ -770,6 +869,7 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 		close(lead.flt.done)
 	}
+
 }
 
 // disarm ends the deadline of a shared call after the store returned, and tells whether the deadline had fired first.
@@ -819,7 +919,13 @@ type segmentResult struct {
 // one of its lookups unanswered. When the store replied without error and every lookup of a segment is Unknown, the
 // segment is not loaded: that is neither a success nor a failure of the store, and the segment is not asked again
 // for a while.
-func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error, now time.Time, late bool) {
+func (r *Resolver) settle(
+	leaders []leader,
+	sub []segment.Lookup,
+	callErr error,
+	now time.Time,
+	late bool,
+) []*segmentResult {
 	var results []segmentResult
 
 	for i := range leaders {
@@ -832,6 +938,8 @@ func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error,
 		}
 	}
 
+	var neutral []*segmentResult
+
 	for i := range results {
 		res := &results[i]
 		verdict := outcomeSuccess
@@ -843,7 +951,7 @@ func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error,
 		case res.unknown == res.total:
 			verdict = outcomeNeutral
 
-			rememberNotLoaded(res, now)
+			neutral = append(neutral, res)
 		}
 
 		// a call that was overdue was counted as a failure when it became overdue: its late result counts once
@@ -851,6 +959,8 @@ func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error,
 			r.emit(res.sst, res.sst.brk.record(res.gen, verdict, now))
 		}
 	}
+
+	return neutral
 }
 
 // settleOverdue records a failure for each segment of a call that passed its timeout without returning.
@@ -880,6 +990,36 @@ func resultOf(results *[]segmentResult, lead leader) *segmentResult {
 	*results = append(*results, segmentResult{sst: lead.sst, flt: lead.flt, gen: lead.gen})
 
 	return &(*results)[len(*results)-1]
+}
+
+// confirmNotLoaded asks the store, through the optional Existencer of the seam, about the segments whose lookups all
+// came back Unknown without an error. A segment is remembered as not loaded only when the store says so itself
+// (NotMember): an unanswered lookup alone says nothing about the segment. A store without Existencer is never
+// inferred about.
+func (r *Resolver) confirmNotLoaded(shared *call, neutral []*segmentResult, now time.Time) {
+	existencer, ok := r.inner.(segment.Existencer)
+	if !ok || len(neutral) == 0 {
+		return
+	}
+
+	names := make([]string, len(neutral))
+	for i, res := range neutral {
+		names[i] = res.sst.name
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(shared.ctx), r.timeout)
+	defer cancel()
+
+	answers, err := existencer.Exists(ctx, names)
+	if err != nil || len(answers) != len(neutral) {
+		return
+	}
+
+	for i, res := range neutral {
+		if answers[i] == segment.NotMember {
+			rememberNotLoaded(res, now)
+		}
+	}
 }
 
 // rememberNotLoaded makes the segment skip the store for the negative TTL, unless Invalidate ran meanwhile.
@@ -969,7 +1109,7 @@ func (r *Resolver) prepare(
 
 		// a guard before the work of normalising: what the store and the cache see is the normalised id, which is
 		// checked below
-		if len(lookups[i].ID) > maxRawFactor*r.maxID {
+		if len(lookups[i].ID) > r.rawLimit {
 			obs.Oversized++
 
 			acc.mark(ReasonOversized)

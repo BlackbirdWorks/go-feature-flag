@@ -23,6 +23,8 @@ const (
 	ReasonOversized
 	// ReasonInvalid means the id is not valid UTF-8 and the segment normalises its ids.
 	ReasonInvalid
+	// ReasonUnanswered means the store replied without error and without an answer for the lookup.
+	ReasonUnanswered
 	// ReasonOverdue means too many calls to the store were still running after their timeout.
 	ReasonOverdue
 )
@@ -46,6 +48,8 @@ func (r Reason) String() string {
 		return "invalid"
 	case ReasonOverdue:
 		return "overdue"
+	case ReasonUnanswered:
+		return "unanswered"
 	}
 
 	return "invalid_reason"
@@ -59,9 +63,12 @@ type CallObservation struct {
 	Hits int
 	// Misses is the number this call asked the store for.
 	Misses int
-	// Coalesced is the number that joined a call of another caller.
+	// Coalesced is the number of lookups that joined a flight that already existed: one of another caller, or an earlier
+	// lookup of the same call for the same id. Each of them costs no call to the store.
 	Coalesced int
-	// ShortCircuited is the number dropped by an open breaker.
+	// ShortCircuited is the number of lookups that were not sent to the store because the breaker of their segment was
+	// open, or because too many calls were overdue (the Failure of the segment tells which: ReasonCircuitOpen or
+	// ReasonOverdue).
 	ShortCircuited int
 	// NotLoaded is the number not asked because the segment was recently found not loaded.
 	NotLoaded int

@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -520,7 +521,10 @@ const (
 	opRecord = "record"
 )
 
-const testSeg = "beta"
+const (
+	testSeg   = "beta"
+	waitBound = 10 * time.Second // a bound for a wait that must not hang, only used when something is wrong
+)
 
 var errBoomInternal = errors.New("boom")
 
@@ -561,19 +565,31 @@ func TestOneFlightTimingOutDoesNotCutTheOthersShort(t *testing.T) {
 
 	var accs segAccs
 
+	// the worker of the test ends with the test, whatever happens
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	result := make(chan error, 1)
 
-	go func() { result <- waitFor(context.Background(), lookups, pend, &accs) }()
+	go func() { result <- waitFor(ctx, lookups, pend, &accs) }()
 
 	select {
 	case <-live.waiting: // waitFor passed the first flight and now waits for the second
 	case err := <-result:
 		require.Fail(t, "waitFor returned before the second flight had its own wait", "%v", err)
+	case <-time.After(waitBound):
+		require.Fail(t, "waitFor never reached the second flight")
 	}
 
 	close(late.done) // the second answers late, inside its bound
 
-	err := <-result
+	var err error
+
+	select {
+	case err = <-result:
+	case <-time.After(waitBound):
+		require.Fail(t, "waitFor did not return the answer of the second flight")
+	}
 
 	require.ErrorIs(t, err, ErrWaiting)
 	require.ErrorIs(t, err, context.Canceled)
@@ -709,6 +725,139 @@ func TestWaitForReportsTheStoreErrorAndTheTimeoutWhateverTheOrder(t *testing.T) 
 			require.ErrorIs(t, err, ErrWaiting, "the timeout")
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Equal(t, tt.wantState, []segment.State{lookups[0].State, lookups[1].State})
+		})
+	}
+}
+
+// stuckThenOK blocks its first call (it ignores its context) and answers the next ones.
+type stuckThenOK struct {
+	release chan struct{}
+	entered chan struct{}
+	mu      sync.Mutex
+	calls   int
+}
+
+func (s *stuckThenOK) Contains(_ context.Context, lookups []segment.Lookup) error {
+	s.mu.Lock()
+	s.calls++
+	first := s.calls == 1
+	s.mu.Unlock()
+
+	if first {
+		s.entered <- struct{}{}
+
+		<-s.release
+
+		return nil
+	}
+
+	for i := range lookups {
+		lookups[i].State = segment.Member
+	}
+
+	return nil
+}
+
+func TestALookupDoesNotJoinAFlightThatIsPastItsDeadline(t *testing.T) {
+	t.Parallel()
+
+	store := &stuckThenOK{release: make(chan struct{}), entered: make(chan struct{}, 2)}
+	t.Cleanup(func() { close(store.release) })
+
+	res := newInternal(t, store, &Options{
+		MaxOverdue: 100,
+		Default:    SegmentOptions{BreakerFailures: 1, BreakerCooldown: time.Minute, NoCache: true},
+	})
+	seg := res.state(testSeg)
+	now := baseTime()
+
+	// the first lookup makes a call that never returns; its caller leaves when the deadline passes
+	first := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	done := make(chan error, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	go func() { done <- res.containsAt(ctx, first, now) }()
+
+	select {
+	case <-store.entered:
+	case <-time.After(waitBound):
+		require.Fail(t, "the first call never reached the store")
+	}
+
+	seg.mu.Lock()
+	stuck := seg.flights["alice"]
+	seg.mu.Unlock()
+
+	require.NotNil(t, stuck)
+
+	stuck.call.cancel() // the shared deadline passes: the breaker hears of it, the call is overdue
+
+	require.Eventually(t, func() bool { return res.Status().Overdue == 1 }, waitBound, time.Millisecond)
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, ErrWaiting)
+	case <-time.After(waitBound):
+		require.Fail(t, "the caller of the stuck call did not leave")
+	}
+
+	// after the cool-down the store has recovered: the next lookup of the same id starts a call of its own
+	retry := []segment.Lookup{{Segment: testSeg, ID: "alice"}}
+	require.NoError(t, res.containsAt(context.Background(), retry, now.Add(time.Minute)))
+	assert.Equal(t, []segment.State{segment.Member}, []segment.State{retry[0].State})
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	assert.Equal(t, 2, store.calls, "the retry reached the store instead of joining the stuck flight")
+}
+
+func TestTheErrorOfALookupCarriesEveryCause(t *testing.T) {
+	t.Parallel()
+
+	storeErr := &StoreError{Err: errBoomInternal}
+
+	// the three lookups: 0 failed with an error of the store, 1 timed out, 2 is still waiting when the caller leaves
+	permutations := [][]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
+
+	for _, order := range permutations {
+		t.Run(fmt.Sprint(order), func(t *testing.T) {
+			t.Parallel()
+
+			timedOut, cancelTimedOut := context.WithTimeout(context.Background(), 0)
+			t.Cleanup(cancelTimedOut)
+
+			failed := &flight{done: make(chan struct{}), call: &call{ctx: context.Background()}, err: storeErr}
+			close(failed.done)
+
+			flights := map[int]*flight{
+				0: failed,
+				1: {done: make(chan struct{}), call: &call{ctx: timedOut}},
+				2: {done: make(chan struct{}), call: &call{ctx: context.Background()}},
+			}
+
+			seg := &segState{name: testSeg}
+			pend := make([]pending, len(order))
+			lookups := make([]segment.Lookup, len(order))
+
+			for position, which := range order {
+				pend[position] = pending{sst: seg, flt: flights[which], idx: position}
+				lookups[position] = segment.Lookup{Segment: testSeg, ID: fmt.Sprint(which)}
+			}
+
+			gone, cancel := context.WithCancel(context.Background())
+			cancel() // the caller is gone
+
+			var accs segAccs
+
+			err := waitFor(gone, lookups, pend, &accs)
+
+			require.ErrorIs(t, err, errBoomInternal, "the store error of the flight that completed")
+			require.ErrorIs(t, err, ErrWaiting)
+			require.ErrorIs(t, err, context.DeadlineExceeded, "the timeout of the flight that expired")
+			require.ErrorIs(t, err, context.Canceled, "the cancellation of the caller")
 		})
 	}
 }
