@@ -1,4 +1,4 @@
-package main
+package relayapp
 
 import (
 	"bytes"
@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -929,9 +928,7 @@ func TestReloadLogsTheHandOverAsQueued(t *testing.T) {
 func TestRunHelpAndUsage(t *testing.T) {
 	t.Parallel()
 
-	var want []string
-
-	newStrictFlagSet().VisitAll(func(flag *pflag.Flag) { want = append(want, "--"+flag.Name) })
+	want := flagNames(t, true)
 
 	tests := []struct {
 		name       string
@@ -970,7 +967,7 @@ func TestRunHelpAndUsage(t *testing.T) {
 				assert.Empty(t, stderr.String())
 			} else {
 				assert.Empty(t, stdout.String())
-				assert.Contains(t, out, "unknown flag: "+unknownFlag)
+				assert.Contains(t, out, "unknown flag "+unknownFlag)
 			}
 
 			for _, name := range want {
@@ -991,7 +988,7 @@ func TestRunHelpAndUsage(t *testing.T) {
 func TestDocumentedFlagsAreTheFlagsOfTheCode(t *testing.T) {
 	t.Parallel()
 
-	page, err := os.ReadFile(filepath.Join("..", "..", "docs", "relay-proxy", "bootstrap-config.md"))
+	page, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "relay-proxy", "bootstrap-config.md"))
 	require.NoError(t, err)
 
 	_, after, found := strings.Cut(string(page), "The flags are")
@@ -1006,13 +1003,26 @@ func TestDocumentedFlagsAreTheFlagsOfTheCode(t *testing.T) {
 		documented = append(documented, match[1])
 	}
 
-	var inCode []string
+	assert.ElementsMatch(t, flagNames(t, false), documented)
+}
 
-	newStrictFlagSet().VisitAll(func(flag *pflag.Flag) {
-		if flag.Name != "version" && flag.Name != "help" {
-			inCode = append(inCode, "--"+flag.Name)
+// flagNames lists the flags of the code's own parser as --name; the answering flags (--help, --version) only when
+// withAnswering is true.
+func flagNames(t *testing.T, withAnswering bool) []string {
+	t.Helper()
+
+	parser, err := newParser(&cli{}, io.Discard)
+	require.NoError(t, err)
+
+	var names []string
+
+	for _, flag := range parser.Model.Flags {
+		if !withAnswering && (flag.Name == "version" || flag.Name == helpName) {
+			continue
 		}
-	})
 
-	assert.ElementsMatch(t, inCode, documented)
+		names = append(names, "--"+flag.Name)
+	}
+
+	return names
 }

@@ -1,4 +1,6 @@
-package main
+// Package relayapp wires and runs the relay proxy: the command line, the start, the reloads and the ordered stop.
+// The main package of the binary only builds the signal context and calls [Main].
+package relayapp
 
 import (
 	"context"
@@ -8,7 +10,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
@@ -53,12 +57,55 @@ type runOptions struct {
 	// Deps are the injected dependencies of the core (a test scheduler, a state directory file system); the logger,
 	// the metrics registry, the secrets and the broadcast of the streams are set by [run].
 	Deps relaycore.Deps
+	// Build is the version, commit and date stamped by the linker.
+	Build Build
 	// Args are the command line arguments, without the program name.
 	Args []string
 	// ServerOptions are added to the options of the API server (a test gives it its listeners).
 	ServerOptions []api.Option
 	// ShutdownTimeout bounds the shutdown, [shutdownTimeout] when zero.
 	ShutdownTimeout time.Duration
+}
+
+const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ █ █ █▀█ █▀▀   █▀▀ █   ▄▀█ █▀▀
+█▄█ █▄█   █▀  ██▄ █▀█  █  █▄█ █▀▄ ██▄   █▀  █▄▄ █▀█ █▄█
+
+     █▀█ █▀▀ █   ▄▀█ █▄█   █▀█ █▀█ █▀█ ▀▄▀ █▄█
+     █▀▄ ██▄ █▄▄ █▀█  █    █▀▀ █▀▄ █▄█ █ █  █ 
+
+Semaphore Relay Proxy - Version %s
+_____________________________________________`
+
+// Main runs the relay on the real environment until ctx is cancelled (SIGTERM, SIGINT) and returns the exit code.
+// SIGHUP reloads the bootstrap file.
+func Main(ctx context.Context, args []string, stdout, stderr io.Writer, build Build) int {
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+
+	defer signal.Stop(hup)
+
+	reload := make(chan struct{}, 1)
+
+	go forwardSignals(ctx, hup, reload)
+
+	return run(ctx, &runOptions{
+		Args: args, Stdout: stdout, Stderr: stderr, Build: build, Load: osLoadOptions(), Reload: reload,
+	})
+}
+
+// forwardSignals turns every signal of in into a reload request: requests that arrive while one waits are merged.
+func forwardSignals(ctx context.Context, in <-chan os.Signal, out chan<- struct{}) {
+	for {
+		select {
+		case <-in:
+			select {
+			case out <- struct{}{}:
+			default:
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // osLoadOptions reads the real environment and files.
@@ -87,7 +134,7 @@ func run(ctx context.Context, opts *runOptions) int {
 	}
 
 	if cmdline.Version {
-		_, _ = fmt.Fprint(opts.Stdout, versionText())
+		_, _ = fmt.Fprint(opts.Stdout, versionText(opts.Build))
 
 		return 0
 	}
@@ -108,7 +155,7 @@ func run(ctx context.Context, opts *runOptions) int {
 		return 1
 	}
 
-	_, _ = fmt.Fprintf(opts.Stdout, banner+"\n", version)
+	_, _ = fmt.Fprintf(opts.Stdout, banner+"\n", opts.Build.Version)
 
 	logger.Slog.LogAttrs(ctx, slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
 
@@ -160,7 +207,7 @@ type relay struct {
 // start builds the core, the streams and the server from the file and starts them. The core and the server run until
 // [relay.wait] stops them. It owns nothing when it returns an error.
 func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts *runOptions) (*relay, error) {
-	settings, err := corehttp.SettingsFrom(cfg, version)
+	settings, err := corehttp.SettingsFrom(cfg, opts.Build.Version)
 	if err != nil {
 		return nil, fmt.Errorf("server settings: %w", err)
 	}
@@ -169,7 +216,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 
 	if enabled := cfg.Observability.Metrics.Enabled; enabled == nil || *enabled {
 		metrics, err = metric.NewMetrics(metric.MetricsOpts{
-			Version: version, EnableBulkMetricFlagNames: cfg.Observability.Metrics.PerFlagLabels,
+			Version: opts.Build.Version, EnableBulkMetricFlagNames: cfg.Observability.Metrics.PerFlagLabels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", errMetricsSetup, err)
