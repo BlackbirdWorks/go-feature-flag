@@ -1,31 +1,9 @@
 # Advanced usage
 
-## Manually trigger retrievers and refresh the internal flag cache
+## Refresh on request
 
-> [!WARNING]
-> The relay proxy does not refresh on request any more: `POST /admin/v1/retriever/refresh` answers `501`. The relay polls the
-> control plane manifest and applies a change after one poll, see [the core](relay-core.md). The text below describes the
-> version 1 behaviour.
-
-By default, retrievers refresh configuration on the configured polling interval. You can also force an immediate refresh (for example, in CI after updating a flag file) by sending a `POST` request to `/admin/v1/retriever/refresh`:
-
-```shell
-curl -X 'POST' \
-  'http://<your_domain>:1031/admin/v1/retriever/refresh' \
-  -H 'accept: application/json' \
-  -H 'X-API-Key: <your_admin_api_key>' \
-  -d ''
-```
-
-> [!NOTE]
-> This endpoint requires an **admin token** configured under `authorizedKeys.admin`:
->
-> ```yaml
-> # ...
-> authorizedKeys:
->   admin:
->     - "YOUR_API_KEY"
-> ```
+The relay does not refresh on request: `POST /admin/v1/retriever/refresh` answers `501`. The relay polls the control plane
+manifest and applies a change after one poll, see [the core](relay-core.md).
 
 ## Validate a flag file
 
@@ -37,7 +15,7 @@ Send the flag file as the request body and set `Content-Type` to select the form
 - `application/yaml`, `application/x-yaml`, or `text/yaml` (default max body: 64 KiB)
 - `application/toml` (default max body: 64 KiB)
 
-Body limits are configurable via [`endpoints.validateFlags`](configuration.md#endpointsvalidateflags) (`maxJSONBodySize`, `maxYAMLBodySize`, and `maxTOMLBodySize`) as bytes or sizes like `1MiB`. Raising YAML or TOML limits makes parsing more expensive because cost grows quadratically with body size. An empty body, `null`, or `{}` returns `200` with `valid: true` and no flags (an empty JSON body is a syntax error and returns `400`).
+The body limits are fixed: the bootstrap file does not set them. Raising YAML or TOML limits makes parsing more expensive because cost grows quadratically with body size. An empty body, `null`, or `{}` returns `200` with `valid: true` and no flags (an empty JSON body is a syntax error and returns `400`).
 
 ```shell
 curl -X 'POST' \

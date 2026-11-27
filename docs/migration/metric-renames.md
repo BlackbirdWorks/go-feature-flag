@@ -15,7 +15,7 @@ Labels and values are unchanged. All other metrics keep their names.
 
 ## Legacy `gofeatureflag_` metrics
 
-The compatibility series exposed by [`exposeLegacyMetrics`](../relay-proxy/configuration.md#exposelegacymetrics) keep
+The compatibility series exposed by [`observability.metrics.legacyNames`](../relay-proxy/bootstrap-config.md) keep
 the names GO Feature Flag used, so existing dashboards that read them need no change:
 `gofeatureflag_all_flags_evaluations_total_with_flag`, `gofeatureflag_flag_update`, `gofeatureflag_flag_delete`,
 `gofeatureflag_flag_create`, and `gofeatureflag_force_refresh`.

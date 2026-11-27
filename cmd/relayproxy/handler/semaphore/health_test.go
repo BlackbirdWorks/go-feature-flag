@@ -2,7 +2,6 @@ package semaphore_test
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"os"
 	"testing"
@@ -10,11 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
 
 func Test_health_Handler(t *testing.T) {
@@ -42,24 +39,7 @@ func Test_health_Handler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create config for default mode with offline flag
-			conf := config.Config{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: retrieverconf.FileRetriever,
-					Path: testdataDir + configFlagsYaml,
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&conf,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
-
-			srv := service.NewMonitoring(flagsetManager)
+			srv := &mock.MockMonitoringService{HealthResponse: model.HealthResponse{Initialized: true}}
 			healthCtrl := controller.NewHealth(srv)
 
 			out, res := healthCtrl.Handle(t.Context(), &struct{}{})

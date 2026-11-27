@@ -39,10 +39,10 @@ func APIKeyFromHeaders(header func(string) string) string {
 	return apiKey
 }
 
-// FlagSet retrieves the flagset for the given API key from the flagset manager
-// This layer ensure that the flagset manager is initialized and that the API key is valid.
+// FlagSet retrieves the flagset for the given API key from the resolver
+// This layer ensure that the resolver is initialized and that the API key is valid.
 //
-//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func FlagSet(flagsetManager service.FlagSetResolver, apiKey string) (service.FlagSet, *HTTPError) {
 	if flagsetManager == nil {
 		return nil, NewHTTPError(http.StatusInternalServerError, "flagset manager is not initialized")
@@ -99,7 +99,7 @@ func AuthenticateFlagSetName(
 // RequestFlagSet returns the flag set of the request: the one resolved by the authentication when there is one,
 // or else the one of the API key of the request (authentication disabled, default mode).
 //
-//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func RequestFlagSet(
 	ctx context.Context, flagsetManager service.FlagSetResolver, apiKey string,
 ) (service.FlagSet, *HTTPError) {

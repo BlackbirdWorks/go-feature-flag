@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"scheduled-future-flag","value":"old","reason":"STATIC","variant":"old"}

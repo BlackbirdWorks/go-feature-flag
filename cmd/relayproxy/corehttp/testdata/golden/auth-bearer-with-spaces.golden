@@ -1,0 +1,5 @@
+status: 401
+Content-Type: application/json
+Vary: Origin
+
+{"message":"authenticating the API key: code=401, message=invalid key"}

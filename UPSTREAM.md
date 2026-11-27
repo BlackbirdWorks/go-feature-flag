@@ -37,7 +37,7 @@ changes or closes one, reconcile it (see the skill, class ALREADY-HAVE) instead 
 | Upstream PR | Change | Merge commit here | Status |
 |---|---|---|---|
 | [#6386](https://github.com/thomaspoignant/go-feature-flag/pull/6386) | perf: keep a nikunjy evaluator per query across garbage collections | `677369c767b3f0e0019774022bec3955af1225a3` | open upstream |
-| [#6542](https://github.com/thomaspoignant/go-feature-flag/pull/6542) | relayproxy: one shared poller per bucket for S3 flag sets (`enableSharedPollerPerBucket`) | `7014e6a181bb55a73fcaae84fb34346080ed5707` | open upstream |
+| [#6542](https://github.com/thomaspoignant/go-feature-flag/pull/6542) | relayproxy: one shared poller per bucket for S3 flag sets (`enableSharedPollerPerBucket`) | `7014e6a181bb55a73fcaae84fb34346080ed5707` | open upstream; removed here with the v1 relay configuration |
 | [#6571](https://github.com/thomaspoignant/go-feature-flag/pull/6571) | perf: hash a rule's query once at load | `fee78898f42947f131e4c75c3cf41df29811a891` | open upstream |
 | [#6578](https://github.com/thomaspoignant/go-feature-flag/pull/6578) | perf(core): skip the JSON round trip for JsonLogic contexts that are already JSON-shaped (`asJSONData` in `modules/core/flag/query_jsonlogic_cache.go`, its test file, one call in `rule.go`). Ported by hand from head `b43464fe36b2b5e2b47b495141c884b23c9c6379`; replaces the earlier local `json_normalize.go`. Local differences: the process-wide `compiledQueryCache`/`getCompiledQuery` of `query_jsonlogic_cache.go` are not carried; the cache is owned by `flag.Service` (`query_compiled.go`, `Service.compiledQuery`, same algorithm) and the rest of the file (`isJSONLogicTruthy`, `asJSONData`) is unchanged, so re-syncing is a diff of those two functions only; its tests that touched the cache moved to `query_compiled_internal_test.go`. Otherwise no local additions (upstream's code passes the local differential test `TestQueryContext_DataOnce_MatchesTheJSONRoundTrip`, kept in `query_context_data_internal_test.go`). When upstream merges it, drop this carry and re-sync those files from upstream main. | this PR | open upstream |
 
@@ -68,8 +68,8 @@ Done in this tree:
 
 - Renamed to Semaphore: Go module path `github.com/blackbirdworks/semaphore`, binaries, images and operator-visible names, with
   the GO Feature Flag names kept as aliases (see "Path and name mapping" and `docs/migration/rename-to-semaphore.md`).
-- `github.com/thomaspoignant/koanf-http-provider` is copied into `internal/koanfhttpprovider` (MIT, see `NOTICE`): no module
-  controlled by the upstream author is a dependency.
+- `github.com/thomaspoignant/koanf-http-provider` was copied into `internal/koanfhttpprovider` (MIT, see `NOTICE`) and removed with the v1
+  relay configuration that used it: no module controlled by the upstream author is a dependency.
 - `cmd/relayproxy/testdata/web-provider-playground` (a dev tool built on the upstream npm provider) removed.
 
 Planned, not done yet:
@@ -87,11 +87,11 @@ without its Semaphore counterpart.
 | `github.com/thomaspoignant/go-feature-flag` (root module) | `github.com/blackbirdworks/semaphore` |
 | `github.com/thomaspoignant/go-feature-flag/modules/core` (separate module upstream) | `github.com/blackbirdworks/semaphore/modules/core` (package directory of the root module) |
 | `github.com/nikunjy/rules` (`replace`d to `rules/` upstream) | `github.com/blackbirdworks/semaphore/rules` (package directory of the root module) |
-| `github.com/thomaspoignant/koanf-http-provider` | `github.com/blackbirdworks/semaphore/internal/koanfhttpprovider` |
+| `github.com/thomaspoignant/koanf-http-provider` | removed with the v1 relay configuration (it was `internal/koanfhttpprovider`) |
 | `cmd/relayproxy/handler/goff/` | `cmd/relayproxy/handler/semaphore/` |
 | `cmd/relayproxy/api/routes_goff.go` | `cmd/relayproxy/api/routes_semaphore.go` |
 | `cmd/relayproxy/testdata/goff/` | `cmd/relayproxy/testdata/semaphore/` |
-| `goff-proxy.yaml`, `/goff/`, `/etc/opt/goff/` | `semaphore-proxy.yaml` first, then the legacy name (code in `cmd/relayproxy/config/config_loader.go`) |
+| `goff-proxy.yaml`, `/goff/`, `/etc/opt/goff/` | removed: the relay reads one version 2 bootstrap file (`--config`) |
 | `gofeatureflag` evaluation context key, `gofeatureflag_cacheable`, `X-GOFEATUREFLAG-VERSION`, `gofeatureflag_` metrics | `semaphore` / `semaphore_cacheable` / `X-SEMAPHORE-VERSION` / `semaphore_`, the old names stay as aliases |
 | binaries `go-feature-flag`, `go-feature-flag-cli`, images `thomaspoignant/go-feature-flag*` | `semaphore`, `semaphore-cli`, `ghcr.io/blackbirdworks/semaphore*` |
 

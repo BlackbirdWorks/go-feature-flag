@@ -619,13 +619,20 @@ func statusOf(tb testing.TB, status *events.Status, name string) events.Exporter
 
 // gatedExporter is an engine exporter that waits for a gate before it exports.
 type gatedExporter struct {
-	gate     chan struct{}
-	exported atomic.Uint64
+	gate chan struct{}
+	// entered, when set, is closed by the first call of Export: the exporter is then held by the gate.
+	entered   chan struct{}
+	enterOnce sync.Once
+	exported  atomic.Uint64
 }
 
 func (*gatedExporter) IsBulk() bool { return true }
 
 func (g *gatedExporter) Export(_ context.Context, _ *slog.Logger, batch []exporter.ExportableEvent) error {
+	if g.entered != nil {
+		g.enterOnce.Do(func() { close(g.entered) })
+	}
+
 	<-g.gate
 	g.exported.Add(uint64(len(batch)))
 

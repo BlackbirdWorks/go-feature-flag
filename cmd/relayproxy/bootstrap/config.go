@@ -52,7 +52,7 @@ type Auth struct {
 type Evaluation struct {
 	// ContextEnrichment is merged into the context of every evaluation of every flag set that has no enrichment of
 	// its own. It wins over a request attribute of the same name, as in version 1.
-	ContextEnrichment map[string]any `json:"contextEnrichment,omitempty" jsonschema:"description=Merged into the context of every evaluation. Values: strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity)." yaml:"contextEnrichment,omitempty"` //nolint:lll // struct tags can not be wrapped
+	ContextEnrichment map[string]any `json:"contextEnrichment,omitempty" jsonschema_description:"Merged into the context of every evaluation. Values: strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity)." yaml:"contextEnrichment,omitempty"` //nolint:lll // struct tags can not be wrapped
 	// Environment is added to the enrichment under the key env.
 	Environment string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	// DisableSemaphoreMetadata keeps the semaphore_cacheable key out of the metadata of the OFREP answers; the

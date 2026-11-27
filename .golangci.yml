@@ -378,7 +378,6 @@ linters:
         - ^google\.golang\.org/protobuf/.+Options$
         - ^gopkg\.in/yaml\.v3\.Node$
       enforce-patterns:
-        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/config\.(APIKeys|Endpoints|ExporterDefaults|JaegerSampler.*|OfrepEventStream|OpenTelemetryConfiguration|Otel.*|Server|Studio|Swagger|ValidateFlagsEndpoint)$
         - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware\.(KeyAuthConfig|PrometheusConfig)$
         - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/metric\.MetricsOpts$
         - ^github\.com/blackbirdworks/semaphore/exporter\.Config$
@@ -387,7 +386,6 @@ linters:
         - ^github\.com/blackbirdworks/semaphore/internal/folderloader\.Options$
         - ^github\.com/blackbirdworks/semaphore/internal/flagstate\.(AllFlags|FlagState)$
         - ^github\.com/blackbirdworks/semaphore/retriever\.ManagerConfig$
-        - ^github\.com/blackbirdworks/semaphore/retriever/s3retrieverv2\.(PollerConfig|SharedItemsOptions)$
         - ^github\.com/blackbirdworks/semaphore/cmdhelpers/manifest/model\.(FlagManifest|FlagDefinition)$
         - ^github\.com/blackbirdworks/semaphore/modules/core/dto\.(DTO|DTOv1|ExperimentationDto)$
         - ^github\.com/blackbirdworks/semaphore/modules/core/model\.(VariationResult|RawVarResult)$
@@ -656,8 +654,6 @@ linters:
     warn-unused: true
     # Generated files ("Code generated ... DO NOT EDIT") are skipped by default (generated: lax).
     paths:
-      # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
-      - (^|/)internal/koanfhttpprovider($|/)
       # files carried from upstream (UPSTREAM.md): kept verbatim so they can be re-synced
       - (^|/)modules/core/flagdef/query_jsonlogic_cache\.go$
       - (^|/)modules/core/flagdef/query_jsonlogic_cache_internal_test\.go$

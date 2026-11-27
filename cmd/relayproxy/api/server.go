@@ -10,7 +10,6 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -120,12 +119,6 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	return func(s *Server) { s.meterProvider = provider }
 }
 
-// WithOTelMetricReader makes the OpenTelemetry metrics of the service go to the reader instead of the exporter that
-// the OTEL_* environment variables select. It is for the tests, which read the metrics themselves.
-func WithOTelMetricReader(reader sdkmetric.Reader) Option {
-	return func(s *Server) { s.otelService = opentelemetry.NewOtelService(opentelemetry.WithMetricReader(reader)) }
-}
-
 // WithTracing sets the tracer provider and the propagator of the spans of the requests. Without it the server
 // uses the global ones of OpenTelemetry (the ones the telemetry installed at startup).
 func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPropagator) Option {
@@ -135,9 +128,8 @@ func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPr
 	}
 }
 
-// WithFlagSetResolver makes the server find the flag set of an API key with the resolver instead of the flag set
-// manager of its services: this is how the evaluation API is served from another source than the v1 clients, the
-// config v2 core. The monitoring service and the metrics still come from the services.
+// WithFlagSetResolver makes the server find the flag set of an API key with the resolver: this is how the evaluation
+// API is served from the config v2 core. The monitoring service and the metrics come from the services.
 func WithFlagSetResolver(resolver service.FlagSetResolver) Option {
 	return func(s *Server) { s.resolver = resolver }
 }
@@ -169,18 +161,8 @@ type Server struct {
 // Handler returns the handler that serves the API listener.
 func (s *Server) Handler() http.Handler { return s.apiHandler }
 
-// flagSets returns what finds the flag set of an API key: the resolver of the option, else the flag set manager. It
-// returns a nil interface when there is none, the handlers answer 500 then.
+// flagSets returns what finds the flag set of an API key: the resolver of the option. It returns a nil interface when
+// there is none, the handlers answer 500 then.
 //
-//nolint:ireturn // the seam of the HTTP layer: the v1 manager and the v2 adapter are two implementations
-func (s *Server) flagSets() service.FlagSetResolver {
-	if s.resolver != nil {
-		return s.resolver
-	}
-
-	if s.services.FlagsetManager == nil {
-		return nil
-	}
-
-	return s.services.FlagsetManager
-}
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
+func (s *Server) flagSets() service.FlagSetResolver { return s.resolver }

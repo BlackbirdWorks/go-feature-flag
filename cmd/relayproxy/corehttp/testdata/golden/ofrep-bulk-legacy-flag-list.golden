@@ -1,0 +1,6 @@
+status: 200
+Content-Type: application/json
+Etag: "160-10b98173213c056a2e7c54db649b8107ac92bf4d"
+Vary: Origin
+
+{"flags":[{"key":"bool-flag","value":false,"reason":"DEFAULT","variant":"disabled","metadata":{"defaultValue":false,"description":"a boolean","team":"core"}}]}
