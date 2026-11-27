@@ -48,7 +48,9 @@ func TestSchemaDescribesTheContextEnrichmentValues(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &doc))
 
 	description := doc.Defs["Evaluation"].Properties["contextEnrichment"].Description
-	for _, kind := range []string{"strings", "integers", "finite numbers", "booleans", "lists", "mappings with string keys"} {
+	kinds := []string{"strings", "integers", "finite numbers", "booleans", "lists", "mappings with string keys"}
+
+	for _, kind := range kinds {
 		assert.Contains(t, description, kind)
 	}
 }

@@ -164,7 +164,10 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	listener, port := testhelpers.ListenLocal(t)
 	cfg := &testConf{
 		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
-		keys:     mock.Keys{Evaluation: []string{"tenant-A-api-key", "tenant-B-api-key"}, Admin: []string{"admin-api-key"}},
+		keys: mock.Keys{
+			Evaluation: []string{"tenant-A-api-key", "tenant-B-api-key"},
+			Admin:      []string{"admin-api-key"},
+		},
 		flags: mock.NewNamed(t,
 			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
 			flagset("tenant-b", "tenant-B-api-key", tenantBFile),

@@ -259,8 +259,12 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagsetManager := mock.NewNamed(t,
-				mock.Named{APIKeys: []string{"test-api-key"}, Config: mock.LogExporter(mock.FileConfig(tt.args.configFlagsLocation))},
+			flagsetManager := mock.NewNamed(
+				t,
+				mock.Named{
+					APIKeys: []string{"test-api-key"},
+					Config:  mock.LogExporter(mock.FileConfig(tt.args.configFlagsLocation)),
+				},
 			)
 
 			ctrl := controller.NewAllFlags(flagsetManager, &metric.Metrics{})

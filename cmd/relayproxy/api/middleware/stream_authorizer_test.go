@@ -14,7 +14,7 @@ import (
 
 // namedManager is a flag set manager that routes the keys of names to a flag set name.
 type namedManager struct {
-	mock.Resolver
+	*mock.Resolver
 
 	names map[string]string
 }
@@ -34,10 +34,10 @@ func TestStreamAuthorizer(t *testing.T) {
 
 	tests := []struct {
 		manager     service.FlagSetResolver
-		conf        mock.Keys
 		name        string
 		query       string
 		wantBody    string
+		conf        mock.Keys
 		wantStatus  int
 		exposeError bool
 	}{
@@ -52,12 +52,18 @@ func TestStreamAuthorizer(t *testing.T) {
 		},
 		{name: "authentication disabled", conf: mock.Keys{}, wantStatus: http.StatusOK},
 		{
-			name: "flag set key", conf: authenticated(), query: "?apiKey=k",
-			manager: &namedManager{names: map[string]string{"k": "t"}}, wantStatus: http.StatusOK,
+			name:  "flag set key",
+			conf:  authenticated(),
+			query: "?apiKey=k",
+			manager: &namedManager{
+				Resolver: &mock.Resolver{},
+				names:    map[string]string{"k": "t"},
+			},
+			wantStatus: http.StatusOK,
 		},
 		{
 			name: "unknown flag set key", conf: authenticated(), query: "?apiKey=k",
-			manager: &namedManager{}, wantStatus: http.StatusUnauthorized,
+			manager: &namedManager{Resolver: &mock.Resolver{}}, wantStatus: http.StatusUnauthorized,
 			wantBody: messageUnauthorized + "\n",
 		},
 	}

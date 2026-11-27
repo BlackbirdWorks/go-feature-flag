@@ -178,9 +178,18 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			t.Parallel()
 
 			// Create config for flagset mode
-			flagsetManager := mock.NewNamed(t,
-				mock.Named{Name: "flagset1", APIKeys: []string{flagset1ApiKey}, Config: mock.LogExporter(mock.FileConfig(configFlagsLocation))},
-				mock.Named{Name: "flagset2", APIKeys: []string{"flagset2-api-key"}, Config: mock.LogExporter(mock.FileConfig(configFlagsLocation2))},
+			flagsetManager := mock.NewNamed(
+				t,
+				mock.Named{
+					Name:    "flagset1",
+					APIKeys: []string{flagset1ApiKey},
+					Config:  mock.LogExporter(mock.FileConfig(configFlagsLocation)),
+				},
+				mock.Named{
+					Name:    "flagset2",
+					APIKeys: []string{"flagset2-api-key"},
+					Config:  mock.LogExporter(mock.FileConfig(configFlagsLocation2)),
+				},
 			)
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, &metric.Metrics{})
@@ -230,8 +239,13 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			metricName + " 1\n"
 	)
 
-	flagsetManager := mock.NewNamed(t,
-		mock.Named{Name: "flagset1", APIKeys: []string{flagset1ApiKey}, Config: mock.FileConfig(testdataDir + configurationFlagsYaml)},
+	flagsetManager := mock.NewNamed(
+		t,
+		mock.Named{
+			Name:    "flagset1",
+			APIKeys: []string{flagset1ApiKey},
+			Config:  mock.FileConfig(testdataDir + configurationFlagsYaml),
+		},
 	)
 
 	tests := []struct {

@@ -164,10 +164,49 @@ func Start(opts Options) (_ *Relay, err error) {
 	ready := corehttp.NewReadiness(core)
 
 	if opts.Listen {
-		return r, r.listen(ready, opts)
+		err = r.listen(ready, opts)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return r, nil
+}
+
+// Dir returns the temporary directory holding the flag file (removed by Close).
+func (r *Relay) Dir() string { return r.dir }
+
+// Close stops the relay proxy and removes its temporary flag file.
+func (r *Relay) Close() {
+	ctx, cancel := context.WithTimeout(context.Background(), readyTimeout)
+	defer cancel()
+
+	if r.streams != nil {
+		_ = r.streams.Close(ctx)
+	}
+
+	if r.server != nil {
+		r.server.Stop(ctx)
+	}
+
+	if r.core != nil {
+		_ = r.core.Shutdown(ctx)
+	}
+
+	if r.cancel != nil {
+		r.cancel()
+	}
+
+	r.loops.Wait()
+
+	if r.sink != nil {
+		r.sink.CloseClientConnections()
+		r.sink.Close()
+	}
+
+	if r.dir != "" {
+		_ = os.RemoveAll(r.dir)
+	}
 }
 
 // listen serves the HTTP API on a free loopback port.
@@ -228,14 +267,14 @@ func (r *Relay) publish(flagsYAML string) error {
 	put := func(key string, data []byte) error {
 		path := filepath.Join(store, key)
 
-		err := os.MkdirAll(filepath.Dir(path), 0o750)
-		if err != nil {
-			return fmt.Errorf("create the store directory: %w", err)
+		dirErr := os.MkdirAll(filepath.Dir(path), 0o750)
+		if dirErr != nil {
+			return fmt.Errorf("create the store directory: %w", dirErr)
 		}
 
-		err = os.WriteFile(path, data, 0o600)
-		if err != nil {
-			return fmt.Errorf("write the store object: %w", err)
+		writeErr := os.WriteFile(path, data, 0o600)
+		if writeErr != nil {
+			return fmt.Errorf("write the store object: %w", writeErr)
 		}
 
 		return nil
@@ -289,7 +328,10 @@ func (r *Relay) publish(flagsYAML string) error {
 // bootstrapConfig is the version 2 file of the relay: the file store, and the webhook exporter when the options ask
 // for one.
 func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
-	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + filepath.Join(r.dir, storeDir) + "}\n" +
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + filepath.Join(
+		r.dir,
+		storeDir,
+	) + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n"
 
@@ -306,8 +348,12 @@ func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
 			maxMem = 100000
 		}
 
-		doc += fmt.Sprintf("exporters:\n  sink: {kind: webhook, endpointUrl: {fromEnv: %s}, flushInterval: %q, maxEventInMemory: %d}\n",
-			sinkEnv, time.Duration(flush)*time.Millisecond, maxMem)
+		doc += fmt.Sprintf(
+			"exporters:\n  sink: {kind: webhook, endpointUrl: {fromEnv: %s}, flushInterval: %q, maxEventInMemory: %d}\n",
+			sinkEnv,
+			time.Duration(flush)*time.Millisecond,
+			maxMem,
+		)
 	}
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, r.secrets())
@@ -348,42 +394,6 @@ func waitApplied(rounds <-chan flagruntime.RoundResult) error {
 		case <-timeout:
 			return fmt.Errorf("%w: no generation was applied in %s", errNotReady, readyTimeout)
 		}
-	}
-}
-
-// Dir returns the temporary directory holding the flag file (removed by Close).
-func (r *Relay) Dir() string { return r.dir }
-
-// Close stops the relay proxy and removes its temporary flag file.
-func (r *Relay) Close() {
-	ctx, cancel := context.WithTimeout(context.Background(), readyTimeout)
-	defer cancel()
-
-	if r.streams != nil {
-		_ = r.streams.Close(ctx)
-	}
-
-	if r.server != nil {
-		r.server.Stop(ctx)
-	}
-
-	if r.core != nil {
-		_ = r.core.Shutdown(ctx)
-	}
-
-	if r.cancel != nil {
-		r.cancel()
-	}
-
-	r.loops.Wait()
-
-	if r.sink != nil {
-		r.sink.CloseClientConnections()
-		r.sink.Close()
-	}
-
-	if r.dir != "" {
-		_ = os.RemoveAll(r.dir)
 	}
 }
 

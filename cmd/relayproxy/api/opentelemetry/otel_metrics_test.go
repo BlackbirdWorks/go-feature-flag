@@ -35,8 +35,8 @@ func TestInitMetrics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		conf         opentelemetry.Settings
 		name         string
+		conf         opentelemetry.Settings
 		wantProvider bool
 	}{
 		{

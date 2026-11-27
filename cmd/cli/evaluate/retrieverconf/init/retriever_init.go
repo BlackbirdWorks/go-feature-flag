@@ -256,13 +256,13 @@ func createRedisRetriever(conf *retrieverconf.RetrieverConf, _ time.Duration) (*
 }
 
 func createAzBlobStorageRetriever(
-	c *retrieverconf.RetrieverConf, _ time.Duration,
+	conf *retrieverconf.RetrieverConf, _ time.Duration,
 ) (*azblobretriever.Retriever, error) {
 	return &azblobretriever.Retriever{
-		Container:   c.Container,
-		Object:      c.Object,
-		AccountName: c.AccountName,
-		AccountKey:  c.AccountKey,
+		Container:   conf.Container,
+		Object:      conf.Object,
+		AccountName: conf.AccountName,
+		AccountKey:  conf.AccountKey,
 	}, nil
 }
 

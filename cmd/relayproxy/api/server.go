@@ -170,4 +170,6 @@ func (s *Server) Handler() http.Handler { return s.apiHandler }
 
 // flagSets returns what finds the flag set of an API key: the resolver of the option. It returns a nil interface when
 // there is none, the handlers answer 500 then.
+//
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func (s *Server) flagSets() service.FlagSetResolver { return s.resolver }

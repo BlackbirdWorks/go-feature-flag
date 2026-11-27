@@ -30,7 +30,7 @@ var (
 
 // namedManager is a flag set manager that routes the keys of names to a flag set name.
 type namedManager struct {
-	mock.Resolver
+	*mock.Resolver
 
 	names map[string]string
 }
@@ -118,7 +118,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 func TestRequestFlagSetName(t *testing.T) {
 	t.Parallel()
 
-	manager := &namedManager{names: map[string]string{fixtures.MetadataKey: tenant}}
+	manager := &namedManager{Resolver: &mock.Resolver{}, names: map[string]string{fixtures.MetadataKey: tenant}}
 
 	tests := []struct {
 		name         string

@@ -67,8 +67,8 @@ type testConf struct {
 	flags *mock.FlagSets
 	// live, when set, is the source of the API keys instead of keys: the test replaces them while the server runs.
 	live     *mock.LiveKeys
-	settings api.Settings
 	keys     mock.Keys
+	settings api.Settings
 }
 
 // newDefaultFlags serves fixtures.FlagConfigYAMLParentPath as the only flag set; the notifiers hear its changes.
@@ -103,6 +103,7 @@ func newTestServer(
 	all := append([]api.Option{api.WithExit(exit)}, opts...)
 
 	svc := *services
+
 	if conf.flags != nil {
 		all = append(all, api.WithFlagSetResolver(conf.flags))
 
@@ -777,7 +778,11 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
 	proxyConf := &testConf{
-		settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath, MonitoringPort: monitoringPort},
+		settings: api.Settings{
+			Mode:           api.ServerModeUnixSocket,
+			UnixSocketPath: socketPath,
+			MonitoringPort: monitoringPort,
+		},
 	}
 	log := newTestLogger(t)
 
@@ -1163,7 +1168,12 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 
 			proxyConf := &testConf{
-				settings: api.Settings{Mode: api.ServerModeUnixSocket, UnixSocketPath: socketPath, DisableVersionHeader: tt.disableVersionHeader, Version: "test-version-1.0.0"},
+				settings: api.Settings{
+					Mode:                 api.ServerModeUnixSocket,
+					UnixSocketPath:       socketPath,
+					DisableVersionHeader: tt.disableVersionHeader,
+					Version:              "test-version-1.0.0",
+				},
 			}
 
 			log := newTestLogger(t)

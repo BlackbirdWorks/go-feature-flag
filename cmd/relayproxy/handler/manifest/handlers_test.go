@@ -103,9 +103,18 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		},
 	}
 
-	flagsetManager := mock.NewNamed(t,
-		mock.Named{Name: "flagset1", APIKeys: []string{"flagset1-api-key"}, Config: mock.FileConfig(manifestConfigFlags)},
-		mock.Named{Name: "flagset2", APIKeys: []string{"flagset2-api-key"}, Config: mock.FileConfig(manifestConfigFlagsV2)},
+	flagsetManager := mock.NewNamed(
+		t,
+		mock.Named{
+			Name:    "flagset1",
+			APIKeys: []string{"flagset1-api-key"},
+			Config:  mock.FileConfig(manifestConfigFlags),
+		},
+		mock.Named{
+			Name:    "flagset2",
+			APIKeys: []string{"flagset2-api-key"},
+			Config:  mock.FileConfig(manifestConfigFlagsV2),
+		},
 	)
 	t.Cleanup(func() { flagsetManager.Close() })
 

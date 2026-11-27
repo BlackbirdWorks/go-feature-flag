@@ -29,7 +29,7 @@ func invoke(
 	req := httptest.NewRequestWithContext(b.Context(), http.MethodPost, endpoint.Path(key),
 		strings.NewReader(endpoint.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", relay.APIKey)
+	req.Header.Set("X-Api-Key", relay.APIKey)
 
 	rec := httptest.NewRecorder()
 

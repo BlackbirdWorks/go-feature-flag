@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	samplerAlwaysOn          = "always_on"
 	jaegerRemote             = "jaeger_remote"
 	httpsExampleCom4318      = "https://example.com:4318"
 	httpsOtlpExampleCom      = "https://otlp.example.com:4318"
@@ -42,7 +43,7 @@ func TestInitSampler(t *testing.T) {
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
-		c := &Settings{Sampler: "always_on"}
+		c := &Settings{Sampler: samplerAlwaysOn}
 
 		got, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
@@ -306,8 +307,8 @@ func TestExportEnvironment_Sampler(t *testing.T) {
 		{
 			name:    "the variable of the operator wins",
 			sampler: samplerAlwaysOff,
-			current: "always_on",
-			wantEnv: "always_on",
+			current: samplerAlwaysOn,
+			wantEnv: samplerAlwaysOn,
 		},
 		{name: "jaeger_remote is not exported", sampler: "jaeger_remote", wantEnv: ""},
 		{name: "no sampler exports nothing", wantEnv: ""},

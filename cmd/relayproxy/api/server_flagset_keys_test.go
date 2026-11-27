@@ -23,6 +23,9 @@ import (
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
+// flagSetKey is the key of the flag set of the tests.
+const flagSetKey = "flagset-key"
+
 // TestFlagsetMode_EvaluationKeysOutsideFlagsets checks that, in flag set mode, a key that is not
 // linked to a flag set is rejected by the authentication of every evaluation endpoint, instead of
 // being accepted and failing later on the flag set lookup.
@@ -33,7 +36,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	// in flag set mode only the keys of the flag sets evaluate: authorized-evaluation-key is not one of them
 	proxyConf := &testConf{
 		settings: api.Settings{Mode: api.ServerModeHTTP, Port: port},
-		keys:     mock.Keys{Evaluation: []string{"flagset-key"}, Admin: []string{adminKey}},
+		keys:     mock.Keys{Evaluation: []string{flagSetKey}, Admin: []string{adminKey}},
 	}
 
 	log := newTestLogger(t)
@@ -44,7 +47,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
 	proxyConf.flags = mock.NewNamed(t, mock.Named{
-		Name: "tenant", APIKeys: []string{"flagset-key"}, Config: mock.FileConfig(fixtures.FlagConfigYAMLParentPath),
+		Name: "tenant", APIKeys: []string{flagSetKey}, Config: mock.FileConfig(fixtures.FlagConfigYAMLParentPath),
 	})
 
 	srv := newTestServer(t, proxyConf, &service.Services{
@@ -93,7 +96,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		// skipStreams is true when the key is accepted: a stream would then stay open.
 		skipStreams bool
 	}{
-		{name: "flag set", key: "flagset-key", want: http.StatusOK, skipStreams: true},
+		{name: "flag set", key: flagSetKey, want: http.StatusOK, skipStreams: true},
 		// An admin key authenticates but it is not linked to a flag set: documented 400.
 		{name: fixtures.UserAdmin, key: adminKey, want: http.StatusBadRequest},
 		{name: "authorizedKeys.evaluation", key: "authorized-evaluation-key", want: http.StatusUnauthorized},

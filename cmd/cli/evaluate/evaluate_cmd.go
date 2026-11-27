@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf"
 	retrieverinit "github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf/init"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
 )

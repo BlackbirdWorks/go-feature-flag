@@ -41,7 +41,12 @@ func TestServerEnableH2C(t *testing.T) {
 			t.Parallel()
 			listener, port := testhelpers.ListenLocal(t)
 			conf := &testConf{
-				settings: api.Settings{Mode: api.ServerModeHTTP, Host: loopbackAddress, Port: port, EnableH2C: tt.enableH2C},
+				settings: api.Settings{
+					Mode:      api.ServerModeHTTP,
+					Host:      loopbackAddress,
+					Port:      port,
+					EnableH2C: tt.enableH2C,
+				},
 			}
 			log := newTestLogger(t)
 			metrics, err := metric.NewMetrics()

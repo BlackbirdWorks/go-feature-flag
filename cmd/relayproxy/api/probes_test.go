@@ -43,16 +43,57 @@ func TestProbeRoutes(t *testing.T) {
 		wantBody string
 		wantCode int
 	}{
-		{&probeService{mock.MockMonitoringService{HealthResponse: initialized()}}, "livez with probes", "/livez", `{"live":true}`, http.StatusOK},
 		{
-			&probeService{mock.MockMonitoringService{HealthResponse: initialized()}}, "readyz with probes", "/readyz", `{"ready":false,"reason":"starting"}`,
+			&probeService{mock.MockMonitoringService{HealthResponse: initialized()}},
+			"livez with probes",
+			"/livez",
+			`{"live":true}`,
+			http.StatusOK,
+		},
+		{
+			&probeService{
+				mock.MockMonitoringService{HealthResponse: initialized()},
+			},
+			"readyz with probes",
+			"/readyz",
+			`{"ready":false,"reason":"starting"}`,
 			http.StatusServiceUnavailable,
 		},
-		{&probeService{mock.MockMonitoringService{HealthResponse: initialized()}}, "startupz with probes", "/startupz", `{"ready":true}`, http.StatusOK},
-		{&probeService{mock.MockMonitoringService{HealthResponse: initialized()}}, "health with probes", "/health", `{"initialized":true}`, http.StatusOK},
-		{&mock.MockMonitoringService{HealthResponse: initialized()}, "no probes, no readyz", "/readyz", "", http.StatusNotFound},
-		{&mock.MockMonitoringService{HealthResponse: initialized()}, "no probes, no livez", "/livez", "", http.StatusNotFound},
-		{&mock.MockMonitoringService{HealthResponse: initialized()}, "no probes, health", "/health", `{"initialized":true}`, http.StatusOK},
+		{
+			&probeService{mock.MockMonitoringService{HealthResponse: initialized()}},
+			"startupz with probes",
+			"/startupz",
+			`{"ready":true}`,
+			http.StatusOK,
+		},
+		{
+			&probeService{mock.MockMonitoringService{HealthResponse: initialized()}},
+			"health with probes",
+			"/health",
+			`{"initialized":true}`,
+			http.StatusOK,
+		},
+		{
+			&mock.MockMonitoringService{HealthResponse: initialized()},
+			"no probes, no readyz",
+			"/readyz",
+			"",
+			http.StatusNotFound,
+		},
+		{
+			&mock.MockMonitoringService{HealthResponse: initialized()},
+			"no probes, no livez",
+			"/livez",
+			"",
+			http.StatusNotFound,
+		},
+		{
+			&mock.MockMonitoringService{HealthResponse: initialized()},
+			"no probes, health",
+			"/health",
+			`{"initialized":true}`,
+			http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {
