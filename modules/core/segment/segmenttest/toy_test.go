@@ -144,7 +144,7 @@ func (p *toy) Contains(ctx context.Context, lookups []segment.Lookup) error {
 	}
 
 	if p.stalls(lookups, cfg) {
-		return p.fastAnswer(lookups, cfg)
+		return fastAnswer(lookups)
 	}
 
 	if len(lookups) == 0 {
@@ -485,11 +485,8 @@ func (p *toy) answerOne(look *segment.Lookup, cfg toyConfig) error {
 		look.State = segment.NotMember
 
 		return errToy
-	case !held && p.defect == defectAnswersGhost:
-		look.State = segment.NotMember
-	case !held && p.defect == defectUnknownSegErr:
-		return errToy
 	case !held:
+		return p.unheld(look)
 	case set[look.ID] || (p.defect == defectEmptyIsMember && look.ID == "") ||
 		(p.defect == defectLongIDMember && len(look.ID) > 50000):
 		look.State = segment.Member
@@ -631,9 +628,21 @@ func (p *toy) stalls(lookups []segment.Lookup, cfg toyConfig) bool {
 }
 
 // fastAnswer is the defect of a toy that answers wrongly, without an error, when the store is slow.
-func (p *toy) fastAnswer(lookups []segment.Lookup, _ toyConfig) error {
+func fastAnswer(lookups []segment.Lookup) error {
 	for i := range lookups {
 		lookups[i].State = segment.NotMember
+	}
+
+	return nil
+}
+
+// unheld is what the toy does with a lookup of a segment that it does not hold.
+func (p *toy) unheld(look *segment.Lookup) error {
+	switch p.defect {
+	case defectAnswersGhost:
+		look.State = segment.NotMember
+	case defectUnknownSegErr:
+		return errToy
 	}
 
 	return nil

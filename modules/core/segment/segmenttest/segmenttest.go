@@ -608,6 +608,7 @@ func Run(t *testing.T, factory Factory, waivers Waivers) Report {
 	})
 
 	order := CaseNames()
+
 	slices.SortFunc(report.Ran, func(a, b string) int { return slices.Index(order, a) - slices.Index(order, b) })
 
 	return report
@@ -964,7 +965,10 @@ func caseSliceNotRetained(cas *scene) {
 			for range rounds {
 				lookups := []segment.Lookup{lookup(alpha, "m1"), lookup(beta, "only-beta")}
 
-				if !cas.assert.NoError(cas.fx.Provider.Contains(background(), lookups), "a call of a worker failed") {
+				err := cas.fx.Provider.Contains(background(), lookups)
+				if err != nil {
+					cas.assert.Fail("a call of a worker failed: " + err.Error())
+
 					return
 				}
 
@@ -993,7 +997,9 @@ func caseConcurrent(cas *scene) {
 					want = segment.Member
 				}
 
-				if !cas.assert.NoError(err, "a concurrent call failed") {
+				if err != nil {
+					cas.assert.Fail("a concurrent call failed: " + err.Error())
+
 					return
 				}
 
