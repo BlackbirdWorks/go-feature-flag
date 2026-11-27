@@ -54,6 +54,7 @@ type Adapter struct {
 var (
 	_ service.FlagSetResolver = (*Adapter)(nil)
 	_ service.KeySource       = (*Adapter)(nil)
+	_ service.RefreshUnsupported = (*Adapter)(nil)
 )
 
 // NewAdapter returns the adapter of a core.
@@ -235,3 +236,8 @@ func (*view) CollectTrackingEventData(*exporter.TrackingEvent) {}
 
 // ForceRefresh is false: a core follows its control plane by polling and does not refresh on request.
 func (*view) ForceRefresh() bool { return false }
+
+// RefreshUnsupported is the reason the refresh endpoint answers 501: the manifest reader has no trigger.
+func (*Adapter) RefreshUnsupported() string {
+	return "refresh on request is not supported: the relay polls the control plane manifest"
+}

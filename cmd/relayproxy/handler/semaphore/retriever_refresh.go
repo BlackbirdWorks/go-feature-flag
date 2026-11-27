@@ -3,6 +3,7 @@ package semaphore
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -44,6 +45,11 @@ func NewForceFlagsRefresh(flagsetManager service.FlagSetResolver, metrics *metri
 // the new version.
 func (h *ForceFlagsRefresh) Handle(ctx context.Context, in *RetrieverRefreshInput) (*RetrieverRefreshOutput, error) {
 	h.metrics.IncForceRefresh()
+
+	unsupported, ok := h.flagsetManager.(service.RefreshUnsupported)
+	if ok {
+		return nil, helper.NewHTTPError(http.StatusNotImplemented, unsupported.RefreshUnsupported())
+	}
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {

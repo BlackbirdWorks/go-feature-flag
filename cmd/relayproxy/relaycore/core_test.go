@@ -558,3 +558,25 @@ func TestNewBuildsEveryAcceptedBoundary(t *testing.T) {
 		})
 	}
 }
+
+// The evaluation settings of the file reach the evaluator: the enrichment of every flag set.
+func TestEvaluationSettingsReachTheEvaluator(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+	deps, harness := newDeps(t, opts)
+	pub := twoSets(t, filePut(t, dir))
+	pub.publish()
+
+	doc := fileDoc(dir, "") + "evaluation:\n  environment: staging\n  contextEnrichment: {region: eu}\n"
+	harness.start(t, parse(t, doc, opts), deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
+
+	set, _ := harness.core.Holder().Load().Route("key-one")
+	require.NotNil(t, set)
+
+	assert.Equal(t, map[string]any{"region": "eu"},
+		harness.core.Evaluator().EvaluationContextEnrichment(set))
+}
