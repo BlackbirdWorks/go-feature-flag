@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"mime"
 	"net/http"
 	"net/url"
@@ -40,6 +41,11 @@ const (
 	decimalBase        = 10
 	bitSize64          = 64
 	numericBranchCount = 2
+	minQuotedETagLen   = 2
+	etagBang           = 0x21
+	etagRangeLow       = 0x23
+	etagRangeHigh      = 0x7E
+	etagObsTextMin     = 0x80
 )
 
 var (
@@ -235,8 +241,11 @@ func (s *Spec) lookupResponse(path, method string, statusCode int) (responseSpec
 
 func validateResponseHeaders(resp responseSpec, headers http.Header) error {
 	for name := range resp.Headers {
-		if strings.EqualFold(name, headerETag) && headers.Get(headerETag) == "" {
-			return fmt.Errorf("%w: %s", errMissingHeader, headerETag)
+		if strings.EqualFold(name, headerETag) {
+			err := validateETag(headers.Get(headerETag))
+			if err != nil {
+				return err
+			}
 		}
 
 		if strings.EqualFold(name, headerRetryAfter) {
@@ -250,17 +259,42 @@ func validateResponseHeaders(resp responseSpec, headers http.Header) error {
 	return nil
 }
 
+func validateETag(val string) error {
+	if val == "" {
+		return fmt.Errorf("%w: %s", errMissingHeader, headerETag)
+	}
+
+	tag := strings.TrimPrefix(val, "W/")
+	if len(tag) < minQuotedETagLen || tag[0] != '"' || tag[len(tag)-1] != '"' {
+		return fmt.Errorf("%w %s: %q", errInvalidHeader, headerETag, val)
+	}
+
+	for idx := 1; idx < len(tag)-1; idx++ {
+		if !isETagOctet(tag[idx]) {
+			return fmt.Errorf("%w %s: %q", errInvalidHeader, headerETag, val)
+		}
+	}
+
+	return nil
+}
+
+func isETagOctet(octet byte) bool {
+	return octet == etagBang || (octet >= etagRangeLow && octet <= etagRangeHigh) || octet >= etagObsTextMin
+}
+
 func validateRetryAfter(val string) error {
 	if val == "" {
 		return fmt.Errorf("%w: %s", errMissingHeader, headerRetryAfter)
 	}
 
-	secs, err := strconv.ParseInt(val, decimalBase, bitSize64)
-	if err == nil && secs >= 0 {
-		return nil
+	if isASCIIDigits(val) {
+		_, err := strconv.ParseUint(val, decimalBase, bitSize64)
+		if err == nil {
+			return nil
+		}
 	}
 
-	_, err = time.Parse(time.RFC3339, val)
+	_, err := time.Parse(time.RFC3339, val)
 	if err == nil {
 		return nil
 	}
@@ -271,6 +305,20 @@ func validateRetryAfter(val string) error {
 	}
 
 	return fmt.Errorf("%w %s: %q", errInvalidHeader, headerRetryAfter, val)
+}
+
+func isASCIIDigits(raw string) bool {
+	if raw == "" {
+		return false
+	}
+
+	for idx := range len(raw) {
+		if raw[idx] < '0' || raw[idx] > '9' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func validateJSONContentType(contentType string) error {
@@ -530,8 +578,13 @@ func isIntegerValue(val any) bool {
 	}
 
 	_, err := strconv.ParseInt(num.String(), decimalBase, bitSize64)
+	if err == nil {
+		return true
+	}
 
-	return err == nil
+	rat, ok := new(big.Rat).SetString(num.String())
+
+	return ok && rat.IsInt()
 }
 
 func isNumberValue(val any) bool {
@@ -602,7 +655,7 @@ func validateStringConstraints(sch *schema, val any) error {
 	case "uri":
 		parsed, err := url.ParseRequestURI(str)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-			return fmt.Errorf("%w: %q is not a valid uri", errFormatMismatch, str)
+			return fmt.Errorf("%w: invalid uri", errFormatMismatch)
 		}
 	case "date-time":
 		_, err := time.Parse(time.RFC3339, str)

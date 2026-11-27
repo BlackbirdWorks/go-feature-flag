@@ -46,7 +46,40 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 	require.NotNil(t, conn.File)
 	conn.File.Path = filepath.Join("..", "store")
 
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var (
+		streams            *corehttp.Streams
+		core               *relaycore.Core
+		server             api.Server
+		listener           net.Listener
+		loops              sync.WaitGroup
+		serverOwnsListener bool
+	)
+
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), relayReadyTimeout)
+		defer stopCancel()
+
+		if streams != nil {
+			_ = streams.Close(stopCtx)
+		}
+
+		if serverOwnsListener {
+			server.Stop(stopCtx)
+		} else if listener != nil {
+			_ = listener.Close()
+		}
+
+		if core != nil {
+			_ = core.Shutdown(stopCtx)
+		}
+
+		cancel()
+		loops.Wait()
+	})
+
+	listener, err = (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
@@ -55,11 +88,10 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 	metrics, err := metric.NewMetrics()
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	streams := corehttp.NewStreams(ctx)
+	streams = corehttp.NewStreams(ctx)
 	rounds := make(chan flagruntime.RoundResult, roundsBuffer)
 
-	core, err := relaycore.New(ctx, cfg, &relaycore.Deps{
+	core, err = relaycore.New(ctx, cfg, &relaycore.Deps{
 		Registerer: metrics.Registry,
 		Broadcast:  streams.Broadcast,
 		Secrets:    load,
@@ -81,7 +113,7 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 	logger := cmdlog.NewDefault(cmdlog.WithWriter(io.Discard)).Slog
 	ready := corehttp.NewReadiness(core)
 
-	server, err := corehttp.New(core, &corehttp.Config{
+	server, err = corehttp.New(core, &corehttp.Config{
 		Settings:  &settings,
 		Logger:    logger,
 		Streams:   streams,
@@ -90,21 +122,10 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 	}, api.WithListener(listener))
 	require.NoError(t, err)
 
-	var loops sync.WaitGroup
+	serverOwnsListener = true
+
 	loops.Go(func() { _ = core.Run(ctx) })
 	loops.Go(func() { server.StartWithContext(ctx) })
-
-	t.Cleanup(func() {
-		stopCtx, stopCancel := context.WithTimeout(context.Background(), relayReadyTimeout)
-		defer stopCancel()
-
-		_ = streams.Close(stopCtx)
-		server.Stop(stopCtx)
-		_ = core.Shutdown(stopCtx)
-
-		cancel()
-		loops.Wait()
-	})
 
 	waitFirstGeneration(t, rounds)
 
@@ -139,29 +160,35 @@ func waitFirstGeneration(t *testing.T, rounds <-chan flagruntime.RoundResult) {
 func waitReadyz(t *testing.T, baseURL string) {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(t.Context(), relayReadyTimeout)
+	defer cancel()
+
 	client := &http.Client{Timeout: relayReadyTimeout}
-	deadline := time.Now().Add(relayReadyTimeout)
 
 	for {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/readyz", http.NoBody)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/readyz", http.NoBody)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode == http.StatusOK && ctx.Err() == nil {
 				return
 			}
 		}
 
-		require.False(t, time.Now().After(deadline), "relay /readyz did not become ready within %s", relayReadyTimeout)
-
 		timer := time.NewTimer(relayPollInterval)
 		select {
-		case <-t.Context().Done():
+		case <-ctx.Done():
 			timer.Stop()
-			require.FailNow(t, "context cancelled while waiting for relay /readyz")
+			require.FailNowf(
+				t,
+				"relay /readyz not ready",
+				"did not become ready within %s: %v",
+				relayReadyTimeout,
+				ctx.Err(),
+			)
 		case <-timer.C:
 		}
 	}

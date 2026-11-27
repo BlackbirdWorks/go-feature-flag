@@ -25,10 +25,10 @@ Both instances set `evaluation.disableSemaphoreMetadata: true` so response metad
 - Relay OFREP conformance bugs filed from the conformance suite (marked expected-fail):
   - `#134`: disabled flags return `"value": null` instead of omitting `"value"`.
   - `#135`: default-rule evaluation returns `"reason": "DEFAULT"`, which is not in the OFREP 0.4.0 `reason` enum.
-- Bulk evaluation, flag change polling, and WebSocket notifications are uncovered across all four suites.
+- Bulk evaluation, flag change polling, and WebSocket notifications are uncovered across the four `GO Feature Flag` provider suites (bulk evaluation is covered in the direct HTTP OFREP suite).
 - Object `TYPE_MISMATCH` is missing in Go, Java, and .NET; the Java, .NET, and JavaScript disabled-object tests evaluate `disabled_int` instead of `disabled_interface`; JavaScript number tests cover floats only (not integers).
 - Ordinary targeting rules only assert `email` matching (`flags.yaml`); non-string, list, and nested context attributes are included in test fixtures without targeting-rule assertions.
-- Server-side `evaluation.contextEnrichment` and semver targeting rules are only tested in Go.
-- Error codes `PARSE_ERROR`, `TARGETING_KEY_MISSING`, `INVALID_CONTEXT`, and rate limiting (`429` / `Retry-After`) are not covered.
+- Server-side `evaluation.contextEnrichment` and semver targeting rules are only tested in Go and the direct HTTP OFREP suite.
+- Across the four `GO Feature Flag` provider suites, error codes `PARSE_ERROR`, `TARGETING_KEY_MISSING`, `INVALID_CONTEXT`, and rate limiting (`429` / `Retry-After`) are not covered. In the direct HTTP OFREP suite, `TARGETING_KEY_MISSING`, `INVALID_CONTEXT`, and the `429` `Retry-After` response schema are covered, while `PARSE_ERROR` and live `429` rate-limit responses remain uncovered.
 - JavaScript `package.json` uses a caret range (`^2.2.0`) rather than an exact pinned version (resolved to `2.2.0` in `package-lock.json`).
 - Data collector and tracking events depend on `#9` and are intentionally left out.

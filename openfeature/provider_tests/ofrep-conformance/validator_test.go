@@ -15,6 +15,7 @@ const (
 	singleFlagPath   = "/ofrep/v1/evaluate/flags/{key}"
 	bulkFlagsPath    = "/ofrep/v1/evaluate/flags"
 	headerRetryAfter = "Retry-After"
+	emptyFlagsJSON   = `{"flags":[]}`
 )
 
 type validatorCase struct {
@@ -210,6 +211,22 @@ func TestSpec_ValidateSingleFlagResponse(t *testing.T) {
 			headers: http.Header{headerRetryAfter: []string{"not-a-date"}},
 			wantErr: true,
 		},
+		{
+			name:    "429 signed positive Retry-After rejected",
+			path:    singleFlagPath,
+			method:  http.MethodPost,
+			status:  http.StatusTooManyRequests,
+			headers: http.Header{headerRetryAfter: []string{"+30"}},
+			wantErr: true,
+		},
+		{
+			name:    "429 negative Retry-After rejected",
+			path:    singleFlagPath,
+			method:  http.MethodPost,
+			status:  http.StatusTooManyRequests,
+			headers: http.Header{headerRetryAfter: []string{"-1"}},
+			wantErr: true,
+		},
 	})
 }
 
@@ -258,6 +275,23 @@ func TestSpec_ValidateBulkAndTransportResponse(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "bulk 200 eventStream decimal whole number inactivityDelaySec",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", `"abc"`),
+			body:    `{"flags":[],"eventStreams":[{"type":"sse","url":"https://example.com/sse","inactivityDelaySec":60.0}]}`,
+		},
+		{
+			name:    "bulk 200 eventStream fractional inactivityDelaySec rejected",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", `"abc"`),
+			body:    `{"flags":[],"eventStreams":[{"type":"sse","url":"https://example.com/sse","inactivityDelaySec":60.5}]}`,
+			wantErr: true,
+		},
+		{
 			name:    "bulk 200 eventStream both url and endpoint rejected",
 			path:    bulkFlagsPath,
 			method:  http.MethodPost,
@@ -273,7 +307,42 @@ func TestSpec_ValidateBulkAndTransportResponse(t *testing.T) {
 			method:  http.MethodPost,
 			status:  http.StatusOK,
 			headers: jsonHeaders(),
-			body:    `{"flags":[]}`,
+			body:    emptyFlagsJSON,
+			wantErr: true,
+		},
+		{
+			name:    "bulk 200 weak ETag",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", `W/"abc"`),
+			body:    emptyFlagsJSON,
+		},
+		{
+			name:    "bulk 200 unquoted ETag rejected",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", "abc"),
+			body:    emptyFlagsJSON,
+			wantErr: true,
+		},
+		{
+			name:    "bulk 200 lowercase weak ETag rejected",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", `w/"abc"`),
+			body:    emptyFlagsJSON,
+			wantErr: true,
+		},
+		{
+			name:    "bulk 200 ETag with space rejected",
+			path:    bulkFlagsPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders("ETag", `"a b"`),
+			body:    emptyFlagsJSON,
 			wantErr: true,
 		},
 		{
@@ -383,4 +452,16 @@ func TestSpec_ValidateBulkAndTransportResponse(t *testing.T) {
 			wantErr: true,
 		},
 	})
+}
+
+func TestSpec_URIFailureRedactsValue(t *testing.T) {
+	t.Parallel()
+
+	spec, err := ofrepconformance.LoadSpec(filepath.Join("testdata", "openapi.yaml"))
+	require.NoError(t, err)
+
+	body := []byte(`{"flags":[],"eventStreams":[{"type":"sse","url":"not a url?token=secret-token"}]}`)
+	err = spec.ValidateResponse(bulkFlagsPath, http.MethodPost, http.StatusOK, jsonHeaders("ETag", `"abc"`), body)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret-token")
 }
