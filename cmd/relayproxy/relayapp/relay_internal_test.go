@@ -164,7 +164,7 @@ type relayRig struct {
 	draining    chan struct{}
 	timeoutEnd  chan context.CancelFunc
 	timeoutFor  chan time.Duration
-	force       chan struct{}
+	hardStop    chan context.CancelFunc
 	started     chan *relay
 	label       string
 	store       *store
@@ -211,7 +211,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		draining: make(chan struct{}),
 		// the shutdown timeout never ends by itself: the test ends it through the cancel function it receives
 		timeoutEnd: make(chan context.CancelFunc, 1), timeoutFor: make(chan time.Duration, 1),
-		force: make(chan struct{}), label: t.Name(), started: make(chan *relay, 1),
+		hardStop: make(chan context.CancelFunc, 1), label: t.Name(), started: make(chan *relay, 1),
 	}
 	rig.store.publish(1)
 	rig.manifestKey = ropts.manifestKey
@@ -265,9 +265,14 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 			Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res }},
 		},
 		ServerOptions: serverOpts,
-		Force:         rig.force,
-		OnStarted:     func(r *relay) { rig.started <- r },
-		DrainWait:     ropts.drainWait,
+		ShutdownContext: func(parent context.Context) (context.Context, context.CancelFunc) {
+			shutdown, cancelShutdown := context.WithCancel(context.WithoutCancel(parent))
+			rig.hardStop <- cancelShutdown
+
+			return shutdown, cancelShutdown
+		},
+		OnStarted: func(r *relay) { rig.started <- r },
+		DrainWait: ropts.drainWait,
 		WithTimeout: func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
 			bounded, endTimeout := context.WithCancel(parent)
 

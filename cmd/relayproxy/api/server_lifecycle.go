@@ -33,18 +33,13 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	}
 
 	// The server owns no signal handler: the process does, so that it can fail the readiness probe before the
-	// listeners close. Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers below.
+	// listeners close. Stop ends s.stopCtx, which cancels ctx and gracefully shuts down the servers below.
 	// The watcher is installed before anything slow runs, so that a stop reaches the initialisation too.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go func() {
-		select {
-		case <-s.stopRequested:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	stopWatching := context.AfterFunc(s.stopCtx, cancel) //nolint:contextcheck // the stop request is the server's own
+	defer stopWatching()
 
 	// start the OpenTelemetry tracing service
 	err := s.otelService.Init(ctx, &s.settings.Telemetry)
@@ -82,18 +77,17 @@ func (s *Server) StartWithContext(ctx context.Context) {
 // stopWasRequested reports whether Stop or Shutdown ran; the listeners that the server was given are closed then,
 // nothing will serve on them.
 func (s *Server) stopWasRequested() bool {
-	select {
-	case <-s.stopRequested:
-		for _, l := range []net.Listener{s.listener, s.monitoringListener} {
-			if l != nil {
-				_ = l.Close()
-			}
-		}
-
-		return true
-	default:
+	if s.stopCtx.Err() == nil {
 		return false
 	}
+
+	for _, l := range []net.Listener{s.listener, s.monitoringListener} {
+		if l != nil {
+			_ = l.Close()
+		}
+	}
+
+	return true
 }
 
 // startUnixSocketServer launch the API server as a unix socket.
@@ -289,9 +283,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	s.stop()
 
-	// StartWithContext records that it started before it looks at stopRequested, and Shutdown closes stopRequested
+	// StartWithContext records that it started before it looks at stopCtx, and Shutdown closes stopCtx
 	// before it looks at started: whichever comes second sees the other. A server that never started has nothing to
-	// wait for, and a start that comes later returns at once because stopRequested is closed.
+	// wait for, and a start that comes later returns at once because stopCtx is closed.
 	if !s.shutdown.started.Load() {
 		return nil
 	}

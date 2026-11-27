@@ -49,9 +49,10 @@ type runOptions struct {
 	OnDraining func(ctx context.Context)
 	// OnStarted is called with the relay once its parts run; a test uses it to reach them.
 	OnStarted func(*relay)
-	// Force delivers the second stop signal: when it is closed during the shutdown, the shutdown context is
-	// cancelled and the relay stops hard.
-	Force <-chan struct{}
+	// ShutdownContext returns the context of the shutdown, which must not be derived from the cancelled context of
+	// the run. It ends when the relay is told to stop hard (the second signal). The context of a new signal
+	// watcher when nil.
+	ShutdownContext func(parent context.Context) (context.Context, context.CancelFunc)
 	// DrainWait waits for the drain delay or for ctx; a test replaces it with a gate. The timer of the process
 	// when nil.
 	DrainWait func(ctx context.Context, delay time.Duration) error
@@ -73,6 +74,13 @@ type runOptions struct {
 	ServerOptions []api.Option
 }
 
+// announce tells the hook of a test that the relay runs.
+func (o *runOptions) announce(rel *relay) {
+	if o.OnStarted != nil {
+		o.OnStarted(rel)
+	}
+}
+
 const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ █ █ █▀█ █▀▀   █▀▀ █   ▄▀█ █▀▀
 █▄█ █▄█   █▀  ██▄ █▀█  █  █▄█ █▀▄ ██▄   █▀  █▄▄ █▀█ █▄█
 
@@ -91,23 +99,16 @@ func Main(
 	return mainWith(ctx, args, stdout, stderr, lookupEnv, build, nil)
 }
 
-// mainWith is [Main] with options for the API server (a test gives it its listener).
+// mainWith is [Main] with a function that changes the options of the run (a test gives it its listener and its
+// contexts).
 func mainWith(
 	ctx context.Context, args []string, stdout, stderr io.Writer, lookupEnv func(string) (string, bool), build Build,
-	serverOptions []api.Option,
+	tweak func(*runOptions),
 ) int {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 
 	defer signal.Stop(hup)
-
-	// the signal that cancelled ctx is delivered here too: the second one after it is the request to stop hard
-	stops := make(chan os.Signal, stopSignals)
-	signal.Notify(stops, os.Interrupt, syscall.SIGTERM)
-
-	defer signal.Stop(stops)
-
-	force := make(chan struct{})
 
 	reload := make(chan struct{}, 1)
 
@@ -117,44 +118,31 @@ func mainWith(
 	var forwarder sync.WaitGroup
 
 	forwarder.Go(func() { forwardSignals(fwdCtx, hup, reload) })
-	// the context of the hard stop must outlive the signal: it ends when Main returns
-	lifeCtx, endLife := context.WithCancel(context.WithoutCancel(ctx))
-
-	forwarder.Go(func() { forceAfter(lifeCtx, stops, force) })
 
 	defer func() {
 		stopForward()
-		endLife()
 		forwarder.Wait()
 	}()
 
-	return run(ctx, &runOptions{
-		Args:          args,
-		Stdout:        stdout,
-		Stderr:        stderr,
-		Build:         build,
-		Load:          bootstrap.LoadOptions{LookupEnv: lookupEnv, ReadFile: os.ReadFile},
-		Reload:        reload,
-		Force:         force,
-		ServerOptions: serverOptions,
-	})
-}
-
-// stopSignals is the number of stop signals that the hard stop waits for: the one that ended the context and the
-// next one.
-const stopSignals = 2
-
-// forceAfter closes force when the second stop signal arrived.
-func forceAfter(ctx context.Context, in <-chan os.Signal, force chan<- struct{}) {
-	for range stopSignals {
-		select {
-		case <-in:
-		case <-ctx.Done():
-			return
-		}
+	opts := &runOptions{
+		Args:   args,
+		Stdout: stdout,
+		Stderr: stderr,
+		Build:  build,
+		Load:   bootstrap.LoadOptions{LookupEnv: lookupEnv, ReadFile: os.ReadFile},
+		Reload: reload,
+	}
+	if tweak != nil {
+		tweak(opts)
 	}
 
-	close(force)
+	return run(ctx, opts)
+}
+
+// signalContext is the context of the shutdown: it is not derived from the cancelled context of the run, and a new
+// SIGINT or SIGTERM (the second one) ends it, which is the hard stop.
+func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.WithoutCancel(parent), os.Interrupt, syscall.SIGTERM)
 }
 
 // forwardSignals turns every signal of in into a reload request: requests that arrive while one waits are merged.
@@ -250,21 +238,22 @@ func logFatal(ctx context.Context, logger *slog.Logger, msg string, attrs ...slo
 
 // relay is a started relay: the core, the streams and the HTTP server.
 type relay struct {
-	log         *slog.Logger
-	drainWait   func(ctx context.Context, delay time.Duration) error
-	core        *relaycore.Core
-	streams     *corehttp.Streams
-	ready       *corehttp.Readiness
-	server      *api.Server
-	runCancel   context.CancelFunc
-	loopsDone   chan struct{}
-	failed      chan struct{}
+	log       *slog.Logger
+	drainWait func(ctx context.Context, delay time.Duration) error
+	core      *relaycore.Core
+	streams   *corehttp.Streams
+	ready     *corehttp.Readiness
+	server    *api.Server
+	runCancel context.CancelFunc
+	loopsDone chan struct{}
+	// failedCtx ends when the core or a listener failed after the start; fail ends it.
+	failedCtx   context.Context //nolint:containedctx // the failure of the relay, read by wait
+	fail        context.CancelFunc
 	onDraining  func(ctx context.Context)
 	withTimeout func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc)
 	loops       sync.WaitGroup
 	timeout     time.Duration
 	drainDelay  time.Duration
-	failOnce    sync.Once
 }
 
 // start builds the core, the streams and the server from the file and starts them. The core and the server run until
@@ -308,12 +297,15 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		return nil, fmt.Errorf("core: %w", err)
 	}
 
+	failedCtx, fail := context.WithCancel(context.WithoutCancel(ctx))
+
 	rel := &relay{
 		core:        core,
 		streams:     streams,
 		ready:       corehttp.NewReadiness(core),
 		log:         logger,
-		failed:      make(chan struct{}),
+		failedCtx:   failedCtx,
+		fail:        fail,
 		runCancel:   cancel,
 		drainWait:   opts.DrainWait,
 		withTimeout: opts.WithTimeout,
@@ -363,9 +355,7 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		close(rel.loopsDone)
 	}()
 
-	if opts.OnStarted != nil {
-		opts.OnStarted(rel)
-	}
+	opts.announce(rel)
 
 	return rel, nil
 }
@@ -431,9 +421,6 @@ func (r *relay) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// fail records that the relay can not go on: wait then stops it and the process exits non-zero.
-func (r *relay) fail() { r.failOnce.Do(func() { close(r.failed) }) }
-
 // shutdownDelay is the value of an optional duration of the file; unset is zero.
 func shutdownDelay(d *bootstrap.Delay) time.Duration {
 	if d == nil {
@@ -453,8 +440,8 @@ func shutdownTimeoutOf(d *bootstrap.Duration) time.Duration {
 }
 
 // wait serves until ctx is cancelled (a signal) or the relay failed, applies the reloads meanwhile, then shuts down.
-// The shutdown runs on a new context that the signal does not cancel: only the second signal (opts.Force) does, and
-// that is the hard stop. It returns the exit code.
+// The shutdown runs on a new context that the signal does not cancel: only the second signal does (it is the
+// context of a new signal watcher), and that is the hard stop. It returns the exit code.
 func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error), opts *runOptions) int {
 	code := 0
 
@@ -462,7 +449,7 @@ func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error)
 		select {
 		case <-ctx.Done():
 			done = true
-		case <-r.failed:
+		case <-r.failedCtx.Done():
 			// nothing serves any more: the drain delay would only keep a failed relay alive
 			r.drainDelay = 0
 			code, done = 1, true
@@ -471,24 +458,13 @@ func (r *relay) wait(ctx context.Context, load func() (*bootstrap.Config, error)
 		}
 	}
 
-	shutdownCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	newShutdownContext := opts.ShutdownContext
+	if newShutdownContext == nil {
+		newShutdownContext = signalContext
+	}
 
-	var forcer sync.WaitGroup
-
-	// the forcer ends with the shutdown context: it is cancelled, then joined
-	defer func() {
-		cancel()
-		forcer.Wait()
-	}()
-
-	forcer.Go(func() {
-		select {
-		case <-opts.Force:
-			r.log.LogAttrs(shutdownCtx, slog.LevelWarn, "shutdown: second stop signal, stopping hard")
-			cancel()
-		case <-shutdownCtx.Done():
-		}
-	})
+	shutdownCtx, cancel := newShutdownContext(ctx)
+	defer cancel()
 
 	if r.Shutdown(shutdownCtx) != nil {
 		code = 1

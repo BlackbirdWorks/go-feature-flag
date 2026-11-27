@@ -2,8 +2,6 @@ package relayapp
 
 import (
 	"context"
-	"os"
-	"syscall"
 	"testing"
 	"time"
 
@@ -54,43 +52,4 @@ func TestSleepContext(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-func TestForceAfter(t *testing.T) {
-	t.Parallel()
-
-	t.Run("the second signal closes force", func(t *testing.T) {
-		t.Parallel()
-
-		signals := make(chan os.Signal, 2)
-		force := make(chan struct{})
-
-		signals <- syscall.SIGTERM
-
-		signals <- syscall.SIGINT
-
-		forceAfter(t.Context(), signals, force)
-
-		select {
-		case <-force:
-		default:
-			require.FailNow(t, "force was not closed")
-		}
-	})
-
-	t.Run("the end of the process stops the wait", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-
-		force := make(chan struct{})
-		forceAfter(ctx, make(chan os.Signal), force)
-
-		select {
-		case <-force:
-			require.FailNow(t, "force must stay open")
-		default:
-		}
-	})
 }

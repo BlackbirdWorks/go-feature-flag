@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -34,20 +33,20 @@ func New(settings *Settings,
 	logger *slog.Logger,
 	opts ...Option,
 ) Server {
-	stopRequested := make(chan struct{})
+	stopCtx, stop := context.WithCancel(context.Background())
 
 	srv := Server{
-		settings:      *settings,
-		keys:          keys,
-		services:      *services,
-		logger:        logger,
-		exit:          func() {},
-		otelService:   opentelemetry.NewOtelService(),
-		stopRequested: stopRequested,
-		stop:          sync.OnceFunc(func() { close(stopRequested) }),
-		stopped:       make(chan struct{}),
-		shutdown:      &shutdownState{},
-		readTimeout:   defaultReadTimeout,
+		settings:    *settings,
+		keys:        keys,
+		services:    *services,
+		logger:      logger,
+		exit:        func() {},
+		otelService: opentelemetry.NewOtelService(),
+		stopCtx:     stopCtx,
+		stop:        stop,
+		stopped:     make(chan struct{}),
+		shutdown:    &shutdownState{},
+		readTimeout: defaultReadTimeout,
 	}
 	for _, opt := range opts {
 		opt(&srv)
@@ -143,22 +142,23 @@ func WithFlagSetResolver(resolver service.FlagSetResolver) Option {
 
 // Server is the struct that represents the API server.
 type Server struct {
-	resolver               service.FlagSetResolver
-	services               service.Services
-	otelService            opentelemetry.OtelService
-	tracerProvider         trace.TracerProvider
-	meterProvider          metric.MeterProvider
-	listen                 ListenFunc
-	listener               net.Listener
-	monitoringListener     net.Listener
-	propagator             propagation.TextMapPropagator
-	apiHandler             http.Handler
-	monitoringHandler      http.Handler
-	logger                 *slog.Logger
-	stop                   func()
-	stopped                chan struct{}
-	exit                   func()
-	stopRequested          chan struct{}
+	resolver           service.FlagSetResolver
+	services           service.Services
+	otelService        opentelemetry.OtelService
+	tracerProvider     trace.TracerProvider
+	meterProvider      metric.MeterProvider
+	listen             ListenFunc
+	listener           net.Listener
+	monitoringListener net.Listener
+	propagator         propagation.TextMapPropagator
+	apiHandler         http.Handler
+	monitoringHandler  http.Handler
+	logger             *slog.Logger
+	stop               context.CancelFunc
+	stopped            chan struct{}
+	exit               func()
+	// stopCtx ends when Stop or Shutdown ran, stop ends it.
+	stopCtx                context.Context //nolint:containedctx // the stop request, read by the start and the servers
 	shutdown               *shutdownState
 	startupStep            func(ctx context.Context)
 	keys                   service.APIKeys

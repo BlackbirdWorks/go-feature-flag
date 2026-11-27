@@ -316,7 +316,8 @@ func TestShutdownIsBoundedWhileTheStartIsHeld(t *testing.T) {
 	assert.Contains(t, log, "shutdown: stopped hard")
 }
 
-// The second signal during the drain delay stops hard at once.
+// The shutdown context ended during the drain delay (the second signal): the drain ends at once, the relay stops
+// hard.
 func TestShutdownSecondSignalStopsHard(t *testing.T) {
 	t.Parallel()
 
@@ -339,14 +340,45 @@ func TestShutdownSecondSignalStopsHard(t *testing.T) {
 		require.FailNow(t, "the drain delay did not start")
 	}
 
-	close(rig.force)
+	(<-rig.hardStop)()
 
 	assert.Equal(t, 1, rig.awaitCode())
 
 	log := rig.stderr.String()
-	assert.Contains(t, log, "shutdown: second stop signal, stopping hard")
 	assert.Contains(t, log, "shutdown: the drain delay was cut short")
 	assert.Contains(t, log, "shutdown: stopped hard")
+}
+
+// The shutdown context ended while a request is in flight (the second signal): the relay stops hard, the log says
+// what was cut, and the exit code is not zero.
+func TestShutdownContextEndedDuringTheHTTPDrain(t *testing.T) {
+	t.Parallel()
+
+	reads := make(chan string, 64)
+	rig := startRelay(t, &rigOptions{reads: reads})
+	rig.awaitGeneration(1)
+
+	slow := startSlowRequest(t, rig, reads)
+
+	rig.cancel()
+	assert.Equal(t, bootstrap.DefaultShutdownTimeout, rig.awaitTimeout())
+
+	(<-rig.hardStop)()
+
+	assert.Equal(t, 1, rig.awaitCode())
+	assert.Contains(t, rig.stderr.String(), `"inFlightRequests":1`)
+
+	_, err := slow.conn.Write([]byte(slowBody))
+	if err == nil {
+		resp, readErr := http.ReadResponse(bufio.NewReader(slow.conn), nil)
+		if readErr == nil {
+			_ = resp.Body.Close()
+		}
+
+		err = readErr
+	}
+
+	require.Error(t, err, "the connection was cut")
 }
 
 // The context given to the shutdown is not the signal context: it is alive when the signal context is done.
