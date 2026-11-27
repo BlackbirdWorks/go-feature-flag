@@ -11,28 +11,47 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
-	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 const (
-	// readyTimeout is how long the relay proxy has to answer the health check, polled every readyPollInterval.
-	readyTimeout      = 15 * time.Second
+	// readyTimeout is how long the relay proxy has to serve its first generation.
+	readyTimeout = 15 * time.Second
+	// readyPollInterval is the pause between two health requests of waitHealthy.
 	readyPollInterval = 20 * time.Millisecond
+	// roundsBuffer is the number of rounds of the engine that wait for Start to read them.
+	roundsBuffer = 16
+	// APIKey is the key of the flag set that the requests of the harness carry.
+	APIKey = "loadtest-key"
+
+	connName    = "control"
+	channelName = "stable"
+	manifestKey = "manifests/stable.yaml"
+	flagsObject = "flags"
+	setsObject  = "sets"
+	setName     = "loadtest"
+	storeDir    = "store"
+	sinkEnv     = "LOADTEST_SINK_URL"
 )
 
-var errUnexpectedListenerAddr = errors.New("unexpected listener address type")
+var (
+	errUnexpectedListenerAddr = errors.New("unexpected listener address type")
+	errNotReady               = errors.New("the relay proxy did not serve its flags")
+)
 
 // Options configures Start.
 type Options struct {
@@ -47,22 +66,27 @@ type Options struct {
 	FlushIntervalMs int64
 	// MaxEventInMemory is the flush trigger of the exporter (default 100000).
 	MaxEventInMemory int64
-	// H2C makes the relay proxy accept HTTP/2 over cleartext (server.enableH2C); only with Listen.
+	// H2C makes the relay proxy accept HTTP/2 over cleartext; only with Listen.
 	H2C bool
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
 	Listen bool
 }
 
-// Relay is a running relay proxy.
+// Relay is a running relay proxy: a version 2 core on a file store, and its HTTP server when it listens.
 type Relay struct {
-	wsSvc  stream.WebsocketService
-	sink   *httptest.Server
-	server *api.Server
-	// Services are the relay proxy services, usable to build handlers in-process.
-	Services service.Services
+	sink    *httptest.Server
+	server  *api.Server
+	core    *relaycore.Core
+	streams *corehttp.Streams
+	cancel  context.CancelFunc
+	// FlagSets finds the flag set of APIKey, to build handlers in-process.
+	FlagSets service.FlagSetResolver
+	// Metrics are the metrics of the handlers.
+	Metrics *metric.Metrics
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
 	dir     string
+	loops   sync.WaitGroup
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.
@@ -84,70 +108,91 @@ func Start(opts Options) (_ *Relay, err error) {
 		}
 	}()
 
-	conf, err := buildRelayConfig(r, opts)
+	err = r.publish(opts.FlagsYAML)
 	if err != nil {
 		return nil, err
 	}
 
-	var (
-		baseURL  string
-		listener net.Listener
-	)
-	defer func() {
-		if err != nil && listener != nil {
-			_ = listener.Close()
-		}
-	}()
-
-	if opts.Listen {
-		var port int
-
-		listener, port, err = listenLoopback()
-		if err != nil {
-			return nil, err
-		}
-
-		conf.Server.Port = port
-		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+	cfg, err := r.bootstrapConfig(opts)
+	if err != nil {
+		return nil, err
 	}
 
-	logger := cmdlog.NewDefault()
-
-	metrics, err := metric.NewMetrics()
+	r.Metrics, err = metric.NewMetrics()
 	if err != nil {
 		return nil, fmt.Errorf("init relay metrics: %w", err)
 	}
 
-	r.wsSvc = stream.NewWebsocketService()
+	r.streams = corehttp.NewStreams()
 
-	flagsetMgr, err := service.NewFlagsetManager(conf, logger.Slog,
-		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, r.wsSvc)
+	ctx, cancel := context.WithCancel(context.Background())
+	r.cancel = cancel
+
+	rounds := make(chan flagruntime.RoundResult, roundsBuffer)
+
+	core, err := relaycore.New(ctx, cfg, &relaycore.Deps{
+		Registerer: r.Metrics.Registry,
+		Broadcast:  r.streams.Broadcast,
+		Secrets:    r.secrets(),
+		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) {
+			select {
+			case rounds <- res:
+			default:
+			}
+		}},
+	})
 	if err != nil {
-		return nil, fmt.Errorf("init flagset manager: %w", err)
+		return nil, fmt.Errorf("init relay core: %w", err)
 	}
 
-	r.Services = service.Services{
-		MonitoringService: service.NewMonitoring(flagsetMgr),
-		WebsocketService:  r.wsSvc,
-		FlagsetManager:    flagsetMgr,
-		Metrics:           metrics,
+	r.core = core
+	r.FlagSets = corehttp.NewAdapter(core)
+
+	r.loops.Go(func() { _ = core.Run(ctx) })
+
+	err = waitApplied(rounds)
+	if err != nil {
+		return nil, err
 	}
+
+	// a corrupted object degrades its flag set only: the generation is applied without it
+	_, err = r.FlagSets.FlagSet(APIKey)
+	if err != nil {
+		return nil, fmt.Errorf("%w: the flag set is not served: %w", errNotReady, err)
+	}
+
+	ready := corehttp.NewReadiness(core)
+
 	if opts.Listen {
-		s := apiwire.New(conf, &r.Services, logger.Slog, api.WithListener(listener))
-
-		r.server = &s
-		go s.StartWithContext(context.Background())
-		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
-		listener = nil
-		r.BaseURL = baseURL
-
-		err = waitHealthy(baseURL)
-		if err != nil {
-			return nil, err
-		}
+		return r, r.listen(ready, opts)
 	}
 
 	return r, nil
+}
+
+// listen serves the HTTP API on a free loopback port.
+func (r *Relay) listen(ready *corehttp.Readiness, opts Options) error {
+	listener, port, err := listenLoopback()
+	if err != nil {
+		return err
+	}
+
+	settings := api.Settings{Mode: api.ServerModeHTTP, Host: "127.0.0.1", Port: port, EnableH2C: opts.H2C}
+
+	server, err := corehttp.New(r.core, &corehttp.Config{
+		Settings: &settings, Streams: r.streams, Metrics: r.Metrics, Readiness: ready,
+	}, api.WithListener(listener))
+	if err != nil {
+		_ = listener.Close()
+
+		return fmt.Errorf("init relay server: %w", err)
+	}
+
+	r.server = &server
+	r.loops.Go(func() { server.StartWithContext(context.Background()) })
+	r.BaseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	return waitHealthy(r.BaseURL)
 }
 
 // listenLoopback binds a free loopback port. The listener stays bound until the server serves on it: closing it
@@ -168,28 +213,86 @@ func listenLoopback() (net.Listener, int, error) {
 	return listener, tcpAddr.Port, nil
 }
 
-func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
-	flagFile := filepath.Join(r.dir, "flags.yaml")
+// publish writes the objects and the manifest of the flag set to the file store of the relay.
+func (r *Relay) publish(flagsYAML string) error {
+	// the engine serves a flag set whose flags it rejected, as an empty one: refuse a file that is not YAML here
+	var flags map[string]any
 
-	err := os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600)
+	err := yaml.Unmarshal([]byte(flagsYAML), &flags)
 	if err != nil {
-		return nil, fmt.Errorf("write relay flag file: %w", err)
+		return fmt.Errorf("the flag file of the relay is not YAML: %w", err)
 	}
 
-	conf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
-		// the server (and its monitoring port) only listens on the loopback interface
-		Server: config.Server{
-			Mode:                  config.ServerModeHTTP,
-			Host:                  "127.0.0.1",
-			UnixSocketPath:        "",
-			LambdaAdapter:         "",
-			AwsAPIGatewayBasePath: "",
-			Port:                  0,
-			MonitoringPort:        0,
-			EnableH2C:             opts.H2C,
-		},
+	store := filepath.Join(r.dir, storeDir)
+
+	put := func(key string, data []byte) error {
+		path := filepath.Join(store, key)
+
+		err := os.MkdirAll(filepath.Dir(path), 0o750)
+		if err != nil {
+			return fmt.Errorf("create the store directory: %w", err)
+		}
+
+		err = os.WriteFile(path, data, 0o600)
+		if err != nil {
+			return fmt.Errorf("write the store object: %w", err)
+		}
+
+		return nil
 	}
+
+	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{{
+		Name: setName, Sources: []string{flagsObject}, APIKeys: []string{APIKey},
+	}}})
+	if err != nil {
+		return fmt.Errorf("encode the flag sets: %w", err)
+	}
+
+	manifest := &controlplane.Manifest{
+		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindManifest, Channel: channelName,
+		Generation: 1,
+	}
+
+	for _, object := range []struct {
+		name, kind string
+		data       []byte
+	}{
+		{setsObject, controlplane.KindFlagSets, doc},
+		{flagsObject, controlplane.KindFlags, []byte(flagsYAML)},
+	} {
+		sum := controlplane.ChecksumOf(object.data)
+
+		key, keyErr := controlplane.ObjectKey(sum, controlplane.FormatYAML)
+		if keyErr != nil {
+			return fmt.Errorf("name the store object: %w", keyErr)
+		}
+
+		err = put(key, object.data)
+		if err != nil {
+			return err
+		}
+
+		manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
+			Name: object.name, Kind: object.kind, Connection: connName, Key: key, Format: controlplane.FormatYAML,
+			Checksum: sum, Size: int64(len(object.data)),
+		})
+	}
+
+	data, err := controlplane.MarshalManifest(manifest)
+	if err != nil {
+		return fmt.Errorf("encode the manifest: %w", err)
+	}
+
+	return put(manifestKey, data)
+}
+
+// bootstrapConfig is the version 2 file of the relay: the file store, and the webhook exporter when the options ask
+// for one.
+func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + filepath.Join(r.dir, storeDir) + "}\n" +
+		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
+		channelName + ", jitter: 0}\n"
+
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
 
@@ -203,15 +306,49 @@ func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
 			maxMem = 100000
 		}
 
-		conf.Exporter = &config.ExporterConf{
-			Kind:             config.WebhookExporter,
-			EndpointURL:      r.sink.URL,
-			FlushInterval:    flush,
-			MaxEventInMemory: maxMem,
-		}
+		doc += fmt.Sprintf("exporters:\n  sink: {kind: webhook, endpointUrl: {fromEnv: %s}, flushInterval: %q, maxEventInMemory: %d}\n",
+			sinkEnv, time.Duration(flush)*time.Millisecond, maxMem)
 	}
 
-	return conf, nil
+	cfg, err := bootstrap.Parse([]byte(doc), nil, r.secrets())
+	if err != nil {
+		return nil, fmt.Errorf("parse the relay bootstrap file: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// secrets reads the address of the sink from a variable that only the relay sees, not from the process environment.
+func (r *Relay) secrets() bootstrap.LoadOptions {
+	return bootstrap.LoadOptions{LookupEnv: func(name string) (string, bool) {
+		if name == sinkEnv && r.sink != nil {
+			return r.sink.URL, true
+		}
+
+		return "", false
+	}}
+}
+
+// waitApplied waits for the engine to apply the first generation, and fails when it rejects it (a flag file that is
+// not valid).
+func waitApplied(rounds <-chan flagruntime.RoundResult) error {
+	timeout := time.After(readyTimeout)
+
+	for {
+		select {
+		case res := <-rounds:
+			switch {
+			case res.Generation != 1:
+				// the bootstrap round, before the first manifest
+			case res.Outcome == flagruntime.OutcomeApplied:
+				return nil
+			case res.Outcome == flagruntime.OutcomeRejected:
+				return fmt.Errorf("%w: the engine rejected the flags", errNotReady)
+			}
+		case <-timeout:
+			return fmt.Errorf("%w: no generation was applied in %s", errNotReady, readyTimeout)
+		}
+	}
 }
 
 // Dir returns the temporary directory holding the flag file (removed by Close).
@@ -219,17 +356,26 @@ func (r *Relay) Dir() string { return r.dir }
 
 // Close stops the relay proxy and removes its temporary flag file.
 func (r *Relay) Close() {
+	ctx, cancel := context.WithTimeout(context.Background(), readyTimeout)
+	defer cancel()
+
+	if r.streams != nil {
+		_ = r.streams.Close(ctx)
+	}
+
 	if r.server != nil {
-		r.server.Stop(context.Background())
+		r.server.Stop(ctx)
 	}
 
-	if r.Services.FlagsetManager != nil {
-		r.Services.FlagsetManager.Close()
+	if r.core != nil {
+		_ = r.core.Shutdown(ctx)
 	}
 
-	if r.wsSvc != nil {
-		r.wsSvc.Close()
+	if r.cancel != nil {
+		r.cancel()
 	}
+
+	r.loops.Wait()
 
 	if r.sink != nil {
 		r.sink.CloseClientConnections()

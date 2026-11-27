@@ -9,7 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 

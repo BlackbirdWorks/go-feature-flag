@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf"
 )
 
 var (

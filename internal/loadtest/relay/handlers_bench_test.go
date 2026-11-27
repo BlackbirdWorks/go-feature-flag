@@ -29,6 +29,7 @@ func invoke(
 	req := httptest.NewRequestWithContext(b.Context(), http.MethodPost, endpoint.Path(key),
 		strings.NewReader(endpoint.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", relay.APIKey)
 
 	rec := httptest.NewRecorder()
 
@@ -55,7 +56,7 @@ func BenchmarkHandlers(b *testing.B) {
 
 	defer r.Close()
 
-	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
+	fm, metrics := r.FlagSets, r.Metrics
 	semEval := controller.NewFlagEval(fm, metrics)
 	semAll := controller.NewAllFlags(fm, metrics)
 	ofrepCtrl := ofrep.NewOFREPEvaluate(fm, metrics, ofrep.EventStream{})

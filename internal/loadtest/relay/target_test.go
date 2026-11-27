@@ -208,7 +208,7 @@ func TestRelay_CloseRemovesTempDir(t *testing.T) {
 
 func TestStart_CleansUpOnFailure(t *testing.T) {
 	t.Parallel()
-	// invalid flag file content makes the flagset manager fail to start
+	// a flag file that is not YAML makes the start fail
 	parent := t.TempDir()
 	r, err := relay.Start(relay.Options{FlagsYAML: "{{{ not yaml", TempDir: parent})
 	require.Error(t, err)

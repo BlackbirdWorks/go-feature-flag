@@ -35,7 +35,7 @@ retrievers:
 | Field name     | Mandatory | Type   | Default  | Description |
 |----------------|:---------:|--------|----------|-------------|
 | `kind`         | Yes       | string | **none** | **Value should be `redis`.**<br/>_Mandatory field identifying the retriever._ |
-| `redisOptions` | Yes       | object | **none** | Connection options for your Redis instance. Supports only the options in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmdhelpers/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
+| `redisOptions` | Yes       | object | **none** | Connection options for your Redis instance. Supports only the options in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/cli/evaluate/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
 | `redisPrefix`  | No        | string | **none** | Prefix prepended to flag names in Redis. |
 
 ## Configure the Go module

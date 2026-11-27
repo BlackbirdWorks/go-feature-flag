@@ -14,6 +14,7 @@ func newJSONRequest(url, body string) (*http.Request, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", APIKey)
 
 	return req, nil
 }
