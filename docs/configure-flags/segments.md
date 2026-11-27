@@ -62,6 +62,7 @@ plan eq "pro" or user.id in segment("employees")
 - A rule has at most 32 different segment terms. The same segment tested on the same attribute counts once.
 - A segment term is not allowed in the `defaultRule`.
 - The attribute value is the identifier that is looked up. A string is used as it is. An integer of any kind is written in decimal. A float or a JSON number that holds a whole number is written in decimal too (`42`, never `4.2e+01` or `42.0`; a JSON document decodes its numbers as floats). A float is exact only up to 2^53: above that the identifier is the number that the float holds, which can differ from the number that was written, so use strings for large ids.
+- An attribute of an object that the Go client passes as a map of another type or as a struct (`map[string]string`, a struct with JSON tags) is read from the JSON form of the context, as the variables of JsonLogic are; a number read there is a float.
 - An attribute that is missing, empty, or not one of these (a boolean, a number with a fraction, `NaN`, infinity, a list, an object) is not a member of any segment, and no lookup is done for it.
 
 ## Load-time validation
@@ -82,7 +83,9 @@ targeting rule (index 2): invalid segment() term at $.and[1]: inSegment is only 
 | `inSegment` in an iterator, or under another operation | not allowed inside the operation |
 | A segment term in the `defaultRule` | segment terms are not allowed in the defaultRule |
 
-In the Rules format the offset is the position in the query as written, counted in bytes (not characters) from 0: a multibyte character before the term counts for all its bytes. The syntax errors of the parser itself count in characters.  In the JsonLogic format the place is a path such as `$.and[1]`.
+In the Rules format the offset is the position in the query as the engine parses it, counted in bytes (not characters) from 0: the engine first joins the lines of a query and removes the leading spaces of each line, so a multi-line query counts from the joined text, and a multibyte character before the term counts for all its bytes. The syntax errors of the parser itself count in characters. In the JsonLogic format the place is a path such as `$.and[1]`.
+
+The rules that a [scheduled step](rollout-strategies/scheduled.md) carries are checked too when the flags are loaded: a segment term that is not valid, a segment term in the default rule of a step, and an `onError` that is not `skip` or `match` reject the flag, with `scheduled step <index>` in the message.
 
 A segment that is not defined (see below) is not an error: the flag loads, a warning is logged, and the segment matches nobody.
 
@@ -120,7 +123,7 @@ The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. 
 
 ### What is looked up
 
-Segment lookups are lazy. The rule is first evaluated with the plain parts (attributes and comparisons) and every segment term unknown. When that already decides the result, the provider is not called, the evaluation has no segment status and the value stays cacheable: with `plan eq "free" and k in segment("x")` and `plan` set to `pro`, nothing is looked up. Otherwise only the terms that the unknown result still depends on are sent, in one call: with `(plan eq "pro" or k in segment("a")) and k in segment("b")` and `plan` set to `pro`, only `b` is looked up. A rule never makes more than one call to the provider. The provider is not called either when the request context has ended (see below); the lookups are then unknown.
+Segment lookups are lazy. The rule is first evaluated with the plain parts (attributes and comparisons) and every segment term unknown. When that already decides the result, the provider is not called, the evaluation has no segment status and the value stays cacheable: with `plan eq "free" and k in segment("x")` and `plan` set to `pro`, nothing is looked up. Otherwise only the terms that the unknown result still depends on are sent, in one call: with `(plan eq "pro" or k in segment("a")) and k in segment("b")` and `plan` set to `pro`, only `b` is looked up. A rule never makes more than one call to the provider. An operand that an unknown segment term could hide is not read before the answer: `k in segment("a") or user.id eq "staff"` does not read `user.id` for a member of `a`, as the list form of the rule does not. A disabled rule is not evaluated, so it looks nothing up. The provider is not called either when the request context has ended (see below); the lookups are then unknown.
 
 ### Failure policy of a segment
 

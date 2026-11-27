@@ -121,23 +121,18 @@ func ReadMemberSet(r io.Reader, limits Limits) (*MemberSet, error) {
 		limits.MaxBytes = DefaultMaxBytes
 	}
 
-	scanner := bufio.NewScanner(r)
+	counted := &countingReader{reader: r, limit: limits.MaxBytes}
+
+	scanner := bufio.NewScanner(counted)
 	scanner.Buffer(make([]byte, 0, initialMemberBuf), maxMemberLen)
 
 	set := &MemberSet{set: map[string]struct{}{}}
 	rows := 0
 
-	var read int64
-
 	first := true
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
-
-		read += int64(len(line)) + 1
-		if read > limits.MaxBytes {
-			return nil, fmt.Errorf("%w: more than %d bytes", ErrMembersTooLarge, limits.MaxBytes)
-		}
 
 		if first {
 			line = bytes.TrimPrefix(line, []byte("\xEF\xBB\xBF")) // the UTF-8 byte order mark
@@ -158,6 +153,10 @@ func ReadMemberSet(r io.Reader, limits Limits) (*MemberSet, error) {
 	}
 
 	err := scanner.Err()
+	if errors.Is(err, ErrMembersTooLarge) {
+		return nil, fmt.Errorf("%w: more than %d bytes", ErrMembersTooLarge, limits.MaxBytes)
+	}
+
 	if errors.Is(err, bufio.ErrTooLong) {
 		return nil, ErrMemberTooLong
 	}
@@ -167,4 +166,27 @@ func ReadMemberSet(r io.Reader, limits Limits) (*MemberSet, error) {
 	}
 
 	return set, nil
+}
+
+// countingReader counts the bytes that it reads and fails with ErrMembersTooLarge once they are more than limit: the
+// limit is the size of the file, whatever its line ends.
+type countingReader struct {
+	reader io.Reader
+	read   int64
+	limit  int64
+}
+
+func (c *countingReader) Read(buf []byte) (int, error) {
+	got, err := c.reader.Read(buf)
+
+	c.read += int64(got)
+	if c.read > c.limit {
+		return got, ErrMembersTooLarge
+	}
+
+	if err != nil {
+		return got, err //nolint:wrapcheck // the reader of the caller: io.EOF must stay io.EOF
+	}
+
+	return got, nil
 }

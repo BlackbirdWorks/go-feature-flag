@@ -123,3 +123,34 @@ func TestFlagError(t *testing.T) {
 		})
 	}
 }
+
+// The linter reports an invalid segment term like any invalid flag, and names the flag, the rule and the position.
+func TestValidateFlagsReportsASegmentTerm(t *testing.T) {
+	t.Parallel()
+
+	flags := map[string]dto.DTO{
+		"fine": {
+			Variations: &map[string]*any{"a": new(any(true))},
+			Rules: &[]flagdef.Rule{
+				{Name: new("beta"), Query: new(`targetingKey in segment("beta-users")`), VariationResult: new("a")},
+			},
+			DefaultRule: &flagdef.Rule{VariationResult: new("a")},
+		},
+		"bad": {
+			Variations: &map[string]*any{"a": new(any(true))},
+			Rules: &[]flagdef.Rule{
+				{Name: new("beta"), Query: new(`targetingKey in segment("Bad Name")`), VariationResult: new("a")},
+			},
+			DefaultRule: &flagdef.Rule{VariationResult: new("a")},
+		},
+	}
+
+	got := configfile.ValidateFlags(flags)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "bad", got[0].Flag)
+	require.ErrorIs(t, got[0].Err, flagdef.ErrInvalidSegment)
+	assert.Contains(t, got[0].Err.Error(), `targeting rule "beta" (index 0)`)
+	assert.Contains(t, got[0].Err.Error(), "invalid segment name")
+	assert.Contains(t, got[0].Err.Error(), "at offset 25")
+}

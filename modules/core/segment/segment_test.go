@@ -305,6 +305,30 @@ func TestReadMemberSet(t *testing.T) {
 			wantErr: segment.ErrMembersTooLarge,
 		},
 		{
+			name:        "crlf lines count their two line end bytes",
+			in:          "ab\r\ncd\r\n",
+			limits:      segment.Limits{MaxBytes: 8},
+			wantMembers: []string{"ab", "cd"},
+		},
+		{
+			name:    "crlf file over the limit by one byte",
+			in:      "ab\r\ncd\r\n",
+			limits:  segment.Limits{MaxBytes: 7},
+			wantErr: segment.ErrMembersTooLarge,
+		},
+		{
+			name:        "last line without a line end is at the limit",
+			in:          "ab\ncd",
+			limits:      segment.Limits{MaxBytes: 5},
+			wantMembers: []string{"ab", "cd"},
+		},
+		{
+			name:    "last line without a line end over the limit",
+			in:      "ab\ncd",
+			limits:  segment.Limits{MaxBytes: 4},
+			wantErr: segment.ErrMembersTooLarge,
+		},
+		{
 			name:        "bytes within the limit",
 			in:          "ab\ncd\n",
 			limits:      segment.Limits{MaxBytes: 6},

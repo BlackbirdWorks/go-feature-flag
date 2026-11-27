@@ -2,7 +2,6 @@ package flagdef
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -272,7 +271,10 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
+			queryCtx.svc.logger.LogAttrs(
+				queryCtx.logContext(),
+				slog.LevelError,
+				"panic recovered while evaluating query",
 				slog.Any("panic", rec),
 				slog.String(queryName, query),
 			)
@@ -294,8 +296,13 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 
 	match, err := queryCtx.resolveSegments(seg.terms, states, nil, seg.root)
 	if err != nil {
-		queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
-			slog.String(queryName, query), slog.Any(errorLiteral, err.Error()))
+		queryCtx.svc.logger.LogAttrs(
+			queryCtx.logContext(),
+			slog.LevelError,
+			"error while evaluating the jsonlogic query",
+			slog.String(queryName, query),
+			slog.Any(errorLiteral, err.Error()),
+		)
 
 		return false
 	}
@@ -306,7 +313,11 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 // matchDemand evaluates the node three-valued, like the nikunjy evaluation, and reports the terms that an unknown
 // result depends on (see parser.Evaluator.ProcessSegmentsDemand): the operands of "and" and "or" after the one that
 // decides the result are not evaluated.
-func (n *jlNode) matchDemand(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, uint32, error) {
+func (n *jlNode) matchDemand(
+	queryCtx *queryContext,
+	states []parser.SegmentState,
+	decide bool,
+) (parser.Match, uint32, error) {
 	switch n.kind {
 	case jlTerm:
 		if states[n.term] == parser.SegmentUnknown {
@@ -315,9 +326,9 @@ func (n *jlNode) matchDemand(queryCtx *queryContext, states []parser.SegmentStat
 
 		return states[n.term].Match(), 0, nil
 	case jlAnd, jlOr:
-		return n.matchLogical(queryCtx, states)
+		return n.matchLogical(queryCtx, states, decide)
 	case jlNot, jlTruthy:
-		child, demand, err := n.children[0].matchDemand(queryCtx, states)
+		child, demand, err := n.children[0].matchDemand(queryCtx, states, decide)
 		if err != nil || n.kind == jlTruthy {
 			return child, demand, err
 		}
@@ -351,7 +362,11 @@ func (n *jlNode) matchLeaf(queryCtx *queryContext) (parser.Match, error) {
 	return parser.MatchNo, nil
 }
 
-func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, uint32, error) {
+func (n *jlNode) matchLogical(
+	queryCtx *queryContext,
+	states []parser.SegmentState,
+	decide bool,
+) (parser.Match, uint32, error) {
 	decisive, neutral := parser.MatchNo, parser.MatchYes // and
 	if n.kind == jlOr {
 		decisive, neutral = parser.MatchYes, parser.MatchNo
@@ -362,8 +377,14 @@ func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentSta
 	var demand uint32
 
 	for _, child := range n.children {
-		match, childDemand, err := child.matchDemand(queryCtx, states)
+		match, childDemand, err := child.matchDemand(queryCtx, states, decide)
 		if err != nil {
+			if decide && demand != 0 {
+				// an earlier operand is unknown and could decide the result before this one is read: ask about
+				// it first, the evaluation that follows the lookups reports the error if it is still reached
+				return parser.MatchUnknown, demand, nil
+			}
+
 			return parser.MatchUnknown, 0, err
 		}
 

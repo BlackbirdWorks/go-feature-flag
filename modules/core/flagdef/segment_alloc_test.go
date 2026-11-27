@@ -1,6 +1,7 @@
 package flagdef_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,21 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
+// minAllocs is the number of allocations of f in its cheapest run among allocRuns single runs. The pool of the query
+// maps is dropped at random under the race detector, so an average is not stable: the cheapest run is the cost of an
+// evaluation that finds its pooled map, whatever the detector does.
+func minAllocs(f func()) float64 {
+	cheapest := math.MaxFloat64
+
+	for range allocRuns {
+		cheapest = min(cheapest, testing.AllocsPerRun(1, f))
+	}
+
+	return cheapest
+}
+
+const allocRuns = 60
+
 // TestEvaluationAllocations pins the allocations of one evaluation of a flag with one targeting rule. The numbers of
 // the flags without segments were measured on the engine before the segments existed: they must not grow. A rule
 // with a segment term allocates what the same rule without one allocates, plus the vector of the lookups that the
@@ -18,10 +34,6 @@ import (
 //
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestEvaluationAllocations(t *testing.T) {
-	if raceEnabled {
-		t.Skip("the race detector drops the items of a sync.Pool at random, the allocations are not stable")
-	}
-
 	provider := segment.NewMemoryProvider(map[string][]string{"beta": {keyAlice}, segChurned: {"bob"}})
 
 	allocsOf := func(t *testing.T, query, key string) (float64, string) {
@@ -36,7 +48,7 @@ func TestEvaluationAllocations(t *testing.T) {
 
 		_, details := flag.Value("f", evalCtx, flagCtx)
 
-		return testing.AllocsPerRun(500, func() { flag.Value("f", evalCtx, flagCtx) }), details.Variant
+		return minAllocs(func() { flag.Value("f", evalCtx, flagCtx) }), details.Variant
 	}
 
 	t.Run("flags without segments allocate what they allocated before the segments", func(t *testing.T) {

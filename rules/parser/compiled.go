@@ -97,6 +97,9 @@ type evalState struct {
 	debugErr error
 	item     map[string]any
 	stack    attrStack
+	// deferErrors is set by the demand pass of a rule with segment terms: an error of the right side of a logical
+	// node is dropped when the left side is still unknown, see demandLogical.
+	deferErrors bool
 }
 
 // attrStack is the visitor's attribute stack. The first attrStackInline
@@ -229,7 +232,11 @@ func (n *node) demandLogical(state *evalState, states []SegmentState) (Match, ui
 		return decisive, 0
 	}
 
-	right, rightDemand := n.right.evalDemand(state, states)
+	right, rightDemand, deferred := n.demandRight(state, states, left, leftDemand)
+	if deferred {
+		return MatchUnknown, leftDemand
+	}
+
 	if right == decisive {
 		return decisive, 0
 	}
@@ -248,6 +255,51 @@ func (n *node) demandLogical(state *evalState, states []SegmentState) (Match, ui
 	}
 
 	return MatchUnknown, demand
+}
+
+// demandRight evaluates the right side of a logical node. In the pass that decides what to look up, an error of the
+// right side is dropped (deferred is true) when the left side is still unknown and could hide it: the evaluation
+// that follows the lookups reports the error if the right side is still reached.
+func (n *node) demandRight(
+	state *evalState,
+	states []SegmentState,
+	left Match,
+	leftDemand uint32,
+) (Match, uint32, bool) {
+	if !state.deferErrors || left != MatchUnknown || leftDemand == 0 {
+		right, demand := n.right.evalDemand(state, states)
+
+		return right, demand, false
+	}
+
+	failedBefore := state.err != nil
+	right, demand, failed := n.right.guardedDemand(state, states)
+
+	if failed || !failedBefore && state.err != nil {
+		state.err, state.debugErr = nil, nil
+		state.leftOp, state.rightOp = nil, nil
+		state.stack.clear()
+
+		return MatchUnknown, 0, true
+	}
+
+	return right, demand, false
+}
+
+// guardedDemand is evalDemand that reports a panic (the evaluation of an attribute that is not an object panics)
+// instead of raising it.
+//
+//nolint:nonamedreturns // recover sets the result
+func (n *node) guardedDemand(state *evalState, states []SegmentState) (match Match, demand uint32, failed bool) {
+	defer func() {
+		if recover() != nil {
+			match, demand, failed = MatchUnknown, 0, true
+		}
+	}()
+
+	match, demand = n.evalDemand(state, states)
+
+	return match, demand, false
 }
 
 // evalDemand is eval for a rule with segment terms: three-valued, the unknown membership of a term can make the

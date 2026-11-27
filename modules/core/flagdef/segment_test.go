@@ -30,6 +30,11 @@ const (
 	keyCarol         = "carol"
 	segOther         = "other"
 	whereDefaultRule = "defaultRule"
+	segIDs           = "ids"
+	lookupIDsAlice   = "ids:alice"
+	errMsgBadName    = "invalid segment name"
+	errMsgNotAllowed = "not allowed"
+	errMsgBadOnError = "invalid onError"
 	wherePathAttr    = "$.inSegment[0]"
 	queryEqAlice     = `targetingKey eq "alice"`
 )
@@ -45,23 +50,6 @@ func (failingProvider) Contains(context.Context, []segment.Lookup) error { retur
 type silentProvider struct{}
 
 func (silentProvider) Contains(context.Context, []segment.Lookup) error { return nil }
-
-// countingProvider counts the calls and the lookups it receives.
-type countingProvider struct {
-	inner   segment.Provider
-	mu      sync.Mutex
-	calls   int
-	lookups int
-}
-
-func (c *countingProvider) Contains(ctx context.Context, lookups []segment.Lookup) error {
-	c.mu.Lock()
-	c.calls++
-	c.lookups += len(lookups)
-	c.mu.Unlock()
-
-	return c.inner.Contains(ctx, lookups)
-}
 
 func onOffFlag(rules ...flagdef.Rule) *flagdef.InternalFlag {
 	return &flagdef.InternalFlag{
@@ -545,7 +533,7 @@ func TestSegmentLookupsOfARuleAreOneCall(t *testing.T) {
 	t.Parallel()
 
 	svc := flagdef.NewService()
-	provider := &countingProvider{
+	provider := &recordingProvider{
 		inner: segment.NewMemoryProvider(map[string][]string{"a": {"k"}, "b": {"k"}, "c": {"x"}}),
 	}
 	flag := onOffFlag(
@@ -563,15 +551,14 @@ func TestSegmentLookupsOfARuleAreOneCall(t *testing.T) {
 	)
 
 	assert.Equal(t, variantOff, details.Variant)
-	assert.Equal(t, 1, provider.calls)
-	assert.Equal(t, 3, provider.lookups)
+	assert.Equal(t, [][]string{{"a:k", "b:k", "c:k"}}, provider.calls, "one call with the three lookups")
 }
 
 func TestSegmentNotLookedUpForARuleThatIsNotReached(t *testing.T) {
 	t.Parallel()
 
 	svc := flagdef.NewService()
-	provider := &countingProvider{inner: segment.NewMemoryProvider(nil)}
+	provider := &recordingProvider{inner: segment.NewMemoryProvider(nil)}
 	first := flagdef.Rule{Name: new("first"), Query: new(`plan eq "pro"`), VariationResult: new(variantOn)}
 	flag := onOffFlag(first, queryRule("second", `targetingKey in segment("a")`))
 	require.NoError(t, flag.IsValid(svc))
@@ -580,7 +567,7 @@ func TestSegmentNotLookedUpForARuleThatIsNotReached(t *testing.T) {
 	_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: provider})
 
 	assert.Equal(t, variantOn, details.Variant)
-	assert.Equal(t, 0, provider.calls)
+	assert.Empty(t, provider.calls)
 	assert.Equal(t, segment.StatusNone, details.SegmentStatus)
 	assert.True(t, details.Cacheable, "the first rule decided it without a segment")
 }
@@ -589,7 +576,7 @@ func TestSegmentAttributeTypes(t *testing.T) {
 	t.Parallel()
 
 	svc := flagdef.NewService()
-	provider := segment.NewMemoryProvider(map[string][]string{"ids": {"42", "x"}})
+	provider := segment.NewMemoryProvider(map[string][]string{segIDs: {"42", "x"}})
 	flag := onOffFlag(queryRule("r", `userId in segment("ids")`))
 	require.NoError(t, flag.IsValid(svc))
 
@@ -628,7 +615,7 @@ func TestSegmentAttributeThatIsNamedSegmentIsNotTheFunction(t *testing.T) {
 	t.Parallel()
 
 	svc := flagdef.NewService()
-	provider := &countingProvider{inner: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})}
+	provider := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})}
 	flag := onOffFlag(queryRule("r", `segment eq "beta"`))
 	require.NoError(t, flag.IsValid(svc))
 
@@ -636,7 +623,7 @@ func TestSegmentAttributeThatIsNamedSegmentIsNotTheFunction(t *testing.T) {
 	_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: provider})
 
 	assert.Equal(t, variantOn, details.Variant)
-	assert.Equal(t, 0, provider.calls, "no lookup: it is an attribute")
+	assert.Empty(t, provider.calls, "no lookup: it is an attribute")
 	assert.Equal(t, segment.StatusNone, details.SegmentStatus)
 	assert.True(t, details.Cacheable)
 }
@@ -651,8 +638,8 @@ func TestSegmentRuleOnErrorValidation(t *testing.T) {
 	}{
 		{name: "skip", onError: ruleOnErrorSkip},
 		{name: "match", onError: ruleOnErrorMatch},
-		{name: "unknown value", onError: "ignore", wantErr: "invalid onError"},
-		{name: "no value", onError: "", wantErr: "invalid onError"},
+		{name: "unknown value", onError: "ignore", wantErr: errMsgBadOnError},
+		{name: "no value", onError: "", wantErr: errMsgBadOnError},
 	}
 
 	for _, tt := range tests {
@@ -697,7 +684,7 @@ func TestSegmentRuleValidation(t *testing.T) {
 		{
 			name:      "nikunjy bad name names the rule and the offset",
 			rule:      queryRule("vip", `age gt 1 and key in segment("Bad")`),
-			wantInErr: []string{`targeting rule "vip" (index 0)`, "invalid segment name", "offset 29"},
+			wantInErr: []string{`targeting rule "vip" (index 0)`, errMsgBadName, "offset 29"},
 		},
 		{
 			name: "nikunjy name not a literal", rule: queryRule("vip", `key in segment(beta)`),
@@ -713,7 +700,7 @@ func TestSegmentRuleValidation(t *testing.T) {
 		},
 		{
 			name: "json bad name", rule: queryRule("vip", `{"inSegment": [{"var": "k"}, "A B"]}`),
-			wantInErr: []string{"$.inSegment[1]", "invalid segment name"},
+			wantInErr: []string{"$.inSegment[1]", errMsgBadName},
 		},
 		{
 			name: "json one operand", rule: queryRule("vip", `{"inSegment": [{"var": "k"}]}`),
@@ -773,12 +760,12 @@ func TestSegmentRuleValidation(t *testing.T) {
 		{
 			name: "default rule with a nikunjy segment", defaultSeg: true,
 			rule:      flagdef.Rule{Query: new(`key in segment("a")`), VariationResult: new(variantOff)},
-			wantInErr: []string{whereDefaultRule, "not allowed"},
+			wantInErr: []string{whereDefaultRule, errMsgNotAllowed},
 		},
 		{
 			name: "default rule with a json segment", defaultSeg: true,
 			rule:      flagdef.Rule{Query: new(`{"inSegment": [{"var": "k"}, "a"]}`), VariationResult: new(variantOff)},
-			wantInErr: []string{whereDefaultRule, "not allowed"},
+			wantInErr: []string{whereDefaultRule, errMsgNotAllowed},
 		},
 		{
 			name: "default rule with a malformed segment", defaultSeg: true,
@@ -999,7 +986,7 @@ func TestSegmentTermsOfAFlag(t *testing.T) {
 	flag.Scheduled = &[]flagdef.ScheduledStep{step}
 
 	assert.Equal(t, []segment.Term{
-		{Name: "alpha", Path: []string{"user", "email"}},
+		{Name: "alpha", Path: []string{ownedUserKey, "email"}},
 		{Name: "later", Path: []string{"key"}},
 		{Name: "zeta", Path: []string{"key"}},
 	}, flag.SegmentTerms(flagdef.NewService()))

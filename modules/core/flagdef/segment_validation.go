@@ -43,9 +43,9 @@ func (r *Rule) validateOnError() error {
 // hasSegmentTerm reports whether the query uses a segment term, valid or not. A JsonLogic query uses one when the
 // operation inSegment is a key of its document, not when the text appears in a string; a Rules query when it calls
 // segment().
-func hasSegmentTerm(svc *Service, trimmed string) bool {
+func hasSegmentTerm(trimmed string) bool {
 	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		return hasInSegment(svc.compiledQuery(trimmed).jsonLogic)
+		return hasInSegment(newCompiledQuery(trimmed).jsonLogic)
 	}
 
 	return strings.Contains(trimmed, "segment") && parser.HasSegmentCall(trimmed)
@@ -64,7 +64,7 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 	trimmed := rule.GetTrimmedQuery()
 
 	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
-		if compiled := s.compiledQuery(rule.GetQuery()); compiled.jlSeg != nil {
+		if compiled := newCompiledQuery(rule.GetQuery()); compiled.jlSeg != nil {
 			return compiled.jlSeg.terms
 		}
 
@@ -81,6 +81,70 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 	}
 
 	return evaluator.SegmentTerms()
+}
+
+// validateScheduledSegments checks the segment terms of the rules that the scheduled steps carry, and their onError:
+// a step replaces the query of a rule when it is due, and nothing else validates the result. The steps are partial
+// updates, so only what they set is checked, and only the queries that call segment().
+func (f *InternalFlag) validateScheduledSegments() error {
+	if f.Scheduled == nil {
+		return nil
+	}
+
+	for i := range *f.Scheduled {
+		step := &(*f.Scheduled)[i]
+		where := fmt.Sprintf("scheduled step %d", i)
+
+		rules := step.GetRules()
+		for j := range rules {
+			err := rules[j].validateStepSegments(false)
+			if err != nil {
+				return fmt.Errorf("%s: %w", where, wrapSegmentError(err, ruleLabel(j, &rules[j])))
+			}
+		}
+
+		if step.DefaultRule != nil {
+			err := step.DefaultRule.validateStepSegments(true)
+			if err != nil {
+				return fmt.Errorf("%s: %w", where, wrapSegmentError(err, "defaultRule"))
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateStepSegments checks the onError of a rule of a scheduled step and, when its query calls segment(), the
+// query. It does not compile what is cached: the query is only checked.
+func (r *Rule) validateStepSegments(isDefault bool) error {
+	err := r.validateOnError()
+	if err != nil {
+		return err
+	}
+
+	if r.Query == nil {
+		return nil
+	}
+
+	trimmed := r.GetTrimmedQuery()
+	if !hasSegmentTerm(trimmed) {
+		return nil
+	}
+
+	if isDefault {
+		return errSegmentInDefaultRule
+	}
+
+	if queryFormatOf(trimmed) == JSONLogicQueryFormat {
+		return newCompiledQuery(r.GetQuery()).segErr
+	}
+
+	_, err = parser.NewEvaluator(trimmed)
+	if err != nil {
+		return fmt.Errorf("parsing the query: %w", err)
+	}
+
+	return nil
 }
 
 // warnUndefinedSegments logs a warning for each segment of the rule that the Service does not define: it matches
@@ -108,7 +172,7 @@ func (f *InternalFlag) SegmentTerms(svc *Service) []segment.Term {
 	collect := func(rules []Rule) {
 		for i := range rules {
 			for _, term := range svc.queryTerms(&rules[i], nil) {
-				terms = append(terms, segment.Term{Name: term.Name, Path: term.Path})
+				terms = append(terms, segment.Term{Name: term.Name, Path: slices.Clone(term.Path)})
 			}
 		}
 	}
