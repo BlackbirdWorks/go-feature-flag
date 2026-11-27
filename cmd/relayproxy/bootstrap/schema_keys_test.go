@@ -14,6 +14,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
 
+const (
+	keyFormat      = "format"
+	keyAutoMigrate = "autoMigrate"
+)
+
 const envRef = "{fromEnv: X}"
 
 // yamlKeys lists the yaml keys of a struct, with a sample value and an empty value of the type of each.
@@ -28,9 +33,9 @@ func keyCases(t *testing.T, typ reflect.Type) []keyCase {
 	t.Helper()
 
 	samples := map[string]string{
-		"format": "csv", "queueUrl": "https://q.example/q", tcKafka: "{topic: t, addresses: [\"h:1\"]}",
+		keyFormat: "csv", "queueUrl": "https://q.example/q", tcKafka: "{topic: t, addresses: [\"h:1\"]}",
 		tcMeta: "{a: b}", tcHeaders: "{A: {fromEnv: X}}", "maxEventInMemory": "5", "flushInterval": "10s",
-		"autoMigrate": "true", endpointURLKey: envRef, tcSecret: envRef, webhookURLKey: envRef,
+		keyAutoMigrate: "true", endpointURLKey: envRef, tcSecret: envRef, webhookURLKey: envRef,
 		tcGooglecredentials: envRef, tcAccountkey: envRef, tcAccesskeyid: envRef,
 		tcSecretaccesskey: envRef, tcSessiontoken: envRef, tcExternalid: envRef,
 		tcTablename: "tbl",
@@ -210,23 +215,23 @@ func TestKeysOfEveryExporterKind(t *testing.T) {
 		{bootstrap.ExporterWebhook, "endpointUrl: {fromEnv: U}", []string{endpointURLKey, tcSecret, tcHeaders}},
 		{bootstrap.ExporterLog, "logFormat: x", []string{"logFormat"}},
 		{bootstrap.ExporterS3, "connection: s", append([]string{tcConnection, tcPath}, formats...)},
-		{bootstrap.ExporterKinesis, "connection: ks", []string{tcConnection, "streamArn", "streamName"}},
+		{bootstrap.ExporterKinesis, "connection: ks", []string{tcConnection, "streamArn", "streamName", keyFormat}},
 		{
 			bootstrap.ExporterGoogleStorage,
 			"bucket: b",
 			append([]string{tcBucket, tcGooglecredentials, tcPath}, formats...),
 		},
-		{bootstrap.ExporterSQS, "connection: qq", []string{tcConnection, "queueUrl"}},
-		{bootstrap.ExporterKafka, "kafka: {topic: t, addresses: [\"h:1\"]}", []string{tcKafka}},
+		{bootstrap.ExporterSQS, "connection: qq", []string{tcConnection, "queueUrl", keyFormat}},
+		{bootstrap.ExporterKafka, "kafka: {topic: t, addresses: [\"h:1\"]}", []string{tcKafka, keyFormat}},
 		{bootstrap.ExporterPubSub, "projectId: p\n    topic: t", []string{"projectId", "topic", tcGooglecredentials}},
 		{
 			bootstrap.ExporterBigQuery,
 			"projectId: p\n    datasetId: d",
-			[]string{"projectId", "datasetId", tcTablename, tcGooglecredentials},
+			[]string{"projectId", "datasetId", tcTablename, tcGooglecredentials, keyAutoMigrate},
 		},
 		{
 			bootstrap.ExporterRedshift, "connection: w\n    database: d\n    clusterIdentifier: c",
-			[]string{tcConnection, "database", "clusterIdentifier", "dbUser", "secretArn", tcTablename, "autoMigrate"},
+			[]string{tcConnection, "database", "clusterIdentifier", "dbUser", "secretArn", tcTablename, keyAutoMigrate},
 		},
 		{
 			bootstrap.ExporterAzure,

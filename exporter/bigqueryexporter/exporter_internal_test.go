@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +25,9 @@ import (
 )
 
 const (
+	datasetsPath             = "POST /projects/fake-project/datasets"
+	tablesPath               = "POST /projects/fake-project/datasets/fake-dataset/tables"
+	insertPath               = "POST /projects/fake-project/datasets/fake-dataset/tables/feature-table/insertAll"
 	amount                   = "amount"
 	country                  = "country"
 	fakeDatasetFeatureTable  = "fake-dataset.feature-table"
@@ -772,11 +779,13 @@ type ensureTableCall struct {
 }
 
 type mockBigQueryClient struct {
+	closeErr         error
 	ensureTableErr   error
 	putErr           error
 	inserters        map[string]*mockInserter
 	putErrByTable    map[string]error
 	ensureTableCalls []ensureTableCall
+	closeCalls       int
 }
 
 func newMockBigQueryClient() *mockBigQueryClient {
@@ -823,8 +832,10 @@ func (m *mockBigQueryClient) EnsureTable(
 	return nil
 }
 
-func (*mockBigQueryClient) Close() error {
-	return nil
+func (m *mockBigQueryClient) Close() error {
+	m.closeCalls++
+
+	return m.closeErr
 }
 
 func (m *mockBigQueryClient) ensureInitialized() {
@@ -854,4 +865,205 @@ func mockNewClientFunc(
 	return func(_ context.Context, _ string, _ ...option.ClientOption) (bigQueryClient, error) {
 		return client, nil
 	}
+}
+
+// TestExporter_Close checks that Close closes the client once, that a second call and a never initialised
+// exporter do nothing, and that the error of the client is returned.
+var errClose = errors.New("close failed")
+
+func TestExporter_Close(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr        error
+		client         func() *mockBigQueryClient
+		name           string
+		calls          int
+		wantCloseCalls int
+	}{
+		{
+			name: "an initialised exporter closes its client once", client: newMockBigQueryClient, calls: 2,
+			wantCloseCalls: 1,
+		},
+		{name: "an exporter that never exported has nothing to close", client: nil, calls: 2, wantCloseCalls: 0},
+		{
+			name: "the error of the client is returned",
+			client: func() *mockBigQueryClient {
+				client := newMockBigQueryClient()
+				client.closeErr = errClose
+
+				return client
+			},
+			calls: 1, wantErr: errClose, wantCloseCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exp := &Exporter{}
+
+			var client *mockBigQueryClient
+
+			if tt.client != nil {
+				client = tt.client()
+				exp.client = client
+			}
+
+			var errs []error
+
+			for range tt.calls {
+				errs = append(errs, exp.Close())
+			}
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, errs[0], tt.wantErr)
+			} else {
+				assert.Equal(t, make([]error, tt.calls), errs)
+			}
+
+			if client != nil {
+				assert.Equal(t, tt.wantCloseCalls, client.closeCalls)
+			}
+		})
+	}
+}
+
+// TestExporter_RealClientAgainstAFakeEndpoint runs the exporter with the real BigQuery client, pointed to a test
+// server that answers each call with the status of the case: the creation of the dataset and of the table (a
+// conflict means they exist already), and the insertion of the rows.
+func TestExporter_RealClientAgainstAFakeEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		wantErr      string
+		wantRequests []string
+		dataset      int
+		table        int
+		insert       int
+	}{
+		{
+			name: "everything succeeds", dataset: http.StatusOK, table: http.StatusOK, insert: http.StatusOK,
+			wantRequests: []string{
+				datasetsPath,
+				tablesPath,
+				insertPath,
+			},
+		},
+		{
+			name: "the dataset and the table exist already", dataset: http.StatusConflict, table: http.StatusConflict,
+			insert: http.StatusOK,
+			wantRequests: []string{
+				datasetsPath,
+				tablesPath,
+				insertPath,
+			},
+		},
+		{
+			name:         "the dataset cannot be created",
+			dataset:      http.StatusInternalServerError,
+			wantErr:      "create BigQuery dataset",
+			wantRequests: []string{datasetsPath},
+		},
+		{
+			name: "the table cannot be created", dataset: http.StatusOK, table: http.StatusForbidden,
+			wantErr: "create BigQuery table",
+			wantRequests: []string{
+				datasetsPath,
+				tablesPath,
+			},
+		},
+		{
+			name: "the rows cannot be inserted", dataset: http.StatusOK, table: http.StatusOK,
+			insert: http.StatusBadRequest, wantErr: "put rows to BigQuery inserter",
+			wantRequests: []string{
+				datasetsPath,
+				tablesPath,
+				insertPath,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu       sync.Mutex
+				requests []string
+			)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				requests = append(requests, r.Method+" "+r.URL.Path)
+
+				status := tt.insert
+
+				switch {
+				case strings.HasSuffix(r.URL.Path, "/datasets"):
+					status = tt.dataset
+				case strings.HasSuffix(r.URL.Path, "/tables"):
+					status = tt.table
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte("{}"))
+			}))
+			t.Cleanup(srv.Close)
+
+			ctx := context.Background()
+
+			client, err := newBigQueryClient(
+				ctx,
+				fakeProject,
+				option.WithEndpoint(srv.URL),
+				option.WithoutAuthentication(),
+			)
+			require.NoError(t, err)
+
+			exp := &Exporter{
+				ProjectID:   fakeProject,
+				DatasetID:   "fake-dataset",
+				TableName:   featureTable,
+				AutoMigrate: true,
+				client:      client,
+			}
+
+			err = exp.Export(ctx, slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
+				&exporter.FeatureEvent{Kind: "feature", Key: "k", UserKey: "u", CreationDate: 1},
+			})
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+
+			mu.Lock()
+			assert.Equal(t, tt.wantRequests, requests)
+			mu.Unlock()
+
+			require.NoError(t, exp.Close())
+		})
+	}
+}
+
+// TestExporter_DefaultClientNeedsValidCredentials checks the path where the exporter builds its own client: the
+// credentials it was given must be usable.
+func TestExporter_DefaultClientNeedsValidCredentials(t *testing.T) {
+	t.Parallel()
+
+	exp := &Exporter{ProjectID: fakeProject, DatasetID: "d", GoogleCredentials: []byte("not json")}
+
+	err := exp.Export(context.Background(), slog.New(slog.DiscardHandler), []exporter.ExportableEvent{
+		&exporter.FeatureEvent{Kind: "feature", Key: "k"},
+	})
+	require.ErrorContains(t, err, "create BigQuery client")
 }
