@@ -1,0 +1,17 @@
+Usage: semaphore-cli config <command> [flags]
+
+Validate and print the version 2 bootstrap file of the relay proxy
+
+Flags:
+  -h, --help             Show context-sensitive help.
+  -v, --version          Print the version and exit
+
+  -o, --output="text"    output format: text or json (YAML for print)
+
+Commands:
+  config validate <file> [flags]
+    Check a bootstrap file with the loader of the relay proxy
+
+  config print <file> [flags]
+    Print the effective bootstrap file: defaults and environment overrides
+    applied, secrets redacted

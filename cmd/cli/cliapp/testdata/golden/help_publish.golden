@@ -1,0 +1,47 @@
+Usage: semaphore-cli publish <command> [flags]
+
+Publish flag files and flag-set documents to S3 behind a manifest
+
+Reads the documents of <dir> (flags/*.yaml|yml|json and
+flagsets/*.yaml|yml|json), validates them, uploads the objects that are
+absent under their content-addressed keys, and writes the manifest last with a
+conditional write, so a reader never sees a half-written state.
+
+Where to publish comes from the control-plane connection of a bootstrap file
+(--config), or from --bucket and --region. Exit codes: 0 success, 1 failure or
+bad usage, 2 invalid documents or configuration, 3 conflict (another publisher
+won; nothing visible changed), 4 store call failed (safe to repeat), 5 the
+bucket holds a bad state.
+
+Flags:
+  -h, --help                   Show context-sensitive help.
+  -v, --version                Print the version and exit
+
+  -c, --config=STRING          bootstrap file whose controlPlane connection is
+                               the target
+      --bucket=STRING          bucket (without --config)
+      --prefix=STRING          key prefix of the objects and of the default
+                               manifest key
+      --region=STRING          AWS region (without --config)
+      --endpoint=STRING        S3 endpoint, for emulators and S3 compatible
+                               stores (without --config)
+      --channel=STRING         channel of the manifest (without --config;
+                               default stable)
+      --connection=STRING      connection name written in the manifest (without
+                               --config; default control)
+      --manifest-key=STRING    manifest key (without --config; default
+                               <prefix>manifests/<channel>.yaml)
+  -o, --output="text"          output format: text or json
+      --generation=0           generation to write (default: the one in the
+                               bucket plus one)
+      --dry-run                plan the publication: the same reads, no write
+      --replace-invalid-manifest
+                               replace a manifest in the bucket that is invalid
+                               or over the limits (needs --generation)
+
+Commands:
+  publish <dir> [flags]
+    Source directory containing flags/ and flagsets/.
+
+  publish verify [flags]
+    Check the manifest and every object it lists in the bucket

@@ -1,6 +1,7 @@
 package publish_test
 
 import (
+	"bytes"
 	"io"
 	"io/fs"
 	"net/http"
@@ -141,10 +142,14 @@ func TestPublishThroughTheConnectionFactory(t *testing.T) {
 		return value, ok
 	}
 
-	cmd := publish.NewPublishCmdWith(deps)
-	cmd.SetArgs([]string{srcDir, optConfig, "/b.yaml"})
+	var stdout, stderr bytes.Buffer
 
-	err := cmd.ExecuteContext(t.Context())
+	err := publish.Run(
+		t.Context(),
+		[]string{srcDir, optConfig, "/b.yaml"},
+		&helper.Streams{Stdout: &stdout, Stderr: &stderr},
+		deps,
+	)
 	require.Error(t, err)
 
 	assert.Equal(t, helper.ExitTransport, helper.ExitCodeOf(err), "an access error of the store is a transport failure")
@@ -166,10 +171,14 @@ func TestPublishFactoryRejectsAnInvalidSpec(t *testing.T) {
 	deps := publish.DefaultDeps()
 	deps.OpenDir = exactDir(srcDir, sourceTree())
 
-	cmd := publish.NewPublishCmdWith(deps)
-	cmd.SetArgs([]string{srcDir, optBucket, "b", optRegion, regionUSEast, optEndpoint, "://bad"})
+	var stdout, stderr bytes.Buffer
 
-	err := cmd.ExecuteContext(t.Context())
+	err := publish.Run(
+		t.Context(),
+		[]string{srcDir, optBucket, "b", optRegion, regionUSEast, optEndpoint, "://bad"},
+		&helper.Streams{Stdout: &stdout, Stderr: &stderr},
+		deps,
+	)
 	require.Error(t, err)
 	assert.Equal(t, helper.ExitInvalid, helper.ExitCodeOf(err), err.Error())
 }
@@ -177,15 +186,16 @@ func TestPublishFactoryRejectsAnInvalidSpec(t *testing.T) {
 func TestNewPublishCmdIsWiredToTheRealEnvironment(t *testing.T) {
 	t.Parallel()
 
-	cmd := publish.NewPublishCmd()
-	assert.Equal(t, "publish", strings.Fields(cmd.Use)[0])
+	var stdout, stderr bytes.Buffer
 
-	names := make([]string, 0, len(cmd.Commands()))
-	for _, c := range cmd.Commands() {
-		names = append(names, c.Name())
-	}
-
-	assert.Equal(t, []string{verifyWord}, names)
+	err := publish.Run(
+		t.Context(),
+		[]string{"--help"},
+		&helper.Streams{Stdout: &stdout, Stderr: &stderr},
+		publish.DefaultDeps(),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), verifyWord)
 
 	deps := publish.DefaultDeps()
 	assert.Equal(

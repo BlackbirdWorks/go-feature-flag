@@ -80,7 +80,7 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 		return
 	}
 
-	got, err := eval.Evaluate()
+	got, err := eval.Evaluate(t.Context())
 	tt.wantErr(t, err)
 
 	if tt.expectedErr != "" {

@@ -225,7 +225,7 @@ One rule holds for every `semaphore-cli` command:
 
 - **stdout carries results only.** That is the command output and the reports, including a `publish verify` text report that
   lists problems. With `--output json` it is exactly one JSON value: the result, the `verify` report, or the error object.
-- **stderr carries every diagnostic.** That is Cobra's usage and its own errors, and the final `error executing command` line of
+- **stderr carries every diagnostic.** That is usage and parse errors, and the final `error executing command` line of
   every command (an unknown flag or subcommand, a bad argument count, `lint`, `evaluate`, `config`, `publish`). With
   `--output json` the error object is on stdout and the final line is still on stderr, so no other text reaches stdout.
 
@@ -237,7 +237,7 @@ One rule holds for every `semaphore-cli` command:
 | Failure, `-o json` | one JSON error object | the final line | see below |
 | `publish verify` with problems, text | the report | the final line (`verification failed`) | 5 |
 | `publish verify` with problems, `-o json` | the report (one JSON document, `ok: false`) | the final line | 5 |
-| Unknown root flag or subcommand | nothing | Cobra's message, usage and the final line | 1 |
+| Unknown root flag or subcommand | nothing | parse error, usage, and the final line | 1 |
 | Argument or flag error of `publish` or `config`, `-o json` | one JSON error object (`usage`) | the final line | 1 |
 
 ## Exit codes

@@ -1,0 +1,33 @@
+Usage: semaphore-cli <command> [flags]
+
+A command line interface for Semaphore operations.
+
+Flags:
+  -h, --help       Show context-sensitive help.
+  -v, --version    Print the version and exit
+
+Commands:
+  evaluate [flags]
+    ⚙️ Evaluate feature flags based on configuration and context
+
+  lint [<config_file>] [flags]
+    🛑 Lint Semaphore configuration file.
+
+  generate manifest --flag_manifest_destination=STRING [flags]
+    📄 (experimental) Generate an OpenFeature flag manifest based on your flags
+    configuration.
+
+  publish <dir> [flags]
+    Source directory containing flags/ and flagsets/.
+
+  publish verify [flags]
+    Check the manifest and every object it lists in the bucket
+
+  config validate <file> [flags]
+    Check a bootstrap file with the loader of the relay proxy
+
+  config print <file> [flags]
+    Print the effective bootstrap file: defaults and environment overrides
+    applied, secrets redacted
+
+Run "semaphore-cli <command> --help" for more information on a command.
