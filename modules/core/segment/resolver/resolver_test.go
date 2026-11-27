@@ -55,7 +55,7 @@ func newResolver(t *testing.T, store segment.Provider, opts *resolver.Options) *
 		assert.NoError(
 			t,
 			res.Shutdown(ctx),
-		) //nolint:testifylint // cleanup: the test goroutine continues to the next cleanup
+		)
 	})
 
 	return res

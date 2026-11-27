@@ -330,13 +330,13 @@ func awaitFlight(ctx context.Context, flt *flight) (flightVerdict, error) {
 			return flightAnswered, nil // the answer came together with the end of the context
 		}
 
-		return callerGone, ctx.Err()
+		return callerGone, fmt.Errorf("%w", ctx.Err())
 	case <-flt.call.ctx.Done():
 		if isDone(flt) {
 			return flightAnswered, nil
 		}
 
-		return flightTimedOut, flt.call.ctx.Err()
+		return flightTimedOut, fmt.Errorf("%w", flt.call.ctx.Err())
 	}
 }
 
@@ -444,26 +444,6 @@ func (r *Resolver) Health() segment.Health {
 	return health
 }
 
-// enter admits a call to the store that is not a lookup (Init, Exists) under the same lock as the lookups: nothing
-// reaches the store once Shutdown has started, and Shutdown waits for the calls that were admitted. The returned
-// function ends the call.
-func (r *Resolver) enter() (func(), error) {
-	r.admit.RLock()
-	defer r.admit.RUnlock()
-
-	if r.closed {
-		return nil, ErrClosed
-	}
-
-	r.wg.Add(1)
-	r.inflight.Add(1)
-
-	return func() {
-		r.inflight.Add(-1)
-		r.wg.Done()
-	}, nil
-}
-
 // Init calls Init of the store when it has one.
 func (r *Resolver) Init(ctx context.Context) error {
 	init, ok := r.inner.(segment.Initializer)
@@ -559,7 +539,7 @@ func (r *Resolver) state(name string) *segState {
 // that was filled since the first look costs no second call.
 func (r *Resolver) register(
 	ctx context.Context, pend []pending, now time.Time, obs *CallObservation, accs *segAccs,
-) (error, *call) { //nolint:revive // the first is what the call refused, not a failure
+) (*call, error) {
 	var memo [4]decision
 
 	decided := memo[:0]
@@ -588,39 +568,10 @@ func (r *Resolver) register(
 			continue
 		}
 
-		if sst.cache != nil {
-			state, ok := sst.cache.get(pnd.key, now)
-			if ok {
-				sst.mu.Unlock()
-
-				pnd.hit, pnd.state = true, state
-				obs.Hits++
-				acc.hits++
-
-				continue
-			}
-		}
-
-		if now.Before(sst.notLoadedUntil) {
-			sst.mu.Unlock()
-			sst.notLoadedSkips.Add(1)
-
-			obs.NotLoaded++
-
-			acc.mark(ReasonNotLoaded)
-
-			continue
-		}
-
-		if int(r.overdue.Load()) >= r.maxOver {
-			sst.mu.Unlock()
-
-			obs.ShortCircuited++
-
-			acc.mark(ReasonOverdue)
-
-			if refusal == nil {
-				refusal = ErrOverdue
+		handled, refused := r.skip(pnd, now, obs, acc)
+		if handled {
+			if refused != nil && refusal == nil {
+				refusal = refused
 			}
 
 			continue
@@ -652,7 +603,50 @@ func (r *Resolver) register(
 		acc.misses++
 	}
 
-	return refusal, shared
+	return shared, refusal
+}
+
+// skip handles the lookups that need no call: an answer that the cache has since the first look, a segment found not
+// loaded recently, and too many calls overdue. It is called with the lock of the segment held and releases it when it
+// handled the lookup. It returns what it refused, if anything.
+func (r *Resolver) skip(pnd *pending, now time.Time, obs *CallObservation, acc *segAcc) (bool, error) {
+	sst := pnd.sst
+
+	if sst.cache != nil {
+		state, ok := sst.cache.get(pnd.key, now)
+		if ok {
+			sst.mu.Unlock()
+
+			pnd.hit, pnd.state = true, state
+			obs.Hits++
+			acc.hits++
+
+			return true, nil
+		}
+	}
+
+	if now.Before(sst.notLoadedUntil) {
+		sst.mu.Unlock()
+		sst.notLoadedSkips.Add(1)
+
+		obs.NotLoaded++
+
+		acc.mark(ReasonNotLoaded)
+
+		return true, nil
+	}
+
+	if int(r.overdue.Load()) >= r.maxOver {
+		sst.mu.Unlock()
+
+		obs.ShortCircuited++
+
+		acc.mark(ReasonOverdue)
+
+		return true, ErrOverdue
+	}
+
+	return false, nil
 }
 
 func newCall(ctx context.Context, timeout time.Duration) *call {
@@ -921,11 +915,9 @@ func (r *Resolver) report(lookups []segment.Lookup, obs *CallObservation, accs *
 // prepare answers what the cache has, and sends the rest to the store: it joins the flights that exist, opens the
 // ones that the breaker allows and starts the shared call. It runs under the admission lock, so a call that is
 // started is waited for by Shutdown.
-//
-//nolint:gocognit // one pass over the lookups: guard, normalise, cache, then the flights
 func (r *Resolver) prepare(
 	ctx context.Context, lookups []segment.Lookup, now time.Time, obs *CallObservation, accs *segAccs,
-) ([]pending, error, error) { //nolint:revive // the second is what the call refused, not a failure
+) ([]pending, error, error) {
 	var pend []pending
 
 	for i := range lookups {
@@ -987,7 +979,7 @@ func (r *Resolver) prepare(
 		return nil, nil, fmt.Errorf("%w: %w", ErrWaiting, ctx.Err())
 	}
 
-	refusal, shared := r.register(ctx, pend, now, obs, accs)
+	shared, refusal := r.register(ctx, pend, now, obs, accs)
 	if shared != nil {
 		r.start(shared, pend)
 	}
@@ -1015,4 +1007,24 @@ func (r *Resolver) start(shared *call, pend []pending) {
 	r.inflight.Add(1)
 
 	go r.run(shared, leaders)
+}
+
+// enter admits a call to the store that is not a lookup (Init, Exists) under the same lock as the lookups: nothing
+// reaches the store once Shutdown has started, and Shutdown waits for the calls that were admitted. The returned
+// function ends the call.
+func (r *Resolver) enter() (func(), error) {
+	r.admit.RLock()
+	defer r.admit.RUnlock()
+
+	if r.closed {
+		return nil, ErrClosed
+	}
+
+	r.wg.Add(1)
+	r.inflight.Add(1)
+
+	return func() {
+		r.inflight.Add(-1)
+		r.wg.Done()
+	}, nil
 }

@@ -430,7 +430,7 @@ func TestResolverHonoursTheTTLs(t *testing.T) {
 			store := &internalStore{}
 			res := newInternal(t, store, &Options{Default: SegmentOptions{TTL: time.Minute}})
 			now := clock.Now()
-			lookups := func() []segment.Lookup { return []segment.Lookup{{Segment: "beta", ID: "a"}} }
+			lookups := func() []segment.Lookup { return []segment.Lookup{{Segment: testSeg, ID: "a"}} }
 
 			require.NoError(t, res.containsAt(context.Background(), lookups(), now))
 
@@ -453,7 +453,7 @@ func TestResolverRecoversThroughTheProbe(t *testing.T) {
 	})
 	now := clock.Now() // the instant the shared call stamps the opening of the breaker
 
-	lookups := func() []segment.Lookup { return []segment.Lookup{{Segment: "beta", ID: "a"}} }
+	lookups := func() []segment.Lookup { return []segment.Lookup{{Segment: testSeg, ID: "a"}} }
 
 	require.ErrorIs(t, res.containsAt(context.Background(), lookups(), now), errBoomInternal)
 	require.ErrorIs(t, res.containsAt(context.Background(), lookups(), now), ErrCircuitOpen)
@@ -465,7 +465,7 @@ func TestResolverRecoversThroughTheProbe(t *testing.T) {
 	require.NoError(t, res.containsAt(context.Background(), probe, now.Add(time.Minute)))
 	assert.Equal(t, []segment.State{segment.Member}, []segment.State{probe[0].State})
 	assert.Equal(t, 2, store.calls)
-	assert.Equal(t, BreakerClosed, res.Status().Segments["beta"].Breaker)
+	assert.Equal(t, BreakerClosed, res.Status().Segments[testSeg].Breaker)
 
 	stats := counters.Snapshot()
 	assert.Equal(t, uint64(1), stats.BreakerOpened)
@@ -477,14 +477,14 @@ func TestInvalidateDetachesTheFlightsInTheMap(t *testing.T) {
 	t.Parallel()
 
 	res := newInternal(t, &internalStore{}, &Options{})
-	seg := res.state("beta")
+	seg := res.state(testSeg)
 
 	seg.cache.put("old", segment.Member, baseTime())
 
 	stale := &flight{done: make(chan struct{}), epoch: seg.epoch.Load()}
 	seg.flights["k"] = stale
 
-	res.Invalidate("beta")
+	res.Invalidate(testSeg)
 	assert.Equal(t, 0, seg.cache.len())
 	assert.Empty(t, seg.flights, "the flight is detached: a caller after Invalidate does not join it")
 
@@ -517,6 +517,8 @@ const (
 	opRecord = "record"
 )
 
+const testSeg = "beta"
+
 var errBoomInternal = errors.New("boom")
 
 func TestCallTimeoutDefault(t *testing.T) {
@@ -528,7 +530,7 @@ func TestCallTimeoutDefault(t *testing.T) {
 
 // signalCtx is a context whose Done is observed: the test learns when someone starts to wait on it.
 type signalCtx struct {
-	context.Context
+	context.Context //nolint:containedctx // a double of context.Context that wraps one
 
 	waiting chan struct{}
 	once    sync.Once
@@ -549,10 +551,10 @@ func TestOneFlightTimingOutDoesNotCutTheOthersShort(t *testing.T) {
 	live := &signalCtx{Context: context.Background(), waiting: make(chan struct{})}
 	slow := &flight{done: make(chan struct{}), call: &call{ctx: expired}}
 	late := &flight{done: make(chan struct{}), call: &call{ctx: live}, state: segment.Member}
-	seg := &segState{name: "beta"}
+	seg := &segState{name: testSeg}
 
 	pend := []pending{{sst: seg, flt: slow, idx: 0}, {sst: seg, flt: late, idx: 1}}
-	lookups := []segment.Lookup{{Segment: "beta", ID: "a"}, {Segment: "beta", ID: "b"}}
+	lookups := []segment.Lookup{{Segment: testSeg, ID: "a"}, {Segment: testSeg, ID: "b"}}
 
 	var accs segAccs
 
@@ -584,7 +586,7 @@ func TestRegisterLooksAtTheCacheAgainUnderTheLock(t *testing.T) {
 
 	store := &internalStore{}
 	res := newInternal(t, store, &Options{})
-	seg := res.state("beta")
+	seg := res.state(testSeg)
 	now := baseTime()
 
 	// the first look missed; the answer is filled before the lookup is registered
@@ -597,7 +599,7 @@ func TestRegisterLooksAtTheCacheAgainUnderTheLock(t *testing.T) {
 		accs segAccs
 	)
 
-	refusal, shared := res.register(context.Background(), pend, now, &obs, &accs)
+	shared, refusal := res.register(context.Background(), pend, now, &obs, &accs)
 
 	require.NoError(t, refusal)
 	assert.Nil(t, shared, "no call is made for an answer that is in the cache")

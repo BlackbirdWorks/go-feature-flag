@@ -111,6 +111,27 @@ type gatedLifecycle struct {
 	mu            sync.Mutex
 }
 
+func (g *gatedLifecycle) Init(context.Context) error { //nolint:unparam // the interface returns an error
+	g.record("init")
+
+	return nil
+}
+
+func (g *gatedLifecycle) Exists(
+	_ context.Context,
+	names []string,
+) ([]segment.State, error) { //nolint:unparam // the interface returns an error
+	g.record("exists")
+
+	if g.existsEntered != nil {
+		g.existsEntered <- struct{}{}
+
+		<-g.existsGate
+	}
+
+	return make([]segment.State, len(names)), nil
+}
+
 func (g *gatedLifecycle) record(event string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -123,23 +144,6 @@ func (g *gatedLifecycle) seen() []string {
 	defer g.mu.Unlock()
 
 	return append([]string{}, g.events...)
-}
-
-func (g *gatedLifecycle) Init(context.Context) error {
-	g.record("init")
-
-	return nil
-}
-
-func (g *gatedLifecycle) Exists(_ context.Context, names []string) ([]segment.State, error) {
-	g.record("exists")
-
-	if g.existsEntered != nil {
-		g.existsEntered <- struct{}{}
-		<-g.existsGate
-	}
-
-	return make([]segment.State, len(names)), nil
 }
 
 func TestInitAndExistsGoThroughTheShutdownAdmission(t *testing.T) {
