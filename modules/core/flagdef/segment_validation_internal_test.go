@@ -93,11 +93,12 @@ func TestFirstEvaluationAfterLoadCompilesNothing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		query string
+		name        string
+		query       string
+		wantVariant string
 	}{
-		{name: "jsonlogic", query: `{"inSegment": [{"var": "targetingKey"}, "beta"]}`},
-		{name: "rules", query: rulesBetaQuery},
+		{name: "jsonlogic", query: `{"inSegment": [{"var": "targetingKey"}, "beta"]}`, wantVariant: "on"},
+		{name: "rules", query: rulesBetaQuery, wantVariant: "on"},
 	}
 
 	for _, tt := range tests {
@@ -119,12 +120,14 @@ func TestFirstEvaluationAfterLoadCompilesNothing(t *testing.T) {
 					ffcontext.NewEvaluationContext("k"),
 					Context{Service: svc, Segments: allMembers{}},
 				)
-				assert.Equal(t, "on", details.Variant)
+				assert.Equal(t, tt.wantVariant, details.Variant)
 			}
 
 			assert.Equal(t, 1, svc.segmentQueries.size())
 			assert.Equal(t, 0, mapSize(&svc.compiled), "nothing was memoized by the evaluations")
 			assert.Equal(t, evaluators, mapSize(&svc.nikunjy.entries), "no evaluator was parsed by the evaluations")
+
+			runtime.KeepAlive(flag) // the flag keeps its queries registered until the checks are done
 		})
 	}
 }
