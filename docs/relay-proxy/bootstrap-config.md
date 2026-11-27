@@ -222,7 +222,7 @@ Settings of the store types `redis` and `valkey` (stores of [dynamic segments](.
 
 | Type | Key | Type | Default | Allowed |
 |---|---|---|---|---|
-| both | `addresses` | list of strings | required | `host:port`, no credentials, no duplicate |
+| both | `addresses` | list of strings | required | `host:port` (IPv6 in brackets), no credentials, no white space, no duplicate; at least one |
 | both | `username` | string | none | |
 | both | `password` | secret | none | `fromEnv` or `fromFile` (an inline value is refused unless inline secrets are allowed) |
 | both | `tls.enable` | boolean | `false` | |

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // storeConnection checks a redis or valkey connection.
@@ -35,7 +36,12 @@ func (v *validator) storeConnection(path string, conn Connection) {
 
 	for i, address := range addresses {
 		base := path + ".addresses[" + strconv.Itoa(i) + "]"
-		v.hostPort(base, address)
+
+		if strings.ContainsFunc(address, unicode.IsSpace) {
+			v.failf(base, ErrInvalidValue, "expected host:port without white space")
+		} else {
+			v.hostPort(base, address)
+		}
 
 		if first, dup := seen[address]; dup {
 			v.failf(base, ErrDuplicateName, "same address as addresses[%d]", first)

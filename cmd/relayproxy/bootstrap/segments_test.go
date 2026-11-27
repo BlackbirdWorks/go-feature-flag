@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	addressPath  = "connections.v.addresses[0]"
 	segmentsHead = "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"]}\n" +
 		"  r: {type: redis, addresses: [\"h:1\"]}\n"
 	dbPath = "connections.v.db"
@@ -79,12 +80,12 @@ func TestStoreConnectionErrors(t *testing.T) {
 		{
 			name:    "address without port",
 			doc:     "version: 2\nconnections:\n  v: {type: redis, addresses: [host]}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.addresses[0]", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: addressPath, wantLine: 3,
 		},
 		{
 			name:    "credentials in the address",
 			doc:     "version: 2\nconnections:\n  v: {type: redis, addresses: [\"u:pw@host:1\"]}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.addresses[0]", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: addressPath, wantLine: 3,
 		},
 		{
 			name:    "duplicate address",
@@ -236,4 +237,51 @@ func TestDefaultsMatchTheModules(t *testing.T) {
 	assert.Equal(t, bootstrap.PipeliningAuto, string(valkeysegment.PipeliningAuto))
 	assert.Equal(t, bootstrap.NormalizeTrimLower, string(resolver.NormalizeTrimLower))
 	assert.Equal(t, 100*time.Millisecond, bootstrap.DefaultLookupTimeout)
+}
+
+func TestStoreAddressErrors(t *testing.T) {
+	t.Parallel()
+
+	runParseErrors(t, []parseErrorCase{
+		{
+			name:    "white space in the host",
+			doc:     "version: 2\nconnections:\n  v: {type: redis, addresses: [\"redis :6379\"]}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: addressPath, wantLine: 3,
+		},
+		{
+			name:    "trailing white space",
+			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"redis:6379 \"]}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: addressPath, wantLine: 3,
+		},
+		{
+			name:    "empty host",
+			doc:     "version: 2\nconnections:\n  v: {type: redis, addresses: [\":6379\"]}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: addressPath, wantLine: 3,
+		},
+	})
+}
+
+func TestStoreAddressesAccepted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		address       string
+		wantAddresses []string
+	}{
+		{name: "host", address: "redis:6379", wantAddresses: []string{"redis:6379"}},
+		{name: "bracketed IPv6", address: "[::1]:6379", wantAddresses: []string{"[::1]:6379"}},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nconnections:\n  v: {type: redis, addresses: [\"" + tcase.address + "\"]}\n"
+
+			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			require.NoError(t, err)
+			assert.Equal(t, tcase.wantAddresses, cfg.Connections["v"].Redis.Addresses)
+		})
+	}
 }

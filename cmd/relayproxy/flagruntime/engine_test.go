@@ -441,6 +441,12 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			wantPending: []string{flagruntime.SettingEvaluation},
 		},
 		{
+			name:        "a change limited to the segment resolver settings is reported",
+			extra:       "segments: {resolver: {callTimeout: 3s}}\n",
+			wantAdmin:   []string{adminOne},
+			wantPending: []string{flagruntime.SettingSegments},
+		},
+		{
 			name:        "a changed version is reported",
 			edits:       [][2]string{{"version: 2", "version: 3"}},
 			wantAdmin:   []string{adminOne},

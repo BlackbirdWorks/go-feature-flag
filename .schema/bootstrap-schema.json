@@ -1776,6 +1776,46 @@
             "type": "object"
         },
         "RedisConnection": {
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "cluster": {
+                                "const": true
+                            }
+                        },
+                        "required": [
+                            "cluster"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "db": {
+                                "const": 0
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "addresses": {
+                                "minItems": 2
+                            }
+                        },
+                        "required": [
+                            "addresses"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "db": {
+                                "const": 0
+                            }
+                        }
+                    }
+                }
+            ],
             "properties": {
                 "tls": {
                     "$ref": "#/$defs/StoreTLS"
@@ -1811,9 +1851,11 @@
                 },
                 "addresses": {
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "pattern": "^[^\\s@]+:[0-9]+$"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "minItems": 1
                 },
                 "db": {
                     "type": "integer",
@@ -1829,7 +1871,8 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "type"
+                "type",
+                "addresses"
             ]
         },
         "RedisTimeouts": {
@@ -2099,6 +2142,32 @@
             "type": "object"
         },
         "StoreTLS": {
+            "allOf": [
+                {
+                    "if": {
+                        "not": {
+                            "properties": {
+                                "enable": {
+                                    "const": true
+                                }
+                            },
+                            "required": [
+                                "enable"
+                            ]
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "caBundleFile": {
+                                "const": ""
+                            },
+                            "serverName": {
+                                "const": ""
+                            }
+                        }
+                    }
+                }
+            ],
             "properties": {
                 "serverName": {
                     "type": "string"
@@ -2154,6 +2223,27 @@
             "type": "object"
         },
         "ValkeyConnection": {
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "addresses": {
+                                "minItems": 2
+                            }
+                        },
+                        "required": [
+                            "addresses"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "forceSingleClient": {
+                                "const": false
+                            }
+                        }
+                    }
+                }
+            ],
             "properties": {
                 "tls": {
                     "$ref": "#/$defs/StoreTLS"
@@ -2190,9 +2280,11 @@
                 },
                 "addresses": {
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "pattern": "^[^\\s@]+:[0-9]+$"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "minItems": 1
                 },
                 "blockingPipeline": {
                     "type": "integer",
@@ -2208,7 +2300,8 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "type"
+                "type",
+                "addresses"
             ]
         },
         "ValkeyTimeouts": {
