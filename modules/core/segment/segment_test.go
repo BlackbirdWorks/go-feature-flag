@@ -34,6 +34,10 @@ func TestDefinitionValidate(t *testing.T) {
 			def:  segment.Definition{Name: "a-b_1", Type: segment.TypeValkey, OnError: segment.OnErrorMember},
 		},
 		{
+			name: "redis with a policy",
+			def:  segment.Definition{Name: "a-b_1", Type: segment.TypeRedis, OnError: segment.OnErrorMember},
+		},
+		{
 			name: "each policy: notMember",
 			def:  segment.Definition{Name: "a", Type: segment.TypeFile, OnError: segment.OnErrorNotMember},
 		},
@@ -48,7 +52,11 @@ func TestDefinitionValidate(t *testing.T) {
 			def:     segment.Definition{Name: strings.Repeat("a", 65), Type: segment.TypeFile},
 			wantErr: errName,
 		},
-		{name: "bad type", def: segment.Definition{Name: "a", Type: "s3"}, wantErr: "invalid type"},
+		{
+			name:    "bad type",
+			def:     segment.Definition{Name: "a", Type: "s3"},
+			wantErr: `invalid type: want file, redis or valkey, got "s3"`,
+		},
 		{name: "empty type", def: segment.Definition{Name: "a"}, wantErr: "invalid type"},
 		{
 			name:    "bad policy",
