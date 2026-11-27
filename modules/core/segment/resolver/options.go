@@ -31,6 +31,9 @@ const (
 	DefaultMaxOverdue = 8
 	// DefaultMaxIDBytes is the longest id that is looked up: a longer one is left Unknown and never sent to the store.
 	DefaultMaxIDBytes = 512
+	// DefaultShutdownGrace is how long the Shutdown of the store may run past the deadline of the first Shutdown of
+	// the resolver (see Options.ShutdownGrace).
+	DefaultShutdownGrace = 5 * time.Second
 )
 
 var (
@@ -138,10 +141,15 @@ type Options struct {
 	// MaxIDBytes is the longest id, in bytes, that the resolver looks up. A longer id stays Unknown, is not cached
 	// and is not sent to the store. Zero means DefaultMaxIDBytes.
 	MaxIDBytes int
+	// ShutdownGrace bounds the Shutdown of the store. The context that the resolver passes to it ends ShutdownGrace
+	// after the deadline of the context of the first Shutdown of the resolver (ShutdownGrace after the call when that
+	// context has no deadline), so a store that stops only when its context ends does not stay pending after every
+	// caller has left. Zero means DefaultShutdownGrace.
+	ShutdownGrace time.Duration
 }
 
 func (o *Options) validate() error {
-	if o.CallTimeout < 0 || o.MaxIDBytes < 0 || o.MaxOverdue < 0 {
+	if o.CallTimeout < 0 || o.MaxIDBytes < 0 || o.MaxOverdue < 0 || o.ShutdownGrace < 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidOptions, errNegative)
 	}
 
