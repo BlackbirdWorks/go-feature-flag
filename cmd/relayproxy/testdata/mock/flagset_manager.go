@@ -3,6 +3,7 @@ package mock
 import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
 // MockFlagsetManager is a mock implementation for testing error scenarios
@@ -13,7 +14,7 @@ type MockFlagsetManager struct {
 	GetFlagSetsErr      error
 }
 
-func (m *MockFlagsetManager) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
+func (m *MockFlagsetManager) FlagSet(_ string) (service.FlagSet, error) {
 	if len(m.FlagSets) == 0 {
 		return nil, m.GetFlagSetsErr
 	}
@@ -27,7 +28,13 @@ func (m *MockFlagsetManager) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) 
 		keys = append(keys, key)
 	}
 
-	return m.FlagSets[keys[0]], m.GetFlagSetsErr
+	found := m.FlagSets[keys[0]]
+	if found == nil {
+		// a nil pointer in the interface would not be nil for the callers
+		return nil, m.GetFlagSetsErr
+	}
+
+	return found, m.GetFlagSetsErr
 }
 
 func (m *MockFlagsetManager) FlagSetName(_ string) (string, error) {

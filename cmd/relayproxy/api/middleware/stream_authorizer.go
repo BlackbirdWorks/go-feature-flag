@@ -11,7 +11,7 @@ import (
 // streaming connections (websocket / SSE).
 // In flag set mode (flagsetManager is not nil) a key is accepted if it routes to a flag set, and the name of the
 // flag set resolved here is the one the handler uses. exposeError adds the error to the body of a refusal.
-func StreamAuthorizer(keys service.APIKeys, flagsetManager service.FlagsetManager, exposeError bool) Func {
+func StreamAuthorizer(keys service.APIKeys, flagsetManager service.FlagSetResolver, exposeError bool) Func {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.URL.Query().Get("apiKey")
@@ -32,7 +32,7 @@ func StreamAuthorizer(keys service.APIKeys, flagsetManager service.FlagsetManage
 }
 
 func streamKeyAccepted(
-	r *http.Request, keys service.APIKeys, flagsetManager service.FlagsetManager, apiKey string,
+	r *http.Request, keys service.APIKeys, flagsetManager service.FlagSetResolver, apiKey string,
 ) (*http.Request, bool) {
 	if flagsetManager == nil || flagsetManager.IsDefaultFlagSet() {
 		return r, keys.KeyExists(apiKey)

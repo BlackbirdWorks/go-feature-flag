@@ -1,8 +1,9 @@
 # Config v2 relay core
 
-> Status: the core is in the code base (`cmd/relayproxy/relaycore`) and tested, but it is **not the default binary
-> path yet**. The `semaphore` binary still runs on the version 1 configuration. The core has no HTTP handlers, no
-> probes and no metrics endpoint; they come with the switch to config v2 (epic #19, issue #3).
+> Status: the core is in the code base (`cmd/relayproxy/relaycore`) and tested, and the HTTP evaluation API can be
+> served from it (`cmd/relayproxy/corehttp`), but it is **not the default binary path yet**. The `semaphore` binary
+> still runs on the version 1 configuration. The core has no `/livez`, `/readyz` and `/startupz` probes and no #5
+> metrics yet; they come with the switch to config v2 (epic #19, issue #3).
 
 The core is the part of the relay that turns a [bootstrap file, version 2](bootstrap-config.md) into a running
 flag runtime. It is one object with no global state.
@@ -58,11 +59,53 @@ admin keys of the file.
 it returns an error that says so and what did not stop ends in the background. A relay must always call it, also
 after `Run` returned.
 
+## HTTP API from the core
+
+`corehttp.New(core, config)` builds the HTTP server of the relay on a core. The handlers are the ones of the
+version 1 relay: they find the flag set of an API key through `service.FlagSetResolver` and read it through
+`service.FlagSet`. The v1 flag set manager and the core are two implementations of that seam.
+
+- **Served from the core**: OFREP single and bulk evaluation, the legacy `/v1/feature/{flag}/eval` and `/v1/allflags`,
+  flag configuration, flag change, the manifest, the collection of events, the SSE and websocket streams, `/health`
+  and `/info`.
+- **Keys**: every request needs a key. A flag set key routes to its flag set, an admin key is accepted and then
+  answered with 400, as in v1, an unknown key or the key of a removed flag set is answered with 401.
+- **Unavailable flag set** (known, never loaded): a single evaluation answers `FLAG_NOT_FOUND`, a bulk evaluation
+  answers 200 with no flag.
+- **Events**: an evaluation of a flag that tracks its events and an event sent to the data collector reach the
+  exporters of the core. When the queue of the exporters is full, the collector answers 200 with the number of events
+  it accepted in `ingestedContentCount` (an event that fails conversion or that the queue refuses is not counted); the v1 answer, the number of submitted events, is unchanged.
+- **Changes**: pass `Streams.Broadcast` as the `Broadcast` of the dependencies of the core, and give the same `Streams`
+  to `corehttp.New` (it is required, the caller closes it with `Streams.Close(ctx)` after the server stopped).
+  `Broadcast` returns at once: each of the SSE and websocket services has its own worker and queue, so a client that
+  stopped reading delays neither the core nor the other service. Changes of one flag set that wait together are
+  merged (the SSE event only tells the client to fetch again, the websocket message carries the diff, merged to its net
+  effect); when more than 1024 flag sets wait, the oldest is dropped and counted. `Close` is bounded by its context.
+  The end to end test follows an SSE client.
+- **Flag change**: the hashes of a flag set are computed once per flag set and reused by every poll.
+- **Refresh**: `/admin/v1/retriever/refresh` answers 400 for an admin key, as in v1; the core has no refresh, its
+  changes arrive by polling the control plane.
+- **Read only**: a result of an evaluation and the flags of a flag set are shared between requests. The handlers
+  serialize them and never change them.
+
+### Not yet in the v2 core
+
+- Tracking events (`kind: tracking`) reach no exporter: they are accepted and dropped.
+- Evaluation context enrichment: the bootstrap file has no setting for it.
+- The retriever refresh endpoint (a core only polls).
+
+The server is not started by `main.go`. Equivalence tests serve the same flags from a v1 relay and from a core and
+compare the status, the contract headers and the body of every evaluation endpoint, with an explicit list of
+the intended differences.
+
 ## Tests
 
 - Unit tests: path-addressed construction errors without credentials, the lifecycle (no goroutine left after
   shutdown, shutdown without run, twice, bounded by its context), and the wiring (a tracked evaluation reaches the
   exporter, a manifest change reaches the notifier, an unusable state directory still serves).
+- HTTP: v1 and v2 answer the same requests (OFREP, legacy, flag configuration, flag change, key variants, targeting,
+  buckets, scheduled flags), a handler never changes a shared result, and the allocations of the authentication and of
+  one evaluation on the core are not above v1.
 - End to end, driven by a test scheduler instead of timers: a publisher writes objects and manifests to a directory
   (always runs) or to a gopherstack bucket (`task test-e2e`), and the test checks a change, a new flag set, a removed
   flag set and a store outage.

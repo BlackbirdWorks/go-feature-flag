@@ -14,12 +14,12 @@ import (
 
 // FlagChangeAPICtrl is the controller of the endpoint to poll to know if the flags changed.
 type FlagChangeAPICtrl struct {
-	flagsetManager service.FlagsetManager
+	flagsetManager service.FlagSetResolver
 	metrics        *metric.Metrics
 }
 
 // NewAPIFlagChange is the constructor of the controller of the flag change endpoint.
-func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *FlagChangeAPICtrl {
+func NewAPIFlagChange(flagsetManager service.FlagSetResolver, metrics *metric.Metrics) *FlagChangeAPICtrl {
 	return &FlagChangeAPICtrl{flagsetManager: flagsetManager, metrics: metrics}
 }
 
@@ -46,6 +46,18 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
 		return nil, fmt.Errorf("getting the flag set of the flag change: %w", httpErr)
+	}
+
+	if changer, ok := flagset.(service.FlagChanger); ok {
+		flagHashes, hash, err := changer.FlagChange()
+		if err != nil {
+			return nil, fmt.Errorf(
+				"reading the flag change: %w",
+				helper.NewHTTPError(http.StatusInternalServerError, err.Error()),
+			)
+		}
+
+		return &FlagChangeOutput{Body: FlagChangeResponse{Hash: hash, Flags: flagHashes}}, nil
 	}
 
 	flags, err := flagset.GetFlagsFromCache()

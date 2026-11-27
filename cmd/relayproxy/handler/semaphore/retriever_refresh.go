@@ -15,7 +15,7 @@ import (
 
 // ForceFlagsRefresh is the controller of the endpoint that forces the refresh of the flags in the cache.
 type ForceFlagsRefresh struct {
-	flagsetManager service.FlagsetManager
+	flagsetManager service.FlagSetResolver
 	metrics        *metric.Metrics
 }
 
@@ -35,7 +35,7 @@ type RetrieverRefreshOutput struct {
 }
 
 // NewForceFlagsRefresh initialize the controller for the refresh endpoint.
-func NewForceFlagsRefresh(flagsetManager service.FlagsetManager, metrics *metric.Metrics) *ForceFlagsRefresh {
+func NewForceFlagsRefresh(flagsetManager service.FlagSetResolver, metrics *metric.Metrics) *ForceFlagsRefresh {
 	return &ForceFlagsRefresh{flagsetManager: flagsetManager, metrics: metrics}
 }
 

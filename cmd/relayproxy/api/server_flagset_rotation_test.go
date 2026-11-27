@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -51,7 +50,8 @@ type routingLostManager struct {
 	lostKeys map[string]bool
 }
 
-func (m routingLostManager) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+func (m routingLostManager) FlagSet(apiKey string) (service.FlagSet, error) {
 	if m.lostKeys[apiKey] {
 		return nil, errFlagsetNotFoundFor
 	}

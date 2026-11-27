@@ -9,7 +9,6 @@ import (
 
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 
-	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
@@ -42,7 +41,9 @@ func APIKeyFromHeaders(header func(string) string) string {
 
 // FlagSet retrieves the flagset for the given API key from the flagset manager
 // This layer ensure that the flagset manager is initialized and that the API key is valid.
-func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.GoFeatureFlag, *HTTPError) {
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+func FlagSet(flagsetManager service.FlagSetResolver, apiKey string) (service.FlagSet, *HTTPError) {
 	if flagsetManager == nil {
 		return nil, NewHTTPError(http.StatusInternalServerError, "flagset manager is not initialized")
 	}
@@ -71,7 +72,7 @@ const (
 // The accepted keys and the routing of the flag sets are one table: authentication and handler use the flag set
 // resolved here, so a reload that swaps the routing in between can not make an authenticated request fail.
 func AuthenticateFlagSet(
-	ctx context.Context, flagsetManager service.FlagsetManager, apiKey string,
+	ctx context.Context, flagsetManager service.FlagSetResolver, apiKey string,
 ) (context.Context, bool) {
 	flagset, err := flagsetManager.FlagSet(apiKey)
 	if err != nil {
@@ -83,7 +84,7 @@ func AuthenticateFlagSet(
 
 // AuthenticateFlagSetName is AuthenticateFlagSet for the endpoints that only need the name of the flag set.
 func AuthenticateFlagSetName(
-	ctx context.Context, flagsetManager service.FlagsetManager, apiKey string,
+	ctx context.Context, flagsetManager service.FlagSetResolver, apiKey string,
 ) (context.Context, bool) {
 	name, err := flagsetManager.FlagSetName(apiKey)
 	if err != nil {
@@ -97,10 +98,12 @@ func AuthenticateFlagSetName(
 
 // RequestFlagSet returns the flag set of the request: the one resolved by the authentication when there is one,
 // or else the one of the API key of the request (authentication disabled, default mode).
+//
+//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
 func RequestFlagSet(
-	ctx context.Context, flagsetManager service.FlagsetManager, apiKey string,
-) (*ffclient.GoFeatureFlag, *HTTPError) {
-	if flagset, ok := ctx.Value(resolvedFlagSetKey).(*ffclient.GoFeatureFlag); ok {
+	ctx context.Context, flagsetManager service.FlagSetResolver, apiKey string,
+) (service.FlagSet, *HTTPError) {
+	if flagset, ok := ctx.Value(resolvedFlagSetKey).(service.FlagSet); ok {
 		return flagset, nil
 	}
 
@@ -109,7 +112,7 @@ func RequestFlagSet(
 
 // RequestFlagSetName returns the name of the flag set of the request, like RequestFlagSet. The name is added to the
 // logs of the request when it is looked up here: the authentication did it when it resolved the name.
-func RequestFlagSetName(ctx context.Context, flagsetManager service.FlagsetManager, apiKey string) (string, error) {
+func RequestFlagSetName(ctx context.Context, flagsetManager service.FlagSetResolver, apiKey string) (string, error) {
 	if name, ok := ctx.Value(resolvedFlagSetNameKey).(string); ok {
 		return name, nil
 	}
