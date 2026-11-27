@@ -291,6 +291,11 @@
             "additionalProperties": false,
             "type": "object"
         },
+        "Delay": {
+            "type": "string",
+            "pattern": "^\\+?(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$",
+            "description": "Duration string, for example 10s or 1m30s. Zero (0s) means no delay; negative durations are rejected."
+        },
         "Duration": {
             "type": "string",
             "pattern": "^\\+?(?=.*[1-9])(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$",
@@ -2136,6 +2141,23 @@
                         "$ref": "#/$defs/Listener"
                     },
                     "type": "array"
+                },
+                "shutdown": {
+                    "$ref": "#/$defs/Shutdown"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
+        },
+        "Shutdown": {
+            "properties": {
+                "drainDelay": {
+                    "$ref": "#/$defs/Delay",
+                    "default": "0s"
+                },
+                "timeout": {
+                    "$ref": "#/$defs/Duration",
+                    "default": "15s"
                 }
             },
             "additionalProperties": false,

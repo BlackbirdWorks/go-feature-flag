@@ -38,9 +38,11 @@ type SSEService interface {
 type SSEServiceImpl struct {
 	server *sse.Server
 	// activeStreams counts the connected clients per stream, used to send the heartbeats.
-	activeStreams   map[string]int
-	done            chan struct{}
-	closeOnce       sync.Once
+	activeStreams map[string]int
+	done          chan struct{}
+	closeOnce     sync.Once
+	// heartbeats joins the heartbeat goroutine: Close returns after it ended.
+	heartbeats      sync.WaitGroup
 	muActiveStreams sync.Mutex
 }
 
@@ -56,7 +58,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
-		go svc.sendHeartbeats(interval)
+		svc.heartbeats.Go(func() { svc.sendHeartbeats(interval) })
 	}
 
 	return svc
@@ -107,6 +109,7 @@ func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
 // Close closes all the SSE streams.
 func (s *SSEServiceImpl) Close() {
 	s.closeOnce.Do(func() { close(s.done) })
+	s.heartbeats.Wait()
 	s.server.Close()
 }
 

@@ -186,7 +186,14 @@ func TestInfo_CompatAndZeroFlagSets(t *testing.T) {
 func TestInfo_DegradedGolden(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2(t)
+	// a cold start: the bootstrap round ends alone before the first manifest. On a warm start the engine could take the
+	// file and the first manifest in one round (it is latest-wins), and the golden count of applied rounds would be
+	// 3 or 4 depending on the scheduling.
+	rig := newV2With(t, v2Options{cold: true})
+	rig.publish(t)
+	rig.tick(t)
+	rig.awaitGeneration(t, 1)
+
 	rig.flags["flags-bad"] = []byte(flagsYAML)
 	rig.sets = []controlplane.FlagSet{
 		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},

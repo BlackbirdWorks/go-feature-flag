@@ -175,14 +175,21 @@ func (h *Holder) Refresh(ctx context.Context) error {
 	cur := h.cur.Load()
 
 	version, err := h.src.Version(ctx, h.name)
+	if errors.Is(err, segment.ErrSegmentMissing) && ctx.Err() == nil {
+		// the store answered that the segment does not exist: same answer as a stream that reports it
+		return h.markMissing(cur, "", fmt.Errorf("snapshot of segment %q: %w", h.name, err))
+	}
+
 	if err != nil {
 		return h.fail(ctx, cur, ClassVersion, err)
 	}
 
 	if cur != nil && (cur.set != nil || cur.missing) && cur.version == version {
-		held := *cur
-		if !held.missing {
-			held.lastErr = ClassNone
+		held := *cur // a poll that worked: the outage is over and the state is what the version says
+
+		held.lastErr = ClassNone
+		if held.missing {
+			held.lastErr = ClassMissing
 		}
 
 		h.cur.Store(&held)
@@ -192,20 +199,7 @@ func (h *Holder) Refresh(ctx context.Context) error {
 
 	set, class, err := h.pull(ctx)
 	if class == ClassMissing {
-		// the pull completed and the store says the segment is gone: that is an answer, not a failure, so the old set
-		// is dropped and lookups are Unknown until the segment exists again
-		next := &snap{version: version, lastErr: ClassMissing, missing: true, loadedAt: clock.Now()}
-		if h.opts.Missing.Effective() == segment.MissingNotMember {
-			next.set = &segment.MemberSet{} // nobody is in a segment that does not exist
-		}
-
-		if cur != nil {
-			next.pulls = cur.pulls
-		}
-
-		h.cur.Store(next)
-
-		return err
+		return h.markMissing(cur, version, err)
 	}
 
 	if err != nil {
@@ -282,6 +276,35 @@ func (h *Holder) fail(ctx context.Context, cur *snap, class Class, err error) er
 	}
 
 	h.cur.Store(&held)
+
+	return err
+}
+
+// markMissing records an answer of the store: the segment does not exist. The held set is dropped and the lookups
+// answer the policy. The error is returned when the answer is new, and nil when the segment was already known to be
+// missing under the same version token.
+func (h *Holder) markMissing(cur *snap, version string, err error) error {
+	next := &snap{version: version, lastErr: ClassMissing, missing: true, loadedAt: clock.Now()}
+	if h.opts.Missing.Effective() == segment.MissingNotMember {
+		next.set = &segment.MemberSet{} // nobody is in a segment that does not exist
+	}
+
+	known := false
+
+	if cur != nil {
+		next.pulls = cur.pulls
+		known = cur.missing && cur.version == version
+
+		if known {
+			next.loadedAt = cur.loadedAt
+		}
+	}
+
+	h.cur.Store(next)
+
+	if known {
+		return nil
+	}
 
 	return err
 }

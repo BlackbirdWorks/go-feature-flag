@@ -16,7 +16,9 @@ var ErrUnsupportedMode = errors.New("the store does not support the segment mode
 
 // Versioner tells the current version of a segment. It is the baseline of change detection: a caller polls it off the
 // request path. A token is opaque and only compared for equality; a segment that has no version yet has a fixed token
-// of the store (not an error), so "never bumped" is stable. Version must honour ctx and be safe for concurrent use.
+// of the store (not an error), so "never bumped" is stable. A store may instead report a segment that does not exist
+// with [ErrSegmentMissing]: that is an answer, not a failure, and a snapshot holder treats it like a stream that
+// reports it. Version must honour ctx and be safe for concurrent use.
 type Versioner interface {
 	Version(ctx context.Context, segment string) (string, error)
 }

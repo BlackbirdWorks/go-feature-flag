@@ -35,6 +35,9 @@ server:
       role: api
       protocols:
         - http1
+  shutdown:
+    drainDelay: 0s
+    timeout: 15s
 observability:
   logging:
     level: debug
