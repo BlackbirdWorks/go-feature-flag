@@ -16,6 +16,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
 - [Performance](performance.md) (throughput and latency, single and bulk evaluation, HTTP/1.1 and HTTP/2)
+- [Scale](scale.md) (thousands of flag sets, reloaded in place: what is tested and how to run the full size)
 - [Advanced usage](relay-proxy/advanced-usage.md) (manual refresh, flag validation, FIPS)
 - Deployment: [AWS Lambda](relay-proxy/deployment/aws-lambda.md)
 

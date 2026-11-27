@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
-	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 const (
@@ -25,33 +24,13 @@ const (
 func fleet(tb testing.TB, variant int) *flagruntime.Content {
 	tb.Helper()
 
-	names := make([]string, benchFlagsPerSet)
-	for i := range names {
-		names[i] = fmt.Sprintf("flag-%03d", i)
-	}
-
-	objects := objs{}
-	flagSets := make([]controlplane.FlagSet, 0, benchSets)
-
-	for idx := range benchSets / benchSetsPerObject {
-		name := fmt.Sprintf("obj-%04d", idx)
-
-		val := idx + 1
+	return scaleFleet(tb, 1, benchSets, func(idx int) int {
 		if idx == 0 {
-			val = 100000 + variant
+			return 100000 + variant
 		}
 
-		objects[name] = flagsObj(val, names...)
-
-		for s := range benchSetsPerObject {
-			set := fmt.Sprintf("set-%04d-%d", idx, s)
-			flagSets = append(flagSets, fset(set, src(name), "key-"+set))
-		}
-	}
-
-	objects[setsName] = setsObj(tb, flagSets...)
-
-	return content(1, objects)
+		return idx + 1
+	})
 }
 
 // BenchmarkBuildFull is a cold start: every object is parsed and every flag set is built.
