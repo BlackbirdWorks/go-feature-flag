@@ -10,8 +10,7 @@
 // writer of the Holder. Work reaches it through channels (a latest-wins channel of Content, a latest-wins
 // channel of bootstrap configurations), and every round ends with one atomic pointer store.
 //
-// The package is built beside the running relay: nothing in the relay reads it yet. The relay keeps running on
-// the version 1 configuration until the switch to config v2.
+// The relay runs on it: [relaycore.Core] owns the engine and the HTTP layer reads its holder.
 //
 // The values of variations are shared between flag sets (and between generations). A caller that gets a value
 // out of a flag must treat it as read-only; the evaluator clones what it hands out.

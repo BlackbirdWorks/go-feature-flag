@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,13 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -38,8 +35,10 @@ const (
 	targetingKeyRule        = "targeting-key-rule"
 )
 
-const testdataDir = "../../testdata"
-const configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
+const (
+	testdataDir         = "../../testdata"
+	configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
+)
 
 func Test_Bulk_Evaluation(t *testing.T) {
 	t.Parallel()
@@ -136,19 +135,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			t.Parallel()
 
 			// Create flagset manager with configuration
-			conf := &config.Config{
-				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: retrieverconf.FileRetriever,
-						Path: tt.args.configFlagsLocation,
-					},
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, failedToCreateFlagset)
+			cfg := mock.FileConfig(tt.args.configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 
@@ -264,15 +252,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := &config.Config{
-				PollingInterval: 10000,
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-				},
-			}
-			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err)
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 
@@ -439,19 +420,8 @@ func Test_Evaluate(t *testing.T) {
 			t.Parallel()
 
 			// Create flagset manager with configuration
-			conf := &config.Config{
-				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: retrieverconf.FileRetriever,
-						Path: tt.args.configFlagsLocation,
-					},
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, failedToCreateFlagset)
+			cfg := mock.FileConfig(tt.args.configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 
@@ -526,19 +496,8 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := &config.Config{
-				PollingInterval: 10000, // 10 seconds in milliseconds
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{
-						Kind: retrieverconf.FileRetriever,
-						Path: configFlagsLocation,
-					},
-				},
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err, failedToCreateFlagset)
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 
@@ -584,15 +543,8 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conf := &config.Config{
-				PollingInterval: 10000,
-				FileFormat:      protocol.FormatYAML,
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-				},
-			}
-			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-			require.NoError(t, err)
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
 
 			defer flagsetManager.Close()
 

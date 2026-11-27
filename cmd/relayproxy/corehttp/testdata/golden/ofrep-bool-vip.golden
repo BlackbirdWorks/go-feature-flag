@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"key":"bool-flag","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"defaultValue":false,"description":"a boolean","evaluatedRuleName":"vip","gofeatureflag_cacheable":true,"semaphore_cacheable":true,"team":"core"}}

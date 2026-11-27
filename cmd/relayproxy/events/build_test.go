@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
@@ -60,10 +59,35 @@ func parse(tb testing.TB, body string) (*bootstrap.Config, bootstrap.LoadOptions
 	return parseDoc(tb, connections+body, buildEnv)
 }
 
+// exporterDefaultValues are the defaults of an exporter that the loader does not fill in: the ones of version 1 of the
+// configuration, which the relay kept.
+type exporterDefaultValues struct {
+	Format                  string
+	LogFormat               string
+	FileName                string
+	CsvFormat               string
+	ParquetCompressionCodec string
+	FlushInterval           time.Duration
+	MaxEventInMemory        int64
+}
+
+func exporterDefaults() exporterDefaultValues {
+	return exporterDefaultValues{
+		Format:    "JSON",
+		LogFormat: "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\"",
+		FileName:  "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}",
+		CsvFormat: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
+			"{{ .Value}};{{ .Default}};{{ .Source}}\n",
+		ParquetCompressionCodec: "SNAPPY",
+		FlushInterval:           60000 * time.Millisecond,
+		MaxEventInMemory:        100000,
+	}
+}
+
 func TestBuilder_ExporterKinds(t *testing.T) {
 	t.Parallel()
 
-	defaults := config.DefaultExporter()
+	defaults := exporterDefaults()
 
 	format := bootstrap.DefaultExportFormat // the loader fills it in: the exporters read the format case-insensitively
 
@@ -716,7 +740,7 @@ func TestErrors(t *testing.T) {
 func TestBuilder_DefaultsOfVersion1(t *testing.T) {
 	t.Parallel()
 
-	defaults := config.DefaultExporter()
+	defaults := exporterDefaults()
 	specs := events.Specs{
 		Exporters: map[string]bootstrap.Exporter{"e": {Kind: bootstrap.ExporterFile, OutputDir: "/o"}},
 	}

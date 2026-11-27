@@ -1,0 +1,6 @@
+status: 200
+Content-Type: application/json
+Etag: "887-10d69960f18a1c6bda4ee839e37c851f72c80c91"
+Vary: Origin
+
+{"flags":[{"key":"bool-flag","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"defaultValue":false,"description":"a boolean","evaluatedRuleName":"vip","team":"core"}},{"key":"bucket-flag","value":null,"reason":"ERROR","variant":"","errorCode":"TARGETING_KEY_MISSING","errorDetails":"Error: Empty targeting key"},{"key":"disabled-flag","value":null,"reason":"DISABLED","variant":""},{"key":"json-flag","value":{"items":[1,2],"name":"on","nested":{"deep":true}},"reason":"STATIC","variant":"on"},{"key":"number-flag","value":1,"reason":"DEFAULT","variant":"low"},{"key":"scheduled-future-flag","value":"old","reason":"STATIC","variant":"old"},{"key":"scheduled-over-flag","value":"new","reason":"STATIC","variant":"new"},{"key":"string-flag","value":"alpha","reason":"STATIC","variant":"a"},{"key":"untracked-flag","value":"alpha","reason":"STATIC","variant":"a"}]}

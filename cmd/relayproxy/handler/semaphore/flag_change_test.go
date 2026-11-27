@@ -2,7 +2,6 @@ package semaphore_test
 
 import (
 	"encoding/json"
-	"log/slog"
 	"os"
 	"reflect"
 	"testing"
@@ -11,12 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -33,40 +29,16 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 		apiKey        string
 		wantFile      string
 		wantAfterFile string
-		config        config.Config
+		named         bool
 	}{
 		{
-			name: fixtures.DefaultMode,
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: testdataDir + configFlagsYaml,
-						},
-					},
-				},
-			},
+			name:          fixtures.DefaultMode,
 			wantFile:      "flag_change_with_config_change.json",
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
 		{
-			name: fixtures.FlagsetMode,
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{fixtures.PlaceholderTest},
-						PollingInterval: 1000,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: fixtures.KindFile,
-								Path: testdataDir + configFlagsYaml,
-							},
-						},
-					},
-				},
-			},
+			name:          fixtures.FlagsetMode,
+			named:         true,
 			apiKey:        fixtures.PlaceholderTest,
 			wantFile:      "flag_change_with_config_change.json",
 			wantAfterFile: "flag_change_after_config_change.json",
@@ -93,30 +65,15 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			require.NoError(t, errWF)
 			file.Close()
 
-			// Update the config to use the temp file
-			if tt.config.Retrievers != nil {
-				(*tt.config.Retrievers)[0].Path = file.Name()
+			cfg := mock.FileConfig(file.Name())
+			cfg.PollingInterval = time.Second
+
+			var flagsetManager *mock.FlagSets
+			if tt.named {
+				flagsetManager = mock.NewNamed(t, mock.Named{APIKeys: []string{fixtures.PlaceholderTest}, Config: cfg})
+			} else {
+				flagsetManager = mock.NewDefault(t, &cfg)
 			}
-
-			if len(tt.config.FlagSets) > 0 {
-				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: file.Name(),
-					},
-				}
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err)
-
-			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 
@@ -161,39 +118,15 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 		name     string
 		apiKey   string
 		wantFile string
-		config   config.Config
+		named    bool
 	}{
 		{
-			name: fixtures.DefaultMode,
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: testdataDir + configFlagsYaml,
-						},
-					},
-				},
-			},
+			name:     fixtures.DefaultMode,
 			wantFile: "flag_change_without_config_change.json",
 		},
 		{
-			name: fixtures.FlagsetMode,
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{fixtures.PlaceholderTest},
-						PollingInterval: 1000,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: fixtures.KindFile,
-								Path: testdataDir + configFlagsYaml,
-							},
-						},
-					},
-				},
-			},
+			name:     fixtures.FlagsetMode,
+			named:    true,
 			apiKey:   fixtures.PlaceholderTest,
 			wantFile: "flag_change_without_config_change.json",
 		},
@@ -219,30 +152,15 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			require.NoError(t, errWF)
 			file.Close()
 
-			// Update the config to use the temp file
-			if tt.config.Retrievers != nil {
-				(*tt.config.Retrievers)[0].Path = file.Name()
+			cfg := mock.FileConfig(file.Name())
+			cfg.PollingInterval = time.Second
+
+			var flagsetManager *mock.FlagSets
+			if tt.named {
+				flagsetManager = mock.NewNamed(t, mock.Named{APIKeys: []string{fixtures.PlaceholderTest}, Config: cfg})
+			} else {
+				flagsetManager = mock.NewDefault(t, &cfg)
 			}
-
-			if len(tt.config.FlagSets) > 0 {
-				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
-					{
-						Kind: fixtures.KindFile,
-						Path: file.Name(),
-					},
-				}
-			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err)
-
-			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, &metric.Metrics{})
 

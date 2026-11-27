@@ -10,14 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
-	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
@@ -43,12 +40,9 @@ func TestServerEnableH2C(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			listener, port := testhelpers.ListenLocal(t)
-			conf := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
-				},
-				Server: config.Server{
-					Mode:      config.ServerModeHTTP,
+			conf := &testConf{
+				settings: api.Settings{
+					Mode:      api.ServerModeHTTP,
 					Host:      loopbackAddress,
 					Port:      port,
 					EnableH2C: tt.enableH2C,
@@ -61,16 +55,11 @@ func TestServerEnableH2C(t *testing.T) {
 			wsSvc := stream.NewWebsocketService()
 			defer wsSvc.Close()
 
-			flagsetMgr, err := service.NewFlagsetManager(conf, log.Slog,
-				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, wsSvc)
-			require.NoError(t, err)
+			flagsetMgr := newDefaultFlags(t, []notifier.Notifier{metric.NewPrometheusNotifier(metrics)})
+			conf.flags = flagsetMgr
 
 			srv := newTestServer(t, conf, &service.Services{
-				MonitoringService: service.NewMonitoring(
-					flagsetMgr,
-				),
 				WebsocketService: wsSvc,
-				FlagsetManager:   flagsetMgr,
 				Metrics:          metrics,
 			}, log.Slog, api.WithListener(listener))
 			go func() { srv.StartWithContext(context.Background()) }()

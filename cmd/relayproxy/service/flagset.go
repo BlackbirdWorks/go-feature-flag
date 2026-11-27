@@ -12,7 +12,8 @@ import (
 )
 
 // FlagSet is what the HTTP handlers use of one flag set: the evaluation, the flag configuration, the collection of
-// events and the refresh. The v1 client (`*ffclient.GoFeatureFlag`) and the config v2 runtime satisfy it.
+// events and the refresh. The config v2 core satisfies it (corehttp.Adapter), and so does the engine client
+// (`*ffclient.GoFeatureFlag`) that the tests of the handlers serve.
 // A value that an evaluation returns is shared: the handlers only read it, and never change it.
 type FlagSet interface {
 	// RawVariation evaluates one flag without a type.
@@ -37,8 +38,8 @@ type FlagSet interface {
 	ForceRefresh() bool
 }
 
-// FlagSetResolver finds the flag set of an API key. It is the seam of the HTTP layer: the v1 flag set manager and the
-// config v2 core both implement it.
+// FlagSetResolver finds the flag set of an API key. It is the seam of the HTTP layer: the config v2 core implements
+// it, the tests of the handlers implement it on engine clients.
 type FlagSetResolver interface {
 	// FlagSet returns the flag set linked to the API Key
 	FlagSet(apiKey string) (FlagSet, error)
@@ -52,7 +53,7 @@ type FlagSetResolver interface {
 
 // EventAcceptor is a [FlagSet] that tells whether it accepted a feature event: its queue to the exporters is bounded
 // and a full queue drops the event. The collector then counts only the accepted events as ingested. A flag set that
-// does not implement it (the v1 client) accepts every event.
+// does not implement it accepts every event.
 type EventAcceptor interface {
 	// AcceptEventData hands a feature event to the exporters and reports whether it was accepted.
 	AcceptEventData(event *exporter.FeatureEvent) bool

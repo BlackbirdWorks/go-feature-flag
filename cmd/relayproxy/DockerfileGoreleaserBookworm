@@ -5,7 +5,6 @@ ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
-COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
 # uid 65532 needs no /etc/passwd entry; not creating one avoids a RUN (and QEMU emulation) for
 # the foreign architectures.
 EXPOSE 1031

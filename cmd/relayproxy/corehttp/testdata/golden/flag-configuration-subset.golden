@@ -1,0 +1,7 @@
+status: 200
+Content-Type: application/json
+Etag: "299-deeaa45efa8afdf09485aa77db6562fc7d2cd2fa"
+Last-Modified: Sun, 15 Jun 2025 12:00:00 UTC
+Vary: Origin
+
+{"flags":{"bool-flag":{"variations":{"disabled":false,"enabled":true},"targeting":[{"name":"vip","query":"tier eq \"vip\"","variation":"enabled"}],"defaultRule":{"name":"default","variation":"disabled"},"trackEvents":true,"metadata":{"defaultValue":false,"description":"a boolean","team":"core"}}}}

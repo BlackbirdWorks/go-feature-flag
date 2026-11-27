@@ -7,16 +7,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // TestServer_AuthenticationObservesKeyReload checks that the keys of the configuration that a reload replaces in
@@ -37,23 +33,15 @@ func TestServer_AuthenticationObservesKeyReload(t *testing.T) {
 		validateBody = `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`
 	)
 
-	conf := &config.Config{
-		AuthorizedKeys:  config.APIKeys{Evaluation: []string{oldUser}, Admin: []string{oldAdmin}},
-		PollingInterval: 10000,
-		FileFormat:      protocol.FormatYAML,
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: retrieverconf.FileRetriever, Path: fixtures.FlagConfigYAMLParentPath},
-		},
-	}
-	conf.ForceReloadAPIKeys()
+	conf := &testConf{live: mock.NewLiveKeys(mock.Keys{Evaluation: []string{oldUser}, Admin: []string{oldAdmin}})}
 
 	log := newTestLogger(t)
 
-	manager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
-	require.NoError(t, err)
+	manager := newDefaultFlags(t, nil)
+	conf.flags = manager
 	t.Cleanup(manager.Close)
 
-	srv := apiwire.New(conf, &service.Services{FlagsetManager: manager, Metrics: &metric.Metrics{}}, log.Slog)
+	srv := newTestServer(t, conf, &service.Services{Metrics: &metric.Metrics{}}, log.Slog)
 
 	// status is the status of the request that the endpoint of the path gets with the key.
 	status := func(path, key string) int {
@@ -99,7 +87,7 @@ func TestServer_AuthenticationObservesKeyReload(t *testing.T) {
 	})
 
 	// the reload replaces the keys of the configuration in place.
-	conf.ReplaceAPIKeys(config.APIKeys{Evaluation: []string{newUser}, Admin: []string{newAdmin}})
+	conf.live.Replace(mock.Keys{Evaluation: []string{newUser}, Admin: []string{newAdmin}})
 
 	check(t, "after the rotation", []request{
 		{"old evaluation key", evaluatePath, oldUser, http.StatusUnauthorized},
@@ -110,7 +98,7 @@ func TestServer_AuthenticationObservesKeyReload(t *testing.T) {
 
 	// a reload that leaves no evaluation key switches the authentication of the evaluation endpoints off, the admin
 	// endpoints always need their key.
-	conf.ReplaceAPIKeys(config.APIKeys{Admin: []string{newAdmin}})
+	conf.live.Replace(mock.Keys{Admin: []string{newAdmin}})
 
 	check(t, "after the evaluation keys were removed", []request{
 		{"no key on an evaluation endpoint", evaluatePath, "", http.StatusOK},

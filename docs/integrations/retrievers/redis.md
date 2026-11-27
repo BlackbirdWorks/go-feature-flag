@@ -1,10 +1,9 @@
 # Redis
 
 > [!NOTE]
-> The relay proxy does not run retrievers any more: it reads a control plane store (S3 or a directory), see the
-> [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration examples on this page are version 1 and
-> are not read by the relay; the retriever kinds come back to the relay with the control plane connections (issue #57).
-> The Go module is not affected.
+> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
+> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
+> read by the relay. The Go module is not affected.
 
 ## Overview
 
@@ -35,7 +34,7 @@ retrievers:
 | Field name     | Mandatory | Type   | Default  | Description |
 |----------------|:---------:|--------|----------|-------------|
 | `kind`         | Yes       | string | **none** | **Value should be `redis`.**<br/>_Mandatory field identifying the retriever._ |
-| `redisOptions` | Yes       | object | **none** | Connection options for your Redis instance. Supports only the options in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmdhelpers/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
+| `redisOptions` | Yes       | object | **none** | Connection options for your Redis instance. Supports only the options in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/cli/evaluate/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
 | `redisPrefix`  | No        | string | **none** | Prefix prepended to flag names in Redis. |
 
 ## Configure the Go module

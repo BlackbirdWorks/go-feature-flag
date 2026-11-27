@@ -80,7 +80,7 @@ With OFREP, evaluation runs in the relay proxy while the OpenFeature SDK uses a 
 - **Server-side SDKs:** Call `POST /ofrep/v1/evaluate/flags/{key}` on every evaluation.
 - **Client-side SDKs** (JavaScript/React, Android, Swift, ...): Fetch all flags for a single context via `POST /ofrep/v1/evaluate/flags`, cache the result locally, and refresh on context changes or on an interval.
 
-The response includes the `semaphore_cacheable` metadata key indicating whether the result can be cached, alongside the legacy `gofeatureflag_cacheable` key for GO Feature Flag providers (see [`disableSemaphoreMetadata`](../relay-proxy/configuration.md#disablesemaphoremetadata)).
+The response includes the `semaphore_cacheable` metadata key indicating whether the result can be cached, alongside the legacy `gofeatureflag_cacheable` key for GO Feature Flag providers (see `evaluation.disableSemaphoreMetadata` in the [bootstrap file](../relay-proxy/bootstrap-config.md)).
 
 ```mermaid
 sequenceDiagram

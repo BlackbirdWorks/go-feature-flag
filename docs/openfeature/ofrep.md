@@ -19,7 +19,7 @@ Run the [relay proxy](../relay-proxy/README.md) in your infrastructure. It expos
 
 - See the [endpoints reference](../relay-proxy/endpoints.md) and `cmd/relayproxy/api/testdata/openapi.golden.json` for full request and response schemas.
 - Point your language's OFREP provider at the relay proxy base URL (for example, `http://localhost:1031`).
-- If [API keys](../relay-proxy/configuration.md) are configured, pass the key via `X-API-Key` or `Authorization: Bearer <key>`.
+- If [API keys](../relay-proxy/bootstrap-config.md) are configured, pass the key via `X-API-Key` or `Authorization: Bearer <key>`.
 - The relay proxy does not implement `GET /ofrep/v1/configuration`.
 
 ### JavaScript SDK examples

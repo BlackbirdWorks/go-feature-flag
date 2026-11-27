@@ -1,18 +1,14 @@
 package semaphore_test
 
 import (
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
 
 func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
@@ -31,25 +27,11 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 func Test_retriever_refresh_Handler_valid(t *testing.T) {
 	t.Parallel()
 
-	// Create config for default mode
-	conf := config.Config{
-		Retriever: &retrieverconf.RetrieverConf{
-			Kind: retrieverconf.FileRetriever,
-			Path: "../../../../testdata/flag-config.yaml",
-		},
-	}
-
-	flagsetManager, err := service.NewFlagsetManager(
-		&conf,
-		slog.New(slog.DiscardHandler),
-		[]notifier.Notifier{},
-		nil,
-		nil,
-	)
-	require.NoError(t, err, impossibleToCreateFlagset)
+	cfg := mock.FileConfig("../../../../testdata/flag-config.yaml")
+	flagsetManager := mock.NewDefault(t, &cfg)
 
 	// Get the default flagset to check refresh date
-	defaultFlagset := flagsetManager.Default()
+	defaultFlagset := flagsetManager.Client("default")
 	previousRefresh := defaultFlagset.GetCacheRefreshDate()
 
 	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
