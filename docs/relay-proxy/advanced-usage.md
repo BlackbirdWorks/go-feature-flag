@@ -2,6 +2,11 @@
 
 ## Manually trigger retrievers and refresh the internal flag cache
 
+> [!WARNING]
+> The relay proxy does not refresh on request any more: `POST /admin/v1/retriever/refresh` answers `501`. The relay polls the
+> control plane manifest and applies a change after one poll, see [the core](relay-core.md). The text below describes the
+> version 1 behaviour.
+
 By default, retrievers refresh configuration on the configured polling interval. You can also force an immediate refresh (for example, in CI after updating a flag file) by sending a `POST` request to `/admin/v1/retriever/refresh`:
 
 ```shell

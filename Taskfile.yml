@@ -141,10 +141,9 @@ tasks:
       - |
         docker run -it --rm -w /go/src/github.com/blackbirdworks/semaphore/ \
           -v "$(pwd):/go/src/github.com/blackbirdworks/semaphore" \
-          -v "$(pwd)/cmd/relayproxy/testdata/config/valid-file.yaml:/semaphore/semaphore-proxy.yaml" \
           -p 1031:1031 cosmtrek/air \
           --build.cmd "GOWORK={{.GOWORK_VAL}} go build -o out/bin/semaphore ./cmd/relayproxy/" \
-          --build.bin "./out/bin/semaphore"
+          --build.full_bin "cd cmd/relayproxy/testdata/dockerhub-example && /go/src/github.com/blackbirdworks/semaphore/out/bin/semaphore --config bootstrap.yaml"
 
   test:
     desc: Run every test type (unit, integration, e2e); one coverage/log file per suite

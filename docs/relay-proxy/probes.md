@@ -2,7 +2,7 @@
 
 The HTTP server that `corehttp.New` builds on a config v2 core serves the probes below on the same listener as
 `/health` and `/info` (the monitoring listener when there is one, else the API listener). They need no API key and never
-contain a key, a secret or the bytes of an object. The v1 server is unchanged: it does not serve `/readyz` or `/startupz`.
+contain a key, a secret or the bytes of an object. The relay binary serves them on its API listener, or on its `ops` listener when it has one.
 
 ## Endpoints
 

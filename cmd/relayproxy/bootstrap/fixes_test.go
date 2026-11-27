@@ -248,11 +248,11 @@ func TestOverrideErrorsNameTheirSource(t *testing.T) {
 		"controlPlane:\n  connection: control\n  manifest: {key: file.json}\n"
 
 	tests := []struct {
-		name     string
 		env      envMap
-		flags    bootstrap.Overrides
+		name     string
 		wantPath string
 		wantFrom string
+		flags    bootstrap.Overrides
 	}{
 		{
 			name: "variable", env: envMap{bootstrap.EnvLogLevel: levelLoud},
@@ -269,7 +269,7 @@ func TestOverrideErrorsNameTheirSource(t *testing.T) {
 		},
 		{
 			name: "ops listener address", flags: bootstrap.Overrides{OpsListen: "nope"},
-			wantPath: "server.listeners[1].address", wantFrom: "flag --ops-listen",
+			wantPath: pathListener1Address, wantFrom: "flag --ops-listen",
 		},
 	}
 
@@ -301,7 +301,7 @@ func TestOpsListenDoesNotCollideWithAListenerName(t *testing.T) {
 		got[l.Name] = l.Role + " " + l.Address
 	}
 
-	assert.Equal(t, map[string]string{"ops": "api :1031", "ops-2": "ops 127.0.0.1:9090"}, got)
+	assert.Equal(t, map[string]string{"ops": "api :1031", "ops-2": "ops :9090"}, got)
 }
 
 func TestUnrelatedVariablesAreNeverRead(t *testing.T) {

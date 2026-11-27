@@ -25,7 +25,9 @@ Images are published to `ghcr.io/blackbirdworks/semaphore` (available after the 
 linux/amd64 and linux/arm64 (64-bit only; there are no 32-bit builds). The image runs as the non-root user 65532.
 
 ```shell
-docker run -p 1031:1031 -v $(pwd):/semaphore:ro ghcr.io/blackbirdworks/semaphore:latest
+# the bootstrap file and its file store (./store in the example) are read from the working directory
+docker run -p 1031:1031 -w /cfg -v $(pwd)/cmd/relayproxy/testdata/dockerhub-example:/cfg:ro \
+  ghcr.io/blackbirdworks/semaphore:latest --config=bootstrap.yaml
 ```
 
 Until then, build a local image from source:
@@ -34,10 +36,11 @@ Until then, build a local image from source:
 task build-relayproxy-docker   # image: semaphore:local
 ```
 
-The image sets `/usr/local/bin/semaphore` as `ENTRYPOINT`. With no arguments, it looks for configuration in `/semaphore/` (or legacy `/goff/`); any arguments are passed directly to `semaphore`. Use `--entrypoint` to override it. Pass options as flags:
+The image sets `/usr/local/bin/semaphore` as `ENTRYPOINT`. With no arguments, it needs `--config` (or `SEMAPHORE_CONFIG`) with the path of a version 2 bootstrap file; any arguments are passed directly to `semaphore`. Use `--entrypoint` to override it. Pass options as flags:
 
 ```shell
-docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local --config=/cfg/semaphore-proxy.yaml
+docker run -p 1031:1031 -w /cfg -v $(pwd)/cmd/relayproxy/testdata/dockerhub-example:/cfg:ro \
+  semaphore:local --config=bootstrap.yaml
 ```
 
 ## FIPS 140-3

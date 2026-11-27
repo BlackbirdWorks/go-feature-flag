@@ -161,6 +161,59 @@ func (v *validator) server() {
 	if !api {
 		v.failf("server.listeners", ErrMissingValue, "at least one listener has role api")
 	}
+
+	if !v.opts.SkipRelayChecks {
+		v.serveLayout()
+	}
+}
+
+// serveLayout refuses the listener layouts that the relay can not serve yet: a unix socket, several listeners of a
+// role, a port 0, and an ops listener on another host than the api listener.
+func (v *validator) serveLayout() {
+	server := v.cfg.Server
+
+	if server.UnixSocketPath != "" {
+		v.failf("server.unixSocketPath", ErrReservedKey, "the relay does not serve a unix socket yet")
+	}
+
+	roles := map[string]int{}
+	hosts := map[string]string{}
+
+	for i, listener := range server.Listeners {
+		base := "server.listeners[" + strconv.Itoa(i) + "]"
+
+		host, port, err := net.SplitHostPort(listener.Address)
+		if err != nil {
+			continue // address() reported it
+		}
+
+		n, convErr := strconv.Atoi(port)
+		if convErr == nil && n == 0 {
+			v.failf(base+".address", ErrInvalidValue, "the port must be between 1 and 65535")
+		}
+
+		if first, dup := roles[listener.Role]; dup {
+			v.failf(
+				base+".role",
+				ErrInvalidValue,
+				"the relay serves one %s listener, server.listeners[%d] is one",
+				listener.Role,
+				first,
+			)
+
+			continue
+		}
+
+		roles[listener.Role], hosts[listener.Role] = i, host
+	}
+
+	apiHost, hasAPI := hosts[RoleAPI]
+
+	opsHost, hasOps := hosts[RoleOps]
+	if hasAPI && hasOps && apiHost != opsHost {
+		v.failf("server.listeners["+strconv.Itoa(roles[RoleOps])+"].address", ErrInvalidValue,
+			"the ops listener must use the host of the api listener")
+	}
 }
 
 func (v *validator) address(path, address string, idx int, seen map[string]int) {

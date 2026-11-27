@@ -1,5 +1,11 @@
 # MinIO
 
+> [!NOTE]
+> The relay proxy does not run retrievers any more: it reads a control plane store (S3 or a directory), see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration examples on this page are version 1 and
+> are not read by the relay; the retriever kinds come back to the relay with the control plane connections (issue #57).
+> The Go module is not affected.
+
 ## Overview
 
 Load flag configurations from [MinIO](https://min.io) or any S3-compatible object store (such as Ceph or Garage). There is no dedicated MinIO retriever: use the [AWS S3 retriever](aws-s3.md) with `kind: s3` and point it at your server.

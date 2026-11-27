@@ -1,9 +1,7 @@
 # Config v2 relay core
 
-> Status: the core is in the code base (`cmd/relayproxy/relaycore`) and tested, and the HTTP evaluation API can be
-> served from it (`cmd/relayproxy/corehttp`), but it is **not the default binary path yet**. The `semaphore` binary
-> still runs on the version 1 configuration. The core has no `/livez`, `/readyz` and `/startupz` probes and no #5
-> metrics yet; they come with the switch to config v2 (epic #19, issue #3).
+> Status: this is what the `semaphore` binary runs (`cmd/relayproxy/main.go` wires `relaycore`, `corehttp` and the HTTP
+> server). The version 1 configuration is not read: see [Run, reload and stop](bootstrap-config.md#run-reload-and-stop).
 
 The core is the part of the relay that turns a [bootstrap file, version 2](bootstrap-config.md) into a running
 flag runtime. It is one object with no global state.
@@ -83,21 +81,21 @@ version 1 relay: they find the flag set of an API key through `service.FlagSetRe
   effect); when more than 1024 flag sets wait, the oldest is dropped and counted. `Close` is bounded by its context.
   The end to end test follows an SSE client.
 - **Flag change**: the hashes of a flag set are computed once per flag set and reused by every poll.
-- **Refresh**: `/admin/v1/retriever/refresh` answers 400 for an admin key, as in v1; the core has no refresh, its
-  changes arrive by polling the control plane.
+- **Refresh**: `/admin/v1/retriever/refresh` answers 501: the core has no refresh on request, its changes arrive by
+  polling the control plane (the manifest reader has no trigger yet).
 - **Read only**: a result of an evaluation and the flags of a flag set are shared between requests. The handlers
   serialize them and never change them.
 
 ### Not yet in the v2 core
 
 - Tracking events (`kind: tracking`) reach no exporter: they are accepted and dropped.
-- Evaluation context enrichment: the bootstrap file has no setting for it.
-- The retriever refresh endpoint (a core only polls).
+- Refresh on request (`/admin/v1/retriever/refresh`): answers 501.
+- A change of the bootstrap file is read on `SIGHUP`, not watched.
 
-Pass a `Readiness` (`corehttp.NewReadiness(core)`) in the config and call `BeginShutdown` on SIGTERM before the server stops.
-The server is not started by `main.go`. Equivalence tests serve the same flags from a v1 relay and from a core and
-compare the status, the contract headers and the body of every evaluation endpoint, with an explicit list of
-the intended differences.
+The binary builds `corehttp.NewReadiness(core)` and calls `BeginShutdown` on SIGTERM before the streams close and the
+server stops. The evaluation enrichment is the `evaluation` section of the bootstrap file. Equivalence tests serve the
+same flags from the version 1 flag set manager and from a core and compare the status, the contract headers and the
+body of every evaluation endpoint, with an explicit list of the intended differences.
 
 ## Tests
 

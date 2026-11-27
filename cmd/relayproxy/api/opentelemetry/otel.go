@@ -66,12 +66,16 @@ func isDisabled(cfg *Settings) bool {
 	return (cfg.OTLPEndpoint == "" && cfg.ExporterOTLPEndpoint == "") || cfg.SDKDisabled
 }
 
-// ExportEnvironment gives the OTLP endpoint of the configuration to the OpenTelemetry SDK, which reads it
-// from OTEL_EXPORTER_OTLP_ENDPOINT. It changes the environment of the process, so it belongs to the
-// startup wiring (main): call it once, before Init.
+// ExportEnvironment gives the OTLP endpoint and the sampler of the configuration to the OpenTelemetry SDK, which
+// reads them from OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_TRACES_SAMPLER (a variable that is set wins). It changes
+// the environment of the process, so it belongs to the startup wiring (main): call it once, before Init.
 func ExportEnvironment(cfg *Settings) {
 	if isDisabled(cfg) {
 		return
+	}
+	// the sampler of the configuration is the one the SDK reads from the environment (jaeger_remote is built here)
+	if cfg.Sampler != "" && cfg.Sampler != "jaeger_remote" && os.Getenv("OTEL_TRACES_SAMPLER") == "" {
+		_ = os.Setenv("OTEL_TRACES_SAMPLER", cfg.Sampler)
 	}
 	// support the openTelemetryOtlpEndpoint config element
 	if cfg.OTLPEndpoint != "" && cfg.ExporterOTLPEndpoint == "" {

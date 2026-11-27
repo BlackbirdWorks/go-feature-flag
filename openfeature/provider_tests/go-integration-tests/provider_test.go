@@ -26,6 +26,7 @@ const (
 	flagNotExists                   = "does_not_exists"
 	errFlagNotExists                = "flag for key 'does_not_exists' does not exist"
 	relayProxyURL                   = "http://localhost:1031/"
+	relayProxyAPIKey                = "authorized_token"
 	flagsetDefault                  = "default"
 	testNameStringTypeMismatch      = "should error if we expect a string and got another type"
 	flagBooleanSemverTargetingMatch = "boolean_semver_targeting_match"
@@ -180,6 +181,7 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)
@@ -346,6 +348,7 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)
@@ -485,6 +488,7 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)
@@ -624,6 +628,7 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)
@@ -746,6 +751,7 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)
@@ -950,6 +956,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
+				APIKey:         relayProxyAPIKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
 			require.NoError(t, err)

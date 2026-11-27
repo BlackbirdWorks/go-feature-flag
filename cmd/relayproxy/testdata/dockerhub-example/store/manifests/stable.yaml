@@ -1,0 +1,23 @@
+apiVersion: semaphore/v1
+kind: Manifest
+channel: stable
+generation: 1
+objects:
+  - name: flagsets
+    kind: flagSets
+    connection: control
+    key: objects/sha256/df/df5b4a5eee689070c8fa5e99bb34671492caf5ad3c20ce228a6e9a7303f76e67.yaml
+    format: yaml
+    checksum:
+      algorithm: sha256
+      value: df5b4a5eee689070c8fa5e99bb34671492caf5ad3c20ce228a6e9a7303f76e67
+    size: 139
+  - name: example-flags
+    kind: flags
+    connection: control
+    key: objects/sha256/81/81be3fee7ff518c19e7653998dd733decbe88963a6f28d1f9d5b9cd71737acbd.yaml
+    format: yaml
+    checksum:
+      algorithm: sha256
+      value: "81be3fee7ff518c19e7653998dd733decbe88963a6f28d1f9d5b9cd71737acbd"
+    size: 505

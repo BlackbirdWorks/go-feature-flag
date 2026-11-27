@@ -104,7 +104,7 @@ func TestParseErrors(t *testing.T) {
 			doc: "version: 2\nserver:\n  listeners:\n    - {name: api, address: \":1\"}\n" +
 				"    - {name: ops, address: \":1\", role: ops}\n",
 			wantErr:  bootstrap.ErrDuplicateName,
-			wantPath: "server.listeners[1].address",
+			wantPath: pathListener1Address,
 			wantLine: 5,
 		},
 		{
@@ -542,12 +542,12 @@ func TestLoad(t *testing.T) {
 	files := fileMap{etcA: v2Doc, etcBad: v1Doc}
 
 	tests := []struct {
-		name    string
-		flags   bootstrap.Overrides
-		env     envMap
-		opts    func(envMap) bootstrap.LoadOptions
 		wantErr error
+		opts    func(envMap) bootstrap.LoadOptions
+		env     envMap
+		name    string
 		wantMsg string
+		flags   bootstrap.Overrides
 	}{
 		{name: "flag path", flags: bootstrap.Overrides{Config: etcA}},
 		{name: "env path", env: envMap{bootstrap.EnvConfig: etcA}},

@@ -20,6 +20,7 @@ public class ProviderTests
         goFeatureFlagProvider = new GoFeatureFlagProvider(new GoFeatureFlagProviderOptions
         {
             Endpoint = "http://localhost:1031/",
+            ApiKey = "authorized_token",
             Timeout = new TimeSpan(1000 * TimeSpan.TicksPerMillisecond)
         });
         await Api.Instance.SetProviderAsync(goFeatureFlagProvider);

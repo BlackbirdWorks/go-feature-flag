@@ -1,8 +1,7 @@
 # Control-plane polling
 
-> Status: the manifest reader and its state directory are in the code base (`internal/manifestreader`) but not active yet. It becomes active
-> when the relay switches to config v2 (epic #19, issue #8). The v1 configuration keeps polling its retrievers as
-> before.
+> Status: the relay runs on the manifest reader and its state directory (`internal/manifestreader`). The relay has no
+> other way to get flags: the version 1 retrievers are gone from the relay binary.
 
 ## Keys are absolute bucket keys
 

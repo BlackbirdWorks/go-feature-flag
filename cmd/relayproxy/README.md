@@ -1,7 +1,7 @@
 # Semaphore relay proxy
 
-The relay proxy loads your feature flag configuration (from a file, an HTTP endpoint, a git
-provider, a bucket, a database, ...) and exposes HTTP APIs to evaluate your flags. It speaks OFREP
+The relay proxy reads your flag sets from a control plane store (an S3 bucket or a directory), where a publisher
+writes a manifest and the objects it lists, and exposes HTTP APIs to evaluate your flags. It speaks OFREP
 (OpenFeature Remote Evaluation Protocol), so applications can use the standard OpenFeature SDKs.
 
 ## When should I use the relay proxy?
@@ -13,16 +13,17 @@ provider, a bucket, a database, ...) and exposes HTTP APIs to evaluate your flag
 
 ```shell
 make build-relayproxy        # from the repository root; binary: out/bin/semaphore
-./out/bin/semaphore --config=/path/to/semaphore-proxy.yaml
+./out/bin/semaphore --config=/path/to/bootstrap.yaml
 ```
 
-If `--config` is not provided, the relay proxy looks for a file named `semaphore-proxy.yaml` in the current
-folder, `/semaphore/` and `/etc/opt/semaphore/`.
+The bootstrap file is version 2 (a version 1 file is refused). Its path is `--config` or `SEMAPHORE_CONFIG`. An
+example with a file store is in `testdata/dockerhub-example`. `SIGHUP` reloads the file, `SIGTERM` and `SIGINT`
+stop the relay in order.
 
 Documentation:
 - [Getting started](../../docs/relay-proxy/getting-started.md)
 - [Installation](../../docs/relay-proxy/install.md)
-- [Configuration reference](../../docs/relay-proxy/configuration.md)
+- [Bootstrap file reference](../../docs/relay-proxy/bootstrap-config.md)
 - [API endpoints](../../docs/relay-proxy/endpoints.md)
 
 ## Container image

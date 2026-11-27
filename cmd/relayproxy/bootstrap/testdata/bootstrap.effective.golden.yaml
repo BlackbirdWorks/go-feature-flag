@@ -161,7 +161,6 @@ controlPlane:
   connection: control
   stateDir: /var/lib/semaphore
 server:
-  unixSocketPath: /run/semaphore/api.sock
   listeners:
     - name: api
       address: :1031
@@ -170,7 +169,7 @@ server:
         - http1
         - h2c
     - name: ops
-      address: 127.0.0.1:1032
+      address: :1032
       role: ops
       protocols:
         - http1
@@ -184,6 +183,10 @@ observability:
     otlpEndpoint: otel-collector:4317
     serviceName: semaphore
     sampler: parentbased_always_off
+evaluation:
+  contextEnrichment:
+    region: us-east-1
+  environment: production
 auth:
   adminKeys:
     - '[REDACTED]'

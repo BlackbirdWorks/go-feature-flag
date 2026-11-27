@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	basePath    = "/api"
 	testVersion = "v1.2.3"
 	anyHost     = "0.0.0.0"
 )
@@ -41,7 +40,6 @@ func TestSettings(t *testing.T) {
 				Mode:          api.ServerModeHTTP,
 				Host:          anyHost,
 				Port:          config.DefaultServerPort,
-				LambdaAdapter: api.LambdaAdapterAPIGatewayV2,
 				ValidateFlags: controller.ValidateFlagsLimits{},
 				Telemetry:     opentelemetry.Settings{Version: testVersion},
 			},
@@ -49,19 +47,16 @@ func TestSettings(t *testing.T) {
 		{
 			name: "the deprecated options are resolved",
 			conf: &config.Config{
-				ListenPort:       8080,  //nolint:staticcheck // SA1019: the deprecated alias is resolved
-				MonitoringPort:   8081,  //nolint:staticcheck // SA1019: the deprecated alias is resolved
-				StartAsAwsLambda: true,  //nolint:staticcheck // SA1019: the deprecated alias is resolved
-				AwsLambdaAdapter: "ALB", //nolint:staticcheck // SA1019: the deprecated alias is resolved
-				EnableSwagger:    true,  //nolint:staticcheck // SA1019: the deprecated alias is resolved
-				LogLevel:         "DEBUG",
+				ListenPort:     8080, //nolint:staticcheck // SA1019: the deprecated alias is resolved
+				MonitoringPort: 8081, //nolint:staticcheck // SA1019: the deprecated alias is resolved
+				EnableSwagger:  true, //nolint:staticcheck // SA1019: the deprecated alias is resolved
+				LogLevel:       "DEBUG",
 			},
 			want: api.Settings{
-				Mode:           api.ServerModeLambda,
+				Mode:           api.ServerModeHTTP,
 				Host:           anyHost,
 				Port:           8080,
 				MonitoringPort: 8081,
-				LambdaAdapter:  api.LambdaAdapterALB,
 				Swagger:        true,
 				Debug:          true,
 			},
@@ -76,8 +71,7 @@ func TestSettings(t *testing.T) {
 				DisableSemaphoreMetadata: true,
 				Server: config.Server{
 					Mode: config.ServerModeUnixSocket, Host: "127.0.0.1", Port: 9, MonitoringPort: 10,
-					UnixSocketPath: "/tmp/s.sock", LambdaAdapter: config.LambdaAdapterAPIGatewayV1,
-					AwsAPIGatewayBasePath: basePath, EnableH2C: true,
+					UnixSocketPath: "/tmp/s.sock", EnableH2C: true,
 				},
 				OfrepEventStream: config.OfrepEventStream{BaseURL: "https://example.com", InactivityDelaySec: 5},
 				Endpoints: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{
@@ -86,8 +80,7 @@ func TestSettings(t *testing.T) {
 			},
 			want: api.Settings{
 				Version: "v2", Mode: api.ServerModeUnixSocket, Host: "127.0.0.1", Port: 9, MonitoringPort: 10,
-				UnixSocketPath: "/tmp/s.sock", LambdaAdapter: api.LambdaAdapterAPIGatewayV1,
-				AwsAPIGatewayBasePath: basePath, EnableH2C: true,
+				UnixSocketPath: "/tmp/s.sock", EnableH2C: true,
 				Pprof: true, ExposeLegacyMetrics: true, DisableVersionHeader: true, DisableSemaphoreMetadata: true,
 				OfrepEventStream: mustEventStream(t, "https://example.com", 5),
 				ValidateFlags: controller.ValidateFlagsLimits{
@@ -101,7 +94,6 @@ func TestSettings(t *testing.T) {
 			conf: &config.Config{OfrepEventStream: config.OfrepEventStream{BaseURL: "ftp://example.com"}},
 			want: api.Settings{
 				Mode: api.ServerModeHTTP, Host: anyHost, Port: config.DefaultServerPort,
-				LambdaAdapter: api.LambdaAdapterAPIGatewayV2,
 			},
 		},
 	}
@@ -162,11 +154,7 @@ func TestDefaultsMatchTheConfiguration(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, config.ServerModeHTTP, api.ServerModeHTTP)
-	assert.Equal(t, config.ServerModeLambda, api.ServerModeLambda)
 	assert.Equal(t, config.ServerModeUnixSocket, api.ServerModeUnixSocket)
-	assert.Equal(t, config.LambdaAdapterAPIGatewayV1, api.LambdaAdapterAPIGatewayV1)
-	assert.Equal(t, config.LambdaAdapterAPIGatewayV2, api.LambdaAdapterAPIGatewayV2)
-	assert.Equal(t, config.LambdaAdapterALB, api.LambdaAdapterALB)
 	assert.Equal(t, controller.DefaultMaxJSONBodySize, int64(config.DefaultValidateFlagsMaxJSONBodySize))
 	assert.Equal(t, controller.DefaultMaxYAMLBodySize, int64(config.DefaultValidateFlagsMaxYAMLBodySize))
 	assert.Equal(t, controller.DefaultMaxTOMLBodySize, int64(config.DefaultValidateFlagsMaxTOMLBodySize))
@@ -206,23 +194,17 @@ func TestSettings_DeprecationWarnings(t *testing.T) {
 	t.Parallel()
 
 	const (
-		warnMode      = "The server mode is set using `startAsAwsLambda`"
 		warnPort      = "The server port is set using `port`"
 		warnMonitor   = "The monitoring port is set using `monitoringPort`"
-		warnAdapter   = "The lambda adapter is set using `awsLambdaAdapter`"
-		warnBasePath  = "The AWS API Gateway base path is set using `awsApiGatewayBasePath`"
 		deprecatedFmt = "%s: the message starts with %q"
 	)
 
 	// every option that has a deprecated name is set with it.
-	deprecated := func(server config.Server, startAsLambda bool) *config.Config {
+	deprecated := func(server config.Server) *config.Config {
 		return &config.Config{
-			Server:                server,
-			StartAsAwsLambda:      startAsLambda, //nolint:staticcheck // SA1019: the test covers the deprecated setting
-			ListenPort:            8080,          //nolint:staticcheck // SA1019: the test covers the deprecated setting
-			MonitoringPort:        8081,          //nolint:staticcheck // SA1019: the test covers the deprecated setting
-			AwsLambdaAdapter:      "ALB",         //nolint:staticcheck // SA1019: the test covers the deprecated setting
-			AwsAPIGatewayBasePath: basePath,      //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			Server:         server,
+			ListenPort:     8080, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			MonitoringPort: 8081, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 	}
 
@@ -233,28 +215,18 @@ func TestSettings_DeprecationWarnings(t *testing.T) {
 	}{
 		{
 			name:         "http mode: the port and the monitoring port",
-			conf:         deprecated(config.Server{Mode: config.ServerModeHTTP}, false),
+			conf:         deprecated(config.Server{Mode: config.ServerModeHTTP}),
 			wantWarnings: []string{warnPort, warnMonitor},
 		},
 		{
 			name:         "the default mode is http",
-			conf:         deprecated(config.Server{}, false),
+			conf:         deprecated(config.Server{}),
 			wantWarnings: []string{warnPort, warnMonitor},
 		},
 		{
-			name:         "lambda mode: the adapter, the base path and the monitoring port",
-			conf:         deprecated(config.Server{Mode: config.ServerModeLambda}, false),
-			wantWarnings: []string{warnAdapter, warnBasePath, warnMonitor},
-		},
-		{
 			name:         "unix socket mode: the monitoring port",
-			conf:         deprecated(config.Server{Mode: config.ServerModeUnixSocket}, false),
+			conf:         deprecated(config.Server{Mode: config.ServerModeUnixSocket}),
 			wantWarnings: []string{warnMonitor},
-		},
-		{
-			name:         "the deprecated mode is lambda: the mode, the adapter, the base path and the monitoring port",
-			conf:         deprecated(config.Server{}, true),
-			wantWarnings: []string{warnMode, warnAdapter, warnBasePath, warnMonitor},
 		},
 		{
 			name:         "nothing deprecated, nothing logged",

@@ -25,7 +25,7 @@ features:
     details: Single Go binary or container image with zero database dependencies, hot reloading, Flag Sets, and FIPS 140-3 builds.
   - icon: 🗄️
     title: Store Flags Anywhere
-    details: Load YAML, JSON, or TOML flag files from local disk, S3, GCS, Azure Blob, GitHub, GitLab, Kubernetes ConfigMaps, Redis, PostgreSQL, or MongoDB.
+    details: Publish YAML, JSON, or TOML flag files to S3 or a directory for the relay proxy; the Go module reads many more sources.
   - icon: 🎯
     title: Rich Rollout Strategies
     details: Target users with query rules, consistent percentage splits, progressive ramps, scheduled rollouts, experimentation windows, and custom bucketing keys.
@@ -39,52 +39,20 @@ features:
 
 ## Quick Start
 
-Build and run the relay proxy locally with a file retriever, or pull the container image from `ghcr.io/blackbirdworks/semaphore`:
-
-```yaml
-# flags.yaml
-new-checkout:
-  variations:
-    enabled: true
-    disabled: false
-  targeting:
-    - name: beta users
-      query: beta eq true
-      variation: enabled
-  defaultRule:
-    variation: disabled
-```
-
-```yaml
-# semaphore-proxy.yaml
-pollingInterval: 1000
-retrievers:
-  - kind: file
-    path: ./flags.yaml
-```
+Build and run the relay proxy locally on the example file store, or pull the container image from `ghcr.io/blackbirdworks/semaphore`:
 
 ```shell
-./out/bin/semaphore --config semaphore-proxy.yaml
+task build-relayproxy        # binary: out/bin/semaphore
+cd cmd/relayproxy/testdata/dockerhub-example   # a version 2 bootstrap file and a file store with flags
+../../../../out/bin/semaphore --config bootstrap.yaml
 ```
 
-Evaluate the flag over OFREP:
+Evaluate a flag through OFREP from another terminal (the example flag set has the API key `example-api-key`):
 
 ```shell
-curl -s http://localhost:1031/ofrep/v1/evaluate/flags/new-checkout -X POST \
-  -H 'Content-Type: application/json' \
-  --data-raw '{"context": {"targetingKey": "user-123", "beta": true}}'
+curl -s http://localhost:1031/ofrep/v1/evaluate/flags/flag-only-for-admin -X POST \
+  -H 'Content-Type: application/json' -H 'X-API-Key: example-api-key' \
+  --data-raw '{"context": {"targetingKey": "user-123", "admin": true}}'
 ```
 
-```json
-{
-  "key": "new-checkout",
-  "value": true,
-  "reason": "TARGETING_MATCH",
-  "variant": "enabled",
-  "metadata": {
-    "evaluatedRuleName": "beta users",
-    "gofeatureflag_cacheable": true,
-    "semaphore_cacheable": true
-  }
-}
-```
+Publish your own flags with `semaphore-cli publish` to an S3 bucket, see [Getting started](relay-proxy/getting-started.md).

@@ -435,6 +435,12 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			},
 		},
 		{
+			name:        "the evaluation settings are reported",
+			extra:       "evaluation: {environment: staging}\n",
+			wantAdmin:   []string{adminOne},
+			wantPending: []string{flagruntime.SettingEvaluation},
+		},
+		{
 			name:        "a changed version is reported",
 			edits:       [][2]string{{"version: 2", "version: 3"}},
 			wantAdmin:   []string{adminOne},
