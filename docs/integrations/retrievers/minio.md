@@ -37,6 +37,16 @@ auth:
   adminKeys: [{fromEnv: SEMAPHORE_ADMIN_KEY}]
 ```
 
+The relay serves nothing until the bucket exists and holds a control plane. Before it can serve flags:
+
+1. Create the bucket, for example with the MinIO client: `mc alias set local http://localhost:9000 minioadmin minioadmin`
+   then `mc mb local/my-featureflag-bucket`.
+2. Publish the flags and the manifest with the same bootstrap file, with the secrets it names in the environment
+   (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`): `semaphore-cli publish ./flags-repo --config bootstrap.yaml`. The source
+   directory layout and the other flags are in [Publish](../../tooling/publish.md).
+
+The relay then picks the manifest up at its next poll.
+
 In Docker Compose, mount the file and pass it with `--config`:
 
 ```yaml

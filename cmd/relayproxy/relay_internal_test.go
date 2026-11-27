@@ -591,6 +591,43 @@ func TestRunWithoutMetrics(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, status, "no metrics are served when they are disabled")
 }
 
+// One strict parse decides what run does: --help wins over --version, a false flag is not a request, and a request
+// does not excuse an unknown flag.
+func TestRunHelpVersionPrecedence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout string
+		wantStderr string
+	}{
+		{name: "help=false and version", args: []string{"--help=false", versionFlag}, wantStdout: "semaphore "},
+		{name: "version=false starts normally", args: []string{"--version=false"}, wantCode: 1,
+			wantStderr: "configuration error"},
+		{name: "help and version", args: []string{helpFlag, versionFlag}, wantStdout: "Usage: semaphore"},
+		{name: "version and help", args: []string{versionFlag, helpFlag}, wantStdout: "Usage: semaphore"},
+		{name: "help and version, unknown flag", args: []string{helpFlag, versionFlag, unknownFlag},
+			wantCode: exitUsage, wantStderr: "unknown flag"},
+		{name: "version and help, unknown flag", args: []string{versionFlag, helpFlag, unknownFlag},
+			wantCode: exitUsage, wantStderr: "unknown flag"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
+
+			assert.Equal(t, tt.wantCode, code)
+			assert.Contains(t, stdout.String(), tt.wantStdout)
+			assert.Contains(t, stderr.String(), tt.wantStderr)
+		})
+	}
+}
+
 func TestRunPrintsTheVersion(t *testing.T) {
 	t.Parallel()
 

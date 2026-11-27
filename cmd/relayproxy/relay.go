@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/pflag"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -74,27 +73,27 @@ func osLoadOptions() bootstrap.LoadOptions {
 func run(ctx context.Context, opts *runOptions) int {
 	logger := cmdlog.NewDefault(cmdlog.WithWriter(opts.Stderr))
 
-	// the command line is parsed strictly first: --version does not excuse an unknown flag
-	overrides, err := overridesFrom(opts.Args)
-	if err == nil || errors.Is(err, pflag.ErrHelp) {
-		if versionRequested(opts.Args) {
-			_, _ = fmt.Fprint(opts.Stdout, versionText())
-
-			return 0
-		}
-	}
-
-	if errors.Is(err, pflag.ErrHelp) {
-		_, _ = fmt.Fprint(opts.Stdout, usageText())
-
-		return 0
-	}
-
+	// one strict parse decides: --version does not excuse an unknown flag, and --help wins over --version
+	cmdline, err := parseCommandLine(opts.Args)
 	if err != nil {
 		_, _ = fmt.Fprintf(opts.Stderr, "semaphore: %v\n\n%s", err, usageText())
 
 		return exitUsage
 	}
+
+	if cmdline.Help {
+		_, _ = fmt.Fprint(opts.Stdout, usageText())
+
+		return 0
+	}
+
+	if cmdline.Version {
+		_, _ = fmt.Fprint(opts.Stdout, versionText())
+
+		return 0
+	}
+
+	overrides := cmdline.Overrides
 
 	cfg, err := bootstrap.Load(overrides, opts.Load)
 	if err != nil {
