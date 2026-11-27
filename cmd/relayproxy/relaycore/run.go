@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -49,9 +50,9 @@ func (c *Core) Run(ctx context.Context) error {
 	loops.Go(func() { c.engine.Run(runCtx) })
 	loops.Go(func() { c.source.Run(runCtx) })
 	loops.Go(func() {
-		err := c.reader.Run(runCtx)
-		if err != nil {
-			c.log.ErrorContext(runCtx, "the manifest reader stopped", "error", err)
+		readErr := c.reader.Run(runCtx)
+		if readErr != nil {
+			c.log.LogAttrs(runCtx, slog.LevelError, "the manifest reader stopped", slog.Any("error", readErr))
 		}
 	})
 
@@ -127,12 +128,12 @@ func (c *Core) Shutdown(ctx context.Context) error {
 
 	defer close(c.finished)
 
-	c.shutdownErr = c.shutdown(ctx)
+	c.shutdownErr = c.stopAll(ctx)
 
 	return c.shutdownErr
 }
 
-func (c *Core) shutdown(ctx context.Context) error {
+func (c *Core) stopAll(ctx context.Context) error {
 	c.mu.Lock()
 	wasRunning := c.phase == phaseRunning
 	c.phase = phaseClosed
@@ -162,7 +163,7 @@ func (c *Core) shutdown(ctx context.Context) error {
 
 	// the state directory and the service belong to the loops: they are closed only after the loops ended
 	if loopsDone {
-		c.release()
+		c.release(ctx)
 	}
 
 	return errors.Join(errs...)
@@ -170,19 +171,19 @@ func (c *Core) shutdown(ctx context.Context) error {
 
 // release frees what the core holds besides the loops: the collector, the state directory, the idle connections
 // and the flag service. It runs after the loops ended (or when New failed before they could start).
-func (c *Core) release() {
+func (c *Core) release(ctx context.Context) {
 	if c.collector != nil && c.registry != nil {
 		c.registry.Unregister(c.collector)
 	}
 
 	if c.events != nil {
-		_, _ = c.events.Shutdown(context.Background())
+		_, _ = c.events.Shutdown(ctx)
 	}
 
 	if c.state != nil {
 		err := c.state.Close()
 		if err != nil {
-			c.log.Error("close the state directory", "error", err)
+			c.log.LogAttrs(ctx, slog.LevelError, "close the state directory", slog.Any("error", err))
 		}
 	}
 

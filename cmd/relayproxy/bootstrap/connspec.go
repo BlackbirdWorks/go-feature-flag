@@ -10,7 +10,12 @@ import (
 // ConnectionSpec turns an AWS backed connection of the file into the spec the connection factory takes, with
 // its secrets resolved. A connection of type file has no spec (it is not a client) and gives nil. The error
 // names the setting, never a value.
-func ConnectionSpec(conn Connection, opts LoadOptions) (connection.Spec, error) {
+//
+//nolint:ireturn // the factory takes the interface
+func ConnectionSpec(
+	conn Connection,
+	opts LoadOptions,
+) (connection.Spec, error) {
 	switch {
 	case conn.S3 != nil:
 		return S3Spec(conn.S3, opts)
@@ -108,16 +113,16 @@ func specCredentials(cred *Credentials, opts LoadOptions) (connection.Credential
 
 	for _, field := range []struct {
 		dst  *connection.Secret
-		src  Secret
 		name string
+		src  Secret
 	}{
-		{&out.AccessKeyID, cred.AccessKeyID, keyAccessKeyID},
-		{&out.SecretAccessKey, cred.SecretAccessKey, keySecretKey},
-		{&out.SessionToken, cred.SessionToken, "sessionToken"},
+		{&out.AccessKeyID, keyAccessKeyID, cred.AccessKeyID},
+		{&out.SecretAccessKey, keySecretKey, cred.SecretAccessKey},
+		{&out.SessionToken, "sessionToken", cred.SessionToken},
 	} {
-		value, err := resolveValue(field.src, opts)
-		if err != nil {
-			return out, fmt.Errorf("credentials.%s: %w", field.name, err)
+		value, resolveErr := resolveValue(field.src, opts)
+		if resolveErr != nil {
+			return out, fmt.Errorf("credentials.%s: %w", field.name, resolveErr)
 		}
 
 		*field.dst = connection.NewSecret(value)

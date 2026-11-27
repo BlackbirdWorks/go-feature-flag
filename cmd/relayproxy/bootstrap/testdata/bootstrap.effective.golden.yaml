@@ -30,8 +30,8 @@ connections:
       maxAttempts: 3
       maxBackoff: 20s
     endpoint: http://localhost:4566
-    caBundleFile: /etc/ssl/emulator-ca.pem
     region: us-east-1
+    caBundleFile: /etc/ssl/emulator-ca.pem
     poll:
       interval: 60s
       jitter: 0.1

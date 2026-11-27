@@ -69,15 +69,13 @@ func (r *recorder) AddEvent(event *exporter.FeatureEvent) { r.got <- event }
 func (*recorder) Start()                                  {}
 func (*recorder) Stop()                                   {}
 
-func (r *recorder) build(string, exporter.Config, *slog.Logger) events.FeatureManager { return r }
-
 // publication is what a publisher writes: flags objects by name, the document of flag sets, and the manifest.
 type publication struct {
+	t     *testing.T
 	put   func(key string, data []byte)
 	flags map[string][]byte
 	sets  []controlplane.FlagSet
 	gen   uint64
-	t     *testing.T
 }
 
 func (p *publication) entry(name, kind string, data []byte) (controlplane.ManifestObject, []byte) {
@@ -144,7 +142,10 @@ func filePut(t *testing.T, dir string) func(string, []byte) {
 
 // fileDoc is a bootstrap file whose control plane is a directory.
 func fileDoc(dir, stateDir string) string {
-	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" + controlDoc(connName, stateDir)
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" + controlDoc(
+		connName,
+		stateDir,
+	)
 
 	return doc
 }
@@ -193,7 +194,7 @@ type rig struct {
 func newDeps(t *testing.T, opts bootstrap.LoadOptions) (*relaycore.Deps, *rig) {
 	t.Helper()
 
-	rg := &rig{
+	harness := &rig{
 		sched:   newTickScheduler(),
 		rounds:  make(chan flagruntime.RoundResult, 256),
 		exports: &recorder{got: make(chan *exporter.FeatureEvent, 256)},
@@ -201,30 +202,30 @@ func newDeps(t *testing.T, opts bootstrap.LoadOptions) (*relaycore.Deps, *rig) {
 	}
 
 	return &relaycore.Deps{
-		Scheduler: rg.sched,
+		Scheduler: harness.sched,
 		Secrets:   opts,
 		NewManager: func(string, exporter.Config, *slog.Logger) events.FeatureManager {
-			return rg.exports
+			return harness.exports
 		},
-		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rg.rounds <- res }},
+		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { harness.rounds <- res }},
 		TuneReader: func(cfg *manifestreader.Config) {
 			cfg.FetchConcurrency = 1
 			cfg.DisableFetchSpread = true
 		},
-	}, rg
+	}, harness
 }
 
 // start builds the core and runs it; the cleanup shuts it down.
 func (r *rig) start(t *testing.T, cfg *bootstrap.Config, deps *relaycore.Deps) {
 	t.Helper()
 
-	core, err := relaycore.New(cfg, deps)
+	ctx, cancel := context.WithCancel(t.Context())
+	r.cancel = cancel
+
+	core, err := relaycore.New(ctx, cfg, deps)
 	require.NoError(t, err)
 
 	r.core = core
-
-	ctx, cancel := context.WithCancel(t.Context())
-	r.cancel = cancel
 
 	go func() { r.runDone <- core.Run(ctx) }()
 
@@ -234,14 +235,14 @@ func (r *rig) start(t *testing.T, cfg *bootstrap.Config, deps *relaycore.Deps) {
 		stop, stopCancel := context.WithTimeout(context.Background(), waitBound)
 		defer stopCancel()
 
-		err := core.Shutdown(stop)
+		shutErr := core.Shutdown(stop)
 		if r.wantShutdownErr != nil {
-			require.ErrorIs(t, err, r.wantShutdownErr)
+			require.ErrorIs(t, shutErr, r.wantShutdownErr)
 
 			return
 		}
 
-		require.NoError(t, err)
+		require.NoError(t, shutErr)
 	})
 }
 
@@ -340,4 +341,25 @@ func settledGoroutines(key, value string) []string {
 	}
 
 	return left
+}
+
+// awaitResult waits for the result of a Run, bounded.
+func awaitResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(waitBound):
+		require.FailNow(t, "Run did not return")
+	}
+
+	return nil
+}
+
+// awaitRun waits for Run to return nil.
+func (r *rig) awaitRun(t *testing.T) {
+	t.Helper()
+
+	require.NoError(t, awaitResult(t, r.runDone))
 }

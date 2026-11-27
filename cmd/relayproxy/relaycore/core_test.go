@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,14 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 )
 
 const (
+	deadURL      = "http://127.0.0.1:1"
 	canaryKey    = "AKIA-CANARY-ACCESS-KEY"
 	canarySecret = "CANARY-SECRET-VALUE"
 )
@@ -62,7 +66,7 @@ func TestNewErrors(t *testing.T) {
 		"      type: static\n      accessKeyId: {fromEnv: AK}\n      secretAccessKey: {fromEnv: SK}\n"
 
 	env := map[string]string{"AK": canaryKey, "SK": canarySecret}
-	hook := map[string]string{hookEnv: "http://127.0.0.1:1"}
+	hook := map[string]string{hookEnv: deadURL}
 	dir := t.TempDir()
 
 	tests := []struct {
@@ -78,14 +82,20 @@ func TestNewErrors(t *testing.T) {
 			wantErr: relaycore.ErrNilConfig,
 		},
 		{
-			name:     "no control plane",
-			build:    func(t *testing.T) *bootstrap.Config { return parse(t, "version: 2\n", secretOptions(nil)) },
+			name: "no control plane",
+			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
+				return parse(t, "version: 2\n", secretOptions(nil))
+			},
 			wantErr:  relaycore.ErrNoControlPlane,
 			wantPath: "controlPlane",
 		},
 		{
 			name: "control plane names a connection that is not there",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				cfg := parse(t, fileDoc(dir, ""), secretOptions(nil))
 				cfg.ControlPlane.Connection = "elsewhere"
 
@@ -97,6 +107,8 @@ func TestNewErrors(t *testing.T) {
 		{
 			name: "file connection whose directory is missing",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				return parse(t, fileDoc(filepath.Join(dir, "missing"), ""), secretOptions(nil))
 			},
 			env:      hook,
@@ -106,6 +118,8 @@ func TestNewErrors(t *testing.T) {
 		{
 			name: "connection whose spec is invalid carries no credential",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				return parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
 			},
 			env:      env,
@@ -115,6 +129,8 @@ func TestNewErrors(t *testing.T) {
 		{
 			name: "secret that does not resolve",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				cfg := parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
 				cfg.Connections["s3c"].S3.Region = "us-east-1"
 
@@ -127,6 +143,8 @@ func TestNewErrors(t *testing.T) {
 		{
 			name: "poll interval the reader refuses",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				cfg := parse(t, fileDoc(dir, ""), secretOptions(nil))
 				poll := bootstrap.Duration(time.Millisecond)
 				cfg.ControlPlane.Manifest.PollInterval = &poll
@@ -140,6 +158,8 @@ func TestNewErrors(t *testing.T) {
 		{
 			name: "exporters that do not build",
 			build: func(t *testing.T) *bootstrap.Config {
+				t.Helper()
+
 				return parse(t, fileDoc(dir, ""), secretOptions(nil))
 			},
 			env:      nil,
@@ -152,7 +172,7 @@ func TestNewErrors(t *testing.T) {
 		t.Run(tcase.name, func(t *testing.T) {
 			t.Parallel()
 
-			core, err := relaycore.New(tcase.build(t), &relaycore.Deps{Secrets: secretOptions(tcase.env)})
+			core, err := relaycore.New(t.Context(), tcase.build(t), &relaycore.Deps{Secrets: secretOptions(tcase.env)})
 			require.Error(t, err)
 			assert.Nil(t, core)
 
@@ -178,16 +198,16 @@ func TestFailedBuildReleasesTheStateDirectory(t *testing.T) {
 	t.Parallel()
 
 	dir, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
-	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
 
 	bad := parse(t, fileDoc(dir, state), opts)
 	poll := bootstrap.Duration(time.Millisecond)
 	bad.ControlPlane.Manifest.PollInterval = &poll
 
-	_, err := relaycore.New(bad, &relaycore.Deps{Secrets: opts})
+	_, err := relaycore.New(t.Context(), bad, &relaycore.Deps{Secrets: opts})
 	require.ErrorIs(t, err, manifestreader.ErrInvalidConfig)
 
-	core, err := relaycore.New(parse(t, fileDoc(dir, state), opts), &relaycore.Deps{Secrets: opts})
+	core, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, state), opts), &relaycore.Deps{Secrets: opts})
 	require.NoError(t, err)
 
 	assert.Empty(t, core.Status().StateDirDisabled, "the failed build did not keep the lock")
@@ -199,14 +219,14 @@ func TestCollectorLifecycle(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
 	registry := prometheus.NewRegistry()
 	deps := &relaycore.Deps{Secrets: opts, Registerer: registry}
 
-	first, err := relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+	first, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), deps)
 	require.NoError(t, err)
 
-	_, err = relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+	_, err = relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), deps)
 
 	var built *relaycore.BuildError
 
@@ -215,7 +235,7 @@ func TestCollectorLifecycle(t *testing.T) {
 
 	require.NoError(t, first.Shutdown(t.Context()))
 
-	second, err := relaycore.New(parse(t, fileDoc(dir, ""), opts), deps)
+	second, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), deps)
 	require.NoError(t, err, "the first core unregistered its collector")
 	require.NoError(t, second.Shutdown(t.Context()))
 }
@@ -227,25 +247,29 @@ func TestLifecycle(t *testing.T) {
 		t.Parallel()
 
 		dir, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
-		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		opts := secretOptions(map[string]string{hookEnv: deadURL})
 		cfg := parse(t, fileDoc(dir, state), opts)
 		twoSets(t, filePut(t, dir)).publish()
 
-		deps, rg := newDeps(t, opts)
+		deps, harness := newDeps(t, opts)
 		label := t.Name()
 
 		pprof.Do(t.Context(), pprof.Labels("relaycore-test", label), func(ctx context.Context) {
-			core, err := relaycore.New(cfg, deps)
+			core, err := relaycore.New(ctx, cfg, deps)
 			require.NoError(t, err)
 
 			done := make(chan error, 1)
 
 			go func() { done <- core.Run(ctx) }()
 
-			rg.settle(t)
-			assert.NotEmpty(t, goroutinesLabelled("relaycore-test", label), "the label reaches the goroutines of the core")
+			harness.settle(t)
+			assert.NotEmpty(
+				t,
+				goroutinesLabelled("relaycore-test", label),
+				"the label reaches the goroutines of the core",
+			)
 			require.NoError(t, core.Shutdown(ctx))
-			require.NoError(t, <-done)
+			require.NoError(t, awaitResult(t, done))
 		})
 
 		assert.Empty(t, settledGoroutines("relaycore-test", label))
@@ -255,12 +279,12 @@ func TestLifecycle(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
+		opts := secretOptions(map[string]string{hookEnv: deadURL})
 		cfg := parse(t, fileDoc(dir, ""), opts)
 		label := t.Name()
 
 		pprof.Do(t.Context(), pprof.Labels("relaycore-test", label), func(ctx context.Context) {
-			core, err := relaycore.New(cfg, &relaycore.Deps{Secrets: opts})
+			core, err := relaycore.New(ctx, cfg, &relaycore.Deps{Secrets: opts})
 			require.NoError(t, err)
 
 			require.NoError(t, core.Shutdown(ctx))
@@ -275,45 +299,48 @@ func TestLifecycle(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
-		deps, rg := newDeps(t, opts)
+		opts := secretOptions(map[string]string{hookEnv: deadURL})
+		deps, harness := newDeps(t, opts)
 		twoSets(t, filePut(t, dir)).publish()
 
-		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
-		rg.settle(t)
+		harness.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		harness.settle(t)
 
-		require.ErrorIs(t, rg.core.Run(t.Context()), relaycore.ErrAlreadyRunning)
-		require.NoError(t, rg.core.Shutdown(t.Context()))
-		require.NoError(t, rg.core.Shutdown(t.Context()))
-		require.NoError(t, <-rg.runDone)
+		require.ErrorIs(t, harness.core.Run(t.Context()), relaycore.ErrAlreadyRunning)
+		require.NoError(t, harness.core.Shutdown(t.Context()))
+		require.NoError(t, harness.core.Shutdown(t.Context()))
+		harness.awaitRun(t)
 	})
 
 	t.Run("run ends with its context and shutdown still drains", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
-		deps, rg := newDeps(t, opts)
+		opts := secretOptions(map[string]string{hookEnv: deadURL})
+		deps, harness := newDeps(t, opts)
 		twoSets(t, filePut(t, dir)).publish()
 
-		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
-		rg.settle(t)
-		rg.cancel()
+		harness.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		harness.settle(t)
+		harness.cancel()
 
-		require.NoError(t, <-rg.runDone)
-		require.NoError(t, rg.core.Shutdown(t.Context()))
+		harness.awaitRun(t)
+		require.NoError(t, harness.core.Shutdown(t.Context()))
 	})
 
 	t.Run("shutdown is bounded by its context", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
-		opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
-		deps, rg := newDeps(t, opts)
+		opts := secretOptions(map[string]string{hookEnv: deadURL})
+		deps, harness := newDeps(t, opts)
 		twoSets(t, filePut(t, dir)).publish()
 
 		// the engine is held in its first round, so the loops cannot end
-		entered, release := make(chan struct{}), make(chan struct{})
+		entered, release := make(chan struct{}, 1), make(chan struct{})
+
+		var open sync.Once
+
 		deps.Hooks.AfterRound = func(flagruntime.RoundResult) {
 			select {
 			case entered <- struct{}{}:
@@ -323,22 +350,29 @@ func TestLifecycle(t *testing.T) {
 			<-release
 		}
 
-		rg.wantShutdownErr = relaycore.ErrNotDrained
-		rg.start(t, parse(t, fileDoc(dir, ""), opts), deps)
-		<-entered
+		harness.wantShutdownErr = relaycore.ErrNotDrained
+		harness.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		// registered after the start, so it runs before the shutdown of the cleanup: the gate opens first
+		t.Cleanup(func() { open.Do(func() { close(release) }) })
+
+		select {
+		case <-entered:
+		case <-time.After(waitBound):
+			require.FailNow(t, "the engine did not reach its first round")
+		}
 
 		expired, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		err := rg.core.Shutdown(expired)
+		err := harness.core.Shutdown(expired)
 		require.ErrorIs(t, err, relaycore.ErrNotDrained)
 		require.ErrorIs(t, err, context.Canceled)
 
-		close(release)
-		require.NoError(t, <-rg.runDone)
+		open.Do(func() { close(release) })
+		harness.awaitRun(t)
 
 		// the first result stands for every later call
-		require.ErrorIs(t, rg.core.Shutdown(t.Context()), relaycore.ErrNotDrained)
+		require.ErrorIs(t, harness.core.Shutdown(t.Context()), relaycore.ErrNotDrained)
 	})
 }
 
@@ -346,31 +380,31 @@ func TestReload(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	opts := secretOptions(map[string]string{hookEnv: "http://127.0.0.1:1"})
-	deps, rg := newDeps(t, opts)
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
+	deps, harness := newDeps(t, opts)
 	twoSets(t, filePut(t, dir)).publish()
 
 	cfg := parse(t, fileDoc(dir, ""), opts)
-	rg.start(t, cfg, deps)
-	rg.settle(t)
-	rg.awaitGeneration(t, 1)
+	harness.start(t, cfg, deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
 
-	require.ErrorIs(t, rg.core.Reload(nil), relaycore.ErrNilConfig)
-	require.ErrorIs(t, rg.core.Reload(parse(t, "version: 2\n", opts)), relaycore.ErrNoControlPlane)
+	require.ErrorIs(t, harness.core.Reload(nil), relaycore.ErrNilConfig)
+	require.ErrorIs(t, harness.core.Reload(parse(t, "version: 2\n", opts)), relaycore.ErrNoControlPlane)
 
 	// an admin key applies live; a change of the exporters waits for a restart and is named in the status
 	next := parse(t, fileDoc(dir, "")+"auth:\n  adminKeys: [admin-key-1]\n", secretOptionsInline(opts))
 	next.Exporters = nil
-	require.NoError(t, rg.core.Reload(next))
+	require.NoError(t, harness.core.Reload(next))
 
 	require.Eventually(t, func() bool {
-		_, route := rg.core.Holder().Load().Route("admin-key-1")
+		_, route := harness.core.Holder().Load().Route("admin-key-1")
 
 		return route == flagruntime.RouteAdmin
 	}, waitBound, time.Millisecond)
 
-	assert.Equal(t, []string{flagruntime.SettingExporters}, rg.core.Holder().Load().Status.PendingRestart)
-	assert.Equal(t, []string{flagruntime.SettingExporters}, rg.core.Status().Source.Runtime.PendingRestart)
+	assert.Equal(t, []string{flagruntime.SettingExporters}, harness.core.Holder().Load().Status.PendingRestart)
+	assert.Equal(t, []string{flagruntime.SettingExporters}, harness.core.Status().Source.Runtime.PendingRestart)
 }
 
 func secretOptionsInline(opts bootstrap.LoadOptions) bootstrap.LoadOptions {
@@ -387,7 +421,7 @@ func TestWiring(t *testing.T) {
 	dir := t.TempDir()
 	hookURL, hooks := hookServer(t)
 	opts := secretOptions(map[string]string{hookEnv: hookURL})
-	deps, rg := newDeps(t, opts)
+	deps, harness := newDeps(t, opts)
 	pub := twoSets(t, filePut(t, dir))
 	pub.publish()
 
@@ -395,18 +429,23 @@ func TestWiring(t *testing.T) {
 	notDir := filepath.Join(t.TempDir(), "state-file")
 	require.NoError(t, os.WriteFile(notDir, []byte("x"), 0o600))
 
-	rg.start(t, parse(t, fileDoc(dir, notDir), opts), deps)
-	rg.settle(t)
-	rg.awaitGeneration(t, 1)
+	harness.start(t, parse(t, fileDoc(dir, notDir), opts), deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
 
-	assert.NotEmpty(t, rg.core.Status().StateDirDisabled, "the status says why there is no state directory")
+	assert.Equal(
+		t,
+		statedir.DisabledUnsafe,
+		harness.core.Status().StateDirDisabled,
+		"the status says why there is no state directory",
+	)
 
-	got, route := rg.value("key-one")
+	got, route := harness.value("key-one")
 	assert.Equal(t, flagruntime.RouteFlagSet, route)
 	assert.EqualValues(t, 1, got, "the relay serves without a state directory")
 
 	select {
-	case event := <-rg.exports.got:
+	case event := <-harness.exports.got:
 		assert.Equal(t, flagName, event.Key)
 	case <-time.After(waitBound):
 		require.FailNow(t, "the evaluation of a tracked flag did not reach the exporter")
@@ -414,8 +453,8 @@ func TestWiring(t *testing.T) {
 
 	pub.flags[objA] = flagsYAML(10)
 	pub.publish()
-	rg.poll(t)
-	rg.awaitGeneration(t, 2)
+	harness.poll(t)
+	harness.awaitGeneration(t, 2)
 
 	select {
 	case <-hooks:
@@ -423,8 +462,26 @@ func TestWiring(t *testing.T) {
 		require.FailNow(t, "the change of the manifest did not reach the notifier")
 	}
 
-	status := rg.core.Status()
-	require.Len(t, status.Events.Notifiers, 1)
-	assert.Equal(t, "hook", status.Events.Notifiers[0].Name)
+	status := harness.core.Status()
+	assert.Equal(t, []string{"hook"}, notifierNames(&status.Events))
+	assert.Equal(t, []string{"tracked"}, exporterNames(&status.Events))
 	assert.Equal(t, uint64(2), status.Source.LastGeneration)
+}
+
+func notifierNames(status *events.Status) []string {
+	names := make([]string, 0, len(status.Notifiers))
+	for i := range status.Notifiers {
+		names = append(names, status.Notifiers[i].Name)
+	}
+
+	return names
+}
+
+func exporterNames(status *events.Status) []string {
+	names := make([]string, 0, len(status.Exporters))
+	for i := range status.Exporters {
+		names = append(names, status.Exporters[i].Name)
+	}
+
+	return names
 }

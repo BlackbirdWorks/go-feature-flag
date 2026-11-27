@@ -47,12 +47,12 @@ type Deps struct {
 // Status is the status of a core: the joined status of the reader, the source and the engine, the one of the
 // exporters and notifiers, and the state directory. It holds no API key and no secret.
 type Status struct {
-	// Source is the status of the reader, the engine and the running runtime.
-	Source controlsource.Status `json:"source"`
-	// Events is the status of the exporters and notifiers.
-	Events events.Status `json:"events"`
 	// StateDirDisabled is the reason there is no state directory although one was asked for; empty otherwise.
 	StateDirDisabled string `json:"stateDirDisabled,omitempty"`
+	// Events is the status of the exporters and notifiers.
+	Events events.Status `json:"events"`
+	// Source is the status of the reader, the engine and the running runtime.
+	Source controlsource.Status `json:"source"`
 }
 
 type phase uint8
@@ -77,21 +77,21 @@ type Core struct {
 	state     *statedir.Store
 	collector prometheus.Collector
 	registry  prometheus.Registerer
+	cancel    context.CancelFunc
+	// runDone is closed when the loops of Run ended and the state directory was flushed.
+	runDone chan struct{}
+	// finished is closed when the first Shutdown did its work, with its error in shutdownErr (written before the
+	// close).
+	finished    chan struct{}
+	shutdownErr error
 
 	stateDisabled string
 
 	// mu guards phase and cancel: the one place the lifecycle is decided.
-	mu     sync.Mutex
-	phase  phase
-	cancel context.CancelFunc
-	// runDone is closed when the loops of Run ended and the state directory was flushed.
-	runDone chan struct{}
-
-	// shutdownStarted lets the first Shutdown do the work; finished is closed when it did, with its error in
-	// shutdownErr (written before the close).
+	mu sync.Mutex
+	// shutdownStarted lets the first Shutdown do the work.
 	shutdownStarted atomic.Bool
-	finished        chan struct{}
-	shutdownErr     error
+	phase           phase
 }
 
 // Holder returns the holder of the current runtime: handlers load the runtime from it for every request.
@@ -102,5 +102,5 @@ func (c *Core) Evaluator() *flagruntime.Evaluator { return c.eval }
 
 // Status returns a snapshot of the status. It reads atomics and immutable values and never blocks.
 func (c *Core) Status() Status {
-	return Status{Source: c.source.Status(), Events: c.events.Status(), StateDirDisabled: c.stateDisabled}
+	return Status{StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status()}
 }

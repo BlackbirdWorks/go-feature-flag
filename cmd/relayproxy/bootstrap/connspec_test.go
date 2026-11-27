@@ -12,6 +12,11 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
+const (
+	controlConnPath = "controlPlane" + ".connection"
+	accessID        = "access-id"
+)
+
 const fileControlDoc = `version: 2
 connections:
   disk: {type: file, path: /srv/control}
@@ -42,7 +47,7 @@ func TestFileConnectionAndControlPlane(t *testing.T) {
 			name: "control plane on a kinesis connection",
 			doc: "version: 2\nconnections:\n  k: {type: kinesis, region: r}\n" +
 				"controlPlane: {connection: k, manifest: {key: m.json}}\n",
-			wantErr: bootstrap.ErrWrongConnectionType, wantPath: "controlPlane.connection",
+			wantErr: bootstrap.ErrWrongConnectionType, wantPath: controlConnPath,
 		},
 	}
 
@@ -92,7 +97,7 @@ connections:
   disk: {type: file, path: /srv}
 `
 
-	opts := options(envMap{"AK": "access-id", "SK": "secret-key"}, nil, false)
+	opts := options(envMap{"AK": accessID, "SK": "secret-key"}, nil, false)
 	cfg, err := bootstrap.Parse([]byte(doc), nil, opts)
 	require.NoError(t, err)
 
@@ -102,9 +107,9 @@ connections:
 		wantKind string
 	}{
 		{name: "s3", conn: "s3c", wantKind: connection.KindS3},
-		{name: "kinesis", conn: "kin", wantKind: connection.KindKinesis},
-		{name: "sqs", conn: "q", wantKind: connection.KindSQS},
-		{name: "redshift", conn: "wh", wantKind: connection.KindRedshift},
+		{name: bootstrap.TypeKinesis, conn: "kin", wantKind: connection.KindKinesis},
+		{name: bootstrap.TypeSQS, conn: "q", wantKind: connection.KindSQS},
+		{name: bootstrap.TypeRedshift, conn: "wh", wantKind: connection.KindRedshift},
 		{name: "file has no spec", conn: "disk", wantKind: ""},
 	}
 
@@ -112,8 +117,8 @@ connections:
 		t.Run(tcase.name, func(t *testing.T) {
 			t.Parallel()
 
-			spec, err := bootstrap.ConnectionSpec(cfg.Connections[tcase.conn], opts)
-			require.NoError(t, err)
+			spec, specErr := bootstrap.ConnectionSpec(cfg.Connections[tcase.conn], opts)
+			require.NoError(t, specErr)
 
 			if tcase.wantKind == "" {
 				assert.Nil(t, spec)
@@ -129,7 +134,7 @@ connections:
 	spec, err := bootstrap.S3Spec(cfg.Connections["s3c"].S3, opts)
 	require.NoError(t, err)
 	assert.Equal(t, "/ca.pem", spec.CABundleFile)
-	assert.Equal(t, "access-id", spec.Credentials.AccessKeyID.Reveal())
+	assert.Equal(t, accessID, spec.Credentials.AccessKeyID.Reveal())
 	assert.Equal(t, 4, spec.Retry.MaxAttempts)
 	assert.True(t, spec.PathStyle)
 }
@@ -174,10 +179,10 @@ connections:
 			t.Parallel()
 
 			parts := splitType(tcase.body)
-			opts := options(envMap{"AK": "access-id", "SK": "topsecret"}, nil, false)
+			opts := options(envMap{"AK": accessID, "SK": "topsecret"}, nil, false)
 
 			cfg, err := bootstrap.Parse([]byte(fmt.Sprintf(doc, parts[0], parts[1])), nil, options(envMap{
-				"AK": "access-id", "SK": "topsecret", "MISSING": "x",
+				"AK": accessID, "SK": "topsecret", "MISSING": "x",
 			}, nil, false))
 			require.NoError(t, err)
 

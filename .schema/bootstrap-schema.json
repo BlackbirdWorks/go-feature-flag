@@ -1458,10 +1458,10 @@
                 "endpoint": {
                     "type": "string"
                 },
-                "caBundleFile": {
+                "region": {
                     "type": "string"
                 },
-                "region": {
+                "caBundleFile": {
                     "type": "string"
                 },
                 "type": {
@@ -1758,10 +1758,10 @@
                 "endpoint": {
                     "type": "string"
                 },
-                "caBundleFile": {
+                "region": {
                     "type": "string"
                 },
-                "region": {
+                "caBundleFile": {
                     "type": "string"
                 },
                 "type": {
@@ -1807,10 +1807,10 @@
                 "endpoint": {
                     "type": "string"
                 },
-                "caBundleFile": {
+                "region": {
                     "type": "string"
                 },
-                "region": {
+                "caBundleFile": {
                     "type": "string"
                 },
                 "poll": {
@@ -1867,10 +1867,10 @@
                 "endpoint": {
                     "type": "string"
                 },
-                "caBundleFile": {
+                "region": {
                     "type": "string"
                 },
-                "region": {
+                "caBundleFile": {
                     "type": "string"
                 },
                 "type": {

@@ -180,9 +180,9 @@ type AWS struct {
 	Retry       *Retry       `json:"retry,omitempty"       yaml:"retry,omitempty"`
 	// Endpoint overrides the service endpoint, for emulators.
 	Endpoint string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Region   string `json:"region,omitempty"   yaml:"region,omitempty"`
 	// CABundleFile is a PEM file of certificate authorities trusted in addition to the system roots.
 	CABundleFile string `json:"caBundleFile,omitempty" yaml:"caBundleFile,omitempty"`
-	Region   string `json:"region,omitempty"   yaml:"region,omitempty"`
 }
 
 // Credentials selects how the AWS client authenticates.

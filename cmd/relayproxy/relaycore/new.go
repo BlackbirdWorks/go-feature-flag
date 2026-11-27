@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
@@ -15,11 +14,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
-// New builds the core of a validated bootstrap file. It starts no goroutine of the loops (see [Core.Run]), but it
+// New builds the core of a validated bootstrap file. The context bounds the build (the exporters and notifiers); it
+// does not outlive New. It starts no goroutine of the loops (see [Core.Run]), but it
 // opens the state directory and starts the exporters and notifiers, so a core that was built must be stopped with
 // [Core.Shutdown]. An error names the setting at fault (see [BuildError]) and never holds a secret. The core
 // keeps cfg: the caller must not change it afterwards.
-func New(cfg *bootstrap.Config, deps *Deps) (*Core, error) {
+func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) {
 	if deps == nil {
 		deps = &Deps{}
 	}
@@ -51,9 +51,9 @@ func New(cfg *bootstrap.Config, deps *Deps) (*Core, error) {
 		finished: make(chan struct{}),
 	}
 
-	err := core.assemble(cfg, deps)
+	err := core.assemble(ctx, cfg, deps)
 	if err != nil {
-		core.release()
+		core.release(ctx)
 
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func New(cfg *bootstrap.Config, deps *Deps) (*Core, error) {
 	return core, nil
 }
 
-func (c *Core) assemble(cfg *bootstrap.Config, deps *Deps) error {
+func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) error {
 	plane := cfg.ControlPlane
 
 	err := registerConnections(c.factory, cfg, deps.Secrets)
@@ -79,6 +79,7 @@ func (c *Core) assemble(cfg *bootstrap.Config, deps *Deps) error {
 		deps.TuneReader(rcfg)
 	}
 
+	//nolint:contextcheck // the state directory opens without a context
 	state, hooks, reason := openStateDir(plane, rcfg, deps, c.log)
 	c.state, c.stateDisabled = state, reason
 
@@ -106,12 +107,12 @@ func (c *Core) assemble(cfg *bootstrap.Config, deps *Deps) error {
 	)
 	c.source = controlsource.New(c.reader, c.engine, c.holder, c.log)
 
-	return c.assembleEvents(cfg, deps)
+	return c.assembleEvents(ctx, cfg, deps)
 }
 
 // assembleEvents builds the exporters and notifiers and the evaluator that feeds them. It is the last step: the
 // exporters are running when it succeeds, and nothing after it can fail.
-func (c *Core) assembleEvents(cfg *bootstrap.Config, deps *Deps) error {
+func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *Deps) error {
 	c.events = events.NewRuntime(&events.RuntimeConfig{
 		Logger:     c.log,
 		Broadcast:  deps.Broadcast,
@@ -119,7 +120,7 @@ func (c *Core) assembleEvents(cfg *bootstrap.Config, deps *Deps) error {
 		Builder:    events.Builder{Factory: c.factory, Secrets: deps.Secrets},
 	})
 
-	_, err := c.events.Reload(context.Background(), events.SpecsFrom(cfg))
+	_, err := c.events.Reload(ctx, events.SpecsFrom(cfg))
 	if err != nil {
 		return &BuildError{Path: "exporters, notifiers", Err: err}
 	}
