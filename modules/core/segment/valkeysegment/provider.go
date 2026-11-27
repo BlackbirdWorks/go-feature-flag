@@ -20,7 +20,12 @@ import (
 )
 
 // Client is the part of a valkey-go client that the provider uses. A [valkey.Client] (a single node, a sentinel
-// set or a cluster) satisfies it.
+// set or a cluster) satisfies it. The contract for a client that you pass to [New]: DoMulti returns one result for
+// each command, in order, and when the connection fails inside a batch it keeps the results that were read and
+// gives the error to the others. valkey-go does that only when it pipelines in the background, so create the client
+// with ClientOption.AlwaysPipelining (and not DisableAutoPipelining): on its synchronous path, which it takes for a
+// call that is alone on a connection, a failure replaces every result of the batch with the error, and the provider
+// then answers the whole batch Unknown (the safe direction, but the answered lookups are lost). [Dial] sets both.
 type Client interface {
 	B() valkey.Builder
 	DoMulti(ctx context.Context, multi ...valkey.Completed) []valkey.ValkeyResult
@@ -133,8 +138,9 @@ func cmp(val, def string) string {
 }
 
 // Dial creates a valkey-go client from the options and returns a Provider that owns it: Close closes the client.
-// It sets DisableCache (no client-side caching: the provider only reads and the resolver caches) and DisableRetry
-// (a failed read is not sent again behind the back of the call timeout), whatever the options say.
+// It sets, whatever the options say: DisableCache (no client-side caching: the provider only reads and the resolver
+// caches), AlwaysPipelining (a connection that fails inside a batch keeps the replies already read, see [Client])
+// and DisableRetry (a failed read is not sent again behind the back of the call timeout).
 func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	if clientOpt == nil {
 		return nil, ErrNilClient
@@ -143,6 +149,8 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	owned := *clientOpt
 	owned.DisableCache = true
 	owned.DisableRetry = true
+	owned.AlwaysPipelining = true
+	owned.DisableAutoPipelining = false
 
 	client, err := valkey.NewClient(owned)
 	if err != nil {
@@ -393,6 +401,20 @@ func flag(res valkey.ValkeyResult) (bool, error) {
 	return val == 1, nil
 }
 
+// parseMembers reads the reply of an SMISMEMBER of want ids: a list of that many integers, each 0 or 1.
+func parseMembers(res valkey.ValkeyResult, want int) ([]int64, error) {
+	replies, err := res.AsIntSlice()
+	if err != nil {
+		return nil, err //nolint:wrapcheck // valkey.IsValkeyErr type-asserts the error: it must stay unwrapped
+	}
+
+	if len(replies) != want || slices.ContainsFunc(replies, func(v int64) bool { return v != 0 && v != 1 }) {
+		return nil, ErrProtocol
+	}
+
+	return replies, nil
+}
+
 func (r *result) readKey(each *step, lookups []segment.Lookup, res valkey.ValkeyResult) {
 	found, err := flag(res)
 	if err != nil {
@@ -415,15 +437,9 @@ func (r *result) readMembers(
 	res valkey.ValkeyResult,
 	exists *valkey.ValkeyResult,
 ) {
-	replies, err := res.AsIntSlice()
+	replies, err := parseMembers(res, len(each.idx))
 	if err != nil {
 		r.fail(len(each.idx), r.classify(err))
-
-		return
-	}
-
-	if len(replies) != len(each.idx) || slices.ContainsFunc(replies, func(v int64) bool { return v != 0 && v != 1 }) {
-		r.fail(len(each.idx), ClassProtocol)
 
 		return
 	}

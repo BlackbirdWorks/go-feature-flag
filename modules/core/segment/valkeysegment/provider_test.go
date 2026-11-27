@@ -15,16 +15,17 @@ import (
 )
 
 const (
-	segBeta      = "beta"
-	segGhost     = "ghost"
-	segFlags     = "flags"
-	keyBeta      = "seg:{beta}"
-	flagPrefix   = "flag:"
-	idAlice      = "alice"
-	idCarol      = "carol"
-	segNope      = "nope"
-	msgProtocol2 = "valkey segment: protocol: 2 of 2 lookups failed"
-	callTimeout  = 5 * time.Second
+	segBeta         = "beta"
+	segGhost        = "ghost"
+	segFlags        = "flags"
+	keyBeta         = "seg:{beta}"
+	flagPrefix      = "flag:"
+	idAlice         = "alice"
+	idCarol         = "carol"
+	msgInitProtocol = "valkey segment: init failed: valkey segment: unexpected reply"
+	segNope         = "nope"
+	msgProtocol2    = "valkey segment: protocol: 2 of 2 lookups failed"
+	callTimeout     = 5 * time.Second
 )
 
 func lk(seg, id string) segment.Lookup { return segment.Lookup{Segment: seg, ID: id} }
@@ -477,12 +478,8 @@ func TestContainsContext(t *testing.T) {
 	t.Run("the cancel of the caller ends a hung call", func(t *testing.T) {
 		t.Parallel()
 
-		// valkey-go watches the deadline of a call that is alone on its connection, not its cancel: the call ends at
-		// the call timeout at the latest, and is reported as cancelled because the context of the caller ended
 		srv := loaded(t)
-		opts := baseOptions(nil)
-		opts.Timeout = 200 * time.Millisecond
-		prov := newProvider(t, srv, opts)
+		prov := newProvider(t, srv, baseOptions(nil)) // the 5 s call timeout: only the cancel can end the call in time
 		entered := srv.Hang()
 		ctx, cancel := context.WithCancel(context.Background())
 		errs := make(chan error, 1)
@@ -520,7 +517,7 @@ func TestShutdownIsBounded(t *testing.T) {
 
 	select {
 	case err := <-errs:
-		require.ErrorIs(t, err, valkeysegment.ErrUnavailable, "the owned client was closed under the call in flight")
+		require.ErrorIs(t, err, valkeysegment.ErrCanceled, "the call in flight was ended by Shutdown")
 	case <-time.After(callTimeout):
 		assert.Fail(t, "the call in flight was not ended by Shutdown")
 	}
@@ -619,10 +616,50 @@ func TestInit(t *testing.T) {
 			wantExists:  0,
 		},
 		{
+			name:        "a probe answers an OK",
+			arrange:     func(s *stubServer) { s.answer(replyOK) },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
+			name:        "a probe answers a bulk string",
+			arrange:     func(s *stubServer) { s.answer("$3\r\nfoo\r\n") },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
+			name:        "a probe answers a list of the wrong length",
+			arrange:     func(s *stubServer) { s.answer("*2\r\n:0\r\n:0\r\n") },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
+			name:        "a probe answers a nil",
+			arrange:     func(s *stubServer) { s.answer("_\r\n") },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
+			name:        "EXISTS answers a count that is not 0 or 1",
+			arrange:     func(s *stubServer) { s.answerOnly("exists", ":7\r\n") },
+			wantErr:     valkeysegment.ErrProtocol,
+			wantMessage: msgInitProtocol,
+			wantSMIS:    1,
+			wantExists:  2,
+		},
+		{
 			name:        "ping answers something else",
 			arrange:     func(s *stubServer) { s.pongWith("+NOPE\r\n") },
 			wantErr:     valkeysegment.ErrProtocol,
-			wantMessage: "valkey segment: init failed: valkey segment: unexpected reply",
+			wantMessage: msgInitProtocol,
 			wantSMIS:    0,
 			wantExists:  0,
 		},
@@ -798,4 +835,30 @@ func TestDialForcesTheSafeOptions(t *testing.T) {
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrUnavailable)
 	assert.Equal(t, 1, srv.count("smismember"), "a failed read is not sent again")
+}
+
+func TestDialForcesBackgroundPipelining(t *testing.T) {
+	t.Parallel()
+
+	srv := loaded(t)
+	opt := srv.clientOption()
+	opt.AlwaysPipelining, opt.DisableAutoPipelining = false, true // Dial turns pipelining on again
+
+	prov, err := valkeysegment.Dial(opt, baseOptions(nil))
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
+		defer cancel()
+
+		assert.NoError(t, prov.Shutdown(ctx))
+	})
+
+	require.NoError(t, prov.Init(context.Background()))
+	srv.CutAfter(1)
+
+	lookups := []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed")}
+
+	require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrUnavailable)
+	assert.Equal(t, []segment.State{segment.Member, segment.Unknown}, states(lookups))
 }

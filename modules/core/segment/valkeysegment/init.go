@@ -64,7 +64,7 @@ func (p *Provider) Init(ctx context.Context) (err error) {
 		}
 
 		for i := range results {
-			replyErr := results[i].Error()
+			replyErr := probeReply(results[i], names[i])
 			if replyErr != nil {
 				return p.initFailed(res.classify(replyErr), names[i])
 			}
@@ -74,6 +74,20 @@ func (p *Provider) Init(ctx context.Context) (err error) {
 	p.record(ClassNone)
 
 	return nil
+}
+
+// probeReply checks that the reply of a probe has the shape that Contains reads: a list of one 0 or 1 for
+// SMISMEMBER, a 0 or 1 for EXISTS.
+func probeReply(res valkey.ValkeyResult, name string) error {
+	if name == "SMISMEMBER" {
+		_, err := parseMembers(res, 1)
+
+		return err
+	}
+
+	_, err := flag(res)
+
+	return err
 }
 
 // probeCommands returns the commands that Init probes and the name that an error gives for each.
