@@ -474,16 +474,20 @@ func validShape(val any, shape int) bool {
 	return false
 }
 
-// isTransportErr tells whether err is the end of the connection or of the context: EOF, a reset, a closed or timed
-// out socket, a failure to get a connection (a dial error, a pool timeout, a closed client), a cancelled or expired
-// context. A parse error or any other protocol error is not.
+// isTransportErr tells whether err is the end of the connection or of the context, or a failure to get a
+// connection: EOF, a reset, a closed or timed out socket, a dial error, a cancelled or expired context, and the
+// sentinels of go-redis v9 for a connection that cannot be had (ErrClosed, ErrPoolExhausted, ErrPoolTimeout: they
+// are all the exported errors of the client that are not replies of the store; ErrCrossSlot and ErrNoScript are
+// replies). A parse error or any other protocol error is not.
 func isTransportErr(err error) bool {
-	switch {
-	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
-		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE),
-		errors.Is(err, redis.ErrPoolTimeout), errors.Is(err, redis.ErrClosed):
-		return true
+	for _, sentinel := range [...]error{
+		io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, context.Canceled, context.DeadlineExceeded,
+		syscall.ECONNRESET, syscall.EPIPE,
+		redis.ErrClosed, redis.ErrPoolExhausted, redis.ErrPoolTimeout,
+	} {
+		if errors.Is(err, sentinel) {
+			return true
+		}
 	}
 
 	_, ok := errors.AsType[net.Error](err)

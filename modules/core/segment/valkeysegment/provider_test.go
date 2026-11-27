@@ -33,6 +33,7 @@ const (
 	cmdEval            = "eval"
 	cmdEvalRO          = "eval_ro"
 	cmdEvalSHA         = "evalsha"
+	msgWrongType       = "WRONGTYPE"
 	flagPrefix         = "flag:"
 	msgProtocol1       = "valkey segment: protocol: 1 of 1 lookups failed"
 	keyBeta            = "semaphore:segment:{beta}"
@@ -350,7 +351,7 @@ func TestContainsFailures(t *testing.T) {
 				sets: setBeta,
 				reply: func(args []any) *fakeReply {
 					if args[1] == keyChurned {
-						return &fakeReply{err: serverError{msg: "WRONGTYPE"}}
+						return &fakeReply{err: serverError{msg: msgWrongType}}
 					}
 
 					return nil

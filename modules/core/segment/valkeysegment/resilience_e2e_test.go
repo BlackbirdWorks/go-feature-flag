@@ -304,9 +304,12 @@ func (p *outageProxy) accept() {
 // breakerCooldown is ten minutes of the stepping clock (see TestMain), which is 600000 reads.
 const breakerCooldown = 10 * time.Minute
 
+// This test is serial (no t.Parallel): it steps the clock of the package, a global that every call reads. A serial
+// test runs while the parallel ones are paused, and they resume after it, so no test observes its steps while it
+// asserts, and its steps are over before the others start. The other tests do not step the clock themselves.
+//
+//nolint:paralleltest // serial on purpose: it steps the shared clock
 func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
-	t.Parallel()
-
 	srv := startServer(t)
 	ctx := context.Background()
 

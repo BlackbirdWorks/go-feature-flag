@@ -148,7 +148,7 @@ When a call returns an error, the engine keeps the answers (member or not member
 | The store replied with an error (no permission, wrong type, loading) for one command | the lookups of that command are unknown, the others keep their answer | `valkeysegment.ErrServer` |
 | A reply that does not fit the command | the lookups of that command are unknown | `valkeysegment.ErrProtocol` |
 | A reply that cannot be parsed (a malformed integer, a broken frame) on any command of the call, or of the script retry | **every** lookup of the call is unknown, even the ones answered before it | `valkeysegment.ErrUnavailable` |
-| The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `valkeysegment.ErrUnavailable` |
+| The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, pool exhausted, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `valkeysegment.ErrUnavailable` |
 | The breaker of the segment is open | unknown, no call | `resolver.ErrCircuitOpen` |
 | Segment not in the options | unknown | none |
 | Set key missing (default) | non-members unknown | none |
