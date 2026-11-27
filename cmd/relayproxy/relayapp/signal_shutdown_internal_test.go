@@ -103,8 +103,7 @@ func TestRealSignals(t *testing.T) {
 			}()
 
 			if tt.failStart {
-				awaitSignal(t, draining, "the cleanup after the failure did not start", &stderr)
-
+				// registered before the wait: the held hook is released whatever happens next
 				t.Cleanup(func() {
 					select {
 					case <-release:
@@ -112,6 +111,8 @@ func TestRealSignals(t *testing.T) {
 						close(release)
 					}
 				})
+
+				awaitSignal(t, draining, "the cleanup after the failure did not start", &stderr)
 			} else {
 				require.Eventually(t, func() bool { return ready(t.Context(), address) }, waitBound,
 					20*time.Millisecond, "the relay never became ready")
@@ -120,7 +121,13 @@ func TestRealSignals(t *testing.T) {
 			require.NoError(t, syscall.Kill(os.Getpid(), tt.signals[0]))
 
 			if tt.failStart {
-				<-ctx.Done() // the run context ended: the signal was seen by the first watcher only
+				// the run context ended: the signal was seen by the first watcher only
+				select {
+				case <-ctx.Done():
+				case <-time.After(waitBound):
+					require.FailNow(t, "the run context did not end on the signal", stderr.String())
+				}
+
 				close(release)
 			}
 

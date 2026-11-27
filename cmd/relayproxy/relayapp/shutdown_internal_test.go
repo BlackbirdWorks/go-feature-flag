@@ -23,6 +23,8 @@ import (
 
 const (
 	// logStreams and logCore are steps of the shutdown in the log.
+	// leftBound is how long the runtime may take to remove a goroutine whose function returned.
+	leftBound  = 5 * time.Second
 	logStreams = "shutdown: change streams closed"
 	logCore    = "shutdown: core stopped"
 	drainExtra = "server:\n  shutdown: {drainDelay: 20s}\n"
@@ -560,8 +562,19 @@ func TestShutdownJoinsEveryGoroutine(t *testing.T) {
 
 	<-rig.finished
 
-	// Shutdown joined everything it owns (the stream workers, the heartbeats, the loops): nothing is left
-	if left := labelled(rig.label); left != "" {
+	// Shutdown joined everything it owns: the stream workers and the heartbeats (joined in Close, and the done
+	// channels of the lanes), the loops and the watchers. That is what the join signals and AwaitStarted show. This
+	// wait covers only the runtime's own teardown: a goroutine whose function returned (it signalled its end) can
+	// still be listed for an instant, and nothing in Go joins that last step. It is bounded, and a goroutine that
+	// is really left fails the test with its stack.
+	left := ""
+
+	ended := assert.Eventually(t, func() bool {
+		left = labelled(rig.label)
+
+		return left == ""
+	}, leftBound, time.Millisecond, "goroutines of the relay are left")
+	if !ended {
 		assert.Fail(t, "goroutines of the relay are left", left)
 	}
 }
