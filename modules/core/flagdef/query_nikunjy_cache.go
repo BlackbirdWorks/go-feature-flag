@@ -180,6 +180,11 @@ func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluat
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
 
+	if evaluator.HasSegments() {
+		// the rule can only be evaluated with the segment states, and it was compiled by NewEvaluator
+		return evaluator, nil
+	}
+
 	_, processErr := evaluator.Process(map[string]any{})
 	if processErr != nil {
 		return nil, fmt.Errorf("invalid query: %w", processErr)

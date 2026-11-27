@@ -188,6 +188,7 @@ export default withMermaid({
         items: [
           { text: 'Flag Format', link: '/configure-flags/create-flags' },
           { text: 'Targeting Rules', link: '/configure-flags/target-with-flags' },
+          { text: 'Segments', link: '/configure-flags/segments' },
           { text: 'Custom Bucketing', link: '/configure-flags/custom-bucketing' },
           {
             text: 'Rollout Strategies',

@@ -1,5 +1,7 @@
 package flagdef
 
+import "github.com/blackbirdworks/semaphore/modules/core/segment"
+
 // variationSelection is an internal struct used when selecting the variation
 // for a flag.
 type variationSelection struct {
@@ -11,6 +13,8 @@ type variationSelection struct {
 	name string
 	// reason of the selection
 	reason ResolutionReason
+	// segmentStatus is the health of the segment lookups of the selection
+	segmentStatus segment.Status
 	// cacheable is set to true if a provider/SDK can cache the value
 	cacheable bool
 }

@@ -33,6 +33,7 @@ scream-level-feature:
 | `query` | Yes | Rule condition in `rules` or `JsonLogic` format. See [Query formats](#query-formats). |
 | `disabled` | No | Set to `true` to disable the rule. Default: `false`. |
 | `name` | No | Optional rule name (required when updating a rule via [scheduled rollout](rollout-strategies/scheduled.md)). |
+| `onError` | No | `skip` (default) or `match`: whether the rule matches when it depends on an unknown [segment](segments.md) lookup. |
 | `variation` | No* | Name of the variation to serve. |
 | `percentage` | No* | Map of variation names to percentage weights (e.g., `variationA: 10.59`, `variationB: 9.41`, `variationC: 80`). |
 | `progressiveRollout` | No* | Ramp traffic percentage over time. See [Progressive rollout](rollout-strategies/progressive.md). |
@@ -68,6 +69,7 @@ Comparison operators (`a`, `b` denote equivalent aliases):
 | `in` | in a list |
 | `pr` | present |
 | `not` | logical negation |
+| `in segment("name")` | member of a [segment](segments.md) |
 
 #### Examples
 
@@ -100,6 +102,8 @@ Write the `query` field as a valid JSON string representing a `JsonLogic` expres
   ```json
   {"and": [{"endsWith": [{"var": "ids"}, "@test.com"]}, {"==": [{"var": "role"}, "backend engineer"]}, {"==": [{"var": "environment"}, "pro"]}, {"==": [{"var": "company"}, "semaphore"]}]}
   ```
+
+- Select the members of a [segment](segments.md): `{"inSegment": [{"var": "targetingKey"}, "beta-users"]}`
 
 ## Environments
 

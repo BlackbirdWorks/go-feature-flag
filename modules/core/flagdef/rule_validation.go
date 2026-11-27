@@ -33,6 +33,11 @@ var (
 	errInvalidVariation                          = errors.New("invalid variation")
 	errEachTargetingShouldHave                   = errors.New("each targeting should have a query")
 	errInvalidJsonlogicQuery                     = errors.New("invalid jsonlogic query")
+	errInvalidOnError                            = errors.New("invalid onError: want skip or match")
+	errSegmentInDefaultRule                      = fmt.Errorf(
+		"%w: segment terms are not allowed in the defaultRule",
+		ErrInvalidSegment,
+	)
 )
 
 // IsValid is checking if the rule is valid.
@@ -70,7 +75,12 @@ func (r *Rule) validate(
 		}
 	}
 
-	err := r.validatePercentages(variations)
+	err := r.validateOnError()
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.validatePercentages(variations)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +224,10 @@ func (r *Rule) isQueryValid(svc *Service, defaultRule bool) error {
 // validateQuery is isQueryValid. It also returns the evaluator of a nikunjy query.
 func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator, error) {
 	if defaultRule {
+		if r.Query != nil && hasSegmentTerm(r.GetTrimmedQuery()) {
+			return nil, errSegmentInDefaultRule
+		}
+
 		return nil, nil //nolint:nilnil // a nil evaluator means there is no nikunjy query to validate (default rule)
 	}
 
@@ -224,6 +238,12 @@ func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator,
 	// Validate the query with the parser
 	switch r.GetQueryFormat() {
 	case JSONLogicQueryFormat:
+		// the JsonLogic library does not know inSegment: the compilation of the decoded query validates it
+		compiled := newCompiledQuery(r.GetQuery())
+		if compiled.segErr != nil || compiled.jlSeg != nil {
+			return nil, compiled.segErr
+		}
+
 		if !jsonlogic.IsValid(strings.NewReader(r.GetQuery())) {
 			return nil, errInvalidJsonlogicQuery
 		}

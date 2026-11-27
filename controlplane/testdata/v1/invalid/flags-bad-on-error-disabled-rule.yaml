@@ -1,0 +1,10 @@
+f:
+  variations:
+    a: 1
+    b: 2
+  targeting:
+    - name: r
+      disable: true
+      onError: ignore
+  defaultRule:
+    variation: a

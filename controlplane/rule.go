@@ -10,6 +10,7 @@ type Rule struct {
 	Percentage         map[string]float64  `json:"percentage,omitempty"         yaml:"percentage,omitempty"`
 	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty"`
 	Disable            *bool               `json:"disable,omitempty"            yaml:"disable,omitempty"`
+	OnError            *string             `json:"onError,omitempty"            yaml:"onError,omitempty"`
 }
 
 // ProgressiveRollout ramps a rule from an initial to an end step.

@@ -1,5 +1,7 @@
 package flagdef
 
+import "github.com/blackbirdworks/semaphore/modules/core/segment"
+
 // ResolutionDetails is the object used to manipulate the data internally, it allows to retrieve
 // the details of your evaluation.
 type ResolutionDetails struct {
@@ -22,6 +24,9 @@ type ResolutionDetails struct {
 	ErrorCode ErrorCode
 	// ErrorMessage gives more information about the error
 	ErrorMessage string
+	// SegmentStatus is the health of the segment lookups of the evaluation, StatusNone when no rule looked a
+	// segment up. A value that depended on a segment lookup is never Cacheable.
+	SegmentStatus segment.Status
 	// Cacheable is set to true if an SDK/provider can cache the value locally.
 	Cacheable bool
 }

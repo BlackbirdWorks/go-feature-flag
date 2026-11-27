@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
@@ -74,6 +75,11 @@ type Rule struct {
 	// Disable indicates that this rule is disabled.
 	Disable *bool `json:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled." toml:"disable,omitempty" yaml:"disable,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
+	// OnError says what the rule does when its result depends on a segment() term whose membership is unknown
+	// (the store is down, ...): "skip" (the default) does not match the rule, "match" matches it, for the rules that
+	// deny. It has no effect on a rule without segment() terms.
+	OnError *string `json:"onError,omitempty" jsonschema:"title=onError,description=What the rule does when its result depends on a segment() term whose membership is unknown: skip (default) or match. It has no effect on a rule without segment() terms.,enum=skip,enum=match" toml:"onError,omitempty" yaml:"onError,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+
 	// QueryHash is the hash of Query that InternalFlag.IsValid computes once, when the flag is
 	// loaded, to find the evaluator of the query without hashing it for every evaluation.
 	// It is derived data: it is never read from or written to a configuration. It is exported
@@ -126,10 +132,19 @@ var errRuleNotApply = errors.New("rule does not apply")
 type queryContext struct {
 	ctx                 ffcontext.Context
 	parsedEvalCtxAsData any
+	// segments answers the membership lookups of the segment() terms.
+	segments segment.Provider
+	// requestContext is the context of the calls of segments, see Context.RequestContext.
+	requestContext context.Context //nolint:containedctx // lives for one evaluation, like the Context it is copied from
 	// svc owns the caches and the pool that evaluating the queries uses.
-	svc                  *Service
-	parsedEvalCtxAsMap   map[string]any
+	svc                *Service
+	parsedEvalCtxAsMap map[string]any
+	// typed holds the decoded JSON form of the typed objects of the context that the evaluation read, see
+	// typedAttribute.
+	typed                map[string]typedObject
 	parsedEvalCtxAsBytes []byte
+	// segmentStatus is the health of the segment lookups of the evaluation.
+	segmentStatus segment.Status
 	// pooled is true when parsedEvalCtxAsMap comes from the pool of svc (see release).
 	pooled bool
 }
@@ -398,6 +413,10 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 		r.VariationResult = updatedRule.VariationResult
 	}
 
+	if updatedRule.OnError != nil {
+		r.OnError = updatedRule.OnError
+	}
+
 	if updatedRule.ProgressiveRollout != nil {
 		rollout := r.GetProgressiveRollout()
 		if updatedRule.ProgressiveRollout.Initial != nil {
@@ -524,10 +543,15 @@ func (r *Rule) evaluateWith(key string, queryCtx *queryContext, flagName string,
 	// Check if the rule applies for this user
 	ruleApply := isDefault
 	if !ruleApply {
+		// a disabled rule never applies: its query is not evaluated, so it does not look a segment up
+		if r.IsDisable() {
+			return "", errRuleNotApply
+		}
+
 		ruleApply = r.evaluateQuery(queryCtx)
 	}
 
-	if !ruleApply || (!isDefault && r.IsDisable()) {
+	if !ruleApply {
 		return "", errRuleNotApply
 	}
 
@@ -568,11 +592,20 @@ func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 	if r.QueryHash != 0 { // the rule was validated
 		raw := r.GetQuery()
 		if ev := queryCtx.svc.nikunjy.lookup(r.QueryHash, raw); ev != nil {
+			if ev.HasSegments() {
+				return r.evaluateNikunjySegments(ev, raw, queryCtx)
+			}
+
 			return evaluateNikunjy(ev, raw, queryCtx)
 		}
 	}
 
-	return evaluateRule(queryCtx.svc.compiledQuery(r.GetQuery()), queryCtx)
+	compiled := queryCtx.svc.compiledQuery(r.GetQuery())
+	if compiled.segments {
+		return r.evaluateSegments(compiled, queryCtx)
+	}
+
+	return evaluateRule(compiled, queryCtx)
 }
 
 func (r *Rule) getVariationFromProgressiveRollout(

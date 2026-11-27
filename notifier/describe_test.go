@@ -298,6 +298,19 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesCase {
 	return []describeChangesCase{
 		{
+			name:   "should describe an onError added to a rule",
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[0].OnError = new("match") },
+			want:   []string{"Targeting rule `internal` onError set to `match`"},
+		},
+		{
+			name: "should describe an onError changed on a rule",
+			setup: func(f *flagdef.InternalFlag) {
+				(*f.Rules)[0].OnError = new("match")
+			},
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[0].OnError = new("skip") },
+			want:   []string{"Targeting rule `internal` onError changed from `match` to `skip`"},
+		},
+		{
 			name:   "should describe a value written out that is already the default",
 			update: func(f *flagdef.InternalFlag) { f.Disable = new(false) },
 			want:   []string{"Flag: `disable: false` added (already the default)"},
@@ -792,6 +805,7 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 			wantHandled: []string{
 				disable,
 				"Name",
+				"OnError",
 				"Percentages",
 				"ProgressiveRollout",
 				"Query",
