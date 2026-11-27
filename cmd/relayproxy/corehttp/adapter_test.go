@@ -229,7 +229,7 @@ func TestServer_HandlersDoNotChangeResults(t *testing.T) {
 
 	for idx, tt := range cases {
 		_, _, again := do(t, tt.method, rig.url+tt.path, tt.body, tt.headers)
-		assert.Equal(t, normalized(t, first[idx], true), normalized(t, again, true), tt.name)
+		assert.Equal(t, string(first[idx]), string(again), tt.name)
 	}
 
 	tableAfter, err := json.Marshal(set.Flags)

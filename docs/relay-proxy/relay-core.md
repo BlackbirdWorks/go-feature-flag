@@ -73,15 +73,26 @@ version 1 relay: they find the flag set of an API key through `service.FlagSetRe
 - **Unavailable flag set** (known, never loaded): a single evaluation answers `FLAG_NOT_FOUND`, a bulk evaluation
   answers 200 with no flag.
 - **Events**: an evaluation of a flag that tracks its events and an event sent to the data collector reach the
-  exporters of the core. Tracking events (`kind: tracking`) are accepted and dropped: the exporters of the core take
-  feature events only.
-- **Changes**: pass `Streams.Broadcast` as the `Broadcast` of the dependencies of the core. A change that alters a flag
-  is sent to the SSE and websocket services, which tell the clients of that flag set (the end to end test follows an
-  SSE client).
-- **Not served from the core**: the retriever refresh endpoint answers `refreshed: false`, the core follows its control
-  plane by polling.
+  exporters of the core. When the queue of the exporters is full, the collector answers 200 with the number of events
+  it accepted in `ingestedContentCount`; the v1 answer (every event) is unchanged.
+- **Changes**: pass `Streams.Broadcast` as the `Broadcast` of the dependencies of the core, and give the same `Streams`
+  to `corehttp.New` (it is required, the caller closes it with `Streams.Close(ctx)` after the server stopped).
+  `Broadcast` returns at once: each of the SSE and websocket services has its own worker and queue, so a client that
+  stopped reading delays neither the core nor the other service. Changes of one flag set that wait together are
+  merged (the SSE event only tells the client to fetch again, the websocket message carries the diff, merged to its net
+  effect); when more than 1024 flag sets wait, the oldest is dropped and counted. `Close` is bounded by its context.
+  The end to end test follows an SSE client.
+- **Flag change**: the hashes of a flag set are computed once per flag set and reused by every poll.
+- **Refresh**: `/admin/v1/retriever/refresh` answers 400 for an admin key, as in v1; the core has no refresh, its
+  changes arrive by polling the control plane.
 - **Read only**: a result of an evaluation and the flags of a flag set are shared between requests. The handlers
   serialize them and never change them.
+
+### Not yet in the v2 core
+
+- Tracking events (`kind: tracking`) reach no exporter: they are accepted and dropped.
+- Evaluation context enrichment: the bootstrap file has no setting for it.
+- The retriever refresh endpoint (a core only polls).
 
 The server is not started by `main.go`. Equivalence tests serve the same flags from a v1 relay and from a core and
 compare the status, the contract headers and the body of every evaluation endpoint, with an explicit list of

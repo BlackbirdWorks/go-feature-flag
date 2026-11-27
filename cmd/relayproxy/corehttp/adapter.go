@@ -3,6 +3,7 @@ package corehttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -168,7 +169,11 @@ type view struct {
 	set     *flagruntime.FlagSet
 }
 
-var _ service.FlagSet = (*view)(nil)
+var (
+	_ service.FlagSet       = (*view)(nil)
+	_ service.EventAcceptor = (*view)(nil)
+	_ service.FlagChanger   = (*view)(nil)
+)
 
 // RawVariation evaluates one flag.
 func (v *view) RawVariation(flagKey string, evalCtx ffcontext.Context, defaultValue any) (model.RawVarResult, error) {
@@ -206,8 +211,21 @@ func (v *view) GetEvaluationContextEnrichment() map[string]any {
 	return v.adapter.eval.EvaluationContextEnrichment(v.set)
 }
 
-// CollectEventData hands the event to the exporters.
+// CollectEventData hands the event to the exporters; a full queue drops it, see [view.AcceptEventData].
 func (v *view) CollectEventData(event *exporter.FeatureEvent) { v.adapter.collect(event) }
+
+// AcceptEventData hands the event to the exporters and reports whether their queue took it.
+func (v *view) AcceptEventData(event *exporter.FeatureEvent) bool { return v.adapter.collect(event) }
+
+// FlagChange returns the hashes of the flags, computed once for the flag set. The map is shared: read it only.
+func (v *view) FlagChange() (map[string]uint32, uint32, error) {
+	change, err := v.set.Change()
+	if err != nil {
+		return nil, 0, fmt.Errorf("hashing the flags of %q: %w", v.set.Name, err)
+	}
+
+	return change.Flags, change.Hash, nil
+}
 
 // CollectTrackingEventData drops the event: the exporters of a core take feature events only.
 func (*view) CollectTrackingEventData(*exporter.TrackingEvent) {}

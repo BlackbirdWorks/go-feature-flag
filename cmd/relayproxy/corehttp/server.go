@@ -1,6 +1,7 @@
 package corehttp
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -12,14 +13,18 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
+// ErrNoStreams is returned by [New] when the configuration has no streams: the server does not make services
+// (they run goroutines) that nobody owns.
+var ErrNoStreams = errors.New("corehttp: the configuration has no streams")
+
 // Config is what the server needs besides the core.
 type Config struct {
 	// Settings are the settings of the HTTP layer.
 	Settings *api.Settings
 	// Logger is the logger of the server; nil discards the logs.
 	Logger *slog.Logger
-	// Streams serves the streams of flag changes. To get changes it must also be the Broadcast of the core. Nil
-	// serves streams that never get a change.
+	// Streams serves the streams of flag changes, it is required. To get changes it must also be the Broadcast of
+	// the core. The caller owns it and closes it ([Streams.Close]) after the server stopped.
 	Streams *Streams
 	// Metrics are the metrics of the handlers; nil makes them.
 	Metrics *metric.Metrics
@@ -38,7 +43,7 @@ func New(src Source, cfg *Config, opts ...api.Option) (api.Server, error) {
 
 	streams := cfg.Streams
 	if streams == nil {
-		streams = NewStreams()
+		return api.Server{}, ErrNoStreams
 	}
 
 	metrics := cfg.Metrics

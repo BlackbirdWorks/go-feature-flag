@@ -49,3 +49,18 @@ type FlagSetResolver interface {
 	// IsDefaultFlagSet returns true if the manager is in default mode (no flagsets configured)
 	IsDefaultFlagSet() bool
 }
+
+// EventAcceptor is a [FlagSet] that tells whether it accepted a feature event: its queue to the exporters is bounded
+// and a full queue drops the event. The collector then counts only the accepted events as ingested. A flag set that
+// does not implement it (the v1 client) accepts every event.
+type EventAcceptor interface {
+	// AcceptEventData hands a feature event to the exporters and reports whether it was accepted.
+	AcceptEventData(event *exporter.FeatureEvent) bool
+}
+
+// FlagChanger is a [FlagSet] that keeps the hashes of its flags: the flag change endpoint answers with them instead
+// of encoding every flag again. The returned map is shared: the caller only reads it.
+type FlagChanger interface {
+	// FlagChange returns the hash of every flag and the hash of the whole table.
+	FlagChange() (flags map[string]uint32, hash uint32, err error)
+}

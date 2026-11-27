@@ -286,7 +286,13 @@ func newV2(tb testing.TB) *v2 {
 			require.NoError(tb, os.WriteFile(path, data, 0o600))
 		},
 	}
-	tb.Cleanup(rig.streams.Close)
+
+	tb.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), waitBound)
+		defer cancel()
+
+		require.NoError(tb, rig.streams.Close(ctx))
+	})
 	rig.publish(tb)
 
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +

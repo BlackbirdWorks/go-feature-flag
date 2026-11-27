@@ -91,6 +91,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	logger := logging.FromContext(ctx)
 	counterTracking := 0
 	counterEvaluation := 0
+	rejected := 0
 
 	for i, event := range reqBody.Events {
 		// Check if context is cancelled before processing each event, to avoid
@@ -140,9 +141,11 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 				continue
 			}
 
-			flagset.CollectEventData(featureEv)
-
-			counterEvaluation++
+			if collectFeatureEvent(flagset, featureEv) {
+				counterEvaluation++
+			} else {
+				rejected++
+			}
 		}
 	}
 
@@ -153,8 +156,20 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	h.metrics.IncCollectEvalData(float64(len(reqBody.Events)))
 
 	return &CollectEvalDataOutput{Body: model.CollectEvalDataResponse{
-		IngestedContentCount: len(reqBody.Events),
+		IngestedContentCount: len(reqBody.Events) - rejected,
 	}}, nil
+}
+
+// collectFeatureEvent hands the event to the flag set and reports whether it was accepted. A flag set that has a
+// bounded queue (the config v2 core) says when it dropped the event; the v1 client always accepts.
+func collectFeatureEvent(flagset service.FlagSet, event *exporter.FeatureEvent) bool {
+	if acceptor, ok := flagset.(service.EventAcceptor); ok {
+		return acceptor.AcceptEventData(event)
+	}
+
+	flagset.CollectEventData(event)
+
+	return true
 }
 
 func convertTrackingEvent(

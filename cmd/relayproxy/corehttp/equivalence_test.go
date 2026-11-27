@@ -1,7 +1,6 @@
 package corehttp_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
@@ -35,17 +34,7 @@ const (
 	authorization = "Authorization"
 )
 
-// allowance is a difference between the v1 and the v2 relay that is intended. A case that differs without one fails.
-type allowance struct {
-	// reason says why the difference is intended.
-	reason string
-	// unorderedBody: the flags of the body come in the order of a map iteration, in v1 as in v2: they are compared
-	// sorted, and the ETag and the length, which hash that order, are not compared.
-	unorderedBody bool
-}
-
 type equivCase struct {
-	allow   *allowance
 	headers http.Header
 	name    string
 	method  string
@@ -61,14 +50,6 @@ func withJSON(h http.Header) http.Header {
 	h.Set(contentType, "application/json")
 
 	return h
-}
-
-func unorderedBulk() *allowance {
-	return &allowance{
-		reason: "the flags of a bulk evaluation are listed in map order, in v1 as in v2: compared sorted, " +
-			"the ETag and the length hash that order",
-		unorderedBody: true,
-	}
 }
 
 func bearer(key string) http.Header {
@@ -173,7 +154,7 @@ func authCases() []equivCase {
 		request("auth unknown bearer", bearer("unknown-key")),
 		request("auth admin key", keyHeader(adminKey)),
 		{name: "auth unknown key on bulk", method: http.MethodPost, path: pathOFREPBulk, body: body,
-			headers: keyHeader("unknown-key"), allow: unorderedBulk()},
+			headers: keyHeader("unknown-key")},
 		{name: "auth unknown key on legacy eval", method: http.MethodPost, path: "/v1/feature/bool-flag/eval",
 			body: `{"evaluationContext":{"key":"u"},"defaultValue":false}`, headers: keyHeader("unknown-key")},
 		{name: "auth unknown key on allflags", method: http.MethodPost, path: pathAllFlags,
@@ -187,54 +168,8 @@ func authCases() []equivCase {
 	}
 }
 
-// allCases are the requests that both servers answer. The allowances are the intended differences.
-func allCases() []equivCase {
-	cases := append(evalCases(), authCases()...)
-
-	for idx := range cases {
-		if cases[idx].path == pathOFREPBulk && cases[idx].allow == nil {
-			cases[idx].allow = unorderedBulk()
-		}
-	}
-
-	return cases
-}
-
-// normalized decodes a JSON body; the flags array of a bulk evaluation is sorted by key when the order is not stable.
-func normalized(t *testing.T, body []byte, unordered bool) any {
-	t.Helper()
-
-	if len(body) == 0 {
-		return nil
-	}
-
-	var doc any
-
-	err := json.Unmarshal(body, &doc)
-	if err != nil {
-		return string(body)
-	}
-
-	if obj, ok := doc.(map[string]any); ok && unordered {
-		if list, isList := obj["flags"].([]any); isList {
-			slices.SortFunc(list, func(a, b any) int {
-				return strings.Compare(keyOf(a), keyOf(b))
-			})
-		}
-	}
-
-	return doc
-}
-
-func keyOf(v any) string {
-	if obj, ok := v.(map[string]any); ok {
-		if key, isString := obj["key"].(string); isString {
-			return key
-		}
-	}
-
-	return ""
-}
+// allCases are the requests that both servers answer. There is no allowance: v1 and v2 answer them identically.
+func allCases() []equivCase { return append(evalCases(), authCases()...) }
 
 // contractHeaders are the response headers that are part of the contract.
 func contractHeaders() []string {
@@ -257,12 +192,6 @@ func TestEquivalence_V1V2(t *testing.T) {
 			status1, header1, body1 := do(t, tt.method, v1URL+tt.path, tt.body, tt.headers)
 			status2, header2, body2 := do(t, tt.method, v2URL+tt.path, tt.body, tt.headers)
 
-			allow := allowance{}
-			if tt.allow != nil {
-				allow = *tt.allow
-				require.NotEmpty(t, allow.reason, "an allowance needs its reason")
-			}
-
 			expected, found := expectations()[tt.name]
 			require.True(t, found, "a case needs its expectation")
 			assert.Equal(t, expected.status, status1, "v1 status")
@@ -270,17 +199,10 @@ func TestEquivalence_V1V2(t *testing.T) {
 			assert.Equal(t, status1, status2, "status")
 
 			for _, name := range contractHeaders() {
-				if allow.unorderedBody && name == "Etag" {
-					assert.Equal(t, header1.Get(name) != "", header2.Get(name) != "", "presence of %s", name)
-
-					continue
-				}
-
 				assert.Equal(t, header1.Values(name), header2.Values(name), name)
 			}
 
-			want := normalized(t, body1, allow.unorderedBody)
-			assert.Equal(t, want, normalized(t, body2, allow.unorderedBody), "body")
+			assert.Equal(t, string(body1), string(body2), "body")
 		})
 	}
 }

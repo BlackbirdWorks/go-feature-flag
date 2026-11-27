@@ -48,6 +48,18 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 		return nil, fmt.Errorf("getting the flag set of the flag change: %w", httpErr)
 	}
 
+	if changer, ok := flagset.(service.FlagChanger); ok {
+		flagHashes, hash, err := changer.FlagChange()
+		if err != nil {
+			return nil, fmt.Errorf(
+				"reading the flag change: %w",
+				helper.NewHTTPError(http.StatusInternalServerError, err.Error()),
+			)
+		}
+
+		return &FlagChangeOutput{Body: FlagChangeResponse{Hash: hash, Flags: flagHashes}}, nil
+	}
+
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
 		return nil, fmt.Errorf(
