@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -516,7 +518,12 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		{name: "no file", args: []string{}, wantCode: 1, wantErr: "no bootstrap file"},
 		{name: "an admin key reference that does not resolve", doc: bootstrapDoc(dir,
 			"auth:\n  adminKeys: ["+adminKey+", {fromEnv: ADMIN_MISSING}]\n"), wantCode: 1, wantErr: "auth.adminKeys"},
-		{name: "a flag without its value", args: []string{"--listen"}, wantCode: 1, wantErr: "invalid command line"},
+		{
+			name:     "a flag without its value",
+			args:     []string{"--listen"},
+			wantCode: exitUsage,
+			wantErr:  "invalid command line",
+		},
 		{name: "listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--listen=nowhere"}, wantCode: 1,
 			wantErr: "set by flag --listen"},
 		{name: "ops listen override", doc: bootstrapDoc(dir, ""), flags: []string{"--ops-listen=nowhere"}, wantCode: 1,
@@ -866,4 +873,83 @@ func TestReloadLogsTheHandOverAsQueued(t *testing.T) {
 
 	assert.Contains(t, rig.stderr.String(), "reload queued")
 	assert.NotContains(t, rig.stderr.String(), "was reloaded")
+}
+
+// --help prints every flag with its environment variable on stdout and exits 0; an unknown flag prints the usage on
+// stderr and exits 2. The flags listed are the ones of the code's own flag set, and the ones of the documentation.
+func TestRunHelpAndUsage(t *testing.T) {
+	t.Parallel()
+
+	var want []string
+
+	newStrictFlagSet().VisitAll(func(flag *pflag.Flag) { want = append(want, "--"+flag.Name) })
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout bool
+	}{
+		{name: "long help", args: []string{"--help"}, wantStdout: true},
+		{name: "short help", args: []string{"-h"}, wantStdout: true},
+		{name: "unknown flag", args: []string{"--nope"}, wantCode: exitUsage},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), &runOptions{Args: tt.args, Stdout: &stdout, Stderr: &stderr})
+			assert.Equal(t, tt.wantCode, code)
+
+			out := stderr.String()
+			if tt.wantStdout {
+				out = stdout.String()
+
+				assert.Empty(t, stderr.String())
+			} else {
+				assert.Empty(t, stdout.String())
+				assert.Contains(t, out, "unknown flag: --nope")
+			}
+
+			for _, name := range want {
+				assert.Contains(t, out, name)
+			}
+
+			for _, env := range []string{bootstrap.EnvConfig, bootstrap.EnvLogLevel, bootstrap.EnvLogFormat, bootstrap.EnvListen,
+				bootstrap.EnvOpsListen, bootstrap.EnvManifestKey, bootstrap.EnvStateDir} {
+				assert.Contains(t, out, env)
+			}
+		})
+	}
+}
+
+// The documentation lists the flags of the relay: the list is the one of the code, so it can not drift.
+func TestDocumentedFlagsAreTheFlagsOfTheCode(t *testing.T) {
+	t.Parallel()
+
+	page, err := os.ReadFile(filepath.Join("..", "..", "docs", "relay-proxy", "bootstrap-config.md"))
+	require.NoError(t, err)
+
+	_, after, found := strings.Cut(string(page), "The flags are")
+	require.True(t, found, "the page lists the flags")
+
+	paragraph, _, _ := strings.Cut(after, "\n- ")
+
+	var documented []string
+
+	for _, match := range regexp.MustCompile("`(--[a-z-]+)`").FindAllStringSubmatch(paragraph, -1) {
+		documented = append(documented, match[1])
+	}
+
+	var inCode []string
+
+	newStrictFlagSet().VisitAll(func(flag *pflag.Flag) {
+		if flag.Name != "version" {
+			inCode = append(inCode, "--"+flag.Name)
+		}
+	})
+
+	assert.ElementsMatch(t, inCode, documented)
 }

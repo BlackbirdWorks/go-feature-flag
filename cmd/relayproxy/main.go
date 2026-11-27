@@ -29,32 +29,57 @@ func versionText() string {
 		buildinfo.Read(), fips140.Enabled())
 }
 
-// newConfigFlagSet declares the command line flags. config is declared so that its value is
-// consumed as a value even when it starts with a dash; unknown flags (--version, -v) are skipped
-// instead of stopping the parse and losing --config.
-func newConfigFlagSet() *pflag.FlagSet {
-	flags := pflag.NewFlagSet("config", pflag.ContinueOnError)
+// declareFlags declares the command line flags of the relay.
+func declareFlags(flags *pflag.FlagSet) {
 	flags.String("config", "", "Location of the version 2 bootstrap file (or SEMAPHORE_CONFIG)")
 	flags.String("log-level", "", "observability.logging.level (or SEMAPHORE_LOG_LEVEL)")
 	flags.String("log-format", "", "observability.logging.format (or SEMAPHORE_LOG_FORMAT)")
 	flags.String("listen", "", "Address of the api listener (or SEMAPHORE_LISTEN)")
 	flags.String("ops-listen", "", "Address of the ops listener (or SEMAPHORE_OPS_LISTEN)")
 	flags.String("manifest-key", "", "controlPlane.manifest.key (or SEMAPHORE_MANIFEST_KEY)")
-	flags.String("state-dir", "", "controlPlane.stateDir (or SEMAPHORE_STATE_DIR)")
+	flags.String("state-dir", "", "controlPlane.stateDir, empty for no state directory (or SEMAPHORE_STATE_DIR)")
+}
+
+// newConfigFlagSet declares the command line flags. config is declared so that its value is
+// consumed as a value even when it starts with a dash; unknown flags (--version, -v) are skipped
+// instead of stopping the parse and losing --config. It is the flag set of the version check only: the relay parses
+// with [newStrictFlagSet].
+func newConfigFlagSet() *pflag.FlagSet {
+	flags := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	declareFlags(flags)
 	flags.ParseErrorsAllowlist.UnknownFlags = true
 
 	return flags
+}
+
+// newStrictFlagSet is the flag set of the relay: an unknown flag is an error, and --version and --help are declared.
+func newStrictFlagSet() *pflag.FlagSet {
+	flags := pflag.NewFlagSet("semaphore", pflag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	declareFlags(flags)
+	flags.BoolP("version", "v", false, "Print the version and exit")
+
+	return flags
+}
+
+// usageText is what --help prints: every flag with its environment variable.
+func usageText() string {
+	return "Usage: semaphore --config FILE [flags]\n\n" + newStrictFlagSet().FlagUsages()
 }
 
 // errUsage is wrapped by the error of command line flags that do not parse.
 var errUsage = errors.New("invalid command line")
 
 // overridesFrom reads the flags that override the file (a flag wins over the environment, which wins over the file).
+// --help is [pflag.ErrHelp].
 func overridesFrom(args []string) (*bootstrap.Overrides, error) {
-	flags := newConfigFlagSet()
-	flags.SetOutput(io.Discard)
+	flags := newStrictFlagSet()
 
 	err := flags.Parse(args)
+	if errors.Is(err, pflag.ErrHelp) {
+		return nil, err //nolint:wrapcheck // the caller matches the sentinel of the flag package
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errUsage, err)
 	}
@@ -68,6 +93,7 @@ func overridesFrom(args []string) (*bootstrap.Overrides, error) {
 	return &bootstrap.Overrides{
 		Config: get("config"), LogLevel: get("log-level"), LogFormat: get("log-format"), Listen: get("listen"),
 		OpsListen: get("ops-listen"), ManifestKey: get("manifest-key"), StateDir: get("state-dir"),
+		StateDirGiven: flags.Changed("state-dir"),
 	}, nil
 }
 

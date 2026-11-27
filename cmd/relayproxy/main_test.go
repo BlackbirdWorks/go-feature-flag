@@ -119,7 +119,13 @@ func TestOverridesFrom(t *testing.T) {
 			args: []string{"--manifest-key=m/a.yaml"},
 			want: bootstrap.Overrides{ManifestKey: "m/a.yaml"},
 		},
-		{name: "state dir", args: []string{"--state-dir=/var/s"}, want: bootstrap.Overrides{StateDir: "/var/s"}},
+		{
+			name: "state dir",
+			args: []string{"--state-dir=/var/s"},
+			want: bootstrap.Overrides{StateDir: "/var/s", StateDirGiven: true},
+		},
+		{name: "state dir given empty", args: []string{"--state-dir="}, want: bootstrap.Overrides{StateDirGiven: true}},
+		{name: "an unknown flag", args: []string{"--nope"}, wantErr: true},
 		{
 			name: "version is not an override",
 			args: []string{versionFlag, "--listen=:1"},

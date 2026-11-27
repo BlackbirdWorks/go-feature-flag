@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -26,6 +28,9 @@ const shutdownTimeout = 15 * time.Second
 
 // logFormatText is the format of the file that the logger calls logfmt.
 const logFormatText = "text"
+
+// exitUsage is the exit code of a command line that does not parse.
+const exitUsage = 2
 
 // stopSteps is the number of steps of the shutdown that can fail.
 const stopSteps = 3
@@ -76,10 +81,16 @@ func run(ctx context.Context, opts *runOptions) int {
 	logger := cmdlog.NewDefault(cmdlog.WithWriter(opts.Stderr))
 
 	overrides, err := overridesFrom(opts.Args)
-	if err != nil {
-		logFatal(ctx, logger.Slog, "command line error", cmdlog.Err(err))
+	if errors.Is(err, pflag.ErrHelp) {
+		_, _ = fmt.Fprint(opts.Stdout, usageText())
 
-		return 1
+		return 0
+	}
+
+	if err != nil {
+		_, _ = fmt.Fprintf(opts.Stderr, "semaphore: %v\n\n%s", err, usageText())
+
+		return exitUsage
 	}
 
 	cfg, err := bootstrap.Load(overrides, opts.Load)
