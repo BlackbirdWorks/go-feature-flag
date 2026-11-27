@@ -170,13 +170,20 @@ type relayRig struct {
 }
 
 type rigOptions struct {
-	stateFS         statedir.FS
-	extra           string
-	manifestKey     string
-	port            string
-	flags           []string
+	// stateFS replaces the file system of the state directory.
+	stateFS statedir.FS
+	// extra is appended to the bootstrap file.
+	extra string
+	// manifestKey replaces the manifest key of the file.
+	manifestKey string
+	// port, when set, makes the relay bind the address of its file (no injected listener) on that port.
+	port string
+	// flags are added to the command line.
+	flags []string
+	// shutdownTimeout bounds the shutdown of the relay.
 	shutdownTimeout time.Duration
-	watchDrain      bool
+	// watchDrain records the readiness at the start of the shutdown.
+	watchDrain bool
 }
 
 func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
@@ -503,7 +510,7 @@ func TestRunRefusesWhatItCanNotServe(t *testing.T) {
 		{name: "a unix socket", doc: bootstrapDoc(dir, "server:\n  unixSocketPath: /tmp/semaphore.sock\n"), wantCode: 1,
 			wantErr: "server.unixSocketPath"},
 		{name: "two api listeners", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: a, address: \":1\"}\n"+
-			"    - {name: b, address: \":2\"}\n"), wantCode: 1, wantErr: "more than one api listener"},
+			"    - {name: b, address: \":2\"}\n"), wantCode: 1, wantErr: "the relay serves one api listener"},
 		{name: "a port in use", doc: bootstrapDoc(dir, "server:\n  listeners:\n    - {name: api, address: \""+
 			taken.Addr().String()+"\"}\n"), wantCode: 1, wantErr: "Error starting relay proxy"},
 		{name: "no file", args: []string{}, wantCode: 1, wantErr: "no bootstrap file"},
