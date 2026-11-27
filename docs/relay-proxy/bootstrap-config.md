@@ -153,7 +153,7 @@ The sampler is given to the OpenTelemetry SDK through `OTEL_TRACES_SAMPLER` when
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
-| `contextEnrichment` | map | none | any values (objects and lists too); merged into the context of every evaluation, and it wins over a request attribute of the same name, as in version 1 |
+| `contextEnrichment` | map | none | strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity: quote the text); merged into the context of every evaluation, and it wins over a request attribute of the same name, as in version 1 |
 | `environment` | string | none | added to the enrichment under the key `env` |
 | `disableSemaphoreMetadata` | boolean | `false` | keeps `semaphore_cacheable` out of the OFREP metadata; `gofeatureflag_cacheable` is always sent |
 

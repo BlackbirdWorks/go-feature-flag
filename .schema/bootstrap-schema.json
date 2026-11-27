@@ -290,7 +290,8 @@
         "Evaluation": {
             "properties": {
                 "contextEnrichment": {
-                    "type": "object"
+                    "type": "object",
+                    "description": "Merged into the context of every evaluation. Values: strings"
                 },
                 "environment": {
                     "type": "string"

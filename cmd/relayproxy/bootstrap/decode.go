@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -300,6 +301,29 @@ func (w *walker) walkStruct(path string, node *yaml.Node, t reflect.Type) {
 	}
 }
 
+// checkAnyScalar accepts the scalars that JSON encodes as themselves: strings, integers, finite floats, booleans and
+// null. A timestamp or binary value, and an infinity or a NaN, are refused (quote the text to get a string).
+func (w *walker) checkAnyScalar(path string, node *yaml.Node) {
+	switch node.Tag {
+	case tagStr, tagInt, "!!bool", nullTag:
+		return
+	case "!!float":
+		var value float64
+
+		err := node.Decode(&value)
+		if err == nil && !math.IsInf(value, 0) && !math.IsNaN(value) {
+			return
+		}
+	}
+
+	w.failf(
+		path,
+		node.Line,
+		ErrInvalidValue,
+		"expected a string, a number, a boolean, a list or a mapping that JSON can encode",
+	)
+}
+
 // walkAny walks a value of a free-form setting (the context enrichment): scalars, mappings with string keys and lists,
 // at any depth up to maxDepth. Keys are still checked for duplicates.
 func (w *walker) walkAny(path string, node *yaml.Node, t reflect.Type) {
@@ -330,6 +354,8 @@ func (w *walker) walkAny(path string, node *yaml.Node, t reflect.Type) {
 
 			w.walk(child, item, t)
 		}
+	case yaml.ScalarNode:
+		w.checkAnyScalar(path, node)
 	}
 }
 

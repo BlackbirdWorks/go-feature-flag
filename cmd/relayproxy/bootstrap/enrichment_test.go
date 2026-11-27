@@ -1,6 +1,7 @@
 package bootstrap_test
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -54,6 +55,9 @@ func TestContextEnrichmentIsFreeForm(t *testing.T) {
 			cfg, parseErr := bootstrap.Parse([]byte(tt.doc), nil, options(nil, nil, false))
 			require.NoError(t, parseErr)
 			assert.Equal(t, tt.want, cfg.Evaluation.ContextEnrichment)
+
+			_, jsonErr := json.Marshal(cfg.Evaluation.ContextEnrichment)
+			require.NoError(t, jsonErr, "what the loader accepts is encodable as JSON")
 		})
 	}
 }
@@ -71,6 +75,20 @@ func TestContextEnrichmentRejections(t *testing.T) {
 			wantPath: enrichmentPath + ".a.b", wantErr: bootstrap.ErrDuplicateName},
 		{name: "unknown key elsewhere stays an error", doc: "version: 2\nevaluation:\n  bogus: 1\n",
 			wantPath: "evaluation.bogus", wantErr: bootstrap.ErrUnknownKey},
+		{
+			name:     "infinity",
+			doc:      enrichmentDoc("    a: .inf\n"),
+			wantPath: enrichmentPath + ".a",
+			wantErr:  bootstrap.ErrInvalidValue,
+		},
+		{name: "minus infinity at depth", doc: enrichmentDoc("    a:\n      b: [1, -.inf]\n"),
+			wantPath: enrichmentPath + ".a.b[1]", wantErr: bootstrap.ErrInvalidValue},
+		{name: "not a number", doc: enrichmentDoc("    a: {b: .nan}\n"), wantPath: enrichmentPath + ".a.b",
+			wantErr: bootstrap.ErrInvalidValue},
+		{name: "a timestamp", doc: enrichmentDoc("    since: 2001-12-14\n"), wantPath: enrichmentPath + ".since",
+			wantErr: bootstrap.ErrInvalidValue},
+		{name: "binary", doc: enrichmentDoc("    blob: !!binary aGVsbG8=\n"), wantPath: enrichmentPath + ".blob",
+			wantErr: bootstrap.ErrInvalidValue},
 		{name: "non string key", doc: enrichmentDoc("    a:\n      1: x\n"),
 			wantPath: enrichmentPath + ".a.1", wantErr: bootstrap.ErrInvalidValue},
 	}
