@@ -49,6 +49,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Configuration](go-module/configuration.md)
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
 - [Control plane document format](go-module/controlplane.md) (manifest, flag-set documents and flag objects for publishers)
+- [Publish to S3 (`s3publish`)](go-module/s3publish.md) (upload protocol: objects first, manifest last, conditional writes)
 
 ## Migration
 - [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)
@@ -58,5 +59,5 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [JsonLogic behaviour changes (`jsonlogic` v3.11.0)](migration/jsonlogic-3-11.md)
 
 ## Tooling
-- [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md)
+- [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md), [publish](tooling/publish.md), [config](tooling/config.md)
 - [Auto-complete (JSON schema)](tooling/autocomplete.md)

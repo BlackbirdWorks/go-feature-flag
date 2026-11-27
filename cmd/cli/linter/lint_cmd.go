@@ -50,7 +50,7 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 		return errInvalidSemaphoreConfiguration
 	}
 
-	output.Add("Valid Semaphore configuration", helper.InfoLevel)
+	output.Add("Valid Semaphore configuration", helper.StatusLevel)
 	output.PrintLines(cmd)
 
 	return nil

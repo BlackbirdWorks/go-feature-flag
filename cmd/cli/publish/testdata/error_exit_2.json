@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "invalid",
+    "message": "s3publish: invalid documents: bad (src/flags/bad.yaml): validate flags: controlplane: invalid document: bad.variations: is required; bad.defaultRule: is required",
+    "details": [
+      "bad.variations: is required",
+      "bad.defaultRule: is required"
+    ]
+  }
+}

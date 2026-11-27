@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "conflict",
+    "message": "s3publish: the manifest changed since it was read: manifests/stable.yaml",
+    "details": []
+  }
+}

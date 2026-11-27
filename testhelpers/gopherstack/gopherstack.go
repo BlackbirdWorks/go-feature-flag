@@ -57,6 +57,12 @@ const (
 	EnvEndpoint = "GOPHERSTACK_ENDPOINT"
 	// EnvImage is the env var to override Image.
 	EnvImage = "GOPHERSTACK_IMAGE"
+	// logLines is the number of lines of the log of the emulator that Main prints when the tests failed.
+	logLines = 200
+	// logMaxLine is the longest line of the log that is kept whole.
+	logMaxLine = 64 << 10
+	// logTimeout bounds the reading of that log.
+	logTimeout = 20 * time.Second
 )
 
 // Server is a running gopherstack instance.
@@ -211,6 +217,10 @@ func (s *Server) SetAwsEnv(t *testing.T) {
 // is available, publishes its endpoint in GOPHERSTACK_ENDPOINT for Connect, runs the tests and removes
 // the container. When Docker is not available the tests that call Connect are skipped.
 //
+// When the tests fail and Main started the container, it prints the last 200 lines of the log of the emulator to
+// stderr, read through the Docker API, before it removes the container. For an external instance
+// (GOPHERSTACK_ENDPOINT) it has no container and prints nothing.
+//
 //	func TestMain(m *testing.M) { os.Exit(gopherstack.Main(m)) }
 func Main(m *testing.M) int {
 	ctx := context.Background()
@@ -238,6 +248,13 @@ func Main(m *testing.M) int {
 
 			return 1
 		}
+
+		code := m.Run()
+		if code != 0 {
+			printLog(ctx, srv)
+		}
+
+		return code
 	}
 
 	return m.Run()
@@ -254,6 +271,23 @@ func Connect(tb testing.TB) *Server {
 	}
 
 	return &Server{Endpoint: endpoint}
+}
+
+// printLog writes the end of the log of the container of srv to stderr, or why it cannot.
+func printLog(ctx context.Context, srv *Server) {
+	ctx, cancel := context.WithTimeout(ctx, logTimeout)
+	defer cancel()
+
+	logs, err := srv.container.Logs(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gopherstack: cannot read the log of the emulator:", err)
+
+		return
+	}
+
+	defer func() { _ = logs.Close() }()
+
+	fmt.Fprintln(os.Stderr, "gopherstack:", TailLog(logs, logLines, logMaxLine))
 }
 
 var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)

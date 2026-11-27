@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "transport",
+    "message": "s3publish: GetObject manifests/stable.yaml: api error ServiceUnavailable: ServiceUnavailable",
+    "details": []
+  }
+}
