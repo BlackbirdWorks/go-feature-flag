@@ -13,6 +13,7 @@ const (
 	targetRelay    = "relay"
 	singleTarget   = "-target"
 	singleNopeFlag = "-nope"
+	dashCPUProfile = "-cpu.pprof"
 )
 
 func defaultCLI() cli {
@@ -110,6 +111,15 @@ func TestParseCommandLine(t *testing.T) {
 			args: []string{"--help=false"},
 			want: defaultCLI(),
 		},
+		{
+			name: "dash-prefixed profile filename and negative workers",
+			args: []string{"-cpuprofile", dashCPUProfile, "--flag", singleTarget, "-workers", "-1"},
+			want: withCLIFields(func(c *cli) {
+				c.CPUProfile = dashCPUProfile
+				c.FlagKey = singleTarget
+				c.Workers = -1
+			}),
+		},
 		{name: "unknown flag", args: []string{"--nope"}, wantErr: true},
 		{name: "unknown single-dash flag", args: []string{singleNopeFlag}, wantErr: true},
 		{name: "unknown flag after help", args: []string{"--help", "--nope"}, wantErr: true},
@@ -149,9 +159,9 @@ func TestNormalizeArgs(t *testing.T) {
 			want: []string{"--target", targetRelay, "--help", "-h", singleNopeFlag},
 		},
 		{
-			name: "double-dash value starting with dash is preserved",
-			args: []string{"--flag", singleTarget, "-endpoint=ofrep-eval"},
-			want: []string{"--flag", singleTarget, "--endpoint=ofrep-eval"},
+			name: "double-dash value starting with dash is joined with equals",
+			args: []string{"--flag", singleTarget, "-cpuprofile", dashCPUProfile, "-endpoint=ofrep-eval"},
+			want: []string{"--flag=-target", "--cpuprofile=" + dashCPUProfile, "--endpoint=ofrep-eval"},
 		},
 		{
 			name: "double-dash terminator stops normalization",

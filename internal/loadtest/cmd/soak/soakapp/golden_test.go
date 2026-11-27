@@ -20,12 +20,14 @@ func TestHelpGolden(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name string
-		args []string
+		name       string
+		wantStdout string
+		args       []string
+		wantCode   int
 	}{
-		{name: "long help", args: []string{"--help"}},
-		{name: "short help", args: []string{"-h"}},
-		{name: "legacy single-dash help", args: []string{"-help"}},
+		{name: "long help", args: []string{"--help"}, wantStdout: string(golden), wantCode: 0},
+		{name: "short help", args: []string{"-h"}, wantStdout: string(golden), wantCode: 0},
+		{name: "legacy single-dash help", args: []string{"-help"}, wantStdout: string(golden), wantCode: 0},
 	}
 
 	for _, tt := range tests {
@@ -35,9 +37,9 @@ func TestHelpGolden(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
 			code := soakapp.Main(t.Context(), tt.args, &stdout, &stderr)
-			assert.Equal(t, 0, code)
+			assert.Equal(t, tt.wantCode, code)
 			assert.Empty(t, stderr.String())
-			assert.Equal(t, unwrapped(string(golden)), unwrapped(stdout.String()))
+			assert.Equal(t, unwrapped(tt.wantStdout), unwrapped(stdout.String()))
 		})
 	}
 }

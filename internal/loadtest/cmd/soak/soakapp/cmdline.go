@@ -88,6 +88,8 @@ func rewriteFlagArg(arg string) (string, bool) {
 
 // normalizeArgs converts legacy single-dash Go flag spellings (such as -target or -help) to kong's
 // double-dash form while leaving -h, unknown single-dash flags, flag values, and args after "--" untouched.
+// Separated values that start with "-" (such as "-cpuprofile -cpu.pprof" or "-workers -1") are joined with
+// "=" so kong parses them as values rather than flags, matching standard library flag behaviour.
 func normalizeArgs(args []string) []string {
 	out := make([]string, 0, len(args))
 
@@ -100,12 +102,20 @@ func normalizeArgs(args []string) []string {
 		}
 
 		rewritten, consumesNext := rewriteFlagArg(arg)
-		out = append(out, rewritten)
-
 		if consumesNext && idx+1 < len(args) {
 			idx++
-			out = append(out, args[idx])
+			next := args[idx]
+
+			if strings.HasPrefix(next, "-") {
+				out = append(out, rewritten+"="+next)
+			} else {
+				out = append(out, rewritten, next)
+			}
+
+			continue
 		}
+
+		out = append(out, rewritten)
 	}
 
 	return out
