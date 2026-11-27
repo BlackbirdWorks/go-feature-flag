@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -175,6 +176,7 @@ func Run(ctx context.Context, args []string, streams *helper.Streams) error {
 		kong.Name("evaluate"),
 		kong.Description("⚙️ Evaluate feature flags based on configuration and context"),
 		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(streams.Stdout, streams.Stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),

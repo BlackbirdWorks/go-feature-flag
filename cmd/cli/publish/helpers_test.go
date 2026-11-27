@@ -20,28 +20,30 @@ import (
 )
 
 const (
-	secretKeyPath = "/run/secret-key"
-	flagsB        = "flags/b.yaml"
-	jsonFlag      = "json"
-	bootstrapPath = "/etc/bootstrap.yaml"
-	opOpen        = "open"
-	optChannel    = "--channel"
-	optEndpoint   = "--endpoint"
-	optPrefix     = "--prefix"
-	chanCanary    = "canary"
-	connEU        = "flags-eu"
-	verifyWord    = "verify"
-	badFile       = "flags/bad.yaml"
-	regionUSEast  = "us-east-1"
-	srcDir        = "src"
-	flagsA        = "flags/a.yaml"
-	optConfig     = "--config"
-	optBucket     = "--bucket"
-	optRegion     = "--region"
-	envKeyID      = "PUBLISH_KEY_ID"
-	cfgOK         = "/ok.yaml"
-	cfgV1         = "/v1.yaml"
-	cfgUnknown    = "/unknown.yaml"
+	secretKeyPath    = "/run/secret-key"
+	flagsB           = "flags/b.yaml"
+	jsonFlag         = "json"
+	bootstrapPath    = "/etc/bootstrap.yaml"
+	opOpen           = "open"
+	optChannel       = "--channel"
+	optEndpoint      = "--endpoint"
+	optPrefix        = "--prefix"
+	chanCanary       = "canary"
+	connEU           = "flags-eu"
+	verifyWord       = "verify"
+	badFile          = "flags/bad.yaml"
+	regionUSEast     = "us-east-1"
+	srcDir           = "src"
+	flagsA           = "flags/a.yaml"
+	optConfig        = "--config"
+	optBucket        = "--bucket"
+	optRegion        = "--region"
+	envKeyID         = "PUBLISH_KEY_ID"
+	cfgOK            = "/ok.yaml"
+	cfgV1            = "/v1.yaml"
+	cfgUnknown       = "/unknown.yaml"
+	publishedGen1    = "published generation 1"
+	checkoutSetsFlag = "checkout-sets"
 
 	// canaryAPIKey is an API key of a flag-set document: it must never appear in any output.
 	canaryAPIKey = "canary-api-key-7f3a9c"
@@ -130,6 +132,12 @@ func sourceDirArg(args []string) string {
 		arg := args[i]
 
 		switch {
+		case arg == "--":
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+
+			return ""
 		case arg == verifyWord:
 			return ""
 		case strings.HasPrefix(arg, "-"):

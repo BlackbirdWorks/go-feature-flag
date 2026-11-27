@@ -295,7 +295,7 @@ func TestUsageFailuresAreJSONInJSONMode(t *testing.T) {
 		wantInMsg string
 		args      []string
 	}{
-		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: `expected "<dir>"`},
+		{name: "no directory", args: []string{"-o", jsonFlag}, wantInMsg: `expected one of "<dir> [flags]", "verify"`},
 		{name: "two directories", args: []string{"a", "b", "-o", jsonFlag}, wantInMsg: "unexpected argument b"},
 		{
 			name:      "arguments for verify",
@@ -427,9 +427,12 @@ func TestVerifyNamesWhatItDidNotCheck(t *testing.T) {
 func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
 	t.Parallel()
 
+	const applyWord = "apply"
+
 	tests := []struct {
 		name       string
 		wantStdout string
+		wantFlag   string
 		args       []string
 		wantCode   int
 	}{
@@ -439,8 +442,28 @@ func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
 			wantCode: helper.ExitVerify,
 		},
 		{
-			name: "with ./ it is a directory to publish", args: withTarget("./verify"),
-			wantStdout: "published generation 1",
+			name:       "with ./ it is a directory to publish",
+			args:       withTarget("./verify"),
+			wantStdout: publishedGen1,
+			wantFlag:   "from-dot-slash-verify",
+		},
+		{
+			name:       "with -- a bare verify is a directory to publish",
+			args:       append(withTarget(), "--", verifyWord),
+			wantStdout: publishedGen1,
+			wantFlag:   "from-bare-verify",
+		},
+		{
+			name:       "apply is a directory to publish, not a reserved subcommand",
+			args:       withTarget(applyWord),
+			wantStdout: publishedGen1,
+			wantFlag:   "from-apply-dir",
+		},
+		{
+			name:       "short -c=bootstrap strips equals sign",
+			args:       []string{"-c=" + cfgOK, srcDir},
+			wantStdout: publishedGen1,
+			wantFlag:   checkoutSetsFlag,
 		},
 	}
 	for _, tt := range tests {
@@ -448,16 +471,29 @@ func TestADirectoryNamedVerifyNeedsADotSlash(t *testing.T) {
 			t.Parallel()
 
 			rig := newHarness(t, sourceTree())
-			// "./verify" is another directory than "src", with other content: what is published says which was opened.
+			rig.deps.ReadFile = func(path string) ([]byte, error) {
+				if path == cfgOK {
+					return []byte("version: 2\nconnections:\n  control: {type: s3, region: us-east-1, bucket: acme}\n" +
+						"controlPlane:\n  connection: control\n  manifest: {key: manifests/stable.yaml}\n"), nil
+				}
+
+				return nil, fs.ErrNotExist
+			}
+			// "./verify" and "verify" and "apply" are distinct from "src": what is published says which was opened.
 			rig.trees["./verify"] = treeOf(map[string]string{"flags/from-dot-slash-verify.yaml": checkoutFlags})
+			rig.trees[verifyWord] = treeOf(map[string]string{"flags/from-bare-verify.yaml": checkoutFlags})
+			rig.trees[applyWord] = treeOf(map[string]string{"flags/from-apply-dir.yaml": checkoutFlags})
 
 			stdout, _, err := rig.run(t, tt.args...)
 
 			if tt.wantCode == 0 {
 				require.NoError(t, err)
 				assert.Contains(t, stdout, tt.wantStdout)
-				assert.Contains(t, stdout, "from-dot-slash-verify")
-				assert.NotContains(t, stdout, "checkout-sets", "the tree of src was not read")
+				assert.Contains(t, stdout, tt.wantFlag)
+
+				if tt.wantFlag != checkoutSetsFlag {
+					assert.NotContains(t, stdout, checkoutSetsFlag, "the tree of src was not read")
+				}
 
 				return
 			}

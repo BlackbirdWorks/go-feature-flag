@@ -17,6 +17,9 @@ Commands:
     📄 (experimental) Generate an OpenFeature flag manifest based on your flags
     configuration.
 
+  publish <dir> [flags]
+    Source directory containing flags/ and flagsets/.
+
   publish verify [flags]
     Check the manifest and every object it lists in the bucket
 

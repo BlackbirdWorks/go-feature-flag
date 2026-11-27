@@ -14,7 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 )
 
-const formatJSON = "--format=json"
+const (
+	formatJSON    = "--format=json"
+	validYAMLPath = "testdata/valid.yaml"
+)
 
 func TestMain(m *testing.M) {
 	pterm.DisableStyling()
@@ -30,6 +33,7 @@ func TestCmdLint(t *testing.T) {
 		wantErr           assert.ErrorAssertionFunc
 		name              string
 		expectedStdout    string
+		wantStdoutHas     string
 		expectedStderr    string
 		expectedErrString string
 		args              []string
@@ -52,7 +56,13 @@ func TestCmdLint(t *testing.T) {
 		},
 		{
 			name:           "valid configuration",
-			args:           []string{"testdata/valid.yaml", "--format=yaml"},
+			args:           []string{validYAMLPath, "--format=yaml"},
+			wantErr:        assert.NoError,
+			expectedStdout: "INFO: Valid Semaphore configuration\n",
+		},
+		{
+			name:           "valid configuration with short -f=yaml",
+			args:           []string{validYAMLPath, "-f=yaml"},
 			wantErr:        assert.NoError,
 			expectedStdout: "INFO: Valid Semaphore configuration\n",
 		},
@@ -63,9 +73,10 @@ func TestCmdLint(t *testing.T) {
 			expectedErrString: "usage: unknown flag --nope",
 		},
 		{
-			name:    "help exits without error",
-			args:    []string{"--help"},
-			wantErr: assert.NoError,
+			name:          "help exits without error",
+			args:          []string{"--help"},
+			wantErr:       assert.NoError,
+			wantStdoutHas: "Usage: lint",
 		},
 	}
 	for _, tt := range tests {
@@ -81,6 +92,10 @@ func TestCmdLint(t *testing.T) {
 
 			if tt.expectedStdout != "" {
 				assert.Equal(t, tt.expectedStdout, pterm.RemoveColorFromString(stdout.String()))
+			}
+
+			if tt.wantStdoutHas != "" {
+				assert.Contains(t, pterm.RemoveColorFromString(stdout.String()), tt.wantStdoutHas)
 			}
 
 			if tt.expectedErrString != "" {
@@ -109,7 +124,7 @@ func TestCmdLintWriteErrorsAndHelp(t *testing.T) {
 	}{
 		{
 			name:   "valid config stdout write error",
-			args:   []string{"testdata/valid.yaml", "--format=yaml"},
+			args:   []string{validYAMLPath, "--format=yaml"},
 			stdout: failingWriter{},
 			stderr: io.Discard,
 		},

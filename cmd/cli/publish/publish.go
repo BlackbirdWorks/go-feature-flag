@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -39,21 +41,48 @@ func HelpVars() kong.Vars {
 //
 //nolint:govet // fieldalignment: field order sets kong help flag and command order
 type Cmd struct {
-	Config      string            `help:"${helpPubConfig}"   name:"config"                   short:"c"`
-	Bucket      string            `help:"${helpPubBucket}"   name:"bucket"`
-	Prefix      string            `help:"${helpPubPrefix}"   name:"prefix"`
-	Region      string            `help:"${helpPubRegion}"   name:"region"`
-	Endpoint    string            `help:"${helpPubEndpoint}" name:"endpoint"`
-	Channel     string            `help:"${helpPubChannel}"  name:"channel"`
-	Connection  string            `help:"${helpPubConn}"     name:"connection"`
-	ManifestKey string            `help:"${helpPubMKey}"     name:"manifest-key"`
-	Output      helper.OutputFlag `default:"text"            help:"${helpOut}"               name:"output"     short:"o"`
-	Generation  uint64            `default:"0"               help:"${helpPubGen}"            name:"generation"`
-	DryRun      bool              `help:"${helpPubDryRun}"   name:"dry-run"`
-	Replace     bool              `help:"${helpPubReplace}"  name:"replace-invalid-manifest"`
+	Config      string `help:"${helpPubConfig}"   name:"config"                   short:"c"`
+	Bucket      string `help:"${helpPubBucket}"   name:"bucket"`
+	Prefix      string `help:"${helpPubPrefix}"   name:"prefix"`
+	Region      string `help:"${helpPubRegion}"   name:"region"`
+	Endpoint    string `help:"${helpPubEndpoint}" name:"endpoint"`
+	Channel     string `help:"${helpPubChannel}"  name:"channel"`
+	Connection  string `help:"${helpPubConn}"     name:"connection"`
+	ManifestKey string `help:"${helpPubMKey}"     name:"manifest-key"`
+	Output      string `default:"text"            help:"${helpOut}"               name:"output"     short:"o"`
+	Generation  uint64 `default:"0"               help:"${helpPubGen}"            name:"generation"`
+	DryRun      bool   `help:"${helpPubDryRun}"   name:"dry-run"`
+	Replace     bool   `help:"${helpPubReplace}"  name:"replace-invalid-manifest"`
 
-	Apply  ApplyCmd  `cmd:"" default:"withargs"      hidden:""`
+	dashVerifyDir bool
+
+	Dir    ApplyCmd  `arg:"" help:"Source directory containing flags/ and flagsets/."`
 	Verify VerifyCmd `cmd:"" help:"${helpPubVerify}"`
+}
+
+// SetDashVerifyDir records whether a bare "verify" directory appeared after "--" so it is not confused with
+// the "verify" subcommand.
+func (c *Cmd) SetDashVerifyDir(enabled bool) { c.dashVerifyDir = enabled }
+
+// RewriteDashVerify rewrites a bare "verify" immediately after the first "--" to "./verify" so Kong dispatches it to
+// the <dir> branch rather than the "verify" subcommand.
+func RewriteDashVerify(args []string) ([]string, bool) {
+	for idx, arg := range args {
+		if arg != "--" {
+			continue
+		}
+
+		if idx+1 < len(args) && args[idx+1] == "verify" {
+			rewritten := slices.Clone(args)
+			rewritten[idx+1] = "./verify"
+
+			return rewritten, true
+		}
+
+		break
+	}
+
+	return args, false
 }
 
 // Help returns the detailed description of publish for kong's help output.
@@ -87,11 +116,16 @@ type ApplyCmd struct {
 
 // Run executes the publish operation against ApplyCmd.Dir.
 func (a ApplyCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, deps *Deps) error {
+	dir := a.Dir
+	if parent.dashVerifyDir && dir == "./verify" {
+		dir = "verify"
+	}
+
 	err := helper.ReportJSONError(
 		streams.Stdout,
-		string(parent.Output) == outputJSON,
+		parent.Output == outputJSON,
 		errorDetails,
-		runPublish(ctx, streams, a.Dir, parent, deps),
+		runPublish(ctx, streams, dir, parent, deps),
 	)
 	if err != nil {
 		return fmt.Errorf("%w", err)
@@ -119,7 +153,7 @@ func (VerifyCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, 
 		err = runVerify(ctx, streams, parent, deps)
 	}
 
-	repErr := helper.ReportJSONError(streams.Stdout, string(parent.Output) == outputJSON, errorDetails, err)
+	repErr := helper.ReportJSONError(streams.Stdout, parent.Output == outputJSON, errorDetails, err)
 	if repErr != nil {
 		return fmt.Errorf("%w", repErr)
 	}
@@ -139,6 +173,7 @@ func Run(ctx context.Context, args []string, streams *helper.Streams, deps Deps)
 		kong.Name("publish"),
 		kong.Description("Publish flag files and flag-set documents to S3 behind a manifest"),
 		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(streams.Stdout, streams.Stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),
@@ -147,7 +182,10 @@ func Run(ctx context.Context, args []string, streams *helper.Streams, deps Deps)
 		return fmt.Errorf("build publish parser: %w", err)
 	}
 
-	kctx, exited, err := helper.Parse(parser, args)
+	parseArgs, dashVerifyDir := RewriteDashVerify(args)
+	runner.Cmd.SetDashVerifyDir(dashVerifyDir)
+
+	kctx, exited, err := helper.Parse(parser, parseArgs)
 	if exited {
 		return nil
 	}
@@ -183,9 +221,7 @@ func checkOutput(format string) error {
 }
 
 func runPublish(ctx context.Context, streams *helper.Streams, dir string, opts *Cmd, deps *Deps) error {
-	outFmt := string(opts.Output)
-
-	err := checkOutput(outFmt)
+	err := checkOutput(opts.Output)
 	if err != nil {
 		return err
 	}
@@ -219,7 +255,7 @@ func runPublish(ctx context.Context, streams *helper.Streams, dir string, opts *
 		return withCode(err)
 	}
 
-	return printResult(streams.Stdout, outFmt, res)
+	return printResult(streams.Stdout, opts.Output, res)
 }
 
 // checkFlags validates a flag file with the engine of the relay (the flagcheck package).
@@ -284,9 +320,7 @@ func newPublisher(ctx context.Context, tgt *target, deps *Deps) (*s3publish.Publ
 }
 
 func runVerify(ctx context.Context, streams *helper.Streams, opts *Cmd, deps *Deps) error {
-	outFmt := string(opts.Output)
-
-	err := checkOutput(outFmt)
+	err := checkOutput(opts.Output)
 	if err != nil {
 		return err
 	}
@@ -310,7 +344,7 @@ func runVerify(ctx context.Context, streams *helper.Streams, opts *Cmd, deps *De
 		return withCode(err)
 	}
 
-	err = printReport(streams.Stdout, outFmt, rep)
+	err = printReport(streams.Stdout, opts.Output, rep)
 	if err != nil {
 		return err
 	}

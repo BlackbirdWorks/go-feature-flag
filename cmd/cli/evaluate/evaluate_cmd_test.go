@@ -31,12 +31,16 @@ const (
 	uriFlag             = "--uri"
 )
 
-const XAPIKeyHeader = "X-API-Key"
+const (
+	allFlagResult = "testdata/res/all-flag.json"
+	XAPIKeyHeader = "X-API-Key"
+)
 
 type cmdEvaluateCase struct {
 	wantErr        assert.ErrorAssertionFunc
 	name           string
 	expectedResult string
+	wantStdoutHas  string
 	expectedErr    string
 	args           []string
 }
@@ -57,6 +61,10 @@ func runCmdEvaluateTests(t *testing.T, tests []cmdEvaluateCase) {
 				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
 				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(expectedContent), stdOut.String())
+			}
+
+			if tt.wantStdoutHas != "" {
+				assert.Contains(t, stdOut.String(), tt.wantStdoutHas)
 			}
 
 			if tt.expectedErr != "" {
@@ -100,7 +108,7 @@ func TestCmdEvaluate(t *testing.T) {
 				protocol.FormatYAML,
 			},
 			wantErr:        assert.NoError,
-			expectedResult: "testdata/res/all-flag.json",
+			expectedResult: allFlagResult,
 		},
 		{
 			name: "should return a single flag if flag name is provided",
@@ -491,9 +499,22 @@ func TestCmdEvaluate_Validation(t *testing.T) {
 			expectedErr: "invalid retriever: no \"bucket\" property found for kind \"s3\"",
 		},
 		{
-			name:    "help exits without error",
-			args:    []string{"--help"},
-			wantErr: assert.NoError,
+			name:          "help exits without error",
+			args:          []string{"--help"},
+			wantErr:       assert.NoError,
+			wantStdoutHas: "Usage: evaluate",
+		},
+		{
+			name: "short -k=file and -f=yaml strip equals signs",
+			args: []string{
+				"-k=file",
+				"-p=" + fixtures.FlagGoffYAMLPath,
+				ctxFlag,
+				targetingKeyUser123,
+				"-f=yaml",
+			},
+			wantErr:        assert.NoError,
+			expectedResult: allFlagResult,
 		},
 		{
 			name:        "unknown flag returns usage error",
@@ -513,7 +534,7 @@ func TestCmdEvaluate_Validation(t *testing.T) {
 				formatFlag, protocol.FormatYAML,
 			},
 			wantErr:        assert.NoError,
-			expectedResult: "testdata/res/all-flag.json",
+			expectedResult: allFlagResult,
 		},
 	})
 

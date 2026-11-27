@@ -76,7 +76,30 @@ func execute(ctx context.Context, opts *runOptions) (int, error) {
 		return 0, nil
 	}
 
-	kctx, exited, err := helper.Parse(parser, opts.Args)
+	parseArgs := opts.Args
+	for idx, arg := range opts.Args {
+		if arg == "--" {
+			break
+		}
+
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		if arg == publishCmdKey {
+			if rewritten, ok := publish.RewriteDashVerify(opts.Args[idx+1:]); ok {
+				parseArgs = make([]string, 0, len(opts.Args))
+				parseArgs = append(parseArgs, opts.Args[:idx+1]...)
+				parseArgs = append(parseArgs, rewritten...)
+
+				command.Publish.SetDashVerifyDir(true)
+			}
+		}
+
+		break
+	}
+
+	kctx, exited, err := helper.Parse(parser, parseArgs)
 	if exited {
 		return 0, nil
 	}

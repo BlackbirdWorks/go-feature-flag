@@ -3,6 +3,7 @@ package linter
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/alecthomas/kong"
 
@@ -47,6 +48,7 @@ func Run(args []string, streams *helper.Streams) error {
 		kong.Name("lint"),
 		kong.Description("🛑 Lint Semaphore configuration file."),
 		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(streams.Stdout, streams.Stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),

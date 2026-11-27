@@ -3,6 +3,7 @@ package helper_test
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -27,6 +28,9 @@ const (
 	textValue      = "text"
 	unknownArg     = "--unknown"
 	badToken       = "---bad"
+	subCmdName     = "sub"
+	otherSubCmd    = "other"
+	eqLiteralVal   = "=literal"
 )
 
 var errRun = errors.New("run failed")
@@ -109,7 +113,7 @@ func TestScanOutputFlag(t *testing.T) {
 		{name: "missing value at end", args: []string{"-o"}, wantFound: false},
 		{
 			name:      "missing output value followed by --output=json",
-			args:      []string{"--output", flagOutputJSON},
+			args:      []string{flagOutput, flagOutputJSON},
 			wantValue: jsonValue,
 			wantFound: true,
 		},
@@ -121,7 +125,7 @@ func TestScanOutputFlag(t *testing.T) {
 		},
 		{
 			name:      "missing output value followed by -- does not swallow delimiter",
-			args:      []string{"--output", "--", flagOutputJSON},
+			args:      []string{flagOutput, "--", flagOutputJSON},
 			wantFound: false,
 		},
 		{name: "unknown short flag skipped", args: []string{"-x", shortJSON}, wantValue: jsonValue, wantFound: true},
@@ -366,9 +370,9 @@ func TestParseAndFlags(t *testing.T) {
 				Arg string `arg:"" name:"arg"`
 			} `cmd:"" default:"withargs" hidden:""`
 		} `cmd:""`
-		Output helper.OutputFlag `default:"text" name:"output" short:"o"`
-		Help   helper.HelpFlag   `name:"help"    short:"h"`
-		Run    bool              `name:"run"`
+		Output string          `default:"text" name:"output" short:"o"`
+		Help   helper.HelpFlag `name:"help"    short:"h"`
+		Run    bool            `name:"run"`
 	}
 
 	var out bytes.Buffer
@@ -378,6 +382,7 @@ func TestParseAndFlags(t *testing.T) {
 		kong.Writers(&out, &out),
 		kong.NoDefaultHelp(),
 		kong.PostBuild(helper.RegisterHelpFlag),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 	)
 	require.Error(t, helper.RegisterHelpFlag(nil))
 	require.NoError(t, err)
@@ -392,21 +397,33 @@ func TestParseAndFlags(t *testing.T) {
 
 	out.Reset()
 
-	_, exited, err = helper.Parse(parser, []string{"sub", "--help"})
-	require.NoError(t, err)
-	assert.True(t, exited)
-	assert.Contains(t, out.String(), "other")
-	assert.NotContains(t, out.String(), "<arg>")
-
-	out.Reset()
-
-	kctx, exited, err = helper.Parse(parser, []string{"--help=false", "-o=json", "--run", "sub", "other"})
+	kctx, exited, err = helper.Parse(parser, []string{"--help=false", "-o=json", "--run", subCmdName, otherSubCmd})
 	require.NoError(t, err)
 	assert.False(t, exited)
 	require.NotNil(t, kctx)
 	assert.Empty(t, out.String())
-	assert.Equal(t, helper.OutputFlag(jsonValue), cmd.Output)
 	assert.True(t, cmd.Run)
+
+	for _, testCase := range []struct {
+		want string
+		args []string
+	}{
+		{args: []string{"-o=json", subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{shortJSON, subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{"-o", jsonValue, subCmdName, otherSubCmd}, want: jsonValue},
+		{args: []string{"-o", eqLiteralVal, subCmdName, otherSubCmd}, want: eqLiteralVal},
+		{args: []string{"--output=" + eqLiteralVal, subCmdName, otherSubCmd}, want: eqLiteralVal},
+	} {
+		cmd.Output = ""
+		_, exited, err = helper.Parse(parser, testCase.args)
+		require.NoError(t, err)
+		assert.False(t, exited)
+		assert.Equal(t, testCase.want, cmd.Output)
+	}
+
+	_, exited, err = helper.Parse(parser, []string{flagOutput})
+	require.Error(t, err)
+	assert.False(t, exited)
 
 	_, exited, err = helper.Parse(parser, []string{"--nope"})
 	require.Error(t, err)

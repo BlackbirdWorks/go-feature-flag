@@ -3,7 +3,7 @@ package helper
 import (
 	"errors"
 	"fmt"
-	"slices"
+	"reflect"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -43,19 +43,13 @@ func RegisterHelpFlag(app *kong.Kong) error {
 
 // BeforeReset prints kong help when the flag decoded to true and returns [ErrEarlyExit].
 func (HelpFlag) BeforeReset(ctx *kong.Context) error {
-	for _, p := range ctx.Path {
-		if p.Flag == nil || p.Flag.Name != "help" {
+	for _, item := range ctx.Path {
+		if item.Flag == nil || item.Flag.Name != "help" {
 			continue
 		}
 
-		val, ok := ctx.FlagValue(p.Flag).(HelpFlag)
+		val, ok := ctx.FlagValue(item.Flag).(HelpFlag)
 		if ok && bool(val) {
-			if sel := ctx.Selected(); sel != nil && sel.Hidden && sel.Parent != nil && sel.Parent.DefaultCmd == sel {
-				ctx.Path = slices.DeleteFunc(ctx.Path, func(path *kong.Path) bool {
-					return path.Command == sel
-				})
-			}
-
 			err := ctx.PrintUsage(false)
 			if err != nil {
 				return fmt.Errorf("print help: %w", err)
@@ -68,14 +62,12 @@ func (HelpFlag) BeforeReset(ctx *kong.Context) error {
 	return nil
 }
 
-// OutputFlag decodes --output / -o values, stripping a leading "=" from short-flag tails such as "-o=json".
-type OutputFlag string
-
-// Decode implements [kong.MapperValue].
-func (o *OutputFlag) Decode(ctx *kong.DecodeContext) error {
-	token := ctx.Scan.Pop()
-	if !token.IsValue() {
-		return fmt.Errorf("%w: expected value for %s", ErrUsage, ctx.Value.Summary())
+// DecodeString decodes kong string values, stripping one leading "=" from short-flag tails such as "-c=cfg.yaml"
+// or "-o=json" while preserving literal leading "=" in separated or long-flag values.
+func DecodeString(ctx *kong.DecodeContext, target reflect.Value) error {
+	token, err := ctx.Scan.PopValue("string")
+	if err != nil {
+		return err //nolint:wrapcheck // Kong caller wraps with flag name and handleParseError adds ErrUsage
 	}
 
 	val := token.String()
@@ -83,7 +75,7 @@ func (o *OutputFlag) Decode(ctx *kong.DecodeContext) error {
 		val = strings.TrimPrefix(val, "=")
 	}
 
-	*o = OutputFlag(val)
+	target.SetString(val)
 
 	return nil
 }

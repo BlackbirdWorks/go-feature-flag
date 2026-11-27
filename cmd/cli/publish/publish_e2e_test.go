@@ -172,7 +172,7 @@ func TestE2EPublishDirectoryRepublishAndVerify(t *testing.T) {
 	assert.Equal(t, "stable", manifest.Channel)
 	require.Len(t, manifest.Objects, 2)
 
-	wantBodies := map[string]string{"checkout": e2eFlagsA, "checkout-sets": checkoutSets}
+	wantBodies := map[string]string{"checkout": e2eFlagsA, checkoutSetsFlag: checkoutSets}
 
 	for _, obj := range manifest.Objects {
 		body := env.get(t, obj.Key)

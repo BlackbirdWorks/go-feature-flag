@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -43,9 +44,9 @@ func DefaultDeps() Deps { return Deps{LookupEnv: os.LookupEnv, ReadFile: os.Read
 
 // Cmd is the kong command group for validating and printing the version 2 bootstrap file of the relay proxy.
 type Cmd struct {
-	Output   helper.OutputFlag `default:"text" help:"${helpConfigOutput}"   name:"output" short:"o"`
-	Validate ValidateCmd       `cmd:""         help:"${helpConfigValidate}"`
-	Print    PrintCmd          `cmd:""         help:"${helpConfigPrint}"`
+	Output   string      `default:"text" help:"${helpConfigOutput}"   name:"output" short:"o"`
+	Validate ValidateCmd `cmd:""         help:"${helpConfigValidate}"`
+	Print    PrintCmd    `cmd:""         help:"${helpConfigPrint}"`
 }
 
 // ValidateCmd checks a bootstrap file with the loader of the relay proxy.
@@ -62,13 +63,11 @@ shape, not resolved. Exit code 0 when valid, 2 when invalid, 1 on another failur
 
 // Run validates the bootstrap file and writes the result to streams.Stdout.
 func (v ValidateCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
-	out := string(parent.Output)
-
 	err := helper.ReportJSONError(
 		streams.Stdout,
-		out == outputJSON,
+		parent.Output == outputJSON,
 		nil,
-		runValidate(streams.Stdout, v.File, out, deps),
+		runValidate(streams.Stdout, v.File, parent.Output, deps),
 	)
 	if err != nil {
 		return fmt.Errorf("%w", err)
@@ -92,16 +91,14 @@ defaults. Secrets, API keys and admin keys print as [REDACTED]; references (from
 
 // Run prints the effective bootstrap file to streams.Stdout.
 func (p PrintCmd) Run(parent *Cmd, streams *helper.Streams, deps *Deps) error {
-	out := string(parent.Output)
-
 	var err error
 	if !p.Effective {
 		err = fmt.Errorf("%w: --effective is required", helper.ErrUsage)
 	} else {
-		err = runPrint(streams.Stdout, p.File, out, deps)
+		err = runPrint(streams.Stdout, p.File, parent.Output, deps)
 	}
 
-	repErr := helper.ReportJSONError(streams.Stdout, out == outputJSON, nil, err)
+	repErr := helper.ReportJSONError(streams.Stdout, parent.Output == outputJSON, nil, err)
 	if repErr != nil {
 		return fmt.Errorf("%w", repErr)
 	}
@@ -122,6 +119,7 @@ func Run(args []string, streams *helper.Streams, deps Deps) error {
 		kong.Name("config"),
 		kong.Description("Validate and print the version 2 bootstrap file of the relay proxy"),
 		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(streams.Stdout, streams.Stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),

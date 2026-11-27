@@ -483,7 +483,7 @@ func TestWholeProcessStreams(t *testing.T) {
 		{
 			name:       "config: missing --output value before --output=json",
 			args:       []string{cmdConfig, cmdValidate, "bootstrap.yaml", optOutput, optOutputJSON},
-			wantStderr: "expected value",
+			wantStderr: "expected string value",
 			jsonStdout: codeUsage,
 			wantExit:   1,
 		},
@@ -503,7 +503,7 @@ func TestWholeProcessStreams(t *testing.T) {
 		},
 		{
 			name: "publish usage error, JSON", args: []string{cmdPublish, "-o", fmtJSON},
-			wantStderr: `expected "<dir>"`, jsonStdout: codeUsage, wantExit: 1,
+			wantStderr: `expected one of "publish <dir> [flags]", "verify"`, jsonStdout: codeUsage, wantExit: 1,
 		},
 		{
 			name: "publish flag error, JSON", args: []string{cmdPublish, "-o", fmtJSON, unknownFlag},
@@ -707,8 +707,20 @@ func TestMainInjectedStreamsAndErrors(t *testing.T) {
 		{
 			name:       "publish missing dir json",
 			args:       []string{cmdPublish, "-o", fmtJSON},
-			wantStderr: `expected "<dir>"`,
+			wantStderr: `expected one of "publish <dir> [flags]", "verify"`,
 			jsonCode:   codeUsage,
+			wantExit:   1,
+		},
+		{
+			name:       "publish bare verify after -- targets directory not verify subcommand",
+			args:       []string{cmdPublish, "--bucket=test-b", "--region=us-east-1", "--", cmdVerify},
+			wantStderr: cmdVerify,
+			wantExit:   1,
+		},
+		{
+			name:       "publish apply targets directory not subcommand",
+			args:       []string{cmdPublish, "--bucket=test-b", "--region=us-east-1", "apply"},
+			wantStderr: "apply",
 			wantExit:   1,
 		},
 		{

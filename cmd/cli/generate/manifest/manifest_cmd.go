@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/alecthomas/kong"
 
@@ -63,6 +64,7 @@ func Run(args []string, streams *helper.Streams) error {
 		kong.Name("manifest"),
 		kong.Description("📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration."),
 		kong.NoDefaultHelp(),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(streams.Stdout, streams.Stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		HelpVars(),

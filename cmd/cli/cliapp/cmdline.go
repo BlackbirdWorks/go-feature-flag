@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 
 	"github.com/alecthomas/kong"
 
@@ -86,6 +87,7 @@ func newParser(command *cli, stdout, stderr io.Writer, build Build) (*kong.Kong,
 		kong.Description("A command line interface for Semaphore operations."),
 		kong.NoDefaultHelp(),
 		kong.PostBuild(helper.RegisterHelpFlag),
+		kong.KindMapper(reflect.String, kong.MapperFunc(helper.DecodeString)),
 		kong.Writers(stdout, stderr),
 		kong.ConfigureHelp(kong.HelpOptions{WrapUpperBound: helper.HelpWidth}),
 		helpVars(build),
