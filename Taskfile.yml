@@ -115,6 +115,11 @@ tasks:
     cmds:
       - git diff --exit-code --quiet go.mod go.sum
 
+  controlplane-api-update:
+    desc: Rewrite controlplane/testdata/golden/api.txt, the snapshot of the exported API (commit it with an additive API change)
+    cmds:
+      - GOWORK="{{.GOWORK_VAL}}" GOLDEN_UPDATE=1 {{.GOCMD}} test ./controlplane -run '^TestPublicAPISnapshot$' -count=1
+
   verify:
     desc: Run go mod verify for all modules to validate checksums match go.sum
     cmds:
