@@ -89,7 +89,8 @@ func (e *Evaluator) SegmentTerms() []SegmentTerm {
 
 // ProcessUntilSegment is the first pass of a rule with segment terms. It evaluates the rule as Process does (two
 // valued, left to right, the short circuit of "and" and "or") and stops at the first segment term it reaches:
-// reached is then true and the other results mean nothing. When it returns reached false the rule is decided without
+// reached is then true and the other results mean nothing; an error met before that term is the error of the rule and
+// reached is false. When it returns reached false the rule is decided without
 // any membership, and match and err are what Process returns for a rule without segment terms.
 //
 //nolint:nonamedreturns // recover sets the result
@@ -113,17 +114,18 @@ func (e *Evaluator) ProcessUntilSegment(items map[string]any) (match, reached bo
 	state := evalState{item: items}
 	result := e.root.evalToSegment(&state)
 
+	e.setDebugErr(state.debugErr)
+
+	// an error met before the first segment term ends the pass: the rule fails as it does without segments, and
+	// nothing is looked up
+	if state.err != nil {
+		return false, false, state.err
+	}
+
 	if state.reached {
-		// the pass stops here: what it met before is met again by the second pass
 		e.setDebugErr(nil)
 
 		return false, true, nil
-	}
-
-	e.setDebugErr(state.debugErr)
-
-	if state.err != nil {
-		return false, false, state.err
 	}
 
 	return result, false, nil

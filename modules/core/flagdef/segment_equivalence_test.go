@@ -279,15 +279,25 @@ func TestNestedSegmentRulesAreEquivalentToTheirListForm(t *testing.T) {
 
 			svc := flagdef.NewService()
 
+			selected, skipped := 0, 0
+
 			for _, rule := range rules {
-				compareRuleForms(t, svc, provider, rule, render, members, keys, users)
+				on, off := compareRuleForms(t, svc, provider, rule, render, members, keys, users)
+				selected += on
+				skipped += off
 			}
+
+			// the generated rules are not degenerate: a good share of the contexts selects the rule, a good share does not
+			assert.Greater(t, selected, 3000)
+			assert.Greater(t, skipped, 3000)
 		})
 	}
 }
 
-// compareRuleForms evaluates a rule in its segment form and in its list form for many contexts, and reports the
-// first context where they differ.
+// compareRuleForms evaluates a rule in its segment form and in its list form for many contexts and compares, for every
+// context, the value and every field of the resolution that the form of the rule can change: variant, reason, rule,
+// error code and message, metadata. It never stops at the first difference. It returns how many contexts selected the
+// rule and how many did not, so the test can tell that the generated rules exercise both.
 func compareRuleForms(
 	t *testing.T,
 	svc *flagdef.Service,
@@ -297,7 +307,7 @@ func compareRuleForms(
 	members [][]string,
 	keys []string,
 	users []any,
-) {
+) (int, int) {
 	t.Helper()
 
 	viaSegment := onOffFlag(queryRule("r", render(rule, nil)))
@@ -305,42 +315,35 @@ func compareRuleForms(
 	require.NoError(t, viaSegment.IsValid(svc), render(rule, nil))
 	require.NoError(t, viaList.IsValid(svc), render(rule, members))
 
+	selected, skipped := 0, 0
+
 	for _, key := range keys {
 		for _, plan := range []string{planPro, planFree} {
 			for _, user := range users {
 				evalCtx := ffcontext.NewEvaluationContextBuilder(key).
 					AddCustom("plan", plan).AddCustom(ownedUserKey, user).Build()
+				where := fmt.Sprintf("%s: key %s plan %s user %v", render(rule, nil), key, plan, user)
 
 				gotValue, got := viaSegment.Value("flag", evalCtx, flagdef.Context{Service: svc, Segments: provider})
 				wantValue, want := viaList.Value("flag", evalCtx, flagdef.Context{Service: svc})
 
-				same := gotValue == wantValue && got.Variant == want.Variant && got.Reason == want.Reason &&
-					got.ErrorCode == want.ErrorCode && got.ErrorMessage == want.ErrorMessage
-				if !same {
-					assert.Equal(
-						t,
-						wantValue,
-						gotValue,
-						"%s: key %s plan %s user %v",
-						render(rule, nil),
-						key,
-						plan,
-						user,
-					)
-					assert.Equal(
-						t,
-						want.Variant,
-						got.Variant,
-						"%s: key %s plan %s user %v",
-						render(rule, nil),
-						key,
-						plan,
-						user,
-					)
+				assert.Equal(t, wantValue, gotValue, where)
+				assert.Equal(t, want.Variant, got.Variant, where)
+				assert.Equal(t, want.Reason, got.Reason, where)
+				assert.Equal(t, want.RuleIndex, got.RuleIndex, where)
+				assert.Equal(t, want.RuleName, got.RuleName, where)
+				assert.Equal(t, want.ErrorCode, got.ErrorCode, where)
+				assert.Equal(t, want.ErrorMessage, got.ErrorMessage, where)
+				assert.Equal(t, want.Metadata, got.Metadata, where)
 
-					return
+				if want.Variant == variantOn {
+					selected++
+				} else {
+					skipped++
 				}
 			}
 		}
 	}
+
+	return selected, skipped
 }

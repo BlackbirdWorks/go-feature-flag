@@ -1,6 +1,7 @@
 package flagdef_test
 
 import (
+	"encoding/json"
 	"log/slog"
 	"math"
 	"strconv"
@@ -265,6 +266,72 @@ type scored struct {
 	Score float64 `json:"score"`
 }
 
+type cycle struct {
+	*cycle
+
+	ID string `json:"id"`
+}
+
+func newCycle() *cycle {
+	c := &cycle{ID: keyAlice}
+	c.cycle = c
+
+	return c
+}
+
+type loop struct {
+	Next *loop  `json:"next"`
+	ID   string `json:"id"`
+}
+
+func newLoop() *loop {
+	l := &loop{ID: keyAlice}
+	l.Next = l
+
+	return l
+}
+
+type deeper struct {
+	ID string `json:"id"`
+}
+
+type shallow struct {
+	deeper
+
+	ID string `json:"id"`
+}
+
+type first struct {
+	ID string
+}
+
+type second struct {
+	ID string
+}
+
+type sameDepth struct {
+	first
+	second
+}
+
+type plainID struct {
+	ID string
+}
+
+type taggedID struct {
+	Other string `json:"ID"` //nolint:tagliatelle // the tie of names needs the exact name ID
+}
+
+type taggedTie struct {
+	plainID
+	taggedID
+}
+
+type marshaled struct{}
+
+//nolint:unparam // the interface needs the error
+func (marshaled) MarshalJSON() ([]byte, error) { return []byte(`{"id": "alice"}`), nil }
+
 type hiddenFields struct {
 	id      string
 	Skipped string `json:"-"`
@@ -296,10 +363,13 @@ type profile struct {
 func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 	t.Parallel()
 
-	members := map[string][]string{segIDs: {keyAlice, "9007199254740993"}}
+	members := map[string][]string{
+		segIDs: {keyAlice, "9007199254740993", "12345", "1", "1000", "123456789012345678901234567890"},
+	}
 
 	tests := []struct {
 		attr        any
+		siblings    map[string]any // other attributes of the context
 		name        string
 		attrName    string
 		path        string
@@ -338,8 +408,74 @@ func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 			wantVariant: variantOff,
 		},
 		{
-			name: "NaN in a sibling field does not matter", attr: scored{ID: keyAlice, Score: math.NaN()},
+			name:        "NaN in the same object makes the attribute unreadable",
+			attr:        scored{ID: keyAlice, Score: math.NaN()},
+			attrName:    ownedUserKey,
+			path:        pathUserID,
+			wantVariant: variantOff,
+		},
+		{
+			name: "NaN in another attribute does not matter", attr: userID{ID: keyAlice},
+			siblings: map[string]any{"score": math.NaN(), "channel": make(chan int)}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "a cycle of embedded pointers does not crash", attr: newCycle(),
 			attrName: ownedUserKey, path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "a cycle that cannot be encoded is an unreadable attribute", attr: newLoop(),
+			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "the shallower of two names wins", attr: shallow{ID: keyAlice, deeper: deeper{ID: segOther}},
+			attrName: ownedUserKey, path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name:        "two names at the same depth are both omitted",
+			attr:        sameDepth{first: first{ID: keyAlice}, second: second{ID: keyAlice}},
+			attrName:    ownedUserKey,
+			path:        "user.ID",
+			wantVariant: variantOff,
+		},
+		{
+			name:        "a tagged name wins a tie with an untagged one",
+			attr:        taggedTie{plainID: plainID{ID: segOther}, taggedID: taggedID{Other: keyAlice}},
+			attrName:    ownedUserKey,
+			path:        "user.ID",
+			wantLookups: [][]string{{lookupIDsAlice}},
+			wantVariant: variantOn,
+		},
+		{
+			name: "a json.Number integer", attr: map[string]any{"id": json.Number("12345")}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{"ids:12345"}}, wantVariant: variantOn,
+		},
+		{
+			name: "a json.Number written 1.0", attr: map[string]any{"id": json.Number("1.0")}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{"ids:1"}}, wantVariant: variantOn,
+		},
+		{
+			name: "a json.Number written 1e3", attr: map[string]any{"id": json.Number("1e3")}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{"ids:1000"}}, wantVariant: variantOn,
+		},
+		{
+			name: "a json.Number with a fraction is not an identifier", attr: map[string]any{"id": json.Number("1.5")},
+			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a json.Number beyond any float is exact", attr: struct {
+				ID json.Number `json:"id"`
+			}{ID: json.Number("123456789012345678901234567890")},
+			attrName: ownedUserKey, path: pathUserID, wantLookups: [][]string{{"ids:123456789012345678901234567890"}},
+			wantVariant: variantOn,
+		},
+		{
+			name: "a json.Number with a huge exponent is not read", attr: map[string]any{"id": json.Number("1e99999")},
+			attrName: ownedUserKey, path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a json.Marshaler decides the names", attr: marshaled{}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
 		},
 		{
 			name: "an unexported field is missing", attr: hiddenFields{id: keyAlice}, attrName: ownedUserKey,
@@ -411,8 +547,12 @@ func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 				flag := onOffFlag(queryRule("r", query))
 				require.NoError(t, flag.IsValid(svc))
 
-				evalCtx := ffcontext.NewEvaluationContextBuilder("k").AddCustom(tt.attrName, tt.attr).Build()
-				_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: rec})
+				builder := ffcontext.NewEvaluationContextBuilder("k").AddCustom(tt.attrName, tt.attr)
+				for key, value := range tt.siblings {
+					builder.AddCustom(key, value)
+				}
+
+				_, details := flag.Value("f", builder.Build(), flagdef.Context{Service: svc, Segments: rec})
 
 				assert.Equal(t, tt.wantVariant, details.Variant)
 				assert.Equal(t, tt.wantLookups, rec.calls)
@@ -486,6 +626,8 @@ func TestSegmentOperandErrorBeforeTheFirstSegmentIsTheErrorOfTheRule(t *testing.
 
 	queries := map[string]string{
 		formatNikunjy: `user.id eq "staff" or targetingKey in segment("beta")`,
+		// the failing comparison is recorded, not raised: the segment term is reached after it
+		formatNikunjy + " (recorded error)": `plan gt true or targetingKey in segment("beta")`,
 		formatJSON: `{"or": [{"map": [{"var": "targetingKey"}, {"var": ""}]}, ` +
 			`{"inSegment": [{"var": "targetingKey"}, "beta"]}]}`,
 	}
@@ -501,7 +643,10 @@ func TestSegmentOperandErrorBeforeTheFirstSegmentIsTheErrorOfTheRule(t *testing.
 			flag := onOffFlag(queryRule("r", query))
 			require.NoError(t, flag.IsValid(svc))
 
-			evalCtx := ffcontext.NewEvaluationContextBuilder(keyAlice).AddCustom(ownedUserKey, "not-an-object").Build()
+			evalCtx := ffcontext.NewEvaluationContextBuilder(keyAlice).
+				AddCustom(ownedUserKey, "not-an-object").
+				AddCustom("plan", planPro).
+				Build()
 			_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: rec})
 
 			assert.Equal(t, variantOff, details.Variant, "the member does not match: the rule fails first")

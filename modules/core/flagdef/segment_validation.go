@@ -86,7 +86,7 @@ func (s *Service) queryTerms(rule *Rule, ev *parser.Evaluator) []parser.SegmentT
 // validateScheduledSegments checks the segment terms of the rules that the scheduled steps carry, and their onError:
 // a step replaces the query of a rule when it is due, and nothing else validates the result. The steps are partial
 // updates, so only what they set is checked, and only the queries that call segment().
-func (f *InternalFlag) validateScheduledSegments() error {
+func (f *InternalFlag) validateScheduledSegments(svc *Service) error {
 	if f.Scheduled == nil {
 		return nil
 	}
@@ -95,16 +95,19 @@ func (f *InternalFlag) validateScheduledSegments() error {
 		step := &(*f.Scheduled)[i]
 		where := fmt.Sprintf("scheduled step %d", i)
 
+		// the parsed queries of the step live as long as its rules, like those of the rules of the flag
+		svc.nikunjy.retain(step.Rules, nil)
+
 		rules := step.GetRules()
 		for j := range rules {
-			err := rules[j].validateStepSegments(false)
+			err := rules[j].validateStepSegments(svc, false)
 			if err != nil {
 				return fmt.Errorf("%s: %w", where, wrapSegmentError(err, ruleLabel(j, &rules[j])))
 			}
 		}
 
 		if step.DefaultRule != nil {
-			err := step.DefaultRule.validateStepSegments(true)
+			err := step.DefaultRule.validateStepSegments(svc, true)
 			if err != nil {
 				return fmt.Errorf("%s: %w", where, wrapSegmentError(err, "defaultRule"))
 			}
@@ -115,8 +118,8 @@ func (f *InternalFlag) validateScheduledSegments() error {
 }
 
 // validateStepSegments checks the onError of a rule of a scheduled step and, when its query calls segment(), the
-// query. It does not compile what is cached: the query is only checked.
-func (r *Rule) validateStepSegments(isDefault bool) error {
+// query, which stays parsed in the Service as long as the rules of the step.
+func (r *Rule) validateStepSegments(svc *Service, isDefault bool) error {
 	err := r.validateOnError()
 	if err != nil {
 		return err
@@ -139,7 +142,7 @@ func (r *Rule) validateStepSegments(isDefault bool) error {
 		return newCompiledQuery(r.GetQuery()).segErr
 	}
 
-	_, err = parser.NewEvaluator(trimmed)
+	_, err = svc.nikunjy.get(trimmed)
 	if err != nil {
 		return fmt.Errorf("parsing the query: %w", err)
 	}

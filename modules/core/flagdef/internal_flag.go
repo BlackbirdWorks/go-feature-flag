@@ -272,7 +272,7 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return err
 	}
 
-	err = f.validateScheduledSegments()
+	err = f.validateScheduledSegments(svc)
 	if err != nil {
 		return err
 	}

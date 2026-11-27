@@ -6,12 +6,14 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 // The validation of a flag compiles queries that may never run: it must not leave them in the Service, which keeps
@@ -177,4 +179,45 @@ func TestReleaseOfAnEarlierEpochIsIgnored(t *testing.T) {
 	assert.Equal(t, 1, svc.segmentQueries.refCount(query))
 
 	runtime.KeepAlive(again)
+}
+
+// The query that a scheduled step brings is parsed by the validation and stays parsed as long as the flag: the first
+// evaluation after the step is due parses nothing.
+func TestScheduledStepQueryIsParsedWithTheFlag(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService()
+	query := `targetingKey in segment("late")`
+
+	load := func() *InternalFlag {
+		flag := segmentFlag(`age gt 1`)
+		patch := InternalFlag{Rules: &[]Rule{{Name: new("r0"), Query: new(query)}}}
+		step := ScheduledStep{Date: new(time.Unix(1, 0)), InternalFlag: patch}
+		flag.Scheduled = &[]ScheduledStep{step}
+
+		return flag
+	}
+
+	kept := load()
+	require.NoError(t, kept.IsValid(svc))
+
+	_, parsed := loadPtr[parser.Evaluator](&svc.nikunjy.entries, query)
+	assert.True(t, parsed, "the query of the step is parsed at load")
+	assert.Equal(t, 1, svc.segmentQueries.size(), "and its compiled form is kept")
+
+	func() {
+		require.NoError(t, load().IsValid(svc)) // a second flag with the same step, dropped
+	}()
+
+	gcUntil(t, func() bool {
+		svc.nikunjy.refsMu.Lock()
+		defer svc.nikunjy.refsMu.Unlock()
+
+		return svc.nikunjy.refs[query] == 1
+	}, "the dropped flag released its reference")
+
+	_, parsed = loadPtr[parser.Evaluator](&svc.nikunjy.entries, query)
+	assert.True(t, parsed, "the kept flag still holds it")
+
+	runtime.KeepAlive(kept)
 }

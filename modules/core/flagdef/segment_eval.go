@@ -1,14 +1,17 @@
 package flagdef
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"math/big"
 	"math/bits"
 	"strconv"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/rules/parser"
@@ -229,9 +232,10 @@ func (s *Service) definesSegment(name string) bool {
 }
 
 // lookupSegments sends the lookups to the provider and returns the health of the call: StatusHealthy when every
-// lookup was answered. A call that fails as a whole (an error, a panic, an ended context) has no answer: every
-// state is reset to Unknown. A state that is not one of the three constants is Unknown too. The provider is not
-// called when the context of the request has ended.
+// lookup was answered. A provider that returns an error may have answered some lookups first: the answers that are
+// Member or NotMember are kept, the others are Unknown, and the health is a store error. A state that is not one of
+// the three constants is Unknown. A provider that panics is not trusted: every state is reset to Unknown. The provider
+// is not called when the context of the request has ended.
 func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	ctx := q.requestContext
 	if ctx == nil {
@@ -246,9 +250,13 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	if err != nil {
 		q.svc.logger.LogAttrs(ctx, slog.LevelWarn, "segment lookup failed", slog.Any(errorLiteral, err))
 
-		for i := range lookups {
-			lookups[i].State = segment.Unknown
+		if errors.Is(err, errProviderPanic) || ctx.Err() != nil {
+			for i := range lookups {
+				lookups[i].State = segment.Unknown
+			}
 		}
+
+		sanitize(lookups)
 
 		return segment.StatusStoreError
 	}
@@ -266,6 +274,15 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	}
 
 	return status
+}
+
+// sanitize makes every state that is not one of the three constants Unknown.
+func sanitize(lookups []segment.Lookup) {
+	for i := range lookups {
+		if !lookups[i].State.Valid() {
+			lookups[i].State = segment.Unknown
+		}
+	}
 }
 
 // errProviderPanic is the error of a provider that panicked.
@@ -306,8 +323,10 @@ func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.S
 // list, object) is not an identifier.
 //
 // A context of the Go client can hold an object of another type than map[string]any (a map[string]string, a struct
-// with JSON tags): the attribute is read from that object by its own value, named as its JSON form names it, see
-// fieldAtPath, so nothing else in the context matters and an integer stays exact.
+// with JSON tags, a pointer): the typed object is converted with encoding/json, so its fields are named, promoted
+// and left out exactly as its JSON form does, a number keeps its digits (integers of any size are exact), and a value
+// that cannot be encoded (a cycle, a NaN, a channel) makes the attribute unreadable: no identifier, no lookup. Only
+// the typed object that holds the attribute is converted, nothing else of the context, and nothing is cached.
 func (q *queryContext) attributeID(path []string) (string, bool) {
 	var current any = q.mapOnce()
 
@@ -318,7 +337,7 @@ func (q *queryContext) attributeID(path []string) (string, bool) {
 		case nil:
 			return "", false
 		default:
-			value, ok := fieldAtPath(parent, path[i:])
+			value, ok := decodedAttribute(parent, path[i:])
 			if !ok {
 				return "", false
 			}
@@ -328,6 +347,36 @@ func (q *queryContext) attributeID(path []string) (string, bool) {
 	}
 
 	return identifier(current)
+}
+
+// decodedAttribute returns the value at path of the JSON form of a typed object, decoded with its numbers as
+// [json.Number].
+func decodedAttribute(object any, path []string) (any, bool) {
+	encoded, err := json.Marshal(object)
+	if err != nil {
+		return nil, false
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+
+	var current any
+
+	err = decoder.Decode(&current)
+	if err != nil {
+		return nil, false
+	}
+
+	for _, name := range path {
+		parent, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+
+		current = parent[name]
+	}
+
+	return current, true
 }
 
 // identifier is the identifier of a scalar value.
@@ -393,17 +442,35 @@ func wholeFloatID(val float64) (string, bool) {
 	return strconv.FormatFloat(val, 'f', 0, 64), true
 }
 
-// numberID is the identifier of a [json.Number]: an integer as written, a float that holds a whole number as such.
-func numberID(num json.Number) (string, bool) {
-	integer, err := num.Int64()
-	if err == nil {
-		return strconv.FormatInt(integer, 10), true
-	}
+// maxNumberLen is the longest [json.Number] that is read as an identifier.
+const maxNumberLen = 64
 
-	float, err := num.Float64()
-	if err != nil {
+// numberID is the identifier of a [json.Number]: the digits of a whole number, exactly, whatever its size and the way
+// it is written ("1.0" and "1e3" are "1" and "1000"). A number with a fraction is not an identifier.
+func numberID(num json.Number) (string, bool) {
+	if len(num) > maxNumberLen || exponentTooLarge(string(num)) {
 		return "", false
 	}
 
-	return wholeFloatID(float)
+	exact, ok := new(big.Rat).SetString(string(num))
+	if !ok || !exact.IsInt() {
+		return "", false
+	}
+
+	return exact.Num().String(), true
+}
+
+// maxExponent is the largest exponent of a [json.Number] that is read as an identifier: 10^400 is far beyond any id,
+// and a larger one would make the conversion expensive.
+const maxExponent = 400
+
+func exponentTooLarge(num string) bool {
+	_, exponent, found := strings.Cut(strings.ToLower(num), "e")
+	if !found {
+		return false
+	}
+
+	value, err := strconv.Atoi(strings.TrimPrefix(exponent, "+"))
+
+	return err != nil || value > maxExponent || value < -maxExponent
 }

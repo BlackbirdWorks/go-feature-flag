@@ -433,27 +433,128 @@ func TestSegmentLookupsFollowTheOrderOfTheOperands(t *testing.T) {
 	}
 }
 
-// halfFailingProvider answers a lookup and then fails: a failed call has no answer.
-type halfFailingProvider struct{}
+// answersThenFails answers the lookups of the segment "a" like a MemoryProvider and fails: the others stay unknown.
+type answersThenFails struct{ inner segment.Provider }
 
-func (halfFailingProvider) Contains(_ context.Context, lookups []segment.Lookup) error {
+func (p answersThenFails) Contains(ctx context.Context, lookups []segment.Lookup) error {
+	answered := make([]segment.Lookup, 0, len(lookups))
+
+	for _, lookup := range lookups {
+		if lookup.Segment == "a" {
+			answered = append(answered, lookup)
+		}
+	}
+
+	_ = p.inner.Contains(ctx, answered)
+
+	next := 0
+
 	for i := range lookups {
-		lookups[i].State = segment.Member
+		if lookups[i].Segment == "a" {
+			lookups[i].State = answered[next].State
+			next++
+		}
 	}
 
 	return errStoreDown
 }
 
-func TestSegmentAnswersOfAFailedCallAreIgnored(t *testing.T) {
+// answersThenPanics sets every state to Member and panics: a provider that panics is not trusted.
+type answersThenPanics struct{}
+
+func (answersThenPanics) Contains(_ context.Context, lookups []segment.Lookup) error {
+	for i := range lookups {
+		lookups[i].State = segment.Member
+	}
+
+	panic(secretID)
+}
+
+// A provider that fails after it answered some lookups: the answers it gave are kept, the others are unknown, and the
+// rule is decided with Kleene's logic, so an answer that decides the rule still decides it.
+func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 	t.Parallel()
 
-	svc := flagdef.NewService()
-	flag := onOffFlag(queryRule("r", nikunjyInclude))
-	require.NoError(t, flag.IsValid(svc))
+	const (
+		rulesOr  = `targetingKey in segment("a") or targetingKey in segment("b")`
+		rulesAnd = `targetingKey in segment("a") and targetingKey in segment("b")`
+		jsonOr   = `{"or": [{"inSegment": [{"var": "targetingKey"}, "a"]}, {"inSegment": [{"var": "targetingKey"}, "b"]}]}`
+		jsonAnd  = `{"and": [{"inSegment": [{"var": "targetingKey"}, "a"]}, {"inSegment": [{"var": "targetingKey"}, "b"]}]}`
+	)
 
-	_, details := flag.Value("f", ffcontext.NewEvaluationContext(keyAlice),
-		flagdef.Context{Service: svc, Segments: halfFailingProvider{}})
+	tests := []struct {
+		name        string
+		query       string
+		onError     *string
+		provider    segment.Provider
+		key         string
+		wantVariant string
+	}{
+		{name: "or: a member of a decides", query: rulesOr, key: keyAlice, wantVariant: variantOn},
+		{name: "or: a member of a decides, json", query: jsonOr, key: keyAlice, wantVariant: variantOn},
+		{name: "and: a non member of a decides", query: rulesAnd, key: keyBob, wantVariant: variantOff},
+		{
+			name: "and: a non member of a decides over onError match", query: rulesAnd, key: keyBob,
+			onError: new(ruleOnErrorMatch), wantVariant: variantOff,
+		},
+		{
+			name: "and: a non member of a decides over onError match, json", query: jsonAnd, key: keyBob,
+			onError: new(ruleOnErrorMatch), wantVariant: variantOff,
+		},
+		{
+			name:        "and: a member of a leaves b unknown, the rule is skipped",
+			query:       rulesAnd,
+			key:         keyAlice,
+			wantVariant: variantOff,
+		},
+		{
+			name: "and: a member of a leaves b unknown, onError match", query: rulesAnd, key: keyAlice,
+			onError: new(ruleOnErrorMatch), wantVariant: variantOn,
+		},
+		{
+			name: "and: a member of a leaves b unknown, onError match, json", query: jsonAnd, key: keyAlice,
+			onError: new(ruleOnErrorMatch), wantVariant: variantOn,
+		},
+		{
+			name:        "or: a non member of a leaves b unknown, the rule is skipped",
+			query:       rulesOr,
+			key:         keyBob,
+			wantVariant: variantOff,
+		},
+		{
+			name: "or: a non member of a leaves b unknown, onError match", query: jsonOr, key: keyBob,
+			onError: new(ruleOnErrorMatch), wantVariant: variantOn,
+		},
+		{
+			name: "a provider that panics after answering is not trusted", query: rulesOr, key: keyAlice,
+			provider: answersThenPanics{}, wantVariant: variantOff,
+		},
+	}
 
-	assert.Equal(t, variantOff, details.Variant, "a member answer of a call that failed does not match")
-	assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider := tt.provider
+			if provider == nil {
+				provider = answersThenFails{inner: segment.NewMemoryProvider(map[string][]string{"a": {keyAlice}})}
+			}
+
+			svc := flagdef.NewService()
+			rule := queryRule("r", tt.query)
+			rule.OnError = tt.onError
+			flag := onOffFlag(rule)
+			require.NoError(t, flag.IsValid(svc))
+
+			_, details := flag.Value(
+				"f",
+				ffcontext.NewEvaluationContext(tt.key),
+				flagdef.Context{Service: svc, Segments: provider},
+			)
+
+			assert.Equal(t, tt.wantVariant, details.Variant)
+			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+			assert.False(t, details.Cacheable)
+		})
+	}
 }
