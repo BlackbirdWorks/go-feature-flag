@@ -173,8 +173,6 @@ server:
       role: ops
       protocols:
         - http1
-  shutdown:
-    timeout: 15s
 observability:
   logging:
     level: info

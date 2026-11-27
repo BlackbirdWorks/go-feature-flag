@@ -26,16 +26,21 @@ func TestShutdownSettings(t *testing.T) {
 		wantDrainDelay  time.Duration
 		wantTimeout     time.Duration
 		wantDrainDelayN bool
+		wantTimeoutN    bool
 	}{
-		{name: "defaults", doc: base, wantTimeout: bootstrap.DefaultShutdownTimeout},
+		{name: "unset", doc: base},
 		{
-			name: "from the file", wantDrainDelayN: true, wantDrainDelay: 20 * time.Second, wantTimeout: time.Minute,
-			doc: base + "server:\n  shutdown: {drainDelay: 20s, timeout: 1m}\n",
+			name:            "from the file",
+			wantDrainDelayN: true,
+			wantDrainDelay:  20 * time.Second,
+			wantTimeout:     time.Minute,
+			wantTimeoutN:    true,
+			doc:             base + "server:\n  shutdown: {drainDelay: 20s, timeout: 1m}\n",
 		},
 		{
 			name: "variables win over the file", wantDrainDelayN: true, wantDrainDelay: 5 * time.Second,
-			wantTimeout: 30 * time.Second,
-			doc:         base + "server:\n  shutdown: {drainDelay: 20s, timeout: 1m}\n",
+			wantTimeout: 30 * time.Second, wantTimeoutN: true,
+			doc: base + "server:\n  shutdown: {drainDelay: 20s, timeout: 1m}\n",
 			env: envMap{
 				bootstrap.EnvShutdownDrainDelay: "5s", bootstrap.EnvShutdownTimeout: "30s",
 			},
@@ -86,8 +91,12 @@ func TestShutdownSettings(t *testing.T) {
 				assert.Nil(t, shutdown.DrainDelay)
 			}
 
-			require.NotNil(t, shutdown.Timeout)
-			assert.Equal(t, tt.wantTimeout, time.Duration(*shutdown.Timeout))
+			if tt.wantTimeoutN {
+				require.NotNil(t, shutdown.Timeout)
+				assert.Equal(t, tt.wantTimeout, time.Duration(*shutdown.Timeout))
+			} else {
+				assert.Nil(t, shutdown.Timeout, "unset stays unset: the relay applies the default")
+			}
 		})
 	}
 }

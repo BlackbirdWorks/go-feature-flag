@@ -132,7 +132,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].role` | string | `api` | `api`, `ops` |
 | `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
 | `server.shutdown.drainDelay` | duration | unset (no delay) | positive, at most `10m` |
-| `server.shutdown.timeout` | duration | `15s` | positive, at most `10m` |
+| `server.shutdown.timeout` | duration | unset (`15s`) | positive, at most `10m` |
 
 - With no listener, the relay has one `api` listener on `:1031`.
 - At least one listener has the role `api`. Names and addresses are unique.

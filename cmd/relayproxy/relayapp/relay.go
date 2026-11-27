@@ -293,10 +293,21 @@ func start(ctx context.Context, cfg *bootstrap.Config, logger *slog.Logger, opts
 		return nil, fmt.Errorf("core: %w", err)
 	}
 
-	rel := &relay{core: core, streams: streams, ready: corehttp.NewReadiness(core), log: logger,
-		failed: make(chan struct{}), runCancel: cancel,
-		drainWait: opts.DrainWait, withTimeout: opts.WithTimeout, onDraining: opts.OnDraining,
-		drainDelay: shutdownDelay(cfg.Server.Shutdown.DrainDelay), timeout: shutdownDelay(cfg.Server.Shutdown.Timeout)}
+	rel := &relay{
+		core:        core,
+		streams:     streams,
+		ready:       corehttp.NewReadiness(core),
+		log:         logger,
+		failed:      make(chan struct{}),
+		runCancel:   cancel,
+		drainWait:   opts.DrainWait,
+		withTimeout: opts.WithTimeout,
+		onDraining:  opts.OnDraining,
+		drainDelay: shutdownDelay(
+			cfg.Server.Shutdown.DrainDelay,
+		),
+		timeout: shutdownTimeoutOf(cfg.Server.Shutdown.Timeout),
+	}
 
 	// the OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only
 	opentelemetry.ExportEnvironment(&settings.Telemetry)
@@ -406,6 +417,15 @@ func (r *relay) fail() { r.failOnce.Do(func() { close(r.failed) }) }
 func shutdownDelay(d *bootstrap.Duration) time.Duration {
 	if d == nil {
 		return 0
+	}
+
+	return time.Duration(*d)
+}
+
+// shutdownTimeoutOf is the timeout of the file, or the default when it is unset.
+func shutdownTimeoutOf(d *bootstrap.Duration) time.Duration {
+	if d == nil {
+		return bootstrap.DefaultShutdownTimeout
 	}
 
 	return time.Duration(*d)

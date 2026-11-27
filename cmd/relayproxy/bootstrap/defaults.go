@@ -20,7 +20,8 @@ const (
 	DefaultFlushInterval  = 60 * time.Second
 	DefaultMaxEvents      = 100000
 	DefaultExportFormat   = "json"
-	// DefaultShutdownTimeout bounds the stop that follows the drain delay.
+	// DefaultShutdownTimeout bounds the stop that follows the drain delay. It is applied by the relay when
+	// server.shutdown.timeout is unset, so that the effective print of the file stays as it is.
 	DefaultShutdownTimeout = 15 * time.Second
 	// MaxShutdownDuration is the upper bound of the drain delay and of the shutdown timeout.
 	MaxShutdownDuration = 10 * time.Minute
@@ -62,8 +63,6 @@ func (c *Config) applyDefaults() {
 }
 
 func (s *Server) applyDefaults() {
-	s.Shutdown.Timeout = orDefault(s.Shutdown.Timeout, Duration(DefaultShutdownTimeout))
-
 	if len(s.Listeners) == 0 {
 		s.Listeners = []Listener{{Name: RoleAPI, Address: DefaultAPIAddress}}
 	}

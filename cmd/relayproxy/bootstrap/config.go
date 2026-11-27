@@ -37,7 +37,7 @@ type Server struct {
 	UnixSocketPath string     `json:"unixSocketPath,omitempty" yaml:"unixSocketPath,omitempty"`
 	Listeners      []Listener `json:"listeners,omitempty"      yaml:"listeners,omitempty"`
 	// Shutdown tunes the stop of the relay after SIGTERM or SIGINT.
-	Shutdown Shutdown `json:"shutdown,omitzero" yaml:"shutdown"`
+	Shutdown Shutdown `json:"shutdown,omitzero" yaml:"shutdown,omitempty"`
 }
 
 // Listener is one address the relay listens on.
