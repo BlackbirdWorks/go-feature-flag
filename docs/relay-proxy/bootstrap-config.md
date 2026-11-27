@@ -145,7 +145,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
-| `contextEnrichment` | map | none | any values; merged into the context of every evaluation, the request context wins |
+| `contextEnrichment` | map | none | any values (objects and lists too); merged into the context of every evaluation, and it wins over a request attribute of the same name, as in version 1 |
 | `environment` | string | none | added to the enrichment under the key `env` |
 | `disableSemaphoreMetadata` | boolean | `false` | keeps `semaphore_cacheable` out of the OFREP metadata; `gofeatureflag_cacheable` is always sent |
 

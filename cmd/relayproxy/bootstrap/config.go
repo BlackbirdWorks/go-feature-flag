@@ -51,7 +51,7 @@ type Auth struct {
 // Evaluation is how the relay evaluates flags.
 type Evaluation struct {
 	// ContextEnrichment is merged into the context of every evaluation of every flag set that has no enrichment of
-	// its own. The request context wins over it.
+	// its own. It wins over a request attribute of the same name, as in version 1.
 	ContextEnrichment map[string]any `json:"contextEnrichment,omitempty" yaml:"contextEnrichment,omitempty"`
 	// Environment is added to the enrichment under the key env.
 	Environment string `json:"environment,omitempty" yaml:"environment,omitempty"`

@@ -314,6 +314,30 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 	}
 }
 
+// An attribute that the request and the enrichment both carry has the value of the enrichment, in version 1 and in
+// the runtime alike.
+func TestEquivalence_EnrichmentWinsOverTheRequest(t *testing.T) {
+	t.Parallel()
+
+	path, data := equivalenceFile{path: shapesFile}.materialise(t)
+	set := runtimeOf(t, data, formatOf(path))
+	enrichment := map[string]any{planAttr: proPlan}
+
+	legacy := versionOne(t, path, enrichment, "", nil)
+	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{EvaluationContextEnrichment: enrichment})
+
+	ctx := ffcontext.NewEvaluationContext("user")
+	ctx.AddCustomAttribute(planAttr, "free")
+
+	want, wantErr := legacy.RawVariation("float-flag", ctx, nil)
+	got, gotErr := eval.RawVariation(set, "float-flag", ctx, nil)
+
+	require.NoError(t, wantErr)
+	require.NoError(t, gotErr)
+	assert.Equal(t, want, got)
+	assert.InDelta(t, 2.25, got.Value, 0, "the value of the enrichment (pro) wins over the request (free)")
+}
+
 // Tracked evaluations produce the same events as the version 1 client: same flags, same fields.
 func TestEquivalence_TrackedEvents(t *testing.T) {
 	t.Parallel()
