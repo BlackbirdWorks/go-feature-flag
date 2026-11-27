@@ -944,6 +944,12 @@
         "name": "Authorization",
         "type": "apiKey"
       },
+      "ApiKeyQueryAuth": {
+        "description": "The API key of the flag set in the apiKey query parameter, as the streams of flag changes take it. The URL with the key is sensitive and must not be logged.",
+        "in": "query",
+        "name": "apiKey",
+        "type": "apiKey"
+      },
       "XApiKeyAuth": {
         "description": "Use configured APIKeys in yaml config as authorization keys via X-API-Key header,\ndisabled when this yaml config is not set.",
         "in": "header",
@@ -1625,6 +1631,9 @@
           }
         },
         "security": [
+          {
+            "ApiKeyQueryAuth": []
+          },
           {}
         ],
         "summary": "SSE endpoint to be notified about flag changes",
@@ -1690,6 +1699,9 @@
           }
         },
         "security": [
+          {
+            "ApiKeyQueryAuth": []
+          },
           {}
         ],
         "summary": "Websocket endpoint to be notified about flag changes",
@@ -2080,6 +2092,9 @@
           }
         },
         "security": [
+          {
+            "ApiKeyQueryAuth": []
+          },
           {}
         ],
         "summary": "Websocket endpoint to be notified about flag changes",
