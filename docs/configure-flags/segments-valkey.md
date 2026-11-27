@@ -30,7 +30,7 @@ store, err := valkeysegment.Dial(&valkey.ClientOption{InitAddress: []string{"val
 ```
 
 - `Dial` creates the client, owns it, and `Shutdown` closes it. `New(client, opts)` takes a `valkey.Client` that you own.
-- `Dial` forces `DisableCache` (no client-side caching: the resolver caches) and `DisableRetry` (a failed read is not sent again behind the call timeout), whatever you set.
+- `Dial` forces `AlwaysPipelining`, `DisableCache` (no client-side caching: the resolver caches) and `DisableRetry` (a failed read is not sent again behind the call timeout), whatever you set.
 - A cluster is detected by the client from `InitAddress`.
 - `Options` are the ones of the `redis` type without `Atomic`: `Segments`, `KeyPrefix`, `MissingKey`, `MaxIDBytes`, `Timeout` (default 100 ms) and `Observer`. The observer and the counters are the types of `redissegment`.
 
@@ -44,7 +44,7 @@ store, err := valkeysegment.Dial(&valkey.ClientOption{InitAddress: []string{"val
 
 - A transport error keeps the answers that were read (a healthy cluster node keeps its answers); the rest stay unknown with class `unavailable`, `timeout` or `canceled`.
 - An error reply (`WRONGTYPE`, `NOPERM`) is class `server`. A reply that is not the one the command returns, or a stream that does not parse, is class `protocol` and nothing of the call is kept.
-- The call ends at its `Timeout` at the latest. valkey-go watches the deadline of a call that is alone on its connection and not its cancel, so a cancel by the caller is reported as `canceled` but may wait for the timeout.
+- The call ends at its `Timeout` at the latest, or when the caller cancels. `Dial` makes the client pipeline in the background (`AlwaysPipelining`): valkey-go's synchronous path would lose the whole batch on a disconnect and ignore a cancel. A client you pass to `New` must set `AlwaysPipelining` too.
 - `Shutdown` stops new calls, waits for the calls in flight until its context ends, then closes an owned client: that ends a call still in flight. It is safe to call twice.
 - Errors, status and metrics hold classes and counts only: never an id, a key, an address or a password.
 
@@ -55,4 +55,4 @@ store, err := valkeysegment.Dial(&valkey.ClientOption{InitAddress: []string{"val
 
 ## Benchmark
 
-On a commodity 4-core Linux machine against one Valkey 8 node in a container, one call of 1, 10 and 100 ids of a set segment costs about the same with both providers (about 40 to 50 microseconds at 1 and 10 ids, about 80 microseconds at 100 ids, half of that per call with parallel callers). valkey-go allocates fewer objects but more bytes per call for large calls. Measure on your own store: `go test -tags=docker,bench -run '^$' -bench Contains ./modules/core/segment/valkeysegment`.
+On a commodity 4-core Linux machine against one Valkey 8 node in a container, one call of 1, 10 and 100 ids of a set segment costs about the same with both providers (about 45 to 55 microseconds at 1 and 10 ids, about 80 to 90 microseconds at 100 ids, half of that per call with parallel callers). valkey-go allocates fewer objects but more bytes per call for large calls. Measure on your own store: `go test -tags=docker,bench -run '^$' -bench Contains ./modules/core/segment/valkeysegment`.
