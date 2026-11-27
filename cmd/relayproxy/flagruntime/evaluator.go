@@ -186,7 +186,7 @@ func (e *Evaluator) RawVariation(
 	set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
 ) (model.RawVarResult, error) {
 	res, err := variation(e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	notify(e, set, flagKey, evalCtx, &res, isDefaultResult(res.Reason))
 
 	return model.RawVarResult(res), err
 }
@@ -313,12 +313,19 @@ func variation[T model.JSONType](
 	)
 }
 
+// isDefaultResult tells whether a result with this reason carries the default value of the caller (a flag that is not
+// there, a disabled flag, an error of the evaluation, a value of another type than the one asked) and not a value of
+// the flag.
+func isDefaultResult(reason flagdef.ResolutionReason) bool {
+	return reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled
+}
+
 // sharesFlagValue tells whether the value of a result is still the value stored in the flag, so that a typed call
 // that hands out an owned copy must copy it. It is not when the result carries the default value of the caller (an
 // error or a disabled flag: the caller owns it and gets it as given), and not when the flag has scheduled steps:
 // the engine evaluates those on a copy of the flag and already copies the value, once.
 func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReason) bool {
-	if reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled {
+	if isDefaultResult(reason) {
 		return false
 	}
 
@@ -331,10 +338,12 @@ func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReas
 // condition: the evaluation says trackEvents (the flag setting) and there is somewhere to send the event. A nil
 // context is the empty one, as it is for the evaluation itself.
 //
-// The exporter keeps the event, so its value must not be a value that the caller can change. A value that comes from
-// the flag is shared and read only, and a typed call hands out a copy of it: the event keeps the flag's. A value that
-// the caller receives as it is (its own default, or the copy that the engine made for a scheduled flag) is
-// snapshotted for the event when own is set; the result keeps the value, and the snapshot keeps nil containers nil.
+// The rule for the value of the event, the same for every entry point: the exporter keeps the event, so its value is
+// never a value that the caller can change. A value of the flag is shared and read only, the caller does not change
+// it (and a typed call hands out a copy of it): the event keeps the flag's value. A value that the caller owns is
+// snapshotted for the event when own is set: its own default (a flag that is not there, a disabled flag, an error, a
+// value of another type), and the copy that the engine made for a scheduled flag when a typed call hands it out. The
+// result keeps the value as it is. The all-flags state does not track.
 func notify[T model.JSONType](
 	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T], own bool,
 ) {
@@ -362,46 +371,64 @@ func notify[T model.JSONType](
 	))
 }
 
-// snapshotValue copies the objects and arrays of a value, deeply, and keeps a nil map or slice nil: it is the value
-// of a default that the caller wrote, and what it encodes to (null) must not change. The other values are immutable.
+// snapshotValue copies the objects and arrays of a value, deeply, at every level. The containers of a variation are
+// map[string]any, map[any]any and []any: a nil one stays a nil one of the same type (a typed nil map is not a nil
+// interface to an exporter, and a null is not an empty container), and a container that is not nil is copied. Any other
+// value is immutable or not a container of a variation (scalars, strings, a []string, a struct) and is returned as it
+// is, by reference.
 func snapshotValue(val any) any {
 	switch typed := val.(type) {
 	case map[string]any:
-		if typed == nil {
-			return nil
-		}
-
-		out := make(map[string]any, len(typed))
-		for key, elem := range typed {
-			out[key] = snapshotValue(elem)
-		}
-
-		return out
+		return snapshotMap(typed)
 	case map[any]any:
-		if typed == nil {
-			return nil
-		}
-
-		out := make(map[any]any, len(typed))
-		for key, elem := range typed {
-			out[key] = snapshotValue(elem)
-		}
-
-		return out
+		return snapshotAnyMap(typed)
 	case []any:
-		if typed == nil {
-			return nil
-		}
-
-		out := make([]any, len(typed))
-		for idx, elem := range typed {
-			out[idx] = snapshotValue(elem)
-		}
-
-		return out
+		return snapshotSlice(typed)
 	default:
 		return val
 	}
+}
+
+func snapshotMap(src map[string]any) map[string]any {
+	var out map[string]any
+	if src == nil {
+		return out
+	}
+
+	out = make(map[string]any, len(src))
+	for key, elem := range src {
+		out[key] = snapshotValue(elem)
+	}
+
+	return out
+}
+
+func snapshotAnyMap(src map[any]any) map[any]any {
+	var out map[any]any
+	if src == nil {
+		return out
+	}
+
+	out = make(map[any]any, len(src))
+	for key, elem := range src {
+		out[key] = snapshotValue(elem)
+	}
+
+	return out
+}
+
+func snapshotSlice(src []any) []any {
+	var out []any
+	if src == nil {
+		return out
+	}
+
+	out = make([]any, len(src))
+	for idx, elem := range src {
+		out[idx] = snapshotValue(elem)
+	}
+
+	return out
 }
 
 // AllFlagsState evaluates every flag of the flag set for a context. A nil flag set (not available) answers like an

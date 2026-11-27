@@ -331,16 +331,37 @@ func TestRoute_DoesNotAllocate(t *testing.T) {
 		setsName:  setsObj(t, fset("live", src(flagsName), keyA)),
 	})
 
-	for _, key := range []string{keyA, unknownStr} {
+	tests := []struct {
+		wantErr   error
+		key       string
+		wantRoute flagruntime.Route
+	}{
+		{key: keyA, wantRoute: flagruntime.RouteFlagSet},
+		{key: unknownStr, wantRoute: flagruntime.RouteUnknown, wantErr: flagruntime.ErrUnknownKey},
+	}
+
+	for _, tt := range tests {
+		var (
+			gotSet   *flagruntime.FlagSet
+			gotRoute flagruntime.Route
+			gotErr   error
+		)
+
 		allocs := testing.AllocsPerRun(100, func() {
-			set, route := run.Route(key)
-			_ = set
-			_ = route.Err()
+			gotSet, gotRoute = run.Route(tt.key)
+			gotErr = gotRoute.Err()
 		})
-		assert.Zero(t, allocs, key)
+
+		assert.Zero(t, allocs, tt.key)
+		assert.Equal(t, tt.wantRoute, gotRoute, tt.key)
+		assert.Equal(t, tt.wantErr, gotErr, tt.key)
+		assert.Equal(t, tt.wantRoute == flagruntime.RouteFlagSet, gotSet != nil, tt.key)
 	}
 
 	holder := flagruntime.NewHolder()
 
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = holder.Load().Route(keyA) }))
+	var loaded flagruntime.Route
+
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _, loaded = holder.Load().Route(keyA) }))
+	assert.Equal(t, flagruntime.RouteUnknown, loaded, "the empty runtime knows no key")
 }

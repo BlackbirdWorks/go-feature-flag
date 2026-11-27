@@ -20,6 +20,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
 // The evaluator adds nothing to the allocations of the engine: each shape is measured through the evaluator and
@@ -39,7 +40,7 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 		name string
 		flag string
 	}{
-		{name: "scalar, no metadata", flag: "bool-static"},
+		{name: "scalar, no metadata", flag: boolStatic},
 		{name: "scalar, flat metadata", flag: "bool-flat-meta"},
 		{name: "scalar, nested metadata", flag: boolRule},
 		{name: "object value", flag: objectFlag},
@@ -53,11 +54,28 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 			continue
 		}
 
-		engine := minAllocs(func() {
-			_, _ = evaluation.Evaluate[any](flag, tt.flag, ctx, flagdef.Context{Service: svc}, "interface{}", nil)
-		})
-		raw := minAllocs(func() { _, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
+		// what each side returned is kept and compared after the measurement: the work cannot be dropped, and both
+		// sides must answer the same
+		var (
+			engineRes model.VariationResult[any]
+			rawRes    model.RawVarResult
+		)
 
+		engine := minAllocs(func() {
+			engineRes, _ = evaluation.Evaluate[any](
+				flag,
+				tt.flag,
+				ctx,
+				flagdef.Context{Service: svc},
+				"interface{}",
+				nil,
+			)
+		})
+		raw := minAllocs(func() { rawRes, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
+
+		assert.NotEmpty(t, rawRes.VariationType, tt.name)
+		assert.Equal(t, engineRes.Value, rawRes.Value, tt.name)
+		assert.Equal(t, engineRes.Metadata, rawRes.Metadata, tt.name)
 		assert.InDelta(t, engine, raw, 0, "RawVariation of %s: engine %v, evaluator %v", tt.name, engine, raw)
 		t.Logf("%-28s engine alone %v allocs, RawVariation %v", tt.name, engine, raw)
 	}
@@ -128,12 +146,18 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 
 	for _, tt := range tests {
 		flag, _ := set.Flag(tt.flag)
-		engine := minAllocs(func() { _ = tt.engine(flag) })
-		typed := minAllocs(func() { _ = tt.typed() })
+
+		var engineValue, typedValue, copied any
+
+		engine := minAllocs(func() { engineValue = tt.engine(flag) })
+		typed := minAllocs(func() { typedValue = tt.typed() })
 
 		// the copy as the typed call makes it: from the typed value (boxing a slice header is an allocation)
 		held := tt.engine(flag)
-		copyCost := minAllocs(func() { cloneTyped(held) })
+		copyCost := minAllocs(func() { copied = cloneTyped(held) })
+
+		assert.Equal(t, engineValue, typedValue, tt.name)
+		assert.Equal(t, held, copied, tt.name)
 
 		want := engine
 		if tt.copies {
@@ -157,10 +181,15 @@ func TestEvaluator_AllFlagsAllocationsEqualTheEngine(t *testing.T) {
 	ctx := ffcontext.NewEvaluationContext("user-42")
 
 	flagCtx := flagdef.Context{Service: svc}
-	engine := minAllocs(func() { _ = engineAllFlags(set.Flags, ctx, flagCtx) })
-	got := minAllocs(func() { _ = eval.AllFlagsState(set, ctx) })
+
+	var engineStates, gotStates flagstate.AllFlags
+
+	engine := minAllocs(func() { engineStates = engineAllFlags(set.Flags, ctx, flagCtx) })
+	got := minAllocs(func() { gotStates = eval.AllFlagsState(set, ctx) })
 
 	assert.Len(t, set.Flags, 100)
+	assert.Equal(t, engineStates.GetFlags(), gotStates.GetFlags())
+	assert.Len(t, gotStates.GetFlags(), 100)
 	assert.InDelta(t, engine, got, 0, "engine alone %v, evaluator %v", engine, got)
 	t.Logf("100 flags: engine alone %v allocs, AllFlagsState %v", engine, got)
 }
@@ -188,7 +217,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 	newDefault := func() map[string]any { return map[string]any{"d": []any{1}} }
 
 	tests := []struct {
-		run      func(eval *flagruntime.Evaluator)
+		run      func(eval *flagruntime.Evaluator) any
 		def      map[string]any
 		name     string
 		flag     string
@@ -196,26 +225,42 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 	}{
 		{
 			name: "scalar flag", flag: trackedFlag,
-			run: func(eval *flagruntime.Evaluator) { _, _ = eval.RawVariation(set, trackedFlag, ctx, nil) },
+			run: func(eval *flagruntime.Evaluator) any {
+				res, _ := eval.RawVariation(set, trackedFlag, ctx, nil)
+
+				return res.Value
+			},
 		},
 		{
 			name: "object value, raw", flag: objectFlag,
-			run: func(eval *flagruntime.Evaluator) { _, _ = eval.RawVariation(set, objectFlag, ctx, nil) },
+			run: func(eval *flagruntime.Evaluator) any {
+				res, _ := eval.RawVariation(set, objectFlag, ctx, nil)
+
+				return res.Value
+			},
 		},
 		{
 			name: "typed object", flag: objectFlag,
-			run: func(eval *flagruntime.Evaluator) { _, _ = eval.JSONVariationDetails(set, objectFlag, ctx, nil) },
+			run: func(eval *flagruntime.Evaluator) any {
+				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
+
+				return res.Value
+			},
 		},
 		{
 			name: "typed scheduled object", flag: "scheduled-tracked-object-flag", snapshot: true,
-			run: func(eval *flagruntime.Evaluator) {
-				_, _ = eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ctx, nil)
+			run: func(eval *flagruntime.Evaluator) any {
+				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ctx, nil)
+
+				return res.Value
 			},
 		},
 		{
 			name: "missing flag, typed with a default", flag: missingKey, snapshot: true, def: newDefault(),
-			run: func(eval *flagruntime.Evaluator) {
-				_, _ = eval.JSONVariationDetails(set, missingKey, ctx, newDefault())
+			run: func(eval *flagruntime.Evaluator) any {
+				res, _ := eval.JSONVariationDetails(set, missingKey, ctx, newDefault())
+
+				return res.Value
 			},
 		},
 	}
@@ -225,19 +270,35 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 
 		value, evalCtx := res.Value, ffcontext.Context(ctx)
 
+		var built *exporter.FeatureEvent
+
 		eventCost := minAllocs(func() {
-			kept = exporter.NewFeatureEvent(
+			built = exporter.NewFeatureEvent(
 				evalCtx, tt.flag, value, res.VariationType, res.Failed, res.Version, "SERVER",
 				evalCtx.ExtractGOFFProtectedFields().ExporterMetadata)
 		})
 
+		assert.Equal(t, tt.flag, built.Key, tt.name)
+
 		copyCost := 0.0
+
 		if tt.snapshot {
-			copyCost = minAllocs(func() { cloneTyped(value) })
+			var snapshot any
+
+			copyCost = minAllocs(func() { snapshot = cloneTyped(value) })
+
+			assert.Equal(t, value, snapshot, tt.name)
 		}
 
-		without := minAllocs(func() { tt.run(plain) })
-		with := minAllocs(func() { tt.run(tracking) })
+		var plainValue, trackedValue any
+
+		kept = nil
+
+		without := minAllocs(func() { plainValue = tt.run(plain) })
+		with := minAllocs(func() { trackedValue = tt.run(tracking) })
+
+		assert.Equal(t, plainValue, trackedValue, tt.name)
+		assert.NotNil(t, kept, tt.name)
 
 		assert.InDelta(
 			t,
@@ -260,8 +321,6 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			with,
 		)
 	}
-
-	assert.NotNil(t, kept)
 }
 
 // engineAllFlags is what the engine alone does for the state of all the flags: one evaluation per flag, and the table.
@@ -279,12 +338,14 @@ func engineAllFlags(
 }
 
 // cloneTyped copies a typed value the way the typed calls do: through flagdef.CloneValue, from the typed variable.
-func cloneTyped(val any) {
+func cloneTyped(val any) any {
 	switch typed := val.(type) {
 	case []any:
-		_ = flagdef.CloneValue(typed)
+		return flagdef.CloneValue(typed)
 	case map[string]any:
-		_ = flagdef.CloneValue(typed)
+		return flagdef.CloneValue(typed)
+	default:
+		return val
 	}
 }
 

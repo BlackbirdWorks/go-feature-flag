@@ -70,7 +70,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 	set := runtimeOf(b, data, "yaml")
 	ctx := benchContext()
 
-	for _, flag := range []string{"bool-static", boolRule, objectFlag, "int-flag"} {
+	for _, flag := range []string{boolStatic, boolRule, objectFlag, "int-flag"} {
 		b.Run(flag+"/v1", func(b *testing.B) {
 			b.ReportAllocs()
 

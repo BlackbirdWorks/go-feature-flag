@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -292,46 +293,76 @@ func TestEvaluator_TrackedEvaluationWithANilContext(t *testing.T) {
 	assert.Equal(t, "user", events[0].ContextKind)
 }
 
-// The default of the caller is returned as given by the typed calls whether the evaluation is tracked or not, and a
-// tracked evaluation gives the event a snapshot of it: nil maps and slices inside the default stay nil (they encode
-// as null), the result encodes the same with and without the hook, and neither side can change the other.
-func TestOwnership_TrackedDefaultIsReturnedAsGivenAndSnapshotted(t *testing.T) {
+// The rule for the event, the same for every entry point: whenever the event would hold a value that the caller owns
+// (its default, returned as given, because the flag is not there, is disabled, fails, or holds another type) the event
+// gets a snapshot, and neither side can change the other; the JSON of the result is the same with and without the hook.
+// The rows are the entry points (the raw call and the two typed calls with a container) by the reasons for a default.
+func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		call       func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any
-		newGiven   func() any
-		changeSelf func(val any)
-		name       string
-		wantJSON   string
+	reasons := []struct {
+		name string
+		flag string
+	}{
+		{name: "flag not there", flag: missingKey},
+		{name: "disabled flag", flag: "bool-disabled"},
+		{name: "error of the evaluation", flag: "bucketing-flag"},
+		{name: "value of another type", flag: boolStatic},
+	}
+
+	entries := []struct {
+		call     func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any
+		newGiven func() any
+		change   func(val any)
+		name     string
+		wantJSON string
+		// noMismatch: the raw call returns whatever type the flag has, so it has no value of another type
+		noMismatch bool
 	}{
 		{
-			name: kindObject,
-			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any {
-				def, _ := given.(map[string]any)
-				res, _ := eval.JSONVariationDetails(set, missingKey, ownedContext(), def)
+			name: "RawVariation",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
+				res, _ := eval.RawVariation(set, flag, ownedContext(), given)
 
 				return res.Value
 			},
 			newGiven: func() any {
 				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, "list": []any{1}}
 			},
-			changeSelf: func(val any) {
+			change: func(val any) {
+				obj, _ := val.(map[string]any)
+				obj["list"] = mutated
+			},
+			wantJSON:   `{"items":null,"list":[1],"none":null,"obj":null}`,
+			noMismatch: true,
+		},
+		{
+			name: "JSONVariationDetails",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
+				def, _ := given.(map[string]any)
+				res, _ := eval.JSONVariationDetails(set, flag, ownedContext(), def)
+
+				return res.Value
+			},
+			newGiven: func() any {
+				return map[string]any{"items": []any(nil), "obj": map[string]any(nil), "none": nil, "list": []any{1}}
+			},
+			change: func(val any) {
 				obj, _ := val.(map[string]any)
 				obj["list"] = mutated
 			},
 			wantJSON: `{"items":null,"list":[1],"none":null,"obj":null}`,
 		},
 		{
-			name: kindArray,
-			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, given any) any {
+			name: "JSONArrayVariationDetails",
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				def, _ := given.([]any)
-				res, _ := eval.JSONArrayVariationDetails(set, missingKey, ownedContext(), def)
+				res, _ := eval.JSONArrayVariationDetails(set, flag, ownedContext(), def)
 
 				return res.Value
 			},
 			newGiven: func() any { return []any{[]any(nil), map[string]any(nil), nil, []any{1}} },
-			changeSelf: func(val any) {
+			change: func(val any) {
 				arr, _ := val.([]any)
 				arr[3] = mutated
 			},
@@ -339,45 +370,185 @@ func TestOwnership_TrackedDefaultIsReturnedAsGivenAndSnapshotted(t *testing.T) {
 		},
 	}
 
+	for _, entry := range entries {
+		for _, reason := range reasons {
+			if entry.noMismatch && reason.flag == boolStatic {
+				continue
+			}
+
+			t.Run(entry.name+"/"+reason.name, func(t *testing.T) {
+				t.Parallel()
+
+				set := shapesSet(t)
+
+				// without the hook: the result is the default, as given
+				plain := flagruntime.NewEvaluator(newService(t), nil)
+				untracked := entry.call(plain, set, reason.flag, entry.newGiven())
+				assert.JSONEq(t, entry.wantJSON, mustJSON(t, untracked))
+
+				var events []*exporter.FeatureEvent
+
+				eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+					TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
+				})
+
+				given := entry.newGiven()
+				result := entry.call(eval, set, reason.flag, given)
+
+				require.Len(t, events, 1, "the evaluation is tracked")
+				assert.JSONEq(t, entry.wantJSON, mustJSON(t, result), "the result encodes as without the hook")
+				assert.JSONEq(t, entry.wantJSON, mustJSON(t, events[0].Value), "the event keeps nil containers nil")
+				assert.Equal(
+					t,
+					reflect.ValueOf(given).Pointer(),
+					reflect.ValueOf(result).Pointer(),
+					"the default as given",
+				)
+				assert.NotEqual(t, reflect.ValueOf(given).Pointer(), reflect.ValueOf(events[0].Value).Pointer())
+
+				// the caller changes what it got back: the event does not move
+				entry.change(result)
+				assert.JSONEq(t, entry.wantJSON, mustJSON(t, events[0].Value), "the event after the caller's change")
+
+				// the exporter changes the event: the default of a caller does not move
+				other := entry.newGiven()
+				_ = entry.call(eval, set, reason.flag, other)
+
+				require.Len(t, events, 2)
+				entry.change(events[1].Value)
+				assert.JSONEq(t, entry.wantJSON, mustJSON(t, other), "the default after the exporter's change")
+			})
+		}
+	}
+}
+
+// The snapshot keeps the dynamic type and the nil-ness of every container, at the top and at every depth: a nil
+// map[string]any, map[any]any or []any stays one (an exporter that reads the value, like the one that writes it to a
+// parquet file, sees what it sees for the value of the caller), a container that is not nil is a distinct copy, and a
+// value that is not a variation container passes through by reference.
+func TestOwnership_SnapshotKeepsTypesAndNils(t *testing.T) {
+	t.Parallel()
+
+	byRef := []string{"kept"}
+
+	tests := []struct {
+		given   func() any
+		name    string
+		wantNil bool
+	}{
+		{name: "nil map at the top", given: func() any { return map[string]any(nil) }, wantNil: true},
+		{name: "nil any-map at the top", given: func() any { return map[any]any(nil) }, wantNil: true},
+		{name: "nil slice at the top", given: func() any { return []any(nil) }, wantNil: true},
+		{name: "empty map at the top", given: func() any { return map[string]any{} }},
+		{name: "empty slice at the top", given: func() any { return []any{} }},
+		{
+			name: "nils at every depth",
+			given: func() any {
+				return map[string]any{
+					"a": []any{
+						map[string]any(nil),
+						[]any(nil),
+						map[any]any(nil),
+						[]any{map[string]any{"b": []any(nil)}},
+					},
+					"c": map[any]any{"d": map[string]any(nil)},
+				}
+			},
+		},
+		{
+			name: "types that are not variation containers pass through",
+			given: func() any {
+				return map[string]any{"s": byRef, "m": map[string]string{"x": "y"}, "n": 1.5, "t": "text"}
+			},
+		},
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			set := shapesSet(t)
-
-			// without the hook: the result is the default, as given
-			given := tt.newGiven()
-			plain := flagruntime.NewEvaluator(newService(t), nil)
-			assert.JSONEq(t, tt.wantJSON, mustJSON(t, tt.call(plain, set, given)))
-
-			// with the hook: the same result, and an event that holds a snapshot
 			var events []*exporter.FeatureEvent
 
 			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
 				TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
 			})
 
-			given = tt.newGiven()
-			result := tt.call(eval, set, given)
-
+			given := tt.given()
+			res, _ := eval.RawVariation(shapesSet(t), missingKey, ownedContext(), given)
 			require.Len(t, events, 1)
-			assert.JSONEq(t, tt.wantJSON, mustJSON(t, result), "the result encodes as without the hook")
-			assert.JSONEq(t, tt.wantJSON, mustJSON(t, events[0].Value), "the event keeps nil containers nil")
-			assert.Equal(t, reflect.ValueOf(given).Pointer(), reflect.ValueOf(result).Pointer(), "the default as given")
-			assert.NotEqual(t, reflect.ValueOf(given).Pointer(), reflect.ValueOf(events[0].Value).Pointer())
 
-			// the caller changes what it got back: the event does not move
-			tt.changeSelf(result)
-			assert.JSONEq(t, tt.wantJSON, mustJSON(t, events[0].Value), "the event after the caller's change")
+			event := events[0]
+			original := exporter.NewFeatureEvent(
+				ownedContext(), missingKey, given, res.VariationType, res.Failed, res.Version, "SERVER", nil)
 
-			// the exporter changes the event: a default of the caller does not move
-			given = tt.newGiven()
-			_ = tt.call(eval, set, given)
+			assertSameShape(t, given, event.Value, "event value")
 
-			require.Len(t, events, 2)
-			tt.changeSelf(events[1].Value)
-			assert.JSONEq(t, tt.wantJSON, mustJSON(t, given), "the default after the exporter's change")
+			if tt.wantNil {
+				assert.True(t, reflect.ValueOf(event.Value).IsNil(), "a nil container stays nil")
+			}
+
+			// what an exporter that writes parquet files gets from the event is what it gets from the caller's value
+			wantParquet, wantErr := original.ConvertValueForParquet()
+			gotParquet, gotErr := event.ConvertValueForParquet()
+
+			assert.Equal(t, wantParquet, gotParquet)
+			assert.Equal(t, wantErr, gotErr)
 		})
+	}
+}
+
+// assertSameShape compares two values by type and nil-ness, recursively, and checks that containers that are not nil
+// are different objects (a copy), except the values that are not variation containers, which are the same.
+func assertSameShape(t *testing.T, want, got any, path string) {
+	t.Helper()
+
+	require.Equal(t, reflect.TypeOf(want), reflect.TypeOf(got), path)
+
+	wantVal, gotVal := reflect.ValueOf(want), reflect.ValueOf(got)
+
+	switch wantVal.Kind() { //nolint:exhaustive // only the containers are walked
+	case reflect.Map, reflect.Slice:
+		require.Equal(t, wantVal.IsNil(), gotVal.IsNil(), path+" nil-ness")
+
+		if wantVal.IsNil() {
+			return
+		}
+
+		require.Equal(t, wantVal.Len(), gotVal.Len(), path+" length")
+
+		switch typed := want.(type) {
+		case map[string]any:
+			gotMap, _ := got.(map[string]any)
+
+			assert.NotEqual(t, wantVal.Pointer(), gotVal.Pointer(), path+" is a copy")
+
+			for key, elem := range typed {
+				assertSameShape(t, elem, gotMap[key], path+"."+key)
+			}
+		case map[any]any:
+			gotMap, _ := got.(map[any]any)
+
+			assert.NotEqual(t, wantVal.Pointer(), gotVal.Pointer(), path+" is a copy")
+
+			for key, elem := range typed {
+				assertSameShape(t, elem, gotMap[key], fmt.Sprintf("%s.%v", path, key))
+			}
+		case []any:
+			gotSlice, _ := got.([]any)
+
+			if len(typed) > 0 {
+				assert.NotSame(t, &typed[0], &gotSlice[0], path+" is a copy")
+			}
+
+			for idx, elem := range typed {
+				assertSameShape(t, elem, gotSlice[idx], fmt.Sprintf("%s[%d]", path, idx))
+			}
+		default:
+			// a container of another type is not copied: the same object
+			assert.Equal(t, wantVal.Pointer(), gotVal.Pointer(), path+" passes through")
+		}
+	default:
+		assert.Equal(t, want, got, path)
 	}
 }
 

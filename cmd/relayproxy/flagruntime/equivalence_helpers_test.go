@@ -30,6 +30,7 @@ const (
 	flagsName   = "flags"
 	planAttr    = "plan"
 	proPlan     = "pro"
+	boolStatic  = "bool-static"
 	kindObject  = "object"
 	kindArray   = "array"
 	nameKey     = "name"

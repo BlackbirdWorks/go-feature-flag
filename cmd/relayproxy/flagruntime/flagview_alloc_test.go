@@ -6,7 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // The flag change answer and the configuration view: the first Change encodes the flags, every later call is free;
@@ -19,14 +21,21 @@ func TestFlagSet_ViewAllocations(t *testing.T) {
 	first, err := set.Change()
 	require.NoError(t, err)
 
-	again := testing.AllocsPerRun(100, func() { _, _ = set.Change() })
+	var memoized flagruntime.FlagChange
+
+	again := testing.AllocsPerRun(100, func() { memoized, _ = set.Change() })
 	assert.Zero(t, again, "a memoized Change does not allocate")
+	assert.Equal(t, first, memoized)
 
 	second, err := set.Change()
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 
-	config := testing.AllocsPerRun(100, func() { _ = set.Configuration(nil) })
+	var listed map[string]flagdef.Flag
+
+	config := testing.AllocsPerRun(100, func() { listed = set.Configuration(nil) })
+
+	assert.Len(t, listed, len(set.Flags))
 	assert.Less(t, config, float64(len(set.Flags)), "no copy per flag")
 	t.Logf("Change (memoized) %v allocs, Configuration of 100 flags %v allocs", again, config)
 }

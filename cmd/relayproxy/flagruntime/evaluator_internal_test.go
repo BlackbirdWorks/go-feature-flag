@@ -1,6 +1,7 @@
 package flagruntime
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,43 +34,90 @@ func TestEvaluatorWrapperFramesDoNotAllocate(t *testing.T) {
 
 	var evalCtx ffcontext.Context = ffcontext.NewEvaluationContext("user")
 
-	tracked := model.VariationResult[any]{TrackEvents: true}
+	tracked := model.VariationResult[any]{TrackEvents: true, Value: "kept"}
 	cacheable := model.RawVarResult{Cacheable: true, Metadata: map[string]any{}}
 	notCacheable := model.RawVarResult{Metadata: map[string]any{"a": 1}}
 
-	// what the frames answer: a frame that allocates nothing because it does nothing would pass the counts below
-	_, found := set.Flag("f")
-	_, foundNil := none.Flag("f")
-
-	assert.True(t, found)
-	assert.False(t, foundNil)
-	assert.True(t, sharesFlagValue(set, "f", flagdef.ReasonDefault))
-	assert.False(t, sharesFlagValue(set, "f", flagdef.ReasonError))
-	assert.Equal(t, map[string]any{"b": 2, "env": prodName}, eval.enrichmentFor(set).values)
-	assert.Equal(t, map[string]any{"a": 1, "env": prodName}, eval.enrichmentFor(none).values)
-	assert.Equal(t, map[string]any{"a": 1}, plain.ResponseMetadata(&notCacheable))
-	assert.Equal(t,
-		map[string]any{LegacyMetadataCacheable: true, MetadataCacheable: true}, plain.ResponseMetadata(&cacheable))
-
+	// every row measures a function and keeps what it returned: the result is asserted after the measurement, so the
+	// compiler cannot drop the work, and the answer is checked next to the count. The last row is the control: it
+	// allocates on purpose, and the harness must see it.
 	tests := []struct {
-		run  func()
-		name string
+		run        func() any
+		want       any
+		name       string
+		wantAllocs float64
+		control    bool
 	}{
-		{name: "FlagSet.Flag", run: func() { _, _ = set.Flag("f") }},
-		{name: "FlagSet.Flag on a nil flag set", run: func() { _, _ = none.Flag("f") }},
-		{name: "sharesFlagValue", run: func() { _ = sharesFlagValue(set, "f", flagdef.ReasonDefault) }},
 		{
-			name: "sharesFlagValue, default of the caller",
-			run:  func() { _ = sharesFlagValue(set, "f", flagdef.ReasonError) },
+			name: "FlagSet.Flag", want: true,
+			run: func() any {
+				_, ok := set.Flag("f")
+
+				return ok
+			},
 		},
-		{name: "enrichmentFor, per flag set", run: func() { _ = eval.enrichmentFor(set) }},
-		{name: "enrichmentFor, default", run: func() { _ = plain.enrichmentFor(none) }},
-		{name: "notify without a hook", run: func() { notify(plain, set, "f", evalCtx, &tracked, true) }},
-		{name: "ResponseMetadata, cacheable with a map", run: func() { _ = plain.ResponseMetadata(&cacheable) }},
-		{name: "ResponseMetadata, not cacheable", run: func() { _ = plain.ResponseMetadata(&notCacheable) }},
+		{
+			name: "FlagSet.Flag on a nil flag set", want: false,
+			run: func() any {
+				_, ok := none.Flag("f")
+
+				return ok
+			},
+		},
+		{
+			name: "sharesFlagValue", want: true,
+			run: func() any { return sharesFlagValue(set, "f", flagdef.ReasonDefault) },
+		},
+		{
+			name: "sharesFlagValue, default of the caller", want: false,
+			run: func() any { return sharesFlagValue(set, "f", flagdef.ReasonError) },
+		},
+		{
+			name: "isDefaultResult", want: true,
+			run: func() any { return isDefaultResult(flagdef.ReasonDisabled) },
+		},
+		{
+			name: "enrichmentFor, per flag set", want: map[string]any{"b": 2, "env": prodName},
+			run: func() any { return eval.enrichmentFor(set).values },
+		},
+		{
+			name: "enrichmentFor, default", want: map[string]any{"a": 1, "env": prodName},
+			run: func() any { return eval.enrichmentFor(none).values },
+		},
+		{
+			name: "notify without a hook", want: "kept",
+			run: func() any {
+				notify(plain, set, "f", evalCtx, &tracked, true)
+
+				return tracked.Value
+			},
+		},
+		{
+			name: "ResponseMetadata, cacheable with a map",
+			want: map[string]any{LegacyMetadataCacheable: true, MetadataCacheable: true},
+			run:  func() any { return plain.ResponseMetadata(&cacheable) },
+		},
+		{
+			name: "ResponseMetadata, not cacheable", want: map[string]any{"a": 1},
+			run: func() any { return plain.ResponseMetadata(&notCacheable) },
+		},
+		{
+			name: "control: a function that allocates", want: "1 2", control: true,
+			run: func() any { return fmt.Sprint(1, 2) },
+		},
 	}
 
 	for _, tt := range tests {
-		assert.Zero(t, testing.AllocsPerRun(200, tt.run), tt.name)
+		var sink any
+
+		allocs := testing.AllocsPerRun(200, func() { sink = tt.run() })
+
+		if tt.control {
+			assert.Positive(t, allocs, "%s: the harness sees an allocation", tt.name)
+		} else {
+			assert.InDelta(t, tt.wantAllocs, allocs, 0, tt.name)
+		}
+
+		assert.Equal(t, tt.want, sink, tt.name)
 	}
 }
