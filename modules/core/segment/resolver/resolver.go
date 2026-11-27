@@ -600,7 +600,10 @@ func (r *Resolver) Shutdown(ctx context.Context) error {
 		go func() {
 			defer close(r.stopDone)
 
-			r.stopErr = guard(func() error { return stopper.Shutdown(ctx) })
+			// not under the context of this caller: another caller may be waiting for the result, and each caller is
+			// bounded by its own context below
+			shutdownCtx := context.WithoutCancel(ctx)
+			r.stopErr = guard(func() error { return stopper.Shutdown(shutdownCtx) })
 		}()
 	})
 
