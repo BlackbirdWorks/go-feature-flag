@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,11 +40,11 @@ func TestCompatVersion1(t *testing.T) {
 		},
 		{
 			"flag file yaml", "flagfile.yaml", readFlags(controlplane.FormatYAML, controlplane.MarshalFlags),
-			fixtureFlags(),
+			wantFlagsV1(),
 		},
 		{
 			"flag file json", "flagfile.json", readFlags(controlplane.FormatJSON, controlplane.MarshalFlagsJSON),
-			fixtureFlags(),
+			wantFlagsV1(),
 		},
 	}
 
@@ -108,20 +109,123 @@ func readFlags(
 	}
 }
 
-// wantManifestV1 is the manifest that the frozen files hold: the fixture with the header the marshaller wrote.
-func wantManifestV1() *controlplane.Manifest {
-	m := fixtureManifest()
-	m.APIVersion = controlplane.APIVersion
-	m.Kind = controlplane.DocumentKindManifest
+// The names of the frozen documents, spelled as the files spell them.
+const (
+	frozenKindManifest = "Manifest"
+	frozenSource       = "checkout-flags"
+	frozenYAML         = "yaml"
+	frozenSetCheckout  = "checkout"
+	frozenSetEmpty     = "no-keys-yet"
+	frozenFlagCheckout = "new-checkout"
+	frozenOff          = "off"
+)
 
-	return m
+// The expectations below are literals, on purpose: they must not move with the live fixtures or constants.
+
+func frozenTime(day int) *time.Time {
+	t := time.Date(2026, time.January, day, 3, 4, 5, 0, time.UTC)
+
+	return &t
 }
 
-// wantFlagSetV1 is the flag-set document that the frozen files hold.
-func wantFlagSetV1() *controlplane.FlagSetDocument {
-	d := fixtureFlagSet()
-	d.APIVersion = controlplane.APIVersion
-	d.Kind = controlplane.DocumentKindFlagSet
+// wantManifestV1 is the manifest that manifest.yaml and manifest.json hold.
+func wantManifestV1() *controlplane.Manifest {
+	return &controlplane.Manifest{
+		APIVersion: "semaphore/v1",
+		Kind:       frozenKindManifest,
+		Channel:    "stable",
+		Generation: 7,
+		CreatedAt:  frozenTime(2),
+		Objects: []controlplane.ManifestObject{
+			{
+				Name:       frozenSource,
+				Kind:       "flags",
+				Connection: "flags-eu",
+				Key:        "objects/sha256/29/2934fb49d6b38adef036c28fac69f188feae09259f3184e6d9cfbd0f35454fec.yaml",
+				Format:     frozenYAML,
+				Checksum: controlplane.Checksum{
+					Algorithm: "sha256",
+					Value:     "2934fb49d6b38adef036c28fac69f188feae09259f3184e6d9cfbd0f35454fec",
+				},
+				Size:      5,
+				VersionID: "v1",
+			},
+			{
+				Name:       "flagsets",
+				Kind:       "flagSets",
+				Connection: "control",
+				Version:    1,
+				Key:        "objects/sha256/06/069100af988b1eda7efb84e2964ebff7a05592a3aec9124a576d83a340fe1e0e.yaml",
+				Format:     frozenYAML,
+				Checksum: controlplane.Checksum{
+					Algorithm: "sha256",
+					Value:     "069100af988b1eda7efb84e2964ebff7a05592a3aec9124a576d83a340fe1e0e",
+				},
+				Size: 9,
+			},
+		},
+	}
+}
 
-	return d
+// wantFlagSetV1 is the flag-set document that flagset.yaml and flagset.json hold.
+func wantFlagSetV1() *controlplane.FlagSetDocument {
+	return &controlplane.FlagSetDocument{
+		APIVersion: "semaphore/v1",
+		Kind:       "FlagSet",
+		FlagSets: []controlplane.FlagSet{
+			{
+				Name:    frozenSetCheckout,
+				Sources: []string{frozenSource},
+				APIKeys: []string{"6f1f1b7e-6a0e-4d4c-9d8e-2f6f3f1a0b11"},
+			},
+			{Name: frozenSetEmpty, Sources: []string{frozenSource}},
+		},
+	}
+}
+
+// wantFlagsV1 is the flag file that flagfile.yaml and flagfile.json hold.
+func wantFlagsV1() controlplane.Flags {
+	return controlplane.Flags{
+		frozenFlagCheckout: {
+			TrackEvents: new(false),
+			Disable:     new(false),
+			Version:     new("1.2"),
+			Variations:  map[string]any{"on": true, frozenOff: false},
+			Targeting: []controlplane.Rule{
+				{
+					Name: new("beta"), Query: new("beta eq true"), OnError: new("match"),
+					Percentage: map[string]float64{"on": 100, frozenOff: 0},
+				},
+				{
+					Name:  new("ramp"),
+					Query: new(`country eq "FR"`),
+					ProgressiveRollout: &controlplane.ProgressiveRollout{
+						Initial: &controlplane.ProgressiveRolloutStep{
+							Variation:  new(frozenOff),
+							Percentage: new(0.0),
+							Date:       frozenTime(1),
+						},
+						End: &controlplane.ProgressiveRolloutStep{
+							Variation:  new("on"),
+							Percentage: new(100.0),
+							Date:       frozenTime(2),
+						},
+					},
+				},
+			},
+			BucketingKey: new("targetingKey"),
+			DefaultRule:  &controlplane.Rule{Variation: new(frozenOff)},
+			ScheduledRollout: []controlplane.ScheduledStep{{
+				Date:        frozenTime(3),
+				DefaultRule: &controlplane.Rule{Variation: new("on")},
+				Metadata:    map[string]any{"step": "full"},
+			}},
+			Experimentation: &controlplane.Experimentation{Start: frozenTime(4), End: frozenTime(5)},
+			Metadata:        map[string]any{"owner": "payments", "ratio": 1.5, "tags": []any{"yes", "007"}},
+		},
+		"banner": {
+			Variations:  map[string]any{"a": "yes", "b": "no", "c": 0.5, "d": "2026-01-01"},
+			DefaultRule: &controlplane.Rule{Variation: new("a")},
+		},
+	}
 }

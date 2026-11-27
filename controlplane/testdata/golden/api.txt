@@ -64,14 +64,12 @@ func (*DecodeError) Is(target error) bool
 func (*KindError) Is(target error) bool
 func (*UnsupportedVersionError) Is(target error) bool
 func (*ValidationError) Is(target error) bool
-func (*formatError) Is(target error) bool
 func (e *ChecksumMismatchError) Error() string
 func (e *DecodeError) Error() string
 func (e *FieldError) Error() string
 func (e *KindError) Error() string
 func (e *UnsupportedVersionError) Error() string
 func (e *ValidationError) Error() string
-func (e *formatError) Error() string
 func ChecksumOf(data []byte) Checksum
 func MarshalFlagSet(d *FlagSetDocument) ([]byte, error)
 func MarshalFlagSetJSON(d *FlagSetDocument) ([]byte, error)
@@ -112,8 +110,8 @@ type DecodeInfo struct {
 }
 type EntryKind string
 type Experimentation struct {
-	Start	*time.Time	`json:"start,omitempty" yaml:"start,omitempty"`
-	End	*time.Time	`json:"end,omitempty"   yaml:"end,omitempty"`
+	Start	*"time".Time	`json:"start,omitempty" yaml:"start,omitempty"`
+	End	*"time".Time	`json:"end,omitempty"   yaml:"end,omitempty"`
 }
 type FieldError struct {
 	Path	string
@@ -170,7 +168,7 @@ type Manifest struct {
 
 	Generation	uint64	`json:"generation" yaml:"generation"`
 
-	CreatedAt	*time.Time	`json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+	CreatedAt	*"time".Time	`json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
 
 	Objects	[]ManifestObject	`json:"objects" yaml:"objects"`
 }
@@ -200,7 +198,7 @@ type ProgressiveRollout struct {
 type ProgressiveRolloutStep struct {
 	Variation	*string		`json:"variation,omitempty"  yaml:"variation,omitempty"`
 	Percentage	*float64	`json:"percentage,omitempty" yaml:"percentage,omitempty"`
-	Date		*time.Time	`json:"date,omitempty"       yaml:"date,omitempty"`
+	Date		*"time".Time	`json:"date,omitempty"       yaml:"date,omitempty"`
 }
 type Rule struct {
 	Name			*string			`json:"name,omitempty"               yaml:"name,omitempty"`
@@ -212,7 +210,7 @@ type Rule struct {
 	OnError			*string			`json:"onError,omitempty"            yaml:"onError,omitempty"`
 }
 type ScheduledStep struct {
-	Date		*time.Time		`json:"date,omitempty"            yaml:"date,omitempty"`
+	Date		*"time".Time		`json:"date,omitempty"            yaml:"date,omitempty"`
 	TrackEvents	*bool			`json:"trackEvents,omitempty"     yaml:"trackEvents,omitempty"`
 	Disable		*bool			`json:"disable,omitempty"         yaml:"disable,omitempty"`
 	Version		*string			`json:"version,omitempty"         yaml:"version,omitempty"`
@@ -233,33 +231,31 @@ type ValidationError struct {
 	Problems []FieldError
 }
 var (
-	ErrUnsupportedAPIVersion	= errors.New("controlplane: unsupported apiVersion")
+	ErrUnsupportedAPIVersion	= "errors".New("controlplane: unsupported apiVersion")
 
-	ErrWrongKind	= errors.New("controlplane: wrong document kind")
+	ErrWrongKind	= "errors".New("controlplane: wrong document kind")
 
-	ErrInvalid	= errors.New("controlplane: invalid document")
+	ErrInvalid	= "errors".New("controlplane: invalid document")
 
-	ErrChecksumMismatch	= errors.New("controlplane: checksum mismatch")
+	ErrChecksumMismatch	= "errors".New("controlplane: checksum mismatch")
 
-	ErrUnsupportedChecksum	= errors.New("controlplane: unsupported checksum algorithm")
+	ErrUnsupportedChecksum	= "errors".New("controlplane: unsupported checksum algorithm")
 
-	ErrInvalidChecksum	= errors.New("controlplane: invalid checksum value")
+	ErrInvalidChecksum	= "errors".New("controlplane: invalid checksum value")
 
-	ErrInvalidExtension	= errors.New("controlplane: invalid object extension")
+	ErrInvalidExtension	= "errors".New("controlplane: invalid object extension")
 
-	ErrNilDocument	= errors.New("controlplane: nil document")
+	ErrNilDocument	= "errors".New("controlplane: nil document")
 
-	ErrUnsupportedFormat	= errors.New("controlplane: unsupported format")
+	ErrUnsupportedFormat	= "errors".New("controlplane: unsupported format")
 
-	ErrUnsupportedValue	= errors.New("controlplane: unsupported value")
+	ErrUnsupportedValue	= "errors".New("controlplane: unsupported value")
 
-	ErrDecode	= errors.New("controlplane: decode")
+	ErrDecode	= "errors".New("controlplane: decode")
 )
 
 ## controlplane/flagcheck
 func (*Error) Is(target error) bool
-func (d *decodeError) Error() string
-func (d *decodeError) Unwrap() error
 func (e *Error) Error() string
 func (p FlagProblem) Message() string
 func Check(body []byte, format string) error
@@ -271,7 +267,7 @@ type FlagProblem struct {
 
 	Flag	string
 }
-var ErrInvalid = errors.New("flagcheck: invalid flag file")
+var ErrInvalid = "errors".New("flagcheck: invalid flag file")
 
 ## controlplane/s3publish
 const (
@@ -298,27 +294,18 @@ const (
 )
 const DefaultConcurrency = 8
 const MaxHookDetail = 200
-func (c *counter) GetObject(
-	ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.Options),
-) (*s3.GetObjectOutput, error)
-func (c *counter) HeadObject(
-	ctx context.Context, in *s3.HeadObjectInput, opts ...func(*s3.Options),
-) (*s3.HeadObjectOutput, error)
-func (c *counter) PutObject(
-	ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options),
-) (*s3.PutObjectOutput, error)
 func (e *OperationError) Error() string
 func (e *OperationError) Unwrap() error
 func (p *Publisher) ManifestKey() string
-func (p *Publisher) Publish(ctx context.Context, req Request) (*Result, error)
-func (p *Publisher) Verify(ctx context.Context) (*Report, error)
+func (p *Publisher) Publish(ctx "context".Context, req Request) (*Result, error)
+func (p *Publisher) Verify(ctx "context".Context) (*Report, error)
 func (r *Report) OK() bool
 func (r Requests) Total() int
 func New(api API, cfg *Config) (*Publisher, error)
 type API interface {
-	GetObject(ctx context.Context, in *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	HeadObject(ctx context.Context, in *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
-	PutObject(ctx context.Context, in *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".GetObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".GetObjectOutput, error)
+	HeadObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".HeadObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".HeadObjectOutput, error)
+	PutObject(ctx "context".Context, in *"github.com/aws/aws-sdk-go-v2/service/s3".PutObjectInput, optFns ...func(*"github.com/aws/aws-sdk-go-v2/service/s3".Options)) (*"github.com/aws/aws-sdk-go-v2/service/s3".PutObjectOutput, error)
 }
 type Config struct {
 	Check	func(obj *Object) error
@@ -396,7 +383,7 @@ type Report struct {
 	Checked	int
 }
 type Request struct {
-	CreatedAt	*time.Time
+	CreatedAt	*"time".Time
 
 	Objects	[]Object
 
@@ -440,24 +427,24 @@ type Result struct {
 }
 type Status string
 var (
-	ErrInvalid	= errors.New("s3publish: invalid documents")
+	ErrInvalid	= "errors".New("s3publish: invalid documents")
 
-	ErrConfig	= errors.New("s3publish: invalid configuration")
+	ErrConfig	= "errors".New("s3publish: invalid configuration")
 
-	ErrConflict	= errors.New("s3publish: the manifest changed since it was read")
+	ErrConflict	= "errors".New("s3publish: the manifest changed since it was read")
 
-	ErrGeneration	= errors.New("s3publish: generation does not increase")
+	ErrGeneration	= "errors".New("s3publish: generation does not increase")
 
-	ErrChannelMismatch	= errors.New("s3publish: the manifest in the bucket has another channel")
+	ErrChannelMismatch	= "errors".New("s3publish: the manifest in the bucket has another channel")
 
-	ErrPreviousManifest	= errors.New("s3publish: the manifest in the bucket is not readable")
+	ErrPreviousManifest	= "errors".New("s3publish: the manifest in the bucket is not readable")
 
-	ErrObjectMismatch	= errors.New("s3publish: an object exists with other content")
+	ErrObjectMismatch	= "errors".New("s3publish: an object exists with other content")
 
-	ErrLimit	= errors.New("s3publish: over a limit of the reader")
+	ErrLimit	= "errors".New("s3publish: over a limit of the reader")
 
-	ErrManifestKey	= errors.New("s3publish: an object has the key of the manifest")
+	ErrManifestKey	= "errors".New("s3publish: an object has the key of the manifest")
 
-	ErrNoManifest	= errors.New("s3publish: no manifest in the bucket")
+	ErrNoManifest	= "errors".New("s3publish: no manifest in the bucket")
 )
 
