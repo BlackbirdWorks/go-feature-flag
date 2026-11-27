@@ -2,6 +2,9 @@ package redissegment_test
 
 import (
 	"context"
+	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -352,18 +355,17 @@ func TestInitProbesTheCommandsOfTheSnapshotMode(t *testing.T) {
 
 			require.NoError(t, err)
 
-			var last []string
-			if all := store.commands(); len(all) > 0 {
-				last = all[len(all)-1]
+			var probes []string
+
+			for _, pipeline := range store.commands() {
+				for _, cmd := range pipeline {
+					if strings.HasPrefix(cmd, cmdSScan+" ") || strings.HasPrefix(cmd, "get ") {
+						probes = append(probes, cmd)
+					}
+				}
 			}
 
-			if len(tt.wantCommands) == 0 {
-				assert.NotContains(t, last, cmdSScan, "no snapshot probe")
-
-				return
-			}
-
-			assert.Equal(t, tt.wantCommands, last, "one pipeline for the snapshot probes")
+			assert.Equal(t, tt.wantCommands, probes, "the snapshot probes, each on the node of its key")
 		})
 	}
 }
@@ -383,4 +385,131 @@ func TestAPrimaryThatCannotBeFoundFailsTheReadAndTheHealth(t *testing.T) {
 	require.ErrorContains(t, firstError(prov.Members(context.Background(), snapAlpha)), "finding the primary of a key")
 	assert.Zero(t, hits.Load(), "nothing was sent")
 	assert.Equal(t, "server", prov.Health().Failure)
+}
+
+func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
+	t.Parallel()
+
+	shared := redissegment.SegmentOptions{Key: snapSetKey, VersionKey: snapVerKey, Snapshot: true}
+
+	distinct := func(n int) map[string]redissegment.SegmentOptions {
+		segs := map[string]redissegment.SegmentOptions{}
+
+		for i := range n {
+			name := "s" + strconv.Itoa(100+i)
+			segs[name] = redissegment.SegmentOptions{
+				Key: name + ":{x}", VersionKey: "v:" + name, Snapshot: true, // each in its own namespace
+			}
+		}
+
+		return segs
+	}
+
+	tests := []struct {
+		segs      map[string]redissegment.SegmentOptions
+		name      string
+		wantScans int
+		wantGets  int
+	}{
+		{
+			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1,
+			segs: map[string]redissegment.SegmentOptions{"a": shared, "b": shared, "c": shared},
+		},
+		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2},
+		{
+			// 10 lookup namespaces leave 6 probes of the cap of 16, taken in the order of the names: set, version key, ...
+			name:      "the cap of the probes is shared with the lookup probes",
+			segs:      distinct(10),
+			wantScans: 3,
+			wantGets:  3,
+		},
+		{name: "the lookup probes use the whole cap", segs: distinct(20), wantScans: 0, wantGets: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := &fakeStore{
+				sets:   map[string]map[string]bool{},
+				keys:   map[string]bool{},
+				values: map[string]string{},
+			}
+
+			prov, err := redissegment.New(store, &redissegment.Options{Segments: tt.segs})
+			require.NoError(t, err)
+			require.NoError(t, prov.Init(context.Background()))
+
+			scans, gets := 0, 0
+
+			for _, pipeline := range store.commands() {
+				for _, cmd := range pipeline {
+					switch {
+					case strings.HasPrefix(cmd, cmdSScan+" "):
+						scans++
+					case strings.HasPrefix(cmd, "get "):
+						gets++
+					}
+				}
+			}
+
+			assert.Equal(t, tt.wantScans, scans, "SSCAN probes")
+			assert.Equal(t, tt.wantGets, gets, "GET probes")
+		})
+	}
+}
+
+func TestSnapshotReadsAfterShutdownNeverReachTheStore(t *testing.T) {
+	t.Parallel()
+
+	store, segs := snapStore(0)
+	cluster, hits := newFakeCluster(store)
+
+	prov, err := redissegment.New(cluster, &redissegment.Options{Segments: segs})
+	require.NoError(t, err)
+	require.NoError(t, prov.Shutdown(context.Background()))
+
+	_, err = prov.Version(context.Background(), snapAlpha)
+	require.ErrorIs(t, err, redissegment.ErrClosed)
+	require.ErrorIs(t, firstError(prov.Members(context.Background(), snapAlpha)), redissegment.ErrClosed)
+	assert.Zero(t, cluster.primaryCalls.Load(), "not even the search for the primary")
+	assert.Zero(t, hits.Load())
+}
+
+func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
+	t.Parallel()
+
+	store, segs := snapStore(0)
+	entered, release := make(chan struct{}), make(chan struct{})
+
+	store.exec = func(context.Context) error {
+		close(entered)
+		<-release
+
+		return nil
+	}
+
+	prov := snapProvider(t, store, segs, "")
+
+	var wait sync.WaitGroup
+
+	wait.Go(func() {
+		_, err := prov.Version(context.Background(), snapAlpha)
+		assert.NoError(t, err)
+	})
+
+	<-entered
+
+	ended, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(
+		t,
+		prov.Shutdown(ended),
+		context.Canceled,
+		"the read in flight is waited for, bounded by the context",
+	)
+
+	close(release)
+	wait.Wait()
+	require.NoError(t, prov.Shutdown(context.Background()))
 }

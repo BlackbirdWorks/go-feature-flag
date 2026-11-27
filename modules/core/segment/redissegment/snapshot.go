@@ -37,6 +37,9 @@ type masterFinder interface {
 // (RouteRandomly, RouteByLatency, ReadOnly), and a scan cursor belongs to one node, so every read of a snapshot goes to
 // the primary of the slot of its key. Any other client is used as it is.
 //
+// A pinned read does not follow MOVED or ASK: during a slot migration a refresh can fail, the holder keeps the last
+// known good set, and the next poll succeeds.
+//
 //nolint:ireturn // the Client interface is what the provider sends its commands through
 func (p *Provider) primaryOf(ctx context.Context, key string) (Client, error) {
 	finder, ok := p.client.(masterFinder)
@@ -65,13 +68,9 @@ func (p *Provider) recordError(ctx, callCtx context.Context, err error) {
 }
 
 // run sends one command in its own pipeline on the client, under the timeout of the provider, and returns its
-// command. A reply of nil is the error redis.Nil of the command, and counts as a call that worked.
+// command. The caller holds an admission (see Version and Members). A reply of nil is the error redis.Nil of the
+// command, and counts as a call that worked.
 func (p *Provider) run(ctx context.Context, client Client, args ...any) (*redis.Cmd, error) {
-	if !p.admit() {
-		return nil, ErrClosed
-	}
-	defer p.inflight.Done()
-
 	callCtx, cancel := p.callContext(ctx)
 	defer cancel()
 
@@ -113,6 +112,12 @@ func (p *Provider) segmentConfigOf(name string) (*segmentConfig, error) {
 // its slot and prefixed with "v:". A version key that does not exist is [segment.AbsentVersion], which no stored value
 // can be equal to. A segment with no version key has no version: the error wraps [segment.ErrNoVersion].
 func (p *Provider) Version(ctx context.Context, name string) (string, error) {
+	// the closed check comes before any call to the store, including the search for the primary
+	if !p.admit() {
+		return "", ErrClosed
+	}
+	defer p.inflight.Done()
+
 	cfg, err := p.segmentConfigOf(name)
 	if err != nil {
 		return "", err
@@ -159,6 +164,14 @@ func (p *Provider) Version(ctx context.Context, name string) (string, error) {
 // segment, and on a cluster reaches only one node. That is too slow and not safe for a periodic pull.
 func (p *Provider) Members(ctx context.Context, name string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
+		// one admission for the whole stream: Shutdown waits for it, and a closed provider answers before any call
+		if !p.admit() {
+			yield("", ErrClosed)
+
+			return
+		}
+		defer p.inflight.Done()
+
 		cfg, err := p.segmentConfigOf(name)
 		if err != nil {
 			yield("", err)

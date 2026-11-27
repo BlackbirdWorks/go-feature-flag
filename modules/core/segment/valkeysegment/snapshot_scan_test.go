@@ -2,6 +2,8 @@ package valkeysegment_test
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,7 +97,7 @@ func TestAStoredAbsentIsNotTheAbsentToken(t *testing.T) {
 	assert.NotEqual(t, segment.AbsentVersion, stored, "the writer stored the very word")
 
 	// the holder follows: the set exists under a missing version key, then the writer stores "absent" and replaces it
-	srv.setMembers("seg:{alpha}", "a")
+	srv.setMembers(snapSetKey, "a")
 
 	srv.mu.Lock()
 	delete(srv.values, snapVerKey)
@@ -106,7 +108,7 @@ func TestAStoredAbsentIsNotTheAbsentToken(t *testing.T) {
 	require.NoError(t, holder.Refresh(ctx))
 	assert.Equal(t, segment.Member, holder.Lookup("a"))
 
-	srv.setMembers("seg:{alpha}", "b")
+	srv.setMembers(snapSetKey, "b")
 
 	srv.mu.Lock()
 	srv.values[snapVerKey] = "absent"
@@ -181,7 +183,7 @@ func TestInitProbesTheCommandsOfTheSnapshotMode(t *testing.T) {
 
 			srv := newStubServer(t)
 			segs := map[string]valkeysegment.SegmentOptions{
-				snapAlpha: {Key: "seg:{alpha}", VersionKey: snapVerKey, Snapshot: tt.snapshot},
+				snapAlpha: {Key: snapSetKey, VersionKey: snapVerKey, Snapshot: tt.snapshot},
 			}
 
 			prov, err := valkeysegment.Dial(srv.clientOption(), &valkeysegment.Options{Segments: segs})
@@ -213,4 +215,88 @@ func TestInitProbesTheCommandsOfTheSnapshotMode(t *testing.T) {
 			assert.Equal(t, tt.wantGets, srv.count("get"))
 		})
 	}
+}
+
+func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
+	t.Parallel()
+
+	shared := valkeysegment.SegmentOptions{Key: snapSetKey, VersionKey: snapVerKey, Snapshot: true}
+
+	distinct := func(n int) map[string]valkeysegment.SegmentOptions {
+		segs := map[string]valkeysegment.SegmentOptions{}
+
+		for i := range n {
+			name := "s" + strconv.Itoa(100+i)
+			segs[name] = valkeysegment.SegmentOptions{
+				Key: name + ":{x}", VersionKey: "v:" + name, Snapshot: true, // each in its own namespace
+			}
+		}
+
+		return segs
+	}
+
+	tests := []struct {
+		segs      map[string]valkeysegment.SegmentOptions
+		name      string
+		wantScans int
+		wantGets  int
+	}{
+		{
+			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1,
+			segs: map[string]valkeysegment.SegmentOptions{"a": shared, "b": shared, "c": shared},
+		},
+		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2},
+		{name: "the cap of the probes is shared with the lookup probes", segs: distinct(10), wantScans: 3, wantGets: 3},
+		{name: "the lookup probes use the whole cap", segs: distinct(20)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newStubServer(t)
+
+			prov, err := valkeysegment.Dial(srv.clientOption(), &valkeysegment.Options{Segments: tt.segs})
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
+				defer cancel()
+
+				_ = prov.Shutdown(ctx)
+			})
+
+			require.NoError(t, prov.Init(context.Background()))
+			assert.Equal(t, tt.wantScans, srv.count("sscan"), "SSCAN probes")
+			assert.Equal(t, tt.wantGets, srv.count("get"), "GET probes")
+		})
+	}
+}
+
+func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
+	t.Parallel()
+
+	srv, prov := snapServer(t, "")
+	entered := srv.Hang()
+
+	var wait sync.WaitGroup
+
+	wait.Go(func() {
+		_, err := prov.Version(context.Background(), snapAlpha)
+		assert.ErrorIs(t, err, context.Canceled, "Shutdown ended the call that it had waited for")
+	})
+
+	<-entered
+
+	ended, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(
+		t,
+		prov.Shutdown(ended),
+		context.Canceled,
+		"the read in flight is waited for, bounded by the context",
+	)
+
+	srv.Release()
+	wait.Wait()
 }

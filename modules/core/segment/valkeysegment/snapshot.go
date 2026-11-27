@@ -12,6 +12,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
+// cmdGet is the name of the command that reads a version key.
+const (
+	cmdGet   = "GET"
+	cmdSScan = "SSCAN"
+)
+
 // ScanCount is the COUNT hint of each SSCAN page of [Provider.Members].
 const ScanCount = 1000
 
@@ -35,10 +41,12 @@ func isSnapshotCommand(cmd valkey.Completed) bool { return isSnapshotWords(cmd.C
 
 // isSnapshotWords is isSnapshotCommand on the words of a command.
 func isSnapshotWords(words []string) bool {
-	return len(words) > 0 && (words[0] == "SSCAN" || words[0] == "GET")
+	return len(words) > 0 && (words[0] == cmdSScan || words[0] == cmdGet)
 }
 
-// run sends one command under the timeout of the provider and returns its result. The outcome feeds the health of the
+// run sends one command under the timeout of the provider (a pinned read does not matter here: the client never sends
+// SSCAN or GET to a replica; a cluster migration of the slot can fail a refresh, the holder keeps the last known good
+// set and the next poll succeeds) and returns its result. The outcome feeds the health of the
 // provider, with the classes of a lookup.
 func (p *Provider) run(ctx context.Context, build func(valkey.Builder) valkey.Completed) (valkey.ValkeyResult, error) {
 	if !p.admit() {

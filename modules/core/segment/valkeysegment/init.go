@@ -81,7 +81,7 @@ func (p *Provider) Init(ctx context.Context) (err error) {
 // probeReply checks that the reply of a probe has the shape that Contains reads: a list of one 0 or 1 for
 // SMISMEMBER, a 0 or 1 for EXISTS.
 func probeReply(res valkey.ValkeyResult, name string) error {
-	if name == "SSCAN" || name == "GET" {
+	if name == cmdSScan || name == cmdGet {
 		err := res.Error()
 		if err != nil && !valkey.IsValkeyNil(err) {
 			return err //nolint:wrapcheck // classified by the caller
@@ -123,21 +123,16 @@ func (p *Provider) probeCommands(builder *valkey.Builder) ([]valkey.Completed, [
 		names = append(names, "EXISTS")
 	}
 
-	for _, name := range slices.Sorted(maps.Keys(p.segs)) {
-		cfg := p.segs[name]
-		if !cfg.snapshot {
-			continue
+	budget := max(MaxInitProbes-len(p.probeSets)-len(p.probeKeys), 0)
+
+	for _, probe := range snapshotProbes(p.segs, budget) {
+		if probe.name == cmdSScan {
+			cmds = append(cmds, builder.Sscan().Key(probe.key).Cursor(0).Count(1).Build())
+		} else {
+			cmds = append(cmds, builder.Get().Key(probe.key).Build())
 		}
 
-		if cfg.layout == LayoutSet {
-			cmds = append(cmds, builder.Sscan().Key(cfg.key).Cursor(0).Count(1).Build())
-			names = append(names, "SSCAN")
-		}
-
-		if cfg.versionKey != "" {
-			cmds = append(cmds, builder.Get().Key(cfg.versionKey).Build())
-			names = append(names, "GET")
-		}
+		names = append(names, probe.name)
 	}
 
 	return cmds, names
@@ -268,4 +263,42 @@ func (r *result) readExists(out []segment.State, slots []int, results []valkey.V
 			out[slots[i]] = segment.Member
 		}
 	}
+}
+
+// snapshotProbe is one probe of the snapshot mode: the command name and its key.
+type snapshotProbe struct {
+	name string
+	key  string
+}
+
+// snapshotProbes returns the probes of the snapshot mode, each key once, at most budget of them: SSCAN of the set of
+// each segment that is configured for the snapshot, GET of its version key. They count inside MaxInitProbes with the
+// lookup probes. The client never sends them to a replica (see [Dial]), so they run on the node that the reads use.
+func snapshotProbes(segs map[string]*segmentConfig, budget int) []snapshotProbe {
+	var probes []snapshotProbe
+
+	seen := map[snapshotProbe]bool{}
+	add := func(probe snapshotProbe) {
+		if !seen[probe] && len(probes) < budget {
+			seen[probe] = true
+			probes = append(probes, probe)
+		}
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(segs)) {
+		cfg := segs[name]
+		if !cfg.snapshot {
+			continue
+		}
+
+		if cfg.layout == LayoutSet {
+			add(snapshotProbe{name: cmdSScan, key: cfg.key})
+		}
+
+		if cfg.versionKey != "" {
+			add(snapshotProbe{name: cmdGet, key: cfg.versionKey})
+		}
+	}
+
+	return probes
 }

@@ -152,7 +152,7 @@ func TestInitRefusesAUserWithoutTheSnapshotCommands(t *testing.T) {
 			}
 
 			segs := map[string]valkeysegment.SegmentOptions{
-				snapAlpha: {Key: "seg:{alpha}", VersionKey: "seg:alpha:version", Snapshot: true},
+				snapAlpha: {Key: snapSetKey, VersionKey: "seg:alpha:version", Snapshot: true},
 			}
 
 			tests := []struct {

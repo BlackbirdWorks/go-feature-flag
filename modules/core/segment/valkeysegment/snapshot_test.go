@@ -15,6 +15,7 @@ import (
 const (
 	snapAlpha  = "alpha"
 	snapVerKey = "seg:alpha:version"
+	snapSetKey = "seg:{alpha}"
 )
 
 // snapServer starts a stub server and a provider with the version key of every segment of the suite.
