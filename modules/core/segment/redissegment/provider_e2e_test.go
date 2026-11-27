@@ -380,8 +380,11 @@ func TestE2ETimeout(t *testing.T) {
 	var conns sync.WaitGroup
 
 	done := make(chan struct{})
+	acceptDone := make(chan struct{})
 
 	go func() {
+		defer close(acceptDone)
+
 		for {
 			conn, acceptErr := listener.Accept()
 			if acceptErr != nil {
@@ -401,6 +404,9 @@ func TestE2ETimeout(t *testing.T) {
 
 		_ = listener.Close()
 
+		// the accept loop calls conns.Go: wait for it to end before conns.Wait (a WaitGroup Add that is not ordered
+		// before Wait is a data race)
+		<-acceptDone
 		conns.Wait()
 	})
 
