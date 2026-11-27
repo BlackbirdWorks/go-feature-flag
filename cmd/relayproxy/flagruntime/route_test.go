@@ -18,10 +18,13 @@ import (
 
 const secretCanary = "canary-7f3a9c1e-secret-key"
 
-// recordingHandler keeps every record that is logged, to scan it for a key.
+// recordingHandler keeps every record that is logged, to scan it for a key: the message, the attributes of the
+// record, and the attributes and groups that were bound to the logger with With and WithGroup.
 type recordingHandler struct {
 	records *[]string
 	mu      *sync.Mutex
+	groups  string
+	bound   []string
 }
 
 func newRecordingHandler() recordingHandler {
@@ -37,8 +40,13 @@ func (h recordingHandler) Handle(
 	var line bytes.Buffer
 
 	line.WriteString(rec.Message)
+
+	for _, attr := range h.bound {
+		line.WriteString(" " + attr)
+	}
+
 	rec.Attrs(func(attr slog.Attr) bool {
-		line.WriteString(" " + attr.Key + "=" + attr.Value.String())
+		line.WriteString(" " + h.groups + attr.Key + "=" + attr.Value.String())
 
 		return true
 	})
@@ -50,8 +58,24 @@ func (h recordingHandler) Handle(
 	return nil
 }
 
-func (h recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-func (h recordingHandler) WithGroup(string) slog.Handler      { return h }
+// WithAttrs returns a handler that writes the bound attributes with every record, as a real handler does.
+func (h recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	bound := append([]string(nil), h.bound...)
+	for _, attr := range attrs {
+		bound = append(bound, h.groups+attr.Key+"="+attr.Value.String())
+	}
+
+	h.bound = bound
+
+	return h
+}
+
+// WithGroup returns a handler whose later attributes are prefixed by the group.
+func (h recordingHandler) WithGroup(name string) slog.Handler {
+	h.groups += name + "."
+
+	return h
+}
 
 func (h recordingHandler) text() string {
 	h.mu.Lock()
@@ -373,4 +397,46 @@ func TestRoute_DoesNotAllocate(t *testing.T) {
 
 	assert.Zero(t, testing.AllocsPerRun(100, func() { _, loaded = holder.Load().Route(keyA) }))
 	assert.Equal(t, flagruntime.RouteUnknown, loaded, "the empty runtime knows no key")
+}
+
+// The recorder keeps what is bound to the logger as well as what a record carries: a key that is logged through
+// logger.With, logger.WithGroup or a record attribute is in the text, so the assertions that a key is never logged
+// cannot pass because the recorder dropped it.
+func TestRecordingHandler_CapturesBoundAttributes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		log      func(logger *slog.Logger)
+		name     string
+		wantText string
+	}{
+		{
+			name:     "attribute of the record",
+			log:      func(logger *slog.Logger) { logger.Info("msg", slog.String("apiKey", secretCanary)) },
+			wantText: "msg apiKey=" + secretCanary + "\n",
+		},
+		{
+			name:     "attribute bound with With",
+			log:      func(logger *slog.Logger) { logger.With(slog.String("apiKey", secretCanary)).Info("msg") },
+			wantText: "msg apiKey=" + secretCanary + "\n",
+		},
+		{
+			name: "attribute bound with With in a group",
+			log: func(logger *slog.Logger) {
+				logger.WithGroup("auth").With(slog.String("apiKey", secretCanary)).Info("msg", slog.String("k", "v"))
+			},
+			wantText: "msg auth.apiKey=" + secretCanary + " auth.k=v\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newRecordingHandler()
+			tt.log(slog.New(handler))
+
+			assert.Equal(t, tt.wantText, handler.text())
+		})
+	}
 }

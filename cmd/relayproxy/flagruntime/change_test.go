@@ -82,7 +82,9 @@ func TestChange_EncodesEachFlagOnce(t *testing.T) {
 	assert.Len(t, first.Flags, 2)
 	assert.NotZero(t, first.Hash)
 
-	// the racing first calls may each encode (the first answer to be stored wins), a later call never does
+	// exactly one encoding per flag across all the racing callers: they wait for the one computation
+	assert.EqualValues(t, 2, calls.Load(), "two flags, each encoded once, however many callers raced")
+
 	settled := calls.Load()
 
 	_, _ = set.Change()

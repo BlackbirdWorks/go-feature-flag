@@ -86,6 +86,15 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 		},
 	}
 
+	// the comparison of the table runs when every row, which runs in parallel, is done: a cleanup of the parent
+	// runs after its subtests, and the check cannot be made before their mutations
+	t.Cleanup(func() {
+		after, changeErr := set.Change()
+		require.NoError(t, changeErr)
+		assert.Equal(t, before, after, "the flags did not change")
+		assert.JSONEq(t, mustJSON(t, shapesSet(t).Configuration(nil)), mustJSON(t, set.Configuration(nil)))
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -105,11 +114,6 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 			assert.Equal(t, first, mustJSON(t, tt.call()), "the next evaluation is the first one")
 		})
 	}
-
-	after, err := set.Change()
-	require.NoError(t, err)
-	assert.Equal(t, before, after, "the flags did not change")
-	assert.JSONEq(t, mustJSON(t, shapesSet(t).Configuration(nil)), mustJSON(t, set.Configuration(nil)))
 }
 
 // The metadata map of a result is new for every evaluation (the nested containers are shared, the map is not), so a
@@ -764,4 +768,49 @@ func countOtherContainers(val any) int {
 	}
 
 	return count
+}
+
+// A scheduled flag is evaluated on a copy that the engine memoizes and shares between evaluations. The typed calls
+// return a value that the caller may change: changing it, deeply, must not change what the next evaluations read,
+// whether the step of the flag is active or still in the future.
+func TestOwnership_ScheduledFlagValueIsNotTheMemo(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		flag      string
+		wantValue string
+		wantStep  bool
+	}{
+		{name: "step active", flag: scheduledObject, wantStep: true, wantValue: `{"k":[3]}`},
+		{name: "step in the future", flag: "scheduled-future-object-flag", wantStep: false, wantValue: `{"k":[1,2]}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			set := shapesSet(t)
+			eval := flagruntime.NewEvaluator(newService(t), nil)
+
+			flag, found := set.Flag(tt.flag)
+			require.True(t, found)
+			assert.NotNil(t, flag.Scheduled, "the flag has scheduled steps")
+
+			first, _ := eval.JSONVariationDetails(set, tt.flag, ownedContext(), nil)
+			assert.JSONEq(t, tt.wantValue, mustJSON(t, first.Value), "the step state of the row")
+
+			// change the returned value deeply: the top level and the list in it
+			first.Value["added"] = mutated
+
+			list, _ := first.Value["k"].([]any)
+			list[0] = mutated
+
+			typed, _ := eval.JSONVariationDetails(set, tt.flag, ownedContext(), nil)
+			raw, _ := eval.RawVariation(set, tt.flag, ownedContext(), nil)
+
+			assert.JSONEq(t, tt.wantValue, mustJSON(t, typed.Value), "the next typed evaluation")
+			assert.JSONEq(t, tt.wantValue, mustJSON(t, raw.Value), "the next raw evaluation")
+		})
+	}
 }

@@ -1,6 +1,7 @@
 package flagruntime
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -55,29 +56,15 @@ func (r *Runtime) FlagSetByName(name string) (*FlagSet, bool) {
 // FlagSet is the immutable flag table of one flag set. It is reused by pointer across generations while its
 // definition and the content of its sources are unchanged.
 type FlagSet struct {
-	// ModifiedAt is the time ([clock.Now]) of the build that created this flag set (the pointer): a flag set
-	// that a later generation carries over by pointer keeps its time, a rebuilt one gets the time of the build
-	// that rebuilt it. A pending flag set has the time of the build that created it, like any other. It is
-	// the value for a Last-Modified header; it says nothing about the content (a rebuilt flag set can hold the
-	// same flags).
 	ModifiedAt time.Time
-	// change is the memo of [FlagSet.Change]; the flags never change, so it is computed once.
-	change atomic.Pointer[changeMemo]
-	// Flags are the flags by key. The flag pointers are shared with every flag set that uses the same source
-	// object, and with the next generation while the flag is unchanged. When a flag set has one source the
-	// map itself is the map of the source object.
-	Flags map[string]*flagdef.InternalFlag
-	// Name is the name of the flag set.
-	Name string
-	// State is the state of the flag set.
-	State SetState
-	// Hash identifies the content of the flags (not the name nor the keys): the same hash means the same
-	// source content, in the same order. It is not a cryptographic digest.
-	Hash uint64
-	// APIKeys is the number of API keys that route to this flag set. The keys are never kept here.
-	APIKeys int
-	// Rejected is the number of flags of the sources that failed validation.
-	Rejected int
+	change     *changeMemo
+	Flags      map[string]*flagdef.InternalFlag
+	Name       string
+	State      SetState
+	Hash       uint64
+	APIKeys    int
+	Rejected   int
+	changeOnce sync.Once
 }
 
 // Flag returns the flag with a name. It does not allocate.

@@ -213,3 +213,13 @@ env-flag:
       variation: on
   defaultRule:
     variation: off
+scheduled-future-object-flag:
+  variations:
+    a: {k: [1, 2]}
+    b: {k: [3]}
+  defaultRule:
+    variation: a
+  scheduledRollout:
+    - date: 2099-01-01T00:00:00Z
+      defaultRule:
+        variation: b

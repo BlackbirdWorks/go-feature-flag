@@ -67,16 +67,9 @@ func (f *FlagSet) Change() (FlagChange, error) {
 		return memo.change, memo.err
 	}
 
-	if memo := f.change.Load(); memo != nil {
-		return memo.change, memo.err
-	}
+	f.changeOnce.Do(func() { f.change = computeChange(f.Flags) })
 
-	memo := computeChange(f.Flags)
-	if !f.change.CompareAndSwap(nil, memo) {
-		memo = f.change.Load()
-	}
-
-	return memo.change, memo.err
+	return f.change.change, f.change.err
 }
 
 // computeChange encodes every flag once and hashes the encoding of each flag and of the whole table. The table is
