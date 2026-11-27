@@ -535,8 +535,8 @@ func TestE2EEngine(t *testing.T) {
 	require.NoError(t, err)
 
 	catalog, err := segment.NewCatalog(
-		segment.Definition{Name: segBeta, Type: segment.TypeValkey},
-		segment.Definition{Name: "blocked", Type: segment.TypeValkey},
+		segment.Definition{Name: segBeta, Type: segment.TypeRedis},
+		segment.Definition{Name: "blocked", Type: segment.TypeRedis},
 	)
 	require.NoError(t, err)
 
