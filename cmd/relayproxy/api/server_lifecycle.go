@@ -8,12 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
+	"strconv"
 	"sync"
-	"syscall"
 	"time"
-
-	"github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 )
@@ -56,9 +53,11 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		s.otelService.Install(ctx, s.logger)
 	}
 
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	// The server owns no signal handler: the process does, so that it can fail the readiness probe before the
+	// listeners close. Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers below.
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// Stop closes s.stopRequested, which cancels ctx and gracefully shuts down the servers started below.
+
 	go func() {
 		select {
 		case <-s.stopRequested:
@@ -68,8 +67,6 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	}()
 
 	switch s.settings.Mode {
-	case ServerModeLambda:
-		s.startAwsLambda()
 	case ServerModeUnixSocket:
 		s.startUnixSocketServer(ctx)
 	default:
@@ -142,7 +139,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		defer wg.Wait()
 	}
 
-	address := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.Port)
+	address := net.JoinHostPort(s.settings.Host, strconv.Itoa(s.settings.Port))
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy ...",
 		slog.String("address", address),
@@ -161,12 +158,17 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 }
 
 // listenOn returns the listener the server was given, or else listens on the address.
-func (*Server) listenOn(ctx context.Context, address string, given net.Listener) (net.Listener, error) {
+func (s *Server) listenOn(ctx context.Context, address string, given net.Listener) (net.Listener, error) {
 	if given != nil {
 		return given, nil
 	}
 
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	listen := s.listen
+	if listen == nil {
+		listen = (&net.ListenConfig{}).Listen
+	}
+
+	listener, err := listen(ctx, "tcp", address)
 	if err != nil {
 		return nil, fmt.Errorf("listen on %s: %w", address, err)
 	}
@@ -226,7 +228,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
-	addressMonitoring := fmt.Sprintf("%s:%d", s.settings.Host, s.settings.MonitoringPort)
+	addressMonitoring := net.JoinHostPort(s.settings.Host, strconv.Itoa(s.settings.MonitoringPort))
 	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
@@ -240,20 +242,6 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 		s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Error starting monitoring", cmdlog.Err(err))
 		s.exit()
 	}
-}
-
-// startAwsLambda is starting the relay proxy as an AWS Lambda.
-func (s *Server) startAwsLambda() {
-	lambda.Start(s.lambdaHandler())
-}
-
-// lambdaHandler returns the appropriate lambda handler based on the configuration.
-// We need a dedicated function because it is called from tests as well, this is the
-// reason why we can't merged it in startAwsLambda.
-func (s *Server) lambdaHandler() any {
-	handlerMngr := newAwsLambdaHandlerManager(s.apiHandler, s.settings.AwsAPIGatewayBasePath)
-
-	return handlerMngr.SelectAdapter(s.settings.LambdaAdapter)
 }
 
 // Stop shutdown the API server.

@@ -21,10 +21,11 @@ const (
 	SettingExporters         = "exporters"
 	SettingNotifiers         = "notifiers"
 	SettingObservability     = "observability"
+	SettingEvaluation        = "evaluation"
 )
 
-// resolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
-func resolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[string]struct{}, error) {
+// ResolveAdminKeys reads the admin keys of a bootstrap configuration. The error names an index, never a value.
+func ResolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[string]struct{}, error) {
 	keys := make(map[string]struct{}, len(cfg.Auth.AdminKeys))
 
 	for i := range cfg.Auth.AdminKeys {
@@ -69,6 +70,7 @@ func pendingRestart(base, cfg *bootstrap.Config) []string {
 	add(!reflect.DeepEqual(base.Exporters, cfg.Exporters), SettingExporters)
 	add(!reflect.DeepEqual(base.Notifiers, cfg.Notifiers), SettingNotifiers)
 	add(!reflect.DeepEqual(base.Observability, cfg.Observability), SettingObservability)
+	add(!reflect.DeepEqual(base.Evaluation, cfg.Evaluation), SettingEvaluation)
 
 	slices.Sort(out)
 

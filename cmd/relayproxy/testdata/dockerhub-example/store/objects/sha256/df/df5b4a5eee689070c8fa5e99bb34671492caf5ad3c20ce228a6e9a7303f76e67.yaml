@@ -1,0 +1,8 @@
+apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: example
+    sources:
+      - example-flags
+    apiKeys:
+      - example-api-key

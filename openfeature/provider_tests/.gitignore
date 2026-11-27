@@ -1,5 +1,6 @@
 !flags.yaml
-!goff-proxy.yaml
+!bootstrap.yaml
+!bootstrap-authenticated.yaml
 
 # Java
 *.class

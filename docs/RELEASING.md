@@ -15,7 +15,6 @@ Nothing has been released yet; everything below applies once the first release i
 | Relay proxy archives | `semaphore_<version>_<Os>_<arch>.tar.gz` (`.zip` on Windows) for linux, darwin, windows on `x86_64` and `arm64` (64-bit only: there are no 32-bit builds) | GitHub Release of this repository |
 | FIPS 140-3 relay proxy archives | `semaphore-fips_<version>_Linux_<x86_64\|arm64>.tar.gz` (binary `semaphore-fips`, built with `GOFIPS140` from `.fips-version`) | GitHub Release |
 | CLI archives | `semaphore-cli_<version>_<Os>_<arch>.tar.gz` | GitHub Release |
-| AWS Lambda bundle | `semaphore-aws-lambda_<version>.zip` (linux arm64, binary `bootstrap`) | GitHub Release |
 | Checksums | `checksums.txt` | GitHub Release |
 | SBOMs | one SPDX JSON per archive (`*.sbom.json`, made with syft) | GitHub Release |
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |

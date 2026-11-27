@@ -3,9 +3,32 @@
 The version 2 bootstrap file is the new configuration format of the relay proxy: connections to backends, the
 control plane location, listeners, observability and admin keys. It is strict: an unknown key is an error.
 
-> **Status.** The format, the loader and the JSON Schema are implemented in `cmd/relayproxy/bootstrap`, but the relay
-> does not read this format yet. It switches to it in a later release step. From that release, version 1 files
-> (the format described in [Configuration reference](configuration.md)) are rejected with `version 2 required`.
+> **Status.** This is the only format the relay reads (`cmd/relayproxy/bootstrap`). A version 1 file is rejected with
+> `version 2 required` and nothing starts. See [Run, reload and stop](#run-reload-and-stop) for what the relay does with it.
+
+## Run, reload and stop
+
+- Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). The flags `--log-level`, `--log-format`, `--listen`,
+  `--ops-listen`, `--manifest-key` and `--state-dir` (given empty it means no state directory, whatever the variable and the file say) override the variables, which override the file, at the start and on
+  every reload. `--help` prints the flags and their variables and exits 0; an unknown flag prints the usage on stderr and exits 2. Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
+  path-addressed error that holds no secret. An invalid or version 1 file exits with a non-zero
+  status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
+  the state, see [probes](probes.md).
+- Listeners: one `api` listener and at most one `ops` listener on the same host, with ports from 1 to 65535. More
+  listeners, another host for `ops` and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
+  validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
+  cleartext on the `api` listener.
+- `observability.logging.format: text` writes logfmt lines.
+- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` apply live; every other change is kept out and named in
+  `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
+  refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
+  is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
+  whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
+- Stop: on `SIGTERM` or `SIGINT` `/readyz` answers 503 `shutting-down` first, the streams close, the listeners stop,
+  then the core drains its exporters, all within 15 seconds.
+- Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
+  refresh on request), the AWS Lambda mode and artifact are gone, and so are the retrievers other than the control plane
+  store (they come back with the retriever kinds of the control plane, issue #57).
 
 ## Rules
 
@@ -91,6 +114,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `version` | integer | required | `2` |
 | `server` | object | one api listener | see below |
 | `observability` | object | see below | see below |
+| `evaluation` | object | none | see below |
 | `auth` | object | none | see below |
 | `connections` | map of name to connection | none | see below |
 | `exporters` | map of name to exporter | none | see below |
@@ -122,6 +146,18 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `tracing.otlpEndpoint` | string | none | `host:port`, or an `http`/`https` URL, without credentials |
 | `tracing.serviceName` | string | `semaphore` | |
 | `tracing.sampler` | string | `parentbased_always_off` | `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
+
+The sampler is given to the OpenTelemetry SDK through `OTEL_TRACES_SAMPLER` when that variable is not set (the variable of the operator wins); the ratio of the `traceidratio` samplers comes from `OTEL_TRACES_SAMPLER_ARG`.
+
+### `evaluation`
+
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `contextEnrichment` | map | none | strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity: quote the text); merged into the context of every evaluation, and it wins over a request attribute of the same name, as in version 1 |
+| `environment` | string | none | added to the enrichment under the key `env` |
+| `disableSemaphoreMetadata` | boolean | `false` | keeps `semaphore_cacheable` out of the OFREP metadata; `gofeatureflag_cacheable` is always sent |
+
+A change of `evaluation` needs a restart (it is listed in `pendingRestart` after a reload).
 
 ### `auth`
 
@@ -250,16 +286,16 @@ The deprecated version 1 notifier key `slackWebhookURL` is not carried over: ver
 
 ## Full example
 
-This file is the golden test input of the package (`cmd/relayproxy/bootstrap/testdata/bootstrap.yaml`).
+This file is the golden test input of the package (`cmd/relayproxy/bootstrap/testdata/bootstrap.yaml`): a test checks that this block is that file, and that it passes `semaphore-cli config validate`.
 
+<!-- full-example -->
 ```yaml
 # Complete example of the version 2 bootstrap file: every section, with the secrets as references.
 version: 2
 server:
   listeners:
     - {name: api, address: ":1031", protocols: [http1, h2c]}
-    - {name: ops, address: "127.0.0.1:1032", role: ops}
-  unixSocketPath: /run/semaphore/api.sock
+    - {name: ops, address: ":1032", role: ops}
 observability:
   logging: {level: info, format: json}
   metrics: {enabled: true, legacyNames: false, perFlagLabels: false}
@@ -267,6 +303,10 @@ observability:
     otlpEndpoint: "otel-collector:4317"
     serviceName: semaphore
     sampler: parentbased_always_off
+evaluation:
+  environment: production
+  contextEnrichment: {region: us-east-1}
+  disableSemaphoreMetadata: false
 connections:
   control:
     type: s3

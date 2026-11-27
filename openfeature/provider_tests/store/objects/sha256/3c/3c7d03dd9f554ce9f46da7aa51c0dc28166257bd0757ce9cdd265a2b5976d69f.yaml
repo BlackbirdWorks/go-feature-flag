@@ -1,0 +1,8 @@
+apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: integration
+    sources:
+      - integration-flags
+    apiKeys:
+      - authorized_token

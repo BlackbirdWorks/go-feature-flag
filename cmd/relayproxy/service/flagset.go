@@ -64,3 +64,10 @@ type FlagChanger interface {
 	// FlagChange returns the hash of every flag and the hash of the whole table.
 	FlagChange() (flags map[string]uint32, hash uint32, err error)
 }
+
+// RefreshUnsupported is a [FlagSetResolver] whose flag sets can not be refreshed on request: the refresh endpoint
+// answers 501 with the reason.
+type RefreshUnsupported interface {
+	// RefreshUnsupported is the reason, sent to the client.
+	RefreshUnsupported() string
+}

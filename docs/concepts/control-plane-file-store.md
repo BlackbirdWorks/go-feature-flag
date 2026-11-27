@@ -1,8 +1,7 @@
 # Control-plane file store
 
-> Status: the file store (`FileStore` in `internal/manifestreader`) is in the code base but not active yet. The relay
-> will use it when it switches to config v2 (epic #19, issue #57); until then no setting selects it. The text below
-> says "will" for what the relay does after that switch.
+> Status: the relay serves the file store (`FileStore` in `internal/manifestreader`) when the control plane connection is of
+> `type: file`. The other retriever kinds come back with issue #57.
 
 The [manifest reader](control-plane-polling.md) reads the manifest and its objects through a small store interface.
 The file store serves them from a directory of the machine instead of S3.

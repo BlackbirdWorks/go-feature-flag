@@ -181,7 +181,6 @@ export default withMermaid({
           { text: 'Observability', link: '/relay-proxy/observability' },
           { text: 'Profiling', link: '/relay-proxy/profiling' },
           { text: 'Advanced Usage', link: '/relay-proxy/advanced-usage' },
-          { text: 'Deploy on AWS Lambda', link: '/relay-proxy/deployment/aws-lambda' },
         ],
       },
       {

@@ -44,6 +44,7 @@ observability:
   tracing:
     serviceName: semaphore
     sampler: parentbased_always_off
+evaluation: {}
 auth:
   adminKeys:
     - '[REDACTED]'

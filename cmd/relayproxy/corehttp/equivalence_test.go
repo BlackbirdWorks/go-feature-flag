@@ -162,7 +162,6 @@ func authCases() []equivCase {
 		{name: "auth unknown key on flag change", method: http.MethodGet, path: pathChange, headers: keyHeader("x")},
 		{name: "auth admin key on flag change", method: http.MethodGet, path: pathChange, headers: keyHeader(adminKey)},
 		{name: "auth no key on manifest", method: http.MethodGet, path: pathManifest, headers: http.Header{}},
-		{name: "refresh admin key", method: http.MethodPost, path: pathRefresh, headers: keyHeader(adminKey)},
 		{name: "refresh user key", method: http.MethodPost, path: pathRefresh, headers: keyHeader(tenantKey)},
 		{name: "refresh unknown key", method: http.MethodPost, path: pathRefresh, headers: keyHeader("x")},
 	}
@@ -291,7 +290,6 @@ func expectations() map[string]expectation {
 		"auth unknown key on flag change":            {msgUnauthorized, denied},
 		"auth admin key on flag change":              {msgNoFlagSet, bad},
 		"auth no key on manifest":                    {msgMissingKey, denied},
-		"refresh admin key":                          {msgNoFlagSet, bad},
 		"refresh user key":                           {msgUnauthorized, denied},
 		"refresh unknown key":                        {msgUnauthorized, denied},
 	}

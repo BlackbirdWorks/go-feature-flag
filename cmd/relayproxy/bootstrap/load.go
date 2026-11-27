@@ -47,6 +47,9 @@ type Overrides struct {
 	OpsListen   string
 	ManifestKey string
 	StateDir    string
+	// StateDirGiven is true when --state-dir was given, even empty: an empty value then means no state directory and
+	// wins over the variable and the file.
+	StateDirGiven bool
 }
 
 // orEmpty turns a nil Overrides into an empty one.
@@ -158,7 +161,10 @@ func (c *Config) applyOverrides(overrides *Overrides, opts LoadOptions) map[stri
 			sources["controlPlane.manifest.key"] = from
 		}
 
-		if v, from := opts.pickSource(overrides.StateDir, source{flag: "--state-dir", env: EnvStateDir}); v != "" {
+		if overrides.StateDirGiven {
+			c.ControlPlane.StateDir = overrides.StateDir
+			sources["controlPlane.stateDir"] = "flag --state-dir"
+		} else if v, from := opts.pickSource(overrides.StateDir, source{flag: "--state-dir", env: EnvStateDir}); v != "" {
 			c.ControlPlane.StateDir = v
 			sources["controlPlane.stateDir"] = from
 		}

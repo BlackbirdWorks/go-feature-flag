@@ -52,8 +52,9 @@ type Adapter struct {
 }
 
 var (
-	_ service.FlagSetResolver = (*Adapter)(nil)
-	_ service.KeySource       = (*Adapter)(nil)
+	_ service.FlagSetResolver    = (*Adapter)(nil)
+	_ service.KeySource          = (*Adapter)(nil)
+	_ service.RefreshUnsupported = (*Adapter)(nil)
 )
 
 // NewAdapter returns the adapter of a core.
@@ -107,6 +108,11 @@ func (a *Adapter) AdminKeyExists(apiKey string) bool {
 	_, route := a.holder.Load().Route(apiKey)
 
 	return route == flagruntime.RouteAdmin
+}
+
+// RefreshUnsupported is the reason the refresh endpoint answers 501: the manifest reader has no trigger.
+func (*Adapter) RefreshUnsupported() string {
+	return "refresh on request is not supported: the relay polls the control plane manifest"
 }
 
 // views returns the views of the flag sets of the runtime. A flag set that did not change keeps its pointer across

@@ -428,7 +428,7 @@ func operationRefresh() *huma.Operation {
 		Description: "This endpoint is used to force the refresh of the flags in the cache.\n" +
 			"This endpoint is used when you know explicitly that a flag has changed, and you want to trigger\n" +
 			"the collection of the new versions.",
-		Errors: []int{http.StatusBadRequest, http.StatusInternalServerError},
+		Errors: []int{http.StatusBadRequest, http.StatusInternalServerError, http.StatusNotImplemented},
 	}
 }
 
