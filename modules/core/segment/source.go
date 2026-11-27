@@ -11,6 +11,11 @@ import (
 // that exists and has no member yields nothing: missing is Unknown, empty is a set.
 var ErrSegmentMissing = errors.New("the segment does not exist in the store")
 
+// ErrNoVersion is wrapped by the error of a [Versioner] that has no version for the segment (no version key is
+// configured). A snapshot holder then cannot tell a change and pulls the members on every Refresh: that costs one full
+// read for each poll.
+var ErrNoVersion = errors.New("the segment has no version")
+
 // ErrUnsupportedMode is wrapped by the error of [RequireMode].
 var ErrUnsupportedMode = errors.New("the store does not support the segment mode")
 

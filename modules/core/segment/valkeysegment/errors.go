@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
+
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
@@ -57,7 +59,7 @@ var (
 	// ErrClosed is returned by a call after Shutdown.
 	ErrClosed = errors.New("valkey segment: closed")
 	// ErrNoVersionKey is returned by Version for a segment that has no SegmentOptions.VersionKey.
-	ErrNoVersionKey = errors.New("valkey segment: the segment has no version key")
+	ErrNoVersionKey = fmt.Errorf("%w: %s segment: no version key is configured", segment.ErrNoVersion, "valkey")
 	// ErrSnapshotLayout is yielded by Members for a segment of LayoutKeys: a snapshot of the keys layout would need
 	// SCAN over the whole keyspace of the node (and of every node of a cluster), see Members.
 	ErrSnapshotLayout = errors.New("valkey segment: the snapshot mode needs the set layout")

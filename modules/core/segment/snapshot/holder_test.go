@@ -512,3 +512,34 @@ func TestASegmentThatComesBackUnderTheSameTokenIsPulled(t *testing.T) {
 		})
 	}
 }
+
+// unversioned is a source with no version: Version says so.
+type unversioned struct{ inner *segment.MemorySource }
+
+func (unversioned) Version(context.Context, string) (string, error) { return "", segment.ErrNoVersion }
+
+func (u unversioned) Members(ctx context.Context, name string) iter.Seq2[string, error] {
+	return u.inner.Members(ctx, name)
+}
+
+func TestWithoutAVersionEveryRefreshPulls(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	inner := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+
+	holder, err := snapshot.New(segAlpha, unversioned{inner: inner}, snapshot.Options{})
+	require.NoError(t, err)
+
+	for range 3 {
+		require.NoError(t, holder.Refresh(ctx))
+	}
+
+	assert.Equal(t, 3, inner.Calls(segment.OpMembers), "no version, no way to tell a change: one pull for each refresh")
+
+	inner.Set(segAlpha, []string{"b"})
+	require.NoError(t, holder.Refresh(ctx))
+	assert.Equal(t, segment.Member, holder.Lookup("b"), "a change is seen at the next refresh")
+	assert.Equal(t, segment.NotMember, holder.Lookup("a"))
+	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
+}

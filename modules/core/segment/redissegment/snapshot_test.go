@@ -3,6 +3,7 @@ package redissegment_test
 import (
 	"context"
 	"errors"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
 	"strconv"
 	"testing"
 
@@ -339,4 +340,24 @@ func TestTheDefaultMeaningOfAMissingSetIsNoMember(t *testing.T) {
 			assert.Equal(t, tt.wantState, lookups[0].State)
 		})
 	}
+}
+
+func TestWithoutAVersionKeyTheHolderPullsOnEveryRefresh(t *testing.T) {
+	t.Parallel()
+
+	store, segs := snapStore(0)
+	segs["nover"] = redissegment.SegmentOptions{Key: "seg:{nover}"}
+	store.sets["seg:{nover}"] = map[string]bool{"a": true}
+
+	holder, err := snapshot.New("nover", snapProvider(t, store, segs, ""), snapshot.Options{})
+	require.NoError(t, err)
+
+	for range 3 {
+		require.NoError(t, holder.Refresh(context.Background()))
+	}
+
+	assert.Equal(t, [][]string{
+		{"SSCAN seg:{nover} 0 COUNT 1000"}, {"SSCAN seg:{nover} 0 COUNT 1000"}, {"SSCAN seg:{nover} 0 COUNT 1000"},
+	}, store.commands(), "no GET of a version, one scan for each refresh")
+	assert.Equal(t, segment.Member, holder.Lookup("a"))
 }
