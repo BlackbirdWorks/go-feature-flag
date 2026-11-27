@@ -53,7 +53,7 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
-//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func (*mockFlagsetManagerSSE) FlagSet(_ string) (service.FlagSet, error) {
 	return nil, assert.AnError
 }

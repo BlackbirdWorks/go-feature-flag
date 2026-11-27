@@ -10,7 +10,6 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -118,12 +117,6 @@ func WithReadTimeout(d time.Duration) Option {
 // middleware reports). Without it the server uses the one of its OpenTelemetry service.
 func WithMeterProvider(provider metric.MeterProvider) Option {
 	return func(s *Server) { s.meterProvider = provider }
-}
-
-// WithOTelMetricReader makes the OpenTelemetry metrics of the service go to the reader instead of the exporter that
-// the OTEL_* environment variables select. It is for the tests, which read the metrics themselves.
-func WithOTelMetricReader(reader sdkmetric.Reader) Option {
-	return func(s *Server) { s.otelService = opentelemetry.NewOtelService(opentelemetry.WithMetricReader(reader)) }
 }
 
 // WithTracing sets the tracer provider and the propagator of the spans of the requests. Without it the server

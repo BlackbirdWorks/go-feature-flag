@@ -40,8 +40,8 @@ set, the Semaphore name wins.
 
 ## Migrating step by step
 
-1. Deploy the new binary or image.
-2. Write the version 2 [bootstrap file](../relay-proxy/bootstrap-config.md) and pass it with `--config`.
+1. Write the version 2 [bootstrap file](../relay-proxy/bootstrap-config.md): the relay refuses a version 1 file and does not start.
+2. Deploy the new binary or image and pass the file with `--config`.
 3. Move your dashboards and alerts to the `semaphore_` series; set `observability.metrics.legacyNames: true` until complete.
 4. Update Go imports:
 

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,6 +30,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 
 	// the mux redirects a key that is a dot segment: no body
 	f.Add(".", "{}", false)
+	f.Add("..", "{}", false)
 
 	for _, file := range requests {
 		content, readFileErr := os.ReadFile(file)
@@ -60,9 +62,10 @@ func FuzzOFREPEvaluate(f *testing.F) {
 
 		assert.Less(t, rec.Code, http.StatusInternalServerError, "body: %s", rec.Body.String())
 
-		if rec.Code >= http.StatusMultipleChoices && rec.Code < http.StatusBadRequest {
-			// the mux cleans a path such as ".." and redirects, with no body for a POST
-			assert.NotEmpty(t, rec.Header().Get("Location"), "a redirect names its target")
+		if !bulk && (flagKey == "." || flagKey == "..") {
+			// the mux cleans the dot segment before the handler runs and redirects: no body for a POST
+			assert.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+			assert.Equal(t, path.Clean(target), rec.Header().Get("Location"))
 
 			return
 		}

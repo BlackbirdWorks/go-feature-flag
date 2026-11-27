@@ -22,6 +22,7 @@ const (
 	configFlag  = "--config"
 	unknownFlag = "--nope"
 	versionFlag = "--version"
+	helpFlag    = "--help"
 )
 
 func TestVersionRequested(t *testing.T) {

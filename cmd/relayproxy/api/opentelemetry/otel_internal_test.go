@@ -32,9 +32,12 @@ const (
 
 var errTestError = errors.New("test error")
 
-//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestInitSampler(t *testing.T) {
+	t.Parallel()
+
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
+		t.Parallel()
+
 		c := &Settings{}
 
 		got, err := initSampler(fixtures.PlaceholderTest, c)
@@ -43,6 +46,8 @@ func TestInitSampler(t *testing.T) {
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
+		t.Parallel()
+
 		c := &Settings{Sampler: samplerAlwaysOn}
 
 		got, err := initSampler(fixtures.PlaceholderTest, c)
@@ -51,6 +56,8 @@ func TestInitSampler(t *testing.T) {
 	})
 
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
+		t.Parallel()
+
 		c := &Settings{Sampler: jaegerRemote}
 
 		got, err := initSampler(fixtures.PlaceholderTest, c)
@@ -62,9 +69,12 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
+	t.Parallel()
+
 	t.Run("defaults", func(t *testing.T) {
+		t.Parallel()
+
 		c := &Settings{}
 
 		opts, err := jaegerRemoteSamplerOpts(c)
@@ -75,6 +85,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	})
 
 	t.Run("JAEGER_SAMPLER_MANAGER_HOST_PORT set", func(t *testing.T) {
+		t.Parallel()
+
 		expected := "http://example.com:1234"
 		c := &Settings{JaegerSamplerManagerHostPort: expected}
 
@@ -84,6 +96,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	})
 
 	t.Run("JAEGER_SAMPLER_REFRESH_INTERVAL set", func(t *testing.T) {
+		t.Parallel()
+
 		expected := 42 * time.Second
 		c := &Settings{JaegerSamplerRefreshInterval: expected.String()}
 
@@ -93,6 +107,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	})
 
 	t.Run("JAEGER_SAMPLER_MAX_OPERATIONS set", func(t *testing.T) {
+		t.Parallel()
+
 		expected := 42
 		c := &Settings{JaegerSamplerMaxOperations: expected}
 
@@ -102,6 +118,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	})
 
 	t.Run("invalid JAEGER_SAMPLER_REFRESH_INTERVAL", func(t *testing.T) {
+		t.Parallel()
+
 		c := &Settings{JaegerSamplerRefreshInterval: "bogus"}
 
 		_, err := jaegerRemoteSamplerOpts(c)

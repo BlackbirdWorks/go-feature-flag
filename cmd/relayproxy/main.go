@@ -58,6 +58,9 @@ func newStrictFlagSet() *pflag.FlagSet {
 	flags.SetOutput(io.Discard)
 	declareFlags(flags)
 	flags.BoolP("version", "v", false, "Print the version and exit")
+	// declared, so that the parse reads the whole command line (an unknown flag after --help is an error) before
+	// the help is answered
+	flags.BoolP("help", "h", false, "Print this help and exit")
 
 	return flags
 }
@@ -82,6 +85,10 @@ func overridesFrom(args []string) (*bootstrap.Overrides, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errUsage, err)
+	}
+
+	if help, _ := flags.GetBool("help"); help {
+		return nil, pflag.ErrHelp
 	}
 
 	get := func(name string) string {

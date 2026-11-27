@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 )
 
@@ -155,10 +157,9 @@ func Start(opts Options) (_ *Relay, err error) {
 		return nil, err
 	}
 
-	// a corrupted object degrades its flag set only: the generation is applied without it
-	_, err = r.FlagSets.FlagSet(APIKey)
+	err = r.checkServed()
 	if err != nil {
-		return nil, fmt.Errorf("%w: the flag set is not served: %w", errNotReady, err)
+		return nil, err
 	}
 
 	ready := corehttp.NewReadiness(core)
@@ -328,9 +329,8 @@ func (r *Relay) publish(flagsYAML string) error {
 // bootstrapConfig is the version 2 file of the relay: the file store, and the webhook exporter when the options ask
 // for one.
 func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
-	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + filepath.Join(
-		r.dir,
-		storeDir,
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + strconv.Quote(
+		filepath.Join(r.dir, storeDir),
 	) + "}\n" +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n"
@@ -362,6 +362,24 @@ func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// checkServed evaluates a flag of the flag set: a corrupted object degrades its flag set only (the generation is
+// applied without it), and a set that is routed but pending serves no flag.
+func (r *Relay) checkServed() error {
+	flagSet, err := r.FlagSets.FlagSet(APIKey)
+	if err != nil {
+		return fmt.Errorf("%w: the flag set is not served: %w", errNotReady, err)
+	}
+
+	key := loadtest.FlagKey(loadtest.Scenarios()[0], loadtest.Types()[0], false)
+
+	_, err = flagSet.RawVariation(key, ffcontext.NewEvaluationContext("readiness"), nil)
+	if err != nil {
+		return fmt.Errorf("%w: the flag %s is not served: %w", errNotReady, key, err)
+	}
+
+	return nil
 }
 
 // secrets reads the address of the sink from a variable that only the relay sees, not from the process environment.

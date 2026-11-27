@@ -2,6 +2,7 @@ package relay_test
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -204,6 +205,23 @@ func TestRelay_CloseRemovesTempDir(t *testing.T) {
 
 	_, err = os.Stat(dir)
 	assert.True(t, os.IsNotExist(err), "the temp dir must be removed by Close, got %v", err)
+}
+
+// A directory name with YAML syntax characters must not break the bootstrap file of the relay.
+func TestStart_TempDirWithYAMLSyntax(t *testing.T) {
+	t.Parallel()
+
+	parent := filepath.Join(t.TempDir(), "a,b [c]: {d}")
+	require.NoError(t, os.Mkdir(parent, 0o750))
+
+	r, err := relay.Start(relay.Options{FlagsYAML: loadtest.FlagsYAML(), TempDir: parent})
+	require.NoError(t, err)
+
+	r.Close()
+
+	entries, err := os.ReadDir(parent)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "Close removes the temp dir")
 }
 
 func TestStart_CleansUpOnFailure(t *testing.T) {
