@@ -28,6 +28,11 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 		return v
 	}
 
+	// the segment queries of the rules that were validated are compiled already, and live with their rules
+	if v, ok := s.segmentQueries.load(raw); ok {
+		return v
+	}
+
 	compiled := newCompiledQuery(raw)
 
 	actual, _ := s.compiled.LoadOrStore(raw, compiled)

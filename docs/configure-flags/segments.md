@@ -62,7 +62,7 @@ plan eq "pro" or user.id in segment("employees")
 - A rule has at most 32 different segment terms. The same segment tested on the same attribute counts once.
 - A segment term is not allowed in the `defaultRule`.
 - The attribute value is the identifier that is looked up. A string is used as it is. An integer of any kind is written in decimal. A float or a JSON number that holds a whole number is written in decimal too (`42`, never `4.2e+01` or `42.0`; a JSON document decodes its numbers as floats). A float is exact only up to 2^53: above that the identifier is the number that the float holds, which can differ from the number that was written, so use strings for large ids.
-- An attribute of an object that the Go client passes as a map of another type or as a struct (`map[string]string`, a struct with JSON tags) is read from the JSON form of the context, as the variables of JsonLogic are; a number read there is a float.
+- An attribute inside an object that the Go client passes as a map with string keys of another type or as a struct (`map[string]string`, a struct with JSON tags) is read from that object by its own value, named as its JSON form names it: the name of the `json` tag, a field tagged `json:"-"` or not exported is missing, the fields of an embedded struct are promoted, and what is behind a nil pointer is missing. Nothing else in the context matters, and an integer stays exact.
 - An attribute that is missing, empty, or not one of these (a boolean, a number with a fraction, `NaN`, infinity, a list, an object) is not a member of any segment, and no lookup is done for it.
 
 ## Load-time validation
@@ -123,7 +123,14 @@ The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. 
 
 ### What is looked up
 
-Segment lookups are lazy. The rule is first evaluated with the plain parts (attributes and comparisons) and every segment term unknown. When that already decides the result, the provider is not called, the evaluation has no segment status and the value stays cacheable: with `plan eq "free" and k in segment("x")` and `plan` set to `pro`, nothing is looked up. Otherwise only the terms that the unknown result still depends on are sent, in one call: with `(plan eq "pro" or k in segment("a")) and k in segment("b")` and `plan` set to `pro`, only `b` is looked up. A rule never makes more than one call to the provider. An operand that an unknown segment term could hide is not read before the answer: `k in segment("a") or user.id eq "staff"` does not read `user.id` for a member of `a`, as the list form of the rule does not. A disabled rule is not evaluated, so it looks nothing up. The provider is not called either when the request context has ended (see below); the lookups are then unknown.
+A rule is evaluated left to right, like a rule without segments, with the short circuit of `and` and `or`, until it reaches a segment term.
+
+- If it does not reach one, the rule is decided: the provider is not called, the evaluation has no segment status and the value stays cacheable. An operand that fails before that is an error of the rule, as in a rule without segments.
+- If it reaches one, every term of the rule is looked up in one call to the provider (a term whose attribute is missing or is not an identifier is not a member and is not sent). The rule is then evaluated again, whole, with the answers.
+
+So the order of the operands matters. Put the cheap conditions first: `plan eq "free" and k in segment("x")` looks nothing up when `plan` is not `free`, and `plan eq "pro" or k in segment("x")` looks nothing up when `plan` is `pro`; `k in segment("x") or plan eq "pro"` always looks up, because the segment comes first.
+
+With the answers, an unknown term does not stop the evaluation: `unknown or x` and `unknown and x` evaluate `x`, as the three-valued logic needs, and an operand that the answers make unnecessary is not evaluated (`k in segment("a") or user.id eq "staff"` does not read `user.id` for a member of `a`, as the list form of the rule does not). An operand that is reached and fails makes the rule fail, as in a rule without segments, whatever `onError` says: `onError` is for a result that is unknown, not for an error. A rule makes at most one call to the provider. A disabled rule is not evaluated, so it looks nothing up. The provider is not called either when the request context has ended (see below); the lookups are then unknown.
 
 ### Failure policy of a segment
 

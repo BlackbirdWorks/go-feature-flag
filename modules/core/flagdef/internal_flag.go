@@ -277,6 +277,14 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return err
 	}
 
+	svc.segmentQueries.retain(f.Rules)
+
+	if f.Scheduled != nil {
+		for i := range *f.Scheduled {
+			svc.segmentQueries.retain((*f.Scheduled)[i].Rules)
+		}
+	}
+
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
 	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
 

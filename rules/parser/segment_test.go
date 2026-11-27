@@ -18,6 +18,7 @@ const (
 	attrAge          = "age"
 	attrSegment      = "segment"
 	attrPlan         = "plan"
+	attrUser         = "user"
 	planPro          = "pro"
 	errBadName       = "invalid segment name"
 	errNotLiteral    = "must be a string literal"
@@ -566,96 +567,6 @@ func TestSegmentErrorOffsetsAreBytes(t *testing.T) {
 	assert.Contains(t, err.Error(), "offset "+strconv.Itoa(segErr.Offset))
 }
 
-func TestProcessSegmentsDemand(t *testing.T) {
-	t.Parallel()
-
-	const (
-		member    = parser.SegmentMember
-		notMember = parser.SegmentNotMember
-		unknown   = parser.SegmentUnknown
-	)
-
-	items := map[string]any{attrPlan: planPro}
-
-	tests := []struct {
-		name       string
-		rule       string
-		states     []parser.SegmentState
-		wantMatch  parser.Match
-		wantDemand uint32 // bit i: SegmentTerms()[i]
-	}{
-		{
-			name:       "one unknown term",
-			rule:       `a in segment("x")`,
-			states:     []parser.SegmentState{unknown},
-			wantMatch:  parser.MatchUnknown,
-			wantDemand: 0b1,
-		},
-		{
-			name:      "a known term demands nothing",
-			rule:      `a in segment("x")`,
-			states:    []parser.SegmentState{member},
-			wantMatch: parser.MatchYes,
-		},
-		{
-			name: "false and unknown", rule: `plan eq "free" and a in segment("x")`,
-			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchNo,
-		},
-		{
-			name: "true or unknown", rule: `plan eq "pro" or a in segment("x")`,
-			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchYes,
-		},
-		{
-			name: "true and unknown", rule: `plan eq "pro" and a in segment("x")`,
-			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b1,
-		},
-		{
-			name: "the decided side of an and is not demanded", rule: `a in segment("x") and b in segment("y")`,
-			states: []parser.SegmentState{notMember, unknown}, wantMatch: parser.MatchNo,
-		},
-		{
-			name: "the decided side of an or is not demanded", rule: `a in segment("x") or b in segment("y")`,
-			states: []parser.SegmentState{member, unknown}, wantMatch: parser.MatchYes,
-		},
-		{
-			name: "an or of two unknown terms demands both", rule: `a in segment("x") or b in segment("y")`,
-			states: []parser.SegmentState{unknown, unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b11,
-		},
-		{
-			name: "a known side does not demand", rule: `(plan eq "pro" or a in segment("x")) and b in segment("y")`,
-			states: []parser.SegmentState{unknown, unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b10,
-		},
-		{
-			name: "not keeps the demand", rule: `not (a in segment("x") or plan eq "free")`,
-			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchUnknown, wantDemand: 0b1,
-		},
-		{
-			name: "a decided term inside a not is not demanded", rule: `not (plan eq "pro" or a in segment("x"))`,
-			states: []parser.SegmentState{unknown}, wantMatch: parser.MatchNo,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			evaluator, err := parser.NewEvaluator(tt.rule)
-			require.NoError(t, err)
-
-			gotMatch, gotDemand, err := evaluator.ProcessSegmentsDemand(items, tt.states)
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantMatch, gotMatch)
-			assert.Equal(t, tt.wantDemand, gotDemand)
-		})
-	}
-
-	evaluator, err := parser.NewEvaluator(`a in segment("x")`)
-	require.NoError(t, err)
-
-	_, _, err = evaluator.ProcessSegmentsDemand(items, nil)
-	require.ErrorIs(t, err, parser.ErrSegmentStates)
-}
-
 func TestHasSegmentCall(t *testing.T) {
 	t.Parallel()
 
@@ -680,86 +591,49 @@ func TestHasSegmentCall(t *testing.T) {
 	}
 }
 
-// ProcessSegmentsDemand has no pool: it allocates nothing, so the count is exact even under the race detector.
-//
-//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
-func TestProcessSegmentsDemandDoesNotAllocate(t *testing.T) {
-	evaluator, err := parser.NewEvaluator(`(plan eq "pro" or k in segment("a")) and not (e in segment("b"))`)
-	require.NoError(t, err)
-
-	items := map[string]any{"plan": "pro", "k": "x", "e": "y"}
-	states := []parser.SegmentState{parser.SegmentUnknown, parser.SegmentNotMember}
-
-	match, demand, err := evaluator.ProcessSegmentsDemand(items, states)
-	require.NoError(t, err)
-	assert.Equal(t, parser.MatchYes, match)
-	assert.Equal(t, uint32(0), demand)
-
-	allocs := testing.AllocsPerRun(200, func() { _, _, _ = evaluator.ProcessSegmentsDemand(items, states) })
-	assert.InDelta(t, 0, allocs, 0)
-}
-
-// An error of the right operand of "or" or "and" is not reported by the pass that decides what to look up when the left
-// operand is still unknown: the left operand could hide it. The pass that follows the lookups reports it when it is
-// reached.
-func TestProcessSegmentsDefersTheErrorOfAnOperandThatMayBeHidden(t *testing.T) {
+func TestProcessUntilSegment(t *testing.T) {
 	t.Parallel()
 
-	const (
-		member    = parser.SegmentMember
-		notMember = parser.SegmentNotMember
-		unknown   = parser.SegmentUnknown
-		orRule    = `a in segment("s") or user.id eq "staff"`
-		andRule   = `a in segment("s") and user.id eq "staff"`
-	)
-
-	// "user" is a string: reading user.id panics
-	items := map[string]any{"user": "x"}
+	// "user" is a string: reading user.id fails
+	items := map[string]any{attrPlan: planPro, attrUser: "x"}
 
 	tests := []struct {
-		name          string
-		rule          string
-		decide        parser.SegmentState // the state of the term in the pass that decides what to look up
-		answer        parser.SegmentState // the state in the pass that follows the lookups
-		wantDecide    parser.Match
-		wantDemand    uint32
-		wantDecideErr bool
-		wantFinal     parser.Match
-		wantFinalErr  bool
+		name        string
+		rule        string
+		wantReached bool
+		wantMatch   bool
+		wantErr     bool
 	}{
+		{name: "false and a segment: decided", rule: `plan eq "free" and a in segment("x")`},
+		{name: "true or a segment: decided", rule: `plan eq "pro" or a in segment("x")`, wantMatch: true},
+		{name: "true and a segment: reached", rule: `plan eq "pro" and a in segment("x")`, wantReached: true},
+		{name: "a segment or true: reached first", rule: `a in segment("x") or plan eq "pro"`, wantReached: true},
+		{name: "a segment alone: reached", rule: `a in segment("x")`, wantReached: true},
+		{name: "not of a decided or", rule: `not (plan eq "pro" or a in segment("x"))`},
 		{
-			name:       "or, a member decides",
-			rule:       orRule,
-			decide:     member,
-			answer:     member,
-			wantDecide: parser.MatchYes,
-			wantFinal:  parser.MatchYes,
-		},
-		{name: "or, a non member reaches the operand", rule: orRule, decide: notMember, wantDecideErr: true},
-		{
-			name: "or, unknown then member", rule: orRule, decide: unknown, answer: member,
-			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinal: parser.MatchYes,
+			name:      "nested: the decided side stops it",
+			rule:      `(plan eq "pro" or a in segment("x")) or b in segment("y")`,
+			wantMatch: true,
 		},
 		{
-			name: "or, unknown then non member", rule: orRule, decide: unknown, answer: notMember,
-			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinalErr: true,
+			name:        "nested: the first segment is reached",
+			rule:        `(a in segment("x") or plan eq "pro") or b in segment("y")`,
+			wantReached: true,
 		},
 		{
-			name:       "and, a non member decides",
-			rule:       andRule,
-			decide:     notMember,
-			answer:     notMember,
-			wantDecide: parser.MatchNo,
-			wantFinal:  parser.MatchNo,
-		},
-		{name: "and, a member reaches the operand", rule: andRule, decide: member, wantDecideErr: true},
-		{
-			name: "and, unknown then non member", rule: andRule, decide: unknown, answer: notMember,
-			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinal: parser.MatchNo,
+			name:    "an operand that fails before any segment is the error",
+			rule:    `user.id eq "x" or a in segment("x")`,
+			wantErr: true,
 		},
 		{
-			name: "and, unknown then member", rule: andRule, decide: unknown, answer: member,
-			wantDecide: parser.MatchUnknown, wantDemand: 0b1, wantFinalErr: true,
+			name:        "an operand after the segment is not read",
+			rule:        `a in segment("x") or user.id eq "x"`,
+			wantReached: true,
+		},
+		{
+			name:      "an operand after a decision is not read",
+			rule:      `plan eq "pro" or user.id eq "x" or a in segment("x")`,
+			wantMatch: true,
 		},
 	}
 
@@ -770,26 +644,109 @@ func TestProcessSegmentsDefersTheErrorOfAnOperandThatMayBeHidden(t *testing.T) {
 			evaluator, err := parser.NewEvaluator(tt.rule)
 			require.NoError(t, err)
 
-			match, demand, err := evaluator.ProcessSegmentsDemand(items, []parser.SegmentState{tt.decide})
-			if tt.wantDecideErr {
+			match, reached, err := evaluator.ProcessUntilSegment(items)
+			if tt.wantErr {
 				require.Error(t, err)
+				assert.False(t, reached)
 
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantDecide, match)
-			assert.Equal(t, tt.wantDemand, demand)
+			assert.Equal(t, tt.wantReached, reached)
 
-			final, err := evaluator.ProcessSegments(items, []parser.SegmentState{tt.answer})
-			if tt.wantFinalErr {
-				require.Error(t, err)
-
-				return
+			if !tt.wantReached {
+				assert.Equal(t, tt.wantMatch, match)
 			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantFinal, final)
 		})
 	}
+}
+
+// The second pass evaluates the whole rule left to right: an unknown term does not stop it, an operand that is
+// reached and fails makes the rule fail, an operand that a decided result makes unnecessary is not read.
+func TestProcessSegmentsEvaluatesWhatItReaches(t *testing.T) {
+	t.Parallel()
+
+	const (
+		member    = parser.SegmentMember
+		notMember = parser.SegmentNotMember
+		unknown   = parser.SegmentUnknown
+		orRule    = `a in segment("s") or user.id eq "staff"`
+		andRule   = `a in segment("s") and user.id eq "staff"`
+	)
+
+	// "user" is a string: reading user.id fails
+	items := map[string]any{attrUser: "x"}
+
+	tests := []struct {
+		name      string
+		rule      string
+		state     parser.SegmentState
+		wantMatch parser.Match
+		wantErr   bool
+	}{
+		{name: "or: a member never reads the operand", rule: orRule, state: member, wantMatch: parser.MatchYes},
+		{name: "or: a non member reads it and fails", rule: orRule, state: notMember, wantErr: true},
+		{name: "or: an unknown term reads it and fails", rule: orRule, state: unknown, wantErr: true},
+		{name: "and: a non member never reads the operand", rule: andRule, state: notMember, wantMatch: parser.MatchNo},
+		{name: "and: a member reads it and fails", rule: andRule, state: member, wantErr: true},
+		{name: "and: an unknown term reads it and fails", rule: andRule, state: unknown, wantErr: true},
+		{
+			name: "unknown or true is true", rule: `a in segment("s") or user eq "x"`, state: unknown,
+			wantMatch: parser.MatchYes,
+		},
+		{
+			name: "unknown or false is unknown", rule: `a in segment("s") or user eq "y"`, state: unknown,
+			wantMatch: parser.MatchUnknown,
+		},
+		{
+			name: "unknown and false is false", rule: `a in segment("s") and user eq "y"`, state: unknown,
+			wantMatch: parser.MatchNo,
+		},
+		{
+			name: "unknown and true is unknown", rule: `a in segment("s") and user eq "x"`, state: unknown,
+			wantMatch: parser.MatchUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evaluator, err := parser.NewEvaluator(tt.rule)
+			require.NoError(t, err)
+
+			match, err := evaluator.ProcessSegments(items, []parser.SegmentState{tt.state})
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMatch, match)
+		})
+	}
+}
+
+// Neither pass has a pool: they allocate nothing, so the count is exact even under the race detector.
+//
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
+func TestSegmentPassesDoNotAllocate(t *testing.T) {
+	evaluator, err := parser.NewEvaluator(`(plan eq "pro" or k in segment("a")) and not (e in segment("b"))`)
+	require.NoError(t, err)
+
+	items := map[string]any{"plan": "pro", "k": "x", "e": "y"}
+	states := []parser.SegmentState{parser.SegmentUnknown, parser.SegmentNotMember}
+
+	_, reached, err := evaluator.ProcessUntilSegment(items)
+	require.NoError(t, err)
+	assert.True(t, reached, "the second operand of the and reaches a segment")
+
+	match, err := evaluator.ProcessSegments(items, states)
+	require.NoError(t, err)
+	assert.Equal(t, parser.MatchYes, match)
+
+	assert.InDelta(t, 0, testing.AllocsPerRun(200, func() { _, _, _ = evaluator.ProcessUntilSegment(items) }), 0)
+	assert.InDelta(t, 0, testing.AllocsPerRun(200, func() { _, _ = evaluator.ProcessSegments(items, states) }), 0)
 }

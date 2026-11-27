@@ -21,6 +21,8 @@ import (
 const (
 	secretID         = "secret-id-123"
 	typeString       = "string"
+	lookupXAlice     = "x:alice"
+	lookupXBob       = "x:bob"
 	ruleOnErrorMatch = "match"
 	ruleOnErrorSkip  = "skip"
 )
@@ -314,7 +316,9 @@ func TestSegmentExclusionOfAFloatIdentifier(t *testing.T) {
 	}
 }
 
-func TestSegmentOnlyTheTermsThatMatterAreLookedUp(t *testing.T) {
+// The order of the operands decides what is looked up: the rule is evaluated left to right, like a rule without
+// segments, until it reaches a segment term. Put the cheap conditions first.
+func TestSegmentLookupsFollowTheOrderOfTheOperands(t *testing.T) {
 	t.Parallel()
 
 	members := map[string][]string{"x": {keyAlice}, "y": {keyAlice}, "z": {keyBob}}
@@ -331,7 +335,7 @@ func TestSegmentOnlyTheTermsThatMatterAreLookedUp(t *testing.T) {
 		wantStatus    segment.Status
 	}{
 		{
-			name:          "false and a segment: decided without a lookup",
+			name:          "false and a segment: decided, nothing is looked up",
 			nikunjy:       `plan eq "free" and targetingKey in segment("x")`,
 			json:          `{"and": [{"==": [{"var": "plan"}, "free"]}, {"inSegment": [{"var": "targetingKey"}, "x"]}]}`,
 			plan:          planPro,
@@ -341,53 +345,68 @@ func TestSegmentOnlyTheTermsThatMatterAreLookedUp(t *testing.T) {
 			wantCacheable: true,
 		},
 		{
-			name:    "true or a segment: decided without a lookup",
+			name:    "true or a segment: decided, nothing is looked up",
 			nikunjy: `plan eq "pro" or targetingKey in segment("x")`,
 			json:    `{"or": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "x"]}]}`,
 			plan:    planPro, key: keyBob, wantVariant: variantOn, wantStatus: segment.StatusNone, wantCacheable: true,
 		},
 		{
-			name:    "true and a segment: the segment is needed",
+			name:    "true and a segment: the segment is reached",
 			nikunjy: `plan eq "pro" and targetingKey in segment("x")`,
 			json:    `{"and": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "x"]}]}`,
-			plan:    planPro, key: keyAlice, wantLookups: [][]string{{"x:alice"}}, wantVariant: variantOn,
+			plan:    planPro, key: keyAlice, wantLookups: [][]string{{lookupXAlice}}, wantVariant: variantOn,
 			wantStatus: segment.StatusHealthy,
 		},
 		{
-			name:    "mixed: only the term that is still needed",
+			name:    "a segment or true: the segment comes first, so it is looked up",
+			nikunjy: `targetingKey in segment("x") or plan eq "pro"`,
+			json:    `{"or": [{"inSegment": [{"var": "targetingKey"}, "x"]}, {"==": [{"var": "plan"}, "pro"]}]}`,
+			plan:    planPro, key: keyBob, wantLookups: [][]string{{lookupXBob}}, wantVariant: variantOn,
+			wantStatus: segment.StatusHealthy,
+		},
+		{
+			name:    "mixed: reaching a term looks every term up",
 			nikunjy: `(plan eq "pro" or targetingKey in segment("x")) and targetingKey in segment("y")`,
 			json: `{"and": [{"or": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "x"]}]}, ` +
 				`{"inSegment": [{"var": "targetingKey"}, "y"]}]}`,
-			plan:        planPro,
+			plan:        "pro",
 			key:         keyAlice,
-			wantLookups: [][]string{{"y:alice"}},
+			wantLookups: [][]string{{lookupXAlice, "y:alice"}},
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusHealthy,
 		},
 		{
-			name:    "nested not: the decided side is not looked up",
+			name:    "nested not: a decided side before the segment",
 			nikunjy: `not (plan eq "pro" or targetingKey in segment("x")) or targetingKey in segment("z")`,
 			json: `{"or": [{"!": {"or": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "x"]}]}}, ` +
 				`{"inSegment": [{"var": "targetingKey"}, "z"]}]}`,
-			plan:        planPro,
+			plan:        "pro",
 			key:         keyBob,
-			wantLookups: [][]string{{"z:bob"}},
+			wantLookups: [][]string{{lookupXBob, "z:bob"}},
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusHealthy,
 		},
 		{
-			name:    "both terms unknown: both are sent in one call",
+			name:    "both terms in one call",
 			nikunjy: `targetingKey in segment("x") or targetingKey in segment("z")`,
 			json: `{"or": [{"inSegment": [{"var": "targetingKey"}, "x"]}, ` +
 				`{"inSegment": [{"var": "targetingKey"}, "z"]}]}`,
-			plan: planPro, key: keyBob, wantLookups: [][]string{{"x:bob", "z:bob"}}, wantVariant: variantOn,
+			plan: planPro, key: keyBob, wantLookups: [][]string{{lookupXBob, "z:bob"}}, wantVariant: variantOn,
 			wantStatus: segment.StatusHealthy,
 		},
 		{
-			name:    "a missing attribute decides without a lookup",
+			name:    "a term without an identifier is not looked up, the others are",
 			nikunjy: `targetingKey in segment("x") and missing in segment("y")`,
 			json: `{"and": [{"inSegment": [{"var": "targetingKey"}, "x"]}, ` +
 				`{"inSegment": [{"var": "missing"}, "y"]}]}`,
+			plan: planPro, key: keyAlice, wantLookups: [][]string{{lookupXAlice}}, wantVariant: variantOff,
+			wantStatus: segment.StatusHealthy,
+		},
+		{
+			name:    "no term has an identifier: nothing is looked up",
+			nikunjy: `missing in segment("x") or other in segment("y")`,
+			json: `{"or": [{"inSegment": [{"var": "missing"}, "x"]}, ` +
+				`{"inSegment": [{"var": "other"}, "y"]}]}`,
 			plan: planPro, key: keyAlice, wantVariant: variantOff, wantStatus: segment.StatusNone, wantCacheable: true,
 		},
 	}

@@ -87,26 +87,85 @@ func (e *Evaluator) SegmentTerms() []SegmentTerm {
 	return e.terms
 }
 
-// ProcessSegmentsDemand is ProcessSegments that also returns the terms that the result depends on: bit i is set
-// when the state of SegmentTerms()[i] is SegmentUnknown and a result that is unknown could change if it were
-// answered. When the match is not MatchUnknown the demand is 0: nothing needs to be looked up. It is the pass
-// that decides what to look up: an error of an operand that a still unknown earlier operand could hide ("or" with a
-// member, "and" with a non member) is not reported, the demand of the earlier operand is returned instead.
-// ProcessSegments with the answers reports it if that operand is still reached.
-func (e *Evaluator) ProcessSegmentsDemand(
-	items map[string]any,
-	states []SegmentState,
-) (Match, uint32, error) {
-	return e.segmentPass(items, states, true)
+// ProcessUntilSegment is the first pass of a rule with segment terms. It evaluates the rule as Process does (two
+// valued, left to right, the short circuit of "and" and "or") and stops at the first segment term it reaches:
+// reached is then true and the other results mean nothing. When it returns reached false the rule is decided without
+// any membership, and match and err are what Process returns for a rule without segment terms.
+//
+//nolint:nonamedreturns // recover sets the result
+func (e *Evaluator) ProcessUntilSegment(items map[string]any) (match, reached bool, retErr error) {
+	e.setDebugErr(nil)
+
+	defer func() {
+		info := recover()
+		if info != nil {
+			match, reached = false, false
+			retErr = recoveredPanicError{info: info}
+
+			e.setDebugErr(nil)
+		}
+	}()
+
+	if e.root == nil {
+		return false, false, errInvalidRule2
+	}
+
+	state := evalState{item: items}
+	result := e.root.evalToSegment(&state)
+
+	if state.reached {
+		// the pass stops here: what it met before is met again by the second pass
+		e.setDebugErr(nil)
+
+		return false, true, nil
+	}
+
+	e.setDebugErr(state.debugErr)
+
+	if state.err != nil {
+		return false, false, state.err
+	}
+
+	return result, false, nil
 }
 
-// ProcessSegments evaluates a rule that has segment() terms: states[i] is the membership for SegmentTerms()[i].
-// The result is MatchUnknown when it depends on a term whose state is SegmentUnknown. Like Process, it is safe for
-// concurrent use and it never modifies items or states.
-func (e *Evaluator) ProcessSegments(items map[string]any, states []SegmentState) (Match, error) {
-	match, _, err := e.segmentPass(items, states, false)
+// ProcessSegments is the second pass of a rule with segment terms: states[i] is the membership for
+// SegmentTerms()[i]. It evaluates the whole rule left to right, three-valued: the result is MatchUnknown when it
+// depends on a term whose state is SegmentUnknown. An operand that is reached is evaluated, whatever the state of an
+// earlier term, and an error of such an operand is the error of the rule. Like Process, it is safe for concurrent
+// use and it never modifies items or states.
+//
+//nolint:nonamedreturns // recover sets the result
+func (e *Evaluator) ProcessSegments(items map[string]any, states []SegmentState) (ret Match, retErr error) {
+	e.setDebugErr(nil)
 
-	return match, err
+	defer func() {
+		info := recover()
+		if info != nil {
+			retErr = recoveredPanicError{info: info}
+			ret = MatchUnknown
+
+			e.setDebugErr(nil)
+		}
+	}()
+
+	if len(states) != len(e.terms) {
+		return MatchUnknown, fmt.Errorf("%w: got %d, want %d", ErrSegmentStates, len(states), len(e.terms))
+	}
+
+	if e.root == nil {
+		return MatchUnknown, errInvalidRule2
+	}
+
+	st := evalState{item: items}
+	result := e.root.evalMatch(&st, states)
+	e.setDebugErr(st.debugErr)
+
+	if st.err != nil {
+		return MatchUnknown, st.err
+	}
+
+	return result, nil
 }
 
 type parsedRule struct {
@@ -208,46 +267,6 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	}
 
 	return result, nil
-}
-
-// segmentPass is ProcessSegmentsDemand. With deferErrors an error of a right operand that a still unknown left
-// operand could hide is not reported: the demand of the left operand is returned.
-//
-//nolint:nonamedreturns // recover sets the result
-func (e *Evaluator) segmentPass(
-	items map[string]any,
-	states []SegmentState,
-	deferErrors bool,
-) (ret Match, demand uint32, retErr error) {
-	e.setDebugErr(nil)
-
-	defer func() {
-		info := recover()
-		if info != nil {
-			retErr = recoveredPanicError{info: info}
-			ret, demand = MatchUnknown, 0
-
-			e.setDebugErr(nil)
-		}
-	}()
-
-	if len(states) != len(e.terms) {
-		return MatchUnknown, 0, fmt.Errorf("%w: got %d, want %d", ErrSegmentStates, len(states), len(e.terms))
-	}
-
-	if e.root == nil {
-		return MatchUnknown, 0, errInvalidRule2
-	}
-
-	st := evalState{item: items, deferErrors: deferErrors}
-	result, wanted := e.root.evalDemand(&st, states)
-	e.setDebugErr(st.debugErr)
-
-	if st.err != nil {
-		return MatchUnknown, 0, st.err
-	}
-
-	return result, wanted, nil
 }
 
 func (e *Evaluator) setDebugErr(err error) {

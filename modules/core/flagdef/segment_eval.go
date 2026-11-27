@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"math"
 	"math/bits"
-	"reflect"
 	"strconv"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -86,89 +85,111 @@ func (q *queryContext) logContext() context.Context {
 	return q.requestContext
 }
 
-// demandOf evaluates the rule, three-valued, with the given states: by the Rules format evaluator or by the
-// compiled JsonLogic skeleton, whichever is not nil.
+// resolveSegments evaluates a rule that has segment terms and returns its three-valued result. states has one entry
+// for each term, in the order of terms.
 //
-// The pass that decides what to look up (decide) does not report the error of an operand that a still unknown
-// earlier operand could hide: "k in segment(a) or x" does not read x for a member. The pass that follows the lookups
-// does.
-func (q *queryContext) demandOf(
-	evaluator *parser.Evaluator,
-	skeleton *jlNode,
-	states []parser.SegmentState,
-	decide bool,
-) (parser.Match, uint32, error) {
-	if evaluator != nil {
-		var (
-			match  parser.Match
-			demand uint32
-			err    error
-		)
-
-		if decide {
-			match, demand, err = evaluator.ProcessSegmentsDemand(q.mapOnce(), states)
-		} else {
-			match, err = evaluator.ProcessSegments(q.mapOnce(), states)
-		}
-
-		if err != nil {
-			return match, demand, fmt.Errorf("evaluating the rule: %w", err)
-		}
-
-		return match, demand, nil
-	}
-
-	return skeleton.matchDemand(q, states, decide)
-}
-
-// resolveSegments evaluates a rule that has segment terms and returns its three-valued result. states has one
-// entry for each term, in the order of terms.
+// The rule is evaluated as a rule without segment terms is, left to right with the short circuit of "and" and "or",
+// until it reaches a segment term. If it does not reach one, the rule is decided: the provider is not called, the
+// evaluation reports no segment status, and an error of an operand is the error that the same rule without segment
+// terms has. So the order of the operands matters, and a cheap condition first spares the lookup: in
+// `plan eq "free" and k in segment("x")` a plan that is not free decides the rule, in
+// `k in segment("x") or plan eq "pro"` the segment is reached first.
 //
-// The terms that a lookup cannot change are not looked up. The rule is first evaluated with every term that needs
-// the provider unknown: a term whose attribute is missing, empty or not an identifier is not a member of anything,
-// and a segment that the Service does not define matches nobody. When the result is known (the plain parts decide
-// it, "false and unknown" is false, "true or unknown" is true) the provider is not called and the evaluation reports
-// no segment status. Otherwise only the terms that the unknown result depends on are sent to the provider, in one
-// call, which is the only allocation: the slice that the provider fills. A term whose lookup cannot be answered (no
-// provider, a failing or panicking provider, an ended context, an invalid state) is unknown, then the failure policy
-// of its segment applies, and the rule decides what an unknown result does (Rule.OnError).
+// When a term is reached, every term of the rule is looked up, in one call, which is the only allocation: the slice
+// that the provider fills. A term whose attribute is missing, empty or not an identifier is not a member of anything
+// and a segment that the Service does not define matches nobody: neither is looked up. A term whose lookup cannot be
+// answered (no provider, a failing or panicking provider, an ended context, an invalid state) is unknown, then the
+// failure policy of its segment applies. The rule is then evaluated again, whole, left to right, with the answers:
+// an unknown term does not stop the evaluation ("unknown or x" and "unknown and x" evaluate x), an operand that is
+// reached and fails makes the rule fail (an error is never an unknown result, whatever Rule.OnError says), and an
+// operand that the answers make unnecessary is not evaluated.
 func (q *queryContext) resolveSegments(
 	terms []parser.SegmentTerm,
 	states []parser.SegmentState,
 	evaluator *parser.Evaluator,
 	skeleton *jlNode,
 ) (parser.Match, error) {
+	matched, reached, err := q.firstPass(evaluator, skeleton)
+	if err != nil {
+		return parser.MatchNo, err
+	}
+
+	if !reached {
+		return matchOfBool(matched), nil
+	}
+
+	var pending uint32
+
 	for i := range terms {
 		states[i] = parser.SegmentUnknown
 
 		if _, ok := q.attributeID(terms[i].Path); !ok || !q.svc.definesSegment(terms[i].Name) {
 			states[i] = parser.SegmentNotMember
+
+			continue
 		}
+
+		pending |= 1 << i
 	}
 
-	match, demand, err := q.demandOf(evaluator, skeleton, states, true)
-	if err != nil || match != parser.MatchUnknown || demand == 0 {
-		return match, err
+	if pending != 0 {
+		q.lookup(terms, states, pending)
 	}
 
-	q.lookup(terms, states, demand)
-
-	match, _, err = q.demandOf(evaluator, skeleton, states, false)
-
-	return match, err
+	return q.secondPass(evaluator, skeleton, states)
 }
 
-// lookup answers the demanded terms: it sets their states and records the health of the lookups.
-func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.SegmentState, demand uint32) {
+func matchOfBool(matched bool) parser.Match {
+	if matched {
+		return parser.MatchYes
+	}
+
+	return parser.MatchNo
+}
+
+// firstPass evaluates the rule until the first segment term, see resolveSegments.
+func (q *queryContext) firstPass(evaluator *parser.Evaluator, skeleton *jlNode) (bool, bool, error) {
+	if evaluator != nil {
+		matched, reached, err := evaluator.ProcessUntilSegment(q.mapOnce())
+		if err != nil {
+			return false, false, fmt.Errorf("evaluating the rule: %w", err)
+		}
+
+		return matched, reached, nil
+	}
+
+	return skeleton.plain(q)
+}
+
+// secondPass evaluates the whole rule with the answers, see resolveSegments.
+func (q *queryContext) secondPass(
+	evaluator *parser.Evaluator,
+	skeleton *jlNode,
+	states []parser.SegmentState,
+) (parser.Match, error) {
+	if evaluator != nil {
+		match, err := evaluator.ProcessSegments(q.mapOnce(), states)
+		if err != nil {
+			return parser.MatchNo, fmt.Errorf("evaluating the rule: %w", err)
+		}
+
+		return match, nil
+	}
+
+	return skeleton.match(q, states)
+}
+
+// lookup answers the terms of the bits of pending: it sets their states and records the health of the lookups.
+func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.SegmentState, pending uint32) {
 	var status segment.Status
 
 	if q.segments == nil {
 		status = segment.StatusNotConfigured
 	} else {
-		lookups := make([]segment.Lookup, 0, bits.OnesCount32(demand))
+		lookups := make([]segment.Lookup, 0, bits.OnesCount32(pending))
 
 		for i := range terms {
-			if demand&(1<<i) != 0 {
+			if pending&(1<<i) != 0 {
 				id, _ := q.attributeID(terms[i].Path)
 				lookups = append(lookups, segment.Lookup{Segment: terms[i].Name, ID: id, State: segment.Unknown})
 			}
@@ -179,7 +200,7 @@ func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.Segmen
 		next := 0
 
 		for i := range terms {
-			if demand&(1<<i) != 0 {
+			if pending&(1<<i) != 0 {
 				states[i] = parser.SegmentState(lookups[next].State)
 				next++
 			}
@@ -187,7 +208,7 @@ func (q *queryContext) lookup(terms []parser.SegmentTerm, states []parser.Segmen
 	}
 
 	for i := range terms {
-		if demand&(1<<i) != 0 && states[i] == parser.SegmentUnknown {
+		if pending&(1<<i) != 0 && states[i] == parser.SegmentUnknown {
 			states[i] = q.svc.failurePolicy(terms[i].Name, states[i])
 		}
 	}
@@ -285,47 +306,28 @@ func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.S
 // list, object) is not an identifier.
 //
 // A context of the Go client can hold an object of another type than map[string]any (a map[string]string, a struct
-// with JSON tags): the attribute is then read from the JSON form of the context, like the variables of JsonLogic,
-// and a number there is a float64.
+// with JSON tags): the attribute is read from that object by its own value, named as its JSON form names it, see
+// fieldAtPath, so nothing else in the context matters and an integer stays exact.
 func (q *queryContext) attributeID(path []string) (string, bool) {
-	value, opaque := walkAttribute(q.mapOnce(), path)
-	if opaque {
-		data, err := q.dataOnce()
-		if err != nil {
-			return "", false
-		}
+	var current any = q.mapOnce()
 
-		value, _ = walkAttribute(data, path)
-	}
-
-	return identifier(value)
-}
-
-// walkAttribute returns the value at path of an object of maps. opaque is true when a parent on the way is neither a
-// map[string]any nor absent: only the JSON form of the context can tell what it holds.
-func walkAttribute(root any, path []string) (any, bool) {
-	current := root
-
-	for _, name := range path {
+	for i, name := range path {
 		switch parent := current.(type) {
 		case map[string]any:
 			current = parent[name]
 		case nil:
-			return nil, false
+			return "", false
 		default:
-			return nil, isContainer(parent)
+			value, ok := fieldAtPath(parent, path[i:])
+			if !ok {
+				return "", false
+			}
+
+			return identifier(value)
 		}
 	}
 
-	return current, false
-}
-
-// isContainer reports whether the value is an object or a list (a type that the JSON form can open).
-func isContainer(value any) bool {
-	kind := reflect.TypeOf(value).Kind()
-
-	return kind == reflect.Map || kind == reflect.Struct || kind == reflect.Pointer || kind == reflect.Slice ||
-		kind == reflect.Array
+	return identifier(current)
 }
 
 // identifier is the identifier of a scalar value.

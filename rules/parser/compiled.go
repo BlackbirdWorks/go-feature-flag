@@ -97,9 +97,8 @@ type evalState struct {
 	debugErr error
 	item     map[string]any
 	stack    attrStack
-	// deferErrors is set by the demand pass of a rule with segment terms: an error of the right side of a logical
-	// node is dropped when the left side is still unknown, see demandLogical.
-	deferErrors bool
+	// reached is set by the first pass of a rule with segment terms when it reaches a segment term, see evalToSegment.
+	reached bool
 }
 
 // attrStack is the visitor's attribute stack. The first attrStackInline
@@ -220,117 +219,85 @@ func (n *node) eval(state *evalState) bool {
 	}
 }
 
-// demandLogical is evalDemand for a logical node.
-func (n *node) demandLogical(state *evalState, states []SegmentState) (Match, uint32) {
-	decisive, neutral := MatchNo, MatchYes // and
-	if n.isOr {
-		decisive, neutral = MatchYes, MatchNo
-	}
-
-	left, leftDemand := n.left.evalDemand(state, states)
-	if left == decisive {
-		return decisive, 0
-	}
-
-	right, rightDemand, deferred := n.demandRight(state, states, left, leftDemand)
-	if deferred {
-		return MatchUnknown, leftDemand
-	}
-
-	if right == decisive {
-		return decisive, 0
-	}
-
-	if left == neutral && right == neutral {
-		return neutral, 0
-	}
-
-	var demand uint32
-	if left == MatchUnknown {
-		demand |= leftDemand
-	}
-
-	if right == MatchUnknown {
-		demand |= rightDemand
-	}
-
-	return MatchUnknown, demand
-}
-
-// demandRight evaluates the right side of a logical node. In the pass that decides what to look up, an error of the
-// right side is dropped (deferred is true) when the left side is still unknown and could hide it: the evaluation
-// that follows the lookups reports the error if the right side is still reached.
-func (n *node) demandRight(
-	state *evalState,
-	states []SegmentState,
-	left Match,
-	leftDemand uint32,
-) (Match, uint32, bool) {
-	if !state.deferErrors || left != MatchUnknown || leftDemand == 0 {
-		right, demand := n.right.evalDemand(state, states)
-
-		return right, demand, false
-	}
-
-	failedBefore := state.err != nil
-	right, demand, failed := n.right.guardedDemand(state, states)
-
-	if failed || !failedBefore && state.err != nil {
-		state.err, state.debugErr = nil, nil
-		state.leftOp, state.rightOp = nil, nil
-		state.stack.clear()
-
-		return MatchUnknown, 0, true
-	}
-
-	return right, demand, false
-}
-
-// guardedDemand is evalDemand that reports a panic (the evaluation of an attribute that is not an object panics)
-// instead of raising it.
-//
-//nolint:nonamedreturns // recover sets the result
-func (n *node) guardedDemand(state *evalState, states []SegmentState) (match Match, demand uint32, failed bool) {
-	defer func() {
-		if recover() != nil {
-			match, demand, failed = MatchUnknown, 0, true
-		}
-	}()
-
-	match, demand = n.evalDemand(state, states)
-
-	return match, demand, false
-}
-
-// evalDemand is eval for a rule with segment terms: three-valued, the unknown membership of a term can make the
-// result unknown. A node whose result does not depend on the unknown terms is known. It also reports which terms
-// the result still depends on: the bits (term index) of the
-// terms whose state is unknown and whose answer could change an unknown result. A node whose result is known
-// demands nothing: "false and unknown" is false, "true or unknown" is true. Like eval, the right side of "and" and
-// "or" is not evaluated when the left side decides the result.
-func (n *node) evalDemand(state *evalState, states []SegmentState) (Match, uint32) {
+// evalToSegment is eval for the first pass of a rule with segment terms: two valued, left to right, with the short
+// circuit of eval, exactly as a rule without segment terms is evaluated, and it stops at the first segment term it
+// reaches (state.reached is set, the result is then meaningless).
+func (n *node) evalToSegment(state *evalState) bool {
 	switch n.kind {
 	case nodeParen:
-		result, demand := n.left.evalDemand(state, states)
+		result := n.left.evalToSegment(state)
+		if state.reached {
+			return false
+		}
+
 		if n.not {
-			return result.Not(), demand
+			return !result
 		}
 
-		return result, demand
+		return result
 	case nodeLogical:
-		return n.demandLogical(state, states)
-	case nodeSegment:
-		term := states[n.cmp.term]
-		if term == SegmentUnknown {
-			return MatchUnknown, 1 << n.cmp.term
+		left := n.left.evalToSegment(state)
+		if state.reached {
+			return false
 		}
 
-		return term.Match(), 0
+		if n.isOr == left { // true or ..., false and ...: the left side decides
+			return left
+		}
+
+		return n.right.evalToSegment(state)
+	case nodeSegment:
+		state.reached = true
+
+		return false
 	case nodePresent, nodeCompare:
-		return matchOf(n.eval(state)), 0
+		return n.eval(state)
 	}
 
-	return MatchUnknown, 0
+	return false
+}
+
+// evalMatch is eval for the second pass of a rule with segment terms: three-valued, left to right. The right side of
+// "and" and "or" is evaluated when the left side does not decide the result, an unknown left side included
+// ("unknown or x" evaluates x, "unknown and x" evaluates x, as Kleene's logic needs it), and is not evaluated when
+// it does ("true or x", "false and x"), as eval does.
+func (n *node) evalMatch(state *evalState, states []SegmentState) Match {
+	switch n.kind {
+	case nodeParen:
+		result := n.left.evalMatch(state, states)
+		if n.not {
+			return result.Not()
+		}
+
+		return result
+	case nodeLogical:
+		decisive, neutral := MatchNo, MatchYes // and
+		if n.isOr {
+			decisive, neutral = MatchYes, MatchNo
+		}
+
+		left := n.left.evalMatch(state, states)
+		if left == decisive {
+			return decisive
+		}
+
+		right := n.right.evalMatch(state, states)
+		if right == decisive {
+			return decisive
+		}
+
+		if left == neutral && right == neutral {
+			return neutral
+		}
+
+		return MatchUnknown
+	case nodeSegment:
+		return states[n.cmp.term].Match()
+	case nodePresent, nodeCompare:
+		return matchOf(n.eval(state))
+	}
+
+	return MatchUnknown
 }
 
 func (n *compareNode) setRight(state *evalState) {

@@ -36,6 +36,8 @@ type Service struct {
 	scheduled scheduledMemo
 	// compiled memoizes the compiled form of the queries, see compiledQuery.
 	compiled sync.Map // map[string]*compiledQuery
+	// segmentQueries holds the compiled segment queries of the validated rules, see segmentQueries.
+	segmentQueries segmentQueries
 }
 
 // ServiceOption customizes the Service that NewService creates.
@@ -96,6 +98,7 @@ func (s *Service) Close() {
 	s.nikunjy.reset()
 	s.scheduled.entries.Clear()
 	s.compiled.Clear()
+	s.segmentQueries.reset()
 }
 
 // evaluationDate is the date of an evaluation: the currentDateTime of the context, or the clock.

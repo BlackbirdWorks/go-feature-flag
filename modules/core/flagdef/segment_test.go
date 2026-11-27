@@ -25,6 +25,7 @@ const (
 	keyAlice         = "alice"
 	keyBob           = "bob"
 	planPro          = "pro"
+	planFree         = "free"
 	segBeta          = "beta"
 	segChurned       = "churned"
 	keyCarol         = "carol"
@@ -343,7 +344,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 			name:          "and: false attribute decides, store down, onError match",
 			query:         nikunjyPlanAnd,
 			key:           keyAlice,
-			plan:          "free",
+			plan:          planFree,
 			provider:      failingProvider{},
 			onError:       new("match"),
 			wantVariant:   variantOff,
@@ -354,7 +355,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 			name:          "json and: false attribute decides, store down, onError match",
 			query:         jsonPlanAnd,
 			key:           keyAlice,
-			plan:          "free",
+			plan:          planFree,
 			provider:      failingProvider{},
 			onError:       new("match"),
 			wantVariant:   variantOff,

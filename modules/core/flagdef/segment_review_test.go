@@ -2,6 +2,7 @@ package flagdef_test
 
 import (
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -115,6 +116,14 @@ func TestSegmentOperandErrorsAreOnlyReportedWhenReached(t *testing.T) {
 		jsonAnd = `{"and": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, ` +
 			`{"map": [{"var": "targetingKey"}, {"var": ""}]}]}`
 		errorLog = "error while evaluating"
+
+		// nested, with a decisive operand after: the error of the inner operand is the error of the rule
+		nestedOr = `(targetingKey in segment("beta") or user.id eq "staff") or plan eq "pro"`
+		//nolint:lll // a JsonLogic document on one line
+		nestedJSONOr = `{"or": [{"or": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, {"map": [{"var": "targetingKey"}, {"var": ""}]}]}, {"==": [{"var": "plan"}, "pro"]}]}`
+		nestedAnd    = `(targetingKey in segment("beta") and user.id eq "staff") and plan eq "pro"`
+		//nolint:lll // a JsonLogic document on one line
+		nestedJSONAnd = `{"and": [{"and": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, {"map": [{"var": "targetingKey"}, {"var": ""}]}]}, {"==": [{"var": "plan"}, "pro"]}]}`
 	)
 
 	tests := []struct {
@@ -124,6 +133,58 @@ func TestSegmentOperandErrorsAreOnlyReportedWhenReached(t *testing.T) {
 		wantVariant string
 		wantLog     string
 	}{
+		{
+			name:        "nested rules or: a member never reads the operand",
+			query:       nestedOr,
+			key:         keyAlice,
+			wantVariant: variantOn,
+		},
+		{
+			name:        "nested rules or: a non member reaches the error",
+			query:       nestedOr,
+			key:         keyBob,
+			wantVariant: variantOff,
+			wantLog:     errorLog,
+		},
+		{
+			name:        "nested rules and: a non member never reads the operand",
+			query:       nestedAnd,
+			key:         keyBob,
+			wantVariant: variantOff,
+		},
+		{
+			name:        "nested rules and: a member reaches the error",
+			query:       nestedAnd,
+			key:         keyAlice,
+			wantVariant: variantOff,
+			wantLog:     errorLog,
+		},
+		{
+			name:        "nested jsonlogic or: a member never reads the operand",
+			query:       nestedJSONOr,
+			key:         keyAlice,
+			wantVariant: variantOn,
+		},
+		{
+			name:        "nested jsonlogic or: a non member reaches the error",
+			query:       nestedJSONOr,
+			key:         keyBob,
+			wantVariant: variantOff,
+			wantLog:     errorLog,
+		},
+		{
+			name:        "nested jsonlogic and: a non member never reads the operand",
+			query:       nestedJSONAnd,
+			key:         keyBob,
+			wantVariant: variantOff,
+		},
+		{
+			name:        "nested jsonlogic and: a member reaches the error",
+			query:       nestedJSONAnd,
+			key:         keyAlice,
+			wantVariant: variantOff,
+			wantLog:     errorLog,
+		},
 		{name: "rules or: a member never reads the operand", query: rulesOr, key: keyAlice, wantVariant: variantOn},
 		{
 			name:        "rules or: a non member reaches the error",
@@ -179,7 +240,8 @@ func TestSegmentOperandErrorsAreOnlyReportedWhenReached(t *testing.T) {
 			flag := onOffFlag(queryRule("r", tt.query))
 			require.NoError(t, flag.IsValid(svc))
 
-			evalCtx := ffcontext.NewEvaluationContextBuilder(tt.key).AddCustom(ownedUserKey, "not-an-object").Build()
+			evalCtx := ffcontext.NewEvaluationContextBuilder(tt.key).
+				AddCustom(ownedUserKey, "not-an-object").AddCustom("plan", planPro).Build()
 			_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: rec})
 
 			assert.Equal(t, tt.wantVariant, details.Variant)
@@ -198,6 +260,35 @@ type userID struct {
 	ID string `json:"id"`
 }
 
+type scored struct {
+	ID    string  `json:"id"`
+	Score float64 `json:"score"`
+}
+
+type hiddenFields struct {
+	id      string
+	Skipped string `json:"-"`
+	Renamed string `json:"uid"`
+}
+
+type base struct {
+	ID string `json:"id"`
+}
+
+type embeds struct{ base }
+
+type embedsPointer struct{ *base }
+
+type withPointer struct {
+	User *userID `json:"user"`
+}
+
+type numbered struct {
+	N int64 `json:"n"`
+}
+
+type userName string
+
 type profile struct {
 	User userID `json:"user"`
 }
@@ -205,7 +296,7 @@ type profile struct {
 func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 	t.Parallel()
 
-	members := map[string][]string{segIDs: {keyAlice}}
+	members := map[string][]string{segIDs: {keyAlice, "9007199254740993"}}
 
 	tests := []struct {
 		attr        any
@@ -245,6 +336,61 @@ func TestSegmentAttributesOfTypedObjects(t *testing.T) {
 			attrName:    ownedUserKey,
 			path:        pathUserID,
 			wantVariant: variantOff,
+		},
+		{
+			name: "NaN in a sibling field does not matter", attr: scored{ID: keyAlice, Score: math.NaN()},
+			attrName: ownedUserKey, path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "an unexported field is missing", attr: hiddenFields{id: keyAlice}, attrName: ownedUserKey,
+			path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a field tagged json dash is missing", attr: hiddenFields{Skipped: keyAlice}, attrName: ownedUserKey,
+			path: "user.Skipped", wantVariant: variantOff,
+		},
+		{
+			name:        "a renamed field is read by its json name",
+			attr:        hiddenFields{Renamed: keyAlice},
+			attrName:    ownedUserKey,
+			path:        "user.uid",
+			wantLookups: [][]string{{lookupIDsAlice}},
+			wantVariant: variantOn,
+		},
+		{
+			name:        "a renamed field is not read by its Go name",
+			attr:        hiddenFields{Renamed: keyAlice},
+			attrName:    ownedUserKey,
+			path:        "user.Renamed",
+			wantVariant: variantOff,
+		},
+		{
+			name: "an embedded struct is promoted", attr: embeds{base: base{ID: keyAlice}}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "an embedded pointer is promoted", attr: embedsPointer{base: &base{ID: keyAlice}},
+			attrName: ownedUserKey, path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "a nil embedded pointer is missing", attr: embedsPointer{}, attrName: ownedUserKey,
+			path: pathUserID, wantVariant: variantOff,
+		},
+		{
+			name: "a nil pointer in the middle of the path is missing", attr: withPointer{}, attrName: "profile",
+			path: "profile.user.id", wantVariant: variantOff,
+		},
+		{
+			name: "a named string type", attr: map[string]userName{"id": keyAlice}, attrName: ownedUserKey,
+			path: pathUserID, wantLookups: [][]string{{lookupIDsAlice}}, wantVariant: variantOn,
+		},
+		{
+			name: "an integer above 2^53 is exact", attr: numbered{N: 9007199254740993}, attrName: ownedUserKey,
+			path: "user.n", wantLookups: [][]string{{"ids:9007199254740993"}}, wantVariant: variantOn,
+		},
+		{
+			name: "a list is not an identifier", attr: map[string]any{"id": []string{keyAlice}}, attrName: ownedUserKey,
+			path: pathUserID, wantVariant: variantOff,
 		},
 		{
 			name: "a scalar where an object is expected", attr: 42, attrName: ownedUserKey, path: pathUserID,
@@ -333,4 +479,69 @@ func TestSegmentErrorOffsetIsInTheQueryTheEngineParses(t *testing.T) {
 	err := onOffFlag(queryRule("r", query)).IsValid(flagdef.NewService())
 	require.ErrorIs(t, err, flagdef.ErrInvalidSegment)
 	assert.Contains(t, err.Error(), "at offset "+strconv.Itoa(strings.Index(joined, "Bad")))
+}
+
+func TestSegmentOperandErrorBeforeTheFirstSegmentIsTheErrorOfTheRule(t *testing.T) {
+	t.Parallel()
+
+	queries := map[string]string{
+		formatNikunjy: `user.id eq "staff" or targetingKey in segment("beta")`,
+		formatJSON: `{"or": [{"map": [{"var": "targetingKey"}, {"var": ""}]}, ` +
+			`{"inSegment": [{"var": "targetingKey"}, "beta"]}]}`,
+	}
+
+	for format, query := range queries {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			var buf syncBuffer
+
+			svc := flagdef.NewService(flagdef.WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
+			rec := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})}
+			flag := onOffFlag(queryRule("r", query))
+			require.NoError(t, flag.IsValid(svc))
+
+			evalCtx := ffcontext.NewEvaluationContextBuilder(keyAlice).AddCustom(ownedUserKey, "not-an-object").Build()
+			_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: rec})
+
+			assert.Equal(t, variantOff, details.Variant, "the member does not match: the rule fails first")
+			assert.Empty(t, rec.calls, "the segment is never reached, nothing is looked up")
+			assert.Contains(t, buf.String(), "error while evaluating")
+		})
+	}
+}
+
+// An unknown term does not stop the evaluation and an error is not an unknown result: the operand after an unknown
+// term is read, and when it fails the rule fails, whatever onError says.
+func TestSegmentUnknownTermDoesNotHideAnOperandError(t *testing.T) {
+	t.Parallel()
+
+	queries := map[string]string{
+		formatNikunjy: `targetingKey in segment("beta") or user.id eq "staff"`,
+		formatJSON: `{"or": [{"inSegment": [{"var": "targetingKey"}, "beta"]}, ` +
+			`{"map": [{"var": "targetingKey"}, {"var": ""}]}]}`,
+	}
+
+	for format, query := range queries {
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			svc := flagdef.NewService()
+			rule := queryRule("r", query)
+			rule.OnError = new(ruleOnErrorMatch)
+			flag := onOffFlag(rule)
+			require.NoError(t, flag.IsValid(svc))
+
+			evalCtx := ffcontext.NewEvaluationContextBuilder(keyAlice).AddCustom(ownedUserKey, "not-an-object").Build()
+			_, details := flag.Value("f", evalCtx, flagdef.Context{Service: svc, Segments: failingProvider{}})
+
+			assert.Equal(
+				t,
+				variantOff,
+				details.Variant,
+				"an error is not an unknown result: onError match does not apply",
+			)
+			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
+		})
+	}
 }

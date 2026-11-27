@@ -310,37 +310,63 @@ func (r *Rule) evaluateJSONLogicSegments(compiled *compiledQuery, queryCtx *quer
 	return r.matches(match)
 }
 
-// matchDemand evaluates the node three-valued, like the nikunjy evaluation, and reports the terms that an unknown
-// result depends on (see parser.Evaluator.ProcessSegmentsDemand): the operands of "and" and "or" after the one that
-// decides the result are not evaluated.
-func (n *jlNode) matchDemand(
-	queryCtx *queryContext,
-	states []parser.SegmentState,
-	decide bool,
-) (parser.Match, uint32, error) {
+// plain is the first pass of a JsonLogic rule with segment terms (see queryContext.resolveSegments): two valued, left
+// to right, with the short circuit of "and" and "or", until the first segment term (reached).
+func (n *jlNode) plain(queryCtx *queryContext) (bool, bool, error) {
 	switch n.kind {
 	case jlTerm:
-		if states[n.term] == parser.SegmentUnknown {
-			return parser.MatchUnknown, 1 << n.term, nil
-		}
-
-		return states[n.term].Match(), 0, nil
+		return false, true, nil
 	case jlAnd, jlOr:
-		return n.matchLogical(queryCtx, states, decide)
-	case jlNot, jlTruthy:
-		child, demand, err := n.children[0].matchDemand(queryCtx, states, decide)
-		if err != nil || n.kind == jlTruthy {
-			return child, demand, err
+		decisive := n.kind == jlOr // true decides an or, false an and
+
+		for _, child := range n.children {
+			value, reached, err := child.plain(queryCtx)
+			if err != nil || reached {
+				return false, reached, err
+			}
+
+			if value == decisive {
+				return decisive, false, nil
+			}
 		}
 
-		return child.Not(), demand, nil
+		return !decisive, false, nil
+	case jlNot, jlTruthy:
+		value, reached, err := n.children[0].plain(queryCtx)
+		if err != nil || reached {
+			return false, reached, err
+		}
+
+		return value == (n.kind == jlTruthy), false, nil
 	case jlLeaf:
 		match, err := n.matchLeaf(queryCtx)
 
-		return match, 0, err
+		return match == parser.MatchYes, false, err
 	}
 
-	return parser.MatchUnknown, 0, nil
+	return false, false, nil
+}
+
+// match is the second pass: the whole rule, left to right, three-valued, with the answers. The operands of "and" and
+// "or" after the one that decides the result are not evaluated; an unknown operand does not decide it.
+func (n *jlNode) match(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, error) {
+	switch n.kind {
+	case jlTerm:
+		return states[n.term].Match(), nil
+	case jlAnd, jlOr:
+		return n.matchLogical(queryCtx, states)
+	case jlNot, jlTruthy:
+		child, err := n.children[0].match(queryCtx, states)
+		if err != nil || n.kind == jlTruthy {
+			return child, err
+		}
+
+		return child.Not(), nil
+	case jlLeaf:
+		return n.matchLeaf(queryCtx)
+	}
+
+	return parser.MatchUnknown, nil
 }
 
 // matchLeaf evaluates a part of the query that has no segment term with the JsonLogic library.
@@ -362,11 +388,7 @@ func (n *jlNode) matchLeaf(queryCtx *queryContext) (parser.Match, error) {
 	return parser.MatchNo, nil
 }
 
-func (n *jlNode) matchLogical(
-	queryCtx *queryContext,
-	states []parser.SegmentState,
-	decide bool,
-) (parser.Match, uint32, error) {
+func (n *jlNode) matchLogical(queryCtx *queryContext, states []parser.SegmentState) (parser.Match, error) {
 	decisive, neutral := parser.MatchNo, parser.MatchYes // and
 	if n.kind == jlOr {
 		decisive, neutral = parser.MatchYes, parser.MatchNo
@@ -374,29 +396,20 @@ func (n *jlNode) matchLogical(
 
 	result := neutral
 
-	var demand uint32
-
 	for _, child := range n.children {
-		match, childDemand, err := child.matchDemand(queryCtx, states, decide)
+		match, err := child.match(queryCtx, states)
 		if err != nil {
-			if decide && demand != 0 {
-				// an earlier operand is unknown and could decide the result before this one is read: ask about
-				// it first, the evaluation that follows the lookups reports the error if it is still reached
-				return parser.MatchUnknown, demand, nil
-			}
-
-			return parser.MatchUnknown, 0, err
+			return parser.MatchUnknown, err
 		}
 
 		if match == decisive {
-			return decisive, 0, nil
+			return decisive, nil
 		}
 
 		if match == parser.MatchUnknown {
 			result = parser.MatchUnknown
-			demand |= childDemand
 		}
 	}
 
-	return result, demand, nil
+	return result, nil
 }
