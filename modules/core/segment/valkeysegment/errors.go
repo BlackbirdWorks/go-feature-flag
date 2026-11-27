@@ -61,11 +61,13 @@ var (
 	// ErrInit is wrapped, with the sentinel of the class, by the error of Init.
 	ErrInit = errors.New("valkey segment: init failed")
 
-	errNegativeTimeout = errors.New("timeout is negative")
-	errNegativeMaxID   = errors.New("max id bytes is negative")
-	errInvalidMissing  = errors.New("missing key must be unknown or notMember")
-	errInvalidName     = errors.New("invalid segment name")
-	errInvalidLayout   = errors.New("layout must be set or keys")
+	errNegativeTimeout   = errors.New("timeout is negative")
+	errNegativeMaxID     = errors.New("max id bytes is negative")
+	errInvalidMissing    = errors.New("missing key must be unknown or notMember")
+	errInvalidName       = errors.New("invalid segment name")
+	errNegativeBlocking  = errors.New("blocking pipeline is negative")
+	errInvalidPipelining = errors.New("pipelining must be always, auto or off")
+	errInvalidLayout     = errors.New("layout must be set or keys")
 )
 
 // LookupError is the error of a call that could not answer all its lookups. It holds the class and the counts only.
