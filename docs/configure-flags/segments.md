@@ -4,6 +4,18 @@
 
 A segment is a named set of identifiers (user ids, emails, account ids) that targeting rules can test an attribute against. The members are not written in the flag file, so a large audience does not slow down loading flags, and the flags do not change when the audience does.
 
+There are two kinds of segment, chosen by the `type` of the segment definition:
+
+| | [Static segment](segments-static.md) (`file`) | [Dynamic segment](segments-dynamic.md) (`redis`, `valkey`) |
+|---|---|---|
+| Where the members live | in the memory of the process, loaded from a member file | in the store (Redis or Valkey); never copied whole |
+| Memory use | grows with the list | bounded cache of recent answers, when the resolver is used |
+| Freshness | as of the last load of the file | as of the last lookup (cache TTL, when the resolver is used) |
+| Cost of a lookup | a hash lookup in memory | one batched call to the store for the lookups of a rule (one round trip on a single node), plus the cache when the resolver is used |
+| Use it for | small, rarely changing lists | large or fast changing audiences |
+
+The rule syntax, the three answers and the failure policy on this page are the same for both kinds.
+
 ```yaml
 beta-feature:
   variations:
@@ -18,7 +30,7 @@ beta-feature:
 ```
 
 > [!NOTE]
-> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. Looking members up in Redis or Valkey and the relay proxy settings that define segments are not available yet: they will come with the segment providers and the relay proxy wiring. Until then segments are available to the Go module (see [Use segments in the Go module](#use-segments-in-the-go-module)).
+> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. The relay proxy settings that define segments, and looking members up in a store from the relay proxy, are not available yet: the relay wiring is tracked in issue 16. Go applications can use the dynamic providers today (see [Segments - dynamic](segments-dynamic.md)) and the static ones (see [Use segments in the Go module](#use-segments-in-the-go-module)).
 
 ## Syntax
 
@@ -168,7 +180,7 @@ client, err := ffclient.New(&ffclient.Config{
 })
 ```
 
-- `segment.Definition` has a `Name`, a `Type` (`file`, `redis` for [Segments in Redis](segments-redis.md), or `valkey`) and an `OnError`. It never holds members.
+- `segment.Definition` has a `Name`, a `Type` (`file` for a static segment, `redis` or `valkey` for a dynamic segment) and an `OnError`. It never holds members.
 - A `segment.Provider` answers `Contains(ctx, []segment.Lookup) error`. All the lookups of a rule are sent in one call, so a store can answer them in one round trip. A lookup the provider cannot answer stays unknown; when it returns an error, the lookups that it answered before keep their answers and the others are unknown, whether the error comes from the store or from the end of the request context during the call (a provider that panics is not trusted: all are unknown).
 - A provider can fail in four ways, and all are the same to the engine: it returns an error, it panics (only the type of the panic value is logged), it leaves a lookup untouched, or it sets a state that is not one of the three constants. The lookups that were not answered with a member or a non member are then unknown (all of them after a panic), and the evaluation reports `STORE_ERROR`; the rule is evaluated with the answers it has, so an answer that decides the rule still decides it. A request context that has ended before the call is the same, without a call; one that ends during the call is an error of the provider like another, and the answers given before keep their value.
 - `segment.NewMemoryProvider` holds the members in memory as hash sets. It serves the `file` type and tests. `segment.ReadMemberSet` reads a member file (one value per line; a UTF-8 byte order mark, blanks, carriage returns and blank lines are ignored, duplicates are one member) straight into a set, bounded by `segment.Limits` (rows and bytes, with defaults), and `segment.NewMemoryProviderFromSets` builds a provider from the sets.
@@ -181,6 +193,6 @@ client, err := ffclient.New(&ffclient.Config{
 
 ## What is not available yet
 
-- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments in Redis](segments-redis.md)).
+- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments - dynamic](segments-dynamic.md)).
 - The `segments` setting of the relay proxy, the segment lookups on the relay proxy evaluation endpoints, the `semaphore_segmentStatus` metadata, the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
 - Tools to import and swap members.
