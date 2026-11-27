@@ -90,7 +90,8 @@ func evalCases() []equivCase {
 		ofrep("ofrep json object", "json-flag", plain),
 		ofrep("ofrep disabled flag", "disabled-flag", plain),
 		ofrep("ofrep unknown flag", "no-such-flag", plain),
-		ofrep("ofrep targeting key missing", "bool-flag", `{"context":{"tier":"vip"}}`),
+		ofrep("ofrep rule without targeting key", "bool-flag", `{"context":{"tier":"vip"}}`),
+		ofrep("ofrep bucket without targeting key", "bucket-flag", `{"context":{"tier":"vip"}}`),
 		ofrep("ofrep no context", "bool-flag", `{}`),
 		ofrep("ofrep invalid json", "bool-flag", `{`),
 		ofrep("ofrep bucket user 1", "bucket-flag", `{"context":{"targetingKey":"user-1"}}`),
@@ -109,14 +110,16 @@ func evalCases() []equivCase {
 		legacy("legacy bool vip", "bool-flag",
 			`{"evaluationContext":{"key":"u","custom":{"tier":"vip"}},"defaultValue":false}`),
 		legacy("legacy bool default", "bool-flag", `{"evaluationContext":{"key":"u"},"defaultValue":false}`),
-		legacy("legacy wrong type default", "bool-flag", `{"evaluationContext":{"key":"u"},"defaultValue":"text"}`),
+		legacy("legacy default of another type", "bool-flag", `{"evaluationContext":{"key":"u"},"defaultValue":"text"}`),
 		legacy("legacy number", "number-flag",
 			`{"evaluationContext":{"key":"u","custom":{"size":50}},"defaultValue":0}`),
 		legacy("legacy json", "json-flag", `{"evaluationContext":{"key":"u"},"defaultValue":{}}`),
 		legacy("legacy disabled", "disabled-flag", `{"evaluationContext":{"key":"u"},"defaultValue":7}`),
 		legacy("legacy unknown flag", "no-such-flag", `{"evaluationContext":{"key":"u"},"defaultValue":"fallback"}`),
-		legacy("legacy key missing", "bool-flag",
+		legacy("legacy rule without key", "bool-flag",
 			`{"evaluationContext":{"custom":{"tier":"vip"}},"defaultValue":false}`),
+		legacy("legacy bucket without key", "bucket-flag",
+			`{"evaluationContext":{"custom":{"tier":"vip"}},"defaultValue":"x"}`),
 		legacy("legacy invalid body", "bool-flag", `{`),
 		legacy("legacy scheduled over", "scheduled-over-flag", `{"evaluationContext":{"key":"u"},"defaultValue":""}`),
 		post("allflags", pathAllFlags, `{"evaluationContext":{"key":"u","custom":{"tier":"vip"}}}`),
@@ -250,6 +253,10 @@ func TestEquivalence_V1V2(t *testing.T) {
 				require.NotEmpty(t, allow.reason, "an allowance needs its reason")
 			}
 
+			expected, found := expectations()[tt.name]
+			require.True(t, found, "a case needs its expectation")
+			assert.Equal(t, expected.status, status1, "v1 status")
+			assert.Contains(t, string(body1), expected.body, "v1 body")
 			assert.Equal(t, status1, status2, "status")
 
 			for _, name := range contractHeaders() {
@@ -266,4 +273,109 @@ func TestEquivalence_V1V2(t *testing.T) {
 			assert.Equal(t, want, normalized(t, body2, allow.unorderedBody), "body")
 		})
 	}
+}
+
+// expectation is what a case must answer, on both servers: a row that is named for a property (disabled, scheduled,
+// bucket, ...) must show it, so a missing fixture or a changed default fails the row instead of passing as an equal
+// error on both sides.
+type expectation struct {
+	// body is a text that the body contains.
+	body   string
+	status int
+}
+
+func expectations() map[string]expectation {
+	const (
+		notFound = http.StatusNotFound
+		ok       = http.StatusOK
+		bad      = http.StatusBadRequest
+		denied   = http.StatusUnauthorized
+	)
+
+	return map[string]expectation{
+		"ofrep bool vip":                             {`"value":true,"reason":"TARGETING_MATCH","variant":"enabled"`, ok},
+		"ofrep bool default":                         {`"value":false,"reason":"DEFAULT","variant":"disabled"`, ok},
+		"ofrep string":                               {`"value":"alpha","reason":"STATIC"`, ok},
+		"ofrep number rule":                          {`"value":42,"reason":"TARGETING_MATCH","variant":"high"`, ok},
+		"ofrep number default":                       {`"value":1,"reason":"DEFAULT","variant":"low"`, ok},
+		"ofrep json object":                          {`"value":{"items":[1,2],"name":"on","nested":{"deep":true}}`, ok},
+		"ofrep disabled flag":                        {`"value":null,"reason":"DISABLED"`, ok},
+		"ofrep unknown flag":                         {`"errorCode":"FLAG_NOT_FOUND"`, notFound},
+		"ofrep rule without targeting key":           {`"reason":"TARGETING_MATCH"`, ok},
+		"ofrep bucket without targeting key":         {`TARGETING_KEY_MISSING`, bad},
+		"ofrep no context":                           {`"errorCode":"INVALID_CONTEXT"`, bad},
+		"ofrep invalid json":                         {`"errorCode":"INVALID_CONTEXT"`, bad},
+		"ofrep bucket user 1":                        {`"value":"a","reason":"SPLIT","variant":"a"`, ok},
+		"ofrep bucket user 2":                        {`"value":"b","reason":"SPLIT","variant":"b"`, ok},
+		"ofrep bucket user 3":                        {`"value":"b","reason":"SPLIT","variant":"b"`, ok},
+		"ofrep scheduled over":                       {`"value":"new"`, ok},
+		"ofrep scheduled future":                     {`"value":"old"`, ok},
+		"ofrep reserved context keys":                {`"value":true,"reason":"TARGETING_MATCH"`, ok},
+		"ofrep bulk":                                 {`"key":"scheduled-over-flag","value":"new"`, ok},
+		"ofrep bulk no targeting key":                {`"errorCode":"TARGETING_KEY_MISSING"`, ok},
+		"ofrep bulk flag list":                       {`{"flags":[{"key":"bool-flag","value":false`, ok},
+		"ofrep bulk legacy flag list":                {`{"flags":[{"key":"bool-flag","value":false,"reason":"DEFAULT","variant":"disabled","metadata"`, ok},
+		"legacy bool vip":                            {`"variationType":"enabled","failed":false,"version":"","reason":"TARGETING_MATCH"`, ok},
+		"legacy bool default":                        {`"variationType":"disabled","failed":false,"version":"","reason":"DEFAULT"`, ok},
+		"legacy default of another type":             {`"reason":"DEFAULT","errorCode":"","value":false`, ok},
+		"legacy number":                              {`"variationType":"high"`, ok},
+		"legacy json":                                {`"value":{"items":[1,2],"name":"on","nested":{"deep":true}}`, ok},
+		"legacy disabled":                            {`"reason":"DISABLED","errorCode":"","value":7`, ok},
+		"legacy unknown flag":                        {`"failed":true,"version":"","reason":"ERROR","errorCode":"FLAG_NOT_FOUND","value":"fallback"`, ok},
+		"legacy rule without key":                    {`"reason":"TARGETING_MATCH"`, ok},
+		"legacy bucket without key":                  {`TARGETING_KEY_MISSING`, ok},
+		"legacy invalid body":                        {`Bad Request`, bad},
+		"legacy scheduled over":                      {`"variationType":"new"`, ok},
+		"allflags":                                   {`"scheduled-over-flag":{"value":"new"`, ok},
+		"allflags key missing":                       {`"errorCode":"TARGETING_KEY_MISSING"`, ok},
+		"allflags flag list":                         {`"string-flag":{"value":"alpha"`, ok},
+		"flag configuration":                         {`"scheduledRollout"`, ok},
+		"flag configuration subset":                  {`{"flags":{"bool-flag":{"variations"`, ok},
+		"flag configuration invalid":                 {`"errorCode":"INVALID_REQUEST"`, bad},
+		"flag change":                                {`"bool-flag":`, ok},
+		"manifest":                                   {`"key":"bool-flag","type":"boolean","defaultValue":false`, ok},
+		"collector empty":                            {`"ingestedContentCount":0`, ok},
+		"collector events":                           {`"ingestedContentCount":1`, ok},
+		"auth X-API-Key":                             {`"key":"bool-flag"`, ok},
+		"auth bearer":                                {`"key":"bool-flag"`, ok},
+		"auth bearer lower case":                     {`"key":"bool-flag"`, ok},
+		"auth bearer with spaces":                    {`invalid key`, denied},
+		"auth raw authorization":                     {`invalid value in request header`, denied},
+		"auth X-API-Key wins over authorization":     {`"key":"bool-flag"`, ok},
+		"auth bad X-API-Key wins over authorization": {`"message"`, denied},
+		"auth no key":                                {`missing value in request header`, denied},
+		"auth empty key":                             {`missing value in request header`, denied},
+		"auth unknown key":                           {`"message":"Unauthorized"`, denied},
+		"auth unknown bearer":                        {`invalid key`, denied},
+		"auth admin key":                             {`error while getting flagset: flagset not found for API key`, bad},
+		"auth unknown key on bulk":                   {`"message"`, denied},
+		"auth unknown key on legacy eval":            {`"message"`, denied},
+		"auth unknown key on allflags":               {`"message"`, denied},
+		"auth unknown key on flag change":            {`"message":"Unauthorized"`, denied},
+		"auth admin key on flag change":              {`error while getting flagset: flagset not found for API key`, bad},
+		"auth no key on manifest":                    {`missing value in request header`, denied},
+		"refresh admin key":                          {`error while getting flagset: flagset not found for API key`, bad},
+		"refresh user key":                           {`"message":"Unauthorized"`, denied},
+		"refresh unknown key":                        {`"message":"Unauthorized"`, denied},
+	}
+}
+
+// TestEquivalence_ExpectationsCoverTheCases keeps the table of expectations and the table of cases the same list.
+func TestEquivalence_ExpectationsCoverTheCases(t *testing.T) {
+	t.Parallel()
+
+	wants := expectations()
+	names := make([]string, 0, len(wants))
+
+	for _, tt := range allCases() {
+		names = append(names, tt.name)
+	}
+
+	wantNames := make([]string, 0, len(wants))
+	for name := range wants {
+		wantNames = append(wantNames, name)
+	}
+
+	assert.ElementsMatch(t, names, wantNames)
+	assert.Len(t, slices.Compact(slices.Sorted(slices.Values(names))), len(names), "case names are unique")
 }

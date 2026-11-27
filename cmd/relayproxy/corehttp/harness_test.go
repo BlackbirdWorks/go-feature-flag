@@ -52,7 +52,7 @@ bool-flag:
   targeting:
     - {name: vip, query: 'tier eq "vip"', variation: enabled}
   defaultRule: {name: default, variation: disabled}
-  metadata: {team: core}
+  metadata: {team: core, defaultValue: false, description: a boolean}
   trackEvents: true
 string-flag:
   variations: {a: alpha, b: beta}

@@ -61,3 +61,25 @@ func TestAPIKeys_WithoutConfiguration(t *testing.T) {
 		})
 	}
 }
+
+// fixedKeys is a source of keys: one user key, one admin key.
+type fixedKeys struct{}
+
+func (fixedKeys) AuthenticationEnabled() bool { return true }
+
+func (fixedKeys) KeyExists(apiKey string) bool { return apiKey == "user" || apiKey == "admin" }
+
+func (fixedKeys) AdminKeyExists(apiKey string) bool { return apiKey == "admin" }
+
+// TestAPIKeys_FromSource checks that a source answers instead of a configuration.
+func TestAPIKeys_FromSource(t *testing.T) {
+	t.Parallel()
+
+	keys := service.NewAPIKeysFrom(fixedKeys{})
+
+	assert.True(t, keys.AuthenticationEnabled())
+	assert.True(t, keys.KeyExists("user"))
+	assert.False(t, keys.KeyExists("other"))
+	assert.False(t, keys.AdminKeyExists("user"))
+	assert.True(t, keys.AdminKeyExists("admin"))
+}

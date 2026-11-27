@@ -66,6 +66,7 @@ func TestHotPath_AllocationsNotAboveV1(t *testing.T) {
 		base := testing.AllocsPerRun(200, func() { tt.run(baseline, t) })
 		got := testing.AllocsPerRun(200, func() { tt.run(current, t) })
 
+		assert.Positive(t, base, "%s: the measure sees the allocations of the baseline", tt.name)
 		assert.LessOrEqual(t, got, base, "%s: allocations per operation: v2 %v, v1 %v", tt.name, got, base)
 		t.Logf("%-18s v1 %v allocs, v2 %v allocs", tt.name, base, got)
 	}

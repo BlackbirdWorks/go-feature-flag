@@ -198,8 +198,9 @@ func TestServer_FlagSetLifecycle(t *testing.T) {
 	rig.publish(t)
 	rig.poll(t)
 
-	status, _, _ = do(t, http.MethodPost, rig.url+pathOFREPOne+"bool-flag", userCtx, keyHeader(tenantKey))
+	status, _, body = do(t, http.MethodPost, rig.url+pathOFREPOne+"bool-flag", userCtx, keyHeader(tenantKey))
 	assert.Equal(t, http.StatusUnauthorized, status, "a removed flag set answers 401")
+	assert.JSONEq(t, `{"message":"Unauthorized"}`, string(body))
 
 	status, _, _ = do(t, http.MethodPost, rig.url+pathOFREPBulk, userCtx, keyHeader(tenantKey))
 	assert.Equal(t, http.StatusUnauthorized, status)

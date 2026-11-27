@@ -3,6 +3,7 @@ package corehttp
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +43,8 @@ type Adapter struct {
 	// table is the flag set views of the runtime that was last served: a view is made once per flag set, so
 	// resolving a key does not allocate.
 	table atomic.Pointer[viewTable]
+	// rebuild makes the requests that meet a new runtime at the same time build its views once.
+	rebuild sync.Mutex
 }
 
 var (
@@ -106,6 +109,14 @@ func (a *Adapter) AdminKeyExists(apiKey string) bool {
 // the generations, so its view is reused.
 func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*view {
 	prev := a.table.Load()
+	if prev != nil && prev.rt == current {
+		return prev.views
+	}
+
+	a.rebuild.Lock()
+	defer a.rebuild.Unlock()
+
+	prev = a.table.Load()
 	if prev != nil && prev.rt == current {
 		return prev.views
 	}
