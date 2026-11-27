@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -359,24 +361,73 @@ func (r *result) noteClass(class Class) {
 	}
 }
 
+const (
+	// shapeNone is the shape of a reply that is never recovered from a failed pipeline: the probes of Init.
+	shapeNone = -2
+	// shapeInt is the shape of an integer reply that is 0 or 1. A shape of zero or more is a list of that length of
+	// such integers.
+	shapeInt = -1
+)
+
+// validShape tells whether a reply value is the one a command of the shape returns.
+func validShape(val any, shape int) bool {
+	switch {
+	case shape == shapeInt:
+		_, ok := readInt(val)
+
+		return ok
+	case shape >= 0:
+		replies, ok := val.([]any)
+		if !ok || len(replies) != shape {
+			return false
+		}
+
+		for _, reply := range replies {
+			if _, valid := readInt(reply); !valid {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// isTransportErr tells whether err is the end of the connection or of the context: EOF, a reset, a closed or timed
+// out socket, a cancelled or expired context. A parse error or any other protocol error is not.
+func isTransportErr(err error) bool {
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
+		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE):
+		return true
+	}
+
+	_, ok := errors.AsType[net.Error](err)
+
+	return ok
+}
+
 // completed tells whether a command that carries an error got its reply before the pipeline failed. go-redis reads
 // the replies in order: a command read before a transport error keeps its value and no error, the failing command
 // and the ones after it get the error, and at the end of the call go-redis stamps the pipeline error on every
-// command that has none, completed ones included. So a command that has a value and the very error of the
-// pipeline was answered and then stamped. A command whose own reply failed has no value, and a reply that is an
-// error of the store is not the pipeline error of a transport failure.
-func (r *result) completed(cmd *redis.Cmd, err error) bool {
-	return r.execErr != nil && cmd.Val() != nil && errors.Is(err, r.execErr)
+// command that has none, completed ones included. So a reply is kept only when all of these hold: the error of the
+// command is the error of the pipeline, that error is a transport or context error (a parse or protocol error
+// means the stream cannot be trusted, so nothing of the batch is kept), and the value is exactly what the command
+// returns. A command whose own reply failed has a value that is not valid (zero, or a nil list): it is not kept.
+func (r *result) completed(cmd *redis.Cmd, err error, shape int) bool {
+	return r.execErr != nil && errors.Is(err, r.execErr) && isTransportErr(r.execErr) && validShape(cmd.Val(), shape)
 }
 
 // cmdErr returns the error of a command, or the pipeline error when the command has no reply.
-func (r *result) cmdErr(cmd *redis.Cmd) error {
+func (r *result) cmdErr(cmd *redis.Cmd, shape int) error {
 	if cmd == nil {
 		return ErrProtocol
 	}
 
 	err := cmd.Err()
-	if err != nil && !r.completed(cmd, err) {
+	if err != nil && !r.completed(cmd, err, shape) {
 		return fmt.Errorf("valkey segment: reply: %w", err)
 	}
 
@@ -415,6 +466,15 @@ func (r *result) classify(err error) Class {
 	return ClassUnavailable
 }
 
+// boolToInt is 1 for true.
+func boolToInt(flag bool) int {
+	if flag {
+		return 1
+	}
+
+	return 0
+}
+
 // readInt returns the 0 or 1 of an integer reply.
 func readInt(reply any) (int64, bool) {
 	val, ok := reply.(int64)
@@ -448,7 +508,7 @@ func (r *result) checkKey(grp *group) keyCheck {
 		return keyCheck{known: true, exists: true}
 	}
 
-	err := r.cmdErr(grp.exists)
+	err := r.cmdErr(grp.exists, shapeInt)
 	if err != nil {
 		r.noteClass(r.classify(err))
 
@@ -466,7 +526,7 @@ func (r *result) checkKey(grp *group) keyCheck {
 }
 
 func (r *result) readGroup(grp *group, lookups []segment.Lookup) {
-	err := r.cmdErr(grp.members)
+	err := r.cmdErr(grp.members, len(grp.idx)+boolToInt(grp.scripted))
 	if err != nil {
 		r.fail(len(grp.idx), r.classify(err))
 
@@ -529,7 +589,7 @@ func (r *result) assign(grp *group, replies []any, check keyCheck, lookups []seg
 }
 
 func (r *result) readKey(step *keyStep, lookups []segment.Lookup) {
-	err := r.cmdErr(step.cmd)
+	err := r.cmdErr(step.cmd, shapeInt)
 	if err != nil {
 		r.fail(1, r.classify(err))
 
@@ -721,7 +781,7 @@ func (p *Provider) askExists(ctx context.Context, names []string, asked int, out
 			continue
 		}
 
-		cmdErr := res.cmdErr(cmd)
+		cmdErr := res.cmdErr(cmd, shapeInt)
 		if cmdErr != nil {
 			res.fail(1, res.classify(cmdErr))
 
@@ -804,7 +864,7 @@ func (p *Provider) probe(ctx context.Context) error {
 	}
 
 	if len(scripts) > 0 {
-		err = p.probeScripts(ctx, &res, scripts)
+		err = p.probeScripts(&res, scripts)
 		if err != nil {
 			return err
 		}
@@ -818,7 +878,7 @@ func (p *Provider) probe(ctx context.Context) error {
 // initFailure returns the error of Init for the first probe that failed, or nil.
 func (p *Provider) initFailure(res *result, checks []initCheck) error {
 	for _, each := range checks {
-		err := res.cmdErr(each.cmd)
+		err := res.cmdErr(each.cmd, shapeNone)
 		if err == nil {
 			continue
 		}
@@ -838,7 +898,7 @@ func (p *Provider) initFailure(res *result, checks []initCheck) error {
 
 // probeScripts reads the probes of the read-only script commands. When the store refuses them, it probes the plain
 // commands in a second pipeline, and the provider uses those from then on.
-func (p *Provider) probeScripts(ctx context.Context, res *result, readOnly []initCheck) error {
+func (p *Provider) probeScripts(res *result, readOnly []initCheck) error {
 	err := p.initFailure(res, readOnly)
 	if err == nil {
 		p.roScript.Store(true)
@@ -850,17 +910,15 @@ func (p *Provider) probeScripts(ctx context.Context, res *result, readOnly []ini
 		return err
 	}
 
-	callCtx, cancel := p.callContext(ctx)
-	defer cancel()
-
 	pipe := p.client.Pipeline()
+	callCtx := res.callCtx // one timeout of Init for both pipelines
 	plain := []initCheck{
 		{pipe.Do(callCtx, "eval", Script, 1, p.probeSet, probeID), "EVAL"},
 		{pipe.Do(callCtx, "evalsha", ScriptSHA, 1, p.probeSet, probeID), "EVALSHA"},
 	}
 
 	_, execErr := pipe.Exec(callCtx)
-	again := result{ctx: ctx, callCtx: callCtx, execErr: execErr}
+	again := result{ctx: res.ctx, callCtx: callCtx, execErr: execErr}
 
 	err = p.initFailure(&again, plain)
 	if err != nil {

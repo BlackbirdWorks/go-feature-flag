@@ -118,7 +118,7 @@ func (f *fakeStore) cached(sha any) bool {
 
 // cache keeps the script of an EVAL, as a store does.
 func (f *fakeStore) cache(name string, args []any) {
-	if name != "eval" && name != "eval_ro" {
+	if name != "eval" && name != cmdEvalRO {
 		return
 	}
 

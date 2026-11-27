@@ -7,7 +7,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -124,7 +126,7 @@ func TestInit(t *testing.T) {
 		},
 		{
 			name:          "atomic falls back to the plain script commands",
-			store:         &fakeStore{unknown: map[string]bool{"eval_ro": true}},
+			store:         &fakeStore{unknown: map[string]bool{cmdEvalRO: true}},
 			opts:          atomic,
 			wantPipelines: [][]string{roPipe, plainPipe},
 			wantScriptCmd: "evalsha",
@@ -219,6 +221,42 @@ func TestInit(t *testing.T) {
 			assert.True(t, strings.HasPrefix(cmds[len(cmds)-1][0], tt.wantScriptCmd+" "), cmds[len(cmds)-1][0])
 		})
 	}
+}
+
+func TestInitScriptFallbackSharesTheTimeoutOfInit(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu        sync.Mutex
+		deadlines []time.Time
+	)
+
+	store := &fakeStore{
+		unknown: map[string]bool{cmdEvalRO: true},
+		exec: func(ctx context.Context) error {
+			deadline, _ := ctx.Deadline()
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			deadlines = append(deadlines, deadline)
+
+			return nil
+		},
+	}
+	prov := newProvider(t, store, &valkeysegment.Options{
+		Segments: map[string]valkeysegment.SegmentOptions{segBeta: {}}, Atomic: true,
+	})
+
+	require.NoError(t, prov.Init(boundedCtx(t)))
+	require.Len(t, store.commands(), 2, "the read-only probe was refused, so the plain one ran")
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Len(t, deadlines, 2)
+	assert.False(t, deadlines[0].IsZero())
+	assert.Equal(t, deadlines[0], deadlines[1], "one timeout for the whole of Init")
 }
 
 func TestOversizedIDsAreNeverSent(t *testing.T) {

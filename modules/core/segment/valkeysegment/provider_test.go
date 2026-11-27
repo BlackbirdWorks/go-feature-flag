@@ -3,6 +3,7 @@ package valkeysegment_test
 import (
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ const (
 	cmdSMIsMember      = "smismember"
 	cmdExists          = "exists"
 	cmdEval            = "eval"
+	cmdEvalRO          = "eval_ro"
 	flagPrefix         = "flag:"
 	msgProtocol1       = "valkey segment: protocol: 1 of 1 lookups failed"
 	keyBeta            = "semaphore:segment:{beta}"
@@ -38,7 +40,9 @@ const (
 )
 
 var (
-	errDial  = errors.New("dial failed")
+	errDialFailed = errors.New("dial failed")
+	// errDial is a transport failure: a [net.Error], as the failure of a connection is.
+	errDial  = &net.OpError{Op: "dial", Net: "tcp", Err: errDialFailed}
 	errNoRun = errors.New("must not be called")
 )
 
