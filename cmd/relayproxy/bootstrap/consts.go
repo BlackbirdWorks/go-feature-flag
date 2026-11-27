@@ -27,6 +27,7 @@ const (
 	keyMeta = "meta"
 	keyKind = "kind"
 	keyType = "type"
+	keyPath = "path"
 
 	keyConnection        = "connection"
 	keyEndpointURL       = "endpointUrl"

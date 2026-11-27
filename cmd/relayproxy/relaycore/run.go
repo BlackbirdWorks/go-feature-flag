@@ -115,20 +115,31 @@ func (c *Core) Reload(cfg *bootstrap.Config) error {
 // runtime), waits for the state directory to write what it holds, drains the exporters and notifiers until the
 // deadline of ctx, and releases the connections. It is safe to call without Run, and more than once: a later
 // call waits for the first and returns its result. When ctx ends first, Shutdown returns an error that wraps
-// [ErrNotDrained] and the context error, and what did not stop keeps stopping in the background.
+// [ErrNotDrained] and the context error, and what did not stop keeps stopping in the background: a goroutine of
+// the core then releases the state directory and the collector once the loops ended. A later call waits for that
+// cleanup within its own context.
 func (c *Core) Shutdown(ctx context.Context) error {
 	if !c.shutdownStarted.CompareAndSwap(false, true) {
-		select {
-		case <-c.finished:
-			return c.shutdownErr
-		case <-ctx.Done():
-			return fmt.Errorf("%w: %w", ErrNotDrained, context.Cause(ctx))
-		}
+		return c.awaitFirst(ctx)
 	}
 
 	defer close(c.finished)
 
 	c.shutdownErr = c.stopAll(ctx)
+
+	return c.shutdownErr
+}
+
+// awaitFirst is what a later Shutdown does: it waits, within its own context, for the first call and for the
+// cleanup that follows the loops, and returns the result of the first call.
+func (c *Core) awaitFirst(ctx context.Context) error {
+	for _, done := range []<-chan struct{}{c.finished, c.released} {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %w", ErrNotDrained, context.Cause(ctx))
+		}
+	}
 
 	return c.shutdownErr
 }
@@ -164,7 +175,16 @@ func (c *Core) stopAll(ctx context.Context) error {
 	// the state directory and the service belong to the loops: they are closed only after the loops ended
 	if loopsDone {
 		c.release(ctx)
+
+		return errors.Join(errs...)
 	}
+
+	// the loops are still stopping: the cleanup runs once, when they have, in a goroutine of the core. Run closes
+	// runDone, and it was called, since the loops are not done.
+	go func() {
+		<-c.runDone
+		c.release(context.WithoutCancel(ctx))
+	}()
 
 	return errors.Join(errs...)
 }
@@ -172,6 +192,14 @@ func (c *Core) stopAll(ctx context.Context) error {
 // release frees what the core holds besides the loops: the collector, the state directory, the idle connections
 // and the flag service. It runs after the loops ended (or when New failed before they could start).
 func (c *Core) release(ctx context.Context) {
+	c.releaseOnce.Do(func() {
+		defer close(c.released)
+
+		c.releaseAll(ctx)
+	})
+}
+
+func (c *Core) releaseAll(ctx context.Context) {
 	if c.collector != nil && c.registry != nil {
 		c.registry.Unregister(c.collector)
 	}

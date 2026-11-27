@@ -49,6 +49,7 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		registry: deps.Registerer,
 		runDone:  make(chan struct{}),
 		finished: make(chan struct{}),
+		released: make(chan struct{}),
 	}
 
 	err := core.assemble(ctx, cfg, deps)

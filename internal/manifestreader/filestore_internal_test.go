@@ -365,7 +365,7 @@ func TestValidFileKey(t *testing.T) {
 		t.Run(fmt.Sprintf("%q", tt.key), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, validFileKey(tt.key))
+			assert.Equal(t, tt.want, ValidFileKey(tt.key))
 		})
 	}
 }

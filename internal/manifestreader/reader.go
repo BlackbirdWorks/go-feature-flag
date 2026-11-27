@@ -652,7 +652,7 @@ func (r *Reader) noteRoutes(groups []*group) {
 // costs no request, now or in any later round.
 func (r *Reader) localFailure(entry *controlplane.ManifestObject) string {
 	switch {
-	case !validKey(entry.Key):
+	case !ValidKey(entry.Key):
 		return ReasonInvalidKey
 	case entry.Size < 1:
 		return ReasonInvalidSize

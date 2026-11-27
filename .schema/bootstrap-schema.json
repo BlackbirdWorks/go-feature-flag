@@ -1120,13 +1120,15 @@
                     ]
                 },
                 "path": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "\\S"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "type"
+                "type",
+                "path"
             ]
         },
         "KafkaFlush": {
@@ -1550,7 +1552,7 @@
                 },
                 "jitter": {
                     "type": "number",
-                    "maximum": 1,
+                    "exclusiveMaximum": 1,
                     "minimum": 0,
                     "default": 0.1
                 },
@@ -1808,7 +1810,8 @@
                     "type": "string"
                 },
                 "region": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "\\S"
                 },
                 "caBundleFile": {
                     "type": "string"
@@ -1850,7 +1853,8 @@
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "type"
+                "type",
+                "region"
             ]
         },
         "SQSConnection": {

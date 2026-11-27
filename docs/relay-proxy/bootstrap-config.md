@@ -134,10 +134,10 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `connection` | string | required | name of an `s3` connection that sets a `bucket`, or of a `file` connection |
-| `manifest.key` | string | required (or `SEMAPHORE_MANIFEST_KEY`) | object key in the connection's bucket |
+| `manifest.key` | string | required (or `SEMAPHORE_MANIFEST_KEY`) | S3: an object key without a leading slash. File: a clean relative path below the directory (no `./`, no `..`, not absolute) |
 | `manifest.channel` | string | `stable` | the expected channel name, not blank |
-| `manifest.pollInterval` | duration | `60s` | positive; overrides the connection's `poll.interval` |
-| `manifest.jitter` | number | `0.1` | 0 to 1 |
+| `manifest.pollInterval` | duration | `60s` | at least `1s`; overrides the connection's `poll.interval` |
+| `manifest.jitter` | number | `0.1` | 0 up to, not including, 1 |
 | `manifest.maxObjects` | integer | `20000` | 1 or more |
 | `stateDir` | string | none | a directory path |
 
@@ -152,7 +152,7 @@ Settings shared by the AWS types (`s3`, `kinesis`, `sqs`, `redshift`):
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `endpoint` | string | none (the SDK endpoint) | an `http` or `https` URL without credentials, for emulators |
-| `region` | string | none (the SDK chain) | |
+| `region` | string | required for `s3` | non-blank; never read from the environment or the shared config files |
 | `caBundleFile` | string | none (the system roots) | a PEM file of certificate authorities trusted in addition, for TLS emulators and private stores |
 | `credentials.type` | string | `chain` | `chain`, `static`, `assumeRole`, `webIdentity` |
 | `credentials.accessKeyId` | secret | | `static` only, required |

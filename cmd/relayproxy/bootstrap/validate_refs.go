@@ -5,6 +5,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 // commonExporterKeys returns the keys that are valid for every exporter kind.
@@ -19,7 +22,7 @@ type exporterSpec struct {
 
 // exporterKind returns the keys of an exporter kind and the connection type it needs.
 func exporterKind(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", keyPath}
 
 	switch kind {
 	case ExporterFile:
@@ -45,7 +48,7 @@ func exporterKind(kind string) (exporterSpec, bool) {
 
 // exporterKindCloud is the second half of [exporterKind].
 func exporterKindCloud(kind string) (exporterSpec, bool) {
-	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", "path"}
+	formats := []string{"filename", "csvTemplate", keyFormat, "parquetCompressionCodec", keyPath}
 
 	switch kind {
 	case ExporterKafka:
@@ -272,9 +275,38 @@ func (v *validator) controlPlane() {
 		v.failf("controlPlane.manifest.channel", ErrInvalidValue, "expected a channel name")
 	}
 
-	v.jitter("controlPlane.manifest.jitter", *manifest.Jitter)
+	if !(*manifest.Jitter >= 0 && *manifest.Jitter < manifestreader.MaxJitterFraction) {
+		v.failf("controlPlane.manifest.jitter", ErrInvalidValue, "expected a number from 0 up to, not including, %v",
+			manifestreader.MaxJitterFraction)
+	}
+
+	if time.Duration(*manifest.PollInterval) < manifestreader.MinPollInterval {
+		v.failf(
+			"controlPlane.manifest.pollInterval",
+			ErrInvalidValue,
+			"expected at least %s",
+			manifestreader.MinPollInterval,
+		)
+	}
+
+	v.manifestKey(conn, ok, manifest.Key)
 
 	if *manifest.MaxObjects < 1 {
 		v.failf("controlPlane.manifest.maxObjects", ErrInvalidValue, "expected a positive integer")
+	}
+}
+
+// manifestKey checks the manifest key against the rules of the store of the control plane connection: a clean
+// relative path below the directory of a file connection, an absolute bucket key (no leading slash) for S3.
+func (v *validator) manifestKey(conn Connection, found bool, key string) {
+	if !found || strings.TrimSpace(key) == "" {
+		return
+	}
+
+	switch {
+	case conn.File != nil && !manifestreader.ValidFileKey(key):
+		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a clean relative path below the directory")
+	case conn.S3 != nil && !manifestreader.ValidKey(key):
+		v.failf("controlPlane.manifest.key", ErrInvalidValue, "expected a bucket key without a leading slash")
 	}
 }

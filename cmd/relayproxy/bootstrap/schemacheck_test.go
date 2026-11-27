@@ -257,6 +257,10 @@ func checkRange(path string, schema schemaObject, value any) []string {
 		out = append(out, path+": above the maximum")
 	}
 
+	if exclusive, found := schema["exclusiveMaximum"].(float64); found && number >= exclusive {
+		out = append(out, path+": at or above the exclusive maximum")
+	}
+
 	return out
 }
 

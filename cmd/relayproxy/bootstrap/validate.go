@@ -296,6 +296,7 @@ func (v *validator) connection(path string, conn Connection) {
 	}
 
 	if s := conn.S3; s != nil {
+		v.require(path+".region", strings.TrimSpace(s.Region) != "", "")
 		v.jitter(path+".poll.jitter", *s.Poll.Jitter)
 		v.oneOf(path+".requestChecksumCalculation", s.RequestChecksumCalculation, ChecksumWhenSupported,
 			ChecksumWhenRequired)

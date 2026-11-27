@@ -62,7 +62,8 @@ func twoSets(t *testing.T, put func(string, []byte)) *publication {
 func TestNewErrors(t *testing.T) {
 	t.Parallel()
 
-	const awsDoc = "version: 2\nconnections:\n  s3c:\n    type: s3\n    bucket: b\n    credentials:\n" +
+	const awsDoc = "version: 2\nconnections:\n  s3c:\n    type: s3\n    region: us-east-1\n    bucket: b\n" +
+		"    credentials:\n" +
 		"      type: static\n      accessKeyId: {fromEnv: AK}\n      secretAccessKey: {fromEnv: SK}\n"
 
 	env := map[string]string{"AK": canaryKey, "SK": canarySecret}
@@ -120,7 +121,10 @@ func TestNewErrors(t *testing.T) {
 			build: func(t *testing.T) *bootstrap.Config {
 				t.Helper()
 
-				return parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
+				cfg := parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
+				cfg.Connections["s3c"].S3.Region = ""
+
+				return cfg
 			},
 			env:      env,
 			wantErr:  connection.ErrInvalidSpec,
@@ -131,10 +135,7 @@ func TestNewErrors(t *testing.T) {
 			build: func(t *testing.T) *bootstrap.Config {
 				t.Helper()
 
-				cfg := parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
-				cfg.Connections["s3c"].S3.Region = "us-east-1"
-
-				return cfg
+				return parse(t, awsDoc+controlDoc("s3c", ""), secretOptions(env))
 			},
 			env:      nil,
 			wantErr:  bootstrap.ErrSecretUnresolved,
@@ -328,12 +329,15 @@ func TestLifecycle(t *testing.T) {
 		require.NoError(t, harness.core.Shutdown(t.Context()))
 	})
 
-	t.Run("shutdown is bounded by its context", func(t *testing.T) {
+	t.Run("shutdown is bounded by its context and cleans up after the loops", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
+		dir, state := t.TempDir(), filepath.Join(t.TempDir(), "state")
 		opts := secretOptions(map[string]string{hookEnv: deadURL})
 		deps, harness := newDeps(t, opts)
+		registry := prometheus.NewRegistry()
+		deps.Registerer = registry
+
 		twoSets(t, filePut(t, dir)).publish()
 
 		// the engine is held in its first round, so the loops cannot end
@@ -351,7 +355,7 @@ func TestLifecycle(t *testing.T) {
 		}
 
 		harness.wantShutdownErr = relaycore.ErrNotDrained
-		harness.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+		harness.start(t, parse(t, fileDoc(dir, state), opts), deps)
 		// registered after the start, so it runs before the shutdown of the cleanup: the gate opens first
 		t.Cleanup(func() { open.Do(func() { close(release) }) })
 
@@ -364,15 +368,38 @@ func TestLifecycle(t *testing.T) {
 		expired, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		err := harness.core.Shutdown(expired)
+		label := t.Name()
+
+		var err error
+
+		pprof.Do(t.Context(), pprof.Labels("relaycore-test", label), func(context.Context) {
+			err = harness.core.Shutdown(expired)
+		})
+
 		require.ErrorIs(t, err, relaycore.ErrNotDrained)
 		require.ErrorIs(t, err, context.Canceled)
+
+		// the loops are held: the state directory is still locked and the collector registered
+		_, err = relaycore.New(t.Context(), parse(t, fileDoc(dir, state), opts), deps)
+
+		var built *relaycore.BuildError
+
+		require.ErrorAs(t, err, &built)
+		assert.Equal(t, "observability.metrics", built.Path)
 
 		open.Do(func() { close(release) })
 		harness.awaitRun(t)
 
-		// the first result stands for every later call
+		// the first result stands for every later call, which waits for the cleanup within its own context
 		require.ErrorIs(t, harness.core.Shutdown(t.Context()), relaycore.ErrNotDrained)
+		assert.Empty(t, settledGoroutines("relaycore-test", label), "the cleanup goroutine ended")
+
+		// the cleanup ran: the registry takes a new collector, and the state directory opens again
+		again, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, state), opts), deps)
+		require.NoError(t, err)
+
+		assert.Empty(t, again.Status().StateDirDisabled)
+		require.NoError(t, again.Shutdown(t.Context()))
 	})
 }
 
@@ -484,4 +511,35 @@ func exporterNames(status *events.Status) []string {
 	}
 
 	return names
+}
+
+// Every control plane setting that bootstrap accepts builds: the boundaries of the interval and of the jitter, and
+// the shapes of the manifest key.
+func TestNewBuildsEveryAcceptedBoundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		manifest string
+	}{
+		{name: "interval of one second", manifest: "key: m.json, pollInterval: 1s"},
+		{name: "jitter zero", manifest: "key: m.json, jitter: 0"},
+		{name: "jitter just below one", manifest: "key: m.json, jitter: 0.99"},
+		{name: "nested key", manifest: "key: manifests/prod/stable.yaml"},
+		{name: "defaults", manifest: "key: m.json"},
+	}
+
+	for _, tcase := range tests {
+		t.Run(tcase.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
+				"controlPlane: {connection: " + connName + ", manifest: {" + tcase.manifest + "}}\n"
+
+			core, err := relaycore.New(t.Context(), parse(t, doc, secretOptions(nil)), &relaycore.Deps{})
+			require.NoError(t, err)
+			require.NoError(t, core.Shutdown(t.Context()))
+		})
+	}
 }

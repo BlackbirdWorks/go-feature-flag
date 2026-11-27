@@ -23,6 +23,7 @@ const canaryDoc = `version: 2
 connections:
   dev:
     type: s3
+    region: us-east-1
     bucket: dev
     credentials:
       type: static
@@ -117,26 +118,28 @@ func TestCanaryInErrorPaths(t *testing.T) {
 		wantPath string
 	}{
 		{
-			name: "string where a mapping is expected",
-			doc:  "connections:\n  a: {type: s3, credentials: " + canary + "}\n", wantPath: "connections.a.credentials",
+			name:     "string where a mapping is expected",
+			doc:      "connections:\n  a: {type: s3, region: r, credentials: " + canary + "}\n",
+			wantPath: "connections.a.credentials",
 		},
 		{
-			name: "mapping where a string is expected",
-			doc:  "connections:\n  a: {type: s3, bucket: {k: " + canary + "}}\n", wantPath: tcConnectionsABucket,
+			name:     "mapping where a string is expected",
+			doc:      "connections:\n  a: {type: s3, region: r, bucket: {k: " + canary + "}}\n",
+			wantPath: tcConnectionsABucket,
 		},
 		{
 			name:     "text where an integer is expected",
-			doc:      "connections:\n  a: {type: s3, retry: {maxAttempts: " + canary + "}}\n",
+			doc:      "connections:\n  a: {type: s3, region: r, retry: {maxAttempts: " + canary + "}}\n",
 			wantPath: tcConnectionsARetryMaxattempts,
 		},
 		{
 			name:     "text where a duration is expected",
-			doc:      "connections:\n  a: {type: s3, timeouts: {connect: " + canary + "}}\n",
+			doc:      "connections:\n  a: {type: s3, region: r, timeouts: {connect: " + canary + "}}\n",
 			wantPath: "connections.a.timeouts.connect",
 		},
 		{
 			name:     "text as credentials type",
-			doc:      "connections:\n  a: {type: s3, credentials: {type: " + canary + "}}\n",
+			doc:      "connections:\n  a: {type: s3, region: r, credentials: {type: " + canary + "}}\n",
 			wantPath: "connections.a.credentials.type",
 		},
 		{
@@ -156,7 +159,7 @@ func TestCanaryInErrorPaths(t *testing.T) {
 		},
 		{
 			name:     "userinfo in the endpoint",
-			doc:      "connections:\n  a: {type: s3, endpoint: \"http://u:" + canary + "@h:1\"}\n",
+			doc:      "connections:\n  a: {type: s3, region: r, endpoint: \"http://u:" + canary + "@h:1\"}\n",
 			wantPath: tcConnectionsAEndpoint,
 		},
 		{

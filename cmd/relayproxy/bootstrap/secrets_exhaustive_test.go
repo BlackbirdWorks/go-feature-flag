@@ -89,7 +89,7 @@ func credentialsFixtures(extra string, writes ...string) []secretFixture {
 			name:   connType,
 			writes: writes,
 			build: func(resource, value string) string {
-				return "connections:\n  " + resource + ": {type: " + connType + ", credentials: {" +
+				return "connections:\n  " + resource + ": {type: " + connType + ", region: r, credentials: {" +
 					strings.ReplaceAll(extra, "V", value) + "}}\n"
 			},
 		})

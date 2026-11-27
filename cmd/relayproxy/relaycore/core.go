@@ -82,13 +82,17 @@ type Core struct {
 	runDone chan struct{}
 	// finished is closed when the first Shutdown did its work, with its error in shutdownErr (written before the
 	// close).
-	finished    chan struct{}
+	finished chan struct{}
+	// released is closed when the cleanup ran, exactly once, after the loops ended.
+	released    chan struct{}
 	shutdownErr error
 
 	stateDisabled string
 
 	// mu guards phase and cancel: the one place the lifecycle is decided.
 	mu sync.Mutex
+	// releaseOnce runs the cleanup once.
+	releaseOnce sync.Once
 	// shutdownStarted lets the first Shutdown do the work.
 	shutdownStarted atomic.Bool
 	phase           phase

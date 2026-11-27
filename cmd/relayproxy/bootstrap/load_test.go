@@ -88,7 +88,7 @@ func TestParseErrors(t *testing.T) {
 		},
 		{
 			name:    "duplicate connection name",
-			doc:     "version: 2\nconnections:\n  a: {type: s3}\n  a: {type: s3}\n",
+			doc:     "version: 2\nconnections:\n  a: {type: s3, region: r}\n  a: {type: s3, region: r}\n",
 			wantErr: bootstrap.ErrDuplicateName, wantPath: "connections.a", wantLine: 4,
 		},
 		{
@@ -119,7 +119,7 @@ func TestParseErrors(t *testing.T) {
 		},
 		{
 			name:    "negative duration",
-			doc:     "version: 2\nconnections:\n  a: {type: s3, poll: {interval: -5s}}\n",
+			doc:     "version: 2\nconnections:\n  a: {type: s3, region: r, poll: {interval: -5s}}\n",
 			wantErr: bootstrap.ErrInvalidDuration, wantPath: "connections.a.poll.interval", wantLine: 3,
 		},
 		{
@@ -134,32 +134,32 @@ func TestParseErrors(t *testing.T) {
 		},
 		{
 			name:    "jitter out of range",
-			doc:     "version: 2\nconnections:\n  a: {type: s3, poll: {jitter: 2}}\n",
+			doc:     "version: 2\nconnections:\n  a: {type: s3, region: r, poll: {jitter: 2}}\n",
 			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.poll.jitter", wantLine: 3,
 		},
 		{
 			name:    "bad checksum setting",
-			doc:     "version: 2\nconnections:\n  a: {type: s3, requestChecksumCalculation: always}\n",
+			doc:     "version: 2\nconnections:\n  a: {type: s3, region: r, requestChecksumCalculation: always}\n",
 			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.a.requestChecksumCalculation", wantLine: 3,
 		},
 		{
 			name:    "bad endpoint",
-			doc:     "version: 2\nconnections:\n  a: {type: s3, endpoint: localhost}\n",
+			doc:     "version: 2\nconnections:\n  a: {type: s3, region: r, endpoint: localhost}\n",
 			wantErr: bootstrap.ErrInvalidValue, wantPath: tcConnectionsAEndpoint, wantLine: 3,
 		},
 		{
 			name:    "uppercase name",
-			doc:     "version: 2\nconnections:\n  Control: {type: s3}\n",
+			doc:     "version: 2\nconnections:\n  Control: {type: s3, region: r}\n",
 			wantErr: bootstrap.ErrInvalidName, wantPath: "connections.Control", wantLine: 3,
 		},
 		{
 			name:    "name too long",
-			doc:     "version: 2\nconnections:\n  a" + strings.Repeat("b", 63) + ": {type: s3}\n",
+			doc:     "version: 2\nconnections:\n  a" + strings.Repeat("b", 63) + ": {type: s3, region: r}\n",
 			wantErr: bootstrap.ErrInvalidName, wantPath: "connections.a" + strings.Repeat("b", 63), wantLine: 3,
 		},
 		{
 			name:    "reserved name",
-			doc:     "version: 2\nconnections:\n  default: {type: s3}\n",
+			doc:     "version: 2\nconnections:\n  default: {type: s3, region: r}\n",
 			wantErr: bootstrap.ErrReservedName, wantPath: "connections.default", wantLine: 3,
 		},
 		{
@@ -191,35 +191,35 @@ func TestParseErrorsSecrets(t *testing.T) {
 	runParseErrors(t, []parseErrorCase{
 		{
 			name: "inline secret",
-			doc: "version: 2\nconnections:\n  a:\n    type: s3\n" +
+			doc: "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n" +
 				"    credentials: {type: static, accessKeyId: AKIA, secretAccessKey: {fromEnv: S}}\n",
 			wantErr:  bootstrap.ErrInlineSecret,
 			wantPath: "connections.a.credentials.accessKeyId",
-			wantLine: 5,
+			wantLine: 6,
 		},
 		{
 			name: "secret with two references",
-			doc: "version: 2\nconnections:\n  a:\n    type: s3\n" +
+			doc: "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n" +
 				"    credentials: {type: static, accessKeyId: {fromEnv: A, fromFile: B}}\n",
 			wantErr:  bootstrap.ErrInvalidSecret,
 			wantPath: "connections.a.credentials.accessKeyId",
-			wantLine: 5,
+			wantLine: 6,
 		},
 		{
 			name: "bad environment variable name",
-			doc: "version: 2\nconnections:\n  a:\n    type: s3\n" +
+			doc: "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n" +
 				"    credentials: {type: static, accessKeyId: {fromEnv: \"a b\"}, secretAccessKey: {fromEnv: S}}\n",
 			wantErr:  bootstrap.ErrInvalidSecret,
 			wantPath: "connections.a.credentials.accessKeyId.fromEnv",
-			wantLine: 5,
+			wantLine: 6,
 		},
 		{
 			name: "static credentials need both keys",
-			doc: "version: 2\nconnections:\n  a:\n    type: s3\n" +
+			doc: "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n" +
 				"    credentials: {type: static, accessKeyId: {fromEnv: A}}\n",
 			wantErr:  bootstrap.ErrMissingValue,
 			wantPath: "connections.a.credentials.secretAccessKey",
-			wantLine: 5,
+			wantLine: 6,
 		},
 		{
 			name:    "credentials key of another credentials type",
@@ -239,8 +239,9 @@ func TestParseErrorsReferences(t *testing.T) {
 
 	runParseErrors(t, []parseErrorCase{
 		{
-			name:     "controlPlane connection without bucket",
-			doc:      "version: 2\nconnections:\n  c: {type: s3}\ncontrolPlane:\n  connection: c\n  manifest: {key: m.json}\n",
+			name: "controlPlane connection without bucket",
+			doc: "version: 2\nconnections:\n  c: {type: s3, region: r}\n" +
+				"controlPlane:\n  connection: c\n  manifest: {key: m.json}\n",
 			wantErr:  bootstrap.ErrMissingValue,
 			wantPath: "controlPlane.connection",
 			wantLine: 5,
@@ -325,7 +326,7 @@ func TestVersionGate(t *testing.T) {
 		name string
 		doc  string
 	}{
-		{name: "missing version", doc: "connections:\n  a: {type: s3}\n"},
+		{name: "missing version", doc: "connections:\n  a: {type: s3, region: r}\n"},
 		{name: "empty file", doc: ""},
 		{name: "version 1", doc: v1Doc},
 		{name: "version 3", doc: "version: 3\n"},
@@ -356,7 +357,11 @@ func TestParseValid(t *testing.T) {
 		wantControl  bool
 	}{
 		{name: "version only", doc: v2Doc, wantListener: defaultAPI},
-		{name: "connections only", doc: "version: 2\nconnections:\n  a: {type: s3}\n", wantListener: defaultAPI},
+		{
+			name:         "connections only",
+			doc:          "version: 2\nconnections:\n  a: {type: s3, region: r}\n",
+			wantListener: defaultAPI,
+		},
 		{
 			name:        "controlPlane without anything else optional",
 			doc:         control + "controlPlane:\n  connection: control\n  manifest: {key: m.json}\n",
@@ -369,7 +374,7 @@ func TestParseValid(t *testing.T) {
 		},
 		{
 			name: "inline secret with the development flag",
-			doc: "version: 2\nconnections:\n  a:\n    type: s3\n" +
+			doc: "version: 2\nconnections:\n  a:\n    type: s3\n    region: r\n" +
 				"    credentials: {type: static, accessKeyId: x, secretAccessKey: y}\n",
 			inline:       true,
 			wantListener: defaultAPI,
@@ -429,7 +434,7 @@ func TestEnvOverrides(t *testing.T) {
 
 	doc := "version: 2\nobservability:\n  logging: {level: warn, format: text}\n" +
 		"server:\n  listeners:\n    - {name: web, address: \":9000\"}\n" +
-		"connections:\n  control: {type: s3, bucket: b}\n" +
+		"connections:\n  control: {type: s3, region: r, bucket: b}\n" +
 		"controlPlane:\n  connection: control\n  manifest: {key: file.json}\n  stateDir: /file\n"
 
 	tests := []struct {

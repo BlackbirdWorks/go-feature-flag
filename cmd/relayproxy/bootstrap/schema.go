@@ -35,6 +35,7 @@ func JSONSchema() ([]byte, error) {
 	setDurationDefaults(root)
 	allowEmptyEnums(root)
 	requireByKind(root)
+	requireNonBlank(root)
 
 	raw, err := json.Marshal(root)
 	if err != nil {
@@ -222,4 +223,17 @@ func addRedshiftExclusions(def *jsonschema.Schema) {
 			},
 		},
 	})
+}
+
+// requireNonBlank makes the settings that the loader requires (and refuses blank) required in the schema: the
+// region of an S3 connection and the path of a file connection.
+func requireNonBlank(root *jsonschema.Schema) {
+	for _, req := range [][2]string{{defS3Connection, "region"}, {"FileConnection", keyPath}} {
+		def := root.Definitions[req[0]]
+		def.Required = append(def.Required, req[1])
+
+		if prop, ok := def.Properties.Get(req[1]); ok {
+			prop.Pattern = `\S`
+		}
+	}
 }

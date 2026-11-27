@@ -135,9 +135,11 @@ func aliasBombs() []aliasBomb {
 		{bootstrap.ErrMissingValue, "version: 2\nconnections: &a {b: *a, c: *a}\n"},
 		{bootstrap.ErrSyntax, "version: 2\nserver: {listeners: &a [*a, *a]}\n"},
 		{bootstrap.ErrInvalidSecret, "version: 2\nauth: {adminKeys: &a [*a, *a]}\n"},
-		{bootstrap.ErrUnknownKey, "version: 2\nm: &m {<<: *m}\nconnections:\n  a: {<<: *m, type: s3}\n"},
-		{bootstrap.ErrUnknownKey,
-			"version: 2\nbase: &base {type: s3, bucket: b}\nconnections:\n  a: *base\n  b: *base\n  c: {<<: *base}\n"},
+		{bootstrap.ErrUnknownKey, "version: 2\nm: &m {<<: *m}\nconnections:\n  a: {<<: *m, type: s3, region: r}\n"},
+		{
+			bootstrap.ErrUnknownKey,
+			"version: 2\nbase: &base {type: s3, region: r, bucket: b}\nconnections:\n  a: *base\n  b: *base\n  c: {<<: *base}\n",
+		},
 		{bootstrap.ErrInvalidValue, "version: 2\nexporters: &e {a: &x {kind: log, meta: &y {k: *y}}, b: *x}\n"},
 	}
 }
@@ -190,7 +192,11 @@ func TestMalformedDocumentsNeverEchoTheirCanary(t *testing.T) {
 			"version: 2\nauth: {adminKeys: [*CANARY-m3, &CANARY-m3 x]}\n",
 			[]string{"CANARY-m3"},
 		},
-		{"open quote", "version: 2\nconnections:\n  a: {type: s3, bucket: \"CANARY-m4}\n", []string{"CANARY-m4"}},
+		{
+			"open quote",
+			"version: 2\nconnections:\n  a: {type: s3, region: r, bucket: \"CANARY-m4}\n",
+			[]string{"CANARY-m4"},
+		},
 		{"tab as indentation", "version: 2\n\tCANARY-m5: x\n", []string{"CANARY-m5"}},
 		{
 			"malformed second document",
@@ -250,7 +256,7 @@ func fuzzSeeds() []fuzzSeed {
 		},
 		{
 			name: "static credentials by reference", wantLoads: true, wantSecrets: 2,
-			doc: "version: 2\nconnections:\n  a: {type: s3, credentials: {type: static, " +
+			doc: "version: 2\nconnections:\n  a: {type: s3, region: r, credentials: {type: static, " +
 				"accessKeyId: {fromEnv: AK}, secretAccessKey: {fromFile: /run/sk}}}\n",
 		},
 		{
