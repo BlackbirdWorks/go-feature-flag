@@ -91,7 +91,10 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	logger := logging.FromContext(ctx)
 	counterTracking := 0
 	counterEvaluation := 0
-	rejected := 0
+	// notIngested counts the feature events that did not reach the exporters of a flag set that tells (the v2 core):
+	// the ones that failed conversion and the ones its queue refused. The v1 client answers the submitted count.
+	notIngested := 0
+	_, tells := flagset.(service.EventAcceptor)
 
 	for i, event := range reqBody.Events {
 		// Check if context is cancelled before processing each event, to avoid
@@ -129,22 +132,10 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 
 			counterTracking++
 		default:
-			featureEv, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
-			if err != nil {
-				logger.LogAttrs(
-					ctx,
-					slog.LevelError,
-					"impossible to convert the event to a feature event",
-					cmdlog.Err(err),
-				)
-
-				continue
-			}
-
-			if collectFeatureEvent(flagset, featureEv) {
+			if collectFeature(ctx, flagset, event, reqBody.Meta, tells, logger) {
 				counterEvaluation++
 			} else {
-				rejected++
+				notIngested++
 			}
 		}
 	}
@@ -156,8 +147,25 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	h.metrics.IncCollectEvalData(float64(len(reqBody.Events)))
 
 	return &CollectEvalDataOutput{Body: model.CollectEvalDataResponse{
-		IngestedContentCount: len(reqBody.Events) - rejected,
+		IngestedContentCount: len(reqBody.Events) - notIngested,
 	}}, nil
+}
+
+// collectFeature converts a feature event and hands it to the flag set. It reports whether the event counts as
+// ingested: a flag set that tells (the v2 core) counts only the events it accepted, the v1 client counts every event
+// that was converted.
+func collectFeature(
+	ctx context.Context, flagset service.FlagSet, event map[string]any, meta exporter.FeatureEventMetadata,
+	tells bool, logger *slog.Logger,
+) bool {
+	featureEv, err := convertFeatureEvent(ctx, event, meta, logger)
+	if err != nil {
+		logger.LogAttrs(ctx, slog.LevelError, "impossible to convert the event to a feature event", cmdlog.Err(err))
+
+		return !tells
+	}
+
+	return collectFeatureEvent(flagset, featureEv)
 }
 
 // collectFeatureEvent hands the event to the flag set and reports whether it was accepted. A flag set that has a

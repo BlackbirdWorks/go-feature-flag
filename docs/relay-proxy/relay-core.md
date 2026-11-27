@@ -74,7 +74,7 @@ version 1 relay: they find the flag set of an API key through `service.FlagSetRe
   answers 200 with no flag.
 - **Events**: an evaluation of a flag that tracks its events and an event sent to the data collector reach the
   exporters of the core. When the queue of the exporters is full, the collector answers 200 with the number of events
-  it accepted in `ingestedContentCount`; the v1 answer (every event) is unchanged.
+  it accepted in `ingestedContentCount` (an event that fails conversion or that the queue refuses is not counted); the v1 answer, the number of submitted events, is unchanged.
 - **Changes**: pass `Streams.Broadcast` as the `Broadcast` of the dependencies of the core, and give the same `Streams`
   to `corehttp.New` (it is required, the caller closes it with `Streams.Close(ctx)` after the server stopped).
   `Broadcast` returns at once: each of the SSE and websocket services has its own worker and queue, so a client that

@@ -58,12 +58,18 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	}
 
 	out := &Streams{ws: cfg.Websocket, sse: cfg.SSE}
-	out.lane[0] = startLane(cfg.Label+"/websocket", limit, func(c *flagruntime.Change) {
-		out.ws.BroadcastFlagChanges(c.FlagSet, c.Diff)
+	out.lane[0] = startLane(cfg.Label+"/websocket", limit, func(change *flagruntime.Change) {
+		// a merged change that undid itself has nothing to tell: the diff is the websocket message
+		if !change.Diff.HasDiff() {
+			return
+		}
+
+		out.ws.BroadcastFlagChanges(change.FlagSet, change.Diff)
 	}, out.ws.Close)
-	out.lane[1] = startLane(cfg.Label+"/sse", limit, func(c *flagruntime.Change) {
+	out.lane[1] = startLane(cfg.Label+"/sse", limit, func(change *flagruntime.Change) {
+		// a change that undid itself still tells the client to fetch again: it may have fetched the flag meanwhile
 		// the SSE service fails only when it can not encode its fixed event, it has nothing to tell the core
-		_ = out.sse.BroadcastFlagChanges(c.FlagSet, c.Diff)
+		_ = out.sse.BroadcastFlagChanges(change.FlagSet, change.Diff)
 	}, out.sse.Close)
 
 	return out
@@ -215,10 +221,7 @@ func (l *lane) run() {
 				break
 			}
 
-			// a merged change that undid itself has nothing to tell
-			if change.Diff.HasDiff() {
-				l.send(change)
-			}
+			l.send(change)
 		}
 	}
 }

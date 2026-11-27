@@ -78,21 +78,42 @@ func (f *fakeWebsocket) open() { f.once.Do(func() { close(f.gate) }) }
 type fakeSSE struct {
 	stream.SSEService
 
-	got    chan delivery
-	closed chan struct{}
+	gate    chan struct{}
+	entered chan string
+	got     chan delivery
+	closed  chan struct{}
+	once    sync.Once
 }
 
-func newFakeSSE() *fakeSSE {
-	return &fakeSSE{got: make(chan delivery, 64), closed: make(chan struct{})}
+func newFakeSSE(t *testing.T, gated bool) *fakeSSE {
+	t.Helper()
+
+	fake := &fakeSSE{
+		gate: make(chan struct{}), entered: make(chan string, 64), got: make(chan delivery, 64),
+		closed: make(chan struct{}),
+	}
+	if !gated {
+		fake.open()
+	}
+
+	t.Cleanup(fake.open)
+
+	return fake
 }
 
 func (f *fakeSSE) BroadcastFlagChanges(name string, diff notifier.DiffCache) error {
+	f.entered <- name
+
+	<-f.gate
+
 	f.got <- delivery{name: name, diff: diff}
 
 	return nil
 }
 
 func (f *fakeSSE) Close() { close(f.closed) }
+
+func (f *fakeSSE) open() { f.once.Do(func() { close(f.gate) }) }
 
 func newStreams(t *testing.T, label string, socket *fakeWebsocket, sse *fakeSSE, limit int) *corehttp.Streams {
 	t.Helper()
@@ -174,7 +195,7 @@ func TestStreams_SlowWebsocketDoesNotBlock(t *testing.T) {
 
 	const label = "slow-websocket"
 
-	socket, sse := newFakeWebsocket(t, true), newFakeSSE()
+	socket, sse := newFakeWebsocket(t, true), newFakeSSE(t, false)
 	streams := newStreams(t, label, socket, sse, 0)
 
 	flag := &flagdef.InternalFlag{}
@@ -211,7 +232,7 @@ func TestStreams_CloseWhenIdle(t *testing.T) {
 
 	const label = "idle"
 
-	socket, sse := newFakeWebsocket(t, false), newFakeSSE()
+	socket, sse := newFakeWebsocket(t, false), newFakeSSE(t, false)
 	streams := newStreams(t, label, socket, sse, 0)
 
 	streams.Broadcast(added("a", "f", &flagdef.InternalFlag{}))
@@ -229,7 +250,9 @@ func TestStreams_CloseWhenIdle(t *testing.T) {
 	require.NoError(t, streams.Close(t.Context()), "closing twice is fine")
 
 	// a change without a diff is not queued at all
-	empty := corehttp.NewStreamsWith(&corehttp.StreamsConfig{Websocket: newFakeWebsocket(t, false), SSE: newFakeSSE()})
+	empty := corehttp.NewStreamsWith(
+		&corehttp.StreamsConfig{Websocket: newFakeWebsocket(t, false), SSE: newFakeSSE(t, false)},
+	)
 	empty.Broadcast(flagruntime.Change{FlagSet: "none"})
 	require.NoError(t, empty.Close(t.Context()))
 }
@@ -239,7 +262,7 @@ func TestStreams_OverflowKeepsTheNewest(t *testing.T) {
 
 	const label = "overflow"
 
-	socket, sse := newFakeWebsocket(t, true), newFakeSSE()
+	socket, sse := newFakeWebsocket(t, true), newFakeSSE(t, false)
 	streams := newStreams(t, label, socket, sse, 2)
 
 	flag := &flagdef.InternalFlag{}
@@ -302,7 +325,7 @@ func TestStreams_MergeKeepsTheNetEffect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			socket, sse := newFakeWebsocket(t, true), newFakeSSE()
+			socket, sse := newFakeWebsocket(t, true), newFakeSSE(t, false)
 			streams := newStreams(t, "merge-"+tt.name, socket, sse, 0)
 
 			t.Cleanup(func() { closeStreams(t, streams) })
@@ -361,6 +384,13 @@ func (c *capped) Collect(events.Event) bool {
 	return true
 }
 
+func (c *capped) remaining() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.budget
+}
+
 // TestServer_CollectorCountsOnlyAcceptedEvents: the collector answers 200 with the number of events that the exporters
 // took, the schema has that field; the v1 answer (every event) is the one the equivalence cases pin.
 func TestServer_CollectorCountsOnlyAcceptedEvents(t *testing.T) {
@@ -379,7 +409,7 @@ func TestServer_CollectorCountsOnlyAcceptedEvents(t *testing.T) {
 	status, _, out := do(t, http.MethodPost, serve(t, &srv)+pathCollector, body, keyHeader(tenantKey))
 	assert.Equal(t, http.StatusOK, status)
 	assert.JSONEq(t, `{"ingestedContentCount":2}`, string(out))
-	assert.Zero(t, source.budget)
+	assert.Zero(t, source.remaining())
 }
 
 func TestNew_RequiresStreams(t *testing.T) {
@@ -419,4 +449,65 @@ func TestAdapter_FlagChangeIsComputedOnce(t *testing.T) {
 
 	assert.Zero(t, sink, "the same hashes every time")
 	assert.Zero(t, allocs, "the warm path encodes and allocates nothing")
+}
+
+// TestStreams_UndoneChangeStillTellsSSE: a flag added and removed while the change waits sends the SSE client one
+// event (it may have fetched the flag meanwhile) and the websocket client none (the net diff is empty).
+func TestStreams_UndoneChangeStillTellsSSE(t *testing.T) {
+	t.Parallel()
+
+	socket, sse := newFakeWebsocket(t, true), newFakeSSE(t, true)
+	streams := newStreams(t, "undone", socket, sse, 0)
+
+	t.Cleanup(func() { closeStreams(t, streams) })
+
+	flag := &flagdef.InternalFlag{}
+
+	streams.Broadcast(added("blocker", "b", flag))
+	recv(t, socket.entered, "the websocket delivery")
+	recv(t, sse.entered, "the SSE delivery")
+
+	streams.Broadcast(added("x", "k", flag))
+	streams.Broadcast(flagruntime.Change{
+		FlagSet: "x", Diff: notifier.DiffCache{Deleted: map[string]flagdef.Flag{"k": flag}},
+	})
+	streams.Broadcast(added("marker", "m", flag))
+
+	socket.open()
+	sse.open()
+
+	collect := func(ch <-chan delivery) []string {
+		var names []string
+
+		for next := recv(t, ch, "a delivery"); next.name != "marker"; next = recv(t, ch, "a delivery") {
+			names = append(names, next.name)
+		}
+
+		return names
+	}
+
+	assert.Equal(t, []string{"blocker", "x"}, collect(sse.got), "SSE: the blocker and exactly one event for x")
+	assert.Equal(t, []string{"blocker"}, collect(socket.got), "websocket: no message for an undone change")
+}
+
+// TestServer_CollectorCountsOnlyIngestedFeatureEvents: on a core an event that fails conversion is not ingested, and an
+// event that the full queue refuses is not either.
+func TestServer_CollectorCountsOnlyIngestedFeatureEvents(t *testing.T) {
+	t.Parallel()
+
+	rig := newV2(t)
+
+	source := &capped{Core: rig.core, budget: 1}
+	srv, err := corehttp.New(source, &corehttp.Config{Settings: &api.Settings{}, Streams: rig.streams})
+	require.NoError(t, err)
+
+	valid := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"k","variation":"v",` +
+		`"value":true,"default":false,"version":"1","source":"PROVIDER_CACHE"}`
+	broken := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":{"a":1}}`
+	body := `{"events":[` + valid + `,` + broken + `,` + valid + `]}`
+
+	status, _, out := do(t, http.MethodPost, serve(t, &srv)+pathCollector, body, keyHeader(tenantKey))
+	assert.Equal(t, http.StatusOK, status)
+	assert.JSONEq(t, `{"ingestedContentCount":1}`, string(out), "one accepted, one broken, one refused")
+	assert.Zero(t, source.remaining())
 }
