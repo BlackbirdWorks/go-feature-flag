@@ -24,6 +24,7 @@ func JSONSchema() ([]byte, error) {
 	for _, t := range []reflect.Type{
 		reflect.TypeFor[S3Connection](), reflect.TypeFor[KinesisConnection](),
 		reflect.TypeFor[SQSConnection](), reflect.TypeFor[RedshiftConnection](), reflect.TypeFor[FileConnection](),
+		reflect.TypeFor[RedisConnection](), reflect.TypeFor[ValkeyConnection](),
 	} {
 		member := r.ReflectFromType(t)
 		maps.Copy(root.Definitions, member.Definitions)
@@ -36,6 +37,7 @@ func JSONSchema() ([]byte, error) {
 	allowEmptyEnums(root)
 	requireByKind(root)
 	requireNonBlank(root)
+	storeRules(root)
 
 	raw, err := json.Marshal(root)
 	if err != nil {
@@ -180,7 +182,12 @@ func setDurationDefaults(root *jsonschema.Schema) {
 	}
 }
 
-const kafkaProducerDef = "KafkaProducer"
+const (
+	kafkaProducerDef = "KafkaProducer"
+	defValkey        = "ValkeyConnection"
+	// minClusterAddresses is the number of addresses from which a store connection is a cluster.
+	minClusterAddresses = 2
+)
 
 // allowEmptyEnums lets the enumerated settings be written as an empty string: the loader treats an empty value as
 // unset and applies the default. The discriminators (type, kind) stay strict, they have no default.
@@ -190,6 +197,7 @@ func allowEmptyEnums(root *jsonschema.Schema) {
 		{"Credentials", keyType}, {defS3Connection, "requestChecksumCalculation"},
 		{defS3Connection, "responseChecksumValidation"}, {"Exporter", keyFormat},
 		{"KafkaSASL", "mechanism"}, {"KafkaGSSAPI", "authType"},
+		{defValkey, "pipelining"}, {"SegmentTuning", "normalize"},
 		{kafkaProducerDef, "requiredAcks"}, {kafkaProducerDef, "compression"}, {kafkaProducerDef, "partitioner"},
 	} {
 		if prop, ok := root.Definitions[key[0]].Properties.Get(key[1]); ok {
@@ -240,4 +248,52 @@ func requireNonBlank(root *jsonschema.Schema) {
 			prop.Pattern = `\S`
 		}
 	}
+}
+
+// storeRules makes the schema agree with the loader on the redis and valkey connections as far as the schema can
+// say it: the addresses are required, not empty and have no white space, and the settings that exclude each other
+// are conditions on the discriminating keys. What the schema cannot say (the port range of an address) is in the
+// loader only.
+func storeRules(root *jsonschema.Schema) {
+	for _, name := range []string{"RedisConnection", defValkey} {
+		def := root.Definitions[name]
+		def.Required = append(def.Required, "addresses")
+
+		addresses, _ := def.Properties.Get("addresses")
+		addresses.MinItems = new(uint64(1))
+		addresses.Items = &jsonschema.Schema{Type: "string", Pattern: `^[^\s@]+:[0-9]+$`}
+	}
+
+	two := uint64(minClusterAddresses)
+	cluster := withProp("cluster", &jsonschema.Schema{Const: true}, "cluster")
+	multiple := withProp("addresses", &jsonschema.Schema{MinItems: &two}, "addresses")
+	zeroDB := withProp("db", &jsonschema.Schema{Const: 0})
+
+	redis := root.Definitions["RedisConnection"]
+	redis.AllOf = append(redis.AllOf,
+		&jsonschema.Schema{If: cluster, Then: zeroDB},
+		&jsonschema.Schema{If: multiple, Then: zeroDB},
+	)
+
+	valkey := root.Definitions[defValkey]
+	valkey.AllOf = append(valkey.AllOf, &jsonschema.Schema{
+		If: multiple, Then: withProp("forceSingleClient", &jsonschema.Schema{Const: false}),
+	})
+
+	emptyNames := withProp("caBundleFile", &jsonschema.Schema{Const: ""})
+	emptyNames.Properties.Set("serverName", &jsonschema.Schema{Const: ""})
+
+	tls := root.Definitions["StoreTLS"]
+	tls.AllOf = append(tls.AllOf, &jsonschema.Schema{
+		If:   &jsonschema.Schema{Not: withProp("enable", &jsonschema.Schema{Const: true}, "enable")},
+		Then: emptyNames,
+	})
+}
+
+// withProp is a schema with one property, and the required keys.
+func withProp(name string, prop *jsonschema.Schema, required ...string) *jsonschema.Schema {
+	props := jsonschema.NewProperties()
+	props.Set(name, prop)
+
+	return &jsonschema.Schema{Properties: props, Required: required}
 }

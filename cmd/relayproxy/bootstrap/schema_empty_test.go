@@ -102,6 +102,18 @@ func emptyValueCases() []emptyValueCase {
 		{setting: "SQSConnection.type", doc: "connections: {a: {type: \"\", queueUrl: \"https://q.example/q\"}}"},
 		{setting: "RedshiftConnection.type", doc: "connections: {a: {type: \"\", region: us-east-1}}"},
 		{setting: "FileConnection.type", doc: "connections: {a: {type: \"\", path: /srv/control}}"},
+		{setting: "RedisConnection.type", doc: "connections: {a: {type: \"\", addresses: [\"h:1\"]}}"},
+		{setting: "ValkeyConnection.type", doc: "connections: {a: {type: \"\", addresses: [\"h:1\"]}}"},
+		{
+			setting: "ValkeyConnection.pipelining", wantAccept: true, wantDefault: "always",
+			doc: "connections: {a: {type: valkey, addresses: [\"h:1\"], pipelining: \"\"}}",
+			got: func(cfg *bootstrap.Config) string { return cfg.Connections["a"].Valkey.Pipelining },
+		},
+		{
+			setting: "SegmentTuning.normalize", wantAccept: true, wantDefault: "none",
+			doc: "segments: {resolver: {default: {normalize: \"\"}}}",
+			got: func(cfg *bootstrap.Config) string { return cfg.Segments.Resolver.Default.Normalize },
+		},
 		{setting: "Config.version", doc: "version: \"\""},
 		{setting: "Exporter.kind", doc: "exporters: {a: {kind: \"\"}}"},
 		{setting: "Notifier.kind", doc: "notifiers: {a: {kind: \"\"}}"},
