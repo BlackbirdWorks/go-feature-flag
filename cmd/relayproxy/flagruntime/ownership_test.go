@@ -12,6 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
 // ownedContext is a context that matches the rules of the shapes.
@@ -110,9 +111,20 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	ctx := ownedContext()
 
-	flags := []string{boolRule, "bool-flat-meta", "bool-disabled", objectFlag}
+	// the reason of every flag is asserted: the disabled flag takes the disabled path, the others a targeting rule
+	flags := []struct {
+		name       string
+		wantReason string
+	}{
+		{name: boolRule, wantReason: flagdef.ReasonTargetingMatch},
+		{name: "bool-flat-meta", wantReason: flagdef.ReasonTargetingMatch},
+		{name: "bool-disabled", wantReason: flagdef.ReasonDisabled},
+		{name: objectFlag, wantReason: flagdef.ReasonTargetingMatch},
+	}
 
-	for _, flag := range flags {
+	for _, tt := range flags {
+		flag := tt.name
+
 		t.Run(flag, func(t *testing.T) {
 			t.Parallel()
 
@@ -123,6 +135,7 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 			second, _ := eval.RawVariation(set, flag, ctx, nil)
 
 			require.NotNil(t, first.Metadata)
+			assert.Equal(t, tt.wantReason, first.Reason, "the path of the evaluation")
 
 			first.Metadata["added"] = true
 			first.Cacheable = true
@@ -213,38 +226,46 @@ func TestOwnership_EnrichmentInputChangeDoesNotReachEvaluations(t *testing.T) {
 func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 	t.Parallel()
 
+	// every row names its path: the flag it uses, whether that flag has scheduled steps, and the reason and error
+	// code of the result, which are asserted, so a fixture that changes cannot leave the row passing on another path
 	tests := []struct {
-		call   func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any
-		name   string
-		want   map[string]any
-		change string
+		call          func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any]
+		want          map[string]any
+		name          string
+		flag          string
+		change        string
+		wantReason    string
+		wantErrorCode string
+		wantScheduled bool
 	}{
 		{
-			name: "flag value",
-			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+			name: "flag value", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch,
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
 				res, _ := eval.JSONVariationDetails(set, objectFlag, ownedContext(), nil)
 
-				return res.Value
+				return res
 			},
 			want:   map[string]any{"name": "beta", "nested": map[string]any{"deep": []any{}}},
 			change: "name",
 		},
 		{
-			name: "scheduled flag value",
-			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+			name: "scheduled flag value", flag: "scheduled-tracked-object-flag", wantScheduled: true,
+			wantReason: flagdef.ReasonStatic,
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
 				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ownedContext(), nil)
 
-				return res.Value
+				return res
 			},
 			want:   map[string]any{"k": []any{float64(3)}},
 			change: "k",
 		},
 		{
-			name: "default value of the caller",
-			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) map[string]any {
+			name: "default value of the caller", flag: missingKey, wantReason: flagdef.ReasonError,
+			wantErrorCode: flagdef.ErrorCodeFlagNotFound,
+			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
 				res, _ := eval.JSONVariationDetails(set, missingKey, ownedContext(), map[string]any{"d": 1})
 
-				return res.Value
+				return res
 			},
 			want:   map[string]any{"d": 1},
 			change: "d",
@@ -261,11 +282,22 @@ func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 				TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
 			})
 
-			// the flag of this case must be tracked: objectFlag is, so is the scheduled one, a missing flag is
-			got := tt.call(eval, shapesSet(t))
+			set := shapesSet(t)
+
+			if flag, found := set.Flag(tt.flag); found {
+				assert.Equal(t, tt.wantScheduled, flag.Scheduled != nil, "the flag has scheduled steps")
+			} else {
+				assert.Equal(t, missingKey, tt.flag, "only the missing flag is not in the table")
+			}
+
+			res := tt.call(eval, set)
+
 			require.Len(t, events, 1)
 
-			got[tt.change] = mutated
+			assert.Equal(t, tt.wantReason, res.Reason)
+			assert.Equal(t, tt.wantErrorCode, res.ErrorCode)
+
+			res.Value[tt.change] = mutated
 
 			assert.Equal(t, tt.want, events[0].Value, "what the exporter keeps")
 		})
@@ -300,18 +332,34 @@ func TestEvaluator_TrackedEvaluationWithANilContext(t *testing.T) {
 func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 	t.Parallel()
 
+	// every row names the cause that its fixture must produce: it is asserted on the result of a plain evaluation, so a
+	// fixture that goes missing or changes cannot leave the row passing for another reason
 	reasons := []struct {
-		name string
-		flag string
+		name          string
+		flag          string
+		wantReason    string
+		wantErrorCode string
 	}{
-		{name: "flag not there", flag: missingKey},
-		{name: "disabled flag", flag: "bool-disabled"},
-		{name: "error of the evaluation", flag: "bucketing-flag"},
-		{name: "value of another type", flag: boolStatic},
+		{
+			name:          "flag not there",
+			flag:          missingKey,
+			wantReason:    flagdef.ReasonError,
+			wantErrorCode: flagdef.ErrorCodeFlagNotFound,
+		},
+		{name: "disabled flag", flag: "bool-disabled", wantReason: flagdef.ReasonDisabled},
+		{
+			name: "error of the evaluation", flag: "bucketing-flag", wantReason: flagdef.ReasonError,
+			wantErrorCode: flagdef.ErrorCodeTargetingKeyMissing,
+		},
+		{
+			name: "value of another type", flag: boolStatic, wantReason: flagdef.ReasonError,
+			wantErrorCode: flagdef.ErrorCodeTypeMismatch,
+		},
 	}
 
 	entries := []struct {
 		call     func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any
+		cause    func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (reason, code string)
 		newGiven func() any
 		change   func(val any)
 		name     string
@@ -321,6 +369,11 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 	}{
 		{
 			name: "RawVariation",
+			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
+				res, _ := eval.RawVariation(set, flag, ownedContext(), nil)
+
+				return res.Reason, res.ErrorCode
+			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				res, _ := eval.RawVariation(set, flag, ownedContext(), given)
 
@@ -338,6 +391,11 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		},
 		{
 			name: "JSONVariationDetails",
+			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
+				res, _ := eval.JSONVariationDetails(set, flag, ownedContext(), nil)
+
+				return res.Reason, res.ErrorCode
+			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				def, _ := given.(map[string]any)
 				res, _ := eval.JSONVariationDetails(set, flag, ownedContext(), def)
@@ -355,6 +413,11 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		},
 		{
 			name: "JSONArrayVariationDetails",
+			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
+				res, _ := eval.JSONArrayVariationDetails(set, flag, ownedContext(), nil)
+
+				return res.Reason, res.ErrorCode
+			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				def, _ := given.([]any)
 				res, _ := eval.JSONArrayVariationDetails(set, flag, ownedContext(), def)
@@ -383,6 +446,11 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 
 				// without the hook: the result is the default, as given
 				plain := flagruntime.NewEvaluator(newService(t), nil)
+
+				gotReason, gotCode := entry.cause(plain, set, reason.flag)
+				assert.Equal(t, reason.wantReason, gotReason, "the cause of the default")
+				assert.Equal(t, reason.wantErrorCode, gotCode, "the error code of the default")
+
 				untracked := entry.call(plain, set, reason.flag, entry.newGiven())
 				assert.JSONEq(t, entry.wantJSON, mustJSON(t, untracked))
 

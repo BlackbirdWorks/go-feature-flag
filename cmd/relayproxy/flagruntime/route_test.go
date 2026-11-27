@@ -101,6 +101,7 @@ func TestRoute_Kinds(t *testing.T) {
 		key          string
 		wantFlagSet  string
 		wantRouteStr string
+		wantState    flagruntime.SetState
 		wantRoute    flagruntime.Route
 	}{
 		{
@@ -108,6 +109,7 @@ func TestRoute_Kinds(t *testing.T) {
 			key:          keyA,
 			wantRoute:    flagruntime.RouteFlagSet,
 			wantFlagSet:  "live",
+			wantState:    flagruntime.StateServing,
 			wantRouteStr: "flagSet",
 		},
 		{
@@ -115,11 +117,17 @@ func TestRoute_Kinds(t *testing.T) {
 			key:          keyB,
 			wantRoute:    flagruntime.RouteFlagSet,
 			wantFlagSet:  "live",
+			wantState:    flagruntime.StateServing,
 			wantRouteStr: "flagSet",
 		},
 		{
-			name: "pending flag set", key: "key-pending", wantRoute: flagruntime.RoutePending, wantFlagSet: pendingSet,
-			wantErr: flagruntime.ErrFlagSetUnavailable, wantRouteStr: pendingSet,
+			name:         "pending flag set",
+			key:          "key-pending",
+			wantRoute:    flagruntime.RoutePending,
+			wantFlagSet:  pendingSet,
+			wantState:    flagruntime.StatePending,
+			wantErr:      flagruntime.ErrFlagSetUnavailable,
+			wantRouteStr: pendingSet,
 		},
 		{name: "admin key", key: adminOne, wantRoute: flagruntime.RouteAdmin, wantRouteStr: "admin"},
 		{
@@ -156,6 +164,7 @@ func TestRoute_Kinds(t *testing.T) {
 
 			require.NotNil(t, set)
 			assert.Equal(t, tt.wantFlagSet, set.Name)
+			assert.Equal(t, tt.wantState, set.State, "the state of the flag set the key routes to")
 		})
 	}
 }
