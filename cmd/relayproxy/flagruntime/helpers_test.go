@@ -135,3 +135,17 @@ func flagNames(set *flagruntime.FlagSet) []string {
 func sortedStrings(in []string) []string {
 	return slices.Sorted(slices.Values(in))
 }
+
+// routedSet returns the flag set that a key routes to, and whether the key routes to a flag set at all.
+func routedSet(run *flagruntime.Runtime, key string) (*flagruntime.FlagSet, bool) {
+	set, route := run.Route(key)
+
+	return set, route == flagruntime.RouteFlagSet || route == flagruntime.RoutePending
+}
+
+// isAdmin reports whether a key is an admin key that routes to no flag set.
+func isAdmin(run *flagruntime.Runtime, key string) bool {
+	_, route := run.Route(key)
+
+	return route == flagruntime.RouteAdmin
+}

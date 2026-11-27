@@ -46,7 +46,7 @@ func TestPlaceholderRoutesItsKeysAndBecomesRealWhenTheEntryIsValid(t *testing.T)
 
 	holder := buildAndCommit(t, builder, content(1, files.with(objs{setsName: setsObj(t, fset("a", nil, keyA))})))
 
-	set, ok := holder.Runtime.FlagSetByKey(keyA)
+	set, ok := routedSet(holder.Runtime, keyA)
 	require.True(t, ok, "a valid key of an invalid entry reaches the flag set")
 	assert.Equal(t, flagruntime.StatePending, set.State)
 	assert.Empty(t, set.Flags)
@@ -148,7 +148,7 @@ func TestInvalidEntryWithAnAlreadyHeldNameIsReportedOnly(t *testing.T) {
 	assert.Equal(t, flagruntime.StateServing, built.Runtime.FlagSets["a"].State)
 	assert.Equal(t, []string{"x"}, flagNames(built.Runtime.FlagSets["a"]))
 
-	_, routed := built.Runtime.FlagSetByKey(keyB)
+	_, routed := routedSet(built.Runtime, keyB)
 	assert.False(t, routed, "the key of the entry that lost the name does not route")
 }
 

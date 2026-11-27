@@ -338,10 +338,10 @@ func TestNoSecretInAnyOutput(t *testing.T) {
 	current := r.holder.Load()
 
 	// the canaries are real: they route, so a leak would be possible
-	_, routed := current.FlagSetByKey(apiKey)
+	_, routed := routedSet(current, apiKey)
 	assert.True(t, routed)
-	assert.True(t, current.IsAdminKey(adminKey))
-	assert.True(t, current.IsAdminKey(envValue))
+	assert.True(t, isAdmin(current, adminKey))
+	assert.True(t, isAdmin(current, envValue))
 
 	problems := make([]controlplane.Code, 0, len(current.Status.Entries))
 
@@ -395,7 +395,7 @@ func TestReadPathDoesNotAllocate(t *testing.T) {
 	allocs := testing.AllocsPerRun(1000, func() {
 		current := r.holder.Load()
 
-		fs, ok := current.FlagSetByKey(keyA)
+		fs, ok := routedSet(current, keyA)
 		if !ok {
 			return
 		}
@@ -408,7 +408,7 @@ func TestReadPathDoesNotAllocate(t *testing.T) {
 	assert.NotNil(t, sink)
 	assert.InDelta(t, 0, allocs, 0, "Load, FlagSetByKey and Flag allocate nothing")
 
-	_, ok := r.holder.Load().FlagSetByKey("unknown-key")
+	_, ok := routedSet(r.holder.Load(), "unknown-key")
 	assert.False(t, ok)
 
 	var nilSet *flagruntime.FlagSet
@@ -441,7 +441,7 @@ func TestZeroHolderLoadsAnEmptyRuntime(t *testing.T) {
 
 	require.NotNil(t, current)
 	assert.Empty(t, current.FlagSets)
-	assert.False(t, current.IsAdminKey("x"))
+	assert.False(t, isAdmin(current, "x"))
 
 	_, ok := current.FlagSetByName("x")
 	assert.False(t, ok)

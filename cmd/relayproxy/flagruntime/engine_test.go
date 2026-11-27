@@ -57,7 +57,7 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 	assert.Equal(t, res.Reload, current.Status.LastReload)
 	assert.Equal(t, res, r.eng.Result())
 
-	fs, ok := current.FlagSetByKey(keyA)
+	fs, ok := routedSet(current, keyA)
 	require.True(t, ok)
 	assert.Equal(t, "a", fs.Name)
 	assert.EqualValues(t, 1, value(fs, "x"))
@@ -84,7 +84,7 @@ func TestEngineEmptyContentIsAValidRuntime(t *testing.T) {
 	assert.Empty(t, current.FlagSets)
 	assert.Empty(t, current.ByKey)
 
-	_, ok := current.FlagSetByKey("anything")
+	_, ok := routedSet(current, "anything")
 	assert.False(t, ok)
 	assert.Empty(t, current.Status.FlagSets)
 }
@@ -357,8 +357,8 @@ func TestEngineContentAndBootstrapInOneRound(t *testing.T) {
 	current := r.holder.Load()
 
 	assert.Equal(t, uint64(1), res.Snapshot, "both inputs land in one swap")
-	assert.True(t, current.IsAdminKey("adm"))
-	assert.False(t, current.IsAdminKey("other"))
+	assert.True(t, isAdmin(current, "adm"))
+	assert.False(t, isAdmin(current, "other"))
 	assert.Len(t, current.FlagSets, 1)
 }
 
@@ -472,7 +472,7 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			assert.Len(t, after.AdminKeys, len(tt.wantAdmin))
 
 			for _, key := range tt.wantAdmin {
-				assert.True(t, after.IsAdminKey(key), "admin key %s", key)
+				assert.True(t, isAdmin(after, key), "admin key %s", key)
 			}
 
 			assert.Equal(t, tt.wantPending, after.Status.PendingRestart)
@@ -516,7 +516,7 @@ func TestEngineBootstrapAdminKeyThatDoesNotResolveIsRejected(t *testing.T) {
 
 	before := r.holder.Load()
 
-	assert.True(t, before.IsAdminKey(canary), "a reference resolves through the injected environment")
+	assert.True(t, isAdmin(before, canary), "a reference resolves through the injected environment")
 
 	res := r.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [{fromEnv: UNKNOWN}]\n"))
 
