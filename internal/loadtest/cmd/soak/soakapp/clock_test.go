@@ -1,4 +1,4 @@
-package main
+package soakapp_test
 
 import (
 	"testing"
