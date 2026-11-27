@@ -14,9 +14,9 @@ maintainers, and it is unrelated to other products or services that share the na
 The wire protocol is unchanged: the relay proxy serves the same HTTP endpoints (`/ofrep/v1/...`, `/v1/...`), so the
 standard OpenFeature SDKs and the GO Feature Flag OpenFeature providers keep working against it, and the compatibility
 tests of `openfeature/provider_tests` run those upstream providers against this relay proxy. The names that GO Feature
-Flag used (`goff-proxy.yaml`, the `gofeatureflag` evaluation context key, the `gofeatureflag_cacheable` metadata, the
+Flag used (the `gofeatureflag` evaluation context key, the `gofeatureflag_cacheable` metadata, the
 `X-GOFEATUREFLAG-VERSION` header, the `gofeatureflag_` metric prefix) are still accepted or emitted next to the Semaphore
-ones. See the [migration table](docs/migration/rename-to-semaphore.md).
+ones. The relay proxy no longer looks for a configuration file by name: it reads the version 2 bootstrap file given with `--config` or `SEMAPHORE_CONFIG`. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 ## How it differs from upstream
 

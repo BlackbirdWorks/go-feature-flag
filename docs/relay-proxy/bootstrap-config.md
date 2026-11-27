@@ -8,16 +8,22 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 ## Run, reload and stop
 
-- Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). An invalid or version 1 file exits with a non-zero
+- Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). The flags `--log-level`, `--log-format`, `--listen`,
+  `--ops-listen`, `--manifest-key` and `--state-dir` override the variables, which override the file, at the start and on
+  every reload. Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
+  path-addressed error that holds no secret. An invalid or version 1 file exits with a non-zero
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).
-- Listeners: one `api` listener and at most one `ops` listener on the same host. More listeners, another host for `ops`
-  and `server.unixSocketPath` are refused at start (they are not served yet). `h2c` in `protocols` enables HTTP/2 over
+- Listeners: one `api` listener and at most one `ops` listener on the same host, with ports from 1 to 65535. More
+  listeners, another host for `ops` and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
+  validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
   cleartext on the `api` listener.
 - `observability.logging.format: text` writes logfmt lines.
 - Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` apply live; every other change is kept out and named in
   `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
-  refused, the relay keeps what it has. A change of the file on disk is not watched: send `SIGHUP`.
+  refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
+  is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
+  whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
 - Stop: on `SIGTERM` or `SIGINT` `/readyz` answers 503 `shutting-down` first, the streams close, the listeners stop,
   then the core drains its exporters, all within 15 seconds.
 - Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
@@ -140,6 +146,8 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `tracing.otlpEndpoint` | string | none | `host:port`, or an `http`/`https` URL, without credentials |
 | `tracing.serviceName` | string | `semaphore` | |
 | `tracing.sampler` | string | `parentbased_always_off` | `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |
+
+The sampler is given to the OpenTelemetry SDK through `OTEL_TRACES_SAMPLER` when that variable is not set (the variable of the operator wins); the ratio of the `traceidratio` samplers comes from `OTEL_TRACES_SAMPLER_ARG`.
 
 ### `evaluation`
 
