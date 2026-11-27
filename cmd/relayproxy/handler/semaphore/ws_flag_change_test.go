@@ -588,3 +588,59 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 		})
 	}
 }
+
+// A client without a key is registered as anonymous: the service closes it when the access ends, and the client sees
+// the connection end. A client with a key of the same flag set stays.
+func Test_websocket_anonymous_client_is_closed(t *testing.T) {
+	t.Parallel()
+
+	const bound = 10 * time.Second
+
+	websocketService := stream.NewWebsocketService()
+	defer websocketService.Close()
+
+	flagsetMgr := &mockFlagsetManagerSSE{flagsetName: fixtures.FlagsetCamel, isDefault: false}
+	ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
+	mux := http.NewServeMux()
+	mux.Handle("GET /ws", helper.Handle(ctrl.Handler, false))
+
+	testServer := httptest.NewServer(mux)
+	defer testServer.Close()
+
+	base := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + "/ws"
+
+	dial := func(query string) *websocket.Conn {
+		conn, resp, err := websocket.DefaultDialer.DialContext(t.Context(), base+query, nil)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		t.Cleanup(func() { _ = conn.Close() })
+
+		return conn
+	}
+
+	anonymous, keyed := dial(""), dial("?apiKey=key-a")
+
+	require.Eventually(t, func() bool { return websocketService.Connections() == 2 }, bound, time.Millisecond,
+		"both clients are registered")
+
+	websocketService.DisconnectAnonymous("")
+
+	closed := make(chan error, 1)
+
+	go func() {
+		_, _, err := anonymous.ReadMessage()
+		closed <- err
+	}()
+
+	select {
+	case err := <-closed:
+		require.Error(t, err, "the anonymous client sees its connection end")
+	case <-time.After(bound):
+		require.FailNow(t, "the anonymous client was not closed")
+	}
+
+	require.Eventually(t, func() bool { return websocketService.Connections() == 1 }, bound, time.Millisecond,
+		"only the client with a key is left")
+
+	require.NoError(t, keyed.WriteMessage(websocket.PingMessage, nil), "the client with a key is still connected")
+}
