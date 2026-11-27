@@ -96,6 +96,28 @@ func TestEvaluationAllocations(t *testing.T) {
 		},
 	)
 
+	t.Run("a typed object that omits its only targeted identifier still pays its conversion", func(t *testing.T) {
+		allocsWith := func(user any) (float64, string) {
+			svc := flagdef.NewService()
+			flag := onOffFlag(queryRule("r", `user.id in segment("beta")`))
+			require.NoError(t, flag.IsValid(svc))
+
+			evalCtx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("user", user).Build()
+			flagCtx := flagdef.Context{Service: svc, Segments: provider}
+
+			_, details := flag.Value("f", evalCtx, flagCtx)
+
+			return minAllocs(func() { flag.Value("f", evalCtx, flagCtx) }), details.Variant
+		}
+
+		typed, typedVariant := allocsWith(omittingUser{})
+		plain, plainVariant := allocsWith(map[string]any{})
+
+		assert.Equal(t, variantOff, typedVariant, "no identifier: not a member")
+		assert.Equal(t, variantOff, plainVariant)
+		assert.Greater(t, typed, plain, "the conversion of the typed object is paid even though nothing is looked up")
+	})
+
 	// each case compares the rule with a segment to a rule without one that selects the same variation
 	tests := []struct {
 		name        string
@@ -172,4 +194,9 @@ func TestEvaluationAllocations(t *testing.T) {
 type userRecord struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
+}
+
+// omittingUser is a typed attribute whose only identifier is left out of its conversion when it is empty.
+type omittingUser struct {
+	ID string `json:"id,omitempty"`
 }

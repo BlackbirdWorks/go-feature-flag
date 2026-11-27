@@ -73,6 +73,31 @@ func TestScheduledStepSegmentsAreValidated(t *testing.T) {
 			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
 		},
 		{
+			name:      "a malformed jsonlogic query after a space is rejected",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new(" " + `{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
+		},
+		{
+			name:      "a malformed jsonlogic query after a tab is rejected",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new("\t" + `{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
+		},
+		{
+			name:      "a malformed jsonlogic query after a carriage return is rejected",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new("\r" + `{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
+		},
+		{
+			name:      "a malformed jsonlogic query after a line feed is rejected",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new("\n" + `{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
+		},
+		{
+			name:      "a malformed jsonlogic query after a mixed whitespace is rejected",
+			step:      step([]flagdef.Rule{{Name: new("r"), Query: new(" \t\r\n " + `{"==": [{"var": "k"}, }`)}}, nil),
+			wantInErr: []string{whereStep0, errMsgBadJSONLogic},
+		},
+		{
 			name:      "an invalid onError of a rule of a step",
 			step:      step([]flagdef.Rule{{Name: new("r"), OnError: new("ignore")}}, nil),
 			wantInErr: []string{whereStep0, `targeting rule "r" (index 0)`, errMsgBadOnError},

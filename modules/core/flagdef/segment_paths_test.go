@@ -333,7 +333,6 @@ func TestSegmentNestedAttribute(t *testing.T) {
 	t.Parallel()
 
 	svc := flagdef.NewService()
-	provider := segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})
 
 	for name, query := range map[string]string{
 		formatNikunjy: `user.id in segment("beta")`,
@@ -342,6 +341,7 @@ func TestSegmentNestedAttribute(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
+			provider := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})}
 			flag := onOffFlag(queryRule("r", query))
 			require.NoError(t, flag.IsValid(svc))
 
@@ -360,7 +360,8 @@ func TestSegmentNestedAttribute(t *testing.T) {
 				ffcontext.NewEvaluationContext("k"),
 				flagdef.Context{Service: svc, Segments: provider},
 			)
-			assert.Equal(t, variantOff, noUser.Variant, "no user attribute: not a member, no lookup")
+			assert.Equal(t, variantOff, noUser.Variant, "no user attribute: not a member")
+			assert.Equal(t, [][]string{{"beta:alice"}, {"beta:bob"}}, provider.calls, "and no lookup for it")
 		})
 	}
 }
