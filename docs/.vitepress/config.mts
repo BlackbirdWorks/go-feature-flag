@@ -288,6 +288,7 @@ export default withMermaid({
           { text: 'Connections', link: '/concepts/connections' },
           { text: 'Events and Notifiers', link: '/concepts/events-and-notifiers' },
           { text: 'Control-Plane Polling', link: '/concepts/control-plane-polling' },
+          { text: 'Control-Plane File Store', link: '/concepts/control-plane-file-store' },
           { text: 'Retrievers', link: '/concepts/retriever' },
           { text: 'Exporters', link: '/concepts/exporter' },
           { text: 'Notifiers', link: '/concepts/notifier' },

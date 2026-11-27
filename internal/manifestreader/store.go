@@ -33,14 +33,35 @@ type GetRequest struct {
 	ETag string
 	// VersionID selects an object version when not empty.
 	VersionID string
-	// Limit is the most bytes the store may read: it never buffers more. Callers that know the size pass it,
+	// Limit is the largest body the store returns. It never returns, nor retains, more than Limit bytes of the
+	// body, and it may read one byte past Limit to tell an object of exactly Limit bytes from a larger one. A
+	// negative limit is a limit of zero: only an empty object is returned. Callers that know the size pass it,
 	// so a store can allocate the buffer once.
 	Limit int64
 }
 
-// ObjectStore is the seam between the reader and a backend.
+// ObjectStore is the seam between the reader and a backend. The conformance suite in the storetest package
+// executes this contract; a store passes when storetest.Run passes on it.
+//
+// The contract in short:
+//   - The ETag of a result describes exactly the bytes returned with it, differs when the bytes differ, and a
+//     conditional Get that holds the current ETag is answered with [ErrNotModified] (and a zero [Object]). Equal
+//     bytes need not give an equal ETag: a row version, a commit SHA or a generation number is a valid ETag.
+//   - A failed Get returns a zero [Object]. A Get that ended with its context returns an error that wraps the error
+//     of the context: [context.Canceled] for a cancellation, [context.DeadlineExceeded] for a deadline. The store
+//     ends a read when Done closes: Done is authoritative. A store may also use Deadline() to set a deadline on the
+//     I/O it starts, but that is an optimisation: a store that copies Deadline() into a one-shot deadline must
+//     still watch Done.
+//   - A Get that starts after a write to the object has returned sees that write (read-after-write consistency).
+//   - The size guarantee is the one of [GetRequest.Limit]: never a body of more than Limit bytes, though a store may
+//     read one byte past it. When Limit is below the size of the object, the answer is [ErrTooLarge], or
+//     [ErrNotModified] if the request is conditional with the current ETag and the store answers before it looks
+//     at the size. Never a body.
+//   - A negative Limit is a Limit of zero.
+//   - The bytes returned are the caller's: a later write to the object never changes bytes already returned.
 type ObjectStore interface {
-	// Get fetches req.Key and reads at most req.Limit bytes. With a non-empty req.ETag the request is
+	// Get fetches req.Key and returns a body of at most req.Limit bytes (it may read one byte past the limit to
+	// detect an object that is larger, see [GetRequest.Limit]). With a non-empty req.ETag the request is
 	// conditional and an unchanged object is answered with [ErrNotModified]. A missing object (or version) is
 	// [ErrNotFound], a larger one [ErrTooLarge]. Any other failure is a [*FetchError]. Get honours ctx.
 	Get(ctx context.Context, req GetRequest) (Object, error)
