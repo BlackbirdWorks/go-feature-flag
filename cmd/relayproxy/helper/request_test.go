@@ -25,12 +25,16 @@ func TestAPIKey(t *testing.T) {
 		authorization  string
 		expectedAPIKey string
 	}{
-		{name: "X-API-Key header takes precedence", xAPIKey: "x-api-key-value",
-			authorization: "Bearer auth-header-value", expectedAPIKey: "x-api-key-value"},
+		{
+			name: "X-API-Key header takes precedence", xAPIKey: "x-api-key-value",
+			authorization: "Bearer auth-header-value", expectedAPIKey: "x-api-key-value",
+		},
 		{name: "X-API-Key header only", xAPIKey: "x-api-key-only", expectedAPIKey: "x-api-key-only"},
 		{name: "Bearer token", authorization: "Bearer my-api-key-123", expectedAPIKey: "my-api-key-123"},
-		{name: "Bearer token with leading/trailing spaces", authorization: "Bearer   my-api-key-with-spaces  ",
-			expectedAPIKey: "my-api-key-with-spaces"},
+		{
+			name: "Bearer token with leading/trailing spaces", authorization: "Bearer   my-api-key-with-spaces  ",
+			expectedAPIKey: "my-api-key-with-spaces",
+		},
 		{name: "bearer prefix is case-insensitive", authorization: "bEaReR key", expectedAPIKey: fixtures.MetadataKey},
 		{name: "raw Authorization value", authorization: "raw-key", expectedAPIKey: "raw-key"},
 		{name: "nothing", expectedAPIKey: ""},
@@ -59,7 +63,7 @@ func TestFlagSet(t *testing.T) {
 	flagset := &ffclient.GoFeatureFlag{}
 
 	tests := []struct {
-		manager     *mock.MockFlagsetManager
+		manager     *mock.Resolver
 		wantFlagSet service.FlagSet
 		name        string
 		wantMessage string
@@ -70,11 +74,13 @@ func TestFlagSet(t *testing.T) {
 			wantCode:    http.StatusInternalServerError,
 			wantMessage: "flagset manager is not initialized",
 		},
-		{name: "unknown key", manager: &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound},
-			wantCode: http.StatusBadRequest, wantMessage: "error while getting flagset: not found"},
+		{
+			name: "unknown key", manager: &mock.Resolver{Err: errNotFound},
+			wantCode: http.StatusBadRequest, wantMessage: "error while getting flagset: not found",
+		},
 		{
 			name:        "known key",
-			manager:     &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"t": flagset}},
+			manager:     &mock.Resolver{Set: flagset},
 			wantFlagSet: flagset,
 		},
 	}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events/kafka"
 )
 
 func TestHashGenerators(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"github.com/IBM/sarama"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events/kafka"
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 )
 

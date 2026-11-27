@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	flagDYAML     = "flagD: {}\n"
-	flagZ         = "flagZ: {}\n"
-	flagsOldZYaml = "flags-old/z.yaml"
+	notInitialized = "not initialized"
+	flagDYAML      = "flagD: {}\n"
+	flagZ          = "flagZ: {}\n"
+	flagsOldZYaml  = "flags-old/z.yaml"
 )
 
 var (

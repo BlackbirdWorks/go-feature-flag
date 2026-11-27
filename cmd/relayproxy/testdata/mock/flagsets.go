@@ -277,3 +277,34 @@ func (m monitoring) Info() (model.InfoResponse, error) {
 
 	return model.InfoResponse{Flagsets: dates, LatestCacheRefresh: &latest}, nil
 }
+
+// Resolver is a [service.FlagSetResolver] that answers what a test gives it.
+type Resolver struct {
+	// Set is the flag set of every key; it is not served when Err is set or when it is nil.
+	Set service.FlagSet
+	// Err is the error of the lookup of the flag set and of its name.
+	Err error
+	// Name is the name of the flag set of every key.
+	Name string
+	// Default is the answer of IsDefaultFlagSet.
+	Default bool
+}
+
+var _ service.FlagSetResolver = (*Resolver)(nil)
+
+// FlagSet returns the flag set of the key.
+//
+//nolint:ireturn // the seam of the HTTP layer
+func (r *Resolver) FlagSet(_ string) (service.FlagSet, error) {
+	if r.Set == nil {
+		return nil, r.Err
+	}
+
+	return r.Set, r.Err
+}
+
+// FlagSetName returns the name of the flag set of the key.
+func (r *Resolver) FlagSetName(_ string) (string, error) { return r.Name, r.Err }
+
+// IsDefaultFlagSet reports whether the resolver serves one flag set for every key.
+func (r *Resolver) IsDefaultFlagSet() bool { return r.Default }

@@ -30,7 +30,7 @@ var (
 
 // namedManager is a flag set manager that routes the keys of names to a flag set name.
 type namedManager struct {
-	mock.MockFlagsetManager
+	mock.Resolver
 
 	names map[string]string
 }
@@ -47,20 +47,24 @@ func TestRequestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	routed := &ffclient.GoFeatureFlag{}
-	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{tenant: routed}}
-	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound}
+	manager := &mock.Resolver{Set: routed}
+	unrouted := &mock.Resolver{Err: errNotFound}
 
 	tests := []struct {
-		manager      *mock.MockFlagsetManager
+		manager      *mock.Resolver
 		wantFlagSet  service.FlagSet
 		name         string
 		authenticate bool
 		wantErr      bool
 	}{
-		{name: "the flag set resolved by the authentication is used", authenticate: true, manager: manager,
-			wantFlagSet: routed},
-		{name: "the flag set of the key is looked up without authentication", manager: manager,
-			wantFlagSet: routed},
+		{
+			name: "the flag set resolved by the authentication is used", authenticate: true, manager: manager,
+			wantFlagSet: routed,
+		},
+		{
+			name: "the flag set of the key is looked up without authentication", manager: manager,
+			wantFlagSet: routed,
+		},
 		{name: "a key without flag set is an error without authentication", manager: unrouted, wantErr: true},
 	}
 	for _, tt := range tests {
@@ -88,14 +92,18 @@ func TestAuthenticateFlagSet(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		manager *mock.MockFlagsetManager
+		manager *mock.Resolver
 		name    string
 		want    bool
 	}{
-		{name: "a key that routes to a flag set",
-			manager: &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"t": {}}}, want: true},
-		{name: "a key that does not route to a flag set",
-			manager: &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound}, want: false},
+		{
+			name:    "a key that routes to a flag set",
+			manager: &mock.Resolver{Set: &ffclient.GoFeatureFlag{}}, want: true,
+		},
+		{
+			name:    "a key that does not route to a flag set",
+			manager: &mock.Resolver{Err: errNotFound}, want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,8 +129,10 @@ func TestRequestFlagSetName(t *testing.T) {
 		wantAuth     bool
 		wantErr      bool
 	}{
-		{name: "the name resolved by the authentication is used", apiKey: fixtures.MetadataKey, authenticate: true,
-			wantName: tenant, wantAuth: true, wantLogged: []any{tenant}},
+		{
+			name: "the name resolved by the authentication is used", apiKey: fixtures.MetadataKey, authenticate: true,
+			wantName: tenant, wantAuth: true, wantLogged: []any{tenant},
+		},
 		{
 			name:       "the name of the key is looked up without authentication",
 			apiKey:     fixtures.MetadataKey,

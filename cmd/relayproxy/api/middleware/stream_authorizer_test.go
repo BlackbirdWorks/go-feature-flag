@@ -14,7 +14,7 @@ import (
 
 // namedManager is a flag set manager that routes the keys of names to a flag set name.
 type namedManager struct {
-	mock.MockFlagsetManager
+	mock.Resolver
 
 	names map[string]string
 }

@@ -17,7 +17,7 @@ import (
 func BenchmarkUserKeyAuthFlagSet(b *testing.B) {
 	const apiKey = "tenant-key"
 
-	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"tenant": {}}}
+	manager := &mock.Resolver{Set: &ffclient.GoFeatureFlag{}}
 	srv := &Server{keys: service.NewAPIKeysFrom(mock.Keys{Evaluation: []string{apiKey}}), resolver: manager}
 
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
