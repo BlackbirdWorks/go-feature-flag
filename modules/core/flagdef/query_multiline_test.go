@@ -9,6 +9,12 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	quotedBracketBreak = "key eq \"ab[\nc\""
+	quotedLetterBreak  = "key eq \"ab\nc\""
 )
 
 const newlineInString = "{\"==\": [{\"var\": \"key\"}, \"a\nbc\"]}"
@@ -38,7 +44,7 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 		wantValue any
 		name      string
 		query     string
-		key       string // the evaluation key; abc when empty
+		key       string // the evaluation key; fixtures.UserKeyAbc when empty
 		n         int
 		scheduled bool
 		evalOnly  bool // skip load-time validation: a scheduled step is evaluated without it
@@ -71,27 +77,27 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 		},
 		{
 			name: "nikunjy quoted break after a bracket matches the key joined with one space", wantValid: true,
-			key: "ab[ c", wantValue: "a", query: "key eq \"ab[\nc\"",
+			key: "ab[ c", wantValue: "a", query: quotedBracketBreak,
 		},
 		{
 			name: "nikunjy quoted break after a bracket does not match the unjoined key", wantValid: true,
-			key: "ab[c", wantValue: "b", query: "key eq \"ab[\nc\"",
+			key: "ab[c", wantValue: "b", query: quotedBracketBreak,
 		},
 		{
 			name: "nikunjy quoted break after a bracket does not match the double-spaced key", wantValid: true,
-			key: "ab[  c", wantValue: "b", query: "key eq \"ab[\nc\"",
+			key: "ab[  c", wantValue: "b", query: quotedBracketBreak,
 		},
 		{
 			name: "nikunjy quoted break after a letter matches the key joined with one space", wantValid: true,
-			key: "ab c", wantValue: "a", query: "key eq \"ab\nc\"",
+			key: "ab c", wantValue: "a", query: quotedLetterBreak,
 		},
 		{
 			name: "nikunjy quoted break after a letter does not match the unjoined key", wantValid: true,
-			key: "abc", wantValue: "b", query: "key eq \"ab\nc\"",
+			key: fixtures.UserKeyAbc, wantValue: "b", query: quotedLetterBreak,
 		},
 		{
 			name: "nikunjy quoted break after a letter does not match the double-spaced key", wantValid: true,
-			key: "ab  c", wantValue: "b", query: "key eq \"ab\nc\"",
+			key: "ab  c", wantValue: "b", query: quotedLetterBreak,
 		},
 		{
 			name: "jsonlogic multi-line in a scheduled step", wantValid: true, wantValue: "a", scheduled: true,
@@ -169,17 +175,17 @@ func TestInternalFlag_MultilineQueries(t *testing.T) {
 
 			require.NoError(t, err)
 
-			n := tt.n
-			if n == 0 {
-				n = 1
+			number := tt.n
+			if number == 0 {
+				number = 1
 			}
 
 			key := tt.key
 			if key == "" {
-				key = "abc"
+				key = fixtures.UserKeyAbc
 			}
 
-			ctx := atFixedNow(ffcontext.NewEvaluationContextBuilder(key).AddCustom("n", n).Build())
+			ctx := atFixedNow(ffcontext.NewEvaluationContextBuilder(key).AddCustom("n", number).Build())
 			got, _ := flg.Value("flag", ctx, flagdef.Context{Service: svc, DefaultSdkValue: "sdk"})
 			assert.Equal(t, tt.wantValue, got)
 		})

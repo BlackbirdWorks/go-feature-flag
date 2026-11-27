@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	quotedAB   = "\"a b\""
 	helloworld = "hello world"
 )
 
@@ -83,32 +84,32 @@ func TestStrTrim(t *testing.T) {
 		{
 			name:  "quoted break: line ends with a space",
 			input: "\"a \nb\"",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "quoted break: next line starts with a space",
 			input: "\"a\n b\"",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "quoted break: both sides have a space",
 			input: "\"a \n  b\"",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "quoted break: neither side has a space",
 			input: "\"a\nb\"",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "quoted break: several blank lines",
 			input: "\"a\n\n \n\nb\"",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "quoted break: CRLF",
 			input: "\"a \r\n\r\n b\"\r\n",
-			want:  "\"a b\"",
+			want:  quotedAB,
 		},
 		{
 			name:  "mixed leading spaces",

@@ -5,7 +5,8 @@ import "strings"
 // StrTrim returns query as a single line, for the rules-format grammar: the leading spaces of every line, the line ends
 // (LF or CRLF) and the blank lines are removed. Two lines are joined with a space unless the text already has a
 // separator there (the previous line ends with a space) or the join cannot merge two tokens (after an opening
-// bracket, before a closing bracket or a comma). A line break inside a quoted value becomes exactly one space (a space that already ends the line is reused).
+// bracket, before a closing bracket or a comma). A line break inside a quoted value becomes exactly one space
+// (a space that already ends the line is reused).
 // A query on one line only loses its leading spaces.
 //
 // It must not be used on a JsonLogic query: that is JSON, which ignores whitespace between tokens and rejects a
