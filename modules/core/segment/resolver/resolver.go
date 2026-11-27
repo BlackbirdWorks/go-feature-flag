@@ -109,19 +109,18 @@ func (s *segState) normalize(id string) (string, Reason) {
 // Resolver is a [segment.Provider] with a cache, coalescing and a breaker in front of another provider. It is safe
 // for concurrent use.
 type Resolver struct {
-	inner    segment.Provider
-	observer Observer
-	stopErr  error
-	states   atomic.Pointer[map[string]*segState]
-	opts     Options
-	wg       sync.WaitGroup
-	timeout  time.Duration
-	inflight atomic.Int64
-	overdue  atomic.Int64
-	maxID    int
-	maxOver  int
-	// beforeStop (tests only) runs between the return of the store and the disarming of its deadline.
+	inner      segment.Provider
+	observer   Observer
+	stopErr    error
+	states     atomic.Pointer[map[string]*segState]
 	beforeStop func(*call)
+	opts       Options
+	wg         sync.WaitGroup
+	overdue    atomic.Int64
+	inflight   atomic.Int64
+	maxID      int
+	maxOver    int
+	timeout    time.Duration
 	admit      sync.RWMutex
 	stopOnce   sync.Once
 	mu         sync.Mutex
@@ -727,22 +726,7 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 
 	callErr := r.call(shared.ctx, sub)
 
-	state.mu.Lock()
-	state.returned = !state.overdue
-	late := state.overdue
-	state.mu.Unlock()
-
-	if r.beforeStop != nil {
-		r.beforeStop(shared)
-	}
-
-	if !stop() {
-		<-fired // the deadline callback is running or ran: it has seen the decision above
-	}
-
-	if late {
-		r.overdue.Add(-1)
-	}
+	late := r.disarm(state, shared, stop, fired)
 
 	if errors.Is(callErr, ErrProviderPanic) {
 		// a store that panicked is not trusted: nothing it set counts
@@ -788,6 +772,30 @@ func (r *Resolver) run(shared *call, leaders []leader) {
 	}
 }
 
+// disarm ends the deadline of a shared call after the store returned, and tells whether the deadline had fired first.
+// The decision is taken under the lock of the state: a return that comes first makes the deadline callback record
+// nothing, a deadline that comes first makes the late return count for nothing.
+func (r *Resolver) disarm(state *callState, shared *call, stop func() bool, fired <-chan struct{}) bool {
+	state.mu.Lock()
+	state.returned = !state.overdue
+	late := state.overdue
+	state.mu.Unlock()
+
+	if r.beforeStop != nil {
+		r.beforeStop(shared)
+	}
+
+	if !stop() {
+		<-fired // the deadline callback is running or ran: it has seen the decision above
+	}
+
+	if late {
+		r.overdue.Add(-1)
+	}
+
+	return late
+}
+
 func (r *Resolver) call(ctx context.Context, sub []segment.Lookup) (err error) {
 	defer func() {
 		if recover() != nil {
@@ -815,25 +823,12 @@ func (r *Resolver) settle(leaders []leader, sub []segment.Lookup, callErr error,
 	var results []segmentResult
 
 	for i := range leaders {
-		idx := -1
+		res := resultOf(&results, leaders[i])
 
-		for j := range results {
-			if results[j].sst == leaders[i].sst {
-				idx = j
-
-				break
-			}
-		}
-
-		if idx < 0 {
-			results = append(results, segmentResult{sst: leaders[i].sst, flt: leaders[i].flt, gen: leaders[i].gen})
-			idx = len(results) - 1
-		}
-
-		results[idx].total++
+		res.total++
 
 		if !sub[i].State.Valid() || sub[i].State == segment.Unknown {
-			results[idx].unknown++
+			res.unknown++
 		}
 	}
 
@@ -872,6 +867,19 @@ func (r *Resolver) settleOverdue(leaders []leader, now time.Time) {
 
 		r.emit(sst, sst.brk.record(leaders[i].gen, outcomeFailure, now))
 	}
+}
+
+// resultOf returns the result of the segment of a leader, and adds it when it is the first lookup of that segment.
+func resultOf(results *[]segmentResult, lead leader) *segmentResult {
+	for j := range *results {
+		if (*results)[j].sst == lead.sst {
+			return &(*results)[j]
+		}
+	}
+
+	*results = append(*results, segmentResult{sst: lead.sst, flt: lead.flt, gen: lead.gen})
+
+	return &(*results)[len(*results)-1]
 }
 
 // rememberNotLoaded makes the segment skip the store for the negative TTL, unless Invalidate ran meanwhile.

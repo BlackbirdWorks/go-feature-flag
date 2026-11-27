@@ -639,7 +639,7 @@ func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
 	second := []segment.Lookup{{Segment: testSeg, ID: "b"}}
 	err := res.Contains(context.Background(), second)
 
-	assert.NotErrorIs(t, err, ErrCircuitOpen)
+	require.NotErrorIs(t, err, ErrCircuitOpen)
 	require.Eventually(t, func() bool { return res.Status().Running == 0 }, 10*time.Second, time.Millisecond)
 
 	store.mu.Lock()
@@ -651,16 +651,11 @@ func TestAReplyInTimeIsNotOverdueWhateverTheTimerDoes(t *testing.T) {
 func TestTheDeadlineBeforeTheReplyDecidesOnceAndTheLateReplyCountsForNothing(t *testing.T) {
 	t.Parallel()
 
-	state := &callState{}
 	res := newInternal(t, &internalStore{}, &Options{Default: SegmentOptions{BreakerFailures: 2}})
 	seg := res.state(testSeg)
 	leaders := []leader{{sst: seg, key: "a"}}
 
-	// the deadline takes the lock first
-	state.mu.Lock()
-	state.overdue = true
-	state.mu.Unlock()
-
+	// the deadline took the lock first: it records the failure, then the counter
 	res.settleOverdue(leaders, baseTime())
 	res.overdue.Add(1)
 
@@ -680,8 +675,8 @@ func TestWaitForReportsTheStoreErrorAndTheTimeoutWhateverTheOrder(t *testing.T) 
 
 	tests := []struct {
 		name      string
-		failedAt  int // the index of the flight that failed; the other one timed out
 		wantState []segment.State
+		failedAt  int
 	}{
 		{name: "the store error first", failedAt: 0, wantState: []segment.State{segment.Unknown, segment.Unknown}},
 		{name: "the timeout first", failedAt: 1, wantState: []segment.State{segment.Unknown, segment.Unknown}},
