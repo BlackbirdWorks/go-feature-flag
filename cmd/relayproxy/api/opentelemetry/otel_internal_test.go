@@ -304,6 +304,8 @@ func TestInstall(t *testing.T) {
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
+const otelTracesSampler = "OTEL_TRACES_SAMPLER"
+
 // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads.
 func TestExportEnvironment(t *testing.T) {
 	tests := []struct {
@@ -332,6 +334,32 @@ func TestExportEnvironment(t *testing.T) {
 			conf.OtelConfig.Exporter.Otlp.Endpoint = tt.otlpEndpoint
 			ExportEnvironment(settingsOf(conf))
 			assert.Equal(t, tt.wantEnv, os.Getenv(otelExporterOtlpEndpoint))
+		})
+	}
+}
+
+// The sampler of the configuration reaches the SDK, which reads OTEL_TRACES_SAMPLER; the variable of the operator wins,
+// and the jaeger_remote sampler is built by the service itself.
+func TestExportEnvironment_Sampler(t *testing.T) {
+	tests := []struct {
+		name    string
+		sampler string
+		current string
+		wantEnv string
+	}{
+		{name: "the sampler of the file is exported", sampler: "always_off", wantEnv: "always_off"},
+		{name: "a ratio sampler is exported", sampler: "parentbased_traceidratio", wantEnv: "parentbased_traceidratio"},
+		{name: "the variable of the operator wins", sampler: "always_off", current: "always_on", wantEnv: "always_on"},
+		{name: "jaeger_remote is not exported", sampler: "jaeger_remote", wantEnv: ""},
+		{name: "no sampler exports nothing", wantEnv: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(otelTracesSampler, tt.current)
+			t.Setenv(otelExporterOtlpEndpoint, "")
+
+			ExportEnvironment(&Settings{OTLPEndpoint: httpsExampleCom4318, Sampler: tt.sampler})
+			assert.Equal(t, tt.wantEnv, os.Getenv(otelTracesSampler))
 		})
 	}
 }
