@@ -319,7 +319,7 @@ func TestContainsFailures(t *testing.T) {
 			wantSentry:  valkeysegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 2 of 2 lookups failed",
+			wantMessage: msgUnavailable2of2,
 		},
 		{
 			name: "server error on every command",

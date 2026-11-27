@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -258,7 +259,13 @@ func TestRepliesOnTheWire(t *testing.T) {
 			require.ErrorIs(t, err, valkeysegment.ErrUnavailable)
 			require.NotErrorIs(t, err, valkeysegment.ErrProtocol)
 			assert.Equal(t, tt.wantStates, states(tt.lookups))
-			assert.Equal(t, tt.request, <-received)
+
+			select {
+			case got := <-received:
+				assert.Equal(t, tt.request, got)
+			case <-boundedCtx(t).Done():
+				require.FailNow(t, "the store did not receive the request")
+			}
 		})
 	}
 }
@@ -282,6 +289,35 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			wantMessage: msgUnavailable1of2,
 		},
 		{
+			name: "a client that leaves the completed replies unstamped: a transport error keeps them",
+			store: &fakeStore{
+				keys: keys, exec: func(context.Context) error { return errDial }, completed: 1, unstamped: true,
+			},
+			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
+			wantStates:  []segment.State{segment.Member, segment.Unknown},
+			wantClass:   valkeysegment.ClassUnavailable,
+			wantSentry:  valkeysegment.ErrUnavailable,
+			wantFailed:  1,
+			wantPipes:   1,
+			wantMessage: msgUnavailable1of2,
+		},
+		{
+			name: "a client that leaves the completed replies unstamped: a parse error trusts nothing",
+			store: &fakeStore{
+				keys: keys, completed: 1, unstamped: true,
+				exec: func(context.Context) error {
+					return &strconv.NumError{Func: "ParseInt", Num: "invalid", Err: strconv.ErrSyntax}
+				},
+			},
+			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
+			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
+			wantClass:   valkeysegment.ClassUnavailable,
+			wantSentry:  valkeysegment.ErrUnavailable,
+			wantFailed:  2,
+			wantPipes:   1,
+			wantMessage: msgUnavailable2of2,
+		},
+		{
 			name:        "keys layout: it closes before any reply",
 			store:       &fakeStore{keys: keys, exec: func(context.Context) error { return errDial }},
 			lookups:     []segment.Lookup{lk("f", idAlice), lk("f", "bob")},
@@ -290,7 +326,7 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			wantSentry:  valkeysegment.ErrUnavailable,
 			wantFailed:  2,
 			wantPipes:   1,
-			wantMessage: "valkey segment: unavailable: 2 of 2 lookups failed",
+			wantMessage: msgUnavailable2of2,
 		},
 		{
 			name:        "set layout: the members answered, the key check did not",
@@ -304,4 +340,28 @@ func TestACompletedReplySurvivesALaterTransportError(t *testing.T) {
 			wantMessage: msgUnavailable1of2,
 		},
 	})
+}
+
+func TestDialRefusesDisabledSocketDeadlines(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts redis.UniversalOptions
+	}{
+		{name: "read", opts: redis.UniversalOptions{Addrs: []string{"127.0.0.1:1"}, ReadTimeout: -2}},
+		{name: "write", opts: redis.UniversalOptions{Addrs: []string{"127.0.0.1:1"}, WriteTimeout: -2}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			prov, err := valkeysegment.Dial(&tt.opts, &valkeysegment.Options{})
+
+			require.ErrorIs(t, err, valkeysegment.ErrSocketDeadlineDisabled)
+			require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
+			assert.Nil(t, prov)
+		})
+	}
 }

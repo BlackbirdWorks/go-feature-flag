@@ -27,7 +27,8 @@ type fakeStore struct {
 	exec      func(ctx context.Context) error
 	scripts   map[string]bool
 	pipelines [][]string
-	completed int // when exec fails, this many commands (from the first) got their reply before the failure
+	unstamped bool // a failed exec leaves the completed commands without the error, as a cluster client does
+	completed int  // when exec fails, this many commands (from the first) got their reply before the failure
 	mu        sync.Mutex
 }
 
@@ -86,14 +87,7 @@ func (p *fakePipe) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	if store.exec != nil {
 		execErr := store.exec(ctx)
 		if execErr != nil {
-			// a client reads the replies in order, and at the end stamps the error on every command that has none
-			for i, cmd := range p.cmds {
-				if i < store.completed {
-					store.play(cmd)
-				}
-
-				cmd.SetErr(execErr)
-			}
+			p.fail(execErr)
 
 			return nil, execErr
 		}
@@ -104,6 +98,22 @@ func (p *fakePipe) Exec(ctx context.Context) ([]redis.Cmder, error) {
 	}
 
 	return nil, nil
+}
+
+// fail plays what a client does when the pipeline fails: it reads the replies in order, and at the end stamps the
+// error on every command that has none.
+func (p *fakePipe) fail(execErr error) {
+	for i, cmd := range p.cmds {
+		if i < p.store.completed {
+			p.store.play(cmd)
+
+			if p.store.unstamped {
+				continue
+			}
+		}
+
+		cmd.SetErr(execErr)
+	}
 }
 
 // cached tells whether the store has the script of the SHA in its cache.
