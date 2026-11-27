@@ -144,7 +144,7 @@ func TestEngineEqualGenerationRule(t *testing.T) {
 				assert.Same(t, before, after, "nothing is stored")
 			}
 
-			set, ok := after.FlagSetByKey(keyA)
+			set, ok := routedSet(after, keyA)
 			require.True(t, ok)
 			assert.Equal(t, tt.wantSetState, set.State)
 		})

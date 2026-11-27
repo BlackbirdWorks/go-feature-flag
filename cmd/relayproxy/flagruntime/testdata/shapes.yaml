@@ -1,0 +1,225 @@
+bool-static:
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: on
+bool-tracked:
+  trackEvents: true
+  version: "1.2.3"
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: off
+bool-untracked:
+  trackEvents: false
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: on
+bool-rule:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - name: beta-users
+      query: beta eq true
+      variation: on
+    - name: fr
+      query: country eq "FR"
+      percentage:
+        on: 30
+        off: 70
+  defaultRule:
+    name: everyone
+    variation: off
+  metadata:
+    team: payments
+    owner:
+      name: ops
+      tags: [a, b]
+    list: [1, 2, {x: 1}]
+bool-disabled:
+  disable: true
+  metadata:
+    reason: off
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: on
+int-flag:
+  variations:
+    low: 1
+    high: 10
+  defaultRule:
+    percentage:
+      low: 50
+      high: 50
+float-flag:
+  variations:
+    a: 1.5
+    b: 2.25
+  targeting:
+    - query: plan eq "pro"
+      variation: b
+  defaultRule:
+    variation: a
+string-flag:
+  variations:
+    red: red
+    blue: blue
+  defaultRule:
+    percentage:
+      red: 20
+      blue: 80
+object-flag:
+  trackEvents: true
+  variations:
+    a:
+      name: alpha
+      nested:
+        deep: [1, 2, 3]
+    b:
+      name: beta
+      nested:
+        deep: []
+  targeting:
+    - name: pro-rule
+      query: plan eq "pro"
+      variation: b
+  defaultRule:
+    variation: a
+  metadata:
+    kind:
+      level: 1
+array-flag:
+  variations:
+    a: [one, two, [three]]
+    b: [four]
+  defaultRule:
+    percentage:
+      a: 50
+      b: 50
+bucketing-flag:
+  bucketingKey: teamId
+  variations:
+    a: value-a
+    b: value-b
+  defaultRule:
+    percentage:
+      a: 40
+      b: 60
+progressive-flag:
+  trackEvents: true
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    name: ramp
+    progressiveRollout:
+      initial:
+        variation: off
+        percentage: 0
+        date: 2025-06-01T00:00:00Z
+      end:
+        variation: on
+        percentage: 100
+        date: 2025-07-01T00:00:00Z
+scheduled-flag:
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: off
+  scheduledRollout:
+    - date: 2025-06-10T00:00:00Z
+      defaultRule:
+        variation: on
+      metadata:
+        stage: one
+    - date: 2025-06-20T00:00:00Z
+      disable: true
+experimentation-flag:
+  variations:
+    on: true
+    off: false
+  defaultRule:
+    variation: on
+  experimentation:
+    start: 2025-06-10T00:00:00Z
+    end: 2025-06-20T00:00:00Z
+scheduled-object-flag:
+  variations:
+    a: {k: [1, 2]}
+    b: {k: [3]}
+  defaultRule:
+    variation: a
+  scheduledRollout:
+    - date: 2025-06-10T00:00:00Z
+      defaultRule:
+        variation: b
+broken-query-flag:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - query: this is ((( not a query
+      variation: on
+  defaultRule:
+    variation: off
+bool-flat-meta:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - name: beta-users
+      query: beta eq true
+      variation: on
+  defaultRule:
+    name: everyone
+    variation: off
+  metadata:
+    team: payments
+    tier: gold
+scheduled-tracked-object-flag:
+  trackEvents: true
+  variations:
+    a: {k: [1, 2]}
+    b: {k: [3]}
+  defaultRule:
+    variation: a
+  scheduledRollout:
+    - date: 2025-06-10T00:00:00Z
+      defaultRule:
+        variation: b
+object-null-flag:
+  variations:
+    a:
+      x: null
+      list: [null, {y: null}]
+      empty: []
+  defaultRule:
+    variation: a
+env-flag:
+  variations:
+    on: true
+    off: false
+  targeting:
+    - name: in-prod
+      query: env eq "prod"
+      variation: on
+  defaultRule:
+    variation: off
+scheduled-future-object-flag:
+  variations:
+    a: {k: [1, 2]}
+    b: {k: [3]}
+  defaultRule:
+    variation: a
+  scheduledRollout:
+    - date: 2099-01-01T00:00:00Z
+      defaultRule:
+        variation: b

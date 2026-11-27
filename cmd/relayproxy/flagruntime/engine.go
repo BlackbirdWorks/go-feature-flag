@@ -535,7 +535,8 @@ type contentVerdict uint8
 const (
 	// sameContent: the same objects in the same states.
 	sameContent contentVerdict = iota
-	// stateChange: the same objects, and only the state of some of them differs (for example pending or stale to ok).
+	// stateChange: the same objects, and only the state of some of them differs (for example pending or stale to ok),
+	// or the kind of an object whose content was not current on one side (stale bytes of another kind).
 	stateChange
 	// conflictingContent: another set of names, or another checksum for a name where both sides carry content.
 	conflictingContent
@@ -552,21 +553,45 @@ func compareRunning(running map[string]runningObject, content *Content) contentV
 		obj := content.Objects[name]
 
 		held, ok := running[name]
-		if !ok || held.kind != obj.Kind {
+		if !ok {
 			return conflictingContent
 		}
 
-		if held.state == ObjectOK && obj.state() == ObjectOK && held.checksum != obj.Checksum {
+		switch compareObject(&held, &obj) {
+		case conflictingContent:
 			return conflictingContent
-		}
-
-		if held.state != obj.state() || held.reason != obj.Reason ||
-			(held.state == ObjectOK && held.checksum != obj.Checksum) {
+		case stateChange:
 			verdict = stateChange
+		case sameContent:
 		}
 	}
 
 	return verdict
+}
+
+// compareObject relates one object of a content to the same object of the running one. The kind of an object that
+// does not carry its current content is the kind of its fallback bytes: a name that changes kind while its new object
+// is failing or arriving is a state change, not another manifest.
+func compareObject(held *runningObject, obj *Object) contentVerdict {
+	bothCurrent := held.state == ObjectOK && obj.state() == ObjectOK
+
+	if held.kind != obj.Kind {
+		if bothCurrent {
+			return conflictingContent
+		}
+
+		return stateChange
+	}
+
+	if bothCurrent && held.checksum != obj.Checksum {
+		return conflictingContent
+	}
+
+	if held.state != obj.state() || held.reason != obj.Reason {
+		return stateChange
+	}
+
+	return sameContent
 }
 
 func validateObject(name string, obj *Object) error {

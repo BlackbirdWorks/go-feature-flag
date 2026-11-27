@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -53,6 +55,9 @@ type Built struct {
 type BuilderOptions struct {
 	// OnParse is called once for every object that is parsed (not for an object served from the cache).
 	OnParse func(ParseEvent)
+	// Now returns the time stamped on the flag sets that a build creates ([FlagSet.ModifiedAt]). Nil means
+	// [clock.Now], read once per build.
+	Now func() time.Time
 	// WithdrawnCap is the number of withdrawn flag-set names that the status keeps; the oldest are dropped.
 	// Zero means [DefaultWithdrawnCap].
 	WithdrawnCap int
@@ -99,6 +104,7 @@ func (b *Builder) Commit(built *Built) {
 
 // stage is the working state of one Build.
 type stage struct {
+	now     time.Time // the clock at the start of the build: the ModifiedAt of the flag sets it rebuilds
 	b       *Builder
 	prev    *state
 	objects map[string]*objState
@@ -163,7 +169,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	}
 
 	stg := &stage{
-		b: b, prev: b.cur, objects: b.cur.objects, docs: b.cur.docs, gen: content.Generation,
+		b: b, prev: b.cur, objects: b.cur.objects, docs: b.cur.docs, gen: content.Generation, now: b.now(),
 		built: &Built{flagSet: map[string]*parsedFlags{}, docSet: map[string]*parsedDoc{}},
 	}
 
@@ -384,4 +390,13 @@ func (st *stage) finish(content *Content, next *state, namesVersion uint64) {
 	}
 
 	st.built.Stats.Reused = max(0, len(next.sets)-rebuiltLive)
+}
+
+// now reads the clock of the builder.
+func (b *Builder) now() time.Time {
+	if b.opts.Now != nil {
+		return b.opts.Now()
+	}
+
+	return clock.Now()
 }

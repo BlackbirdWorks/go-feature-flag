@@ -9,7 +9,9 @@ type ObjectState string
 const (
 	// ObjectOK: Bytes hold the verified content of the object.
 	ObjectOK ObjectState = "ok"
-	// ObjectStale: the content could not be refreshed; keep the last good content.
+	// ObjectStale: the content could not be refreshed; keep the last good content. A stale object that carries
+	// Bytes and whose name this runtime never loaded (a restart that restored the manifest reader's state) is read
+	// from them as the last good content, and is reported stale.
 	ObjectStale ObjectState = "stale"
 	// ObjectMissing: the object is listed but its content is not available; keep the last good content.
 	ObjectMissing ObjectState = "missing"
@@ -49,7 +51,7 @@ type Object struct {
 	State ObjectState
 	// Reason says why the state is not ok; it is shown in the status.
 	Reason string
-	// Bytes are the verified bytes; only read when the state is ok.
+	// Bytes are the verified bytes; only read when the state is ok, or stale for a name never loaded.
 	Bytes []byte
 }
 

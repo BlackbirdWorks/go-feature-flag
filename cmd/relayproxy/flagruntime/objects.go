@@ -3,6 +3,10 @@ package flagruntime
 // flagObject computes the state of one flags object; it returns prev itself when nothing changed.
 func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState {
 	state := obj.state()
+	if state == ObjectStale && adoptsStale(obj, prev != nil && prev.loaded) {
+		return st.staleFlagObject(name, obj, prev)
+	}
+
 	if state != ObjectOK {
 		return flagKept(name, obj, state, prev)
 	}
@@ -26,6 +30,30 @@ func (st *stage) flagObject(name string, obj *Object, prev *objState) *objState 
 	st.swapRef(prev, next)
 
 	return next
+}
+
+// adoptsStale tells that a stale object is read: it carries bytes (the last good content of the manifest reader,
+// for example restored from its state directory) and this runtime has no content of the name yet. Without it a
+// restart would lose the last-known-good content that the reader kept for it.
+func adoptsStale(obj *Object, held bool) bool {
+	return !held && len(obj.Bytes) > 0
+}
+
+// staleFlagObject reads the bytes of a stale object as its last good content and reports the object as stale.
+func (st *stage) staleFlagObject(name string, obj *Object, prev *objState) *objState {
+	fresh := *obj
+	fresh.State, fresh.Reason = ObjectOK, ""
+
+	next := st.flagObject(name, &fresh, prev)
+	if next.state != ObjectOK {
+		return next
+	}
+
+	held := *next
+	held.state, held.reason = ObjectStale, obj.Reason
+	held.status = flagsStatus(&held)
+
+	return &held
 }
 
 // parsedFlags returns the parse result of an object, from the cache or by parsing it once.
@@ -132,6 +160,10 @@ func flagsStatus(held *objState) *ObjectStatus {
 // docObject computes the state of one flag-set document object.
 func (st *stage) docObject(name string, obj *Object, prev *docState) *docState {
 	state := obj.state()
+	if state == ObjectStale && adoptsStale(obj, prev != nil && prev.parsed != nil) {
+		return st.staleDocObject(name, obj, prev)
+	}
+
 	if state != ObjectOK {
 		return docKept(name, obj, state, prev)
 	}
@@ -152,6 +184,23 @@ func (st *stage) docObject(name string, obj *Object, prev *docState) *docState {
 	st.swapDocRef(prev, next)
 
 	return next
+}
+
+// staleDocObject reads the bytes of a stale document as its last good content and reports it as stale.
+func (st *stage) staleDocObject(name string, obj *Object, prev *docState) *docState {
+	fresh := *obj
+	fresh.State, fresh.Reason = ObjectOK, ""
+
+	next := st.docObject(name, &fresh, prev)
+	if next.state != ObjectOK {
+		return next
+	}
+
+	held := *next
+	held.state, held.reason = ObjectStale, obj.Reason
+	held.status = docStatus(&held)
+
+	return &held
 }
 
 // parsedDoc returns the decoded document, from the cache or by decoding it once.

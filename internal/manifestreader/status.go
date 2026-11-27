@@ -38,65 +38,65 @@ const (
 // PollStatus describes the last poll.
 type PollStatus struct {
 	// At is the time the last round ended (the repository clock). It is zero before the first round.
-	At time.Time
+	At time.Time `json:"at"`
 	// Result is a Poll* constant.
-	Result string
+	Result string `json:"result"`
 	// Reason is the closed code of a failed poll (a Reason* constant of the store or the reader), else empty.
-	Reason string
+	Reason string `json:"reason"`
 }
 
 // ManifestStatus describes the manifest the reader holds and the last one it read.
 type ManifestStatus struct {
 	// Outcome is an Outcome* constant: what happened to the last manifest the reader read. A 304 does not
 	// change it: it confirms the same bytes.
-	Outcome string
+	Outcome string `json:"outcome"`
 	// Reason is the closed code of the problem (a controlplane validation code, "decode", "unsupported-version",
 	// "wrong-kind", "too-many-objects", ...), empty when accepted.
-	Reason string
+	Reason string `json:"reason"`
 	// Channel and Generation are those of the held manifest, zero before the first accepted one.
-	Channel    string
-	Generation uint64
+	Channel    string `json:"channel"`
+	Generation uint64 `json:"generation"`
 	// Objects is the number of objects of the held manifest.
-	Objects int
+	Objects int `json:"objects"`
 	// UnknownFields counts the fields of the last read manifest that this version does not know.
-	UnknownFields int
+	UnknownFields int `json:"unknownFields"`
 }
 
 // ObjectFailure is an object that is not ok. It never holds bytes.
 type ObjectFailure struct {
 	// Name is the object name of the manifest.
-	Name string
+	Name string `json:"name"`
 	// State is [StateStale] or [StateMissing].
-	State State
+	State State `json:"state"`
 	// Reason is the closed code of the failure.
-	Reason string
+	Reason string `json:"reason"`
 	// Checksum is the listed (wanted) sha256 value.
-	Checksum string
+	Checksum string `json:"checksum"`
 	// Retryable tells whether a retry can succeed without a change of configuration.
-	Retryable bool
+	Retryable bool `json:"retryable"`
 }
 
 // Status is the immutable state of the reader at the end of a round. Take it with [Reader.Status]; never
 // change the slice.
 type Status struct {
-	LastSync time.Time
-	Poll     PollStatus
-	Failures []ObjectFailure
+	LastSync time.Time       `json:"lastSync"`
+	Poll     PollStatus      `json:"poll"`
+	Failures []ObjectFailure `json:"failures"`
 	// HookPanics lists the hooks that panicked (recovered), with counts; empty when none.
-	HookPanics []HookPanic
+	HookPanics []HookPanic `json:"hookPanics"`
 	// PollResults counts the polls by result (the Poll* constants), sorted by result; results that did not
 	// happen are absent.
-	PollResults []PollCount
-	Manifest    ManifestStatus
-	State       StateStatus
+	PollResults []PollCount    `json:"pollResults"`
+	Manifest    ManifestStatus `json:"manifest"`
+	State       StateStatus    `json:"state"`
 	// Backoff is the backoff state: the consecutive failures of the manifest poll and the wait planned after
 	// this round.
-	Backoff BackoffStatus
-	Counts  Counts
+	Backoff BackoffStatus `json:"backoff"`
+	Counts  Counts        `json:"counts"`
 	// Cache is what the reader holds in memory: verified objects, by checksum.
-	Cache       CacheStatus
-	Polls       uint64
-	NotModified uint64
+	Cache       CacheStatus `json:"cache"`
+	Polls       uint64      `json:"polls"`
+	NotModified uint64      `json:"notModified"`
 }
 
 // ReasonTotalTooLarge is the [ManifestStatus.Reason] of a manifest whose distinct objects add up to more than
@@ -133,29 +133,29 @@ const (
 // StateStatus is what the persistence behind the hooks reports. A hook that is not installed reports the zero value.
 type StateStatus struct {
 	// LastSave is the time of the last write that ended, zero when none did.
-	LastSave time.Time
+	LastSave time.Time `json:"lastSave"`
 	// Restore is a Restore* constant.
-	Restore string
+	Restore string `json:"restore"`
 	// LastSaveError is the closed code of the failure of the last write, empty when it worked.
-	LastSaveError string
+	LastSaveError string `json:"lastSaveError"`
 	// ParentSync is a ParentSync* constant, or empty.
-	ParentSync string
+	ParentSync string `json:"parentSync"`
 	// DisabledReason is the closed code of the refusal of the state directory (with [RestoreDisabled]).
-	DisabledReason string
+	DisabledReason string `json:"disabledReason"`
 	// Saves and SaveErrors count the writes that ended, and the ones that failed.
-	Saves      uint64
-	SaveErrors uint64
+	Saves      uint64 `json:"saves"`
+	SaveErrors uint64 `json:"saveErrors"`
 	// PartialSaves counts the writes that kept only part of the objects because of the byte budget; they are
 	// not errors, and LastSavePartial tells that the last write was one.
-	PartialSaves uint64
+	PartialSaves uint64 `json:"partialSaves"`
 	// RestoredObjects and DiscardedObjects count the saved objects that were restored and the ones that were
 	// discarded as missing or corrupt.
-	RestoredObjects  int
-	DiscardedObjects int
+	RestoredObjects  int `json:"restoredObjects"`
+	DiscardedObjects int `json:"discardedObjects"`
 	// Enabled tells that a state hook is installed.
-	Enabled bool
+	Enabled bool `json:"enabled"`
 	// LastSavePartial tells that the last write kept only part of the objects (the byte budget).
-	LastSavePartial bool
+	LastSavePartial bool `json:"lastSavePartial"`
 	// Pending tells that a write is queued or running.
-	Pending bool
+	Pending bool `json:"pending"`
 }
