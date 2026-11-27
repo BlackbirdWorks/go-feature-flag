@@ -3,7 +3,6 @@ package redissegment_test
 import (
 	"context"
 	"errors"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
 	"strconv"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
 )
 
 const (
@@ -342,6 +342,8 @@ func TestTheDefaultMeaningOfAMissingSetIsNoMember(t *testing.T) {
 	}
 }
 
+const scanNover = "SSCAN seg:{nover} 0 COUNT 1000"
+
 func TestWithoutAVersionKeyTheHolderPullsOnEveryRefresh(t *testing.T) {
 	t.Parallel()
 
@@ -357,7 +359,7 @@ func TestWithoutAVersionKeyTheHolderPullsOnEveryRefresh(t *testing.T) {
 	}
 
 	assert.Equal(t, [][]string{
-		{"SSCAN seg:{nover} 0 COUNT 1000"}, {"SSCAN seg:{nover} 0 COUNT 1000"}, {"SSCAN seg:{nover} 0 COUNT 1000"},
+		{scanNover}, {scanNover}, {scanNover},
 	}, store.commands(), "no GET of a version, one scan for each refresh")
 	assert.Equal(t, segment.Member, holder.Lookup("a"))
 }

@@ -481,3 +481,33 @@ func TestCatalogOwnsAndReturnsCopiesOfTheVersionSpec(t *testing.T) {
 	require.False(t, ok)
 	assert.Nil(t, none.Version)
 }
+
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
+func TestTheEvaluationLookupsOfAVersionedSegmentAllocateNothing(t *testing.T) {
+	spec := &segment.VersionSpec{Key: "seg:version"}
+
+	catalog, err := segment.NewCatalog(segment.Definition{
+		Name: "alpha", Type: segment.TypeRedis, OnError: segment.OnErrorMember, Version: spec,
+	})
+	require.NoError(t, err)
+
+	var (
+		has   bool
+		state segment.State
+	)
+
+	assert.Zero(t, testing.AllocsPerRun(100, func() {
+		has = catalog.Has("alpha")
+		state = catalog.ResolveFor("alpha", segment.Unknown)
+	}))
+	assert.True(t, has)
+	assert.Equal(t, segment.Member, state, "the failure policy of the segment applies")
+	assert.Equal(
+		t,
+		segment.Unknown,
+		catalog.ResolveFor("ghost", segment.Unknown),
+		"a segment that is not defined keeps the state",
+	)
+	assert.False(t, (*segment.Catalog)(nil).Has("alpha"))
+	assert.Equal(t, segment.Unknown, (*segment.Catalog)(nil).ResolveFor("alpha", segment.Unknown))
+}

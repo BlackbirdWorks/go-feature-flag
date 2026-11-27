@@ -8,7 +8,9 @@ import (
 )
 
 // ErrSegmentMissing is yielded by [SnapshotSource.Members] for a segment that does not exist in the store. A segment
-// that exists and has no member yields nothing: missing is Unknown, empty is a set.
+// that exists and has no member yields nothing: missing and empty are different. What a missing segment means (no
+// member by default, or Unknown) is the policy of the consumer, see [MissingKey].
+// The Redis and Valkey providers still default to Unknown in this change; their default follows in the next one.
 var ErrSegmentMissing = errors.New("the segment does not exist in the store")
 
 // ErrNoVersion is wrapped by the error of a [Versioner] that has no version for the segment (no version key is

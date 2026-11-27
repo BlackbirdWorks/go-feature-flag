@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
-
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 

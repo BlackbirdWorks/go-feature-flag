@@ -208,6 +208,34 @@ func NewCatalog(defs ...Definition) (*Catalog, error) {
 	return catalog, nil
 }
 
+// Has reports whether the catalog defines the segment name. It does not copy the definition: it is for the evaluation
+// path.
+func (c *Catalog) Has(name string) bool {
+	if c == nil {
+		return false
+	}
+
+	_, ok := c.defs[name]
+
+	return ok
+}
+
+// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does, and
+// returns the state unchanged for a segment that the catalog does not define. It does not copy the definition: it is
+// for the evaluation path.
+func (c *Catalog) ResolveFor(name string, state State) State {
+	if c == nil {
+		return state
+	}
+
+	def, ok := c.defs[name]
+	if !ok {
+		return state
+	}
+
+	return def.Resolve(state)
+}
+
 // Lookup returns the definition of the segment name.
 func (c *Catalog) Lookup(name string) (Definition, bool) {
 	if c == nil {

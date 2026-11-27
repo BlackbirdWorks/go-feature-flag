@@ -92,7 +92,7 @@ func TestMemorySourceFailuresAndHook(t *testing.T) {
 
 	src.Fail(segment.OpMembers, errBoom)
 
-	_, err := collect(src, segAlpha)
+	_, err := collect(src)
 	require.ErrorIs(t, err, errBoom)
 
 	src.Fail(segment.OpMembers, nil)
@@ -106,14 +106,14 @@ func TestMemorySourceFailuresAndHook(t *testing.T) {
 	})
 	src.FailMembersAfter(2, errBoom)
 
-	got, err := collect(src, segAlpha)
+	got, err := collect(src)
 	require.ErrorIs(t, err, errBoom)
 	assert.Len(t, got, 2, "two members before the failure")
 	assert.Equal(t, []int{0, 1, 2}, seen)
 
 	src.FailMembersAfter(-1, nil)
 
-	all, err := collect(src, segAlpha)
+	all, err := collect(src)
 	require.NoError(t, err)
 	assert.Len(t, all, 3)
 
@@ -122,10 +122,10 @@ func TestMemorySourceFailuresAndHook(t *testing.T) {
 	assert.Equal(t, 1, src.Calls(segment.OpContains))
 }
 
-func collect(src *segment.MemorySource, name string) ([]string, error) {
+func collect(src *segment.MemorySource) ([]string, error) {
 	var ids []string
 
-	for id, err := range src.Members(context.Background(), name) {
+	for id, err := range src.Members(context.Background(), segAlpha) {
 		if err != nil {
 			return ids, err
 		}
@@ -264,4 +264,72 @@ func TestOverlappingPublishesLeaveTheLatestVersion(t *testing.T) {
 	}
 
 	assert.Equal(t, final, last, "the subscriber ends with the version the store has")
+}
+
+func TestPinningTheAbsentTokenOnAnExistingSegmentIsRemapped(t *testing.T) {
+	t.Parallel()
+
+	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
+	src.PinVersion(segAlpha, segment.AbsentVersion)
+
+	pinned, err := src.Version(context.Background(), segAlpha)
+	require.NoError(t, err)
+	assert.NotEqual(t, segment.AbsentVersion, pinned, "the absent token is for a segment that does not exist")
+
+	src.Delete(segAlpha)
+
+	gone, err := src.Version(context.Background(), segAlpha)
+	require.NoError(t, err)
+	assert.Equal(t, segment.AbsentVersion, gone)
+	assert.NotEqual(t, pinned, gone, "a deletion always moves the version")
+}
+
+func TestFailMembersAfterAlsoFiresAtTheEndOfTheStream(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		members     []string
+		after       int
+		wantMembers int
+		wantErr     bool
+	}{
+		{name: "after the last member", members: []string{"a", "b"}, after: 2, wantMembers: 2, wantErr: true},
+		{name: "empty set, after zero", members: nil, after: 0, wantMembers: 0, wantErr: true},
+		{name: "before the last member", members: []string{"a", "b"}, after: 1, wantMembers: 1, wantErr: true},
+		{name: "beyond the end", members: []string{"a", "b"}, after: 3, wantMembers: 2},
+		{name: "healed", members: []string{"a", "b"}, after: -1, wantMembers: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := segment.NewMemorySource(map[string][]string{segAlpha: tt.members})
+			src.Set(segAlpha, tt.members)
+			src.FailMembersAfter(tt.after, errBoom)
+
+			got, err := collect(src)
+			assert.Len(t, got, tt.wantMembers)
+
+			if tt.wantErr {
+				require.ErrorIs(t, err, errBoom)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+
+	// an early stop of the consumer ends the stream at once, without the injected error
+	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a", "b"}})
+	src.FailMembersAfter(2, errBoom)
+
+	for id, err := range src.Members(context.Background(), segAlpha) {
+		require.NoError(t, err)
+		assert.NotEmpty(t, id)
+
+		break
+	}
 }

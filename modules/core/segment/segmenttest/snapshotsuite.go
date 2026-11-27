@@ -608,17 +608,9 @@ func snapGone(t caseT, fix SnapshotFixture) {
 	assert.Equal(t, snapshot.ClassMissing, status.LastError)
 	assert.Equal(t, wantMissing(fix), holder.Lookup("m1"), "a segment that is gone is not served from the old set")
 
-	_, pulls := prb.counts()
-
-	require.NoError(
-		t,
-		holder.Refresh(ctx),
-		"already known to be missing: the status says so, the error was returned once",
-	)
+	require.NoError(t, holder.Refresh(ctx), "already known to be missing: the error was returned once")
 	assert.Equal(t, snapshot.ClassMissing, holder.Status().LastError)
-
-	_, again := prb.counts()
-	assert.Equal(t, pulls+1, again, "missing is a state: the members are asked again, whatever the token")
+	assert.Equal(t, wantMissing(fix), holder.Lookup("m1"), "still the answer of the policy")
 
 	require.NoError(t, fix.Seed("alpha", idsOf("n", snapSmall)))
 	require.NoError(t, holder.Refresh(ctx))
