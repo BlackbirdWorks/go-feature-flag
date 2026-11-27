@@ -198,3 +198,73 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 		require.Fail(t, "ping loop did not start/stop with a zero interval")
 	}
 }
+
+// A message, then a quiet time longer than the write deadline, then a ping and the next message: the deadline of the
+// first write must not be the one of the later writes. A subscriber that is quiet for a while stays connected.
+func Test_threadSafeConn_deadline_is_fresh_for_every_write(t *testing.T) {
+	t.Parallel()
+
+	const (
+		deadline = 30 * time.Millisecond
+		bound    = 10 * time.Second
+	)
+
+	server, client := newWSConnPair(t)
+	conn := &threadSafeConn{conn: server, deadline: deadline}
+
+	pinged := make(chan struct{}, 1)
+
+	client.SetPingHandler(func(string) error {
+		pinged <- struct{}{}
+
+		return nil
+	})
+
+	messages := make(chan string, 2)
+	readFailed := make(chan error, 1)
+
+	go func() {
+		for {
+			_, msg, err := client.ReadMessage()
+			if err != nil {
+				readFailed <- err
+
+				return
+			}
+
+			messages <- string(msg)
+		}
+	}()
+
+	awaitMessage := func(want string) {
+		t.Helper()
+
+		select {
+		case got := <-messages:
+			assert.JSONEq(t, want, got)
+		case err := <-readFailed:
+			require.FailNow(t, "the connection ended", "%v", err)
+		case <-time.After(bound):
+			require.FailNow(t, "the message did not arrive")
+		}
+	}
+
+	require.NoError(t, conn.WriteJSON(map[string]int{"change": 1}))
+	awaitMessage(`{"change":1}`)
+
+	// the quiet time: longer than the write deadline, a real wait on the clock the network deadline runs on
+	quietFrom := time.Now()
+
+	require.Eventually(t, func() bool { return time.Since(quietFrom) > 3*deadline }, bound, time.Millisecond)
+
+	require.NoError(t, conn.ping(), "the ping runs on a deadline of its own")
+
+	select {
+	case <-pinged:
+	case <-time.After(bound):
+		require.FailNow(t, "the ping did not reach the client")
+	}
+
+	require.NoError(t, conn.WriteJSON(map[string]int{"change": 2}), "the next message runs on a deadline of its own")
+	awaitMessage(`{"change":2}`)
+}

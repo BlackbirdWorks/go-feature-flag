@@ -16,8 +16,12 @@ const (
 	// securityAPIKey and securityXAPIKey are the names of the security schemes of the document.
 	securityAPIKey  = "ApiKeyAuth"  //nolint:gosec // the name of a security scheme, not a credential
 	securityXAPIKey = "XApiKeyAuth" //nolint:gosec // the name of a security scheme, not a credential
+	// securityQueryAPIKey is the scheme of the streams: they take the key in the apiKey query parameter only.
+	securityQueryAPIKey = "ApiKeyQueryAuth" //nolint:gosec // the name of a security scheme, not a credential
 	// schemeAPIKey is the type of the security schemes: an API key.
 	schemeAPIKey = "apiKey"
+	// queryAPIKey is the name of the query parameter that carries the key of a stream.
+	queryAPIKey = "apiKey"
 )
 
 // introduction is the description of the API, the first paragraphs of the document.
@@ -129,6 +133,11 @@ func newHumaConfig(exposeError, docs bool) huma.Config {
 			Name: "Authorization",
 			Description: "Use configured APIKeys in yaml config as authorization keys, " +
 				"disabled when this yaml config is not set.",
+		},
+		securityQueryAPIKey: {
+			Type: schemeAPIKey, In: inQuery, Name: queryAPIKey,
+			Description: "The API key of the flag set in the apiKey query parameter, as the streams of flag changes " +
+				"take it. The URL with the key is sensitive and must not be logged.",
 		},
 		securityXAPIKey: {
 			Type: schemeAPIKey, In: inHeader, Name: "X-API-Key",

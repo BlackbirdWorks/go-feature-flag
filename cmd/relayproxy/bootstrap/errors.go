@@ -30,6 +30,8 @@ var (
 	ErrInvalidValue = errors.New("invalid value")
 	// ErrInvalidDuration is returned for a duration that is not a positive duration string such as "60s".
 	ErrInvalidDuration = errors.New("invalid duration")
+	// ErrInvalidByteSize is returned for a size that is not a positive size string such as "64KiB".
+	ErrInvalidByteSize = errors.New("invalid size")
 	// ErrMissingValue is returned when a required key is not set.
 	ErrMissingValue = errors.New("required value missing")
 	// ErrNotAllowed is returned for a key that is not allowed for the type or kind of its parent.

@@ -85,10 +85,11 @@ func (c *Core) runStateWriter(ctx context.Context) func() {
 	}
 }
 
-// Reload applies a new bootstrap file in place. Only the admin keys apply live; every other change is kept out
-// and named in the PendingRestart of the status (the connections, the control plane, the exporters, the notifiers,
-// the listeners). The reload is asynchronous and latest-wins: the engine takes the file in its next round, and the
-// outcome is in the status. cfg must be a loaded and validated file, and belongs to the core afterwards.
+// Reload applies a new bootstrap file in place. Only the admin keys and the anonymous flag set apply live; every
+// other change is kept out and named in the PendingRestart of the status (the connections, the control plane, the
+// exporters, the notifiers, the listeners). The reload is asynchronous and latest-wins: the engine takes the file in
+// its next round, and the outcome is in the status. cfg must be a loaded and validated file, and belongs to the core
+// afterwards.
 func (c *Core) Reload(cfg *bootstrap.Config) error {
 	if cfg == nil {
 		return ErrNilConfig

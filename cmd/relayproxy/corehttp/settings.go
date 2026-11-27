@@ -10,6 +10,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 )
 
 // ErrListeners is wrapped by the error of [SettingsFrom] when the listeners of the file are more than the server
@@ -25,6 +27,8 @@ func SettingsFrom(cfg *bootstrap.Config, version string) (api.Settings, error) {
 		Mode:                     api.ServerModeHTTP,
 		ExposeLegacyMetrics:      cfg.Observability.Metrics.LegacyNames,
 		DisableSemaphoreMetadata: cfg.Evaluation.DisableSemaphoreMetadata,
+		Pprof:                    cfg.Server.Ops.Pprof.Enabled,
+		ValidateFlags:            validateFlagsLimits(&cfg.Server.ValidateFlags),
 		Telemetry: opentelemetry.Settings{
 			Version:      version,
 			OTLPEndpoint: cfg.Observability.Tracing.OTLPEndpoint,
@@ -32,6 +36,16 @@ func SettingsFrom(cfg *bootstrap.Config, version string) (api.Settings, error) {
 			Sampler:      cfg.Observability.Tracing.Sampler,
 		},
 	}
+
+	stream, streamErr := ofrep.NewEventStream(
+		cfg.Server.OFREPEventStream.BaseURL,
+		cfg.Server.OFREPEventStream.InactivityDelaySec,
+	)
+	if streamErr != nil {
+		return api.Settings{}, fmt.Errorf("server.ofrepEventStream: %w", streamErr)
+	}
+
+	settings.OfrepEventStream = stream
 
 	if cfg.Server.UnixSocketPath != "" {
 		return api.Settings{}, fmt.Errorf("%w: server.unixSocketPath", ErrListeners)
@@ -86,4 +100,24 @@ func splitAddress(address string) (string, int, error) {
 	}
 
 	return host, int(port), nil
+}
+
+// validateFlagsLimits returns the limits of the validate flags endpoint; a limit the file does not set is zero, which
+// the endpoint reads as its default.
+func validateFlagsLimits(file *bootstrap.ValidateFlags) controller.ValidateFlagsLimits {
+	var limits controller.ValidateFlagsLimits
+
+	if file.MaxJSONBodySize != nil {
+		limits.MaxJSONBodySize = int64(*file.MaxJSONBodySize)
+	}
+
+	if file.MaxYAMLBodySize != nil {
+		limits.MaxYAMLBodySize = int64(*file.MaxYAMLBodySize)
+	}
+
+	if file.MaxTOMLBodySize != nil {
+		limits.MaxTOMLBodySize = int64(*file.MaxTOMLBodySize)
+	}
+
+	return limits
 }

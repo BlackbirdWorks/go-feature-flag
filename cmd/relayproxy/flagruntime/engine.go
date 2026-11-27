@@ -25,6 +25,8 @@ type Hooks struct {
 	BeforeSwap func(candidate *Runtime) error
 	// OnEmit is called after a change was handed to the channel of [Engine.Changes].
 	OnEmit func(Change)
+	// AfterSwap is called with the new runtime right after it is stored, before the changes of the swap are queued.
+	AfterSwap func(*Runtime)
 	// AfterRound is called at the end of every round, after the store and the change notifications.
 	AfterRound func(RoundResult)
 }
@@ -267,10 +269,12 @@ type contentPlan struct {
 }
 
 type bootPlan struct {
-	admin   map[string]struct{}
-	pending []string
-	res     Reload
-	apply   bool
+	admin map[string]struct{}
+	// anonymous is the name of the flag set that serves the requests without a key, empty for none.
+	anonymous string
+	pending   []string
+	res       Reload
+	apply     bool
 }
 
 // round runs one reconcile round for the inputs it was woken with.
@@ -299,6 +303,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	}
 
 	bootChanged := boot.apply && (!maps.Equal(boot.admin, e.cur.AdminKeys) ||
+		boot.anonymous != e.cur.AnonymousName() ||
 		!slices.Equal(boot.pending, e.cur.Status.PendingRestart))
 
 	if plan.built == nil && !bootChanged {
@@ -308,7 +313,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		return
 	}
 
-	veto, events := e.swap(&plan, &boot)
+	veto, events := e.swap(ctx, &plan, &boot)
 	if veto != nil {
 		e.finish(ctx, append(results, *veto), nil, 0)
 
@@ -332,7 +337,8 @@ func (e *Engine) adoptBaseline(boot *bootPlan, cfg *bootstrap.Config) {
 
 // swap assembles the candidate and stores it with one atomic store. It returns the rejection when the
 // BeforeSwap hook refused the candidate; nothing is stored then and the builder is not committed.
-func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
+func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*Reload, int) {
+	previous := e.cur
 	candidate := e.assemble(plan.built, boot)
 
 	if e.hooks.BeforeSwap != nil {
@@ -353,6 +359,12 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
 
+	e.warnAnonymous(ctx, previous, candidate)
+
+	if e.hooks.AfterSwap != nil {
+		e.hooks.AfterSwap(candidate)
+	}
+
 	events := 0
 
 	if plan.built != nil {
@@ -369,6 +381,7 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 	base := e.cur
 	status := *base.Status
+	name := base.AnonymousName()
 	next := &Runtime{
 		FlagSets: base.FlagSets, ByKey: base.ByKey, AdminKeys: base.AdminKeys, Generation: base.Generation,
 		Snapshot: e.snapshot + 1,
@@ -383,7 +396,11 @@ func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 	if boot.apply {
 		next.AdminKeys = boot.admin
 		status.PendingRestart = boot.pending
+		name = boot.anonymous
 	}
+
+	next.Anonymous = anonymousSet(name, next.FlagSets)
+	status.Anonymous = anonymousStatus(next.Anonymous, next.FlagSets)
 
 	status.Generation, status.Snapshot = next.Generation, next.Snapshot
 	status.LastRejected = e.rejected
@@ -463,7 +480,9 @@ func (e *Engine) planBootstrap(cfg *bootstrap.Config) bootPlan {
 		base = cfg
 	}
 
-	return bootPlan{admin: admin, pending: pendingRestart(base, cfg), apply: true}
+	return bootPlan{
+		admin: admin, anonymous: cfg.Auth.AnonymousFlagSet, pending: pendingRestart(base, cfg), apply: true,
+	}
 }
 
 // validateContent checks the shape of a content.
