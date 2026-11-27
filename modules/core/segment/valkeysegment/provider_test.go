@@ -788,6 +788,16 @@ func TestOptionsValidation(t *testing.T) {
 	}{
 		{name: "defaults", opts: &valkeysegment.Options{}},
 		{name: "negative timeout", opts: &valkeysegment.Options{Timeout: -1}, wantErr: "timeout is negative"},
+		{
+			name:    "bad pipelining",
+			opts:    &valkeysegment.Options{Pipelining: "x"},
+			wantErr: `pipelining must be always, auto or off, got "x"`,
+		},
+		{
+			name:    "negative blocking pipeline",
+			opts:    &valkeysegment.Options{BlockingPipeline: -1},
+			wantErr: "blocking pipeline is negative",
+		},
 		{name: "negative max id", opts: &valkeysegment.Options{MaxIDBytes: -1}, wantErr: "max id bytes is negative"},
 		{
 			name:    "bad missing key",
@@ -825,57 +835,22 @@ func TestOptionsValidation(t *testing.T) {
 	}
 }
 
-func TestDialForcesTheSafeOptions(t *testing.T) {
+func TestDialDoesNotUseCachingOrRetryByDefault(t *testing.T) {
 	t.Parallel()
 
 	srv := loaded(t)
-	opt := srv.clientOption()
-	opt.DisableCache, opt.DisableRetry = false, false // Dial turns both on again
-
 	opts := baseOptions(nil)
 	opts.Timeout = time.Second
+	prov := newProvider(t, srv, opts)
 
-	prov, err := valkeysegment.Dial(opt, opts)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
-		defer cancel()
-
-		assert.NoError(t, prov.Shutdown(ctx))
-	})
-
+	require.NoError(t, prov.Init(context.Background()))
 	assert.Zero(t, srv.count("client tracking"), "no client-side caching")
+
+	before := srv.count("smismember")
 
 	srv.Fail()
 
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrUnavailable)
-	assert.Equal(t, 1, srv.count("smismember"), "a failed read is not sent again")
-}
-
-func TestDialForcesBackgroundPipelining(t *testing.T) {
-	t.Parallel()
-
-	srv := loaded(t)
-	opt := srv.clientOption()
-	opt.AlwaysPipelining, opt.DisableAutoPipelining = false, true // Dial turns pipelining on again
-
-	prov, err := valkeysegment.Dial(opt, baseOptions(nil))
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
-		defer cancel()
-
-		assert.NoError(t, prov.Shutdown(ctx))
-	})
-
-	require.NoError(t, prov.Init(context.Background()))
-	srv.CutAfter(1)
-
-	lookups := []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed")}
-
-	require.ErrorIs(t, prov.Contains(context.Background(), lookups), valkeysegment.ErrUnavailable)
-	assert.Equal(t, []segment.State{segment.Member, segment.Unknown}, states(lookups))
+	assert.Equal(t, 1, srv.count("smismember")-before, "a failed read is not sent again")
 }

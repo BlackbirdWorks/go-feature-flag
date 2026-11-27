@@ -138,22 +138,24 @@ func cmp(val, def string) string {
 	return val
 }
 
-// Dial creates a valkey-go client from the options and returns a Provider that owns it: Close closes the client.
-// It sets, whatever the options say: DisableCache (no client-side caching: the provider only reads and the resolver
-// caches), AlwaysPipelining (a connection that fails inside a batch keeps the replies already read, see [Client]),
-// BlockingPipeline (no batch is moved to a dedicated connection, where a cancel waits)
-// and DisableRetry (a failed read is not sent again behind the back of the call timeout).
+// Dial creates a valkey-go client from clientOpt and the client settings of opts (Pipelining, ClientSideCache,
+// Retry and BlockingPipeline; their defaults are the safe ones) and returns a Provider that owns it: Close closes
+// the client. The settings override the same fields of clientOpt: see [Options] for what each one trades.
 func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	if clientOpt == nil {
 		return nil, ErrNilClient
 	}
 
-	owned := *clientOpt
-	owned.DisableCache = true
-	owned.DisableRetry = true
-	owned.AlwaysPipelining = true
-	owned.BlockingPipeline = math.MaxInt // a batch of any size stays on the pipelined connection, see doc.go
-	owned.DisableAutoPipelining = false
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	err := opts.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	owned := buildClientOption(clientOpt, opts)
 
 	client, err := valkey.NewClient(owned)
 	if err != nil {
@@ -170,6 +172,22 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	prov.closer = client.Close
 
 	return prov, nil
+}
+
+// buildClientOption returns the valkey-go options that Dial uses: clientOpt with the client settings of opts.
+func buildClientOption(clientOpt *valkey.ClientOption, opts *Options) valkey.ClientOption {
+	owned := *clientOpt
+	owned.DisableCache = !opts.ClientSideCache
+	owned.DisableRetry = !opts.Retry
+	owned.AlwaysPipelining = opts.Pipelining == "" || opts.Pipelining == PipeliningAlways
+	owned.DisableAutoPipelining = opts.Pipelining == PipeliningOff
+	owned.BlockingPipeline = opts.BlockingPipeline
+
+	if owned.BlockingPipeline == 0 {
+		owned.BlockingPipeline = math.MaxInt // a batch of any size stays on the shared connection
+	}
+
+	return owned
 }
 
 // Close closes the client when the provider owns it (see Dial) and does nothing otherwise. It is safe to call

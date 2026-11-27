@@ -25,48 +25,59 @@ func TestProviderConformsOnTheStubServer(t *testing.T) {
 		{name: nameKeysLayout, layout: valkeysegment.LayoutKeys},
 	}
 
+	modes := []valkeysegment.Pipelining{
+		valkeysegment.PipeliningAlways,
+		valkeysegment.PipeliningAuto,
+		valkeysegment.PipeliningOff,
+	}
+
 	for _, tt := range layouts {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		for _, mode := range modes {
+			t.Run(tt.name+"/"+string(mode), func(t *testing.T) {
+				t.Parallel()
 
-			segmenttest.Run(t, func(data segmenttest.Data) (segmenttest.Fixture, error) {
-				srv := newStubServer(t)
-				segs := map[string]valkeysegment.SegmentOptions{}
+				segmenttest.Run(t, func(data segmenttest.Data) (segmenttest.Fixture, error) {
+					srv := newStubServer(t)
+					segs := map[string]valkeysegment.SegmentOptions{}
 
-				for name, ids := range data {
-					if tt.layout == valkeysegment.LayoutSet {
-						segs[name] = valkeysegment.SegmentOptions{Key: "seg:{" + name + "}"}
-						srv.setMembers("seg:{"+name+"}", ids...)
+					for name, ids := range data {
+						if tt.layout == valkeysegment.LayoutSet {
+							segs[name] = valkeysegment.SegmentOptions{Key: "seg:{" + name + "}"}
+							srv.setMembers("seg:{"+name+"}", ids...)
 
-						continue
+							continue
+						}
+
+						segs[name] = valkeysegment.SegmentOptions{
+							Layout: valkeysegment.LayoutKeys,
+							Key:    "seg:" + name + ":",
+						}
+
+						for _, id := range ids {
+							srv.setKey("seg:" + name + ":" + id)
+						}
 					}
 
-					segs[name] = valkeysegment.SegmentOptions{
-						Layout: valkeysegment.LayoutKeys,
-						Key:    "seg:" + name + ":",
+					prov, err := valkeysegment.Dial(
+						srv.clientOption(),
+						&valkeysegment.Options{Segments: segs, Pipelining: mode},
+					)
+					if err != nil {
+						return segmenttest.Fixture{}, err
 					}
 
-					for _, id := range ids {
-						srv.setKey("seg:" + name + ":" + id)
+					closeFixture := func() {
+						srv.Release() // a held command must end before Shutdown waits for it
+
+						ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
+						defer cancel()
+
+						_ = prov.Shutdown(ctx)
 					}
-				}
 
-				prov, err := valkeysegment.Dial(srv.clientOption(), &valkeysegment.Options{Segments: segs})
-				if err != nil {
-					return segmenttest.Fixture{}, err
-				}
-
-				closeFixture := func() {
-					srv.Release() // a held command must end before Shutdown waits for it
-
-					ctx, cancel := context.WithTimeout(context.Background(), shutdownBound)
-					defer cancel()
-
-					_ = prov.Shutdown(ctx)
-				}
-
-				return segmenttest.Fixture{Provider: prov, Backend: srv, Close: closeFixture}, nil
-			}, nil)
-		})
+					return segmenttest.Fixture{Provider: prov, Backend: srv, Close: closeFixture}, nil
+				}, nil)
+			})
+		}
 	}
 }

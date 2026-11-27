@@ -261,21 +261,64 @@ func TestAnErrorAfterTheCallTimeoutIsATimeout(t *testing.T) {
 	assert.Equal(t, []segment.State{segment.Unknown}, states(lookups))
 }
 
-func TestAConnectionCutInsideABatchKeepsTheAnsweredReplies(t *testing.T) {
+func TestAConnectionCutInsideABatch(t *testing.T) {
 	t.Parallel()
 
-	// the server answers the first command completely, then drops the connection before the second
-	srv := loaded(t)
-	counters := &valkeysegment.Counters{}
-	prov := newProvider(t, srv, baseOptions(counters))
+	tests := []struct {
+		name       string
+		pipelining valkeysegment.Pipelining
+		wantStates []segment.State
+		wantFailed int
+	}{
+		{
+			name:       "default is always: the replies already read are kept",
+			pipelining: "",
+			wantStates: []segment.State{segment.Member, segment.Unknown, segment.Unknown},
+			wantFailed: 2,
+		},
+		{
+			name:       "always keeps the replies already read",
+			pipelining: valkeysegment.PipeliningAlways,
+			wantStates: []segment.State{segment.Member, segment.Unknown, segment.Unknown},
+			wantFailed: 2,
+		},
+		{
+			name:       "auto loses the whole batch",
+			pipelining: valkeysegment.PipeliningAuto,
+			wantStates: []segment.State{segment.Unknown, segment.Unknown, segment.Unknown},
+			wantFailed: 3,
+		},
+		{
+			name:       "off loses the whole batch",
+			pipelining: valkeysegment.PipeliningOff,
+			wantStates: []segment.State{segment.Unknown, segment.Unknown, segment.Unknown},
+			wantFailed: 3,
+		},
+	}
 
-	require.NoError(t, prov.Init(context.Background()))
-	srv.CutAfter(1)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	lookups := []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed"), lk(segFlags, idAlice)}
-	err := prov.Contains(context.Background(), lookups)
+			srv := loaded(t)
+			counters := &valkeysegment.Counters{}
+			opts := baseOptions(counters)
+			opts.Pipelining = tt.pipelining
+			prov := newProvider(t, srv, opts)
 
-	assert.Equal(t, &valkeysegment.LookupError{Class: valkeysegment.ClassUnavailable, Failed: 2, Total: 3}, err)
-	assert.Equal(t, []segment.State{segment.Member, segment.Unknown, segment.Unknown}, states(lookups))
-	assert.Equal(t, map[string]uint64{"unavailable": 1}, counters.Snapshot().Failures)
+			require.NoError(t, prov.Init(context.Background()))
+			srv.CutAfter(1)
+
+			lookups := []segment.Lookup{lk(segFlags, idAlice), lk(segFlags, "zed"), lk(segFlags, idAlice)}
+			err := prov.Contains(context.Background(), lookups)
+
+			assert.Equal(
+				t,
+				&valkeysegment.LookupError{Class: valkeysegment.ClassUnavailable, Failed: tt.wantFailed, Total: 3},
+				err,
+			)
+			assert.Equal(t, tt.wantStates, states(lookups))
+			assert.Equal(t, map[string]uint64{"unavailable": 1}, counters.Snapshot().Failures)
+		})
+	}
 }

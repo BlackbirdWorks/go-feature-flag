@@ -14,17 +14,21 @@
 // returns a *[LookupError] that names the class and the counts only, never an id, a key or an address. A reply that
 // is not the one the command returns, or a stream that cannot be parsed, means no answer of the call is kept.
 //
-// [Dial] makes the client pipeline in the background even for a call that is alone on its connection
-// (AlwaysPipelining). That path ends a call when the context ends, and keeps the replies that were read when the
-// connection fails inside a batch (the others are Unknown with the transport class). valkey-go's synchronous path
-// does neither: it loses the whole batch on a failure and sees only the deadline, not a cancel. A client passed to
-// [New] must be created the same way, see [Client]. [Dial] also raises ClientOption.BlockingPipeline: valkey-go moves
-// a batch of 2000 commands or more to a dedicated connection, where a cancel waits for the connection to close.
+// The client that [Dial] creates is configured by the Options Pipelining, BlockingPipeline, ClientSideCache and
+// Retry, with safe defaults (always, never, false, false). Under PipeliningAlways the client reads in the
+// background even for a call that is alone on its connection: a connection that fails inside a batch keeps the
+// replies already read, and a cancel ends the call at once. valkey-go's own default (PipeliningAuto) writes and
+// reads a lone call synchronously, which loses the whole batch on a failure and sees only the deadline. A client
+// passed to [New] should be created like the default, see [Client]. valkey-go moves a call of BlockingPipeline
+// commands or more to a dedicated connection, where a cancel waits for the connection to close; the default
+// threshold of the provider is never.
 //
-// Limits: a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine, which
-// ends the process. valkey-go does this on every connection that pipelines in the background, which any concurrent
-// load starts, so it is a property of the library and not of AlwaysPipelining. The go-redis provider (type redis)
-// drops such a connection and returns an error: use it when the store sits behind a proxy that you do not trust.
+// Limits: a server or proxy that sends a reply nobody asked for makes valkey-go panic in its reader goroutine,
+// which ends the process. The reader runs on every connection that pipelines in the background: all of them under
+// PipeliningAlways, and under PipeliningAuto the connections that concurrent calls share. PipeliningOff is not
+// exposed: each call has a connection to itself and reads it synchronously.
+// The go-redis provider (type redis) drops such a connection and returns an error: use it when the store sits behind
+// a proxy that you do not trust.
 //
 // Shutdown stops new calls (they return [ErrClosed]), waits for the calls in flight until its own context ends,
 // and then ends them: the call in flight returns the canceled class. It also closes the client when the provider
