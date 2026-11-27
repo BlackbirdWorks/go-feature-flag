@@ -28,7 +28,14 @@ type SnapshotFixture struct {
 	Seed Seed
 	// Close (optional) releases the store after the case.
 	Close func()
+	// NoEmptySet is true for a store that cannot hold an empty segment (a Redis set does not exist without a
+	// member): seeding no member then removes the segment, and the suite expects it to be missing.
+	NoEmptySet bool
 }
+
+// SnapshotSegments returns the names of the segments that the suite uses, for a factory whose store must be told its
+// segments before it starts.
+func SnapshotSegments() []string { return []string{"alpha", "beta", "empty", "ghost"} }
 
 // SnapshotFactory builds a fixture of an empty store for a case.
 type SnapshotFactory func() (SnapshotFixture, error)
@@ -201,8 +208,13 @@ func snapEmptyVsMissing(t *testing.T, fix SnapshotFixture) {
 	require.NoError(t, fix.Seed("empty", nil))
 
 	ids, err := collect(fix.Source, "empty")
-	require.NoError(t, err, "an existing empty segment is not an error")
-	assert.Empty(t, ids, "an existing empty segment has no member")
+	if fix.NoEmptySet {
+		require.ErrorIs(t, err, segment.ErrSegmentMissing, "a store without empty sets reports it as missing")
+		assert.Empty(t, ids)
+	} else {
+		require.NoError(t, err, "an existing empty segment is not an error")
+		assert.Empty(t, ids, "an existing empty segment has no member")
+	}
 
 	ids, err = collect(fix.Source, "ghost")
 	require.ErrorIs(t, err, segment.ErrSegmentMissing, "a missing segment is reported as missing")

@@ -50,6 +50,10 @@ type SegmentOptions struct {
 	// <KeyPrefix>{<name>} for a set (the name is a hash tag, so a temporary key named with the same tag lands in
 	// the same cluster slot and RENAME works) and <KeyPrefix><name>: for keys.
 	Key string
+	// VersionKey (optional) is the key that holds the version of the segment: a string that the writer of the members
+	// changes whenever it changes them. [Provider.Version] reads it with GET; a missing key is the fixed version
+	// [segment.AbsentVersion], not an error. Without it Version fails with [ErrNoVersionKey].
+	VersionKey string
 }
 
 // Options configures a Provider.

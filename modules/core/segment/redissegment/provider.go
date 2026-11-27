@@ -27,9 +27,10 @@ type Client interface {
 }
 
 type segmentConfig struct {
-	keyAny any // the key of the set, or the prefix of the member keys, boxed once
-	key    string
-	layout Layout
+	keyAny     any // the key of the set, or the prefix of the member keys, boxed once
+	key        string
+	versionKey string
+	layout     Layout
 }
 
 // Provider is a [segment.Provider] over Redis or Valkey through go-redis. It is safe for concurrent use.
@@ -199,7 +200,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())
 
 	for name, so := range opts.Segments {
-		cfg := &segmentConfig{layout: so.Layout, key: so.Key}
+		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey}
 		if cfg.layout == "" {
 			cfg.layout = LayoutSet
 		}

@@ -33,8 +33,9 @@ type Client interface {
 }
 
 type segmentConfig struct {
-	key    string
-	layout Layout
+	key        string
+	versionKey string
+	layout     Layout
 }
 
 // Provider is a [segment.Provider] over Valkey (or Redis) through valkey-go. It is safe for concurrent use.
@@ -108,7 +109,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())
 
 	for name, so := range opts.Segments {
-		cfg := &segmentConfig{layout: so.Layout, key: so.Key}
+		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey}
 		if cfg.layout == "" {
 			cfg.layout = LayoutSet
 		}

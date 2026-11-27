@@ -73,6 +73,11 @@ var (
 	// ErrSocketDeadlineDisabled is wrapped by the error of New and Dial for a go-redis client whose read or write
 	// timeout is disabled: the socket then has no deadline, whatever the context says.
 	ErrSocketDeadlineDisabled = errors.New("redis segment: the client must not disable its read and write timeouts")
+	// ErrNoVersionKey is returned by Version for a segment that has no SegmentOptions.VersionKey.
+	ErrNoVersionKey = errors.New("redis segment: the segment has no version key")
+	// ErrSnapshotLayout is yielded by Members for a segment of LayoutKeys: a snapshot of the keys layout would need
+	// SCAN over the whole keyspace of the node (and of every node of a cluster), see Members.
+	ErrSnapshotLayout = errors.New("redis segment: the snapshot mode needs the set layout")
 	// ErrNilClient is returned when the client is nil.
 	ErrNilClient = errors.New("redis segment: nil client")
 

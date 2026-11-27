@@ -56,6 +56,11 @@ var (
 	ErrInvalidOptions = errors.New("valkey segment: invalid options")
 	// ErrClosed is returned by a call after Shutdown.
 	ErrClosed = errors.New("valkey segment: closed")
+	// ErrNoVersionKey is returned by Version for a segment that has no SegmentOptions.VersionKey.
+	ErrNoVersionKey = errors.New("valkey segment: the segment has no version key")
+	// ErrSnapshotLayout is yielded by Members for a segment of LayoutKeys: a snapshot of the keys layout would need
+	// SCAN over the whole keyspace of the node (and of every node of a cluster), see Members.
+	ErrSnapshotLayout = errors.New("valkey segment: the snapshot mode needs the set layout")
 	// ErrNilClient is returned by New and Dial for a nil client or nil options.
 	ErrNilClient = errors.New("valkey segment: nil client")
 	// ErrInit is wrapped, with the sentinel of the class, by the error of Init.
