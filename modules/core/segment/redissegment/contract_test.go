@@ -113,7 +113,10 @@ func TestProviderConformsOnTheFakeStore(t *testing.T) {
 					}
 				}
 
-				prov, err := redissegment.New(store, &redissegment.Options{Segments: segs, Atomic: true})
+				prov, err := redissegment.New(
+					store,
+					&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: segs, Atomic: true},
+				)
 				if err != nil {
 					return segmenttest.Fixture{}, err
 				}

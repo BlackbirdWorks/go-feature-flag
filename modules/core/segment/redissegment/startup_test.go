@@ -89,19 +89,21 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		wantPipelines [][]string
 	}{
 		{
-			name: "two namespaces are both probed", store: &fakeStore{}, opts: &redissegment.Options{Segments: two},
+			name:  "two namespaces are both probed",
+			store: &fakeStore{},
+			opts:  &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: two},
 			wantPipelines: [][]string{{
 				cmdPing, smis("audience:{a}"), existsAud, smis("restricted:{s}"), existsRes,
 			}},
 		},
 		{
 			name: "segments of one namespace are probed once", store: &fakeStore{},
-			opts:          &redissegment.Options{Segments: sameNamespace},
+			opts:          &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: sameNamespace},
 			wantPipelines: [][]string{{cmdPing, smis("audience:{a}"), existsAud}},
 		},
 		{
 			name: "atomic probes the script on each namespace", store: &fakeStore{},
-			opts: &redissegment.Options{Segments: two, Atomic: true},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: two, Atomic: true},
 			wantPipelines: [][]string{{
 				cmdPing,
 				"eval_ro" + fmt.Sprintf(script, "audience:{a}"), "evalsha_ro" + fmt.Sprintf(sha, "audience:{a}"),
@@ -110,19 +112,29 @@ func TestInitProbesEveryNamespace(t *testing.T) {
 		},
 		{
 			name: "a namespace the client cannot read fails Init", store: denyingKey("restricted:"),
-			opts:    &redissegment.Options{Segments: two},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: two},
 			wantMsg: msgInit + "the command SMISMEMBER is not available: " + msgServer,
 			wantPipelines: [][]string{{
 				cmdPing, smis("audience:{a}"), existsAud, smis("restricted:{s}"), existsRes,
 			}},
 		},
 		{
-			name: "the cap is shared by the two layouts", store: &fakeStore{},
-			opts: &redissegment.Options{Segments: mixed}, wantPipelines: [][]string{wantMixed},
+			name:  "the cap is shared by the two layouts",
+			store: &fakeStore{},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   mixed,
+			},
+			wantPipelines: [][]string{wantMixed},
 		},
 		{
-			name: "at most MaxInitProbes namespaces are probed", store: &fakeStore{},
-			opts: &redissegment.Options{Segments: many}, wantPipelines: [][]string{wantMany},
+			name:  "at most MaxInitProbes namespaces are probed",
+			store: &fakeStore{},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   many,
+			},
+			wantPipelines: [][]string{wantMany},
 		},
 	}
 
@@ -156,7 +168,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 	}{
 		{
 			name: "SMISMEMBER answers a string",
-			opts: &redissegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdSMIsMember {
 					return &fakeReply{value: "OK"}
@@ -167,7 +179,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "SMISMEMBER answers a list of the wrong length",
-			opts: &redissegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdSMIsMember {
 					return &fakeReply{value: []any{int64(0), int64(0)}}
@@ -178,7 +190,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "EXISTS answers a string",
-			opts: &redissegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			reply: func(args []any) *fakeReply {
 				if args[0] == cmdExists {
 					return &fakeReply{value: "yes"}
@@ -189,7 +201,7 @@ func TestInitChecksTheShapeOfTheReplies(t *testing.T) {
 		},
 		{
 			name: "the script answers a string",
-			opts: &redissegment.Options{Segments: twoSegments(), Atomic: true},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments(), Atomic: true},
 			reply: func(args []any) *fakeReply {
 				if name, _ := args[0].(string); strings.HasPrefix(name, "eval") {
 					return &fakeReply{value: "OK"}
@@ -232,7 +244,11 @@ func TestAnAtomicSetIsOneScriptWhateverItsSize(t *testing.T) {
 	}
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: members}}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments(), Atomic: true})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments(), Atomic: true},
+	)
 
 	require.NoError(t, prov.Contains(boundedCtx(t), lookups))
 	assert.Equal(t, want, states(lookups))
@@ -258,7 +274,11 @@ func TestHealthFollowsTheStoreOperationsOnly(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	// a call that reaches no store operation neither makes the provider ready nor clears a failure
 	require.NoError(t, prov.Contains(boundedCtx(t), []segment.Lookup{lk(segOther, idAlice)}))
@@ -287,7 +307,10 @@ func TestHealthFollowsTheStoreOperationsOnly(t *testing.T) {
 func TestNegativeMaxIDBytesIsNamed(t *testing.T) {
 	t.Parallel()
 
-	_, err := redissegment.New(&fakeStore{}, &redissegment.Options{MaxIDBytes: -1})
+	_, err := redissegment.New(
+		&fakeStore{},
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, MaxIDBytes: -1},
+	)
 
 	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 	assert.Equal(t, "redis segment: invalid options: max id bytes must not be negative", err.Error())
@@ -316,7 +339,11 @@ func TestAParseErrorOfTheScriptRetryTrustsNothing(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments(), Atomic: true})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments(), Atomic: true},
+	)
 	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, carolID)}
 
 	err := prov.Contains(boundedCtx(t), lookups)

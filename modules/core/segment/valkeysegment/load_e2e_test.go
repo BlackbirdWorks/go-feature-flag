@@ -50,9 +50,12 @@ func loadProviders() []loadProvider {
 			build: func(tb testing.TB, srv *e2eServer, timeout time.Duration) (segment.Provider, func()) {
 				tb.Helper()
 
-				prov, err := valkeysegment.Dial(srv.defaultOption(), &valkeysegment.Options{
-					Timeout: timeout, Pipelining: mode, Segments: loadSegments(),
-				})
+				prov, err := valkeysegment.Dial(
+					srv.defaultOption(),
+					&valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown,
+						Timeout: timeout, Pipelining: mode, Segments: loadSegments(),
+					},
+				)
 				require.NoError(tb, err)
 
 				return prov, func() { shutdownProvider(tb, prov) }

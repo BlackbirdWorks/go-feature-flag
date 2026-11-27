@@ -22,11 +22,11 @@ const (
 type MissingKey string
 
 const (
-	// MissingUnknown answers Unknown: the segment is not loaded. It is the default, and it is fail-closed because
-	// the engine applies the failure policy to it. An empty set does not exist in Valkey, so an emptied segment is
-	// also Unknown.
+	// MissingUnknown answers Unknown: the segment is not loaded, and the engine applies the failure policy to it. It
+	// is an opt-in, fail-closed. An empty set does not exist in Valkey, so an emptied segment is also Unknown.
 	MissingUnknown MissingKey = "unknown"
-	// MissingNotMember answers NotMember: a missing key is an empty segment. It saves the EXISTS command.
+	// MissingNotMember answers NotMember: a missing key is an empty segment. It is the default and saves the EXISTS
+	// command.
 	MissingNotMember MissingKey = "notMember"
 )
 
@@ -66,7 +66,7 @@ type Options struct {
 	Observer Observer
 	// KeyPrefix is the default prefix of the keys. Empty means DefaultKeyPrefix.
 	KeyPrefix string
-	// MissingKey is what a missing set key means. Empty means MissingUnknown.
+	// MissingKey is what a missing set key means. Empty means MissingNotMember.
 	MissingKey MissingKey
 	// Atomic answers each set segment with one Lua script (EVAL) that checks the key and the ids in one atomic
 	// step, instead of SMISMEMBER and EXISTS in the pipeline. A set that is deleted while the call runs is then

@@ -86,9 +86,9 @@ func (p *Provider) Version(ctx context.Context, name string) (string, error) {
 }
 
 // Members implements [segment.SnapshotSource] for the set layout: SSCAN pages of ScanCount members, streamed as they
-// arrive. SSCAN may repeat a member, which the consumer's set absorbs. An empty set does not exist in Redis, so a
-// segment with no member is missing: with MissingUnknown (the default) it is reported as
-// [segment.ErrSegmentMissing], with MissingNotMember as an empty segment.
+// arrive. SSCAN may repeat a member, which the consumer's set absorbs. An empty set does not exist in the store, so a
+// segment with no member is reported as [segment.ErrSegmentMissing], whatever the MissingKey of the provider: what a
+// missing segment means for the snapshot is the policy of the holder, not of the store.
 //
 // The keys layout is refused with [ErrSnapshotLayout]: its members are separate keys, so the only way to list them is
 // SCAN with a MATCH over the whole keyspace of every node, which reads every key of the database, not only the
@@ -109,7 +109,7 @@ func (p *Provider) Members(ctx context.Context, name string) iter.Seq2[string, e
 		}
 
 		seen, ok := p.scanSet(ctx, name, cfg.key, yield)
-		if ok && !seen && p.missing == MissingUnknown {
+		if ok && !seen {
 			yield("", fmt.Errorf("redis segment: %q: %w", name, segment.ErrSegmentMissing))
 		}
 	}

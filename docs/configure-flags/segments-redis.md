@@ -72,7 +72,7 @@ client, err := ffclient.New(&ffclient.Config{ /* ... */ Segments: catalog, Segme
 |---|---|
 | `redissegment` `Timeout` (one call) | 100 ms |
 | `redissegment` `KeyPrefix` | `semaphore:segment:` |
-| `redissegment` `MissingKey` | `unknown` |
+| `redissegment` `MissingKey` | `notMember` |
 | `redissegment` `Atomic` | off |
 | `resolver` `TTL` (members) | 30 s |
 | `resolver` `NegativeTTL` (non members) | 5 s |
@@ -122,12 +122,12 @@ Each segment has a breaker. After `BreakerFailures` consecutive failed calls it 
 
 ## Missing key
 
-A set that does not exist is not the same as an empty segment, and Redis and Valkey delete a set that becomes empty. The provider therefore adds an `EXISTS` of the set key to the same pipeline:
+Redis and Valkey delete a set that becomes empty, so an emptied segment and a missing one are the same. By default nobody is in a segment that does not exist (replace a segment atomically with a rename, not by deleting it and adding the members again). With `MissingKey: unknown` the provider adds an `EXISTS` of the set key to the same pipeline and answers unknown for a set that does not exist:
 
 | `MissingKey` | A non-member of a set whose key does not exist is |
 |---|---|
-| `unknown` (default) | unknown: the segment is not loaded, and the engine applies the failure policy |
-| `notMember` | not a member, and the `EXISTS` is not sent |
+| `notMember` (default) | not a member: nobody is in a segment that does not exist, and the `EXISTS` is not sent |
+| `unknown` | unknown: the segment is not loaded, and the engine applies the failure policy (opt-in) |
 
 A member is always a member. The `keys` layout cannot tell a missing member from a segment that is not loaded: a missing key is not a member.
 
@@ -153,7 +153,8 @@ When a call returns an error, the engine keeps the answers (member or not member
 | The connection ends mid-call (EOF, reset), or a node has no connection to give (dial error, pool timeout, pool exhausted, closed client), after some replies | the replies that were complete keep their answer, the others are unknown | `redissegment.ErrUnavailable` |
 | The breaker of the segment is open | unknown, no call | `resolver.ErrCircuitOpen` |
 | Segment not in the options | unknown | none |
-| Set key missing (default) | non-members unknown | none |
+| Set key missing (default) | not a member | none |
+| Set key missing with `MissingKey: unknown` | non-members unknown | none |
 | The id is longer than `MaxIDBytes` | unknown, not sent | none |
 | The context of the caller ended before the call | what the cache has, the rest unknown | `resolver.ErrWaiting` with the context error |
 | After `Shutdown` | unknown | `resolver.ErrClosed`, `redissegment.ErrClosed` |
@@ -164,7 +165,7 @@ The errors hold a class and counts, never an id, a key or an address: the resolv
 
 `segment.Initializer`, `segment.Shutdowner`, `segment.Existencer` and `segment.HealthReporter` are optional interfaces in the `segment` package (the `Provider` interface does not change). `redissegment.Provider` and `resolver.Resolver` implement them, and the relay will reach them with a type assertion.
 
-- `Init` sends one pipeline with the commands that the lookups will use, on the keys that you configured: `SMISMEMBER` and `EXISTS` for a set segment (only `SMISMEMBER` with `MissingKey: notMember`), the script commands for `Atomic` (the `_RO` pair first, then `EVAL` and `EVALSHA`), `EXISTS` for a keys segment. It checks that `PING` answers `PONG` and that each reply has the shape of its command. It fails with `ErrInit`, naming the command that the store refuses, so an old server or a restricted user is found at the start. It probes each distinct namespace once (the key of a set up to its `{tag}`, or the prefix of a keys segment) with the key of its first segment by name, and at most 16 namespaces in all (`MaxInitProbes`, the set and keys layouts together, the first ones by name); the others are not probed. `Provider.Exists` needs `EXISTS` even with `notMember`, and `Init` does not check it in that mode.
+- `Init` sends one pipeline with the commands that the lookups will use, on the keys that you configured: `SMISMEMBER` and `EXISTS` for a set segment (only `SMISMEMBER` with the default `MissingKey: notMember`), the script commands for `Atomic` (the `_RO` pair first, then `EVAL` and `EVALSHA`), `EXISTS` for a keys segment. It checks that `PING` answers `PONG` and that each reply has the shape of its command. It fails with `ErrInit`, naming the command that the store refuses, so an old server or a restricted user is found at the start. It probes each distinct namespace once (the key of a set up to its `{tag}`, or the prefix of a keys segment) with the key of its first segment by name, and at most 16 namespaces in all (`MaxInitProbes`, the set and keys layouts together, the first ones by name); the others are not probed. `Provider.Exists` needs `EXISTS` even with `notMember`, and `Init` does not check it in that mode.
 - `Shutdown` is safe to call twice. It stops new calls (`Contains`, `Init` and `Exists` return `ErrClosed`, `Contains` with every lookup unknown), waits for the calls in flight until its context ends, then ends them: no call reaches the store after it returns. The resolver waits for the calls in flight, until the context of `Shutdown` ends. The `Shutdown` of the store gets a context that ends `ShutdownGrace` (default 5 seconds) after the deadline of the first `Shutdown` of the resolver, or after the call when that context has no deadline, so a store that stops only on cancellation does not stay pending. The existence check that follows an unanswered lookup runs at most once at a time for a segment: a store that hangs in `Exists` leaves one overdue check for the segment, not one for each lookup.
 - `Health()` reports whether the provider is ready, closed, and the class of the last failure. `Exists` tells whether the key of each segment is there.
 

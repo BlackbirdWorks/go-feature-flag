@@ -48,7 +48,7 @@ func generatedKey(t *testing.T, name string) string {
 	t.Helper()
 
 	store := &fakeStore{}
-	prov := newProvider(t, store, &redissegment.Options{
+	prov := newProvider(t, store, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Segments: map[string]redissegment.SegmentOptions{name: {}},
 	})
 

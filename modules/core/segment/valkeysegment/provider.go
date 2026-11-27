@@ -103,7 +103,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 	}
 
 	if prov.missing == "" {
-		prov.missing = MissingUnknown
+		prov.missing = MissingNotMember
 	}
 
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())

@@ -27,15 +27,23 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 		wantStates   []segment.State
 	}{
 		{
-			name:         "atomic is one script that checks the key and the ids (loaded by the first call)",
-			opts:         &redissegment.Options{Atomic: true, Segments: twoSegments()},
+			name: "atomic is one script that checks the key and the ids (loaded by the first call)",
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Atomic:     true,
+				Segments:   twoSegments(),
+			},
 			lookups:      []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantCommands: [][]string{{bySHA + keyBeta + " alice zed"}, {script + keyBeta + " alice zed"}},
 			wantStates:   []segment.State{segment.Member, segment.NotMember},
 		},
 		{
-			name:    "a script for each set in the same pipeline",
-			opts:    &redissegment.Options{Atomic: true, Segments: twoSegments()},
+			name: "a script for each set in the same pipeline",
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Atomic:     true,
+				Segments:   twoSegments(),
+			},
 			lookups: []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, idAlice), lk(segBeta, "zed")},
 			wantCommands: [][]string{
 				{bySHA + keyBeta + " alice zed", bySHA + keyChurned + " alice"},
@@ -45,7 +53,7 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 		},
 		{
 			name:         "without atomic it is two commands",
-			opts:         &redissegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			lookups:      []segment.Lookup{lk(segBeta, idAlice)},
 			wantCommands: [][]string{{cmdBeta + " alice", existsBeta}},
 			wantStates:   []segment.State{segment.Member},
@@ -61,7 +69,7 @@ func TestAtomicUsesOneScriptForEachSet(t *testing.T) {
 		},
 		{
 			name: "atomic with only a keys segment has nothing to protect",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Atomic: true,
 				Segments: map[string]redissegment.SegmentOptions{
 					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
@@ -133,7 +141,11 @@ func TestAtomicScriptReplies(t *testing.T) {
 			t.Parallel()
 
 			store := &fakeStore{reply: func([]any) *fakeReply { return &fakeReply{value: tt.reply} }}
-			prov := newProvider(t, store, &redissegment.Options{Atomic: true, Segments: twoSegments()})
+			prov := newProvider(
+				t,
+				store,
+				&redissegment.Options{MissingKey: redissegment.MissingUnknown, Atomic: true, Segments: twoSegments()},
+			)
 			lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")}
 
 			err := prov.Contains(context.Background(), lookups)
@@ -199,7 +211,7 @@ func TestInitStatusAndShutdown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov := newProvider(t, tt.store, &redissegment.Options{})
+			prov := newProvider(t, tt.store, &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 
 			err := prov.Init(context.Background())
 
@@ -235,7 +247,11 @@ func TestStatusFollowsTheCalls(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	require.NoError(t, prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)}))
 	assert.Equal(t, redissegment.Status{Ready: true}, prov.Status())
@@ -306,7 +322,11 @@ func TestExists(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov := newProvider(t, tt.store, &redissegment.Options{Segments: segs})
+			prov := newProvider(
+				t,
+				tt.store,
+				&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: segs},
+			)
 
 			got, err := prov.Exists(context.Background(), tt.names)
 
@@ -351,7 +371,7 @@ func TestDocumentedDefaults(t *testing.T) {
 
 					return nil
 				}}
-				prov := newProvider(t, store, &redissegment.Options{
+				prov := newProvider(t, store, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 					Timeout:  tt.timeout,
 					Segments: map[string]redissegment.SegmentOptions{"ghost": {}},
 				})

@@ -138,40 +138,24 @@ func TestStoppingTheStreamStopsTheScan(t *testing.T) {
 	assert.Len(t, store.commands(), 1, "no page after the consumer stopped")
 }
 
-func TestMissingKeyPolicyDecidesEmptyVersusMissing(t *testing.T) {
+func TestASegmentWithNoMemberIsMissingWhateverTheProviderPolicy(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		wantErr error
-		name    string
-		miss    redissegment.MissingKey
-	}{
-		{name: "default is unknown", miss: "", wantErr: segment.ErrSegmentMissing},
-		{name: "unknown", miss: redissegment.MissingUnknown, wantErr: segment.ErrSegmentMissing},
-		{name: "notMember is an empty segment", miss: redissegment.MissingNotMember},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, miss := range []redissegment.MissingKey{"", redissegment.MissingUnknown, redissegment.MissingNotMember} {
+		t.Run(string(miss), func(t *testing.T) {
 			t.Parallel()
 
 			store, segs := snapStore(0)
 
-			var streamErr error
+			var items []string
 
-			for id, err := range snapProvider(t, store, segs, tt.miss).Members(context.Background(), snapAlpha) {
-				assert.Empty(t, id)
+			for id, err := range snapProvider(t, store, segs, miss).Members(context.Background(), snapAlpha) {
+				items = append(items, id)
 
-				streamErr = err
+				require.ErrorIs(t, err, segment.ErrSegmentMissing)
 			}
 
-			if tt.wantErr == nil {
-				require.NoError(t, streamErr)
-
-				return
-			}
-
-			require.ErrorIs(t, streamErr, tt.wantErr)
+			assert.Equal(t, []string{""}, items, "one element, the error")
 		})
 	}
 }
@@ -329,4 +313,30 @@ func versionErr(prov *redissegment.Provider, name string) error {
 	_, err := prov.Version(context.Background(), name)
 
 	return err
+}
+
+func TestTheDefaultMeaningOfAMissingSetIsNoMember(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		miss      redissegment.MissingKey
+		wantState segment.State
+	}{
+		{name: "default", miss: "", wantState: segment.NotMember},
+		{name: "notMember", miss: redissegment.MissingNotMember, wantState: segment.NotMember},
+		{name: "unknown opt-in", miss: redissegment.MissingUnknown, wantState: segment.Unknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, segs := snapStore(0) // no set exists in the store
+			lookups := []segment.Lookup{{Segment: snapAlpha, ID: "a"}}
+
+			require.NoError(t, snapProvider(t, store, segs, tt.miss).Contains(context.Background(), lookups))
+			assert.Equal(t, tt.wantState, lookups[0].State)
+		})
+	}
 }

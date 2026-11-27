@@ -46,7 +46,7 @@ func BenchmarkContains(b *testing.B) {
 			prov segment.Provider
 			name string
 		}{
-			e2eProvider(b, opt, &valkeysegment.Options{
+			e2eProvider(b, opt, &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown,
 				Segments: map[string]valkeysegment.SegmentOptions{
 					segBeta: {Key: keyBeta},
 				},

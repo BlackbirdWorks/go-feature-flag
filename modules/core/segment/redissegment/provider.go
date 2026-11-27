@@ -193,7 +193,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 	}
 
 	if prov.missing == "" {
-		prov.missing = MissingUnknown
+		prov.missing = MissingNotMember
 	}
 
 	prov.plans.New = func() any { return &plan{} }
