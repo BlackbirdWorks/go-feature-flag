@@ -3,7 +3,6 @@ package semaphore_test
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -11,14 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 var (
@@ -29,55 +24,24 @@ var (
 func Test_info_Handler(t *testing.T) {
 	t.Parallel()
 
-	type want struct {
-		httpCode   int
-		handlerErr bool
-	}
+	refreshed := time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC)
 
 	tests := []struct {
-		name   string
-		config config.Config
-		want   want
+		info         model.InfoResponse
+		name         string
+		wantFlagsets []string
 	}{
 		{
 			name: "valid info default mode",
-			want: want{
-				httpCode: http.StatusOK,
-			},
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + configFlagsYaml,
-					},
-				},
-			},
+			info: model.InfoResponse{LatestCacheRefresh: &refreshed},
 		},
 		{
 			name: "valid info flagset mode",
-			want: want{
-				httpCode: http.StatusOK,
+			info: model.InfoResponse{
+				LatestCacheRefresh: &refreshed,
+				Flagsets:           map[string]time.Time{"teamA": refreshed, "teamB": refreshed},
 			},
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						Name:    "teamA",
-						APIKeys: []string{"teamA-api-key"},
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: retrieverconf.FileRetriever,
-							Path: testdataDir + configFlagsYaml,
-						},
-					},
-					{
-						Name:    "teamB",
-						APIKeys: []string{"teamA-api-key"},
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: retrieverconf.FileRetriever,
-							Path: testdataDir + configFlagsYaml,
-						},
-					},
-				},
-			},
+			wantFlagsets: []string{"teamA", "teamB"},
 		},
 	}
 	for i := range tests {
@@ -85,69 +49,42 @@ func Test_info_Handler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err, impossibleToCreateFlagset)
-
-			srv := service.NewMonitoring(flagsetManager)
+			srv := &mock.MockMonitoringService{InfoResponse: tt.info}
 			infoCtrl := controller.NewInfo(srv)
 
 			out, res := infoCtrl.Handle(t.Context(), &struct{}{})
-
-			if tt.want.handlerErr {
-				assert.Error(t, res, handlerShouldReturnAn)
-
-				return
-			}
-
 			require.NoError(t, res)
-			assert.Equal(t, http.StatusOK, tt.want.httpCode)
 
-			// Parse the response JSON to check the structure
 			var response map[string]any
 
 			encoded, err := json.Marshal(out.Body)
 			require.NoError(t, err)
-			err = json.Unmarshal(encoded, &response)
-			require.NoError(t, err, "Response should be valid JSON")
+			require.NoError(t, json.Unmarshal(encoded, &response), "Response should be valid JSON")
 
-			// Check that cacheRefresh field exists and is a valid timestamp
-			cacheRefreshStr, exists := response["cacheRefresh"]
-			assert.True(t, exists, "Response should contain cacheRefresh field")
-
-			// Parse the timestamp string
-			cacheRefreshRaw, ok := cacheRefreshStr.(string)
+			cacheRefresh, ok := response["cacheRefresh"].(string)
 			require.True(t, ok, "cacheRefresh should be a string")
 
-			cacheRefresh, err := time.Parse(time.RFC3339, cacheRefreshRaw)
+			parsed, err := time.Parse(time.RFC3339, cacheRefresh)
 			require.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
-			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
+			assert.True(t, refreshed.Equal(parsed))
 
-			if tt.config.FlagSets != nil {
-				flagsetsRaw, hasFlagsets := response["flagsets"]
-				assert.True(t, hasFlagsets, "Response should contain flagsets field")
+			flagsets, hasFlagsets := response["flagsets"].(map[string]any)
+			if tt.wantFlagsets == nil {
+				assert.False(t, hasFlagsets, "default mode has no flagsets")
 
-				flagsets, isMap := flagsetsRaw.(map[string]any)
-				require.True(t, isMap, "flagsets should be a map")
-				assert.Len(t, flagsets, len(tt.config.FlagSets), "Number of flagsets should match")
+				return
+			}
 
-				for _, flagset := range tt.config.FlagSets {
-					flagsetName := flagset.Name
-					flagsetRefreshDateRaw, hasFlagset := flagsets[flagsetName]
-					assert.True(t, hasFlagset, "Response should contain flagset %s field", flagsetName)
+			require.True(t, hasFlagsets, "flagsets should be a map")
+			assert.Len(t, flagsets, len(tt.wantFlagsets))
 
-					flagsetRefreshDateStr, isStr := flagsetRefreshDateRaw.(string)
-					require.True(t, isStr, "flagset refresh date should be a string")
+			for _, name := range tt.wantFlagsets {
+				date, isStr := flagsets[name].(string)
+				require.True(t, isStr, "flagset %s refresh date should be a string", name)
 
-					flagsetRefreshDate, parseErr := time.Parse(time.RFC3339, flagsetRefreshDateStr)
-					require.NoError(t, parseErr, "flagsetRefreshDate should be a valid RFC3339 timestamp")
-					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
-				}
+				got, parseErr := time.Parse(time.RFC3339, date)
+				require.NoError(t, parseErr)
+				assert.True(t, refreshed.Equal(got))
 			}
 		})
 	}

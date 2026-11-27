@@ -1,0 +1,5 @@
+status: 400
+Content-Type: application/json
+Vary: Origin
+
+{"errorCode":"INVALID_CONTEXT","errorDetails":"Semaphore requires an evaluation context in the request.","key":"bool-flag"}

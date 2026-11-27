@@ -307,7 +307,7 @@ func TestDispatcher_SlowExporterWithTheEngineManager(t *testing.T) {
 	const burst = 300_000
 
 	gate := newGate(t)
-	slow := &gatedExporter{gate: gate}
+	slow := &gatedExporter{gate: gate, entered: make(chan struct{})}
 	fast := &nopExporter{}
 
 	disp := newDispatcher(t, &events.DispatcherConfig{HandoffSize: burst, QueueSize: 1 << 16})
@@ -326,11 +326,39 @@ func TestDispatcher_SlowExporterWithTheEngineManager(t *testing.T) {
 
 	accepted := 0
 
-	for i := range burst {
-		if disp.Collect(ev(i)) {
-			accepted++
+	collect := func(from, to int) {
+		for i := from; i < to; i++ {
+			if disp.Collect(ev(i)) {
+				accepted++
+			}
 		}
 	}
+
+	// the first events reach the flush threshold of the slow exporter, which is then held by the gate: the events that
+	// follow wait in its store, which overflows at 1000, whatever the speed of the machine
+	collect(0, 1000)
+
+	select {
+	case <-slow.entered:
+	case <-time.After(wait):
+		require.FailNow(t, "the slow exporter was not asked to export")
+	}
+
+	collect(1000, burst)
+
+	// the gate stays shut until the slow exporter dropped against itself: the handoff of the events to its manager
+	// runs behind Handed (the manager waits for room, then drops what does not fit), so the gate opens only once
+	// the drop happened, whatever the speed of the machine
+	require.Eventually(t, func() bool {
+		current := disp.Status()
+		for i := range current.Exporters {
+			if current.Exporters[i].Name == "a-slow" {
+				return current.Exporters[i].Handed == uint64(accepted) && current.Exporters[i].Dropped.Overflow > 0
+			}
+		}
+
+		return false
+	}, wait, time.Millisecond, "the slow exporter did not overflow while it was held")
 
 	close(gate)
 

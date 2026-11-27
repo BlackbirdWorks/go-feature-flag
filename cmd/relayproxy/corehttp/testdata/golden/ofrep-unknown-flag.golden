@@ -1,0 +1,5 @@
+status: 404
+Content-Type: application/json
+Vary: Origin
+
+{"errorCode":"FLAG_NOT_FOUND","errorDetails":"Error while evaluating the flag: no-such-flag","key":"no-such-flag"}

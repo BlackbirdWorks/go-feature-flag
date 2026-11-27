@@ -1,7 +1,6 @@
 package ofrep_test
 
 import (
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,29 +9,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 )
 
 // BenchmarkEvaluate measures one OFREP single-flag evaluation through the handler, request binding and response
 // writing included. It guards the evaluation hot path: allocations per operation must not increase.
 func BenchmarkEvaluate(b *testing.B) {
-	conf := &config.Config{
-		PollingInterval: 10000,
-		FileFormat:      protocol.FormatYAML,
-		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-		},
-	}
-
-	flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
-	require.NoError(b, err)
-
-	defer flagsetManager.Close()
+	cfg := mock.FileConfig(configFlagsLocation)
+	flagsetManager := mock.NewDefault(b, &cfg)
 
 	body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 	require.NoError(b, err)

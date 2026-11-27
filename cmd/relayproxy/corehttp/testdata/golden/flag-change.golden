@@ -1,0 +1,6 @@
+status: 200
+Content-Type: application/json
+Etag: "270-4ecac6e16d48800f2b1ee2b30f3fc2ac1bccb9d0"
+Vary: Origin
+
+{"flags":{"bool-flag":3254359302,"bucket-flag":1135601691,"disabled-flag":3414892586,"json-flag":2329031900,"number-flag":3252269160,"scheduled-future-flag":565463773,"scheduled-over-flag":229719814,"string-flag":23422859,"untracked-flag":4281417546},"hash":2862885080}

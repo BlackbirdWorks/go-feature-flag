@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
@@ -58,7 +57,7 @@ func TestNew_Options(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := New(&Settings{}, service.NewAPIKeys(&config.Config{}), &service.Services{},
+			s := New(&Settings{}, service.APIKeys{}, &service.Services{},
 				slog.New(slog.DiscardHandler), tt.opts...)
 
 			assert.Equal(t, tt.want.globalTelemetry, s.installGlobalTelemetry)

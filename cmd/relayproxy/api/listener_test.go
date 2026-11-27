@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/testhelpers"
@@ -45,7 +43,7 @@ func Test_Listener(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		setup       func(t *testing.T, conf *config.Config) []api.Option
+		setup       func(t *testing.T, conf *testConf) []api.Option
 		wantMessage string
 		wantCause   string
 		name        string
@@ -54,7 +52,7 @@ func Test_Listener(t *testing.T) {
 			name:        "api accept fails",
 			wantMessage: "Error starting relay proxy",
 			wantCause:   acceptFailed,
-			setup: func(*testing.T, *config.Config) []api.Option {
+			setup: func(*testing.T, *testConf) []api.Option {
 				return []api.Option{api.WithListener(failingListener{})}
 			},
 		},
@@ -62,10 +60,10 @@ func Test_Listener(t *testing.T) {
 			name:        "monitoring accept fails",
 			wantMessage: "Error starting monitoring",
 			wantCause:   acceptFailed,
-			setup: func(t *testing.T, conf *config.Config) []api.Option {
+			setup: func(t *testing.T, conf *testConf) []api.Option {
 				t.Helper()
 				ln, port := testhelpers.ListenLocal(t)
-				conf.Server.MonitoringPort = port + 1
+				conf.settings.MonitoringPort = port + 1
 
 				return []api.Option{api.WithListener(ln), api.WithMonitoringListener(failingListener{})}
 			},
@@ -74,11 +72,11 @@ func Test_Listener(t *testing.T) {
 			name:        "api port bound",
 			wantMessage: "Error starting relay proxy",
 			wantCause:   "address already in use",
-			setup: func(t *testing.T, conf *config.Config) []api.Option {
+			setup: func(t *testing.T, conf *testConf) []api.Option {
 				t.Helper()
 				_, port := testhelpers.ListenLocal(t)
-				conf.Server.Host = loopbackAddress
-				conf.Server.Port = port
+				conf.settings.Host = loopbackAddress
+				conf.settings.Port = port
 
 				return nil
 			},
@@ -87,12 +85,12 @@ func Test_Listener(t *testing.T) {
 			name:        "monitoring port bound",
 			wantMessage: "Error starting monitoring",
 			wantCause:   "address already in use",
-			setup: func(t *testing.T, conf *config.Config) []api.Option {
+			setup: func(t *testing.T, conf *testConf) []api.Option {
 				t.Helper()
 				ln, _ := testhelpers.ListenLocal(t)
 				_, monitoringPort := testhelpers.ListenLocal(t)
-				conf.Server.Host = loopbackAddress
-				conf.Server.MonitoringPort = monitoringPort
+				conf.settings.Host = loopbackAddress
+				conf.settings.MonitoringPort = monitoringPort
 
 				return []api.Option{api.WithListener(ln)}
 			},
@@ -104,8 +102,8 @@ func Test_Listener(t *testing.T) {
 
 			conf := testConfig(t)
 			opts := tt.setup(t, conf)
-			flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
-			require.NoError(t, err)
+			flagsetManager := newDefaultFlags(t, nil)
+			conf.flags = flagsetManager
 
 			exited := make(chan struct{}, 1)
 
@@ -119,10 +117,7 @@ func Test_Listener(t *testing.T) {
 			}))
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			srv := apiwire.New(conf, &service.Services{
-				MonitoringService: service.NewMonitoring(flagsetManager),
-				FlagsetManager:    flagsetManager,
-			}, logger, opts...)
+			srv := newTestServer(t, conf, &service.Services{}, logger, opts...)
 			go func() { srv.StartWithContext(context.Background()) }()
 
 			t.Cleanup(func() {

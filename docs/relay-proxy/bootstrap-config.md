@@ -10,7 +10,7 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 - Start: `semaphore --config bootstrap.yaml` (or `SEMAPHORE_CONFIG`). The flags `--log-level`, `--log-format`, `--listen`,
   `--ops-listen`, `--manifest-key` and `--state-dir` (given empty it means no state directory, whatever the variable and the file say) override the variables, which override the file, at the start and on
-  every reload. `--help` prints the flags and their variables and exits 0; an unknown flag prints the usage on stderr and exits 2. Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
+  every reload. `--help` prints the flags and their variables and exits 0 (it wins over `--version`, and `--help=false` or `--version=false` request nothing); an unknown flag prints the usage on stderr and exits 2, with `--version` too (the command line is parsed strictly before the version is printed). Every reference of `auth.adminKeys` must resolve at the start: if one does not, the relay exits with a
   path-addressed error that holds no secret. An invalid or version 1 file exits with a non-zero
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).

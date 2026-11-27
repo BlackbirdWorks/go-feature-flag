@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/apiwire"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
@@ -108,10 +107,10 @@ func Test_Tracing(t *testing.T) {
 
 			conf := testConfig(t)
 			// /health is not logged at the default level: the debug level logs everything.
-			conf.LogLevel = "debug"
+			conf.settings.Debug = true
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			// without a flag set manager the endpoints that need one answer 500: the span of a failure is checked.
-			srv := apiwire.New(conf, &service.Services{MonitoringService: failingMonitoring()}, logger,
+			srv := newTestServer(t, conf, &service.Services{MonitoringService: failingMonitoring()}, logger,
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))

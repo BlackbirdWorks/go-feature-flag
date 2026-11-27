@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
-// The errors of the lookup of a flag set. The texts are the ones of the v1 flag set manager: the handlers answer
+// The errors of the lookup of a flag set. The texts are part of the contract: the handlers answer
 // them in the body of the 400 of a key that has no flag set.
 var (
 	errNoAPIKey        = errors.New("no API key provided")
@@ -70,7 +70,7 @@ type viewTable struct {
 
 // FlagSet returns the flag set of the API key.
 //
-//nolint:ireturn // the seam of the HTTP layer: the v1 client and the v2 flag set are two implementations
+//nolint:ireturn // the seam of the HTTP layer: the core adapter and the engine clients of the tests are implementations
 func (a *Adapter) FlagSet(apiKey string) (service.FlagSet, error) {
 	found, err := a.lookup(apiKey)
 	if err != nil {
@@ -188,7 +188,7 @@ var (
 func (v *view) RawVariation(flagKey string, evalCtx ffcontext.Context, defaultValue any) (model.RawVarResult, error) {
 	res, err := v.adapter.eval.RawVariation(v.set, flagKey, evalCtx, defaultValue)
 
-	return res, err //nolint:wrapcheck // the error of the evaluation, as the v1 client returns it
+	return res, err //nolint:wrapcheck // the error of the evaluation
 }
 
 // GetFlagStates evaluates the listed flags.

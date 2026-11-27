@@ -92,7 +92,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	counterTracking := 0
 	counterEvaluation := 0
 	// notIngested counts the feature events that did not reach the exporters of a flag set that tells (the v2 core):
-	// the ones that failed conversion and the ones its queue refused. The v1 client answers the submitted count.
+	// the ones that failed conversion and the ones its queue refused.
 	notIngested := 0
 	_, tells := flagset.(service.EventAcceptor)
 
@@ -152,8 +152,8 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 }
 
 // collectFeature converts a feature event and hands it to the flag set. It reports whether the event counts as
-// ingested: a flag set that tells (the v2 core) counts only the events it accepted, the v1 client counts every event
-// that was converted.
+// ingested: a flag set that tells (the v2 core) counts only the events it accepted, any other counts every event that
+// was converted.
 func collectFeature(
 	ctx context.Context, flagset service.FlagSet, event map[string]any, meta exporter.FeatureEventMetadata,
 	tells bool, logger *slog.Logger,
@@ -169,7 +169,7 @@ func collectFeature(
 }
 
 // collectFeatureEvent hands the event to the flag set and reports whether it was accepted. A flag set that has a
-// bounded queue (the config v2 core) says when it dropped the event; the v1 client always accepts.
+// bounded queue (the config v2 core) says when it dropped the event; any other flag set always accepts.
 func collectFeatureEvent(flagset service.FlagSet, event *exporter.FeatureEvent) bool {
 	if acceptor, ok := flagset.(service.EventAcceptor); ok {
 		return acceptor.AcceptEventData(event)

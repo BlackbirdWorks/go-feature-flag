@@ -30,7 +30,6 @@ FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c86
 COPY --from=build /out/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
-COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
 EXPOSE 1031
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/semaphore"]

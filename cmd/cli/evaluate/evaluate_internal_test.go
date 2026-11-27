@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/option"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf"
+	retrieverinit "github.com/blackbirdworks/semaphore/cmd/cli/evaluate/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"

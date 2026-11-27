@@ -291,7 +291,7 @@
             "properties": {
                 "contextEnrichment": {
                     "type": "object",
-                    "description": "Merged into the context of every evaluation. Values: strings"
+                    "description": "Merged into the context of every evaluation. Values: strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity)."
                 },
                 "environment": {
                     "type": "string"

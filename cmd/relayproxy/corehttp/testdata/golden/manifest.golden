@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+
+{"flags":[{"key":"bool-flag","type":"boolean","defaultValue":false,"description":"a boolean"}]}

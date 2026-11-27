@@ -126,7 +126,7 @@ func TestAllFlags_Handler_InvalidRequests(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := controller.NewAllFlags(&mock.MockFlagsetManager{}, &metric.Metrics{})
+			ctrl := controller.NewAllFlags(&mock.Resolver{}, &metric.Metrics{})
 			req := httptest.NewRequestWithContext(
 				t.Context(), http.MethodPost, "/v1/allflags", strings.NewReader(tt.body))
 			req.Header.Set(protocol.HeaderContentType, tt.contentType)

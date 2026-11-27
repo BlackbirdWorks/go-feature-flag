@@ -17,14 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
@@ -68,7 +65,7 @@ type collectEvalDataCase struct {
 	args   collectEvalDataArgs
 	apiKey string
 	want   collectEvalDataWant
-	config config.Config
+	named  bool
 }
 
 func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
@@ -84,16 +81,9 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			defer os.Remove(exporterFile.Name())
 
-			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err)
+			cfg := mock.FileConfig(configFlagsLocation)
+			cfg.DataExporters = []ffclient.DataExporter{mock.FileExporter(exporterFile.Name(), "")}
+			flagsetManager := newCollectFlagSets(t, tt.named, &cfg)
 
 			ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 
@@ -155,17 +145,6 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	runCollectEvalDataTests(t, []collectEvalDataCase{
 		{
 			name: "valid usecase",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
 			},
@@ -178,20 +157,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		{
 			name:   "valid usecase flagset",
 			apiKey: fixtures.PlaceholderTest,
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{fixtures.PlaceholderTest},
-						PollingInterval: 10,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: fixtures.KindFile,
-								Path: configFlagsLocation,
-							},
-						},
-					},
-				},
-			},
+			named:  true,
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
 			},
@@ -203,17 +169,6 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		},
 		{
 			name: "valid with source field",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
 			},
@@ -226,20 +181,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		{
 			name:   "valid with source field flagset",
 			apiKey: fixtures.PlaceholderTest,
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{fixtures.PlaceholderTest},
-						PollingInterval: 10,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: fixtures.KindFile,
-								Path: configFlagsLocation,
-							},
-						},
-					},
-				},
-			},
+			named:  true,
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
 			},
@@ -258,17 +200,6 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 	runCollectEvalDataTests(t, []collectEvalDataCase{
 		{
 			name: "invalid json",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/invalid_request.json",
 			},
@@ -282,17 +213,6 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid data field",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/invalid_request_data_null.json",
 			},
@@ -305,17 +225,6 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 		},
 		{
 			name: "be sure that the creation date is a unix timestamp",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				testdataDir + "/collect_eval_data/valid_request_with_timestamp_ms.json",
 			},
@@ -328,17 +237,6 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 		},
 		{
 			name: "should have the metadata in the exporter",
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
 			args: collectEvalDataArgs{
 				testdataDir + "/collect_eval_data/valid_request_metadata.json",
 			},
@@ -351,27 +249,15 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 	})
 }
 
-// setCollectEvalDataFileExporter configures cfg to export collected data to the
-// given file, handling both the flag-set and the legacy single-config layouts.
-func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
-	exporter := config.ExporterConf{
-		Kind:     fixtures.KindFile,
-		Filename: filename,
-	}
-	if len(cfg.FlagSets) == 0 {
-		cfg.Exporters = &[]config.ExporterConf{exporter}
+// newCollectFlagSets serves the configuration as the default flag set, or as the flag set of fixtures.PlaceholderTest.
+func newCollectFlagSets(tb testing.TB, named bool, cfg *ffclient.Config) *mock.FlagSets {
+	tb.Helper()
 
-		return
+	if !named {
+		return mock.NewDefault(tb, cfg)
 	}
 
-	out := make([]config.FlagSet, len(cfg.FlagSets))
-	for index := range cfg.FlagSets {
-		flagSet := cfg.FlagSets[index]
-		flagSet.Exporters = &[]config.ExporterConf{exporter}
-		out[index] = flagSet
-	}
-
-	cfg.FlagSets = out
+	return mock.NewNamed(tb, mock.Named{APIKeys: []string{fixtures.PlaceholderTest}, Config: *cfg})
 }
 
 // assertCollectEvalDataHandlerError asserts that the handler returned the
@@ -396,13 +282,8 @@ func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode
 func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	t.Parallel()
 
-	flagsetManager, err := service.NewFlagsetManager(&config.Config{
-		PollingInterval: 10,
-		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: configFlagsLocation}},
-	}, slog.New(slog.DiscardHandler), []notifier.Notifier{}, nil, nil)
-	require.NoError(t, err)
-
-	t.Cleanup(func() { flagsetManager.Close() })
+	cfg := mock.FileConfig(configFlagsLocation)
+	flagsetManager := mock.NewDefault(t, &cfg)
 
 	ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 
@@ -428,7 +309,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	cancel()
 
-	err = <-done
+	err := <-done
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Contains(t, err.Error(), "context cancelled after processing")
@@ -455,41 +336,17 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 		apiKey       string
 		wantEval     string
 		wantTracking string
-		config       config.Config
+		named        bool
 	}{
 		{
-			name: fixtures.DefaultMode,
-			config: config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10,
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: fixtures.KindFile,
-							Path: configFlagsLocation,
-						},
-					},
-				},
-			},
+			name:         fixtures.DefaultMode,
 			wantEval:     wantEvalEvent,
 			wantTracking: wantTrackingEvent,
 		},
 		{
-			name:   fixtures.FlagsetMode,
-			apiKey: fixtures.PlaceholderTest,
-			config: config.Config{
-				FlagSets: []config.FlagSet{
-					{
-						APIKeys:         []string{fixtures.PlaceholderTest},
-						PollingInterval: 10,
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{
-								Kind: fixtures.KindFile,
-								Path: configFlagsLocation,
-							},
-						},
-					},
-				},
-			},
+			name:         fixtures.FlagsetMode,
+			apiKey:       fixtures.PlaceholderTest,
+			named:        true,
 			wantEval:     wantEvalEvent,
 			wantTracking: wantTrackingEvent,
 		},
@@ -510,55 +367,12 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				_ = os.Remove(trackingExporter.Name())
 			}()
 
-			if len(tt.config.FlagSets) > 0 {
-				out := make([]config.FlagSet, len(tt.config.FlagSets))
-
-				for index, flagSet := range tt.config.FlagSets {
-					flagSet.Exporters = &[]config.ExporterConf{
-						{
-							Kind:             config.FileExporter,
-							Filename:         evalExporter.Name(),
-							MaxEventInMemory: 10000,
-							FlushInterval:    int64(10 * time.Second),
-						},
-						{
-							Kind:              config.FileExporter,
-							Filename:          trackingExporter.Name(),
-							ExporterEventType: ffclient.TrackingEventExporter,
-							MaxEventInMemory:  10000,
-							FlushInterval:     int64(10 * time.Second),
-						},
-					}
-					out[index] = flagSet
-				}
-
-				tt.config.FlagSets = out
-			} else {
-				tt.config.Exporters = &[]config.ExporterConf{
-					{
-						Kind:             fixtures.KindFile,
-						Filename:         evalExporter.Name(),
-						MaxEventInMemory: 10000,
-						FlushInterval:    int64(10 * time.Second),
-					},
-					{
-						Kind:              fixtures.KindFile,
-						Filename:          trackingExporter.Name(),
-						ExporterEventType: ffclient.TrackingEventExporter,
-						MaxEventInMemory:  10000,
-						FlushInterval:     int64(10 * time.Second),
-					},
-				}
+			cfg := mock.FileConfig(configFlagsLocation)
+			cfg.DataExporters = []ffclient.DataExporter{
+				mock.FileExporter(evalExporter.Name(), ""),
+				mock.FileExporter(trackingExporter.Name(), ffclient.TrackingEventExporter),
 			}
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err)
+			flagsetManager := newCollectFlagSets(t, tt.named, &cfg)
 
 			ctrl := controller.NewCollectEvalData(flagsetManager, &metric.Metrics{})
 			bodyReq, err := os.ReadFile(
