@@ -155,6 +155,14 @@ func TestSpec_ValidateSingleFlagResponse(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "UNKNOWN reason accepted",
+			path:    singleFlagPath,
+			method:  http.MethodPost,
+			status:  http.StatusOK,
+			headers: jsonHeaders(),
+			body:    `{"key":"f","value":true,"reason":"UNKNOWN"}`,
+		},
+		{
 			name:    "invalid metadata type rejected",
 			path:    singleFlagPath,
 			method:  http.MethodPost,

@@ -1,6 +1,6 @@
 status: 200
 Content-Type: application/json
-Etag: "230-4c3c1803d9ad1db6a4df801467be95930c8e4716"
+Etag: "229-70a1a7ea83561b99df2b21f70ab89a787d24b684"
 Vary: Origin
 
-{"flags":[{"key":"bool-flag","value":false,"reason":"DEFAULT","variant":"disabled","metadata":{"defaultValue":false,"description":"a boolean","team":"core"}},{"key":"string-flag","value":"alpha","reason":"STATIC","variant":"a"}]}
+{"flags":[{"key":"bool-flag","value":false,"reason":"STATIC","variant":"disabled","metadata":{"defaultValue":false,"description":"a boolean","team":"core"}},{"key":"string-flag","value":"alpha","reason":"STATIC","variant":"a"}]}

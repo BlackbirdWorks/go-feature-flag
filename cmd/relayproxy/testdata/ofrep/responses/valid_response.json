@@ -7,7 +7,7 @@
         "supermanDefault",
         "superherosDefault"
       ],
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
@@ -18,7 +18,7 @@
     {
       "key": "flag-only-for-admin",
       "value": false,
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
@@ -30,13 +30,13 @@
     {
       "key": "number-flag",
       "value": 1,
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
       "key": "targeting-key-rule",
       "value": false,
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "false_var"
     },
     {
@@ -44,7 +44,7 @@
       "value": {
         "test": "test"
       },
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
@@ -52,7 +52,7 @@
       "value": {
         "test": "test"
       },
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
@@ -60,7 +60,7 @@
       "value": {
         "test": "test"
       },
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     }
   ]
