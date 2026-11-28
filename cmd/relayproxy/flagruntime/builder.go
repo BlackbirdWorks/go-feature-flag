@@ -209,6 +209,11 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 		return nil, err
 	}
 
+	err = stg.buildPublic(next)
+	if err != nil {
+		return nil, err
+	}
+
 	stg.finish(content, next, namesVersion)
 
 	return stg.built, nil
@@ -369,7 +374,9 @@ func (st *stage) finish(content *Content, next *state, namesVersion uint64) {
 		ByKey:      next.byKey,
 		AdminKeys:  map[string]struct{}{},
 		Generation: content.Generation,
+		Public:     publicSet(next.public),
 		Status: &Status{
+			Public:     publicStatus(next.public),
 			FlagSets:   next.setStatus,
 			Objects:    next.objStatus,
 			Entries:    next.entries,
@@ -390,6 +397,8 @@ func (st *stage) finish(content *Content, next *state, namesVersion uint64) {
 	}
 
 	st.built.Stats.Reused = max(0, len(next.sets)-rebuiltLive)
+
+	st.notePublicChange(next)
 }
 
 // now reads the clock of the builder.

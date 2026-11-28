@@ -9,8 +9,8 @@ type ConfigInfo struct {
 	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
 	// Reloads counts the rounds by outcome: applied, rejected, ignored.
 	Reloads map[string]uint64 `json:"reloads"`
-	// Anonymous says which flag set serves the requests without an API key; absent when the file names none.
-	Anonymous *AnonymousInfo `json:"anonymous,omitempty"`
+	// Public says which flag sets serve the requests without an API key: the flag sets published without a key.
+	Public PublicInfo `json:"public"`
 	// Staleness says how long ago the held configuration was last confirmed by the control plane.
 	Staleness StalenessInfo `json:"staleness"`
 	// LastReload is the most recent round of any outcome.
@@ -58,9 +58,11 @@ type WithdrawnInfo struct {
 	Generation uint64 `json:"generation"`
 }
 
-// AnonymousInfo is the flag set that serves the requests without a key, and its state: the state of the flag set, or
-// "missing" while the generation has no flag set of that name.
-type AnonymousInfo struct {
-	FlagSet string `json:"flagSet"`
-	State   string `json:"state"`
+// PublicInfo is the status of the public namespace: the flag sets published without an API key, merged. Present
+// says that a request without a key is served.
+type PublicInfo struct {
+	// Sets are the names of the flag sets, sorted.
+	Sets    []string `json:"sets"`
+	Flags   int      `json:"flags"`
+	Present bool     `json:"present"`
 }

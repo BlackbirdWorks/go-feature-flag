@@ -250,7 +250,6 @@ evaluation:
     region: us-east-1
   environment: production
 auth:
-  anonymousFlagSet: public
   adminKeys:
     - '[REDACTED]'
     - fromEnv: SEMAPHORE_ADMIN_KEY

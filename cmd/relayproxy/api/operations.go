@@ -37,8 +37,8 @@ const (
 )
 
 // keylessNote is added to the description of the operations that accept a request without a key.
-const keylessNote = "\n\nThe key is optional when the relay names an anonymous flag set (`auth.anonymousFlagSet`): " +
-	"a request without a key is then served by that flag set. Without that setting every request needs a key. " +
+const keylessNote = "\n\nThe key is optional when a flag set is published without API keys (the public flags): " +
+	"a request without a key is then served by those flags. Without such a flag set every request needs a key. " +
 	"A wrong key is always refused."
 
 // securityAll is the security of the endpoints that accept an API key in any of the two headers.
@@ -47,8 +47,8 @@ func securityAll() []map[string][]string {
 }
 
 // optionalKey documents the key of an operation as optional when the middleware that guards it lets a request without
-// a key through (the anonymous flag set): the empty requirement is how OpenAPI says that the security is optional.
-// The operations that the anonymous flag set can reach are the ones registered through it, so the document follows
+// a key through (the public flags): the empty requirement is how OpenAPI says that the security is optional.
+// The operations that the public flags can reach are the ones registered through it, so the document follows
 // the middleware.
 func optionalKey(auth middleware.KeyAuth, operation *huma.Operation) *huma.Operation {
 	if !auth.AllowsAnonymous() || slices.ContainsFunc(operation.Security, func(req map[string][]string) bool {

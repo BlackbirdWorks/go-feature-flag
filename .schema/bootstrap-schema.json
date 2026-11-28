@@ -29,9 +29,6 @@
         },
         "Auth": {
             "properties": {
-                "anonymousFlagSet": {
-                    "type": "string"
-                },
                 "adminKeys": {
                     "items": {
                         "$ref": "#/$defs/AdminKey"

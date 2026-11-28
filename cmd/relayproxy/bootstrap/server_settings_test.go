@@ -26,7 +26,6 @@ func TestServerSettings(t *testing.T) {
 		doc           string
 		wantErr       string
 		wantStreamURL string
-		wantAnonymous string
 		wantDelay     int
 		wantJSON      int64
 		wantYAML      int64
@@ -39,11 +38,11 @@ func TestServerSettings(t *testing.T) {
 		},
 		{
 			name: "everything set", wantPprof: true, wantHide: true,
-			doc: settingsBase + "auth:\n  anonymousFlagSet: public\n" + opsListeners +
+			doc: settingsBase + opsListeners +
 				"  hideBanner: true\n  ops: {pprof: {enabled: true}}\n" +
 				"  ofrepEventStream: {baseUrl: \"https://flags.example.com/base\", inactivityDelaySec: 30}\n" +
 				"  validateFlags: {maxJsonBodySize: 2MiB, maxYamlBodySize: 100KiB, maxTomlBodySize: 1500B}\n",
-			wantStreamURL: "https://flags.example.com/base", wantDelay: 30, wantAnonymous: "public",
+			wantStreamURL: "https://flags.example.com/base", wantDelay: 30,
 			wantJSON: 2 << 20, wantYAML: 100 << 10, wantTOML: 1500,
 		},
 		{
@@ -60,11 +59,6 @@ func TestServerSettings(t *testing.T) {
 			name:    "an unknown key under ops",
 			doc:     settingsBase + "server:\n  ops: {pprof: {enable: true}}\n",
 			wantErr: bootstrap.ErrUnknownKey.Error(),
-		},
-		{
-			name:    "an anonymous flag set that is not a name",
-			doc:     settingsBase + "auth:\n  anonymousFlagSet: Not A Name\n",
-			wantErr: "auth.anonymousFlagSet (line 8): invalid name",
 		},
 		{
 			name:    "a stream URL that is not http",
@@ -126,7 +120,6 @@ func TestServerSettings(t *testing.T) {
 			assert.Equal(t, tt.wantHide, cfg.Server.HideBanner)
 			assert.Equal(t, tt.wantStreamURL, cfg.Server.OFREPEventStream.BaseURL)
 			assert.Equal(t, tt.wantDelay, cfg.Server.OFREPEventStream.InactivityDelaySec)
-			assert.Equal(t, tt.wantAnonymous, cfg.Auth.AnonymousFlagSet)
 			assert.Equal(t, tt.wantJSON, sizeOf(cfg.Server.ValidateFlags.MaxJSONBodySize))
 			assert.Equal(t, tt.wantYAML, sizeOf(cfg.Server.ValidateFlags.MaxYAMLBodySize))
 			assert.Equal(t, tt.wantTOML, sizeOf(cfg.Server.ValidateFlags.MaxTOMLBodySize))

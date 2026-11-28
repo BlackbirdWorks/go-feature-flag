@@ -193,7 +193,10 @@ func TestBuilderSharesFlagsBetweenFlagSets(t *testing.T) {
 
 	flagSets := make([]controlplane.FlagSet, 0, sets)
 	for i := range sets {
-		flagSets = append(flagSets, fset("set-"+string(rune('a'+i/26))+string(rune('a'+i%26)), src(sharedName)))
+		flagSets = append(
+			flagSets,
+			fset("set-"+string(rune('a'+i/26))+string(rune('a'+i%26)), src(sharedName), fmt.Sprintf("key-%d", i)),
+		)
 	}
 
 	var parsed []flagruntime.ParseEvent
@@ -245,7 +248,10 @@ func TestBuilderCostIsProportionalToTheChange(t *testing.T) {
 		objects[name] = flagsObj(o+1, "f1", "f2", "f3")
 
 		for s := range setsPerObject {
-			flagSets = append(flagSets, fset("set-"+name+"-"+string(rune('a'+s)), src(name)))
+			flagSets = append(
+				flagSets,
+				fset("set-"+name+"-"+string(rune('a'+s)), src(name), "key-"+name+"-"+string(rune('a'+s))),
+			)
 		}
 	}
 

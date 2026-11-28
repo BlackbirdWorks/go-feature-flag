@@ -88,8 +88,8 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 // changes of the swap are queued, so a closed client gets none of them.
 func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
 	keep := ""
-	if anon := rt.Status.Anonymous; anon != nil && anon.State != flagruntime.StateMissing {
-		keep = anon.FlagSet
+	if rt.Public != nil {
+		keep = flagruntime.PublicName
 	}
 
 	s.ws.DisconnectAnonymous(keep)

@@ -55,7 +55,6 @@ func (c *Config) validate(pos positions, sources map[string]string, opts LoadOpt
 
 	check.server()
 	check.serverSettings()
-	check.anonymousFlagSet()
 	check.observability()
 	check.adminKeys()
 

@@ -52,6 +52,7 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		},
 		FlagSets: []model.FlagSetInfo{}, Objects: []model.ObjectInfo{}, Withdrawn: []model.WithdrawnInfo{},
 		PendingRestart: []string{},
+		Public:         model.PublicInfo{Sets: []string{}, Flags: 0, Present: false},
 		Staleness:      staleness(status, now),
 	}
 
@@ -71,8 +72,8 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	info.Generation, info.Snapshot = current.Generation, current.Snapshot
 	info.PendingRestart = append(info.PendingRestart, current.PendingRestart...)
 
-	if anon := current.Anonymous; anon != nil {
-		info.Anonymous = &model.AnonymousInfo{FlagSet: anon.FlagSet, State: string(anon.State)}
+	if public := current.Public; public != nil {
+		info.Public = model.PublicInfo{Present: public.Present, Flags: public.Flags, Sets: slices.Clone(public.Sets)}
 	}
 
 	failures := map[string]manifestreader.ObjectFailure{}

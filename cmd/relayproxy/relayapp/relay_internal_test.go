@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/pprof"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -110,6 +111,20 @@ func (s *store) put(key string, data []byte) {
 func (s *store) publish(value int) {
 	s.t.Helper()
 
+	s.publishDocs([]controlplane.FlagSet{
+		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+	}, map[string]string{flagsObject: flagYAML(flagKey, value)})
+}
+
+// flagYAML is a flags document of one flag valued value.
+func flagYAML(key string, value int) string {
+	return fmt.Sprintf("%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", key, value)
+}
+
+// publishDocs writes the flag sets and the flags objects (by name), then the manifest of the next generation.
+func (s *store) publishDocs(sets []controlplane.FlagSet, flags map[string]string) {
+	s.t.Helper()
+
 	s.gen++
 
 	manifest := &controlplane.Manifest{
@@ -129,14 +144,14 @@ func (s *store) publish(value int) {
 		})
 	}
 
-	sets, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{
-		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
-	}})
+	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: sets})
 	require.NoError(s.t, err)
 
-	add(setsName, controlplane.KindFlagSets, sets)
-	add(flagsObject, controlplane.KindFlags, fmt.Appendf(nil,
-		"%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", flagKey, value))
+	add(setsName, controlplane.KindFlagSets, doc)
+
+	for _, name := range slices.Sorted(maps.Keys(flags)) {
+		add(name, controlplane.KindFlags, []byte(flags[name]))
+	}
 
 	data, err := controlplane.MarshalManifest(manifest)
 	require.NoError(s.t, err)

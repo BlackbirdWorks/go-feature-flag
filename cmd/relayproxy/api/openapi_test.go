@@ -91,7 +91,7 @@ func TestOpenAPIOptionalKey(t *testing.T) {
 			}
 
 			got[operation.OperationID] = requirements
-			noted[operation.OperationID] = strings.Contains(operation.Description, "auth.anonymousFlagSet")
+			noted[operation.OperationID] = strings.Contains(operation.Description, "published without API keys")
 		}
 	}
 

@@ -456,11 +456,6 @@ func TestEngineBootstrapAdminKeysAreLiveAndOthersPendRestart(t *testing.T) {
 			},
 		},
 		{
-			name:      "the anonymous flag set applies live and nothing needs a restart",
-			edits:     [][2]string{{"[" + adminOne + "]", "[" + adminOne + "]\n  anonymousFlagSet: a"}},
-			wantAdmin: []string{adminOne},
-		},
-		{
 			name:        "the evaluation settings are reported",
 			extra:       "evaluation: {environment: staging}\n",
 			wantAdmin:   []string{adminOne},

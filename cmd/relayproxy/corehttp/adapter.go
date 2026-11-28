@@ -156,13 +156,11 @@ func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*
 		views[set] = &view{adapter: a, set: set}
 	}
 
-	if anon := current.Anonymous; anon != nil {
-		if _, held := views[anon]; !held {
-			if old, reused := prev.viewOf(anon); reused {
-				views[anon] = old
-			} else {
-				views[anon] = &view{adapter: a, set: anon}
-			}
+	if public := current.Public; public != nil {
+		if old, reused := prev.viewOf(public); reused {
+			views[public] = old
+		} else {
+			views[public] = &view{adapter: a, set: public}
 		}
 	}
 
@@ -176,8 +174,8 @@ func (a *Adapter) views(current *flagruntime.Runtime) map[*flagruntime.FlagSet]*
 func (a *Adapter) lookup(apiKey string) (*view, error) {
 	current := a.holder.Load()
 
-	// no key: only the anonymous flag set of the file serves the request. A key that is given never comes to it.
-	if apiKey == "" && current.Anonymous == nil {
+	// no key: only the public flag set serves the request. A key that is given never comes to it.
+	if apiKey == "" && current.Public == nil {
 		return nil, errNoAPIKey
 	}
 

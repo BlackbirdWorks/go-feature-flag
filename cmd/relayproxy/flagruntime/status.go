@@ -20,8 +20,8 @@ type Status struct {
 	Withdrawn []WithdrawnSet `json:"withdrawn"`
 	// PendingRestart names the bootstrap settings that changed but need a restart; the values are never listed.
 	PendingRestart []string `json:"pendingRestart"`
-	// Anonymous says which flag set serves the requests without a key; absent when there is none.
-	Anonymous *AnonymousStatus `json:"anonymous,omitempty"`
+	// Public says which flag sets serve the requests without a key.
+	Public *PublicStatus `json:"public"`
 	// LastReload is the round that produced this runtime.
 	LastReload Reload `json:"lastReload"`
 	// Generation is the manifest generation.
