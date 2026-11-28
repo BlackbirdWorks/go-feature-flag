@@ -59,6 +59,10 @@ func (p *prefetched) Contains(ctx context.Context, lookups []segment.Lookup) err
 	return nil
 }
 
+// AnswersFromMemory implements [segment.EndedContextProvider]: the answers of the batch are in memory, whatever the
+// state of the request.
+func (*prefetched) AnswersFromMemory() {}
+
 // batch collects the memberships that the flags of an evaluation need.
 type batch struct {
 	view    *SegmentView

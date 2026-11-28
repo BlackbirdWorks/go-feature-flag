@@ -2,6 +2,7 @@ package ofrep
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -92,10 +93,10 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 
-	_, span := tracer.Start(r.Context(), "flagEvaluation")
+	ctx, span := tracer.Start(r.Context(), "flagEvaluation")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
 		return fmt.Errorf("getting the flag set of the evaluation: %w", httpErr)
 	}
@@ -103,12 +104,8 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	// we set a nil value to the default value to avoid the default value to be used.
 	var defaultValue any
 
-	flagValue, _ := flagset.RawVariation(r.Context(), flagKey, evalCtx, defaultValue)
-	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
-		h.metrics.IncFlagNotFoundEvaluation()
-	} else {
-		h.metrics.IncFlagEvaluation(flagKey)
-	}
+	flagValue, _ := flagset.RawVariation(ctx, flagKey, evalCtx, defaultValue)
+	h.countEvaluation(ctx, flagKey, flagValue.ErrorCode)
 
 	if flagValue.Reason == flagdef.ReasonError {
 		httpStatus := http.StatusBadRequest
@@ -188,10 +185,10 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	}
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 
-	_, span := tracer.Start(r.Context(), "AllFlagsState")
+	ctx, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
 		return fmt.Errorf("getting the flag set of the bulk evaluation: %w", httpErr)
 	}
@@ -199,9 +196,9 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	var allFlagsResp flagstate.AllFlags
 	if len(evalCtx.ExtractGOFFProtectedFields().FlagList) > 0 {
 		// if we have a list of flags to evaluate in the evaluation context, we evaluate only those flags.
-		allFlagsResp = flagset.GetFlagStates(r.Context(), evalCtx, evalCtx.ExtractGOFFProtectedFields().FlagList)
+		allFlagsResp = flagset.GetFlagStates(ctx, evalCtx, evalCtx.ExtractGOFFProtectedFields().FlagList)
 	} else {
-		allFlagsResp = flagset.AllFlagsState(r.Context(), evalCtx)
+		allFlagsResp = flagset.AllFlagsState(ctx, evalCtx)
 	}
 
 	flagNames := make([]string, 0, len(allFlagsResp.GetFlags()))
@@ -219,7 +216,9 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		})
 	}
 
-	h.metrics.IncAllFlag(flagNames...)
+	if ctx.Err() == nil {
+		h.metrics.IncAllFlag(flagNames...)
+	}
 
 	slices.SortFunc(response.Flags, func(a, b model.OFREPFlagBulkEvaluateSuccessResponse) int {
 		return cmp.Compare(a.Key, b.Key)
@@ -318,6 +317,20 @@ func ofrepValue(reason string, value any) any {
 	}
 
 	return value
+}
+
+// countEvaluation counts a served evaluation: no client received the answer of a request that ended, so it is not
+// counted.
+func (h *EvaluateCtrl) countEvaluation(ctx context.Context, flagKey string, code flagdef.ErrorCode) {
+	if ctx.Err() != nil {
+		return
+	}
+
+	if code == flagdef.ErrorCodeFlagNotFound {
+		h.metrics.IncFlagNotFoundEvaluation()
+	} else {
+		h.metrics.IncFlagEvaluation(flagKey)
+	}
 }
 
 // writeJSON sends v as the JSON body of the response, with the status code.

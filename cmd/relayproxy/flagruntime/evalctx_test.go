@@ -2,6 +2,8 @@ package flagruntime_test
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,7 +18,9 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
@@ -85,21 +89,66 @@ func (b holdBinder) Bind(
 // ctxRig is a flag set whose dynamic segment is served by a gated store.
 type ctxRig struct {
 	store    *holdStore
+	logs     *syncLog
 	counters *resolver.Counters
 	eval     *flagruntime.Evaluator
 	built    *flagruntime.Built
 	set      *flagruntime.FlagSet
 }
 
+// callObserver counts the calls of the resolver and runs a hook when a call of a request is over, before the rules run.
+type callObserver struct {
+	*resolver.Counters
+
+	after func()
+}
+
+func (o *callObserver) ObserveSegment(seg resolver.SegmentObservation) {
+	o.Counters.ObserveSegment(seg)
+
+	if o.after != nil {
+		o.after()
+	}
+}
+
+// syncLog is a buffer of log lines that the goroutines of a test share.
+type syncLog struct {
+	sb strings.Builder
+	mu sync.Mutex
+}
+
+func (l *syncLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	n, _ := l.sb.Write(p)
+
+	return n, nil
+}
+
+func (l *syncLog) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return l.sb.String()
+}
+
 func newCtxRig(t *testing.T, traced bool) *ctxRig {
+	t.Helper()
+
+	return newCtxRigWith(t, traced, nil)
+}
+
+// newCtxRigWith is newCtxRig with a hook that runs when the call of a request to the resolver is over.
+func newCtxRigWith(t *testing.T, traced bool, after func()) *ctxRig {
 	t.Helper()
 
 	failures := 1
 	callTimeout := bootstrap.Duration(longCall)
-	rig := &ctxRig{store: newHoldStore(t), counters: &resolver.Counters{}}
+	rig := &ctxRig{store: newHoldStore(t), counters: &resolver.Counters{}, logs: &syncLog{}}
 	builder := viewBuilderWith(t, &flagruntime.SegmentEnv{
 		Binder:   holdBinder{store: rig.store},
-		Observer: rig.counters,
+		Observer: &callObserver{Counters: rig.counters, after: after},
 		Traced:   traced,
 		Resolver: &bootstrap.SegmentResolver{
 			CallTimeout: &callTimeout,
@@ -114,7 +163,10 @@ func newCtxRig(t *testing.T, traced bool) *ctxRig {
 
 	rig.built = built
 	rig.set = built.Runtime.FlagSets["a"]
-	rig.eval = flagruntime.NewEvaluator(newService(t), nil)
+	svc := flagdef.NewService(flagdef.WithLogger(slog.New(slog.NewTextHandler(rig.logs, nil))))
+	t.Cleanup(svc.Close)
+
+	rig.eval = flagruntime.NewEvaluator(svc, nil)
 
 	return rig
 }
@@ -237,6 +289,7 @@ func TestRequestContextEndsTheSegmentLookups(t *testing.T) {
 			cancel()
 
 			assert.Equal(t, tt.wantStatus, awaitStatus(t, out))
+			assert.Empty(t, rig.logs.String(), "a request that ended is not a failure of the store: no line")
 			assert.Equal(t, int32(1), rig.store.calls.Load())
 		})
 	}
@@ -365,10 +418,10 @@ func checkRequestSpan(t *testing.T, tt *requestSpanCase) {
 
 	traceID := trace.TraceID{1, 2, 3}
 	requestSpan := trace.SpanID{4, 5, 6}
-	exporter := tracetest.NewInMemoryExporter()
+	memory := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.NeverSample())),
-		sdktrace.WithSyncer(exporter),
+		sdktrace.WithSyncer(memory),
 	)
 	previous := otel.GetTracerProvider()
 
@@ -390,12 +443,93 @@ func checkRequestSpan(t *testing.T, tt *requestSpanCase) {
 	require.NoError(t, err, tt.name)
 	assert.True(t, res.Value, tt.name)
 
-	spans := exporter.GetSpans()
+	spans := memory.GetSpans()
 	require.Len(t, spans, tt.wantSpans, tt.name)
 
 	for i := range spans {
 		assert.Equal(t, "segmentLookups", spans[i].Name, tt.name)
 		assert.Equal(t, tt.wantParent, spans[i].Parent.SpanID(), tt.name)
 		assert.Equal(t, tt.wantTrace, spans[i].SpanContext.TraceID(), tt.name)
+	}
+}
+
+// A request that ends after the batch of its lookups is answered keeps what is in memory: the values are the ones of
+// the store and the status is healthy. A request that ended before the lookups gets no answer, in silence.
+func TestEndedRequestKeepsTheAnswersInMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		wantStoreCalls int32
+		wantStatus     segment.Status
+		wantValue      bool
+		endBefore      bool
+	}{
+		{name: "ended after the answers", wantStatus: segment.StatusHealthy, wantStoreCalls: 1, wantValue: true},
+		{name: "ended before the lookups", endBefore: true, wantStatus: segment.StatusStoreError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			rig := newCtxRigWith(t, false, cancel)
+			rig.store.open()
+
+			if tt.endBefore {
+				cancel()
+			}
+
+			res, err := rig.eval.BoolVariationDetails(
+				ctx, rig.set, flagAudience, ffcontext.NewEvaluationContext(memberAlice), false)
+			require.NoError(t, err)
+
+			require.Error(t, ctx.Err(), "the request has ended")
+			assert.Equal(t, tt.wantValue, res.Value)
+			assert.Equal(t, tt.wantStatus, res.SegmentStatus)
+			assert.Equal(t, tt.wantStoreCalls, rig.store.calls.Load())
+			assert.Empty(t, rig.logs.String())
+		})
+	}
+}
+
+// A request that ended before its answer was produced has no client that received it: no event is exported.
+func TestEndedRequestIsNotTracked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantEvents int
+		ended      bool
+	}{
+		{name: "request alive", wantEvents: 1},
+		{name: "request ended", ended: true, wantEvents: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tt.ended {
+				cancel()
+			}
+
+			var events []*exporter.FeatureEvent
+
+			eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{
+				TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
+			})
+
+			res, err := eval.RawVariation(ctx, shapesSet(t), trackedFlag, ffcontext.NewEvaluationContext("user-1"), nil)
+			require.NoError(t, err)
+			assert.True(t, res.TrackEvents)
+			assert.Len(t, events, tt.wantEvents)
+		})
 	}
 }

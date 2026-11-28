@@ -1,6 +1,7 @@
 package helper_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -97,7 +98,15 @@ func TestHandle(t *testing.T) {
 		name       string
 		wantBody   string
 		wantStatus int
+		cancelled  bool
 	}{
+		{
+			name:       "error of a client that is gone: nothing is written",
+			handler:    func(http.ResponseWriter, *http.Request) error { return errBoom },
+			cancelled:  true,
+			wantStatus: http.StatusOK,
+			wantBody:   "",
+		},
 		{
 			name:       "error",
 			handler:    func(http.ResponseWriter, *http.Request) error { return errBoom },
@@ -117,9 +126,16 @@ func TestHandle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			reqCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tt.cancelled {
+				cancel()
+			}
+
 			rec := httptest.NewRecorder()
 			helper.Handle(tt.handler, false).
-				ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/",
+				ServeHTTP(rec, httptest.NewRequestWithContext(reqCtx, http.MethodGet, "/",
 					nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())

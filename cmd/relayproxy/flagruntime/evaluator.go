@@ -203,7 +203,7 @@ func (e *Evaluator) RawVariation(
 	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
 ) (model.RawVarResult, error) {
 	res, err := variation(ctx, e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
-	notify(e, set, flagKey, evalCtx, &res, isDefaultResult(res.Reason))
+	notify(ctx, e, set, flagKey, evalCtx, &res, isDefaultResult(res.Reason))
 
 	return model.RawVarResult(res), err
 }
@@ -213,7 +213,7 @@ func (e *Evaluator) BoolVariationDetails(
 	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue bool,
 ) (model.VariationResult[bool], error) {
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeBool)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -223,7 +223,7 @@ func (e *Evaluator) IntVariationDetails(
 	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue int,
 ) (model.VariationResult[int], error) {
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeInt)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -233,7 +233,7 @@ func (e *Evaluator) Float64VariationDetails(
 	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue float64,
 ) (model.VariationResult[float64], error) {
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeFloat64)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -243,7 +243,7 @@ func (e *Evaluator) StringVariationDetails(
 	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue string,
 ) (model.VariationResult[string], error) {
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeString)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -256,7 +256,7 @@ func (e *Evaluator) JSONArrayVariationDetails(
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeArray)
 	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	notify(e, set, flagKey, evalCtx, &res, !shared)
+	notify(ctx, e, set, flagKey, evalCtx, &res, !shared)
 
 	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).([]any)
@@ -273,7 +273,7 @@ func (e *Evaluator) JSONVariationDetails(
 	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeObject)
 	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	notify(e, set, flagKey, evalCtx, &res, !shared)
+	notify(ctx, e, set, flagKey, evalCtx, &res, !shared)
 
 	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).(map[string]any)
@@ -389,9 +389,20 @@ func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReas
 // value of another type), and the copy that the engine made for a scheduled flag when a typed call hands it out. The
 // result keeps the value as it is. The all-flags state does not track.
 func notify[T model.JSONType](
-	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T], own bool,
+	ctx context.Context,
+	eval *Evaluator,
+	set *FlagSet,
+	flagKey string,
+	evalCtx ffcontext.Context,
+	res *model.VariationResult[T],
+	own bool,
 ) {
 	if eval.track == nil || !res.TrackEvents {
+		return
+	}
+
+	// a request that ended before the answer was produced has no client that received it: no event
+	if ctx.Err() != nil {
 		return
 	}
 

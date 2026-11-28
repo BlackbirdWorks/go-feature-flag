@@ -1,6 +1,7 @@
 package ofrep_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -471,6 +472,8 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 		bodyFile string
 		want     string
 		flagKeys []string
+		// cancelled is a request whose context has ended: no client received its answer
+		cancelled bool
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",
@@ -492,10 +495,24 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			bodyFile: testdataDir + ofrepInvalidContextJSON,
 			want:     "",
 		},
+		{
+			name:      "should not count a request that ended",
+			flagKeys:  []string{numberFlag, "unknown-flag"},
+			bodyFile:  testdataDir + ofrepValidRequestJSON,
+			cancelled: true,
+			want:      "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			reqCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tt.cancelled {
+				cancel()
+			}
 
 			cfg := mock.FileConfig(configFlagsLocation)
 			flagsetManager := mock.NewDefault(t, &cfg)
@@ -513,7 +530,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
-				req := httptest.NewRequestWithContext(t.Context(),
+				req := httptest.NewRequestWithContext(reqCtx,
 					http.MethodPost, ofrepEvaluatePrefix+flagKey, strings.NewReader(string(bodyReqContent)))
 				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 				mux.ServeHTTP(httptest.NewRecorder(), req)
@@ -816,4 +833,58 @@ func mustEventStream(t *testing.T, baseURL string, delay int) ofrep.EventStream 
 	require.NoError(t, err)
 
 	return stream
+}
+
+func Test_BulkEvaluate_AllFlagMetric(t *testing.T) {
+	t.Parallel()
+
+	const (
+		metricName   = "semaphore_all_flag_evaluations_total"
+		metricHeader = "# HELP " + metricName + " Counter events for number of all flags requests.\n" +
+			"# TYPE " + metricName + " counter\n"
+	)
+
+	tests := []struct {
+		name      string
+		want      string
+		cancelled bool
+	}{
+		{name: "a bulk request is counted", want: metricHeader + metricName + " 1\n"},
+		{name: "a bulk request that ended is not counted", cancelled: true, want: metricHeader + metricName + " 0\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reqCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tt.cancelled {
+				cancel()
+			}
+
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
+
+			defer flagsetManager.Close()
+
+			metrics, err := metric.NewMetrics()
+			require.NoError(t, err)
+
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, ofrep.EventStream{})
+			mux := http.NewServeMux()
+			mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
+
+			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
+			require.NoError(t, err)
+
+			req := httptest.NewRequestWithContext(reqCtx,
+				http.MethodPost, "/ofrep/v1/evaluate/flags", strings.NewReader(string(body)))
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
+			mux.ServeHTTP(httptest.NewRecorder(), req)
+
+			assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(tt.want), metricName))
+		})
+	}
 }

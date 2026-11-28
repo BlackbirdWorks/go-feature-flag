@@ -99,7 +99,7 @@ func TestEvaluatorWrapperFramesDoNotAllocate(t *testing.T) {
 		{
 			name: "notify without a hook", want: "kept",
 			run: func() any {
-				notify(plain, set, "f", evalCtx, &tracked, true)
+				notify(t.Context(), plain, set, "f", evalCtx, &tracked, true)
 
 				return tracked.Value
 			},

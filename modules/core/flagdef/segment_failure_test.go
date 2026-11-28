@@ -202,7 +202,9 @@ func TestSegmentEndedRequestContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			svc := flagdef.NewService()
+			var buf syncBuffer
+
+			svc := flagdef.NewService(flagdef.WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
 			rec := &recordingProvider{inner: segment.NewMemoryProvider(map[string][]string{segBeta: {keyAlice}})}
 			flag := onOffFlag(queryRule("r", nikunjyInclude))
 			require.NoError(t, flag.IsValid(svc))
@@ -211,9 +213,77 @@ func TestSegmentEndedRequestContext(t *testing.T) {
 				flagdef.Context{Service: svc, Segments: rec, RequestContext: tt.reqCtx()})
 
 			assert.Empty(t, rec.calls, "the provider is not called for a request that has ended")
+			assert.Empty(t, buf.String(), "a request that ended is not a failure of the store: no line")
 			assert.Equal(t, variantOff, details.Variant)
 			assert.Equal(t, segment.StatusStoreError, details.SegmentStatus)
 			assert.False(t, details.Cacheable)
+		})
+	}
+}
+
+// memoryAnswers is a provider that answers from memory, whatever the state of the request.
+type memoryAnswers struct{}
+
+func (memoryAnswers) AnswersFromMemory() {}
+
+// Contains answers every lookup with a member, without looking at the context.
+func (memoryAnswers) Contains(_ context.Context, lookups []segment.Lookup) error {
+	for i := range lookups {
+		lookups[i].State = segment.Member
+	}
+
+	return nil
+}
+
+// A provider that answers from memory is called for a request that has ended and its answers are used; a provider
+// that fails is logged once.
+func TestSegmentEndedRequestContextWithAnswersInMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		provider     segment.Provider
+		name         string
+		wantVariant  string
+		wantLogLines int
+		wantStatus   segment.Status
+		ended        bool
+	}{
+		{
+			name:        "answers in memory, request ended",
+			provider:    memoryAnswers{},
+			ended:       true,
+			wantVariant: variantOn,
+			wantStatus:  segment.StatusHealthy,
+		},
+		{
+			name: "failing store, request alive", provider: failingProvider{},
+			wantVariant: variantOff, wantStatus: segment.StatusStoreError, wantLogLines: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reqCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			if tt.ended {
+				cancel()
+			}
+
+			var buf syncBuffer
+
+			svc := flagdef.NewService(flagdef.WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
+			flag := onOffFlag(queryRule("r", nikunjyInclude))
+			require.NoError(t, flag.IsValid(svc))
+
+			_, details := flag.Value("f", ffcontext.NewEvaluationContext(keyAlice),
+				flagdef.Context{Service: svc, Segments: tt.provider, RequestContext: reqCtx})
+
+			assert.Equal(t, tt.wantVariant, details.Variant)
+			assert.Equal(t, tt.wantStatus, details.SegmentStatus)
+			assert.Equal(t, tt.wantLogLines, strings.Count(buf.String(), "segment lookup failed"))
 		})
 	}
 }

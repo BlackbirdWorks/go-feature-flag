@@ -388,12 +388,12 @@ func waitLeft(t *testing.T, left <-chan struct{}, gate chan struct{}) {
 	}
 }
 
-func waitForJoin(t *testing.T, res *resolver.Resolver, name string, want uint64) {
+func waitForJoin(t *testing.T, res *resolver.Resolver, name string) {
 	t.Helper()
 
 	assert.Eventually(
 		t,
-		func() bool { return res.Status().Segments[name].Joined >= want },
+		func() bool { return res.Status().Segments[name].Joined >= 1 },
 		eventuallyWait,
 		eventuallyTick,
 	)
@@ -430,7 +430,7 @@ func TestCoalescingAndWaitingCallers(t *testing.T) {
 		followErr = res.Contains(followCtx, followLookups)
 	}()
 
-	waitForJoin(t, res, segBeta, 1)
+	waitForJoin(t, res, segBeta)
 	cancelFollower()
 	waitLeft(t, followDone, store.gate) // the follower leaves while the store has not answered: the gate is still shut
 
@@ -475,7 +475,7 @@ func TestLeaderLeavesButFollowerGetsTheAnswer(t *testing.T) {
 
 	wg.Go(func() { followErr = res.Contains(context.Background(), followLookups) })
 
-	waitForJoin(t, res, segBeta, 1)
+	waitForJoin(t, res, segBeta)
 	cancelLeader()
 	waitLeft(t, leadDone, store.gate)
 	close(store.gate)

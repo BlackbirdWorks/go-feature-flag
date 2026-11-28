@@ -293,7 +293,8 @@ func (q *queryContext) defines(name string) bool {
 // lookup was answered. A provider that returns an error may have answered some lookups first: the answers that are
 // Member or NotMember are kept, the others are Unknown, and the health is a store error. A state that is not one of
 // the three constants is Unknown. A provider that panics is not trusted: every state is reset to Unknown. The provider
-// is not called when the context of the request has ended.
+// is not called when the context of the request has ended, unless it is an [segment.EndedContextProvider]; the end of
+// the request is not logged as a failure.
 func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	ctx := q.requestContext
 	if ctx == nil {
@@ -303,12 +304,18 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	var stale bool
 
 	err := ctx.Err()
-	if err == nil {
+	ended := err != nil
+
+	if !ended || q.answersWhenEnded() {
 		stale, err = q.callProvider(ctx, lookups)
 	}
 
 	if err != nil {
-		q.svc.logger.LogAttrs(ctx, slog.LevelWarn, "segment lookup failed", slog.Any(errorLiteral, err))
+		// a request that ended is not a failure of the store: the lookups it did not get stay unanswered, with no line
+		// (one for each term of a bulk request would flood the log of a slow store that clients leave)
+		if !ended || !errors.Is(err, ctx.Err()) {
+			q.svc.logger.LogAttrs(ctx, slog.LevelWarn, "segment lookup failed", slog.Any(errorLiteral, err))
+		}
 
 		// whatever the source of the error (the store, or the end of the request during the call), the answers that
 		// were set validly are kept; only a provider that panicked is not trusted
@@ -339,6 +346,13 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	}
 
 	return status
+}
+
+// answersWhenEnded reports whether the provider answers from memory when the context of the request has ended.
+func (q *queryContext) answersWhenEnded() bool {
+	_, ok := q.segments.(segment.EndedContextProvider)
+
+	return ok
 }
 
 // sanitize makes every state that is not one of the three constants Unknown.
