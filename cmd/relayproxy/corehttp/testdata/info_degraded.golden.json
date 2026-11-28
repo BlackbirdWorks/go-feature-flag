@@ -1,5 +1,9 @@
 {
   "config": {
+    "reader": {
+      "at": "2025-06-15T12:00:00Z",
+      "outcome": "accepted"
+    },
     "reloads": {
       "applied": 4,
       "ignored": 0,

@@ -116,6 +116,9 @@
           "public": {
             "$ref": "#/components/schemas/PublicInfo"
           },
+          "reader": {
+            "$ref": "#/components/schemas/ReaderInfo"
+          },
           "reloads": {
             "additionalProperties": {
               "format": "int64",
@@ -146,6 +149,15 @@
           },
           "state": {
             "$ref": "#/components/schemas/StateInfo"
+          },
+          "unknownFields": {
+            "items": {
+              "$ref": "#/components/schemas/UnknownFieldsInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "withdrawn": {
             "items": {
@@ -912,6 +924,25 @@
         ],
         "type": "object"
       },
+      "ReaderInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "type": "object"
+      },
       "ReloadInfo": {
         "additionalProperties": false,
         "properties": {
@@ -1139,6 +1170,32 @@
           "saveErrors",
           "keptFlags",
           "enabled"
+        ],
+        "type": "object"
+      },
+      "UnknownFieldsInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
         ],
         "type": "object"
       },

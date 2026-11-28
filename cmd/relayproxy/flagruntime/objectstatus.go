@@ -19,8 +19,12 @@ type ObjectStatus struct {
 	Reason string `json:"reason"`
 	// Rejected lists the flags that failed validation.
 	Rejected []FlagRejection `json:"rejected"`
+	// UnknownFieldPaths lists the first unknown field paths noticed when decoding this object (bounded).
+	UnknownFieldPaths []string `json:"unknownFieldPaths,omitempty"`
 	// Flags is the number of flags held (flag sets held, for a document).
 	Flags int `json:"flags"`
+	// UnknownFields counts the unknown fields noticed when decoding this object.
+	UnknownFields int `json:"unknownFields,omitempty"`
 }
 
 // FlagRejection is one flag that failed validation.
