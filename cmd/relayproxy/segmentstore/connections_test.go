@@ -56,13 +56,24 @@ var errDial = errors.New("dial refused")
 
 // fakeHandle is a connected store over an in-memory source.
 type fakeHandle struct {
-	source *segment.MemorySource
-	closed atomic.Bool
-	binds  atomic.Int32
+	source      *segment.MemorySource
+	bindErr     error
+	closeErr    error
+	closed      atomic.Bool
+	binds       atomic.Int32
+	noVersioner bool
 }
 
 func (h *fakeHandle) Bind(segment.MissingKey, []flagruntime.BoundDefinition) (*flagruntime.Binding, error) {
 	h.binds.Add(1)
+
+	if h.bindErr != nil {
+		return nil, h.bindErr
+	}
+
+	if h.noVersioner {
+		return &flagruntime.Binding{Provider: h.source}, nil
+	}
 
 	return &flagruntime.Binding{Provider: h.source, Versioner: h.source}, nil
 }
@@ -70,7 +81,7 @@ func (h *fakeHandle) Bind(segment.MissingKey, []flagruntime.BoundDefinition) (*f
 func (h *fakeHandle) Close() error {
 	h.closed.Store(true)
 
-	return nil
+	return h.closeErr
 }
 
 // secretEnv has the password of the connections, and nothing else.
@@ -302,6 +313,181 @@ func TestConnectionsDialKinds(t *testing.T) {
 			cancel()
 			<-done
 			require.NoError(t, conns.Shutdown(t.Context()))
+		})
+	}
+}
+
+// A dial that ignores its context does not hold the loop: Run returns when its context ends, and the client that
+// arrives later is closed, never left open. The same when Shutdown comes while the dial runs.
+func TestConnectionsDialThatBlocks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		stop      func(cancel context.CancelFunc, conns *segmentstore.Connections)
+		name      string
+		wantState string
+	}{
+		{
+			name: "context ends", wantState: "connecting",
+			stop: func(cancel context.CancelFunc, _ *segmentstore.Connections) { cancel() },
+		},
+		{
+			name:      "shutdown",
+			wantState: "closed",
+			stop:      func(_ context.CancelFunc, conns *segmentstore.Connections) { _ = conns.Shutdown(context.Background()) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				handle  = &fakeHandle{source: segment.NewMemorySource(nil)}
+				entered = make(chan struct{})
+				release = make(chan struct{})
+			)
+
+			conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{
+				RetryInterval: tick,
+				Dialers: map[string]segmentstore.Dialer{
+					connCache: func(context.Context) (segmentstore.Handle, error) {
+						close(entered)
+						<-release // ignores the context, as a client that dials while it is created
+
+						return handle, nil
+					},
+				},
+			})
+
+			_, err := conns.Bind(connCache, segment.MissingNotMember, nil)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			done := make(chan struct{})
+
+			go func() {
+				defer close(done)
+
+				conns.Run(ctx)
+			}()
+
+			select {
+			case <-entered:
+			case <-time.After(waitFor):
+				require.FailNow(t, "the dial did not start")
+			}
+
+			tt.stop(cancel, conns)
+			cancel()
+
+			select {
+			case <-done:
+			case <-time.After(waitFor):
+				require.FailNow(t, "Run did not return while the dial was blocked")
+			}
+
+			close(release)
+
+			require.Eventually(t, handle.closed.Load, waitFor, tick, "the client that arrived late is closed")
+			assert.Equal(t, tt.wantState, stateOf(conns, connCache))
+		})
+	}
+}
+
+// What a connected store can do wrong: no version source, a provider that reports no health, a bind that fails, a
+// client that does not close.
+func TestConnectionsBindingEdges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		handle          *fakeHandle
+		check           func(t *testing.T, binding *flagruntime.Binding)
+		wantShutdownErr error
+		name            string
+	}{
+		{
+			name: "no version source", handle: &fakeHandle{noVersioner: true},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				_, err := binding.Versioner.Version(t.Context(), segAudience)
+				require.ErrorIs(t, err, segment.ErrNoVersion)
+			},
+		},
+		{
+			name: "provider without health", handle: &fakeHandle{},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				lookups := []segment.Lookup{{Segment: segAudience, ID: memberAlice}}
+				require.NoError(t, binding.Provider.Contains(t.Context(), lookups))
+
+				reporter, ok := binding.Provider.(segment.HealthReporter)
+				require.True(t, ok)
+				assert.Equal(t, segment.Health{Ready: true}, reporter.Health())
+			},
+		},
+		{
+			name: "bind fails", handle: &fakeHandle{bindErr: errDial},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				lookups := []segment.Lookup{{Segment: segAudience, ID: memberAlice}}
+				require.ErrorIs(t, binding.Provider.Contains(t.Context(), lookups), errDial)
+				require.ErrorIs(t, binding.Provider.Contains(t.Context(), lookups), errDial, "the bind is tried again")
+			},
+		},
+		{
+			name: "close fails", handle: &fakeHandle{closeErr: errDial}, wantShutdownErr: errDial,
+			check: func(*testing.T, *flagruntime.Binding) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tt.handle.source = segment.NewMemorySource(map[string][]string{segAudience: {memberAlice}})
+			conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{
+				RetryInterval: tick,
+				Dialers: map[string]segmentstore.Dialer{
+					connCache: func(context.Context) (segmentstore.Handle, error) { return tt.handle, nil },
+				},
+			})
+
+			binding, err := conns.Bind(connCache, segment.MissingNotMember, nil)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			done := make(chan struct{})
+
+			go func() {
+				defer close(done)
+
+				conns.Run(ctx)
+			}()
+
+			require.Eventually(t, func() bool { return stateOf(conns, connCache) == stateConnected }, waitFor, tick)
+			tt.check(t, binding)
+			cancel()
+
+			select {
+			case <-done:
+			case <-time.After(waitFor):
+				require.FailNow(t, "the loop did not stop")
+			}
+
+			err = conns.Shutdown(t.Context())
+			if tt.wantShutdownErr != nil {
+				require.ErrorIs(t, err, tt.wantShutdownErr)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

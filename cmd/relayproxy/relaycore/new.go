@@ -145,6 +145,11 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 
 // newEngine builds the engine and the stores of the dynamic segments that it binds its generations to.
 func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Hooks) *flagruntime.Engine {
+	c.segWait = deps.SegmentWait
+	if c.segWait == nil {
+		c.segWait = timerWait
+	}
+
 	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})
 
 	return flagruntime.NewEngine(c.log, c.svc, c.holder,

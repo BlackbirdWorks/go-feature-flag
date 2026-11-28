@@ -9,6 +9,7 @@ import (
 const (
 	metricSegmentLookups = "semaphore_segment_lookups_total"
 	metricSegmentCalls   = "semaphore_segment_store_calls_total"
+	metricSegmentFailed  = "semaphore_segment_store_failed_calls_total"
 	metricSegmentBreaker = "semaphore_segment_breaker_transitions_total"
 	metricSegmentStore   = "semaphore_segment_store_state"
 	metricSegmentDynamic = "semaphore_segment_dynamic"
@@ -24,8 +25,6 @@ const (
 	resultCoalesced      = "coalesced"
 	resultShortCircuited = "short_circuited"
 	resultUnknown        = "unknown"
-	resultOK             = "ok"
-	resultFailed         = "failed"
 	transitionOpen       = "open"
 	transitionHalfOpen   = "half_open"
 	transitionClosed     = "closed"
@@ -36,7 +35,7 @@ const (
 type SegmentCollector struct {
 	src StatusSource
 
-	lookups, calls, breaker, stores, dynamic *prom.Desc
+	lookups, calls, failed, breaker, stores, dynamic *prom.Desc
 }
 
 var _ prom.Collector = (*SegmentCollector)(nil)
@@ -48,7 +47,8 @@ func NewSegmentCollector(src StatusSource) *SegmentCollector {
 	return &SegmentCollector{
 		src:     src,
 		lookups: desc(metricSegmentLookups, "Segment membership lookups by how the resolver answered them.", "result"),
-		calls:   desc(metricSegmentCalls, "Calls of the resolvers by result.", "result"),
+		calls:   desc(metricSegmentCalls, "Calls of the resolvers to the stores."),
+		failed:  desc(metricSegmentFailed, "Calls of the resolvers to the stores that failed."),
 		breaker: desc(metricSegmentBreaker, "Transitions of the circuit breakers of the segments.", "to"),
 		stores:  desc(metricSegmentStore, "1 for the state of each segment store connection.", "connection", "state"),
 		dynamic: desc(metricSegmentDynamic, "Served dynamic segments by status.", "status"),
@@ -57,7 +57,7 @@ func NewSegmentCollector(src StatusSource) *SegmentCollector {
 
 // Describe implements [prom.Collector].
 func (c *SegmentCollector) Describe(out chan<- *prom.Desc) {
-	for _, d := range []*prom.Desc{c.lookups, c.calls, c.breaker, c.stores, c.dynamic} {
+	for _, d := range []*prom.Desc{c.lookups, c.calls, c.failed, c.breaker, c.stores, c.dynamic} {
 		out <- d
 	}
 }
@@ -76,8 +76,8 @@ func (c *SegmentCollector) Collect(out chan<- prom.Metric) {
 	counter(c.lookups, stats.Coalesced, resultCoalesced)
 	counter(c.lookups, stats.ShortCircuited, resultShortCircuited)
 	counter(c.lookups, stats.Unknown, resultUnknown)
-	counter(c.calls, stats.Calls-min(stats.Calls, stats.Failed), resultOK)
-	counter(c.calls, stats.Failed, resultFailed)
+	counter(c.calls, stats.Calls)
+	counter(c.failed, stats.Failed)
 	counter(c.breaker, stats.BreakerOpened, transitionOpen)
 	counter(c.breaker, stats.BreakerHalfOpened, transitionHalfOpen)
 	counter(c.breaker, stats.BreakerClosed, transitionClosed)

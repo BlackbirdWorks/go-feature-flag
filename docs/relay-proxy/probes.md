@@ -51,7 +51,8 @@ it. It works with zero flag sets.
 | `semaphore_config_age_seconds` | | seconds since the control plane last confirmed the manifest |
 | `semaphore_resource_count` | `kind` (`flagset`, `object`, `dynamicSegment`), `state` | resources by state, always exported; `dynamicSegment` counts the dynamic segment definitions of the flag sets as `valid` or `rejected` |
 | `semaphore_segment_lookups_total` | `result` (`hit`, `miss`, `coalesced`, `short_circuited`, `unknown`) | segment lookups by how the resolvers answered them, since the start |
-| `semaphore_segment_store_calls_total` | `result` (`ok`, `failed`) | calls of the resolvers to the stores |
+| `semaphore_segment_store_calls_total` | | calls of the resolvers to the stores |
+| `semaphore_segment_store_failed_calls_total` | | those calls that failed |
 | `semaphore_segment_breaker_transitions_total` | `to` (`open`, `half_open`, `closed`) | transitions of the circuit breakers |
 | `semaphore_segment_store_state` | `connection`, `state` | 1 for the state of each store connection, 0 for the others |
 | `semaphore_segment_dynamic` | `status` (`healthy`, `store_error`) | served dynamic segments by health now |

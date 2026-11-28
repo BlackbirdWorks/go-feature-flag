@@ -23,6 +23,10 @@ func series(t *testing.T, rig *v2, family, label, value string) (float64, bool) 
 		}
 
 		for _, metric := range fam.GetMetric() {
+			if label == "" && len(metric.GetLabel()) == 0 {
+				return metric.GetGauge().GetValue() + metric.GetCounter().GetValue(), true
+			}
+
 			for _, l := range metric.GetLabel() {
 				if l.GetName() == label && l.GetValue() == value {
 					return metric.GetGauge().GetValue() + metric.GetCounter().GetValue(), true
@@ -66,7 +70,7 @@ func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 		{"semaphore_segment_dynamic", "status", "store_error", 1},
 		{"semaphore_segment_dynamic", "status", "healthy", 0},
 		{"semaphore_segment_lookups_total", "result", "hit", 0},
-		{"semaphore_segment_store_calls_total", "result", "failed", 0},
+		{"semaphore_segment_store_failed_calls_total", "", "", 0},
 		{"semaphore_segment_breaker_transitions_total", "to", "open", 0},
 	} {
 		got, found := series(t, rig, want.family, want.label, want.value)

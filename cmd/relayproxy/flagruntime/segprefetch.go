@@ -56,6 +56,7 @@ type batch struct {
 	view    *SegmentView
 	attrs   map[string]any
 	evalCtx ffcontext.Context
+	enrich  map[string]any
 	seen    map[lookupKey]struct{}
 	lookups []segment.Lookup
 }
@@ -67,7 +68,13 @@ func (b *batch) add(terms []segment.Term) {
 		}
 
 		if b.attrs == nil {
-			b.attrs = evalcore.ContextToMap(b.evalCtx)
+			// the enrichment of the flag set is merged over the request, as the rules see them
+			evalCtx := b.evalCtx
+			if len(b.enrich) > 0 {
+				evalCtx = flagdef.NewEnrichedContext(evalCtx, b.enrich)
+			}
+
+			b.attrs = evalcore.ContextToMap(evalCtx)
 		}
 
 		id, ok := attributeID(b.attrs, terms[i].Path)
@@ -124,7 +131,7 @@ func (b *batch) provider() *prefetched {
 }
 
 // prefetchFlag returns the provider of the evaluation of one flag; nil for a flag that uses no served dynamic segment.
-func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, key string) *prefetched {
+func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, enrich map[string]any, key string) *prefetched {
 	if f == nil || f.Segments == nil || f.Segments.View == nil {
 		return nil
 	}
@@ -134,7 +141,7 @@ func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, key string) *prefetche
 		return nil
 	}
 
-	b := batch{view: f.Segments.View, evalCtx: evalCtx}
+	b := batch{view: f.Segments.View, evalCtx: evalCtx, enrich: enrich}
 	b.add(terms)
 
 	return b.provider()
@@ -142,12 +149,12 @@ func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, key string) *prefetche
 
 // prefetchFlags is prefetchFlag for the flags of an evaluation of many: one batch for all of them. No keys means
 // every flag of the set.
-func (f *FlagSet) prefetchFlags(evalCtx ffcontext.Context, keys []string) *prefetched {
+func (f *FlagSet) prefetchFlags(evalCtx ffcontext.Context, enrich map[string]any, keys []string) *prefetched {
 	if f == nil || f.Segments == nil || f.Segments.View == nil || len(f.dynTerms) == 0 {
 		return nil
 	}
 
-	b := batch{view: f.Segments.View, evalCtx: evalCtx}
+	b := batch{view: f.Segments.View, evalCtx: evalCtx, enrich: enrich}
 
 	if len(keys) == 0 {
 		for _, terms := range f.dynTerms {

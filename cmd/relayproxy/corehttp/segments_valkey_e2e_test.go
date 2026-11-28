@@ -328,7 +328,16 @@ func TestE2E_ValkeyReloadUnderLoad(t *testing.T) {
 		requests, failures atomic.Int64
 		stop               = make(chan struct{})
 		wg                 sync.WaitGroup
+		stopOnce           sync.Once
 	)
+
+	// idempotent: it runs before the final assertions, and from the cleanup when a fatal assertion ends the test early
+	stopWorkers := func() {
+		stopOnce.Do(func() { close(stop) })
+		wg.Wait()
+	}
+
+	t.Cleanup(stopWorkers)
 
 	for range 4 {
 		wg.Go(func() {
@@ -361,8 +370,7 @@ func TestE2E_ValkeyReloadUnderLoad(t *testing.T) {
 		rig.poll(t)
 	}
 
-	close(stop)
-	wg.Wait()
+	stopWorkers()
 
 	assert.Positive(t, requests.Load(), "the load ran")
 	assert.Zero(t, failures.Load(), "no request failed or lost its member across the swaps")

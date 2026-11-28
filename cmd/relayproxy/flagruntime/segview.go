@@ -215,7 +215,7 @@ func compareStrings(a, b string) int {
 func (e *SegmentEnv) bindGroup(key groupKey, defs []*controlplane.SegmentDefinition) (*viewGroup, error) {
 	bound := make([]BoundDefinition, 0, len(defs))
 	segs := make(map[string]resolver.SegmentOptions, len(defs))
-	group := &viewGroup{connection: key.connection, interval: DefaultVersionInterval}
+	group := &viewGroup{connection: key.connection}
 
 	var values map[string]string
 
@@ -232,9 +232,9 @@ func (e *SegmentEnv) bindGroup(key groupKey, defs []*controlplane.SegmentDefinit
 		if opts.Versioned {
 			group.versioned = true
 
-			interval, err := time.ParseDuration(versionOf(def).Interval)
-			if err == nil && interval > 0 {
-				group.interval = min(group.interval, interval)
+			interval := pollInterval(def)
+			if group.interval == 0 || interval < group.interval {
+				group.interval = interval
 			}
 		}
 
@@ -272,6 +272,17 @@ func (e *SegmentEnv) bindGroup(key groupKey, defs []*controlplane.SegmentDefinit
 	return group, nil
 }
 
+// pollInterval is how often the version key of a definition is read: its own interval, and the default only for a
+// definition that gives none.
+func pollInterval(def *controlplane.SegmentDefinition) time.Duration {
+	parsed, err := time.ParseDuration(versionOf(def).Interval)
+	if err == nil && parsed > 0 {
+		return parsed
+	}
+
+	return DefaultVersionInterval
+}
+
 func versionOf(def *controlplane.SegmentDefinition) *controlplane.SegmentVersion {
 	if def.Version == nil {
 		return &controlplane.SegmentVersion{}
@@ -300,7 +311,7 @@ func (v *SegmentView) Contains(ctx context.Context, lookups []segment.Lookup) er
 		return nil
 	}
 
-	if len(v.groups) == 1 {
+	if len(v.groups) == 1 && v.serveAll(lookups) {
 		err := v.groups[0].res.Contains(ctx, lookups)
 		if err != nil {
 			return fmt.Errorf("segment lookups: %w", err)
@@ -412,19 +423,34 @@ func (v *SegmentView) Connections() []string {
 	return names
 }
 
-// RunSegmentVersions polls the version keys of the dynamic segments of the current runtime on every tick, off the
-// request path, until ctx ends. A view is polled when its interval is due by the time of the tick (the time that the
-// ticker gives, not the clock package: the interval is real time), so the tick only sets the resolution.
-// The loop is owned by the run context of the relay.
-func RunSegmentVersions(ctx context.Context, holder *Holder, ticks <-chan time.Time, onError func(error)) {
-	for {
-		var now time.Time
-
-		select {
-		case <-ctx.Done():
-			return
-		case now = <-ticks:
+// serveAll reports whether the view serves the segment of every lookup. It does not allocate.
+func (v *SegmentView) serveAll(lookups []segment.Lookup) bool {
+	for i := range lookups {
+		if _, ok := v.byName[lookups[i].Segment]; !ok {
+			return false
 		}
+	}
+
+	return true
+}
+
+// Wait is the clock seam of the watcher of the versions: it returns after d, or with the error of ctx when it ends
+// first. Production waits on a timer; a test drives the ticks.
+type Wait func(ctx context.Context, d time.Duration) error
+
+// RunSegmentVersions polls the version keys of the dynamic segments of the current runtime every tick, off the request
+// path, until ctx ends (or wait fails). A view is polled when its interval is due: the time of the loop is the sum of
+// the ticks it waited, so it needs no wall clock and a test that drives wait drives the polls. The loop is owned by
+// the run context of the relay.
+func RunSegmentVersions(ctx context.Context, holder *Holder, wait Wait, tick time.Duration, onError func(error)) {
+	now := time.Unix(0, 0)
+
+	for {
+		if wait(ctx, tick) != nil {
+			return
+		}
+
+		now = now.Add(tick)
 
 		for _, set := range holder.Load().FlagSets {
 			if set.Segments == nil || set.Segments.View == nil {

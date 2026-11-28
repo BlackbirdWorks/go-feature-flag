@@ -74,6 +74,16 @@ either-flag:
         targetingKey in segment("strict")'
       variation: on
   defaultRule: {name: default, variation: off}
+tenant-flag:
+  variations: {on: true, off: false}
+  targeting:
+    - {name: tenant, query: 'tenant in segment("audience")', variation: on}
+  defaultRule: {name: default, variation: off}
+tenant-twin:
+  variations: {on: true, off: false}
+  targeting:
+    - {name: tenant, query: 'tenant in segment("audience")', variation: on}
+  defaultRule: {name: default, variation: off}
 plain-flag:
   variations: {on: true, off: false}
   defaultRule: {name: default, variation: on}
@@ -325,7 +335,8 @@ func TestSegmentViewRefreshVersions(t *testing.T) {
 	}
 }
 
-// The watcher polls on every tick and stops when its context ends.
+// The watcher polls a view when its interval is due on the time it has waited, and stops when its context ends. The
+// test drives the waits one by one: a tick of one second, a default interval of five.
 func TestRunSegmentVersions(t *testing.T) {
 	t.Parallel()
 
@@ -351,42 +362,65 @@ func TestRunSegmentVersions(t *testing.T) {
 	_, err := eng.Await(ctx, 1)
 	require.NoError(t, err)
 
-	var failures atomic.Int32
+	var (
+		failures atomic.Int32
+		release  = make(chan struct{})
+		entered  = make(chan struct{}, 64)
+		done     = make(chan struct{})
+	)
 
-	ticks := make(chan time.Time)
-	done := make(chan struct{})
+	wait := func(ctx context.Context, _ time.Duration) error {
+		entered <- struct{}{}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-release:
+			return nil
+		}
+	}
 
 	go func() {
 		defer close(done)
 
-		flagruntime.RunSegmentVersions(ctx, holder, ticks, func(error) { failures.Add(1) })
+		flagruntime.RunSegmentVersions(ctx, holder, wait, time.Second, func(error) { failures.Add(1) })
 	}()
 
-	source.Fail(segment.OpVersion, errStoreDown)
-
-	send := func() {
+	bounded := func(what string, ch <-chan struct{}) {
 		select {
-		case ticks <- time.Now():
-		case <-done:
-			assert.Fail(t, "the watcher stopped before the tick")
+		case <-ch:
 		case <-time.After(5 * time.Second):
-			assert.Fail(t, "the watcher did not take the tick")
+			assert.Fail(t, what)
 		}
 	}
 
-	send()
-	send() // taken only when the first tick was handled
+	source.Fail(segment.OpVersion, errStoreDown)
+	bounded("the watcher did not wait", entered)
 
-	assert.Equal(t, int32(1), failures.Load(), "the failure of the poll is reported")
+	// the ticks of one second: the first poll is due at once, the next one five seconds later
+	steps := []struct {
+		name         string
+		wantFailures int32
+	}{
+		{name: "1s", wantFailures: 1},
+		{name: "2s", wantFailures: 1},
+		{name: "3s", wantFailures: 1},
+		{name: "4s", wantFailures: 1},
+		{name: "5s", wantFailures: 1},
+		{name: "6s", wantFailures: 2},
+	}
+
+	for _, step := range steps {
+		release <- struct{}{}
+
+		bounded("the watcher did not wait again", entered)
+		assert.Equal(t, step.wantFailures, failures.Load(), step.name)
+	}
 
 	cancel()
 
 	for _, stopped := range []chan struct{}{done, engineDone} {
-		select {
-		case <-stopped:
-		case <-time.After(5 * time.Second):
-			assert.Fail(t, "a loop did not stop when its context ended")
-		}
+		bounded("a loop did not stop when its context ended", stopped)
 	}
 }
 

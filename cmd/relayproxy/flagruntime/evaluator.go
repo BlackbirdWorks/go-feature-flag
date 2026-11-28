@@ -323,7 +323,7 @@ func variation[T model.JSONType](
 
 	if set.usesDynamicSegment(flagKey) {
 		// every membership of the flag is fetched in one batch before the rules run
-		if prefetch := set.prefetchFlag(evalCtx, flagKey); prefetch != nil {
+		if prefetch := set.prefetchFlag(evalCtx, flagCtx.EvaluationContextEnrichment, flagKey); prefetch != nil {
 			flagCtx.Segments = prefetch
 		}
 	}
@@ -492,7 +492,7 @@ func (e *Evaluator) GetFlagStates(
 	}
 
 	// one batch for the dynamic segments of all the flags of the request
-	if prefetch := set.prefetchFlags(evalCtx, flagsToEvaluate); prefetch != nil {
+	if prefetch := set.prefetchFlags(evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate); prefetch != nil {
 		flagCtx.Segments = prefetch
 	}
 

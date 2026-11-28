@@ -275,8 +275,13 @@ func (c *Connections) connect(ctx context.Context) {
 			continue
 		}
 
-		handle, err := conn.dial(ctx)
+		res := dialUntil(ctx, conn.dial)
+		err := res.err
 		if err != nil {
+			if ctx.Err() != nil {
+				return // the relay is stopping: it is not a store that is down
+			}
+
 			if conn.failed.CompareAndSwap(false, true) {
 				c.log.LogAttrs(ctx, slog.LevelWarn, "a segment store is not reachable: its segments answer STORE_ERROR",
 					slog.String("connection", name), slog.String("kind", conn.kind), slog.Any("error", err))
@@ -289,16 +294,47 @@ func (c *Connections) connect(ctx context.Context) {
 		if conn.closed {
 			conn.closeMu.Unlock()
 
-			_ = handle.Close()
+			_ = res.handle.Close()
 
 			continue
 		}
 
-		conn.handle.Store(&handleBox{h: handle})
+		conn.handle.Store(&handleBox{h: res.handle})
 		conn.closeMu.Unlock()
 		conn.failed.Store(false)
 		c.log.LogAttrs(ctx, slog.LevelInfo, "a segment store is connected",
 			slog.String("connection", name), slog.String("kind", conn.kind))
+	}
+}
+
+// dialed is the result of a dial that runs apart from the loop.
+type dialed struct {
+	handle Handle
+	err    error
+}
+
+// dialUntil runs a dial that may ignore its context (the client of a store that dials while it is created) and
+// returns when it ends or when ctx does, whichever is first. A client that arrives after ctx ended is closed by the
+// goroutine of the dial, so nothing is left open.
+func dialUntil(ctx context.Context, dial Dialer) dialed {
+	result := make(chan dialed, 1)
+
+	go func() {
+		handle, err := dial(ctx)
+		if err == nil && ctx.Err() != nil {
+			_ = handle.Close()
+
+			handle, err = nil, fmt.Errorf("the dial ended after the context: %w", context.Cause(ctx))
+		}
+
+		result <- dialed{handle: handle, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return dialed{err: fmt.Errorf("dial: %w", context.Cause(ctx))}
+	case res := <-result:
+		return res
 	}
 }
 

@@ -32,6 +32,8 @@ type Deps struct {
 	Registerer prometheus.Registerer
 	// Scheduler replaces the timer of the polling loop of the reader (tests drive the rounds with it).
 	Scheduler manifestreader.Scheduler
+	// SegmentWait replaces the timer of the watcher of the version keys of the dynamic segments; nil is a timer.
+	SegmentWait flagruntime.Wait
 	// Jitter replaces the random source of the reader: it returns a value in [0, 1).
 	Jitter func() float64
 	// TuneReader changes the configuration of the reader after it was made from the bootstrap file.
@@ -221,6 +223,8 @@ type Core struct {
 	state   *statedir.Store
 	// segs owns the stores of the dynamic segments.
 	segs *segmentstore.Connections
+	// segWait is the timer of the watcher of the version keys.
+	segWait flagruntime.Wait
 	// readerMetrics is the collector of the reader of the manifest, registered when there is a registry.
 	readerMetrics *metric.ManifestReader
 	collector     prometheus.Collector
