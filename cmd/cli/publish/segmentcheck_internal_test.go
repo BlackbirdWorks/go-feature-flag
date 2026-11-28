@@ -3,7 +3,6 @@ package publish
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
@@ -11,8 +10,10 @@ import (
 )
 
 const (
+	objSegs         = "segs"
 	flagsUsingGhost = "f:\n  variations: {\"on\": true, \"off\": false}\n  targeting:\n" +
-		"    - name: r\n      query: targetingKey in segment(\"ghost\")\n      variation: \"on\"\n  defaultRule: {variation: \"off\"}\n"
+		"    - name: r\n      query: targetingKey in segment(\"ghost\")\n      variation: \"on\"\n" +
+		"  defaultRule: {variation: \"off\"}\n"
 	segmentsWithGhost = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: ghost\n    members: []\n"
 	setListing        = "apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n  - name: s\n    sources: [flags]\n" +
 		"    segmentSources: [segs]\n    apiKeys: [k]\n"
@@ -28,7 +29,7 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 		Body:   []byte(flagsUsingGhost),
 	}
 	segs := s3publish.Object{
-		Name:   "segs",
+		Name:   objSegs,
 		Kind:   controlplane.KindSegments,
 		Format: controlplane.FormatYAML,
 		Body:   []byte(segmentsWithGhost),
@@ -42,8 +43,8 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		objects []s3publish.Object
 		wantErr string
+		objects []s3publish.Object
 	}{
 		{name: "everything is defined", objects: []s3publish.Object{flags, segs, set}},
 		{
@@ -55,7 +56,7 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 			name: "a segment source that does not decode is left to its own validation",
 			objects: []s3publish.Object{
 				flags,
-				{Name: "segs", Kind: controlplane.KindSegments, Body: []byte("segments: [")},
+				{Name: objSegs, Kind: controlplane.KindSegments, Body: []byte("segments: [")},
 				set,
 			},
 			wantErr: "segment ghost: is not defined",
@@ -73,7 +74,7 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 			objects: []s3publish.Object{
 				{Name: "flags", Kind: controlplane.KindSegments, Body: []byte(segmentsWithGhost)},
 				{
-					Name:   "segs",
+					Name:   objSegs,
 					Kind:   controlplane.KindFlags,
 					Format: controlplane.FormatYAML,
 					Body:   []byte(flagsUsingGhost),
@@ -98,7 +99,7 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 		})
 	}
 
-	assert.NoError(
+	require.NoError(
 		t,
 		checkSegments(&s3publish.Object{Kind: controlplane.KindSegments, Body: []byte(segmentsWithGhost)}),
 	)
