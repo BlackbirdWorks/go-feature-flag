@@ -221,14 +221,20 @@ func (d *Dispatcher) launch(def *ExporterDef) *managed {
 
 	def.wrapper().name = &entry.stats
 
+	// the halt channel exists before the manager runs: the drain deadline of the exporter closes it, whenever the
+	// exporter is retrying
+	halt, stopRetries := newHalt()
+
 	wrap := def.wrapper()
-	wrap.pipe, wrap.after, wrap.rnd = def.Pipeline, d.cfg.After, d.cfg.Rand
+	wrap.pipe, wrap.after, wrap.now, wrap.rnd = def.Pipeline, d.cfg.After, d.cfg.Now, d.cfg.Rand
+	wrap.halt = halt
 
 	mgr := d.cfg.NewManager(def.Name, def.Config, d.cfg.Logger.With(slog.String("exporter", def.Name)))
 	mgr.Start()
 
 	inst := newManagedWith(def, mgr, entry, limits{
-		after: d.cfg.After, handoff: d.cfg.HandoffSize, batch: d.cfg.BatchSize, drain: d.cfg.DrainTimeout,
+		after: d.cfg.After, stopRetries: stopRetries, handoff: d.cfg.HandoffSize,
+		batch: d.cfg.BatchSize, drain: d.cfg.DrainTimeout,
 	}, d.cfg.Logger)
 	entry.latest.Store(inst)
 
@@ -407,4 +413,12 @@ func (d *Dispatcher) waitCollectors(ctx context.Context) {
 	for d.inflight.Load() > 0 && ctx.Err() == nil {
 		runtime.Gosched()
 	}
+}
+
+// newHalt returns the channel that the end of the drain deadline of an exporter closes, and the function that
+// closes it.
+func newHalt() (<-chan struct{}, context.CancelFunc) {
+	ctx, stop := context.WithCancel(context.Background())
+
+	return ctx.Done(), stop
 }

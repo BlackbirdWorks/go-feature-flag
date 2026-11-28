@@ -139,6 +139,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     format: parquet
@@ -155,6 +156,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     kafka:
@@ -171,6 +173,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     overflowPolicy: dropNewest
@@ -184,6 +187,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     overflowPolicy: dropNewest
@@ -196,6 +200,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     overflowPolicy: dropNewest
@@ -215,6 +220,7 @@ exporters:
       initialBackoff: 200ms
       maxBackoff: 5s
       maxElapsed: 30s
+      onExhausted: keep
     blockTimeout: 50ms
     drainTimeout: 10s
     overflowPolicy: dropNewest

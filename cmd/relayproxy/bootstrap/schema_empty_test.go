@@ -73,6 +73,11 @@ func emptyValueCases() []emptyValueCase {
 			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].OverflowPolicy },
 		},
 		{
+			setting: "ExporterRetry.onExhausted", wantAccept: true, wantDefault: bootstrap.RetryKeep,
+			doc: "exporters: {a: {kind: file, outputDir: /tmp, retry: {onExhausted: \"\"}}}",
+			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Retry.OnExhausted },
+		},
+		{
 			setting: "Exporter.format", wantAccept: true, wantDefault: "json",
 			doc: "exporters: {a: {kind: file, outputDir: /tmp, format: \"\"}}",
 			got: func(cfg *bootstrap.Config) string { return cfg.Exporters["a"].Format },

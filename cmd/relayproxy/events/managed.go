@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,35 +20,40 @@ import (
 // without blocking, and an instance whose hand-off is full drops (and counts) its own events. The manager may
 // wait (the engine manager waits for room in its store) in the goroutine of its instance only.
 type managed struct {
-	mgr    FeatureManager
-	logger *slog.Logger
-	queue  func([]Event)
+	mgr FeatureManager
+	// finished is closed when the instance finished closing.
+	finished chan struct{}
+	name     *nameEntry
 	// after is the timer of the block deadline, injected.
 	after func(time.Duration) <-chan time.Time
-	// retired is closed when the instance leaves the set: a sender that waits for room stops waiting. retire
+	// retired is closed when the instance leaves the set: the goroutine that waits for room stops waiting. retire
 	// closes it.
 	retired <-chan struct{}
 	retire  context.CancelFunc
+	// stopRetries ends the retries of the exporter (its halt channel); the drain deadline calls it.
+	stopRetries context.CancelFunc
+	// parked is the waiting room of the block policy: the events that found no room in the hand-off wait there,
+	// in the goroutine of the instance, so that no worker waits for a slow exporter. queued counts the batches
+	// in it (and the one being placed), blockers is the goroutine.
+	parked   chan []Event
+	instance *instanceStats
+	logger   *slog.Logger
 	// in is the hand-off: bounded, closed when the instance leaves the set.
 	in       chan Event
+	queue    func([]Event)
 	consumed chan struct{}
-	finished chan struct{}
-	name     *nameEntry
-	instance *instanceStats
 	def      ExporterDef
 	pipe     Pipeline
+	blockers sync.WaitGroup
+	queued   atomic.Int64
 	// mgrFinal is the number of events the manager dropped, once it stopped.
 	mgrFinal atomic.Uint64
 	// undelivered is the number of events the instance could not deliver, known once it finished.
 	undelivered atomic.Uint64
 	// drain is the deadline of the drain of the instance.
-	drain time.Duration
-	batch int
-	// sendMu keeps the hand-off open while a sender waits for room in it (the block policy): the closing takes
-	// the write lock, and a sender that comes later sees closing.
-	sendMu    sync.RWMutex
+	drain     time.Duration
+	batch     int
 	closeOnce sync.Once
-	closing   atomic.Bool
 	state     atomic.Int32
 	// finalized says that the counters of the instance were folded in those of its name.
 	finalized atomic.Bool
@@ -96,20 +102,21 @@ func newManagedWith(
 	life, retire := context.WithCancel(context.Background())
 
 	inst := &managed{
-		retired:  life.Done(),
-		retire:   retire,
-		after:    sizes.after,
-		pipe:     def.Pipeline,
-		drain:    cmpOr(def.Pipeline.DrainTimeout, sizes.drain),
-		def:      *def,
-		mgr:      mgr,
-		name:     entry,
-		instance: def.wrapper().instance,
-		in:       make(chan Event, sizes.handoff),
-		consumed: make(chan struct{}),
-		finished: make(chan struct{}),
-		batch:    sizes.batch,
-		logger:   logger,
+		retired:     life.Done(),
+		retire:      retire,
+		stopRetries: sizes.stopRetries,
+		after:       sizes.after,
+		pipe:        def.Pipeline,
+		drain:       cmpOr(def.Pipeline.DrainTimeout, sizes.drain),
+		def:         *def,
+		mgr:         mgr,
+		name:        entry,
+		instance:    def.wrapper().instance,
+		in:          make(chan Event, sizes.handoff),
+		consumed:    make(chan struct{}),
+		finished:    make(chan struct{}),
+		batch:       sizes.batch,
+		logger:      logger,
 	}
 
 	if async, ok := mgr.(exporter.AsyncManager[*exporter.FeatureEvent]); ok {
@@ -122,10 +129,23 @@ func newManagedWith(
 		}
 	}
 
+	if inst.stopRetries == nil {
+		inst.stopRetries = func() {}
+	}
+
 	go inst.run()
+
+	if def.Pipeline.policy() == bootstrap.OverflowBlock {
+		inst.parked = make(chan []Event, parkedBatches)
+
+		inst.blockers.Go(inst.park)
+	}
 
 	return inst
 }
+
+// parkedBatches is the number of batches that wait for room in the hand-off of an exporter with the block policy.
+const parkedBatches = 64
 
 // run moves the events of the hand-off to the manager, in batches, until the hand-off is closed and empty.
 func (m *managed) run() {
@@ -160,7 +180,9 @@ func (m *managed) fill(batch []Event) []Event {
 
 // limits are the sizes and the clock of the dispatcher that an instance takes.
 type limits struct {
-	after          func(time.Duration) <-chan time.Time
+	after func(time.Duration) <-chan time.Time
+	// stopRetries ends the retries of the exporter; it may be nil.
+	stopRetries    context.CancelFunc
 	handoff, batch int
 	drain          time.Duration
 }
@@ -180,16 +202,23 @@ func (m *managed) dropOverflow() {
 	m.name.stats.handoff.Add(1)
 }
 
-// offer hands the events to the instance without blocking, as the overflow policy says: dropNewest (and block, for
-// the first try) drops what does not fit, dropOldest makes room by dropping the oldest queued event. Every drop is
-// counted against the instance. It returns the events a block policy still has to place: the caller waits for room
-// for them with [managed.offerBlocking], outside every lock that other callers need.
-func (m *managed) offer(events []Event) []Event {
+// offer hands the events to the instance without blocking, as the overflow policy says: dropNewest drops what does
+// not fit, dropOldest makes room by dropping the oldest queued event, block parks what does not fit in the waiting
+// room of the instance (and drops it, counted as a block timeout, when the waiting room is full too). Every drop is
+// counted against the instance. The caller is a worker of the dispatcher: it never waits.
+func (m *managed) offer(events []Event) {
 	count := uint64(len(events))
 	m.instance.handed.Add(count)
 	m.name.stats.handed.Add(count)
 
 	policy := m.pipe.policy()
+
+	// the batches behind a parked one wait behind it, to keep the order of the events
+	if policy == bootstrap.OverflowBlock && m.queued.Load() > 0 {
+		m.parkBatch(events)
+
+		return
+	}
 
 	for i, event := range events {
 		select {
@@ -200,15 +229,28 @@ func (m *managed) offer(events []Event) []Event {
 
 		switch policy {
 		case bootstrap.OverflowBlock:
-			return events[i:]
+			m.parkBatch(events[i:])
+
+			return
 		case bootstrap.OverflowDropOldest:
 			m.replaceOldest(event)
 		default:
 			m.dropOverflow()
 		}
 	}
+}
 
-	return nil
+// parkBatch puts a copy of the events in the waiting room, or drops them when it is full.
+func (m *managed) parkBatch(events []Event) {
+	m.queued.Add(1)
+
+	select {
+	case m.parked <- slices.Clone(events):
+	default:
+		m.queued.Add(-1)
+		m.instance.blocked.Add(uint64(len(events)))
+		m.name.stats.blocked.Add(uint64(len(events)))
+	}
 }
 
 // replaceOldest queues the event in place of the oldest one when the hand-off is full.
@@ -226,21 +268,41 @@ func (m *managed) replaceOldest(event Event) {
 	}
 }
 
-// offerBlocking waits for room in the hand-off for the events of a block policy, until the block deadline of the
-// batch: what does not fit by then is dropped and counted as a block timeout. It holds no lock of the dispatcher,
-// and the closing of the instance wakes it (the events it still holds are then counted by the drain).
-func (m *managed) offerBlocking(events []Event) {
-	m.sendMu.RLock()
-	defer m.sendMu.RUnlock()
+// park is the goroutine of the waiting room: it places the parked batches in the hand-off one after the other, each
+// within the block deadline. It ends when the instance leaves the set.
+func (m *managed) park() {
+	for {
+		// the end of the instance wins over a batch that is waiting: nothing is placed after it
+		select {
+		case <-m.retired:
+			return
+		default:
+		}
 
-	if m.closing.Load() {
-		return
+		select {
+		case batch := <-m.parked:
+			m.place(batch)
+			m.queued.Add(-1)
+		case <-m.retired:
+			return
+		}
 	}
+}
 
+// place waits for room in the hand-off for the events of a batch, until the block deadline of the batch: what
+// does not fit by then is dropped and counted as a block timeout. The end of the instance ends the wait; the
+// events it still holds are counted by the drain.
+func (m *managed) place(events []Event) {
 	deadline := m.after(m.pipe.BlockTimeout)
 	expired := false
 
 	for _, event := range events {
+		select {
+		case <-m.retired:
+			return
+		default:
+		}
+
 		select {
 		case m.in <- event:
 			continue
@@ -296,20 +358,21 @@ func (m *managed) startClose(ctx context.Context) {
 	m.closeOnce.Do(func() {
 		m.state.CompareAndSwap(stateRunning, stateDraining)
 
-		// the drain deadline of the exporter, from now, inside the deadline of ctx
-		halt, cancel := context.WithTimeout(ctx, m.drain)
-		m.def.wrapper().halt.Store(&halt)
-		m.closing.Store(true)
+		// the drain deadline of the exporter, from now, inside the deadline of ctx: it ends the retries
+		drain, cancel := context.WithTimeout(ctx, m.drain)
+		stop := context.AfterFunc(drain, m.stopRetries)
+
 		m.retire()
 
 		go func() {
 			defer cancel()
+			defer stop()
+			defer m.stopRetries()
 			defer close(m.finished)
 
-			m.sendMu.Lock()
+			// the waiting room is over: nothing sends to the hand-off any more
+			m.blockers.Wait()
 			close(m.in)
-			m.sendMu.Unlock()
-
 			<-m.consumed
 			m.mgr.Stop()
 			m.release(context.WithoutCancel(ctx))
@@ -348,8 +411,8 @@ func (m *managed) finalize() {
 	m.state.Store(stateStopped)
 }
 
-// haltDone is closed when the drain deadline of the exporter passed; nil before it started.
-func (m *managed) haltDone() <-chan struct{} { return m.def.wrapper().haltDone() }
+// haltDone is closed when the drain deadline of the exporter passed (or the exporter finished closing).
+func (m *managed) haltDone() <-chan struct{} { return m.def.wrapper().halt }
 
 // isFinished says whether the instance finished closing.
 func (m *managed) isFinished() bool {

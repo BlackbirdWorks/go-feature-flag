@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,11 +59,10 @@ type managerImpl[T ExportableEvent] struct {
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
 	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
 	flushThresholds []int64
-	// maxBytes is, per consumer, the size of pending events that triggers a flush (0: no limit), and
-	// pendingBytes the size added since its last flush started.
-	maxBytes     []int64
-	pendingBytes []atomic.Int64
-	flushAgain   []atomic.Bool
+	// maxBytes is, per consumer, the size of pending events that triggers a flush (0: no limit); the store keeps
+	// the sizes.
+	maxBytes   []int64
+	flushAgain []atomic.Bool
 	// flushStalled[i] is set when a handoff gave up waiting for the running flush of the consumer i,
 	// until that flush ends: the next handoffs do not wait for it again.
 	flushStalled []atomic.Bool
@@ -144,10 +144,15 @@ func NewManager[T ExportableEvent](exporters []Config,
 	}
 
 	mgr.maxBytes = make([]int64, len(consumers))
-	mgr.pendingBytes = make([]atomic.Int64, len(consumers))
 
 	for idx, exporter := range exporters {
 		mgr.maxBytes[idx] = max(exporter.MaxBytes, 0)
+	}
+
+	if slices.ContainsFunc(mgr.maxBytes, func(limit int64) bool { return limit > 0 }) {
+		if sized, ok := evStore.(interface{ SetSizer(func(T) int) }); ok {
+			sized.SetSizer(func(event T) int { return EventSize(event) })
+		}
 	}
 
 	mgr.nextFlushAfter = make([]atomic.Int64, len(consumers))
@@ -221,8 +226,6 @@ func (m *managerImpl[T]) AddEvent(event T) {
 }
 
 func (m *managerImpl[T]) addEvents(events []T, async bool) {
-	m.countBytes(events)
-
 	store := *m.eventStore
 	if fit, ok := store.(interface{ AddWhileRoom([]T) int }); ok && async && len(events) > 1 {
 		m.addEventsWaiting(store, fit, events)
@@ -232,25 +235,6 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 
 	m.addAll(store, events)
 	m.triggerFlushes(store, async)
-}
-
-// countBytes adds the size of the events to the consumers that have a byte limit.
-func (m *managerImpl[T]) countBytes(events []T) {
-	var size int64
-
-	for i, limit := range m.maxBytes {
-		if limit <= 0 {
-			continue
-		}
-
-		if size == 0 {
-			for _, event := range events {
-				size += int64(EventSize(event))
-			}
-		}
-
-		m.pendingBytes[i].Add(size)
-	}
 }
 
 func (*managerImpl[T]) addAll(store EventStore[T], events []T) {
@@ -404,10 +388,21 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 			continue
 		}
 
-		if count >= m.flushThresholds[i] || m.maxBytes[i] > 0 && m.pendingBytes[i].Load() >= m.maxBytes[i] {
+		if count >= m.flushThresholds[i] || m.bytesReached(store, i, consumer.GetConsumerID()) {
 			m.flush(i, async, true)
 		}
 	}
+}
+
+// bytesReached says whether the events pending for the consumer reached its byte limit.
+func (m *managerImpl[T]) bytesReached(store EventStore[T], i int, consumerID string) bool {
+	if m.maxBytes[i] <= 0 {
+		return false
+	}
+
+	sized, ok := store.(interface{ PendingBytes(string) int64 })
+
+	return ok && sized.PendingBytes(consumerID) >= m.maxBytes[i]
 }
 
 // flush flushes the consumer, now or (async) in the background goroutine of the consumer.
@@ -466,8 +461,6 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 
 		return
 	}
-
-	m.pendingBytes[i].Store(0)
 
 	err := flusher.flushQueue()
 	if err != nil {

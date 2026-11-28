@@ -34,8 +34,14 @@ const (
 	DefaultRetryInitialBackoff = 200 * time.Millisecond
 	// DefaultRetryMaxBackoff caps one wait of the retry of an export.
 	DefaultRetryMaxBackoff = 5 * time.Second
-	// DefaultRetryMaxElapsed caps the waits of the retry of one batch.
+	// DefaultRetryMaxElapsed caps the time of the retry of one flush.
 	DefaultRetryMaxElapsed = 30 * time.Second
+	// MaxRetryBackoff is the upper bound of the backoff settings of the retry of an exporter.
+	MaxRetryBackoff = 10 * time.Minute
+	// MaxRetryElapsed is the upper bound of the time of the retry of one flush.
+	MaxRetryElapsed = time.Hour
+	// MaxBatchBytes is the upper bound of the byte limit of a batch of an exporter.
+	MaxBatchBytes = 1 << 30
 	// MaxShutdownDuration is the upper bound of the drain delay and of the shutdown timeout.
 	MaxShutdownDuration = 10 * time.Minute
 )
@@ -188,6 +194,10 @@ func (e *Exporter) applyDefaults() {
 	e.Retry.InitialBackoff = orDefault(e.Retry.InitialBackoff, Duration(DefaultRetryInitialBackoff))
 	e.Retry.MaxBackoff = orDefault(e.Retry.MaxBackoff, Duration(DefaultRetryMaxBackoff))
 	e.Retry.MaxElapsed = orDefault(e.Retry.MaxElapsed, Duration(DefaultRetryMaxElapsed))
+
+	if e.Retry.OnExhausted == "" {
+		e.Retry.OnExhausted = RetryKeep
+	}
 
 	switch e.Kind {
 	case ExporterFile, ExporterS3, ExporterGoogleStorage, ExporterAzure:

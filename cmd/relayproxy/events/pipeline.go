@@ -30,6 +30,9 @@ type Pipeline struct {
 // a failed batch at once), the wait before a retry starts at InitialBackoff, doubles up to MaxBackoff and carries
 // jitter, and the waits of one batch add up to MaxElapsed at most (0: no cap).
 type RetryPolicy struct {
+	// Drop makes a batch that exhausts the retry dropped and counted as retry_exhausted; the default keeps it for
+	// the next flush of the engine manager.
+	Drop           bool
 	MaxAttempts    int
 	InitialBackoff time.Duration
 	MaxBackoff     time.Duration
@@ -53,6 +56,8 @@ func PipelineOf(exp *bootstrap.Exporter) Pipeline {
 	}
 
 	if retry := exp.Retry; retry != nil {
+		pipe.Retry.Drop = retry.OnExhausted == bootstrap.RetryDrop
+
 		if retry.MaxAttempts != nil {
 			pipe.Retry.MaxAttempts = *retry.MaxAttempts
 		}
@@ -89,72 +94,76 @@ func (p *Pipeline) policy() string {
 	return p.Overflow
 }
 
-// chunks cuts the events into the batches the byte limit allows: a batch is closed when the next event would
-// pass the limit, and an event larger than the limit goes alone.
-func (c *countingExporter) chunks(events []exporter.ExportableEvent) [][]exporter.ExportableEvent {
-	limit := int(c.pipe.MaxBytes)
-	if limit <= 0 || len(events) == 0 {
-		return [][]exporter.ExportableEvent{events}
+// flushStart is the time the budget of the retry of the batch runs from: the first attempt of the flush that the
+// batch belongs to, shared by the batches the byte limit cut it into, or now for a call outside a numbered flush.
+func (c *countingExporter) flushStart(ctx context.Context) time.Time {
+	id := exporter.FlushID(ctx)
+	if id == 0 {
+		return c.now()
 	}
 
-	var (
-		out   [][]exporter.ExportableEvent
-		start int
-		size  int
-	)
+	c.flushMu.Lock()
+	defer c.flushMu.Unlock()
 
-	for i, event := range events {
-		each := exporter.EventSize(event)
-
-		if i > start && size+each > limit {
-			out = append(out, events[start:i])
-			start, size = i, 0
-		}
-
-		size += each
+	if id != c.flushID {
+		c.flushID, c.flushAt = id, c.now()
 	}
 
-	return append(out, events[start:])
+	return c.flushAt
 }
 
-// exportChunk exports one batch, retrying a failure as the policy says. A batch that fails through every attempt
-// is dropped, counted and reported as exported to the engine manager, which would otherwise keep it for ever. A
-// retry that the drain deadline ends returns the error: the events stay with the manager, which is closing.
-func (c *countingExporter) exportChunk(
+// exportBatch exports one batch, retrying a failure as the policy says: the waits and the time of the attempts of the
+// flush add up to MaxElapsed at most. A batch that fails through every attempt is handed back to the engine
+// manager, which keeps it for its next flush, or with the policy drop is dropped, counted and reported as exported.
+// A retry that the drain deadline ends returns the error: the events stay with the manager, which is closing.
+func (c *countingExporter) exportBatch(
 	ctx context.Context,
 	logger *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	retry := &c.pipe.Retry
-	backoff := retry.InitialBackoff
+	if retry.MaxAttempts <= 0 {
+		return c.attempt(ctx, logger, events)
+	}
 
-	var waited time.Duration
+	start := c.flushStart(ctx)
+	backoff := retry.InitialBackoff
 
 	for attempt := 1; ; attempt++ {
 		err := c.attempt(ctx, logger, events)
-		if err == nil || retry.MaxAttempts <= 0 {
-			return err
+		if err == nil {
+			return nil
 		}
 
 		wait := c.jitter(backoff)
 
-		if attempt >= retry.MaxAttempts || retry.MaxElapsed > 0 && waited+wait > retry.MaxElapsed {
-			c.exhaust(ctx, logger, len(events), attempt, err)
-
-			return nil
+		if attempt >= retry.MaxAttempts || retry.MaxElapsed > 0 && c.now().Sub(start)+wait > retry.MaxElapsed {
+			return c.exhaust(ctx, logger, len(events), attempt, err)
 		}
 
 		select {
 		case <-c.after(wait):
-		case <-c.haltDone():
+		case <-c.halt:
 			return err
 		case <-ctx.Done():
 			return err
 		}
 
-		waited += wait
-		backoff = min(backoff*backoffFactor, retry.MaxBackoff)
+		backoff = nextBackoff(backoff, retry.MaxBackoff)
 	}
+}
+
+// nextBackoff doubles the backoff up to the cap (an hour when there is none), without overflowing.
+func nextBackoff(backoff, limit time.Duration) time.Duration {
+	if limit <= 0 {
+		limit = time.Hour
+	}
+
+	if backoff >= limit/backoffFactor {
+		return limit
+	}
+
+	return backoff * backoffFactor
 }
 
 // jitter is the wait before a retry: half of the backoff, plus a random share of the other half.
@@ -162,25 +171,40 @@ func (c *countingExporter) jitter(backoff time.Duration) time.Duration {
 	return time.Duration(float64(backoff) * (jitterFloor + (1-jitterFloor)*c.rnd()))
 }
 
-// haltDone is the channel of the end of the drain of the exporter; nil (it never fires) while it runs.
-func (c *countingExporter) haltDone() <-chan struct{} {
-	if halt := c.halt.Load(); halt != nil {
-		return (*halt).Done()
+// exhaust ends the retry of a batch: with the policy drop the batch is dropped and counted, otherwise the error goes
+// back to the engine manager, which keeps the events.
+func (c *countingExporter) exhaust(ctx context.Context, logger *slog.Logger, count, attempts int, err error) error {
+	keep := !c.pipe.Retry.Drop
+
+	if logger != nil {
+		attrs := []slog.Attr{
+			slog.Int("events", count), slog.Int("attempts", attempts), slog.String("class", string(classify(err))),
+			slog.String("error", err.Error()),
+		}
+
+		if keep {
+			logger.LogAttrs(
+				ctx,
+				slog.LevelWarn,
+				"a batch is kept for the next flush: the export failed through every attempt",
+				attrs...)
+		} else {
+			logger.LogAttrs(
+				ctx,
+				slog.LevelError,
+				"a batch is dropped: the export failed through every attempt",
+				attrs...)
+		}
 	}
 
-	return nil
-}
+	if keep {
+		return err
+	}
 
-// exhaust drops a batch whose retries are spent.
-func (c *countingExporter) exhaust(ctx context.Context, logger *slog.Logger, count, attempts int, err error) {
 	dropped := uint64(max(count, 0))
 
 	c.instance.exhausted.Add(dropped)
 	c.name.exhausted.Add(dropped)
 
-	if logger != nil {
-		logger.LogAttrs(ctx, slog.LevelError, "a batch is dropped: the export failed through every attempt",
-			slog.Int("events", count), slog.Int("attempts", attempts), slog.String("class", string(classify(err))),
-			slog.String("error", err.Error()))
-	}
+	return nil
 }

@@ -21,6 +21,8 @@ import (
 type timers struct {
 	fire  chan time.Time
 	armed chan struct{}
+	// clock is the injected clock of the retry budget: a wait moves it forward by its length.
+	clock time.Time
 	waits []time.Duration
 	mu    sync.Mutex
 }
@@ -37,6 +39,7 @@ func newTimers(fired bool) *timers {
 func (t *timers) after(wait time.Duration) <-chan time.Time {
 	t.mu.Lock()
 	t.waits = append(t.waits, wait)
+	t.clock = t.clock.Add(wait)
 	t.mu.Unlock()
 
 	select {
@@ -47,11 +50,94 @@ func (t *timers) after(wait time.Duration) <-chan time.Time {
 	return t.fire
 }
 
+func (t *timers) now() time.Time {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.clock
+}
+
 func (t *timers) recorded() []time.Duration {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	return append([]time.Duration(nil), t.waits...)
+}
+
+// storeManager is an engine manager that keeps what it is given and exports it when it stops, through the event store
+// of the engine like the real manager does: the batches the byte limit cuts, and the offset that moves after each
+// one that succeeds, are the engine's. It makes the cut of the batches independent of the timing of the flushes.
+type storeManager struct {
+	events []*exporter.FeatureEvent
+	cfg    exporter.Config
+	mu     sync.Mutex
+}
+
+func (m *storeManager) AddEvent(event *exporter.FeatureEvent) {
+	m.QueueEvents([]*exporter.FeatureEvent{event})
+}
+
+func (m *storeManager) QueueEvents(batch []*exporter.FeatureEvent) {
+	m.mu.Lock()
+	m.events = append(m.events, batch...)
+	m.mu.Unlock()
+}
+
+func (*storeManager) Start() {}
+
+func (m *storeManager) Stop() {
+	store := exporter.NewEventStoreWithLimit[*exporter.FeatureEvent](time.Hour, 0, nil)
+	defer store.Stop()
+
+	sized, ok := store.(sizeSetter)
+	if ok {
+		sized.SetSizer(func(event *exporter.FeatureEvent) int { return exporter.EventSize(event) })
+	}
+
+	store.AddConsumer("c")
+
+	m.mu.Lock()
+	for _, event := range m.events {
+		store.Add(event)
+	}
+	m.mu.Unlock()
+
+	export := func(ctx context.Context, batch []*exporter.FeatureEvent) error {
+		out := make([]exporter.ExportableEvent, 0, len(batch))
+		for _, event := range batch {
+			out = append(out, event)
+		}
+
+		exp, _ := m.cfg.Exporter.(exporter.Exporter)
+
+		return exp.Export(ctx, nil, out)
+	}
+
+	batches, ok := store.(batchStore)
+	if ok && m.cfg.MaxBytes > 0 {
+		_ = batches.ProcessPendingBatches("c", m.cfg.MaxBytes, export)
+
+		return
+	}
+
+	_ = store.ProcessPendingEvents("c", export)
+}
+
+type sizeSetter interface {
+	SetSizer(sizer func(*exporter.FeatureEvent) int)
+}
+
+type batchStore interface {
+	ProcessPendingBatches(
+		consumerID string, maxBytes int64, process func(context.Context, []*exporter.FeatureEvent) error,
+	) error
+}
+
+// storeManagers builds the managers of the exporters of a test that cuts the batches with the event store.
+func storeManagers() events.NewManagerFunc {
+	return func(_ string, cfg exporter.Config, _ *slog.Logger) events.FeatureManager {
+		return &storeManager{cfg: cfg}
+	}
 }
 
 // halfRand is the source of jitter of the tests: the wait is three quarters of the backoff.
@@ -70,7 +156,8 @@ func (*flaky) IsBulk() bool { return true }
 func (f *flaky) Export(_ context.Context, _ *slog.Logger, batch []exporter.ExportableEvent) error {
 	call := int(f.calls.Add(1))
 
-	if f.failFirst < 0 || call <= f.failFirst {
+	// failFirst: the number of calls that fail, -1 for all of them, -2 for all but the first
+	if f.failFirst == -1 || f.failFirst == -2 && call > 1 || call <= f.failFirst {
 		return assert.AnError
 	}
 
@@ -114,7 +201,7 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 		wantKeys     []string
 		wantOverflow uint64
 		wantBlocked  uint64
-		// wantHanded is what the worker has offered when it waits: a blocked sender holds the batches behind it.
+		// wantHanded is what the worker has offered: it never waits, a blocked exporter parks its events.
 		wantHanded uint64
 		fired      bool
 	}{
@@ -139,7 +226,7 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 		},
 		{
 			name: "block with room", policy: bootstrap.OverflowBlock,
-			wantKeys: []string{keyFlag0, eventOneKey, eventTwoKey, "flag-3", keyFlag4, "flag-5"}, wantHanded: 4,
+			wantKeys: []string{keyFlag0, eventOneKey, eventTwoKey, "flag-3", keyFlag4, "flag-5"}, wantHanded: 6,
 		},
 	}
 
@@ -204,9 +291,10 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 	}
 }
 
-// TestDispatcher_Batches: the exporter gets batches of at most maxBytes (an event larger than that goes alone), and a
-// failed export is retried with exponential backoff and jitter until the attempts or the time are spent; a batch
-// that is spent is dropped and counted.
+// TestDispatcher_Batches: with the engine manager, the exporter gets batches of at most maxBytes (an event larger
+// than that goes alone), and a failed export is retried with exponential backoff and jitter until the attempts or
+// the time of the flush are spent. A batch that is spent is kept for the next flush (default) or dropped and
+// counted (drop): in both cases every event is exported or counted with one reason.
 func TestDispatcher_Batches(t *testing.T) {
 	t.Parallel()
 
@@ -214,6 +302,8 @@ func TestDispatcher_Batches(t *testing.T) {
 	retry := events.RetryPolicy{
 		MaxAttempts: 4, InitialBackoff: 100 * time.Millisecond, MaxBackoff: 150 * time.Millisecond,
 	}
+	drop := retry
+	drop.Drop = true
 
 	tests := []struct {
 		name          string
@@ -221,14 +311,13 @@ func TestDispatcher_Batches(t *testing.T) {
 		wantWaits     []time.Duration
 		pipe          events.Pipeline
 		failFirst     int
+		events        int
 		wantCalls     int64
 		wantExported  uint64
 		wantExhausted uint64
 		wantDrain     uint64
 	}{
-		{
-			name: "no limit", pipe: events.Pipeline{}, wantSizes: []int{5}, wantCalls: 1, wantExported: 5,
-		},
+		{name: "no limit", pipe: events.Pipeline{}, wantSizes: []int{5}, wantCalls: 1, wantExported: 5},
 		{
 			name: "two events", pipe: events.Pipeline{MaxBytes: 2 * size}, wantSizes: []int{2, 2, 1}, wantCalls: 3,
 			wantExported: 5,
@@ -248,28 +337,48 @@ func TestDispatcher_Batches(t *testing.T) {
 			wantExported: 5,
 		},
 		{
-			name: "attempts spent", pipe: events.Pipeline{Retry: retry}, failFirst: -1, wantCalls: 4,
+			name: "attempts spent and kept", pipe: events.Pipeline{Retry: retry}, failFirst: -1, wantCalls: 4,
+			wantWaits: []time.Duration{75 * time.Millisecond, 112500 * time.Microsecond, 112500 * time.Microsecond},
+			wantDrain: 5,
+		},
+		{
+			name: "attempts spent and dropped", pipe: events.Pipeline{Retry: drop}, failFirst: -1, wantCalls: 4,
 			wantWaits:     []time.Duration{75 * time.Millisecond, 112500 * time.Microsecond, 112500 * time.Microsecond},
 			wantExhausted: 5,
 		},
 		{
 			name: "time spent", wantCalls: 2, failFirst: -1, wantWaits: []time.Duration{75 * time.Millisecond},
 			pipe: events.Pipeline{Retry: events.RetryPolicy{
-				MaxAttempts: 10, InitialBackoff: 100 * time.Millisecond, MaxBackoff: time.Second,
+				Drop: true, MaxAttempts: 10, InitialBackoff: 100 * time.Millisecond, MaxBackoff: time.Second,
 				MaxElapsed: 200 * time.Millisecond,
 			}},
 			wantExhausted: 5,
 		},
 		{
-			name: "one attempt", pipe: events.Pipeline{Retry: events.RetryPolicy{MaxAttempts: 1}}, failFirst: -1,
-			wantCalls: 1, wantExhausted: 5,
+			name: "one attempt dropped", pipe: events.Pipeline{Retry: events.RetryPolicy{Drop: true, MaxAttempts: 1}},
+			failFirst: -1, wantCalls: 1, wantExhausted: 5,
 		},
 		{
-			name: "retry off", pipe: events.Pipeline{}, failFirst: -1, wantCalls: 1, wantDrain: 5,
+			name: "one attempt kept", pipe: events.Pipeline{Retry: events.RetryPolicy{MaxAttempts: 1}},
+			failFirst: -1, wantCalls: 1, wantDrain: 5,
+		},
+		{name: "retry off", pipe: events.Pipeline{}, failFirst: -1, wantCalls: 1, wantDrain: 5},
+		{
+			name:         "the first batch is exported once, the next is kept",
+			failFirst:    -2,
+			wantCalls:    2,
+			wantSizes:    []int{2},
+			wantExported: 2,
+			wantDrain:    3,
+			pipe:         events.Pipeline{MaxBytes: 2 * size, Retry: events.RetryPolicy{MaxAttempts: 1}},
 		},
 		{
-			name: "spent batch of a split", failFirst: -1, wantCalls: 3, wantExhausted: 5,
-			pipe: events.Pipeline{MaxBytes: 2 * size, Retry: events.RetryPolicy{MaxAttempts: 1}},
+			name: "the time of a flush is shared by its batches", failFirst: -1, events: 4, wantCalls: 4,
+			wantWaits: []time.Duration{75 * time.Millisecond, 75 * time.Millisecond}, wantExhausted: 4,
+			pipe: events.Pipeline{MaxBytes: 2 * size, Retry: events.RetryPolicy{
+				Drop: true, MaxAttempts: 10, InitialBackoff: 100 * time.Millisecond, MaxBackoff: 100 * time.Millisecond,
+				MaxElapsed: 200 * time.Millisecond,
+			}},
 		},
 	}
 
@@ -277,17 +386,28 @@ func TestDispatcher_Batches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			count := tt.events
+			if count == 0 {
+				count = 5
+			}
+
 			tim := newTimers(true)
 			sink := &flaky{failFirst: tt.failFirst}
-			disp := startDispatcher(t, newFactory(), &events.DispatcherConfig{After: tim.after, Rand: halfRand})
+			disp := newDispatcher(t, &events.DispatcherConfig{
+				After: tim.after, Now: tim.now, Rand: halfRand, NewManager: storeManagers(),
+			})
+			require.NoError(t, disp.Start(context.Background()))
 
-			expDef := events.NewExporterDef("a", kindFile, "v1", sink, exporter.Config{MaxBytes: tt.pipe.MaxBytes})
+			// the event store of the engine cuts the batches, at the shutdown
+			expDef := events.NewExporterDef("a", kindFile, "v1", sink, exporter.Config{
+				MaxBytes: tt.pipe.MaxBytes, FlushInterval: time.Hour, MaxEventInMemory: 1000,
+			})
 			expDef.Pipeline = tt.pipe
 
 			_, err := disp.Apply(context.Background(), []events.ExporterDef{expDef})
 			require.NoError(t, err)
 
-			for i := range 5 {
+			for i := range count {
 				require.True(t, disp.Collect(ev(i)))
 			}
 
@@ -301,7 +421,8 @@ func TestDispatcher_Batches(t *testing.T) {
 			assert.Equal(t, tt.wantExported, got.Exported)
 			assert.Equal(t, tt.wantExhausted, got.Dropped.RetryExhausted)
 			assert.Equal(t, tt.wantDrain, got.Dropped.Drain)
-			assert.Equal(t, uint64(5), got.Handed)
+			assert.Equal(t, uint64(count), got.Handed)
+			assert.Equal(t, got.Handed, got.Exported+got.Dropped.Total(), "every event is exported or counted once")
 		})
 	}
 }

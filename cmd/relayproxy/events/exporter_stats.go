@@ -125,18 +125,25 @@ type instanceStats struct {
 // countingExporter wraps an exporter to count what it exports, to hide its secrets from its errors, and to keep a
 // panic of it from killing the relay. It is an [exporter.Exporter], the interface every engine exporter implements.
 type countingExporter struct {
-	inner    exporter.Exporter
-	instance *instanceStats
-	// name, pipe, after and rnd are set when the instance is launched.
-	name *nameStats
-	// after is the timer of the retry waits and rnd the source of their jitter, both injected.
+	// flushAt is when the flush number flushID made its first attempt.
+	flushAt time.Time
+	inner   exporter.Exporter
+	// rnd is the source of the jitter of the retry waits, injected; set with the fields below when the instance is
+	// launched, before the manager runs.
+	rnd func() float64
+	// halt is closed when the drain deadline of the exporter passed: it ends the retries.
+	halt <-chan struct{}
+	// after is the timer of the retry waits and now the clock of their budget, injected.
 	after func(time.Duration) <-chan time.Time
-	rnd   func() float64
-	// halt ends the retries when the exporter is closing and its drain deadline passed.
-	halt atomic.Pointer[context.Context]
+	now   func() time.Time
+	name  *nameStats
+	// instance counts what this instance exported.
+	instance *instanceStats
 	// secrets are the forms of the secret values the errors of the exporter must not show.
 	secrets     []string
 	pipe        Pipeline
+	flushID     uint64
+	flushMu     sync.Mutex
 	panicLogged atomic.Bool
 }
 
@@ -152,17 +159,10 @@ func (*countingExporter) GoString() string { return bootstrap.RedactedValue }
 // Format implements [fmt.Formatter].
 func (*countingExporter) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(bootstrap.RedactedValue)) }
 
-// Export implements [exporter.Exporter]: it cuts the events into batches of the byte limit and exports each one,
-// retrying a failure.
+// Export implements [exporter.Exporter]: it exports the batch, retrying a failure (see exportBatch). The byte limit is
+// the engine manager's: it hands the exporter batches that respect it.
 func (c *countingExporter) Export(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
-	for _, chunk := range c.chunks(events) {
-		err := c.exportChunk(ctx, logger, chunk)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.exportBatch(ctx, logger, events)
 }
 
 // attempt makes one call of the exporter and counts it.

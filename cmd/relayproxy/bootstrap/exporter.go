@@ -80,9 +80,18 @@ type ExporterRetry struct {
 	InitialBackoff *Duration `json:"initialBackoff,omitempty" yaml:"initialBackoff,omitempty"`
 	// MaxBackoff caps one wait.
 	MaxBackoff *Duration `json:"maxBackoff,omitempty" yaml:"maxBackoff,omitempty"`
-	// MaxElapsed caps the sum of the waits of one batch.
+	// MaxElapsed caps the time of the retry of one flush: its waits and its attempts.
 	MaxElapsed *Duration `json:"maxElapsed,omitempty" yaml:"maxElapsed,omitempty"`
+	// OnExhausted says what becomes of a batch that fails every attempt: keep (default) hands it back to be sent again
+	// at the next flush, drop drops it and counts it.
+	OnExhausted string `json:"onExhausted,omitempty" yaml:"onExhausted,omitempty"`
 }
+
+// What an exporter does with a batch that exhausted its retry.
+const (
+	RetryKeep = "keep"
+	RetryDrop = "drop"
+)
 
 // Notifier kinds.
 const (

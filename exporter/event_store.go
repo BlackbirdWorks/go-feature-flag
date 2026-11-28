@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,8 @@ type eventStoreImpl[T ExportableEvent] struct {
 	consumers map[string]*consumer
 	// stopPeriodicCleaning is a channel to stop the periodic cleaning goroutine
 	stopPeriodicCleaning chan struct{}
+	// sizer gives the size of an event, for the byte limit of the consumers; nil when no consumer has one.
+	sizer func(T) int
 	// onDrop is called (outside of the lock) with the total number of dropped events, each time
 	// events have been dropped. It must be cheap and non-blocking.
 	onDrop func(totalDropped int64)
@@ -37,6 +40,10 @@ type eventStoreImpl[T ExportableEvent] struct {
 	events []EventStoreItem[T]
 	// lastOffset is the last offset used for the Event store
 	lastOffset int64
+	// totalBytes is the size of every event ever stored (see EventStoreItem.Cum).
+	totalBytes int64
+	// flushSeq numbers the flushes of ProcessPendingBatches.
+	flushSeq atomic.Uint64
 	// cleanQueueInterval is the duration between each cleaning
 	cleanQueueInterval time.Duration
 	// maxEvents is the hard limit of events kept in the store, 0 means unlimited.
@@ -122,6 +129,10 @@ type EventStore[T ExportableEvent] interface {
 type EventStoreItem[T ExportableEvent] struct {
 	Data   T
 	Offset int64
+	// Cum is the size of the events stored up to this one, this one included, since the store was created; Size is
+	// the size of this one (see SetSizer). Both are zero when the store has no sizer.
+	Cum  int64
+	Size int
 }
 
 // consumer serializes ProcessPendingEvents calls for a single consumer.
@@ -222,8 +233,10 @@ func (e *eventStoreImpl[T]) Add(data T) {
 func (e *eventStoreImpl[T]) AddAll(data []T) {
 	var dropped int64
 
+	sizes := e.sizesOf(data)
+
 	e.mutex.Lock()
-	for _, item := range data {
+	for i, item := range data {
 		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
 			// the events consumed by everybody but not cleaned yet do not count: release them first.
 			e.cleanQueueLocked()
@@ -240,8 +253,7 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			}
 		}
 
-		e.lastOffset++
-		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: item})
+		e.appendLocked(item, sizes, i)
 	}
 
 	dropped += e.enforceConsumerLimitsLocked()
@@ -253,6 +265,117 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			e.onDrop(total)
 		}
 	}
+}
+
+// sizesOf gives the size of each event, computed once here and kept with the event; nil without a sizer.
+func (e *eventStoreImpl[T]) sizesOf(data []T) []int {
+	if e.sizer == nil {
+		return nil
+	}
+
+	sizes := make([]int, len(data))
+	for i, item := range data {
+		sizes[i] = e.sizer(item)
+	}
+
+	return sizes
+}
+
+// appendLocked stores one event with the next offset and its size.
+// WARNING: please call this function only in a function that has locked the mutex first.
+func (e *eventStoreImpl[T]) appendLocked(item T, sizes []int, index int) {
+	e.lastOffset++
+
+	entry := EventStoreItem[T]{Offset: e.lastOffset, Data: item}
+	if sizes != nil {
+		entry.Size = sizes[index]
+		e.totalBytes += int64(entry.Size)
+		entry.Cum = e.totalBytes
+	}
+
+	e.events = append(e.events, entry)
+}
+
+// SetSizer makes the store keep the size of each event it is given, so that PendingBytes and
+// ProcessPendingBatches can use it. Call it before the first event is added.
+func (e *eventStoreImpl[T]) SetSizer(sizer func(T) int) { e.sizer = sizer }
+
+// PendingBytes is the size of the events of the consumer that are not consumed yet.
+func (e *eventStoreImpl[T]) PendingBytes(consumerID string) int64 {
+	e.mutex.RLock()
+	defer e.mutex.RUnlock()
+
+	currentConsumer, err := e.getConsumer(consumerID)
+	if err != nil || len(e.events) == 0 {
+		return 0
+	}
+
+	start := sort.Search(len(e.events), func(i int) bool {
+		return e.events[i].Offset > currentConsumer.Offset
+	})
+	if start == len(e.events) {
+		return 0
+	}
+
+	return e.events[len(e.events)-1].Cum - (e.events[start].Cum - int64(e.events[start].Size))
+}
+
+// ProcessPendingBatches is ProcessPendingEvents in batches of at most maxBytes (an event larger than that goes
+// alone): the offset of the consumer moves forward after each batch that succeeds, so a batch that fails leaves
+// the events before it consumed and the ones from it on pending. The context of every call carries the number
+// of the flush (see FlushID).
+func (e *eventStoreImpl[T]) ProcessPendingBatches(
+	consumerID string, maxBytes int64, processEventsFunc func(context.Context, []T) error,
+) error {
+	e.mutex.RLock()
+	currentConsumer, err := e.getConsumer(consumerID)
+	e.mutex.RUnlock()
+
+	if err != nil {
+		return err
+	}
+
+	currentConsumer.mutex.Lock()
+	defer currentConsumer.mutex.Unlock()
+
+	e.mutex.RLock()
+	start := sort.Search(len(e.events), func(i int) bool {
+		return e.events[i].Offset > currentConsumer.Offset
+	})
+	items := slices.Clone(e.events[start:])
+	e.mutex.RUnlock()
+
+	ctx := withFlushID(context.Background(), e.flushSeq.Add(1))
+
+	for from := 0; from < len(items); {
+		end, size := from+1, int64(items[from].Size)
+		for end < len(items) && size+int64(items[end].Size) <= maxBytes {
+			size += int64(items[end].Size)
+			end++
+		}
+
+		batch := make([]T, 0, end-from)
+		for _, item := range items[from:end] {
+			batch = append(batch, item.Data)
+		}
+
+		processErr := processEventsFunc(ctx, batch)
+		if processErr != nil {
+			return processErr
+		}
+
+		e.mutex.Lock()
+		offsetErr := e.updateConsumerOffset(currentConsumer, items[end-1].Offset)
+		e.mutex.Unlock()
+
+		if offsetErr != nil {
+			return offsetErr
+		}
+
+		from = end
+	}
+
+	return nil
 }
 
 // enforceConsumerLimitsLocked makes the consumers that have more pending events than their own
@@ -302,9 +425,10 @@ func (e *eventStoreImpl[T]) AddWhileRoom(data []T) int {
 		return 0
 	}
 
-	for _, d := range data[:room] {
-		e.lastOffset++
-		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
+	sizes := e.sizesOf(data[:room])
+
+	for i, d := range data[:room] {
+		e.appendLocked(d, sizes, i)
 	}
 
 	return int(room)

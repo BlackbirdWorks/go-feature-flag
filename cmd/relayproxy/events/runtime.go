@@ -21,6 +21,7 @@ type RuntimeConfig struct {
 	// After and Rand are the timer and the source of jitter of the block deadline and of the retries, see
 	// [DispatcherConfig.After].
 	After func(time.Duration) <-chan time.Time
+	Now   func() time.Time
 	Rand  func() float64
 	// Builder builds the exporters and notifiers.
 	Builder Builder
@@ -50,7 +51,7 @@ func NewRuntime(cfg *RuntimeConfig) *Runtime {
 		Dispatcher: NewDispatcher(&DispatcherConfig{
 			Logger: cfg.Logger, NewManager: cfg.NewManager, Builder: cfg.Builder, QueueSize: cfg.QueueSize,
 			Workers: cfg.Workers, BatchSize: cfg.BatchSize, DrainTimeout: cfg.DrainTimeout, After: cfg.After,
-			Rand: cfg.Rand,
+			Now: cfg.Now, Rand: cfg.Rand,
 		}),
 		Notifications: NewNotifications(&NotificationsConfig{
 			Logger: cfg.Logger, Broadcast: cfg.Broadcast, Builder: cfg.Builder, QueueSize: cfg.NotifierQueueSize,

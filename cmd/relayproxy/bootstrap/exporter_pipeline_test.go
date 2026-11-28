@@ -10,6 +10,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
 
+const pathInitialBackoff = "exporters.e.retry.initialBackoff"
+
 const pipelineDoc = "version: 2\nexporters:\n  e: {kind: log, "
 
 // TestExporterPipeline: the settings of the event pipeline of an exporter take their defaults, and a value that
@@ -18,11 +20,12 @@ func TestExporterPipeline(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr      error
 		name         string
 		doc          string
-		wantErr      error
 		wantPath     string
 		wantPolicy   string
+		wantExhaust  string
 		wantBlock    time.Duration
 		wantDrain    time.Duration
 		wantMaxBytes bootstrap.ByteSize
@@ -32,12 +35,13 @@ func TestExporterPipeline(t *testing.T) {
 			name: "defaults", doc: pipelineDoc + "flushInterval: 5s}\n", wantPolicy: bootstrap.OverflowDropNewest,
 			wantBlock: bootstrap.DefaultBlockTimeout, wantDrain: bootstrap.DefaultExporterDrainTimeout,
 			wantAttempts: bootstrap.DefaultRetryAttempts,
+			wantExhaust:  bootstrap.RetryKeep,
 		},
 		{
 			name: "all set", wantPolicy: bootstrap.OverflowBlock, wantBlock: time.Second, wantDrain: 3 * time.Second,
 			doc: pipelineDoc + "overflowPolicy: block, blockTimeout: 1s, drainTimeout: 3s, maxBytes: 64KiB, " +
-				"retry: {maxAttempts: 2, initialBackoff: 1s, maxBackoff: 2s}}\n",
-			wantMaxBytes: 64 << 10, wantAttempts: 2,
+				"retry: {maxAttempts: 2, initialBackoff: 1s, maxBackoff: 2s, onExhausted: drop}}\n",
+			wantMaxBytes: 64 << 10, wantAttempts: 2, wantExhaust: bootstrap.RetryDrop,
 		},
 		{
 			name: "unknown policy", doc: pipelineDoc + "overflowPolicy: dropAll}\n",
@@ -61,11 +65,37 @@ func TestExporterPipeline(t *testing.T) {
 		},
 		{
 			name: "backoff inverted", doc: pipelineDoc + "retry: {initialBackoff: 10s, maxBackoff: 1s}}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.retry.initialBackoff",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: pathInitialBackoff,
 		},
 		{
 			name: "unknown retry key", doc: pipelineDoc + "retry: {attempts: 2}}\n",
 			wantErr: bootstrap.ErrUnknownKey, wantPath: "exporters.e.retry.attempts",
+		},
+		{
+			name: "unknown exhaustion", doc: pipelineDoc + "retry: {onExhausted: stop}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.retry.onExhausted",
+		},
+		{
+			name: "batch above the bound", doc: pipelineDoc + "maxBytes: 2GiB}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.maxBytes",
+		},
+		{
+			name:     "initial backoff above the bound",
+			doc:      pipelineDoc + "retry: {initialBackoff: 11m, maxBackoff: 20m}}\n",
+			wantErr:  bootstrap.ErrInvalidValue,
+			wantPath: pathInitialBackoff,
+		},
+		{
+			name: "max backoff above the bound", doc: pipelineDoc + "retry: {maxBackoff: 11m}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.retry.maxBackoff",
+		},
+		{
+			name: "max elapsed above the bound", doc: pipelineDoc + "retry: {maxElapsed: 61m}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "exporters.e.retry.maxElapsed",
+		},
+		{
+			name: "initial backoff above the default max backoff", doc: pipelineDoc + "retry: {initialBackoff: 10s}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: pathInitialBackoff,
 		},
 		{
 			name: "bare number size", doc: pipelineDoc + "maxBytes: 1024}\n",
@@ -98,6 +128,7 @@ func TestExporterPipeline(t *testing.T) {
 			assert.Equal(t, tcase.wantBlock, time.Duration(*exp.BlockTimeout))
 			assert.Equal(t, tcase.wantDrain, time.Duration(*exp.DrainTimeout))
 			assert.Equal(t, tcase.wantAttempts, *exp.Retry.MaxAttempts)
+			assert.Equal(t, tcase.wantExhaust, exp.Retry.OnExhausted)
 
 			if tcase.wantMaxBytes != 0 {
 				assert.Equal(t, tcase.wantMaxBytes, *exp.MaxBytes)

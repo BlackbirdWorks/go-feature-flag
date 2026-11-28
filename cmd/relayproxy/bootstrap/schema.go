@@ -341,13 +341,19 @@ func describePipeline(root *jsonschema.Schema) {
 			"maxEventInMemory is reached; an event larger than this goes alone. Unset or zero: no byte limit.", nil, nil)
 
 	for key, value := range map[string]any{
-		"maxAttempts":    DefaultRetryAttempts,
-		"initialBackoff": Duration(DefaultRetryInitialBackoff).String(),
-		"maxBackoff":     Duration(DefaultRetryMaxBackoff).String(),
-		"maxElapsed":     Duration(DefaultRetryMaxElapsed).String(),
+		"maxAttempts":     DefaultRetryAttempts,
+		keyInitialBackoff: Duration(DefaultRetryInitialBackoff).String(),
+		keyMaxBackoff:     Duration(DefaultRetryMaxBackoff).String(),
+		"maxElapsed":      Duration(DefaultRetryMaxElapsed).String(),
 	} {
 		describe("ExporterRetry", key, "Retry of a failed export, with exponential backoff and jitter.", nil, value)
 	}
+
+	describe("ExporterRetry", "onExhausted",
+		"What becomes of a batch that fails every attempt: keep hands it back to be sent again at the next flush "+
+			"(nothing is lost until the store of the exporter overflows), drop drops it and counts it. An empty "+
+			"value is the default.",
+		[]any{RetryKeep, RetryDrop, ""}, RetryKeep)
 
 	if prop, ok := root.Definitions["ExporterRetry"].Properties.Get("maxAttempts"); ok {
 		prop.Minimum = "1"

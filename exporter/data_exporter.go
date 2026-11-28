@@ -40,6 +40,11 @@ type DataExporter[T ExportableEvent] interface {
 	GetMaxEventInMemory() int64
 }
 
+// batchStore is implemented by the event stores that can hand the pending events over in batches of a given size.
+type batchStore[T ExportableEvent] interface {
+	ProcessPendingBatches(consumerID string, maxBytes int64, processEventsFunc func(context.Context, []T) error) error
+}
+
 // Config is the configuration of an exporter.
 type Config struct {
 	Exporter         CommonExporter
@@ -50,7 +55,8 @@ type Config struct {
 	// Default: max(DefaultQueuedEventsFactor x MaxEventInMemory, DefaultMinQueuedEvents).
 	MaxQueuedEvents int64
 	// MaxBytes, when above zero, makes the manager flush as soon as the events it holds for the exporter reach
-	// that size (see EventSize), whatever their count and the flush interval. Zero: no byte limit.
+	// that size (see EventSize), whatever their count and the flush interval, and hands them over in batches of at
+	// most that size (an event larger than it goes alone). Zero: no byte limit.
 	MaxBytes int64
 }
 
@@ -176,7 +182,14 @@ func (d *dataExporterImpl[T]) Flush() {
 func (d *dataExporterImpl[T]) flushQueue() error {
 	store := d.eventStore
 
-	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)
+	var err error
+
+	if batches, ok := store.(batchStore[T]); ok && d.exporter.MaxBytes > 0 {
+		err = batches.ProcessPendingBatches(d.consumerID, d.exporter.MaxBytes, d.sendEvents)
+	} else {
+		err = store.ProcessPendingEvents(d.consumerID, d.sendEvents)
+	}
+
 	if err != nil {
 		if d != nil && d.logger != nil {
 			d.logger.Error("error while exporting the pending events", slog.String("error", err.Error()))

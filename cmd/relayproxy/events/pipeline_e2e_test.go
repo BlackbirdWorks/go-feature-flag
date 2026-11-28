@@ -70,6 +70,8 @@ func TestRuntime_PipelineFromYAML(t *testing.T) {
 		wantCalls    uint64
 		wantDropped  uint64
 		wantRetried  uint64
+		// wantKept is what the failing exporter keeps (the default), counted as drained by the shutdown.
+		wantKept int64
 	}{
 		{
 			name: "batches respect maxBytes", wantEvents: count, wantMaxFile: 3 * size, wantMinFiles: 4,
@@ -84,7 +86,15 @@ func TestRuntime_PipelineFromYAML(t *testing.T) {
 			settings: "drainTimeout: 1m",
 		},
 		{
-			name: "failing exporter is retried then counted", broken: true, wantCalls: 3, wantDropped: count,
+			name:        "failing exporter is retried then counted",
+			broken:      true,
+			wantCalls:   3,
+			wantDropped: count,
+			settings:    "retry: {maxAttempts: 3, initialBackoff: 1s, maxBackoff: 1s, maxElapsed: 1m, onExhausted: drop}",
+			wantRetried: 2,
+		},
+		{
+			name: "failing exporter keeps its batch by default", broken: true, wantCalls: 3, wantKept: count,
 			settings: "retry: {maxAttempts: 3, initialBackoff: 1s, maxBackoff: 1s, maxElapsed: 1m}", wantRetried: 2,
 		},
 	}
@@ -146,7 +156,7 @@ func TestRuntime_PipelineFromYAML(t *testing.T) {
 			assert.Equal(t, tt.wantDropped, status.Dropped.RetryExhausted)
 			assert.Equal(t, tt.wantCalls, status.FlushFailures)
 			assert.Len(t, tim.recorded(), int(tt.wantRetried))
-			assert.Zero(t, report.Undelivered)
+			assert.Equal(t, tt.wantKept, report.Undelivered)
 
 			for _, drained := range report.Drained {
 				assert.False(t, drained.Cut)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // Defaults of the dispatcher.
@@ -44,9 +45,11 @@ type DispatcherConfig struct {
 	Logger       *slog.Logger
 	NewManager   NewManagerFunc
 	drainContext func(parent context.Context) (context.Context, context.CancelFunc)
-	// After is the timer of the block deadline and of the retry waits, Rand the source of the jitter of those
-	// waits (a value in [0, 1)). The defaults are [time.After] and [rand.Float64]; a test injects both.
+	// After is the timer of the block deadline and of the retry waits, Now the clock of the time budget of a retry
+	// and Rand the source of the jitter of the waits (a value in [0, 1)). The defaults are [time.After],
+	// [clock.Now] and [rand.Float64]; a test injects them.
 	After        func(time.Duration) <-chan time.Time
+	Now          func() time.Time
 	Rand         func() float64
 	Builder      Builder
 	QueueSize    int
@@ -67,6 +70,10 @@ func (c *DispatcherConfig) defaults() {
 
 	if c.After == nil {
 		c.After = time.After
+	}
+
+	if c.Now == nil {
+		c.Now = clock.Now
 	}
 
 	if c.Rand == nil {
@@ -361,10 +368,9 @@ func (d *Dispatcher) fill(batch []Event) []Event {
 	return batch
 }
 
-// deliver offers the batch to every exporter of the current set, without waiting for any of them under the lock. A
-// batch taken while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter.
-// An exporter with the block policy that has no room is waited for after the lock is released: a reload and the
-// other workers never wait behind it, and the wait is bounded by its block deadline.
+// deliver offers the batch to every exporter of the current set, without waiting for any of them. A batch taken
+// while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter. An exporter
+// with the block policy that has no room parks its events in a waiting room of its own: no worker waits for it.
 func (d *Dispatcher) deliver(batch []Event) {
 	if d.aborted.Load() {
 		d.dropDrain.Add(uint64(len(batch)))
@@ -372,32 +378,17 @@ func (d *Dispatcher) deliver(batch []Event) {
 		return
 	}
 
-	type waiting struct {
-		inst *managed
-		rest []Event
-	}
-
-	var blocked []waiting
-
 	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	active := d.state.Load().active
 	if len(active) == 0 {
-		d.mu.RUnlock()
 		d.dropNoExporter.Add(uint64(len(batch)))
 
 		return
 	}
 
 	for _, inst := range active {
-		if rest := inst.offer(batch); len(rest) > 0 {
-			blocked = append(blocked, waiting{inst: inst, rest: rest})
-		}
-	}
-
-	d.mu.RUnlock()
-
-	for _, wait := range blocked {
-		wait.inst.offerBlocking(wait.rest)
+		inst.offer(batch)
 	}
 }

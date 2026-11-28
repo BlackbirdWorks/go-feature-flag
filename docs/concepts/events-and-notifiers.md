@@ -35,21 +35,24 @@ A slow exporter fills its own hand-off and store and loses its own events. It do
 | --- | --- | --- |
 | `dropNewest` (default) | drops the new event | `overflow` |
 | `dropOldest` | drops the oldest queued event and queues the new one | `overflow` |
-| `block` | the worker waits for room, up to `blockTimeout` (default `50ms`, at most `10s`) for the batch; what is still without room is dropped | `block_timeout` |
+| `block` | the events wait in a waiting room of the exporter (64 batches) and are placed as room comes, up to `blockTimeout` (default `50ms`, at most `10s`) for each batch; what is still without room is dropped, and so are the events that find the waiting room full | `block_timeout` |
 
-- An evaluation request never waits: `Collect` stays one non-blocking send. `block` holds back a worker only, so it fills the shared channel when the exporter is slow, and the channel drops with `queue_full` as before. The other exporters then see their events later, by at most `blockTimeout` per batch.
-- A worker that waits holds no lock that a reload, another worker or a status read needs. A reload that removes the exporter wakes it at once.
+- An evaluation request never waits: `Collect` stays one non-blocking send. A worker never waits either: the wait is in a goroutine of the exporter, so a blocked exporter costs only its own events and the other exporters, and the shared channel, are not delayed. The order of the events of an exporter is kept.
+- No lock is held while waiting. A reload or a shutdown that closes the exporter ends the wait at once; the events still waiting are counted as `drain`.
 
 ## Batches and retry
 
 - A batch is cut when any limit is reached: `maxEventInMemory` events, `flushInterval`, or `maxBytes`. The size of an event is the length of its JSON form, line break included (`exporter.EventSize`). An event larger than `maxBytes` goes alone in its batch.
-- A failed export is retried in the pipeline with exponential backoff and jitter: the wait starts at `retry.initialBackoff`, doubles up to `retry.maxBackoff`, and is cut to between half and the whole of its value at random. The retry stops after `retry.maxAttempts` attempts or when the waits of the batch would pass `retry.maxElapsed`. While it waits the queues keep accepting events by their policy.
-- A batch that exhausts the retry is dropped and counted as `retry_exhausted`, and logged at error level (the class and the scrubbed message, never a secret). With `retry.maxAttempts: 1` a failed batch is dropped at once.
+- The engine manager hands the exporter batches of at most `maxBytes`. The size of an event is computed once, when the store takes it, and goes with it. A batch that succeeds is consumed: when a later batch of the same flush fails, the batches before it are not sent again.
+- A failed export is retried in the pipeline with exponential backoff and jitter: the wait starts at `retry.initialBackoff`, doubles up to `retry.maxBackoff`, and is cut to between half and the whole of its value at random. The retry stops after `retry.maxAttempts` attempts, or when the time of the flush (waits and attempts, shared by all its batches) would pass `retry.maxElapsed`. While it waits the queues keep accepting events by their policy. A close of the exporter ends a wait at once (see the drain deadline).
+- What a batch that exhausts the retry becomes is `retry.onExhausted`:
+  - `keep` (default): the batch is handed back and the engine manager sends it again at its next flush. Nothing is lost by an outage: the events wait in the store of the manager, and are lost only when it overflows (counted `overflow`, as before this setting existed). With the defaults one flush spends about 2 s on retries, then waits for the next flush.
+  - `drop`: the batch is dropped, counted as `retry_exhausted` and logged at error level (the class and the scrubbed message, never a secret). An outage longer than the retry then loses every batch it meets. Use it when stale events are worth less than a bounded queue.
 - Every attempt counts in `flush_failures_total` and the duration of the flushes.
 
 ## Drain deadline
 
-`drainTimeout` (default `10s`, at most `10m`) is the deadline of the final flush of one exporter, whether a reload removes or changes it, or the relay shuts down. The deadline starts when the exporter leaves the set; within it the hand-off is delivered, the manager is flushed and a retry in progress goes on. At the deadline the retry stops, the exporter is cut and keeps closing in the background, and the events it still holds are counted as `drain`. Each exporter has its own deadline; the shutdown waits for the longest one, inside the deadline of its own context.
+`drainTimeout` (default `10s`, at most `10m`) is the deadline of the final flush of one exporter, whether a reload removes or changes it, or the relay shuts down. The deadline starts when the exporter leaves the set; within it the hand-off is delivered, the manager is flushed and a retry in progress goes on. At the deadline a retry, even one that is waiting, stops, the exporter is cut and keeps closing in the background, and the events it still holds are counted as `drain`. Each exporter has its own deadline; the shutdown waits for the longest one, inside the deadline of its own context.
 
 ## Accounting
 

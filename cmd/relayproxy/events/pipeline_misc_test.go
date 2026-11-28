@@ -107,13 +107,13 @@ func TestPipelineOf(t *testing.T) {
 		{
 			name: "every setting",
 			settings: ", overflowPolicy: dropOldest, blockTimeout: 2s, drainTimeout: 3s, maxBytes: 1KiB, retry: " +
-				"{maxAttempts: 2, initialBackoff: 5ms, maxBackoff: 6ms, maxElapsed: 7ms}",
+				"{maxAttempts: 2, initialBackoff: 5ms, maxBackoff: 6ms, maxElapsed: 7ms, onExhausted: drop}",
 			want: events.Pipeline{
 				Overflow: bootstrap.OverflowDropOldest, BlockTimeout: 2 * time.Second, DrainTimeout: 3 * time.Second,
 				MaxBytes: 1024,
 				Retry: events.RetryPolicy{
 					MaxAttempts: 2, InitialBackoff: 5 * time.Millisecond, MaxBackoff: 6 * time.Millisecond,
-					MaxElapsed: 7 * time.Millisecond,
+					MaxElapsed: 7 * time.Millisecond, Drop: true,
 				},
 			},
 		},
@@ -143,8 +143,8 @@ func TestPipelineOf(t *testing.T) {
 	}
 }
 
-// TestDispatcher_BlockedSenderLeaves: an exporter that is closed while a sender waits for room in its queue wakes
-// the sender at once; the event it held is counted by the drain, and the batches behind it find no exporter.
+// TestDispatcher_BlockedSenderLeaves: an exporter that is closed while its events wait for room in its queue wakes
+// the wait at once; the events it held are counted by the drain, and no worker waited for them.
 func TestDispatcher_BlockedSenderLeaves(t *testing.T) {
 	t.Parallel()
 
@@ -159,9 +159,7 @@ func TestDispatcher_BlockedSenderLeaves(t *testing.T) {
 
 	expDef := def("a", "v1")
 	expDef.Pipeline = events.Pipeline{
-		Overflow:     bootstrap.OverflowBlock,
-		BlockTimeout: time.Hour,
-		DrainTimeout: time.Nanosecond,
+		Overflow: bootstrap.OverflowBlock, BlockTimeout: time.Hour, DrainTimeout: time.Nanosecond,
 	}
 
 	_, err := disp.Apply(context.Background(), []events.ExporterDef{expDef})
@@ -174,21 +172,22 @@ func TestDispatcher_BlockedSenderLeaves(t *testing.T) {
 		require.True(t, disp.Collect(ev(i)))
 	}
 
-	await(t, tim.armed, "a sender to wait for room")
+	await(t, tim.armed, "the events to wait for room")
+	require.Eventually(t, func() bool {
+		return statusOf(t, new(disp.Status()), "a").Handed == 6
+	}, wait, time.Millisecond, "the worker handed every event over without waiting")
 
 	set, err := disp.Apply(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a"}, set.Removed)
 
-	require.Eventually(t, func() bool {
-		return disp.Status().Queue.Dropped.NoExporter == 2
-	}, wait, time.Millisecond, "the batches behind the sender found no exporter")
-
 	close(fac.gate)
 	require.NoError(t, disp.WaitDrains(bounded(t)))
 
 	got := statusOf(t, new(disp.Status()), "a")
-	assert.Equal(t, uint64(1), got.Dropped.Drain, "the event of the sender that was woken")
-	assert.Equal(t, uint64(3), got.Exported)
+	// the batch being placed when the exporter closed may still find room as the gate opens: it is exported or drained
+	assert.Equal(t, got.Handed, got.Exported+got.Dropped.Drain, "every event is exported or drained")
+	assert.GreaterOrEqual(t, got.Dropped.Drain, uint64(2), "the batches that waited behind it are drained")
 	assert.Zero(t, got.Dropped.BlockTimeout)
+	assert.Zero(t, disp.Status().Queue.Dropped.NoExporter)
 }
