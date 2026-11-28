@@ -171,10 +171,10 @@ func (s *RedisStore) EditSet(
 
 // Commit implements [Store].
 func (s *RedisStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
-	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed}
+	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed, commit.Source}
 
 	code, err := s.commit.Run(ctx, s.client, keys, commit.Token, commit.Want, commit.OldTTL.Milliseconds(),
-		flag(commit.Empty)).Int64()
+		flag(commit.Empty), commit.Fingerprint).Int64()
 	if err != nil {
 		return LockLost, false, storeErr("EVAL", err)
 	}

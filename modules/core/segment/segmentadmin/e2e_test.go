@@ -30,6 +30,7 @@ const (
 	segSwap    = "semaphore:segment:{swap}"
 	segCut     = "semaphore:segment:{cut}"
 	segEdit    = "semaphore:segment:{edit}"
+	segFP      = "semaphore:segment:{fp}"
 	segFlags   = "semaphore:segment:flags:"
 )
 
@@ -40,6 +41,7 @@ func e2eSegments() map[string]string {
 		"swap":  segSwap,
 		"cut":   segCut,
 		"edit":  segEdit,
+		"fp":    segFP,
 		"flags": segFlags,
 	}
 }
@@ -105,12 +107,93 @@ func TestE2E(t *testing.T) {
 				t.Parallel()
 				e2eProtocol(t, back)
 			})
+			t.Run("the fingerprint of the source is recorded with the swap", func(t *testing.T) {
+				t.Parallel()
+				e2eFingerprint(t, back)
+			})
 			t.Run("add, remove and stat", func(t *testing.T) {
 				t.Parallel()
 				e2eEdits(t, back)
 			})
 		})
 	}
+}
+
+// e2eFingerprint checks that the swap records the fingerprint of its input in the slot of the set (a cluster refuses a
+// script whose keys are in two), replaces it with the next one, and that an input without one removes it. The empty
+// import is its own path in the script, and so is the answer to a swap that was applied already: each records, or
+// leaves the record, as the normal swap does.
+func e2eFingerprint(t *testing.T, back *backend) {
+	t.Helper()
+
+	ctx := t.Context()
+	target := e2eTarget(segFP, redissegment.LayoutSet)
+	source := segFP + ":import:source"
+
+	recorded := func(want string) {
+		t.Helper()
+
+		got, found, err := back.store.Value(ctx, source)
+		require.NoError(t, err)
+		assert.Equal(t, want != "", found)
+		assert.Equal(t, want, got)
+	}
+
+	for _, step := range []struct {
+		fingerprint string
+		ids         []string
+		allowEmpty  bool
+	}{
+		{fingerprint: "sha256:one", ids: []string{"a", "b"}},
+		{fingerprint: "sha256:two", ids: []string{"a", "b"}},
+		{fingerprint: "sha256:empty", allowEmpty: true},
+		{fingerprint: "", ids: []string{"a", "b"}},
+	} {
+		_, err := segmentadmin.Import(ctx, back.store, target, segmentadmin.NewSliceSource(step.ids),
+			segmentadmin.ImportOptions{Fingerprint: step.fingerprint, AllowEmpty: step.allowEmpty})
+		require.NoError(t, err)
+
+		recorded(step.fingerprint)
+
+		if step.allowEmpty {
+			card, cardErr := back.store.SCard(ctx, segFP)
+			require.NoError(t, cardErr)
+			assert.Zero(t, card, "the empty import removed the set")
+		}
+	}
+
+	// the swap sent again (its reply was lost) is answered "already swapped" and does not touch the record
+	const token = "fp-token"
+
+	keys, err := segmentadmin.ImportKeys(segFP, token)
+	require.NoError(t, err)
+
+	held, err := back.store.Lock(ctx, keys.Lock, token, time.Minute)
+	require.NoError(t, err)
+	require.True(t, held)
+
+	added, staged, err := back.store.StageAdd(ctx, keys.Lock, keys.Tmp, token, []string{"x"}, time.Minute, true)
+	require.NoError(t, err)
+	require.Equal(t, segmentadmin.Staged, staged)
+
+	commit := &segmentadmin.Commit{
+		Lock: keys.Lock, Tmp: keys.Tmp, Live: segFP, Old: keys.Old, Committed: keys.Committed, Source: keys.Source,
+		Token: token, Want: added, OldTTL: time.Minute, Fingerprint: "sha256:first",
+	}
+
+	result, _, err := back.store.Commit(ctx, commit)
+	require.NoError(t, err)
+	assert.Equal(t, segmentadmin.Committed, result)
+	recorded("sha256:first")
+
+	commit.Fingerprint = "sha256:second"
+
+	result, _, err = back.store.Commit(ctx, commit)
+	require.NoError(t, err)
+	assert.Equal(t, segmentadmin.AlreadyCommitted, result)
+	recorded("sha256:first")
+
+	require.NoError(t, back.store.Unlock(ctx, keys.Lock, keys.Last, keys.Committed, token))
 }
 
 func e2eEncoding(t *testing.T, back *backend) {

@@ -109,8 +109,16 @@ func caseSRem(ctx context.Context, store segmentadmin.Store) (string, error) {
 
 func tokenCommit(want int64, token string, empty bool) *segmentadmin.Commit {
 	return &segmentadmin.Commit{
-		Lock: lockKey, Tmp: tmpKey, Live: liveKey, Old: oldKey, Committed: committedKey, Token: token, Want: want,
-		OldTTL: time.Hour, Empty: empty,
+		Lock:      lockKey,
+		Tmp:       tmpKey,
+		Live:      liveKey,
+		Old:       oldKey,
+		Committed: committedKey,
+		Source:    sourceKey,
+		Token:     token,
+		Want:      want,
+		OldTTL:    time.Hour,
+		Empty:     empty,
 	}
 }
 
