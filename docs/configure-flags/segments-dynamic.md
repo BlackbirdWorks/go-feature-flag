@@ -110,15 +110,15 @@ A definition that fails is rejected alone. The document and its other definition
 | Package | `redissegment` | `valkeysegment` |
 | Client | go-redis v9 | valkey-go |
 | One call (one lookup call, single node) | one explicit pipeline | one `DoMulti`; the client batches concurrent calls on a connection (automatic pipelining) |
-| `Atomic` script mode | yes | no (no script is sent) |
+| Atomic existence check (`missingKey: unknown`) | `atomic` (a Lua script, off by default) | `atomic` (`MULTI`/`EXEC`, on by default; no script is sent) |
 | Throughput under 64 to 256 concurrent callers (measured, default client settings, see the Valkey page; measured with `MissingKey: unknown`, one `EXISTS` for each set, the default `notMember` sends one command less and was not measured) | about 32000 to 33000 calls/s | about 51000 to 54000 calls/s with `pipelining: always` or `auto` |
 | One reply of a batch has the wrong shape (not an integer, wrong length) | the lookups of that command are not answered (not a member by default), the other commands keep their answers (a stream that cannot be parsed discards the whole call) | no lookup of the call is answered (not a member by default) |
 | A reply nobody asked for (broken server or proxy) | the connection is dropped, the call returns an error | valkey-go panics in its reader: the process ends |
-| Client settings | go-redis options | `pipelining` (`always`, `auto`), `blockingPipeline`, `retry` |
+| Client settings | go-redis options | `pipelining` (`always`, `auto`), `blockingPipeline`, `retry`, `timeouts.io` |
 | Server | Redis 6.2+, Valkey 7.2+ | Redis 6.2+, Valkey 7.2+ |
 
 - Pick `valkey` for a Valkey store with many concurrent calls: valkey-go merges their writes.
-- Pick `redis` when the store sits behind a proxy you do not trust, when you need `Atomic` (a set swapped by deleting the key), or run behind a go-redis failover or ring setup.
+- Pick `redis` when the store sits behind a proxy you do not trust, when you need the script form of the atomic check (`Atomic`), or run behind a go-redis failover or ring setup.
 - Both have the same data model, layouts (`set` and `keys`), answers and failure classes, are read-only and pass the same conformance suite on the same resolver.
 
 ## Configure in the relay

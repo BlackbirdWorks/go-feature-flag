@@ -36,6 +36,7 @@ type stubServer struct {
 	failSeg  map[string]bool
 	conns    map[net.Conn]struct{}
 	gate     chan struct{}
+	between  func(name string) // see OnCommand
 	entered  chan struct{}
 	only     string   // when set, garbage applies to this command only
 	garbage  string   // the reply to SMISMEMBER and EXISTS when set: bytes written as they are
@@ -52,31 +53,19 @@ type stubServer struct {
 	cutting  bool // see CutAfter
 }
 
-func newStubServer(tb testing.TB) *stubServer {
-	tb.Helper()
+// txState is the MULTI block of one connection.
+type txState struct {
+	queued [][]string
+	active bool
+}
 
-	lc := net.ListenConfig{}
-	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	require.NoError(tb, err)
+// OnCommand makes the server call fn after it served a data command outside a transaction, and when a data command
+// is queued inside one (before EXEC runs them): the test removes a key there, between the two commands of a lookup.
+func (s *stubServer) OnCommand(fn func(name string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	srv := &stubServer{
-		ln:      ln,
-		sets:    map[string]map[string]bool{},
-		values:  map[string]string{},
-		sorted:  map[string][]string{},
-		keys:    map[string]bool{},
-		counts:  map[string]int{},
-		failSeg: map[string]bool{},
-		conns:   map[net.Conn]struct{}{},
-	}
-
-	srv.wg.Add(1)
-
-	go srv.accept()
-
-	tb.Cleanup(srv.stop)
-
-	return srv
+	s.between = fn
 }
 
 // CutAfter makes the server answer n more data commands completely and then drop the connection at the next one.
@@ -276,6 +265,7 @@ func (s *stubServer) serve(conn net.Conn) {
 	defer conn.Close()
 
 	reader, writer := bufio.NewReader(conn), bufio.NewWriter(conn)
+	block := &txState{}
 
 	for {
 		args, err := command(reader)
@@ -283,7 +273,7 @@ func (s *stubServer) serve(conn net.Conn) {
 			return
 		}
 
-		reply, keep := s.handle(conn, args)
+		reply, keep := s.handle(conn, block, args)
 		if !keep {
 			_ = writer.Flush() // the replies of the commands before the cut were complete
 
@@ -356,7 +346,7 @@ func (s *stubServer) handshake(name string, args []string) (string, bool) {
 }
 
 // handle returns the reply to a command and false when the connection must be dropped.
-func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
+func (s *stubServer) handle(conn net.Conn, block *txState, args []string) (string, bool) {
 	name := strings.ToUpper(args[0])
 
 	reply, handled := s.handshake(name, args)
@@ -367,7 +357,7 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 	s.mu.Lock()
 	s.counts[strings.ToLower(name)]++
 	gate, entered, failed, garbage, noCmd, pong := s.gate, s.entered, s.failed, s.garbage, s.noCmd, s.pong
-	only := s.only
+	only, between := s.only, s.between
 	next := ""
 
 	if len(s.seq) > 0 {
@@ -395,6 +385,10 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 		return "-ERR unknown command '" + name + "'\r\n", true
 	}
 
+	if inTx, done := s.transactionReply(block, name, args, garbage, only, between); done {
+		return inTx, true
+	}
+
 	switch name {
 	case "PING":
 		if pong != "" {
@@ -402,11 +396,48 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 		}
 
 		return "+PONG\r\n", true
-	case "SMISMEMBER", "EXISTS", "SSCAN", "GET":
-		return s.readData(name, args, garbage, only), true
+	case cmdSMISMEMBER, cmdEXISTS, "SSCAN", "GET":
+		data := s.readData(name, args, garbage, only)
+
+		if between != nil {
+			between(name)
+		}
+
+		return data, true
 	}
 
 	return "-ERR unknown command\r\n", true
+}
+
+// transactionReply answers MULTI, EXEC and the data commands queued between them.
+func (s *stubServer) transactionReply(
+	block *txState, name string, args []string, garbage, only string, between func(string),
+) (string, bool) {
+	switch {
+	case name == "MULTI":
+		block.active, block.queued = true, nil
+
+		return replyOK, true
+	case name == cmdEXEC:
+		queued := block.queued
+		block.active, block.queued = false, nil
+
+		if garbage != "" && strings.EqualFold(only, cmdEXEC) {
+			return garbage, true
+		}
+
+		return s.transact(queued, garbage, only), true
+	case block.active && (name == cmdSMISMEMBER || name == cmdEXISTS):
+		block.queued = append(block.queued, args)
+
+		if between != nil {
+			between(name)
+		}
+
+		return "+QUEUED\r\n", true
+	}
+
+	return "", false
 }
 
 func (s *stubServer) wrongType(key string) bool {
@@ -590,4 +621,53 @@ func (s *stubServer) readData(name string, args []string, garbage, only string) 
 	default:
 		return s.read(name, args[1:])
 	}
+}
+
+// removeSet deletes a set, as an expiry does.
+func (s *stubServer) removeSet(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.sets, key)
+	delete(s.sorted, key)
+}
+
+// transact runs the queued commands of EXEC and returns the array of their replies.
+func (s *stubServer) transact(queued [][]string, garbage, only string) string {
+	var out strings.Builder
+
+	out.WriteString("*" + strconv.Itoa(len(queued)) + "\r\n")
+
+	for _, args := range queued {
+		out.WriteString(s.readData(strings.ToUpper(args[0]), args, garbage, only))
+	}
+
+	return out.String()
+}
+
+func newStubServer(tb testing.TB) *stubServer {
+	tb.Helper()
+
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	require.NoError(tb, err)
+
+	srv := &stubServer{
+		ln:      ln,
+		sets:    map[string]map[string]bool{},
+		values:  map[string]string{},
+		sorted:  map[string][]string{},
+		keys:    map[string]bool{},
+		counts:  map[string]int{},
+		failSeg: map[string]bool{},
+		conns:   map[net.Conn]struct{}{},
+	}
+
+	srv.wg.Add(1)
+
+	go srv.accept()
+
+	tb.Cleanup(srv.stop)
+
+	return srv
 }

@@ -2406,6 +2406,10 @@
                 "timeouts": {
                     "$ref": "#/$defs/ValkeyTimeouts"
                 },
+                "atomic": {
+                    "type": "boolean",
+                    "default": true
+                },
                 "lookupTimeout": {
                     "$ref": "#/$defs/Duration"
                 },

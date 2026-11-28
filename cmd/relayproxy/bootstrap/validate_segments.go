@@ -3,7 +3,10 @@ package bootstrap
 import (
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
+
+	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
 // storeConnection checks a redis or valkey connection.
@@ -81,6 +84,12 @@ func (v *validator) valkeySettings(path string, conn *ValkeyConnection) {
 
 	if conn.BlockingPipeline < 0 {
 		v.failf(path+".blockingPipeline", ErrInvalidValue, "expected an integer from 0")
+	}
+
+	if tm := conn.Timeouts; tm != nil && tm.IO != nil {
+		if d := time.Duration(*tm.IO); d < valkeysegment.MinConnWriteTimeout || d > valkeysegment.MaxConnWriteTimeout {
+			v.failf(path+".timeouts.io", ErrInvalidValue, "expected a duration from 10ms to 1m")
+		}
 	}
 
 	if conn.ForceSingleClient && len(conn.Addresses) > 1 {

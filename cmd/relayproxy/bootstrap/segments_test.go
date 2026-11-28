@@ -103,6 +103,16 @@ func TestStoreConnectionErrors(t *testing.T) {
 			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.blockingPipeline", wantLine: 3,
 		},
 		{
+			name:    "valkey io timeout below the bound",
+			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], timeouts: {io: 1ms}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.timeouts.io", wantLine: 3,
+		},
+		{
+			name:    "valkey io timeout above the bound",
+			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], timeouts: {io: 2m}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.timeouts.io", wantLine: 3,
+		},
+		{
 			name:    "redis key on a valkey connection",
 			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], db: 1}\n",
 			wantErr: bootstrap.ErrUnknownKey, wantPath: dbPath, wantLine: 3,
@@ -201,6 +211,34 @@ func TestSegmentDefaults(t *testing.T) {
 	assert.False(t, *res.Default.NoCache)
 	assert.False(t, *res.Default.NoBreaker)
 	assert.Equal(t, bootstrap.PipeliningAlways, cfg.Connections["v"].Valkey.Pipelining)
+}
+
+func TestValkeyAtomic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		setting    string
+		wantAtomic bool
+	}{
+		{name: "unset is on", setting: "", wantAtomic: true},
+		{name: "explicitly on", setting: ", atomic: true", wantAtomic: true},
+		{name: "explicitly off", setting: ", atomic: false", wantAtomic: false},
+		{name: "io timeout at the bound", setting: ", timeouts: {io: 10ms}", wantAtomic: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"]" + tt.setting + "}\n"
+			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			require.NoError(t, err)
+
+			require.NotNil(t, cfg.Connections["v"].Valkey.Atomic)
+			assert.Equal(t, tt.wantAtomic, *cfg.Connections["v"].Valkey.Atomic)
+		})
+	}
 }
 
 func TestNoSegmentsSection(t *testing.T) {

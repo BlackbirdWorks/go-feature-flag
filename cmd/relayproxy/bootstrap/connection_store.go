@@ -23,7 +23,8 @@ type RedisTimeouts struct {
 type ValkeyTimeouts struct {
 	// Connect is the dial timeout.
 	Connect *Duration `json:"connect,omitempty" yaml:"connect,omitempty"`
-	// IO is the read and write timeout of each connection (valkey-go `ConnWriteTimeout`).
+	// IO is the read and write timeout of each connection (valkey-go `ConnWriteTimeout`), from 10ms to 1m. Unset
+	// means ten lookup timeouts, at least 1s.
 	IO *Duration `json:"io,omitempty" yaml:"io,omitempty"`
 }
 
@@ -62,6 +63,9 @@ const (
 type ValkeyConnection struct {
 	TLS      *StoreTLS       `json:"tls,omitempty"      yaml:"tls,omitempty"`
 	Timeouts *ValkeyTimeouts `json:"timeouts,omitempty" yaml:"timeouts,omitempty"`
+	// Atomic sends the existence check and SMISMEMBER of a set segment in one MULTI/EXEC. Default true; it only
+	// matters with segments.missingKey unknown.
+	Atomic *bool `json:"atomic,omitempty" jsonschema:"default=true" yaml:"atomic,omitempty"`
 	// LookupTimeout bounds one lookup call to the store. Unset means 100ms.
 	LookupTimeout *Duration `json:"lookupTimeout,omitempty" yaml:"lookupTimeout,omitempty"`
 	Type          string    `json:"type"                    jsonschema:"enum=valkey"       yaml:"type"`
