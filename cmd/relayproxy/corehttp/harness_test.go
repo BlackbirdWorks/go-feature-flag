@@ -260,7 +260,7 @@ type v2Options struct {
 func newV2With(tb testing.TB, opts *v2Options) *v2 {
 	tb.Helper()
 
-	return buildV2(tb, &opts, nil)
+	return buildV2(tb, opts, nil)
 }
 
 // buildV2 is [newV2With] with the manager of the exporters of the core; nil gives the recorder of the rig.
