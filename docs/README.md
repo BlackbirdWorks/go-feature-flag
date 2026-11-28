@@ -42,7 +42,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 ## Configure flags
 - [Flag format](configure-flags/create-flags.md)
 - [Targeting rules](configure-flags/target-with-flags.md)
-- [Segments](configure-flags/segments.md), [Segments - static](configure-flags/segments-static.md), [Segments - dynamic](configure-flags/segments-dynamic.md) ([Redis](configure-flags/segments-redis.md), [Valkey](configure-flags/segments-valkey.md))
+- [Segments](configure-flags/segments.md), [Segments - static](configure-flags/segments-static.md), [Segments - dynamic](configure-flags/segments-dynamic.md), [Inline lists or dynamic segments](configure-flags/segments-choosing.md) ([Redis](configure-flags/segments-redis.md), [Valkey](configure-flags/segments-valkey.md))
 - [Rollout strategies](configure-flags/rollout-strategies/README.md): [percentage](configure-flags/rollout-strategies/percentage.md), [progressive](configure-flags/rollout-strategies/progressive.md), [scheduled](configure-flags/rollout-strategies/scheduled.md), [experimentation](configure-flags/rollout-strategies/experimentation.md)
 - [Custom bucketing](configure-flags/custom-bucketing.md)
 

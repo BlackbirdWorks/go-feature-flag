@@ -75,6 +75,9 @@ type Connections struct {
 
 	conns map[string]*connection
 	log   *slog.Logger
+	// wake makes Run dial now: a connection that became needed (the first generation binds after Run started) is
+	// not left to wait for the next tick, which would answer STORE_ERROR to the first requests of a healthy store.
+	wake  chan struct{}
 	retry time.Duration
 }
 
@@ -96,6 +99,7 @@ type handleBox struct{ h Handle }
 func NewConnections(cfg *bootstrap.Config, opts Options) *Connections {
 	out := &Connections{
 		StoreTable: New(cfg), conns: map[string]*connection{}, log: opts.Logger, retry: opts.RetryInterval,
+		wake: make(chan struct{}, 1),
 	}
 
 	if out.log == nil {
@@ -137,7 +141,12 @@ func (c *Connections) Bind(
 		return nil, fmt.Errorf("%q: %w", connection, ErrUnknownConnection)
 	}
 
-	conn.needed.Store(true)
+	if !conn.needed.Swap(true) {
+		select {
+		case c.wake <- struct{}{}:
+		default: // a wake-up is already pending
+		}
+	}
 
 	lazy := &lazyBinding{conn: conn, missing: missing, defs: defs}
 
@@ -162,6 +171,7 @@ func (c *Connections) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-c.wake:
 		}
 	}
 }

@@ -267,7 +267,8 @@ jobs:
             mcr.microsoft.com/azure-storage/azurite:3.35.0 \
             mongo:6 \
             postgres:15-alpine \
-            redis:7
+            redis:7 \
+            docker.io/valkey/valkey:8-alpine
       - name: Run integration tests with the race detector
         run: |
           mkdir -p test-logs coverage

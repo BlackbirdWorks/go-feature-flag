@@ -26,7 +26,7 @@ type redisHandle struct {
 }
 
 func redisDialer(conn *bootstrap.RedisConnection, secrets bootstrap.LoadOptions) Dialer {
-	return func(context.Context) (Handle, error) {
+	return func(ctx context.Context) (Handle, error) {
 		password, err := conn.Password.Resolve(secrets)
 		if err != nil && conn.Password.IsSet() {
 			return nil, fmt.Errorf("password: %w", err)
@@ -63,12 +63,30 @@ func redisDialer(conn *bootstrap.RedisConnection, secrets bootstrap.LoadOptions)
 			)
 		}
 
-		// go-redis connects on the first command: the dial itself cannot fail for a reachable configuration
+		// go-redis connects on the first command, so one probe tells a store that cannot be reached (the connection is
+		// an error and the loop dials again) from one that can: a store that nothing contacted must not read healthy.
+		client := redis.NewUniversalClient(opts)
+
+		err = client.Ping(ctx).Err()
+		if err != nil && !serverReplied(err) {
+			_ = client.Close()
+
+			return nil, fmt.Errorf("probe the redis store: %w", err)
+		}
+
 		return &redisHandle{
-			client: redis.NewUniversalClient(opts), prefix: conn.KeyPrefix, atomic: conn.Atomic,
-			timeout: lookupTimeout(conn.LookupTimeout),
+			client: client, prefix: conn.KeyPrefix, atomic: conn.Atomic, timeout: lookupTimeout(conn.LookupTimeout),
 		}, nil
 	}
+}
+
+// serverReplied reports whether err is a reply of the server (a permission or authentication error included: the
+// documented read-only ACL has no PING). Only that the store answered counts: a dial error, a timeout, an end of
+// stream or a cancelled context is a store that cannot be reached.
+func serverReplied(err error) bool {
+	var reply redis.Error
+
+	return errors.As(err, &reply)
 }
 
 func durationOf(d *bootstrap.Duration) time.Duration {

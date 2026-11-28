@@ -2,6 +2,7 @@ package relay_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/url"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
@@ -56,5 +58,45 @@ func TestStart_ListensOnLoopbackOnly(t *testing.T) {
 		}
 
 		assert.Error(t, dialTimeoutErr, "must not be reachable through %s", addr)
+	}
+}
+
+// A relay that is started with a segments document serves a flag that uses its segment: the document is a manifest
+// object that the flag set lists in its segmentSources.
+func TestStartWithStore_ServesTheSegmentsOfTheDocument(t *testing.T) {
+	t.Parallel()
+
+	const flags = "seg-flag:\n  variations: {on: true, off: false}\n  targeting:\n" +
+		"    - {name: vip, query: 'targetingKey in segment(\"vip\")', variation: on}\n" +
+		"  defaultRule: {name: d, variation: off}\n"
+
+	tests := []struct {
+		name string
+		key  string
+		want bool
+	}{
+		{name: "a member", key: "alice", want: true},
+		{name: "not a member", key: "bob", want: false},
+	}
+
+	r, err := relay.StartWithStore(&relay.Options{FlagsYAML: loadtest.FlagsYAML() + flags}, &relay.StoreOptions{
+		SegmentsDoc: "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: vip\n    members: [alice]\n",
+		Logger:      slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(r.Close)
+
+	set, err := r.FlagSets.FlagSet(relay.APIKey)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, evalErr := set.RawVariation("seg-flag", ffcontext.NewEvaluationContext(tt.key), nil)
+			require.NoError(t, evalErr)
+			assert.Equal(t, tt.want, got.Value)
+		})
 	}
 }

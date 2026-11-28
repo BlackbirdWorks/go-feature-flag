@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentobs"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
@@ -133,6 +134,14 @@ func metricNames(t *testing.T) map[string]bool {
 	require.NoError(t, err)
 
 	for _, name := range corehttp.MetricNames() {
+		reg.names[name] = true
+	}
+
+	for _, name := range corehttp.SegmentMetricNames() {
+		reg.names[name] = true
+	}
+
+	for _, name := range []string{segmentobs.MetricLookups, segmentobs.MetricDuration, segmentobs.MetricUnknown} {
 		reg.names[name] = true
 	}
 
