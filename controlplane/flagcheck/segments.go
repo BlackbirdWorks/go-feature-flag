@@ -164,8 +164,8 @@ func (*ReferenceError) Is(target error) bool { return target == ErrSegments }
 
 // CheckSegmentReferences checks the segments of one flag set: a segment name must be defined once in all its
 // segment sources, and every segment("name") that a targeting rule of a flag uses must be defined there. A flag
-// set that has no segment source and no rule that uses a segment is fine. The queries are read with the engine, so
-// a rule that uses the segment in any query format is found. It returns nil or a *ReferenceError.
+// set that has no segment source and no rule that uses a segment is fine. The queries are read with the engine's own
+// reader of the segment terms of a rule. It returns nil or a *ReferenceError.
 func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentFile) error {
 	out := &ReferenceError{FlagSet: flagSet}
 	defined := map[string]string{}
