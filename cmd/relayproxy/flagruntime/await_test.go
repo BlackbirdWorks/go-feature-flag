@@ -130,7 +130,7 @@ func TestEngineAwaitRejectedAndCancelled(t *testing.T) {
 	res := harness.feed(revision(content(1, simpleObjs(t, 1)), 1))
 	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
-	bad := revision(content(2, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}})), 2)
+	bad := revision(content(2, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: objectBogus}})), 2)
 	res = harness.feed(bad)
 	require.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
 
@@ -148,4 +148,58 @@ func TestEngineAwaitRejectedAndCancelled(t *testing.T) {
 
 	_, err = harness.eng.Await(ctx, 9)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+// The decision of a revision comes with the generation the engine served when it decided: a swap that is stored after
+// the decision, and before the caller looks at the runtime, does not change the answer.
+func TestEngineAwaitDecisionHoldsTheGenerationOfTheDecision(t *testing.T) {
+	t.Parallel()
+
+	gate := make(chan struct{})
+	entered := make(chan struct{}, 8)
+
+	harness := newRig(t, flagruntime.Hooks{AfterSwap: func(candidate *flagruntime.Runtime) {
+		if candidate.Generation >= 2 {
+			entered <- struct{}{}
+
+			<-gate
+		}
+	}})
+	harness.start()
+
+	// registered after the rig: the gate opens before the rig stops the engine
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
+
+	res := harness.feed(revision(content(1, simpleObjs(t, 1)), 1))
+	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
+
+	// the generation 2 is stored, and the engine is held before it ends the round: the decision of the revision 1 is
+	// the last one
+	harness.eng.Submit(revision(content(2, simpleObjs(t, 2)), 2))
+
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the engine did not reach the swap")
+	}
+
+	require.Equal(t, uint64(2), harness.holder.Load().Generation, "the runtime already serves the generation 2")
+
+	first, err := harness.eng.AwaitDecision(t.Context(), 1)
+	require.NoError(t, err)
+	assert.Equal(t, flagruntime.OutcomeApplied, first.Reload.Outcome)
+	assert.Equal(t, uint64(1), first.Reload.Generation)
+	assert.Equal(t, uint64(1), first.Running, "the generation of the decision, not the one stored since")
+
+	close(gate)
+
+	second, err := harness.eng.AwaitDecision(t.Context(), 2)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), second.Running)
 }

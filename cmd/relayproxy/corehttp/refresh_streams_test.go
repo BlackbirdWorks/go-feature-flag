@@ -231,7 +231,7 @@ func TestStreams_QueuedPublicChangesDieWithTheWithdrawal(t *testing.T) {
 
 	// the worker takes the change of another flag set and waits on its client; the public change queues behind it
 	streams.Broadcast(other)
-	require.Equal(t, "other", <-gated.entered)
+	assert.Equal(t, "other", gated.awaitEntered(t), "the worker is held on the change of another flag set")
 
 	streams.Broadcast(publicChange(2, "old"))
 
@@ -243,18 +243,38 @@ func TestStreams_QueuedPublicChangesDieWithTheWithdrawal(t *testing.T) {
 	streams.Revalidate(publicRuntime(true))
 	streams.Broadcast(publicChange(4, "new"))
 
-	gated.release <- struct{}{} // the delivery of the other flag set ends
+	gated.releaseOne(t) // the delivery of the other flag set ends
 
-	select {
-	case flagset := <-gated.entered:
-		assert.Equal(t, flagruntime.PublicName, flagset, "the change of the new public flags")
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "the new public change was not delivered")
-	}
+	assert.Equal(t, flagruntime.PublicName, gated.awaitEntered(t), "the change of the new public flags")
 
-	gated.release <- struct{}{}
+	gated.releaseOne(t)
 
 	require.Eventually(t, func() bool { return len(gated.delivered()) == 2 }, 5*time.Second, time.Millisecond)
 	assert.Equal(t, []string{"other:g", flagruntime.PublicName + ":new"}, gated.delivered(),
 		"one public change reached the clients, with the flag of the new public flags only")
+}
+
+// awaitEntered waits for the worker to enter the next delivery and returns the flag set of it.
+func (g *gatedWebsocket) awaitEntered(t *testing.T) string {
+	t.Helper()
+
+	select {
+	case flagset := <-g.entered:
+		return flagset
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the worker did not enter a delivery")
+	}
+
+	return ""
+}
+
+// releaseOne ends the delivery the worker is held in.
+func (g *gatedWebsocket) releaseOne(t *testing.T) {
+	t.Helper()
+
+	select {
+	case g.release <- struct{}{}:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "no delivery was waiting to end")
+	}
 }

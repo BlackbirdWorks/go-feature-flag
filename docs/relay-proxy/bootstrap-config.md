@@ -239,6 +239,28 @@ A flag set that is published **without API keys** (no `apiKeys` in its entry of 
 | `manifest.maxObjects` | integer | `20000` | 1 or more |
 | `stateDir` | string | none | a directory path |
 
+`controlPlane.stateDir` is where the relay keeps the generation it serves, so that a restart while the control plane is
+unreachable serves it at once. The directory holds **what the relay serves**, and only that:
+
+- It is written after the engine stored the content of a generation, and it is derived from the running runtime: the
+  manifest of the generation that runs and, for every object, the bytes of the checksum the runtime holds. A
+  generation that the engine rejects (a build failure, a flag key defined in two public flag sets) is never written, a
+  change of the bootstrap file (an admin key) that is stored in the same round as rejected content writes nothing of
+  that content, and a first generation that is never applied leaves no manifest or object on disk.
+- An object the runtime holds from earlier content (its download failed, or its bytes could not be decoded) is written
+  with the bytes the runtime holds, as a stale object, never with the latest bytes the reader fetched for its name. At
+  restart it is stale with the same bytes.
+- The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. Objects whose checksum is already on disk are not written again, and an identical state is not written at all. The
+  files are written to a temporary name and renamed, so a crash leaves the previous state readable, and a half
+  written file is never loaded.
+- **What a restart does not restore**: a flag that fails validation keeps serving its earlier definition while the relay
+  runs. The directory holds the bytes of the object, not that earlier definition, so a restart serves no such flag
+  (the other flags of the object are served). `/info` counts them: `objects[].kept` per object and
+  `config.state.keptFlags` in all.
+- A write that fails (a full disk, a permission) is logged, counted in `semaphore_manifest_state_saves_total` with `result="error"`
+  (its labels are the connection and the result), and its closed reason is `config.state.lastSaveError` in `/info`; both are current when the write ends. The relay goes on serving. At shutdown the
+  last applied generation is written within the shutdown deadline.
+
 ### `connections.<name>`
 
 Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis` and `valkey` are supported. Types that are planned

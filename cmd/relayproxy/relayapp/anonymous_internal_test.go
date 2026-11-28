@@ -27,6 +27,7 @@ const (
 	bannerText        = "Semaphore Relay Proxy"
 	bulkBody          = `{"context":{"targetingKey":"u"}}`
 	headerAPIKey      = "X-Api-Key"
+	headerAccept      = "Accept"
 	headerContentType = "Content-Type"
 	mimeJSON          = "application/json"
 )
@@ -82,7 +83,7 @@ func (r *relayRig) pollRejected(t *testing.T, gen uint64, wantCode string) {
 func (r *relayRig) infoPublic(t *testing.T) string {
 	t.Helper()
 
-	status, body := get(t, r.url+infoPath, http.Header{"Accept": {mimeJSON}})
+	status, body := get(t, r.url+infoPath, http.Header{headerAccept: {mimeJSON}})
 	require.Equal(t, http.StatusOK, status)
 
 	_, after, found := strings.Cut(body, `"public":`)

@@ -85,101 +85,96 @@ func TestRunKeylessCallerSeesOnlyThePublicFlags(t *testing.T) {
 	rig.poll()
 
 	tests := []struct {
-		check  func(t *testing.T, status int, body string)
 		name   string
 		method string
 		path   string
 		body   string
+		// wantContains and wantAbsent are texts the body has and does not have; wantKeys are the keys of the flags
+		// object of the body, when it has one
+		wantContains []string
+		wantAbsent   []string
+		wantKeys     []string
+		wantStatus   int
 	}{
 		{
-			name:   "the single evaluation of a private flag",
-			method: http.MethodPost,
-			path:   "/v1/feature/f/eval",
-			body:   evalBody,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Contains(t, body, `"errorCode":"FLAG_NOT_FOUND"`)
-			},
+			name: "the single evaluation of a private flag", method: http.MethodPost, path: "/v1/feature/f/eval",
+			body: evalBody, wantStatus: http.StatusOK, wantContains: []string{`"errorCode":"FLAG_NOT_FOUND"`},
 		},
 		{
-			name:   "the single evaluation of a public flag",
-			method: http.MethodPost,
-			path:   "/v1/feature/pub/eval",
-			body:   evalBody,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Contains(t, body, `"value":7`)
-			},
+			name: "the single evaluation of a public flag", method: http.MethodPost, path: "/v1/feature/pub/eval",
+			body: evalBody, wantStatus: http.StatusOK, wantContains: []string{`"value":7`},
 		},
 		{
 			name: "all the flags", method: http.MethodPost, path: "/v1/allflags", body: contextBody,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Equal(t, []string{publicFlag}, keysOf(t, body, "flags"))
-			},
+			wantStatus: http.StatusOK, wantKeys: []string{publicFlag},
 		},
 		{
 			name: "the change hashes", method: http.MethodGet, path: "/v1/flag/change",
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Equal(t, []string{publicFlag}, keysOf(t, body, "flags"))
-			},
+			wantStatus: http.StatusOK, wantKeys: []string{publicFlag},
 		},
 		{
 			name: "the configuration, asked for both flags", method: http.MethodPost, path: "/v1/flag/configuration",
-			body: `{"flags":["f","pub"]}`,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Equal(t, []string{publicFlag}, keysOf(t, body, "flags"))
-			},
+			body: `{"flags":["f","pub"]}`, wantStatus: http.StatusOK, wantKeys: []string{publicFlag},
 		},
 		{
 			name: "the manifest", method: http.MethodGet, path: "/openfeature/v0/manifest",
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.NotContains(t, body, `"f"`)
-			},
+			wantStatus: http.StatusOK, wantAbsent: []string{`"f"`},
 		},
 		{
 			name: "the OFREP evaluation of a private flag", method: http.MethodPost, path: evalPath, body: bulkBody,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusNotFound, status)
-				assert.Contains(t, body, `"errorCode":"FLAG_NOT_FOUND"`)
-			},
+			wantStatus: http.StatusNotFound, wantContains: []string{`"errorCode":"FLAG_NOT_FOUND"`},
 		},
 		{
 			name: "the OFREP bulk evaluation", method: http.MethodPost, path: anonymousBulkPath, body: bulkBody,
-			check: func(t *testing.T, status int, body string) {
-				t.Helper()
-				assert.Equal(t, http.StatusOK, status)
-				assert.Contains(t, body, `"key":"pub"`)
-				assert.NotContains(t, body, `"key":"f"`)
-			},
+			wantStatus: http.StatusOK, wantContains: []string{`"key":"pub"`}, wantAbsent: []string{`"key":"f"`},
 		},
 	}
 
 	for _, tt := range tests {
-		var status int
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		var body string
+			var (
+				status int
+				body   string
+			)
 
-		if tt.method == http.MethodGet {
-			status, body = get(t, rig.url+tt.path, http.Header{"Accept": {mimeJSON}})
-		} else {
-			status, body = doRequest(t, tt.method, rig.url+tt.path, tt.body, jsonHeader())
-		}
+			if tt.method == http.MethodGet {
+				status, body = get(t, rig.url+tt.path, http.Header{headerAccept: {mimeJSON}})
+			} else {
+				status, body = doRequest(t, tt.method, rig.url+tt.path, tt.body, jsonHeader())
+			}
 
-		tt.check(t, status, body)
+			assert.Equal(t, tt.wantStatus, status)
+
+			for _, want := range tt.wantContains {
+				assert.Contains(t, body, want)
+			}
+
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, body, absent)
+			}
+
+			if tt.wantKeys != nil {
+				assert.Equal(t, tt.wantKeys, keysOf(t, body, "flags"))
+			}
+		})
 	}
+}
 
-	// the collector: the events of a private flag are dropped and counted, the answer has the shape it always has
+// The collector of a caller without a key: the events of a private flag are dropped and counted, and the answer keeps
+// the shape it always has.
+func TestRunKeylessCollectorDropsTheEventsOfPrivateFlags(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
+	rig.awaitGeneration(1)
+
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(1), openObject: flagYAMLOf(publicFlag, 7),
+	})
+	rig.poll()
+
 	assert.Equal(
 		t,
 		`semaphore_events_dropped_total{reason="not_public"} 0`,

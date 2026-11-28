@@ -9,6 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
@@ -100,6 +101,14 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	state, hooks, reason := openStateDir(plane, rcfg, deps, c.log)
 	c.state, c.stateDisabled = state, reason
 
+	// the state directory holds what the engine applied: the reader offers its snapshots, the engine decides
+	var persist *persister
+
+	if hooks.Save != nil {
+		persist = newPersister(hooks.Save, func() uint64 { return c.engine.Taken() })
+		hooks.Save = persist.offer
+	}
+
 	opts := []manifestreader.Option{
 		manifestreader.WithLogger(c.log), manifestreader.WithHooks(hooks), manifestreader.WithObjectStores(stores),
 	}
@@ -120,7 +129,11 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	engineHooks := deps.Hooks
 	afterRound := engineHooks.AfterRound
 	engineHooks.AfterRound = func(res flagruntime.RoundResult) {
-		c.reloads.record(res)
+		c.reloads.record(&res)
+
+		if persist != nil {
+			persist.decided(&res, c.holder.Load().Status.Objects)
+		}
 
 		if afterRound != nil {
 			afterRound(res)
@@ -170,6 +183,12 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 			c.collector = nil
 
 			return &BuildError{Path: "observability.metrics", Err: fmt.Errorf("register the events collector: %w", err)}
+		}
+
+		// the reader of the manifest: its polls and the writes of the state directory, with the connection as the one label
+		c.readerMetrics, err = metric.NewManifestReader(c.registry, cfg.ControlPlane.Connection, c.readerStatus)
+		if err != nil {
+			return &BuildError{Path: "observability.metrics", Err: fmt.Errorf("register the reader metrics: %w", err)}
 		}
 	}
 
