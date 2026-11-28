@@ -120,7 +120,14 @@ func TestFake_commitMore(t *testing.T) {
 	store.WithoutUnlink()
 
 	_, fell, err := store.Commit(ctx, &segmentadmin.Commit{
-		Lock: lock, Tmp: tmp, Live: live, Old: old, Committed: "p:{s}:import:other", Token: token, Empty: true,
+		Lock:      lock,
+		Tmp:       tmp,
+		Live:      live,
+		Old:       old,
+		Committed: "p:{s}:import:other",
+		Source:    "p:{s}:import:src",
+		Token:     token,
+		Empty:     true,
 	})
 	require.NoError(t, err)
 

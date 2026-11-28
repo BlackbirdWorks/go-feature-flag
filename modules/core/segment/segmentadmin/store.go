@@ -138,8 +138,13 @@ type Commit struct {
 	// Lock, Tmp, Live and Old are the keys. Committed holds the token of the run once its swap is applied, so that
 	// a second call with the same token (after a lost reply) is answered AlreadyCommitted.
 	Lock, Tmp, Live, Old, Committed string
+	// Source is the key that holds the fingerprint of the input, in the slot of the live key.
+	Source string
 	// Token is the token of the run.
 	Token string
+	// Fingerprint is the fingerprint of the input that the new set was built from. It is stored in the key Source in
+	// the step of the swap; empty removes the key (the set no longer comes from a source that was fingerprinted).
+	Fingerprint string
 	// Want is the least cardinality that the temporary key must have: the members that the run saw added (a batch
 	// that was sent twice counts once, so the key may hold more).
 	Want int64
@@ -175,7 +180,8 @@ type Locker interface {
 	) (changed int64, locked bool, err error)
 	// Commit swaps in one step on the server: if the lock holds the token, the temporary key exists and has Want
 	// members, the live key moves to Old (with its expiry), the temporary key becomes the live key and loses its
-	// expiry. Otherwise nothing changes. fellBack is true when the empty path had to use DEL.
+	// expiry. Otherwise nothing changes. The fingerprint is recorded in the same step. fellBack is true when the
+	// empty path had to use DEL.
 	Commit(ctx context.Context, commit *Commit) (result CommitResult, fellBack bool, err error)
 }
 

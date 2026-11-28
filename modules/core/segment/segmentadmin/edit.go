@@ -199,18 +199,14 @@ func prefixed(prefix string, ids []string) []string {
 
 // Stats is what Stat tells of a segment.
 type Stats struct {
-	// Version is the value of the version key, when HasVersion.
-	Version string
-	// Count is the members of the segment (at least that many when AtLeast).
-	Count int64
-	// TTL is the time to live of the set, zero for none.
-	TTL time.Duration
-	// Exists tells that the set (or any member key) exists.
-	Exists bool
-	// AtLeast tells that the count of a keys layout segment hit the bound.
-	AtLeast bool
-	// HasVersion tells that the segment has a version key and it holds a value.
+	Version    string
+	Count      int64
+	TTL        time.Duration
+	LockTTL    time.Duration
+	Exists     bool
+	AtLeast    bool
 	HasVersion bool
+	LockHeld   bool
 }
 
 // Stat reads the existence, the cardinality, the version and the ttl of a segment. A keys layout segment is counted by
@@ -231,6 +227,18 @@ func Stat(ctx context.Context, store Store, target *Target, scanLimit int) (*Sta
 
 	if err != nil {
 		return nil, err
+	}
+
+	if target.Layout != redissegment.LayoutKeys {
+		keys, keysErr := ImportKeys(target.Key, "")
+		if keysErr != nil {
+			return nil, keysErr
+		}
+
+		out.LockHeld, out.LockTTL, err = store.KeyTTL(ctx, keys.Lock)
+		if err != nil {
+			return nil, fmt.Errorf("read the import lock: %w", err)
+		}
 	}
 
 	if target.VersionKey != "" {

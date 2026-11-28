@@ -173,9 +173,9 @@ func (s *ValkeyStore) EditSet(
 func (s *ValkeyStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
 	args := []string{
 		commit.Token, strconv.FormatInt(commit.Want, 10), strconv.FormatInt(commit.OldTTL.Milliseconds(), 10),
-		flag(commit.Empty),
+		flag(commit.Empty), commit.Fingerprint,
 	}
-	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed}
+	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed, commit.Source}
 
 	code, err := s.commit.Exec(ctx, s.client, keys, args).AsInt64()
 	if err != nil {

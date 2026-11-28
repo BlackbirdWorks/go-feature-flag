@@ -22,15 +22,17 @@ var ErrNoInput = errors.New("give at least one id, or --from <file|->")
 func HelpVars() kong.Vars {
 	return kong.Vars{
 		"helpSegment": "Load and edit the members of a dynamic segment in its Valkey or Redis store",
-		"helpSegImport": "Replace the members of a segment from a file or standard input, with an atomic swap " +
+		"helpSegImport": "Replace the members of a segment from a file, standard input or S3, with an atomic swap " +
 			"(a temporary key, then RENAME)",
-		"helpSegAdd":     "Add ids to the segment and bump its version key",
-		"helpSegRemove":  "Remove ids from the segment and bump its version key",
-		"helpSegBump":    "Bump the version key of the segment only, so that the relays read it again",
-		"helpSegStat":    "Show whether the segment exists, how many members it has, its version and its ttl",
-		"helpSegFrom":    "File of ids, or - for standard input",
-		"helpSegConfig":  "Bootstrap file with the connections (or SEMAPHORE_CONFIG)",
-		"helpSegDoc":     "Segments document (YAML or JSON) that defines the segment",
+		"helpSegAdd":    "Add ids to the segment and bump its version key",
+		"helpSegRemove": "Remove ids from the segment and bump its version key",
+		"helpSegBump":   "Bump the version key of the segment only, so that the relays read it again",
+		"helpSegStat":   "Show whether the segment exists, how many members it has, its version and its ttl",
+		"helpSegFrom": "File of ids, - for standard input, or s3://bucket/key " +
+			"(s3://bucket/prefix/ for every object under it)",
+		"helpSegConfig": "Bootstrap file with the connections (or SEMAPHORE_CONFIG)",
+		"helpSegDoc": "Segments document (YAML or JSON) that defines the segment; without it the segments objects " +
+			"of the control plane are read",
 		"helpSegName":    "Name of the segment in the document",
 		"helpSegDebug":   "Log each step to stderr (counts only, never an id)",
 		"helpSegFormat":  "Input format: lines or csv",
@@ -42,6 +44,13 @@ func HelpVars() kong.Vars {
 		"helpSegDry":     "Read and validate the input, write nothing",
 		"helpSegIDs":     "Ids to add or remove",
 		"helpSegScan":    "Most keys that a keys layout segment is counted to",
+		"helpSegSrc": "Name of the s3 connection of the bootstrap file that holds the source (needed when it has " +
+			"more than one)",
+		"helpSegMaxObj":   "Most objects of an s3 prefix; more is an error, never a partial read",
+		"helpSegSegment":  "Segment to keep in step with the source",
+		"helpSegInterval": "Pause between two checks of the source",
+		"helpSegOnce":     "Check once and exit (0 when the source is unchanged or imported)",
+		"helpSegSync":     "Keep the segment in step with an s3 object or prefix: import it when its fingerprint changes",
 	}
 }
 
@@ -52,26 +61,28 @@ type Cmd struct {
 	Stat   StatCmd   `cmd:""                 help:"${helpSegStat}"`
 	Bump   BumpCmd   `cmd:""                 help:"${helpSegBump}"`
 	Import ImportCmd `cmd:""                 help:"${helpSegImport}"`
+	Sync   SyncCmd   `cmd:""                 help:"${helpSegSync}"`
 	Debug  bool      `help:"${helpSegDebug}" name:"debug"`
 }
 
 // Common are the flags that name the segment and the store.
 type Common struct {
 	Config   string `help:"${helpSegConfig}" name:"config"   short:"c"`
-	Segments string `help:"${helpSegDoc}"    name:"segments" required:"true"`
+	Segments string `help:"${helpSegDoc}"    name:"segments"`
 	Segment  string `help:"${helpSegName}"   name:"segment"  required:"true"`
 }
 
 // session is a resolved segment and its connected store.
 type session struct {
 	store  segmentadmin.Store
+	res    *resolved
 	target *segmentadmin.Target
 	log    *slog.Logger
 	out    io.Writer
 }
 
 func open(ctx context.Context, com *Common, debug bool, streams *helper.Streams, deps *Deps) (*session, error) {
-	res, err := resolve(com, deps)
+	res, err := resolve(ctx, com, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +107,7 @@ func open(ctx context.Context, com *Common, debug bool, streams *helper.Streams,
 	logger.LogAttrs(ctx, slog.LevelDebug, "segment resolved", slog.String("segment", com.Segment),
 		slog.String("connection", res.connName), slog.String("layout", string(res.target.Layout)))
 
-	return &session{store: store, target: res.target, log: logger, out: streams.Stdout}, nil
+	return &session{store: store, res: res, target: res.target, log: logger, out: streams.Stdout}, nil
 }
 
 // inputSource is the ids of one command: a file, standard input or the arguments.
@@ -148,10 +159,13 @@ func wrapErr(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, segmentadmin.ErrEmptyInput), errors.Is(err, segmentadmin.ErrKeysLayout),
-		errors.Is(err, segmentadmin.ErrBadOptions), errors.Is(err, segmentadmin.ErrKeyOverlap):
+		errors.Is(err, segmentadmin.ErrBadOptions), errors.Is(err, segmentadmin.ErrKeyOverlap),
+		errors.Is(err, segmentadmin.ErrObjectURL), errors.Is(err, segmentadmin.ErrTooManyObjects),
+		errors.Is(err, ErrSourceConnection), errors.Is(err, ErrNoControlPlane):
 		code = helper.ExitInvalid
 	case errors.Is(err, segmentadmin.ErrImportRunning), errors.Is(err, segmentadmin.ErrLockLost),
-		errors.Is(err, segmentadmin.ErrTempGone), errors.Is(err, segmentadmin.ErrIncomplete):
+		errors.Is(err, segmentadmin.ErrTempGone), errors.Is(err, segmentadmin.ErrIncomplete),
+		errors.Is(err, segmentadmin.ErrSourceChanged), errors.Is(err, segmentadmin.ErrObjectChanged):
 		code = helper.ExitConflict
 	case errors.Is(err, segmentadmin.ErrSwapUnknown):
 		code = helper.ExitUnknown
@@ -234,7 +248,7 @@ func (s *session) report(ctx context.Context, name, verb string, rep *segmentadm
 
 // Run parses args against the segment command tree and runs the selected subcommand. It is for tests and embedders;
 // the semaphore-cli binary mounts [Cmd] in its own tree.
-func Run(ctx context.Context, args []string, streams *helper.Streams, deps Deps) error {
+func Run(ctx context.Context, args []string, streams *helper.Streams, deps *Deps) error {
 	var runner struct {
 		Cmd
 	}
@@ -257,7 +271,7 @@ func Run(ctx context.Context, args []string, streams *helper.Streams, deps Deps)
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	err = kctx.Run(&runner.Cmd, streams, &deps)
+	err = kctx.Run(&runner.Cmd, streams, deps)
 	if err != nil {
 		return fmt.Errorf("segment: %w", err)
 	}
