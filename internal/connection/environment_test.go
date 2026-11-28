@@ -250,18 +250,18 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 		SecretAccessKey: connection.NewSecret("spec"),
 	}
 	tests := []struct {
-		name         string
-		creds        connection.Credentials
-		envBundle    string // "a", "b" or bundleGarbage: the content of AWS_CA_BUNDLE
-		wantErr      string // on the request, empty: it succeeds
-		wantBuildErr string // on the build of the client
-		specBundle   string // the CA of the spec bundle: "a", "b" or empty for none
+		name          string
+		creds         connection.Credentials
+		envBundle     string // "a", "b" or bundleGarbage: the content of AWS_CA_BUNDLE
+		wantBuildErr  string // on the build of the client
+		specBundle    string // the CA of the spec bundle: "a", "b" or empty for none
+		wantUntrusted bool
 	}{
 		{
-			name:      "static, environment bundle A is not trusted",
-			creds:     staticCreds,
-			envBundle: "a",
-			wantErr:   unknownAuthority,
+			name:          "static, environment bundle A is not trusted",
+			creds:         staticCreds,
+			envBundle:     "a",
+			wantUntrusted: true,
 		},
 		{
 			name:       "static, spec bundle A, environment garbage",
@@ -271,12 +271,17 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 		},
 		{name: "static, spec bundle A, environment bundle B", creds: staticCreds, envBundle: "b", specBundle: "a"},
 		{
-			name:  "static, spec bundle B, environment bundle A: the environment is not merged or substituted",
-			creds: staticCreds, envBundle: "a", specBundle: "b", wantErr: unknownAuthority,
+			name:          "static, spec bundle B, environment bundle A: the environment is not merged or substituted",
+			creds:         staticCreds,
+			envBundle:     "a",
+			specBundle:    "b",
+			wantUntrusted: true,
 		},
 		{
-			name: "chain, environment bundle A is not trusted", creds: connection.Credentials{}, envBundle: "a",
-			wantErr: unknownAuthority,
+			name:          "chain, environment bundle A is not trusted",
+			creds:         connection.Credentials{},
+			envBundle:     "a",
+			wantUntrusted: true,
 		},
 		{
 			name:       "chain, spec bundle A, environment bundle B",
@@ -328,13 +333,13 @@ func TestFactory_DataPlaneIgnoresTheEnvironmentCABundle(t *testing.T) {
 			require.NoError(t, err)
 
 			err = headObject(t, client)
-			if tt.wantErr == "" {
+			if !tt.wantUntrusted {
 				require.NoError(t, err)
 
 				return
 			}
 
-			require.ErrorContains(t, err, tt.wantErr)
+			requireUntrustedCertError(t, err)
 		})
 	}
 }
@@ -434,7 +439,7 @@ func TestFactory_AssumeRoleHops(t *testing.T) {
 			if tt.wantFailingHop == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorContains(t, err, unknownAuthority)
+				requireUntrustedCertError(t, err)
 			}
 
 			// the STS call comes first: if it completed no request, it is the hop that failed

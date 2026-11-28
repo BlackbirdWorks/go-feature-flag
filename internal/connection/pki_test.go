@@ -9,11 +9,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -22,11 +24,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The certificates are valid from 2020 to 2120. TLS verification reads the real time, and the tests must not
-// depend on it (nor inject a clock into the production TLS config), so the window is a wide fixed one that
-// stays valid for decades.
-func certValidFrom() time.Time  { return time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC) }
-func certValidUntil() time.Time { return time.Date(2120, 1, 1, 0, 0, 0, 0, time.UTC) }
+const (
+	certValidBackdate = time.Hour
+	certValidForward  = 24 * time.Hour
+	darwinUntrusted   = "certificate is not trusted"
+)
+
+// certValidity returns a short window around the current wall clock. Production TLS verification always checks
+// certificates against the real clock, and macOS Security.framework rejects TLS server certificates issued on
+// or after 2019-07-01 whose validity exceeds 825 days as not standards compliant before checking trust.
+func certValidity() (time.Time, time.Time) {
+	now := time.Now().UTC()
+
+	return now.Add(-certValidBackdate), now.Add(certValidForward)
+}
 
 // testCA is a certificate authority created for one test, and the servers it can sign for.
 type testCA struct {
@@ -45,11 +56,13 @@ func newTestCA(t *testing.T, name string) *testCA {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
+	notBefore, notAfter := certValidity()
+
 	template := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: name},
-		NotBefore:             certValidFrom(),
-		NotAfter:              certValidUntil(),
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
@@ -121,11 +134,13 @@ func (ca *testCA) serve(t *testing.T, handler http.Handler, configure func(*http
 
 	ca.serial++
 
+	notBefore, notAfter := certValidity()
+
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(ca.serial),
 		Subject:      pkix.Name{CommonName: "127.0.0.1"},
-		NotBefore:    certValidFrom(),
-		NotAfter:     certValidUntil(),
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
@@ -151,4 +166,30 @@ func (ca *testCA) serve(t *testing.T, handler http.Handler, configure func(*http
 
 func okHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+}
+
+// requireUntrustedCertError asserts that err failed TLS certificate verification because the server's
+// authority is not trusted. Custom CA bundles and non-Darwin platforms return [x509.UnknownAuthorityError];
+// macOS Security.framework reports system-roots untrusted-authority errors as "certificate is not trusted"
+// rather than mapping them to [x509.UnknownAuthorityError].
+func requireUntrustedCertError(t *testing.T, err error) {
+	t.Helper()
+
+	var verifyErr *tls.CertificateVerificationError
+
+	require.ErrorAs(t, err, &verifyErr)
+
+	if _, ok := errors.AsType[x509.UnknownAuthorityError](verifyErr.Err); ok {
+		return
+	}
+
+	if runtime.GOOS == "darwin" {
+		require.ErrorContains(t, verifyErr.Err, darwinUntrusted)
+
+		return
+	}
+
+	var unknownAuth x509.UnknownAuthorityError
+
+	require.ErrorAs(t, verifyErr.Err, &unknownAuth)
 }
