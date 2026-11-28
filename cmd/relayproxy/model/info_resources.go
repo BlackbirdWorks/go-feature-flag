@@ -12,13 +12,6 @@ type FlagSetInfo struct { //nolint:govet // fieldalignment: the field order is t
 	Segments *SegmentCountsInfo `json:"segments,omitempty"`
 }
 
-// SegmentCountsInfo is the number of segments of a flag set: static (members in the document) and dynamic (members in
-// a store).
-type SegmentCountsInfo struct {
-	Static  int `json:"static"`
-	Dynamic int `json:"dynamic"`
-}
-
 // ProblemInfo is a reported problem of a flag set: a closed code and the object it is about. The free text of the
 // problem is not served, for it can quote the content of an object.
 type ProblemInfo struct {

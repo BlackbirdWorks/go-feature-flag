@@ -45,13 +45,17 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 		Updated: map[string]notifier.DiffUpdated{},
 	}
 
-	var oldFlags, newFlags map[string]*flagdef.InternalFlag
+	var (
+		oldFlags, newFlags map[string]*flagdef.InternalFlag
+		oldSigs, newSigs   map[string]uint64
+	)
+
 	if oldSet != nil {
-		oldFlags = oldSet.Flags
+		oldFlags, oldSigs = oldSet.Flags, oldSet.flagSigs
 	}
 
 	if newSet != nil {
-		newFlags = newSet.Flags
+		newFlags, newSigs = newSet.Flags, newSet.flagSigs
 	}
 
 	for key, now := range newFlags {
@@ -59,7 +63,7 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 
 		switch {
 		case !ok:
-			diff.Added[key] = now
+			addSigned(diff.Added, key, now, newSigs)
 		case before != now:
 			diff.Updated[key] = notifier.DiffUpdated{Before: before, After: now}
 		}
@@ -72,11 +76,24 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 
 	for key, before := range oldFlags {
 		if _, ok := newFlags[key]; !ok {
-			diff.Deleted[key] = before
+			addSigned(diff.Deleted, key, before, oldSigs)
 		}
 	}
 
 	return diff
+}
+
+// addSigned records the flag as a side of an added or deleted change: a flag that uses segments carries the signature
+// of its segments, so that a flag that is removed and restored with the same segments composes to no change. A flag
+// that uses no segment is the flag itself.
+func addSigned(into map[string]flagdef.Flag, key string, flag *flagdef.InternalFlag, sigs map[string]uint64) {
+	if sig, ok := sigs[key]; ok {
+		into[key] = reevaluated{Flag: flag, sig: sig}
+
+		return
+	}
+
+	into[key] = flag
 }
 
 // updateReevaluated adds, for the flags that are the same in both flag sets and whose segment signature differs, an
@@ -123,6 +140,13 @@ type reevaluated struct {
 	flagdef.Flag
 
 	sig uint64
+}
+
+// Internal returns the flag itself, so that a notifier reads it (its editor, its changes).
+func (r reevaluated) Internal() *flagdef.InternalFlag {
+	internal, _ := r.Flag.(*flagdef.InternalFlag)
+
+	return internal
 }
 
 // MarshalJSON encodes the flag.

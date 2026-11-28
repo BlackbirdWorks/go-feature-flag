@@ -10,6 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
@@ -143,6 +144,7 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 
 	c.engine = flagruntime.NewEngine(c.log, c.svc, c.holder,
 		flagruntime.WithHooks(engineHooks),
+		flagruntime.WithSegmentStores(segmentstore.New(cfg)),
 		flagruntime.WithSecretOptions(deps.Secrets),
 		flagruntime.WithInitialBootstrap(cfg),
 	)

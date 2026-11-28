@@ -70,7 +70,9 @@ type FlagSet struct {
 	flagCatalogs map[string]*segment.Catalog
 	// flagSigs is, for each flag of the set that uses segments, a hash of the segments it uses (members included). Two
 	// builds of a flag set that hold the same flag pointer differ for a flag when its signature differs.
-	flagSigs   map[string]uint64
+	flagSigs map[string]uint64
+	// uses is, for each flag of the set that uses segments, the segments it uses and whether one is dynamic.
+	uses       map[string]segUse
 	Name       string
 	State      SetState
 	Hash       uint64
@@ -149,4 +151,27 @@ func newEmptyRuntime() *Runtime {
 			Objects:  map[string]*ObjectStatus{},
 		},
 	}
+}
+
+// SegmentUse tells which segments the rules of a flag use (sorted names, scheduled steps included; nil for a flag
+// that uses none) and whether the flag needs the server to be evaluated: one of them is dynamic (its members live in a
+// store) or cannot be resolved by the flag set (no source defines it). It does not allocate.
+func (f *FlagSet) SegmentUse(flagKey string) ([]string, bool) {
+	if f == nil {
+		return nil, false
+	}
+
+	use := f.uses[flagKey]
+
+	return use.names, use.dynamic || use.unresolved
+}
+
+// usesDynamicSegment tells whether the rules of a flag use a dynamic segment. It does not allocate, and costs nothing
+// for a flag set that has no flag that uses segments.
+func (f *FlagSet) usesDynamicSegment(flagKey string) bool {
+	if f == nil || f.uses == nil {
+		return false
+	}
+
+	return f.uses[flagKey].dynamic
 }

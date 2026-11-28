@@ -67,11 +67,28 @@ func DescribeChangesPlain(before, after flagdef.Flag) ([]string, error) {
 	return describeDiff(before, after, func(text string) string { return text })
 }
 
-func describeDiff(before, after flagdef.Flag, code func(string) string) ([]string, error) {
-	b, okBefore := before.(*flagdef.InternalFlag)
+// Wrapper is implemented by a flag that wraps an internal flag, for example to carry the signature of the segments it
+// uses: the notifiers read the flag inside.
+type Wrapper interface {
+	// Internal returns the flag that is wrapped.
+	Internal() *flagdef.InternalFlag
+}
 
-	afterFlag, okAfter := after.(*flagdef.InternalFlag)
-	if !okBefore || !okAfter || b == nil || afterFlag == nil {
+// internal returns the internal flag of a flag, wrapped or not; nil for any other flag.
+func internal(f flagdef.Flag) *flagdef.InternalFlag {
+	switch typed := f.(type) {
+	case *flagdef.InternalFlag:
+		return typed
+	case Wrapper:
+		return typed.Internal()
+	}
+
+	return nil
+}
+
+func describeDiff(before, after flagdef.Flag, code func(string) string) ([]string, error) {
+	b, afterFlag := internal(before), internal(after)
+	if b == nil || afterFlag == nil {
 		return nil, fmt.Errorf("%w %T and %T", errImpossibleToDescribeChanges, before, after)
 	}
 
@@ -86,8 +103,8 @@ const UpdatedByMetadataKey = "updatedBy"
 
 // UpdatedBy returns the updatedBy metadata of a *flag.InternalFlag, or "" when it is missing, empty or not a string.
 func UpdatedBy(f flagdef.Flag) string {
-	internalFlag, ok := f.(*flagdef.InternalFlag)
-	if !ok || internalFlag == nil {
+	internalFlag := internal(f)
+	if internalFlag == nil {
 		return ""
 	}
 

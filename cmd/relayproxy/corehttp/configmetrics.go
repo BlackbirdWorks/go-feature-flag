@@ -79,7 +79,9 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 			metricAge,
 			"Seconds since the control plane last confirmed the manifest.",
 		),
-		counts: desc(metricResources, "Resources by kind (flagset, object) and state.", "kind", "state"),
+		counts: desc(
+			metricResources, "Resources by kind (flagset, object, dynamicSegment) and state.", "kind", "state",
+		),
 		named: desc(metricResource, "1 for a resource that is not ready, by kind and name; at most "+
 			strconv.Itoa(maxNamedResources)+" per kind.", "kind", "name", "state"),
 		pending: desc(metricPending, "Settings that changed in the bootstrap file and need a restart."),
@@ -164,6 +166,10 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 
 	for _, state := range objectStates() {
 		gauge(c.counts, float64(sum.objects[state]), kindObject, state)
+	}
+
+	for _, state := range []string{stateValid, stateRejected} {
+		gauge(c.counts, float64(sum.dynamic[state]), kindDynamicSegment, state)
 	}
 
 	for _, bad := range sum.badSets[:min(len(sum.badSets), maxNamedResources)] {

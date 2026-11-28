@@ -47,12 +47,18 @@ type Built struct {
 	decF    []string
 	incD    []string
 	decD    []string
+	// SegmentRejections lists the segments objects whose content this build met and rejected, once each: a build that
+	// finds the content it already rejected lists nothing.
+	SegmentRejections []SegmentRejection
 	// Stats counts the work of the build.
 	Stats Stats
 }
 
 // BuilderOptions configure a [Builder].
 type BuilderOptions struct {
+	// SegmentStores tells what the connections of the bootstrap file can serve: a dynamic segment is checked against
+	// it when its segments object is read. Nil means the connections are not known and are not checked.
+	SegmentStores SegmentStores
 	// OnParse is called once for every object that is parsed (not for an object served from the cache).
 	OnParse func(ParseEvent)
 	// Now returns the time stamped on the flag sets that a build creates ([FlagSet.ModifiedAt]). Nil means

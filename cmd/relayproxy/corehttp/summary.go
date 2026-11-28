@@ -20,6 +20,11 @@ const (
 const (
 	kindFlagSet = "flagset"
 	kindObject  = "object"
+	// kindDynamicSegment counts the dynamic segment definitions of the flag sets, by state.
+	kindDynamicSegment = "dynamicSegment"
+	// The states of a dynamic segment: served as defined, or rejected because the connections cannot serve it.
+	stateValid    = "valid"
+	stateRejected = "rejected"
 )
 
 // unhealthy is a resource that is not ready.
@@ -37,6 +42,7 @@ type summary struct {
 	objects     map[string]int
 	// rejected counts the rejected flags present in the objects, by reason (kept, dropped).
 	rejected  map[string]int
+	dynamic   map[string]int
 	badSets   []unhealthy
 	badObject []unhealthy
 }
@@ -80,7 +86,12 @@ func (sum *summary) addObjects(objects map[string]*flagruntime.ObjectStatus) {
 
 func (c *summaries) of(status *flagruntime.Status) *summary {
 	if status == nil {
-		return &summary{flagSets: map[string]int{}, objects: map[string]int{}, rejected: map[string]int{}}
+		return &summary{
+			flagSets: map[string]int{},
+			objects:  map[string]int{},
+			rejected: map[string]int{},
+			dynamic:  map[string]int{},
+		}
 	}
 
 	if cached := c.last.Load(); cached != nil && cached.status == status {
@@ -89,11 +100,21 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 
 	c.computed.Add(1)
 
-	sum := &summary{flagSets: map[string]int{}, objects: map[string]int{}, rejected: map[string]int{}}
+	sum := &summary{
+		flagSets: map[string]int{},
+		objects:  map[string]int{},
+		rejected: map[string]int{},
+		dynamic:  map[string]int{},
+	}
 
 	for name, set := range status.FlagSets {
 		state := setLabel(set.State)
 		sum.flagSets[state]++
+
+		if set.Segments != nil {
+			sum.dynamic[stateValid] += set.Segments.Dynamic - set.Segments.RejectedDefinitions
+			sum.dynamic[stateRejected] += set.Segments.RejectedDefinitions
+		}
 
 		if state != resourceReady {
 			sum.badSets = append(sum.badSets, unhealthy{name: name, state: state})

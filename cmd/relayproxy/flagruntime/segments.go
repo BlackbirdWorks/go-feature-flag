@@ -2,6 +2,7 @@ package flagruntime
 
 import (
 	"maps"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -19,6 +20,7 @@ type segState struct {
 	doc       *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
 	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
 	hashes    map[string]uint64              // the content hash of each definition (members included), built once
+	rejected  map[string]struct{}            // the dynamic definitions that the connections cannot serve
 	name      string
 	checksum  string
 	attempted string
@@ -69,16 +71,36 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		next.state, next.reason, next.attempted = ObjectInvalid, err.Error(), sum
 		next.status = segStatus(next)
 
+		st.built.SegmentRejections = append(st.built.SegmentRejections,
+			SegmentRejection{Object: name, Checksum: sum, Reason: next.reason})
+
 		return next
 	}
 
+	check := st.noteDynamic(name, sum, doc)
+
 	next := &segState{
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
-		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc),
+		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: nameSet(check.names),
 	}
 	next.status = segStatus(next)
 
 	return next
+}
+
+// noteDynamic checks the dynamic definitions of an accepted document against the connections and lists the ones that
+// are rejected, once for this content.
+func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocument) dynamicCheck {
+	check := checkDynamic(doc, st.b.opts.SegmentStores)
+	if len(check.reasons) > 0 {
+		st.built.SegmentRejections = append(st.built.SegmentRejections, SegmentRejection{
+			Object: name, Checksum: sum, Reason: "the dynamic definitions that the connections cannot serve are " +
+				"rejected, the others are applied: " + strings.Join(check.reasons, "; "),
+			Definitions: len(check.names),
+		})
+	}
+
+	return check
 }
 
 // parseSegments decodes and validates a segments document.
@@ -101,7 +123,7 @@ func keepSeg(name string, prev *segState) *segState {
 
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
-		next.doc, next.sets, next.hashes = prev.doc, prev.sets, prev.hashes
+		next.doc, next.sets, next.hashes, next.rejected = prev.doc, prev.sets, prev.hashes, prev.rejected
 	}
 
 	return next

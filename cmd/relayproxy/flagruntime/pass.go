@@ -273,7 +273,7 @@ func (st *stage) setFor(cand *candidate) *setState {
 	case modeFrozen:
 		set = frozenSet(old, cand.spec, cand.notes, st.now)
 	case modePlaceholder:
-		set = placeholderSet(cand.spec, cand.notes, st.now)
+		set = st.placeholderSet(cand.spec, cand.notes)
 	case modeBuild:
 		set = st.buildSet(cand.spec, cand.notes)
 	}
@@ -503,6 +503,10 @@ func (st *stage) reusable(old *setState, cand *candidate) bool {
 		) || !slices.Equal(old.spec.segSources, cand.spec.segSources) ||
 		old.frozen != (cand.mode == modeFrozen) || old.placeholder != (cand.mode == modePlaceholder) {
 		return false
+	}
+
+	if cand.mode == modePlaceholder {
+		return st.sameSegments(old, cand)
 	}
 
 	if cand.mode != modeBuild {

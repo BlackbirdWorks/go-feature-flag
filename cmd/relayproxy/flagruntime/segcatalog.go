@@ -22,14 +22,20 @@ type SetSegments struct {
 	hashes map[string]uint64
 	// Static and Dynamic are the numbers of segments of each kind.
 	Static, Dynamic int
+	// RejectedDefinitions counts the dynamic definitions that the connections of the bootstrap file cannot serve:
+	// they are rejected alone, stay in the catalog and answer as a segment without a provider.
+	RejectedDefinitions int
 }
 
 // SegmentCounts is the number of segments of a flag set, in the status and in /info.
 type SegmentCounts struct {
 	// Static is the number of static segments (members in the document).
 	Static int `json:"static"`
-	// Dynamic is the number of dynamic segments (members in a store).
+	// Dynamic is the number of dynamic segments (members in a store), the rejected ones included.
 	Dynamic int `json:"dynamic"`
+	// RejectedDefinitions is the number of dynamic definitions, among Dynamic, that the connections of the bootstrap
+	// file cannot serve.
+	RejectedDefinitions int `json:"rejectedDefinitions,omitempty"`
 }
 
 func (s *SetSegments) counts() *SegmentCounts {
@@ -37,7 +43,7 @@ func (s *SetSegments) counts() *SegmentCounts {
 		return nil
 	}
 
-	return &SegmentCounts{Static: s.Static, Dynamic: s.Dynamic}
+	return &SegmentCounts{Static: s.Static, Dynamic: s.Dynamic, RejectedDefinitions: s.RejectedDefinitions}
 }
 
 // memberSets builds the member sets of the static segments of a document, once for the checksum of the object.
@@ -74,6 +80,8 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		sets     = map[string]*segment.MemberSet{}
 		hashes   = map[string]uint64{}
 		inputs   = make([]*segState, len(spec.segSources))
+
+		rejected = map[string]struct{}{}
 	)
 
 	for idx, source := range spec.segSources {
@@ -93,6 +101,12 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			def := &held.doc.Segments[i]
 			defs[def.Name] = def
 			delete(sets, def.Name)
+			delete(rejected, def.Name)
+
+			if _, bad := held.rejected[def.Name]; bad {
+				rejected[def.Name] = struct{}{}
+			}
+
 			hashes[def.Name] = held.hashes[def.Name]
 
 			if set, ok := held.sets[def.Name]; ok {
@@ -101,7 +115,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		}
 	}
 
-	out := &SetSegments{hashes: make(map[string]uint64, len(defs))}
+	out := &SetSegments{hashes: make(map[string]uint64, len(defs)), RejectedDefinitions: len(rejected)}
 	list := make([]segment.Definition, 0, len(defs))
 
 	for _, name := range sortedNames(defs) {
@@ -112,7 +126,8 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			out.Dynamic++
 		}
 
-		list = append(list, definitionOf(def))
+		_, bad := rejected[name]
+		list = append(list, definitionOf(def, bad))
 		out.hashes[name] = hashes[name]
 	}
 
@@ -142,10 +157,18 @@ func sortedNames(defs map[string]*controlplane.SegmentDefinition) []string {
 }
 
 // definitionOf is the definition of the catalog for a document definition. A dynamic segment is a redis segment
-// until the connection of the bootstrap file tells its kind; no provider serves it yet.
-func definitionOf(def *controlplane.SegmentDefinition) segment.Definition {
+// until the connection of the bootstrap file tells its kind; no provider serves it yet. A rejected definition (its
+// connection is missing or cannot serve it) always answers not a member, whatever its failure policy says: it is a
+// configuration error of this relay, not an outage that the publisher chose a policy for, and it never grants
+// membership (a rule that says onError: match does not match either, because the answer is not unknown).
+func definitionOf(def *controlplane.SegmentDefinition, rejected bool) segment.Definition {
 	out := segment.Definition{
 		Name: def.Name, Type: segment.TypeFile, OnError: segment.OnError(def.OnError),
+	}
+
+	if rejected {
+		out.OnError = segment.OnErrorNotMember
+		out.MissingKey = segment.MissingNotMember
 	}
 
 	if def.Connection != "" {
@@ -207,4 +230,91 @@ func flagSignatures(refs map[string][]string, segments *SetSegments) map[string]
 	}
 
 	return sigs
+}
+
+// segUse is what the rules of one flag use of the segments: the names, sorted, whether one is dynamic (its members are
+// in a store) and whether one cannot be resolved by the flag set (no source defines it).
+type segUse struct {
+	names      []string
+	dynamic    bool
+	unresolved bool
+}
+
+// flagUses is, for each flag that uses segments, the segments it uses. A client cannot hold the answer of a flag that
+// uses a dynamic segment (its members live in a store), nor of one that uses a name that the flag set cannot resolve.
+// Flags that use no segment have none.
+func flagUses(refs map[string][]string, segments *SetSegments) map[string]segUse {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	uses := make(map[string]segUse, len(refs))
+
+	for flag, names := range refs {
+		use := segUse{names: names}
+
+		for _, name := range names {
+			if segments == nil || segments.Catalog == nil {
+				use.unresolved = true
+
+				continue
+			}
+
+			def, ok := segments.Catalog.Lookup(name)
+
+			switch {
+			case !ok:
+				use.unresolved = true
+			case def.Type != segment.TypeFile:
+				use.dynamic = true
+			}
+		}
+
+		uses[flag] = use
+	}
+
+	return uses
+}
+
+// placeholderCounts is what /info says of the segments of a flag set that is only a placeholder: the segments objects
+// that its sources name, if any is loaded. It is nil when the flag set names none.
+func (st *stage) placeholderCounts(spec *setSpec) *SegmentCounts {
+	if len(spec.segSources) == 0 {
+		return nil
+	}
+
+	counts := &SegmentCounts{}
+
+	for _, source := range spec.segSources {
+		held := st.segs[source]
+		if held == nil || !held.loaded {
+			continue
+		}
+
+		for i := range held.doc.Segments {
+			if held.doc.Segments[i].Connection == "" {
+				counts.Static++
+			} else {
+				counts.Dynamic++
+			}
+		}
+
+		counts.RejectedDefinitions += len(held.rejected)
+	}
+
+	return counts
+}
+
+// nameSet is the set of names, nil for none.
+func nameSet(names []string) map[string]struct{} {
+	if len(names) == 0 {
+		return nil
+	}
+
+	set := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		set[name] = struct{}{}
+	}
+
+	return set
 }
