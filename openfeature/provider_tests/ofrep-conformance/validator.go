@@ -78,14 +78,32 @@ type Spec struct {
 type openAPIDoc struct {
 	Components components                      `yaml:"components"`
 	Paths      map[string]map[string]operation `yaml:"paths"`
+	Security   []map[string][]string           `yaml:"security"`
 }
 
 type components struct {
-	Schemas map[string]*schema `yaml:"schemas"`
+	Schemas         map[string]*schema        `yaml:"schemas"`
+	Parameters      map[string]parameter      `yaml:"parameters"`
+	SecuritySchemes map[string]securityScheme `yaml:"securitySchemes"`
 }
 
 type operation struct {
-	Responses map[string]responseSpec `yaml:"responses"`
+	Responses  map[string]responseSpec `yaml:"responses"`
+	Parameters []parameter             `yaml:"parameters"`
+	Security   []map[string][]string   `yaml:"security"`
+}
+
+type parameter struct {
+	Ref  string `yaml:"$ref"`
+	Name string `yaml:"name"`
+	In   string `yaml:"in"`
+}
+
+type securityScheme struct {
+	Type   string `yaml:"type"`
+	Scheme string `yaml:"scheme"`
+	In     string `yaml:"in"`
+	Name   string `yaml:"name"`
 }
 
 type responseSpec struct {
@@ -152,9 +170,14 @@ func LoadSpec(path string) (*Spec, error) {
 		return nil, fmt.Errorf("read OpenAPI spec: %w", err)
 	}
 
+	return ParseSpec(raw)
+}
+
+// ParseSpec parses an OpenAPI YAML document.
+func ParseSpec(raw []byte) (*Spec, error) {
 	var doc openAPIDoc
 
-	err = yaml.Unmarshal(raw, &doc)
+	err := yaml.Unmarshal(raw, &doc)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal OpenAPI spec: %w", err)
 	}

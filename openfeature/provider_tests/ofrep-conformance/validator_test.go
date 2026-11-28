@@ -413,7 +413,7 @@ func TestSpec_ValidateBulkAndTransportResponse(t *testing.T) {
 			path:    singleFlagPath,
 			method:  http.MethodPost,
 			status:  http.StatusOK,
-			headers: http.Header{"Content-Type": []string{"text/plain"}},
+			headers: http.Header{"Content-Type": []string{contentTypePlain}},
 			body:    `{"key":"f","value":true,"reason":"STATIC"}`,
 			wantErr: true,
 		},

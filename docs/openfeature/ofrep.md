@@ -20,7 +20,11 @@ Run the [relay proxy](../relay-proxy/README.md) in your infrastructure. It expos
 - See the [endpoints reference](../relay-proxy/endpoints.md) and `cmd/relayproxy/api/testdata/openapi.golden.json` for full request and response schemas.
 - Point your language's OFREP provider at the relay proxy base URL (for example, `http://localhost:1031`).
 - If [API keys](../relay-proxy/bootstrap-config.md) are configured, pass the key via `X-API-Key` or `Authorization: Bearer <key>`.
-- The relay proxy does not implement `GET /ofrep/v1/configuration`.
+- The relay proxy does not implement `GET /ofrep/v1/configuration`: the pinned specification (below) does not define it.
+- Request bodies are limited to 1 MiB (`400` with `INVALID_CONTEXT`).
+- `If-None-Match` on the bulk endpoint takes one tag, a comma separated list of tags (weak or strong), or `*`; a match gives `304` without a body.
+- An admin key is not linked to a flag set: it gets `403` on the OFREP endpoints.
+- Set `server.ofrepEventStream` to advertise the flag change stream in the `eventStreams` field of the bulk response.
 
 ### JavaScript SDK examples
 
@@ -60,6 +64,22 @@ curl 'http://localhost:1031/ofrep/v1/evaluate/flags/my-flag' -X POST \
   -H 'Content-Type: application/json' \
   --data-raw '{"context": {"targetingKey": "user-123"}}'
 ```
+
+## Specification version and what is verified
+
+The relay proxy follows the OFREP OpenAPI document version `0.4.0`, vendored byte for byte in `openfeature/provider_tests/ofrep-conformance/testdata/openapi.yaml`. `openapi.pin.json` next to it records the source (`open-feature/protocol`, `service/openapi.yaml`), the commit and the SHA-256; a test fails if the file differs from it. The protocol repository publishes no release tag, so the pin is a commit.
+
+The conformance suite (`task ofrep-conformance`, also part of `go test ./...`) starts real relays and checks every response against that document:
+
+- Both operations and every status code the relay sends (`200`, `304`, `400`, `401`, `403`, `404`), with the response schema, the `ETag` header, the `Content-Type` and the error bodies.
+- All value types (boolean, string, integer, float, object, and no `value` for a disabled flag), the `reason` and `errorCode` enumerations, and `metadata` value types.
+- Request handling: missing, null or malformed `context`, wrong content type, empty and oversized bodies, unknown fields, a flag key that needs URL escaping, other HTTP methods.
+- Authentication: `X-API-Key` and `Authorization: Bearer`, with and without keys (public flag sets), and an admin key.
+- `If-None-Match` (strong, weak, list, `*`) and the `flagConfigEtag` and `flagConfigLastModified` query parameters.
+- The `eventStreams` field of the bulk response.
+- The OpenAPI document that the relay publishes about itself agrees with the pinned one for these paths.
+
+A coverage test lists every operation, status code, header, schema, parameter, security scheme and value type of the pinned document and fails when one has no case, so a new version of the document cannot be adopted with silent gaps. Two responses cannot be provoked: the relay has no rate limit, so it never answers `429` (and sends no `Retry-After`), and it answers `500` only for a fault of its own.
 
 ## Evaluation context
 

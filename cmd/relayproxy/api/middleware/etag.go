@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -48,7 +49,27 @@ func (b *etagBuffer) answer(ifNoneMatch string) (string, bool) {
 
 	etag := `"` + strconv.Itoa(b.len) + "-" + hex.EncodeToString(b.hash.Sum(nil)) + `"`
 
-	return etag, ifNoneMatch == etag || ifNoneMatch == "W/"+etag
+	return etag, ETagMatches(ifNoneMatch, etag)
+}
+
+// ETagMatches reports whether an If-None-Match header value matches the entity tag, as RFC 9110 section 13.1.2
+// defines it: the value is `*`, or a comma separated list of entity tags that is compared to the tag with the weak
+// comparison (the `W/` prefix is ignored on both sides).
+func ETagMatches(ifNoneMatch, etag string) bool {
+	etag = strings.TrimPrefix(etag, "W/")
+
+	for rest := ifNoneMatch; rest != ""; {
+		var item string
+
+		item, rest, _ = strings.Cut(rest, ",")
+		item = strings.TrimPrefix(strings.TrimSpace(item), "W/")
+
+		if item == "*" || item == etag {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ETag adds a strong ETag to the 2xx responses with a body, and answers 304 when the request carries it in
