@@ -244,7 +244,7 @@ unreachable serves it at once. The directory holds **what the engine applied**, 
 
 - A generation is written after the engine applied it, with the content the relay serves. A generation that the engine
   rejects (a build failure, a flag key defined in two public flag sets) is never written: the directory keeps the
-  last applied one. A first generation that is never applied leaves nothing on disk.
+  last applied one. A first generation that is never applied leaves no manifest or object on disk.
 - A generation applied with an object whose content the engine could not decode keeps, for that object, the last
   content that was written (the object is stale on restart, as it is in the running relay), not the rejected body.
 - The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. The
