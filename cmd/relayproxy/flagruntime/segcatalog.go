@@ -166,16 +166,17 @@ func definitionOf(def *controlplane.SegmentDefinition, rejected bool) segment.De
 		Name: def.Name, Type: segment.TypeFile, OnError: segment.OnError(def.OnError),
 	}
 
-	if rejected {
-		out.OnError = segment.OnErrorNotMember
-		out.MissingKey = segment.MissingNotMember
-	}
-
 	if def.Connection != "" {
 		out.Type = segment.TypeRedis
 		out.Mode = segment.Mode(def.Mode)
 		out.MissingKey = segment.MissingKey(def.MissingKey)
 		out.Layout = segment.Layout(def.Layout)
+	}
+
+	// Applied last: the missingKey of the document must not overwrite the rejection.
+	if rejected {
+		out.OnError = segment.OnErrorNotMember
+		out.MissingKey = segment.MissingNotMember
 	}
 
 	return out
