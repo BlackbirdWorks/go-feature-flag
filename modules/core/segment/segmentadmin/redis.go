@@ -17,6 +17,8 @@ type RedisStore struct {
 	commit *redis.Script
 	unlock *redis.Script
 	edit   *redis.Script
+	lock   *redis.Script
+	claim  *redis.Script
 }
 
 var _ Store = (*RedisStore)(nil)
@@ -26,6 +28,7 @@ func NewRedis(client redis.UniversalClient) *RedisStore {
 	return &RedisStore{
 		client: client, stage: redis.NewScript(stageScript), commit: redis.NewScript(commitScript),
 		unlock: redis.NewScript(unlockScript), edit: redis.NewScript(editScript),
+		lock: redis.NewScript(lockScript), claim: redis.NewScript(claimScript),
 	}
 }
 
@@ -105,12 +108,27 @@ func (s *RedisStore) SetKeys(ctx context.Context, keys []string) (int64, error) 
 
 // Lock implements [Store].
 func (s *RedisStore) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
-	ok, err := s.client.SetNX(ctx, key, token, ttl).Result()
+	held, err := s.lock.Run(ctx, s.client, []string{key}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
-		return false, storeErr("SET", err)
+		return false, storeErr("EVAL", err)
 	}
 
-	return ok, nil
+	return held == 1, nil
+}
+
+// Claim implements [Store].
+func (s *RedisStore) Claim(ctx context.Context, lock, last, stale, tmp, token string) (bool, error) {
+	keys := []string{lock, last, stale}
+	if stale == "" {
+		keys[2] = last // a key of the slot that the script does not touch
+	}
+
+	held, err := s.claim.Run(ctx, s.client, keys, token, tmp, flag(stale != "")).Int64()
+	if err != nil {
+		return false, storeErr("EVAL", err)
+	}
+
+	return held == 1, nil
 }
 
 // Unlock implements [Store].
@@ -261,6 +279,8 @@ func (s *RedisStore) CountKeys(ctx context.Context, prefix string, limit int) (i
 		err = client.ForEachMaster(ctx, count)
 	case *redis.Client:
 		err = count(ctx, client)
+	default:
+		err = fmt.Errorf("%w: %T", ErrUnsupportedClient, s.client)
 	}
 
 	if err != nil {

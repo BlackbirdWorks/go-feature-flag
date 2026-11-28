@@ -88,10 +88,14 @@ type Report struct {
 	Added int64
 	// Removed is the ids that a remove took out of the segment.
 	Removed int64
-	// Duplicates is the accepted ids that were already in the input (zero for a dry run).
+	// Duplicates is the accepted ids that were already in the input (zero for a dry run, and not exact when
+	// DuplicatesUnknown).
 	Duplicates int64
 	// Swapped tells that the new set is live.
 	Swapped bool
+	// DuplicatesUnknown tells that a batch was sent again after a lost reply, so that the count of new members, and
+	// the duplicates that follow from it, are not exact.
+	DuplicatesUnknown bool
 	// FallbackLarge tells that DEL (no UNLINK on the server) removed a set above [DelWarnMembers]: it may have blocked.
 	FallbackLarge bool
 	// CleanupFailed tells that the temporary key could not be removed after a failure: it expires.
@@ -220,12 +224,15 @@ func newToken() (string, error) {
 
 // claim takes the lock and removes the temporary key that the previous holder named, if it left one.
 func (run *importRun) claim(ctx context.Context) error {
-	ok, err := run.store.Lock(ctx, run.keys.Lock, run.token, run.opts.TempTTL)
+	held, err := run.lock(ctx)
 	if err != nil {
+		run.locked = true // it may have been taken: release it by token
+		run.release(ctx, err)
+
 		return fmt.Errorf("take the lock: %w", err)
 	}
 
-	if !ok {
+	if !held {
 		return ErrImportRunning
 	}
 
@@ -236,19 +243,47 @@ func (run *importRun) claim(ctx context.Context) error {
 		return run.fail(ctx, fmt.Errorf("read the last temporary key: %w", err))
 	}
 
-	if found && run.keys.Owns(prev) {
-		_, _, err = run.store.Unlink(ctx, prev)
-		if err != nil {
-			return run.fail(ctx, fmt.Errorf("remove the temporary key of a dead run: %w", err))
-		}
+	stale := ""
+	if found && run.keys.Owns(prev) && prev != run.keys.Tmp {
+		stale = prev
 	}
 
-	err = run.store.SetValue(ctx, run.keys.Last, run.keys.Tmp)
+	// the removal and the record are one script that checks that the lock is still the run's
+	owned, err := run.store.Claim(ctx, run.keys.Lock, run.keys.Last, stale, run.keys.Tmp, run.token)
 	if err != nil {
 		return run.fail(ctx, fmt.Errorf("record the temporary key: %w", err))
 	}
 
+	if !owned {
+		return run.fail(ctx, ErrLockLost)
+	}
+
 	return nil
+}
+
+// lock takes the lock. The call is idempotent by the token, so it is sent again when its reply is lost.
+func (run *importRun) lock(ctx context.Context) (bool, error) {
+	var (
+		held bool
+		err  error
+	)
+
+	for try := range tries {
+		held, err = run.store.Lock(ctx, run.keys.Lock, run.token, run.opts.TempTTL)
+		if err == nil || ctx.Err() != nil || try == tries-1 {
+			break
+		}
+
+		if run.opts.Wait(ctx, retryDelay<<try) != nil {
+			break
+		}
+	}
+
+	if err != nil {
+		return held, fmt.Errorf("lock: %w", err)
+	}
+
+	return held, nil
 }
 
 func (run *importRun) fail(ctx context.Context, err error) error {
@@ -382,6 +417,8 @@ func (run *importRun) stage(ctx context.Context) (int64, StageResult, error) {
 			break
 		}
 
+		run.rep.DuplicatesUnknown = true
+
 		if run.opts.Wait(ctx, retryDelay<<try) != nil {
 			break
 		}
@@ -429,12 +466,16 @@ func (run *importRun) finish(ctx context.Context) error {
 	run.rep.Swapped = true
 	run.rep.FellBackToDel = fell
 
-	err = run.bump(ctx)
+	// the swap is applied: the bump and the removal run on a context of their own, whatever became of the run's
+	bctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+
+	err = run.bump(bctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrSwapped, err)
 	}
 
-	return run.removeOld(ctx)
+	return run.removeOld(bctx)
 }
 
 // commit sends the swap. The swap is idempotent by the token of the run, so when the reply is lost it is sent again
@@ -475,8 +516,8 @@ func (run *importRun) commit(ctx context.Context) (CommitResult, bool, error) {
 
 // removeOld removes the replaced set without blocking, and tells when the fallback to DEL could have blocked.
 func (run *importRun) removeOld(ctx context.Context) error {
-	if run.rep.Added == 0 {
-		return nil
+	if run.rep.Accepted == 0 {
+		return nil // the explicit empty import: there is no old set to move
 	}
 
 	size, err := run.store.SCard(ctx, run.keys.Old)
@@ -519,7 +560,7 @@ func Bump(ctx context.Context, store Store, target *Target, rep *Report) error {
 }
 
 // BumpWithRetry is [Bump] with three tries and a pause between them (wait nil means a timer). When it gives up, the
-// error is [ErrNotBumped] and [ErrSwapped]: the change is in the store and the relays have not been told.
+// error is [ErrNotBumped]: the change is in the store and the relays have not been told.
 func BumpWithRetry(
 	ctx context.Context, store Store, target *Target, rep *Report, wait func(context.Context, time.Duration) error,
 ) error {
@@ -540,5 +581,5 @@ func BumpWithRetry(
 		}
 	}
 
-	return fmt.Errorf("%w: %w: %w", ErrNotBumped, ErrSwapped, err)
+	return fmt.Errorf("%w: %w", ErrNotBumped, err)
 }

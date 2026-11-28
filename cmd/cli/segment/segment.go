@@ -148,7 +148,7 @@ func wrapErr(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, segmentadmin.ErrEmptyInput), errors.Is(err, segmentadmin.ErrKeysLayout),
-		errors.Is(err, segmentadmin.ErrBadOptions):
+		errors.Is(err, segmentadmin.ErrBadOptions), errors.Is(err, segmentadmin.ErrKeyOverlap):
 		code = helper.ExitInvalid
 	case errors.Is(err, segmentadmin.ErrImportRunning), errors.Is(err, segmentadmin.ErrLockLost),
 		errors.Is(err, segmentadmin.ErrTempGone), errors.Is(err, segmentadmin.ErrIncomplete):
@@ -179,7 +179,13 @@ func (s *session) report(ctx context.Context, name, verb string, rep *segmentadm
 		fmt.Fprintf(&lines, "added: %d\n", rep.Added)
 
 		if verb == "import" {
-			fmt.Fprintf(&lines, "duplicates: %d\nswapped: %t\n", rep.Duplicates, rep.Swapped)
+			if rep.DuplicatesUnknown {
+				lines.WriteString("duplicates: unknown (a batch was sent again after a lost reply)\n")
+			} else {
+				fmt.Fprintf(&lines, "duplicates: %d\n", rep.Duplicates)
+			}
+
+			fmt.Fprintf(&lines, "swapped: %t\n", rep.Swapped)
 		}
 	}
 

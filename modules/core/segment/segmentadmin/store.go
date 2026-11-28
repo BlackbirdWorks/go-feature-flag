@@ -36,6 +36,11 @@ var (
 	ErrSwapUnknown = errors.New("swap state unknown: run `semaphore-cli segment stat`, then import again")
 	// ErrNotBumped is returned when the swap worked and the version key could not be bumped.
 	ErrNotBumped = errors.New("set replaced, version not bumped: run `semaphore-cli segment bump` with the same flags")
+	// ErrKeyOverlap is returned when a key that an import of the segment derives (its lock, its temporary keys) can be
+	// the key of another segment, or when the keys of two segments are the same.
+	ErrKeyOverlap = errors.New("the keys of the segments overlap")
+	// ErrUnsupportedClient is returned for a go-redis client that is neither a node nor a cluster: it cannot be scanned.
+	ErrUnsupportedClient = errors.New("the client cannot be scanned")
 	// ErrNoSlotTag is returned for a key that cannot get a temporary key in its cluster slot.
 	ErrNoSlotTag = errors.New("the key has a hash tag that cannot be shared by a temporary key")
 	// ErrBadOptions is returned for options out of their bounds.
@@ -146,8 +151,12 @@ type Commit struct {
 
 // Locker is the commands of the lock and of the conditional swap of an import.
 type Locker interface {
-	// Lock takes the lock key with the token for ttl (SET NX PX) and tells whether it was free.
+	// Lock takes the lock key with the token for ttl and tells whether it is the run's: it is idempotent by the token,
+	// so a call whose reply was lost can be sent again (a lock that holds this token is answered true).
 	Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error)
+	// Claim, if, and only if, the lock holds the token, removes the temporary key of a dead run (stale, may be empty)
+	// and records the name of the temporary key of this run in the last key. It tells whether the lock held.
+	Claim(ctx context.Context, lock, last, stale, tmp, token string) (bool, error)
 	// Unlock removes the lock and the last key if, and only if, the lock still holds the token, and the committed key
 	// if it holds the token.
 	Unlock(ctx context.Context, lock, last, committed, token string) error

@@ -1,6 +1,7 @@
 package admintest_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -47,27 +48,28 @@ func TestFake_lostReplies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		call func(store *admintest.Fake) error
-		name string
-		op   string
+		call    func(store *admintest.Fake) error
+		applied func(store *admintest.Fake) bool
+		name    string
+		op      string
 	}{
 		{name: "a batch", op: "SADD", call: func(store *admintest.Fake) error {
 			_, _, err := store.StageAdd(t.Context(), lock, tmp, token, []string{"a"}, time.Hour, true)
 
 			return err
-		}},
+		}, applied: func(store *admintest.Fake) bool { return len(store.Members(tmp)) == 1 }},
 		{name: "an edit", op: "EDIT", call: func(store *admintest.Fake) error {
 			store.Delete(lock) // no import runs
 
 			_, _, err := store.EditSet(t.Context(), lock, live, []string{"a"}, false)
 
 			return err
-		}},
+		}, applied: func(store *admintest.Fake) bool { return len(store.Members(live)) == 1 }},
 		{name: "the swap", op: "SWAP", call: func(store *admintest.Fake) error {
 			_, _, err := store.Commit(t.Context(), commitEmpty())
 
 			return err
-		}},
+		}, applied: func(store *admintest.Fake) bool { return slices.Contains(store.Keys(), committed) }},
 	}
 
 	for _, tt := range tests {
@@ -79,6 +81,7 @@ func TestFake_lostReplies(t *testing.T) {
 			store.LoseReply(tt.op, 1, false)
 
 			require.ErrorIs(t, tt.call(store), admintest.ErrLostReply, "the call is applied and its reply is lost")
+			assert.True(t, tt.applied(store), "the call was applied before its reply was lost")
 			require.NoError(t, tt.call(store), "only the nth call loses its reply")
 		})
 	}
@@ -144,4 +147,62 @@ func TestFake_reads(t *testing.T) {
 
 	assert.Equal(t, []any{"v", true, false}, []any{value, ok, found})
 	assert.Zero(t, store.TTLOf("missing"))
+}
+
+func TestFake_claim(t *testing.T) {
+	t.Parallel()
+
+	store := admintest.New()
+	ctx := t.Context()
+
+	stale := "p:{s}:import:dead:new"
+	_, _ = store.SAdd(ctx, stale, []string{"junk"}, 0)
+
+	foreign, err := store.Claim(ctx, lock, last, stale, tmp, token) // no lock yet
+	require.NoError(t, err)
+
+	_, _ = store.Lock(ctx, lock, token, time.Hour)
+
+	owned, err := store.Claim(ctx, lock, last, stale, tmp, token)
+	require.NoError(t, err)
+
+	recorded, _, err := store.Value(ctx, last)
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		[]any{false, true, tmp, []string(nil)},
+		[]any{foreign, owned, recorded, nonEmpty(store.Members(stale))},
+	)
+}
+
+func TestFake_lockAgain(t *testing.T) {
+	t.Parallel()
+
+	store := admintest.New()
+	ctx := t.Context()
+
+	first, _ := store.Lock(ctx, lock, token, time.Hour)
+	again, _ := store.Lock(ctx, lock, token, time.Hour)
+	other, _ := store.Lock(ctx, lock, "other", time.Hour)
+
+	assert.Equal(t, []bool{true, true, false}, []bool{first, again, other})
+}
+
+func TestFake_afterCall(t *testing.T) {
+	t.Parallel()
+
+	store := admintest.New()
+	ran := make(chan struct{}, 1)
+
+	store.AfterCall("EDIT", func() { ran <- struct{}{} })
+
+	_, _, err := store.EditSet(t.Context(), lock, live, []string{"a"}, false)
+	require.NoError(t, err)
+
+	select {
+	case <-ran:
+	default:
+		require.FailNow(t, "the hook did not run after the call")
+	}
 }

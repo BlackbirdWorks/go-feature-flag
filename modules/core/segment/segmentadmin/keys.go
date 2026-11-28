@@ -1,6 +1,11 @@
 package segmentadmin
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
+)
 
 const (
 	slots   = 16384
@@ -91,3 +96,64 @@ func ImportKeys(live, token string) (RunKeys, error) {
 
 // Owns tells whether a key is one that an import of the segment names (a leftover of a dead run).
 func (k *RunKeys) Owns(key string) bool { return strings.HasPrefix(key, k.base+":import:") }
+
+// CheckKeys refuses two segments whose keys can meet: an import of one writes and removes keys under
+// `<key>:import:` (and `{<key>}:import:` for a key without a hash tag), so no key of the other segment (its set, its
+// version key, the prefix of its member keys) may be one of them, and the two segments may not share a set or a prefix.
+// The check is made both ways.
+func CheckKeys(target, other *Target) error {
+	if target.Key == "" || other.Key == "" {
+		return nil
+	}
+
+	for _, pair := range [2][2]*Target{{target, other}, {other, target}} {
+		err := derivedClash(pair[0], pair[1])
+		if err != nil {
+			return err
+		}
+	}
+
+	if target.Key == other.Key || target.Key == other.VersionKey || other.Key == target.VersionKey {
+		return fmt.Errorf("%w: the segments %q and %q use the same key", ErrKeyOverlap, target.Name, other.Name)
+	}
+
+	return nil
+}
+
+// derivedClash checks that no key of other is one of the keys that an import of owner derives from its key.
+func derivedClash(owner, other *Target) error {
+	if owner.Layout == redissegment.LayoutKeys {
+		return nil // no import of the keys layout: nothing is derived
+	}
+
+	base := owner.Key
+	if _, tagged := hashTag(owner.Key); !tagged {
+		base = "{" + owner.Key + "}"
+	}
+
+	prefix := base + ":import:"
+
+	for _, key := range []string{other.Key, other.VersionKey} {
+		if key != "" && strings.HasPrefix(key, prefix) {
+			return fmt.Errorf(
+				"%w: a key of the segment %q is inside the keys that an import of the segment %q uses (%s)",
+				ErrKeyOverlap,
+				other.Name,
+				owner.Name,
+				prefix,
+			)
+		}
+	}
+
+	if other.Layout == redissegment.LayoutKeys && strings.HasPrefix(prefix, other.Key) {
+		return fmt.Errorf(
+			"%w: the member keys of the segment %q can be the keys that an import of the segment %q uses (%s)",
+			ErrKeyOverlap,
+			other.Name,
+			owner.Name,
+			prefix,
+		)
+	}
+
+	return nil
+}

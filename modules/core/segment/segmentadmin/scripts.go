@@ -4,6 +4,30 @@ package segmentadmin
 // declared in KEYS, so they work on a cluster. The batch of a stage and the swap are the only scripts; none of them
 // walks a set.
 const (
+	// lockScript: KEYS lock. ARGV token, ttl in ms. Takes the lock when it is free, and again when it holds the token
+	// (a call sent twice). Returns 1 when the lock is the run's, else 0.
+	lockScript = `-- lock
+local current = redis.call('GET', KEYS[1])
+if current == false then
+  redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+  return 1
+end
+if current == ARGV[1] then
+  redis.call('PEXPIRE', KEYS[1], ARGV[2])
+  return 1
+end
+return 0
+`
+
+	// claimScript: KEYS lock, last, stale. ARGV token, tmp, stale ("1" when KEYS[3] is a key to remove). Does nothing
+	// and returns 0 unless the lock holds the token.
+	claimScript = `-- claim
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+if ARGV[3] == '1' and not pcall(redis.call, 'UNLINK', KEYS[3]) then redis.call('DEL', KEYS[3]) end
+redis.call('SET', KEYS[2], ARGV[2])
+return 1
+`
+
 	// stageScript: KEYS lock, tmp. ARGV token, ttl in ms, first ("1" for the first batch), members. Returns -1 when the
 	// lock is not the run's, -2 when a batch after the first finds no temporary key, else the members that were new.
 	stageScript = `

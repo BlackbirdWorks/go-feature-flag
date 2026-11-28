@@ -17,7 +17,9 @@ import (
 func TestImport_lostReply(t *testing.T) {
 	t.Parallel()
 
-	valkeyStore := func(addr string) segmentadmin.Store {
+	valkeyStore := func(t *testing.T, addr string) segmentadmin.Store {
+		t.Helper()
+
 		client, err := valkey.NewClient(valkey.ClientOption{
 			InitAddress: []string{addr}, ForceSingleClient: true, DisableCache: true,
 		})
@@ -25,23 +27,25 @@ func TestImport_lostReply(t *testing.T) {
 
 		return segmentadmin.NewValkey(client)
 	}
-	redisStore := func(retries int) func(string) segmentadmin.Store {
-		return func(addr string) segmentadmin.Store {
+	redisStore := func(retries int) func(*testing.T, string) segmentadmin.Store {
+		return func(_ *testing.T, addr string) segmentadmin.Store {
 			return segmentadmin.NewRedis(redis.NewClient(&redis.Options{Addr: addr, MaxRetries: retries}))
 		}
 	}
 
 	tests := []struct {
-		store func(addr string) segmentadmin.Store
+		store func(t *testing.T, addr string) segmentadmin.Store
 		name  string
 		eval  int
 	}{
-		{name: "valkey-go, batch", store: valkeyStore, eval: 1},
-		{name: "valkey-go, swap", store: valkeyStore, eval: 2},
-		{name: "go-redis without its retries, batch", store: redisStore(-1), eval: 1},
-		{name: "go-redis without its retries, swap", store: redisStore(-1), eval: 2},
-		{name: "go-redis with its retries, batch", store: redisStore(3), eval: 1},
-		{name: "go-redis with its retries, swap", store: redisStore(3), eval: 2},
+		{name: "valkey-go, batch", store: valkeyStore, eval: 3},
+		{name: "valkey-go, lock", store: valkeyStore, eval: 1},
+		{name: "go-redis without its retries, lock", store: redisStore(-1), eval: 1},
+		{name: "valkey-go, swap", store: valkeyStore, eval: 4},
+		{name: "go-redis without its retries, batch", store: redisStore(-1), eval: 3},
+		{name: "go-redis without its retries, swap", store: redisStore(-1), eval: 4},
+		{name: "go-redis with its retries, batch", store: redisStore(3), eval: 3},
+		{name: "go-redis with its retries, swap", store: redisStore(3), eval: 4},
 	}
 
 	for _, tt := range tests {
@@ -49,7 +53,7 @@ func TestImport_lostReply(t *testing.T) {
 			t.Parallel()
 
 			srv := startStub(t, false)
-			store := tt.store(srv.addr())
+			store := tt.store(t, srv.addr())
 			t.Cleanup(store.Close)
 
 			_, err := store.SAdd(t.Context(), liveKey, []string{"old"}, 0)

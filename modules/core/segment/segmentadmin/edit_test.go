@@ -1,6 +1,7 @@
 package segmentadmin_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -20,30 +21,34 @@ const memberPrefix = "semaphore:segment:members:"
 
 // editCase is one row of TestEdit.
 type editCase struct {
-	wantErr       error
-	name          string
-	wantText      string
-	failOp        string
-	loseOp        string
-	input         string
-	preload       []string
-	wantSet       []string
-	wantKeys      []string
-	args          []string
-	wantRejected  segmentadmin.Rejections
-	wantAdded     int64
-	failNth       int
-	batch         int
-	wantRemoved   int64
-	lockHeld      bool
-	failAll       bool
-	keys          bool
-	remove        bool
-	wantVersioned bool
+	wantErr         error
+	name            string
+	wantText        string
+	failOp          string
+	loseOp          string
+	input           string
+	preload         []string
+	wantSet         []string
+	wantKeys        []string
+	args            []string
+	wantRejected    segmentadmin.Rejections
+	wantAdded       int64
+	failNth         int
+	batch           int
+	wantRemoved     int64
+	lockHeld        bool
+	cancelAfterEdit bool
+	failAll         bool
+	keys            bool
+	remove          bool
+	wantVersioned   bool
 }
 
 // prepare builds the store, the target and the input of a row.
-func (tt *editCase) prepare(t *testing.T) (*admintest.Fake, *segmentadmin.Target, *testSource) {
+func (tt *editCase) prepare(
+	t *testing.T,
+	cancel context.CancelFunc,
+) (*admintest.Fake, *segmentadmin.Target, *testSource) {
 	t.Helper()
 
 	store := admintest.New()
@@ -77,6 +82,10 @@ func (tt *editCase) prepare(t *testing.T) (*admintest.Fake, *segmentadmin.Target
 
 	if tt.lockHeld {
 		store.Put(lockKey, otherToken)
+	}
+
+	if tt.cancelAfterEdit {
+		store.AfterCall(opEDIT, cancel)
 	}
 
 	if tt.args != nil {
@@ -161,6 +170,14 @@ func editCases() []editCase {
 			wantRejected:  segmentadmin.Rejections{},
 			wantVersioned: true,
 		},
+		{
+			name:            "an edit stopped right after its last batch still bumps the version",
+			input:           "a\n",
+			cancelAfterEdit: true,
+			wantSet:         []string{"a"},
+			wantAdded:       1,
+			wantVersioned:   true,
+		},
 		{name: "bad batch size", input: "a\n", batch: -1, wantErr: segmentadmin.ErrBadOptions},
 	}
 }
@@ -238,9 +255,12 @@ func TestEdit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			store, target, source := tt.prepare(t)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
-			rep, err := segmentadmin.Edit(t.Context(), store, target, source, tt.remove,
+			store, target, source := tt.prepare(t, cancel)
+
+			rep, err := segmentadmin.Edit(ctx, store, target, source, tt.remove,
 				segmentadmin.EditOptions{BatchSize: tt.batch, Wait: instant})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -299,4 +319,34 @@ func TestStat_failures(t *testing.T) {
 			require.ErrorIs(t, err, admintest.ErrInjected)
 		})
 	}
+}
+
+// TestEdit_settlesBeforeTheBump checks the order of a stopped edit: the run stops sending, gives the batch that
+// may be in flight a moment, and only then announces the change with the version bump.
+func TestEdit_settlesBeforeTheBump(t *testing.T) {
+	t.Parallel()
+
+	store := admintest.New()
+	store.Fail(opEDIT, 1)
+
+	var callsAtWait []int
+
+	wait := func(context.Context, time.Duration) error {
+		callsAtWait = append(callsAtWait, len(store.Calls()))
+
+		return nil
+	}
+
+	reader, err := segmentadmin.NewReader(strings.NewReader("a\n"), segmentadmin.ReaderOptions{})
+	require.NoError(t, err)
+
+	_, err = segmentadmin.Edit(t.Context(), store, vipTarget(), reader, false, segmentadmin.EditOptions{Wait: wait})
+	require.ErrorIs(t, err, segmentadmin.ErrPartial)
+	require.ErrorContains(t, err, "segment bump")
+
+	calls := store.Calls()
+
+	require.NotEmpty(t, callsAtWait)
+	assert.Equal(t, "SET "+versionKey, calls[len(calls)-1])
+	assert.Equal(t, len(calls)-1, callsAtWait[0], "the pause comes after the batch and before the bump")
 }

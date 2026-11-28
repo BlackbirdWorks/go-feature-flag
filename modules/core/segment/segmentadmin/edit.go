@@ -10,6 +10,9 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
+// settleDelay is how long an edit that stopped with a batch in flight waits before it bumps the version.
+const settleDelay = 200 * time.Millisecond
+
 // DefaultScanLimit is the most keys that Stat counts of a keys layout segment.
 const DefaultScanLimit = 100_000
 
@@ -54,20 +57,42 @@ func Edit(
 			return run.rep, err
 		}
 
+		// the run stops sending. A batch that was sent and whose answer is not known may still be running on the
+		// server: give it a moment (bounded) to finish before the bump that announces it, then bump on a context of
+		// its own. When the store is slower than that, the bump can come first: the error says to bump once more.
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 		defer cancel()
 
+		if run.maybe {
+			wait := opts.Wait
+			if wait == nil {
+				wait = waitTimer
+			}
+
+			_ = wait(cctx, settleDelay)
+		}
+
 		bumpErr := BumpWithRetry(cctx, store, target, run.rep, opts.Wait)
 
-		return run.rep, fmt.Errorf("%w: %d of %d ids confirmed: %w", ErrPartial, run.rep.Applied, run.rep.Accepted,
-			errors.Join(err, bumpErr))
+		return run.rep, fmt.Errorf(
+			"%w: %d of %d ids confirmed (if the store was slow, run `semaphore-cli segment bump` "+
+				"once more): %w",
+			ErrPartial,
+			run.rep.Applied,
+			run.rep.Accepted,
+			errors.Join(err, bumpErr),
+		)
 	}
 
 	if run.rep.Applied == 0 {
 		return run.rep, nil // nothing changed: the relay has nothing to learn
 	}
 
-	return run.rep, BumpWithRetry(ctx, store, target, run.rep, opts.Wait)
+	// the batches are applied: the bump runs on a context of its own, whatever became of the run's
+	bctx, bcancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer bcancel()
+
+	return run.rep, BumpWithRetry(bctx, store, target, run.rep, opts.Wait)
 }
 
 // editAll reads the input and applies it in batches.

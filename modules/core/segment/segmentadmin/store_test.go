@@ -43,6 +43,14 @@ func storeCases() []storeCase {
 			want: "2 false 1 refused=true card=1",
 			run:  caseEdit,
 		},
+		{name: "a swap sent again after the lock was taken is still answered already committed",
+			want: "0 then 4", run: caseCommitAfterTakeover},
+		{name: "the lock is idempotent by its token", want: "first=true again=true other=false", run: caseLockAgain},
+		{
+			name: "a claim of a run without the lock removes nothing",
+			want: "foreign=false stale=true owned=true after=false " + tmpKey,
+			run:  caseClaim,
+		},
 		{name: "commit of an empty import removes the live key", want: "0 false", run: caseCommitEmpty},
 		{
 			name: "lock is taken once and released by its holder only",
@@ -283,6 +291,85 @@ func caseEdit(ctx context.Context, store segmentadmin.Store) (string, error) {
 	card, err := store.SCard(ctx, liveKey)
 
 	return fmt.Sprintf("%d %t %d refused=%t card=%d", added, locked, removed, refused, card), err
+}
+
+// caseCommitAfterTakeover sends the swap of a run again after its lock was taken by another run: the answer is still
+// that the swap was applied, because the token is checked in the committed key before the lock.
+func caseCommitAfterTakeover(ctx context.Context, store segmentadmin.Store) (string, error) {
+	err := stage(ctx, store, "b")
+	if err != nil {
+		return "", err
+	}
+
+	first, _, err := store.Commit(ctx, tokenCommit(1, runToken, false))
+	if err != nil {
+		return "", err
+	}
+
+	err = store.SetValue(ctx, lockKey, "other") // the lock is taken
+	if err != nil {
+		return "", err
+	}
+
+	again, _, err := store.Commit(ctx, tokenCommit(1, runToken, false))
+
+	return fmt.Sprintf("%d then %d", first, again), err
+}
+
+// caseLockAgain takes the lock twice with the token, then with another one, and claims the temporary key.
+func caseLockAgain(ctx context.Context, store segmentadmin.Store) (string, error) {
+	first, err := store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	again, err := store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	other, err := store.Lock(ctx, lockKey, "other", time.Hour)
+
+	return fmt.Sprintf("first=%t again=%t other=%t", first, again, other), err
+}
+
+// caseClaim claims with the lock, removing a stale key, then claims without it and removes nothing.
+func caseClaim(ctx context.Context, store segmentadmin.Store) (string, error) {
+	stale := liveKey + ":import:dead:new"
+
+	_, err := store.SAdd(ctx, stale, []string{memberJunk}, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	foreign, err := store.Claim(ctx, lockKey, lastKey, stale, tmpKey, "other") // not the holder: nothing happens
+	if err != nil {
+		return "", err
+	}
+
+	staleThere, _, err := store.KeyTTL(ctx, stale)
+	if err != nil {
+		return "", err
+	}
+
+	owned, err := store.Claim(ctx, lockKey, lastKey, stale, tmpKey, runToken)
+	if err != nil {
+		return "", err
+	}
+
+	staleAfter, _, err := store.KeyTTL(ctx, stale)
+	if err != nil {
+		return "", err
+	}
+
+	last, _, err := store.Value(ctx, lastKey)
+
+	return fmt.Sprintf("foreign=%t stale=%t owned=%t after=%t %s", foreign, staleThere, owned, staleAfter, last), err
 }
 
 func caseCommitEmpty(ctx context.Context, store segmentadmin.Store) (string, error) {
@@ -543,9 +630,7 @@ func TestStore_serverDown(t *testing.T) {
 			addr := srv.addr()
 
 			store, err := tt.newStore(addr)
-			if err != nil {
-				return // valkey-go refuses a client at construction when nothing answers
-			}
+			require.NoError(t, err, "the stub answers, so the client is built")
 
 			t.Cleanup(store.Close)
 			require.NoError(t, store.Ping(t.Context()))

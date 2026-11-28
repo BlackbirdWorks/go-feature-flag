@@ -140,11 +140,9 @@ func e2eEncoding(t *testing.T, back *backend) {
 	require.NoError(t, err)
 	assert.Equal(t, segmentadmin.Stats{Exists: true, Count: 3, Version: rep.Version, HasVersion: true}, *stat)
 
-	for _, key := range []string{segEnc + ":import:new", segEnc + ":import:old"} {
-		exists, _, ttlErr := back.store.KeyTTL(ctx, key)
-		require.NoError(t, ttlErr)
-		assert.False(t, exists, "%s is removed", key)
-	}
+	left, _, countErr := back.store.CountKeys(ctx, segEnc+":import:", 10)
+	require.NoError(t, countErr)
+	assert.Zero(t, left, "no key of the run (lock, temporary keys) is left")
 }
 
 // e2eAtomic replaces a set of e2eIDs ids by another while readers ask for ids of both, and a pinger measures the
@@ -348,7 +346,7 @@ const (
 	rowsOld   = segRows + ":import:" + rowsToken + ":old"
 	rowsLast  = segRows + ":import:last"
 	rowsDone  = segRows + ":import:committed"
-	rowsTheir = "theirs"
+	rowsTheir = memberTheirs
 )
 
 // e2eProtocol runs the rows of the protocol on the real store: the live set is never touched unless the swap condition
@@ -457,7 +455,7 @@ func e2eProtocol(t *testing.T, back *backend) {
 	t.Run("a run that lost its lock does not swap and leaves the other run's keys", func(t *testing.T) {
 		seed(t)
 
-		_, err := back.store.SAdd(ctx, segRows+":import:"+rowsTheir+":new", []string{"theirs"}, time.Hour)
+		_, err := back.store.SAdd(ctx, segRows+":import:"+rowsTheir+":new", []string{memberTheirs}, time.Hour)
 		require.NoError(t, err)
 
 		err = run(func(line int) {
@@ -495,6 +493,11 @@ func e2eProtocol(t *testing.T, back *backend) {
 		started, release := make(chan struct{}), make(chan struct{})
 		winner := make(chan error, 1)
 
+		var releaseOnce sync.Once
+
+		releaseWinner := func() { releaseOnce.Do(func() { close(release) }) }
+		t.Cleanup(releaseWinner) // the winner is never left blocked, whatever the assertions find
+
 		go func() {
 			winner <- run(func(line int) {
 				if line == 1 {
@@ -509,7 +512,7 @@ func e2eProtocol(t *testing.T, back *backend) {
 		_, err := segmentadmin.Import(ctx, back.store, target, newReader(t, stringsReader("loser\n")),
 			segmentadmin.ImportOptions{Token: "second"})
 		require.ErrorIs(t, err, segmentadmin.ErrImportRunning)
-		close(release)
+		releaseWinner()
 		require.NoError(t, <-winner)
 
 		got, err := states(ctx, back.relay, "rows", "row-0", "row-1", "row-2", "x", "loser")
@@ -523,7 +526,7 @@ func e2eProtocol(t *testing.T, back *backend) {
 		seed(t)
 
 		dead := segRows + ":import:dead:new"
-		_, err := back.store.SAdd(ctx, dead, []string{"junk"}, time.Hour)
+		_, err := back.store.SAdd(ctx, dead, []string{memberJunk}, time.Hour)
 		require.NoError(t, err)
 		require.NoError(t, back.store.SetValue(ctx, rowsLast, dead))
 
@@ -608,8 +611,18 @@ func e2eContract(t *testing.T, back *backend) {
 
 	ctx := t.Context()
 	keys := []string{
-		liveKey, tmpKey, oldKey, lockKey, lastKey, committedKey, versionKey, versionKey + "x",
-		memberPrefix + "a", memberPrefix + "b", memberPrefix + "c",
+		liveKey,
+		tmpKey,
+		oldKey,
+		lockKey,
+		lastKey,
+		committedKey,
+		versionKey,
+		versionKey + "x",
+		liveKey + ":import:dead:new",
+		memberPrefix + "a",
+		memberPrefix + "b",
+		memberPrefix + "c",
 	}
 
 	for _, tt := range storeCases() {

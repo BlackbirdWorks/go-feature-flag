@@ -66,9 +66,35 @@ func resolve(com *Common, deps *Deps) (*resolved, error) {
 		return nil, err
 	}
 
-	return &resolved{
-		conn: &conn, target: targetOf(cfg, def, prefix), connName: def.Connection, secrets: secrets,
-	}, nil
+	target := targetOf(cfg, def, prefix)
+
+	err = checkOverlap(doc, def, target, cfg, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", com.Segments, err)
+	}
+
+	return &resolved{conn: &conn, target: target, connName: def.Connection, secrets: secrets}, nil
+}
+
+// checkOverlap refuses a segment whose keys can meet the keys of another segment of the document on the same
+// connection (an import removes keys under its own derived names).
+func checkOverlap(
+	doc *controlplane.SegmentsDocument, def *controlplane.SegmentDefinition, target *segmentadmin.Target,
+	cfg *bootstrap.Config, prefix string,
+) error {
+	for i := range doc.Segments {
+		other := &doc.Segments[i]
+		if other == def || other.Connection != def.Connection {
+			continue
+		}
+
+		err := segmentadmin.CheckKeys(target, targetOf(cfg, other, prefix))
+		if err != nil {
+			return fmt.Errorf("segments[%d] (%s): %w", i, other.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // findDefinition is the dynamic definition that the flags name.

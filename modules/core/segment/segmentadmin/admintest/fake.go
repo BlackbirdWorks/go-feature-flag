@@ -33,6 +33,7 @@ type Fake struct {
 	lost     map[string]int
 	lostAll  map[string]bool
 	seen     map[string]int
+	after    map[string]func()
 	calls    []string
 	mu       sync.Mutex
 	noUnlink bool
@@ -45,7 +46,7 @@ func New() *Fake {
 	return &Fake{
 		sets: map[string]map[string]struct{}{}, strs: map[string]string{}, ttls: map[string]time.Duration{},
 		failures: map[string]int{}, failFrom: map[string]int{}, lost: map[string]int{}, lostAll: map[string]bool{},
-		seen: map[string]int{},
+		seen: map[string]int{}, after: map[string]func(){},
 	}
 }
 
@@ -220,7 +221,7 @@ func (f *Fake) SetKeys(ctx context.Context, keys []string) (int64, error) {
 	return created, nil
 }
 
-// Lock implements [segmentadmin.Store]: SET NX.
+// Lock implements [segmentadmin.Store]: idempotent by the token, as the script is.
 func (f *Fake) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -230,14 +231,49 @@ func (f *Fake) Lock(ctx context.Context, key, token string, ttl time.Duration) (
 		return false, err
 	}
 
-	if _, held := f.strs[key]; held {
-		return false, nil
+	holder, held := f.strs[key]
+	if held && holder != token {
+		return false, f.lose("LOCK")
 	}
 
 	f.strs[key] = token
 	f.ttls[key] = ttl
 
+	return true, f.lose("LOCK")
+}
+
+// Claim implements [segmentadmin.Store]: it removes the stale key and records the last one only for the lock holder.
+func (f *Fake) Claim(ctx context.Context, lock, last, stale, tmp, token string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	err := f.enter(ctx, "CLAIM", lock)
+	if err != nil {
+		return false, err
+	}
+
+	if f.strs[lock] != token {
+		return false, nil
+	}
+
+	if stale != "" {
+		delete(f.sets, stale)
+		delete(f.strs, stale)
+		delete(f.ttls, stale)
+	}
+
+	f.strs[last] = tmp
+
 	return true, nil
+}
+
+// AfterCall runs fn once the call of an operation ("SWAP", "EDIT") has been applied and answered, without the lock of
+// the fake held: it may use the fake, or cancel a context.
+func (f *Fake) AfterCall(op string, fn func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.after[op] = fn
 }
 
 // Unlock implements [segmentadmin.Store]: the compare and delete.
@@ -306,6 +342,8 @@ func (f *Fake) StageAdd(
 
 // EditSet implements [segmentadmin.Store]: refused while the import lock exists.
 func (f *Fake) EditSet(ctx context.Context, lock, key string, members []string, remove bool) (int64, bool, error) {
+	defer f.runAfter("EDIT")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -350,6 +388,8 @@ func (f *Fake) EditSet(ctx context.Context, lock, key string, members []string, 
 
 // Commit implements [segmentadmin.Store]: the conditional swap, in one step as the script does it.
 func (f *Fake) Commit(ctx context.Context, commit *segmentadmin.Commit) (segmentadmin.CommitResult, bool, error) {
+	defer f.runAfter("SWAP")
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -576,4 +616,14 @@ func (f *Fake) commitLocked(commit *segmentadmin.Commit) (segmentadmin.CommitRes
 	f.strs[commit.Committed] = commit.Token
 
 	return segmentadmin.Committed, false, nil
+}
+
+func (f *Fake) runAfter(op string) {
+	f.mu.Lock()
+	fn := f.after[op]
+	f.mu.Unlock()
+
+	if fn != nil {
+		fn()
+	}
 }

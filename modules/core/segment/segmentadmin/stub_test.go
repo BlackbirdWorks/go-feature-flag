@@ -417,6 +417,10 @@ func (s *stubServer) eval(args []string) string {
 	var reply string
 
 	switch {
+	case strings.HasPrefix(args[1], "-- lock"):
+		reply = s.evalLock(keys, argv)
+	case strings.HasPrefix(args[1], "-- claim"):
+		reply = s.evalClaim(keys, argv)
 	case strings.Contains(args[1], opSREM):
 		reply = s.evalEdit(keys, argv)
 	case strings.Contains(args[1], "UNLINK"):
@@ -431,6 +435,38 @@ func (s *stubServer) eval(args []string) string {
 	s.dropped = s.dropAt == s.evals
 
 	return reply
+}
+
+func (s *stubServer) evalLock(keys, argv []string) string {
+	holder, held := s.strs[keys[0]]
+
+	switch {
+	case !held:
+		s.strs[keys[0]] = argv[0]
+		s.ttl[keys[0]] = argv[1]
+
+		return integer(1)
+	case holder == argv[0]:
+		s.ttl[keys[0]] = argv[1]
+
+		return integer(1)
+	}
+
+	return integer(0)
+}
+
+func (s *stubServer) evalClaim(keys, argv []string) string {
+	if s.strs[keys[0]] != argv[0] {
+		return integer(0)
+	}
+
+	if argv[2] == "1" {
+		s.del(keys[2])
+	}
+
+	s.strs[keys[1]] = argv[1]
+
+	return integer(1)
 }
 
 func (s *stubServer) evalUnlock(keys, argv []string) string {

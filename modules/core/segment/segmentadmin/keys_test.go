@@ -125,3 +125,75 @@ func TestIsNoSuchKey(t *testing.T) {
 	assert.False(t, segmentadmin.IsNoSuchKey(errUnknown))
 	assert.False(t, segmentadmin.IsNoSuchKey(nil))
 }
+
+func TestCheckKeys(t *testing.T) {
+	t.Parallel()
+
+	set := func(name, key, version string) *segmentadmin.Target {
+		return &segmentadmin.Target{Name: name, Key: key, VersionKey: version}
+	}
+
+	tests := []struct {
+		a       *segmentadmin.Target
+		b       *segmentadmin.Target
+		name    string
+		wantErr bool
+	}{
+		{name: "distinct segments", a: set("a", "p:{a}", "p:a:v"), b: set("b", "p:{b}", "p:b:v")},
+		{name: "the same key", a: set("a", "p:{a}", ""), b: set("b", "p:{a}", ""), wantErr: true},
+		{
+			name:    "a key is the lock of the other",
+			a:       set("a", "p:{a}", ""),
+			b:       set("b", "p:{a}:import:lock", ""),
+			wantErr: true,
+		},
+		{
+			name:    "a key is the temporary key of the other",
+			a:       set("a", "p:{a}", ""),
+			b:       set("b", "p:{a}:import:tok:new", ""),
+			wantErr: true,
+		},
+		{
+			name:    "a version key is under the import keys of the other",
+			a:       set("a", "p:{a}", ""),
+			b:       set("b", "p:{b}", "p:{a}:import:last"),
+			wantErr: true,
+		},
+		{
+			name:    "a key without a tag is wrapped",
+			a:       set("a", "plain", ""),
+			b:       set("b", "{plain}:import:lock", ""),
+			wantErr: true,
+		},
+		{name: "a key that only starts like the other", a: set("a", "p:{a}", ""), b: set("b", "p:{a}x", "")},
+		{
+			name: "member keys that can be the derived keys", a: set("a", "p:{a}", ""),
+			b: &segmentadmin.Target{Name: "b", Key: "p:{a}:", Layout: redissegment.LayoutKeys}, wantErr: true,
+		},
+		{
+			name: "no import of the keys layout: nothing is derived",
+			a: &segmentadmin.Target{
+				Name:   "a",
+				Key:    "p:a:",
+				Layout: redissegment.LayoutKeys,
+			},
+			b: set("b", "p:a:import:lock", ""),
+		},
+		{name: "a segment without a key", a: set("a", "", ""), b: set("b", "p:{b}", "")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, pair := range [][2]*segmentadmin.Target{{tt.a, tt.b}, {tt.b, tt.a}} {
+				err := segmentadmin.CheckKeys(pair[0], pair[1])
+				if tt.wantErr {
+					require.ErrorIs(t, err, segmentadmin.ErrKeyOverlap)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+		})
+	}
+}

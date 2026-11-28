@@ -16,6 +16,8 @@ type ValkeyStore struct {
 	commit *valkey.Lua
 	unlock *valkey.Lua
 	edit   *valkey.Lua
+	lock   *valkey.Lua
+	claim  *valkey.Lua
 }
 
 var _ Store = (*ValkeyStore)(nil)
@@ -25,6 +27,7 @@ func NewValkey(client valkey.Client) *ValkeyStore {
 	return &ValkeyStore{
 		client: client, stage: valkey.NewLuaScript(stageScript), commit: valkey.NewLuaScript(commitScript),
 		unlock: valkey.NewLuaScript(unlockScript), edit: valkey.NewLuaScript(editScript),
+		lock: valkey.NewLuaScript(lockScript), claim: valkey.NewLuaScript(claimScript),
 	}
 }
 
@@ -103,18 +106,29 @@ func (s *ValkeyStore) SetKeys(ctx context.Context, keys []string) (int64, error)
 
 // Lock implements [Store].
 func (s *ValkeyStore) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
-	res := s.client.Do(ctx, s.client.B().Set().Key(key).Value(token).Nx().PxMilliseconds(ttl.Milliseconds()).Build())
+	args := []string{token, strconv.FormatInt(ttl.Milliseconds(), 10)}
 
-	msg, err := res.ToMessage()
-	if valkey.IsValkeyNil(err) {
-		return false, nil
-	}
-
+	held, err := s.lock.Exec(ctx, s.client, []string{key}, args).AsInt64()
 	if err != nil {
-		return false, storeErr("SET", err)
+		return false, storeErr("EVAL", err)
 	}
 
-	return !msg.IsNil(), nil
+	return held == 1, nil
+}
+
+// Claim implements [Store].
+func (s *ValkeyStore) Claim(ctx context.Context, lock, last, stale, tmp, token string) (bool, error) {
+	keys := []string{lock, last, stale}
+	if stale == "" {
+		keys[2] = last // a key of the slot that the script does not touch
+	}
+
+	held, err := s.claim.Exec(ctx, s.client, keys, []string{token, tmp, flag(stale != "")}).AsInt64()
+	if err != nil {
+		return false, storeErr("EVAL", err)
+	}
+
+	return held == 1, nil
 }
 
 // Unlock implements [Store].

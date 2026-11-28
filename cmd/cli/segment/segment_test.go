@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,6 +55,12 @@ segments:
   resolver:
     maxIdBytes: 40
     default: {normalize: trimLower}
+`
+	overlapDoc = `apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - {name: vip, connection: fast, mode: lookup}
+  - {name: clash, connection: fast, mode: lookup, key: "semaphore:segment:{vip}:import:lock"}
 `
 	bareDoc = `version: 2
 connections:
@@ -139,7 +147,12 @@ func runWith(
 }
 
 func files() map[string]string {
-	return map[string]string{bootstrapFile: bootstrapDoc, segmentsFile: segmentsDoc, "bare.yaml": bareDoc}
+	return map[string]string{
+		bootstrapFile:  bootstrapDoc,
+		segmentsFile:   segmentsDoc,
+		"bare.yaml":    bareDoc,
+		"overlap.yaml": overlapDoc,
+	}
 }
 
 func common(name string) []string {
@@ -310,6 +323,23 @@ func runCases2() []runCase {
 			name: "an add while an import runs is a conflict", lockedBy: "other", preload: []string{memberOld},
 			args: append([]string{cmdAdd, "a"}, common(segVIP)...), wantErr: segmentadmin.ErrImportRunning,
 			wantCode: helper.ExitConflict, wantMembers: []string{memberOld},
+		},
+		{
+			name: "a segment whose key is one of the keys of an import of another is refused",
+			args: []string{
+				cmdImport,
+				flagFrom,
+				"-",
+				flagConfig,
+				bootstrapFile,
+				flagSegments,
+				"overlap.yaml",
+				flagSegment,
+				segVIP,
+			},
+			stdin:    "a\n",
+			wantErr:  segmentadmin.ErrKeyOverlap,
+			wantCode: helper.ExitInvalid,
 		},
 		{
 			name: cmdBump, args: append([]string{cmdBump}, common(segVIP)...), wantOut: []string{wantVersionLine},
@@ -602,16 +632,21 @@ func TestRun_inputThatNeverEnds(t *testing.T) {
 
 	store := admintest.New()
 	result := make(chan error, 1)
+	input := &startedReader{src: pipeReader, started: make(chan struct{})}
 
 	go func() {
 		var out, errOut bytes.Buffer
 
-		result <- runWith(ctx, store, pipeReader, files(), &helper.Streams{Stdout: &out, Stderr: &errOut},
+		result <- runWith(ctx, store, input, files(), &helper.Streams{Stdout: &out, Stderr: &errOut},
 			append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...))
 	}()
 
-	require.Eventually(t, func() bool { return len(store.Calls()) > 0 }, 10*time.Second, time.Millisecond,
-		"the import did not start")
+	select {
+	case <-input.started: // the read that blocks has begun
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the command did not start reading its input")
+	}
+
 	cancel()
 
 	select {
@@ -637,4 +672,22 @@ func TestRun_resultWriteError(t *testing.T) {
 		&helper.Streams{Stdout: failingWriter{}, Stderr: io.Discard},
 		append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...))
 	require.ErrorIs(t, err, errWrite)
+}
+
+// startedReader tells when the first read of its source begins.
+type startedReader struct {
+	src     io.Reader
+	started chan struct{}
+	once    sync.Once
+}
+
+func (r *startedReader) Read(buf []byte) (int, error) {
+	r.once.Do(func() { close(r.started) })
+
+	n, err := r.src.Read(buf)
+	if err != nil {
+		return n, fmt.Errorf("read: %w", err)
+	}
+
+	return n, nil
 }
