@@ -242,8 +242,9 @@ type Core struct {
 	// close).
 	finished chan struct{}
 	// released is closed when the cleanup ran, exactly once, after the loops ended.
-	released    chan struct{}
-	shutdownErr error
+	released      chan struct{}
+	shutdownErr   error
+	unknownFields unknownTracker
 
 	stateDisabled string
 	reloads       reloadCounter

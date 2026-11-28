@@ -5,6 +5,8 @@ import "time"
 // ConfigInfo is what /info says about the config v2 runtime. It never holds an API key, an admin key, a secret or the
 // bytes of an object.
 type ConfigInfo struct {
+	// Reader is the outcome of the last manifest read by the manifest reader; absent before any read.
+	Reader *ReaderInfo `json:"reader,omitempty"`
 	// LastRejected is the most recent rejected round, kept until a later applied round supersedes it; absent then.
 	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
 	// Reloads counts the rounds by outcome: applied, rejected, ignored.
@@ -24,6 +26,8 @@ type ConfigInfo struct {
 	SegmentStores []SegmentStoreInfo `json:"segmentStores,omitempty"`
 	// SegmentBindings is what the flag sets share of the dynamic segments; left out when none is served.
 	SegmentBindings *SegmentBindingsInfo `json:"segmentBindings,omitempty"`
+	// UnknownFields reports unknown fields noticed in control-plane documents, by kind; absent when zero.
+	UnknownFields []UnknownFieldsInfo `json:"unknownFields,omitempty"`
 	// Withdrawn lists the flag sets removed by the publisher.
 	Withdrawn []WithdrawnInfo `json:"withdrawn"`
 	// PendingRestart names the settings that changed and need a restart.

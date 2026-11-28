@@ -1,6 +1,13 @@
 package manifestreader
 
-import "time"
+import (
+	"time"
+
+	"github.com/blackbirdworks/semaphore/controlplane"
+)
+
+// MaxUnknownFieldPaths is the maximum number of unknown field paths kept per document in status.
+const MaxUnknownFieldPaths = 10
 
 // Results of a poll, in [PollStatus.Result]. The set is closed.
 const (
@@ -47,6 +54,8 @@ type PollStatus struct {
 
 // ManifestStatus describes the manifest the reader holds and the last one it read.
 type ManifestStatus struct {
+	// At is when the reader processed the last manifest (accepted or rejected), zero when none was read yet.
+	At time.Time `json:"at,omitzero"`
 	// Outcome is an Outcome* constant: what happened to the last manifest the reader read. A 304 does not
 	// change it: it confirms the same bytes.
 	Outcome string `json:"outcome"`
@@ -54,11 +63,14 @@ type ManifestStatus struct {
 	// "wrong-kind", "too-many-objects", ...), empty when accepted.
 	Reason string `json:"reason"`
 	// Channel and Generation are those of the held manifest, zero before the first accepted one.
-	Channel    string `json:"channel"`
-	Generation uint64 `json:"generation"`
+	Channel string `json:"channel"`
+	// UnknownFieldPaths lists the first MaxUnknownFieldPaths field paths of the held manifest that this version
+	// does not know (never field values).
+	UnknownFieldPaths []string `json:"unknownFieldPaths,omitempty"`
+	Generation        uint64   `json:"generation"`
 	// Objects is the number of objects of the held manifest.
 	Objects int `json:"objects"`
-	// UnknownFields counts the fields of the last read manifest that this version does not know.
+	// UnknownFields counts the fields of the held manifest that this version does not know.
 	UnknownFields int `json:"unknownFields"`
 }
 
@@ -86,9 +98,11 @@ type Status struct {
 	HookPanics []HookPanic `json:"hookPanics"`
 	// PollResults counts the polls by result (the Poll* constants), sorted by result; results that did not
 	// happen are absent.
-	PollResults []PollCount    `json:"pollResults"`
-	Manifest    ManifestStatus `json:"manifest"`
-	State       StateStatus    `json:"state"`
+	PollResults []PollCount `json:"pollResults"`
+	// Rejections counts manifest rejections by closed reason, sorted by reason; reasons with zero count are absent.
+	Rejections []RejectionCount `json:"rejections,omitempty"`
+	Manifest   ManifestStatus   `json:"manifest"`
+	State      StateStatus      `json:"state"`
 	// Backoff is the backoff state: the consecutive failures of the manifest poll and the wait planned after
 	// this round.
 	Backoff BackoffStatus `json:"backoff"`
@@ -102,6 +116,26 @@ type Status struct {
 // ReasonTotalTooLarge is the [ManifestStatus.Reason] of a manifest whose distinct objects add up to more than
 // [Config.MaxTotalBytes]: it is rejected whole, before any object request.
 const ReasonTotalTooLarge = "too-large-total"
+
+// RejectionReasons returns the closed, sorted set of reader rejection reasons exported in metrics.
+func RejectionReasons() []string {
+	return []string{
+		OutcomeChannelMismatch,
+		"decode",
+		string(controlplane.CodeDuplicateName),
+		OutcomeConflict,
+		"invalid",
+		string(controlplane.CodeInvalidChecksum),
+		string(controlplane.CodeInvalidName),
+		string(controlplane.CodeInvalidValue),
+		OutcomeLowerGeneration,
+		string(controlplane.CodeMissingValue),
+		ReasonTotalTooLarge,
+		string(controlplane.CodeTooManyObjects),
+		string(controlplane.CodeUnsupportedVersion),
+		"wrong-kind",
+	}
+}
 
 // Results of the restore of the saved state, in [StateStatus.Restore]. The set is closed.
 const (

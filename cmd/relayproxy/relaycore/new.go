@@ -287,6 +287,7 @@ func (c *Core) registerSegmentSeries(ctx context.Context) {
 // recordRound counts a round, then follows the live segments of the generation that it applied.
 func (c *Core) recordRound(ctx context.Context, res *flagruntime.RoundResult) {
 	c.reloads.record(res)
+	c.noteUnknownFields(ctx, res)
 	c.noteLiveSegments(ctx, res)
 }
 

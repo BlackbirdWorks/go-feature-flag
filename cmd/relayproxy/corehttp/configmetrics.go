@@ -7,24 +7,28 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
+	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // Metric names of the config v2 runtime ([MetricNames]).
 const (
-	metricGeneration  = "semaphore_config_generation"
-	metricSnapshot    = "semaphore_config_snapshot"
-	metricReloads     = "semaphore_config_reload_total"
-	metricLastSuccess = "semaphore_config_last_success_timestamp_seconds"
-	metricAge         = "semaphore_config_age_seconds"
-	metricResources   = "semaphore_resource_count"
-	metricResource    = "semaphore_resource_status"
-	metricPending     = "semaphore_config_pending_restart"
-	metricRejected    = "semaphore_flag_rejected_total"
-	metricPresent     = "semaphore_flags_rejected"
-	metricObjects     = "semaphore_object_status"
-	metricObjectAge   = "semaphore_object_oldest_unapplied_age_seconds"
-	metricSummaries   = "semaphore_config_summaries_total"
+	metricGeneration       = "semaphore_config_generation"
+	metricSnapshot         = "semaphore_config_snapshot"
+	metricReloads          = "semaphore_config_reload_total"
+	metricLastSuccess      = "semaphore_config_last_success_timestamp_seconds"
+	metricAge              = "semaphore_config_age_seconds"
+	metricResources        = "semaphore_resource_count"
+	metricResource         = "semaphore_resource_status"
+	metricPending          = "semaphore_config_pending_restart"
+	metricRejected         = "semaphore_flag_rejected_total"
+	metricPresent          = "semaphore_flags_rejected"
+	metricObjects          = "semaphore_object_status"
+	metricObjectAge        = "semaphore_object_oldest_unapplied_age_seconds"
+	metricSummaries        = "semaphore_config_summaries_total"
+	metricUnknownFields    = "semaphore_config_unknown_fields"
+	metricReaderRejections = "semaphore_config_reader_rejections_total"
 )
 
 // maxNamedResources caps the series of semaphore_resource_status: one per resource that is not ready, the first
@@ -47,7 +51,7 @@ func MetricNames() []string {
 	return []string{
 		metricGeneration, metricSnapshot, metricReloads, metricLastSuccess, metricAge, metricResources,
 		metricResource, metricPending, metricRejected, metricPresent, metricObjects, metricObjectAge,
-		metricSummaries,
+		metricSummaries, metricUnknownFields, metricReaderRejections,
 	}
 }
 
@@ -61,6 +65,7 @@ type ConfigCollector struct {
 
 	generation, snapshot, reloads, lastSuccess, age, counts, named, pending *prom.Desc
 	rejected, present, objects, objectAge, summaries                        *prom.Desc
+	unknownFields, readerRejections                                         *prom.Desc
 }
 
 var _ prom.Collector = (*ConfigCollector)(nil)
@@ -104,6 +109,12 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 			"every object is ok."),
 		summaries: desc(metricSummaries, "Status summaries built for the probes and the metrics: one per swapped "+
 			"runtime that a reader met, never one per scrape."),
+		unknownFields: desc(metricUnknownFields,
+			"Unknown fields counted in control-plane documents by document kind (flagSets, flags, manifest, segments).",
+			"kind"),
+		readerRejections: desc(metricReaderRejections,
+			"Manifests rejected by the manifest reader before reaching the engine, by closed reason.",
+			"reason"),
 	}
 }
 
@@ -120,7 +131,7 @@ func NewConfigCollectorSharing(src StatusSource, ready *Readiness) *ConfigCollec
 func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
 	for _, d := range []*prom.Desc{
 		c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending,
-		c.rejected, c.present, c.objects, c.objectAge, c.summaries,
+		c.rejected, c.present, c.objects, c.objectAge, c.summaries, c.unknownFields, c.readerRejections,
 	} {
 		out <- d
 	}
@@ -167,6 +178,7 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 	counter(c.summaries, float64(c.sums.computed.Load()))
 
 	c.collectRejected(out, &status.Reloads, sum)
+	c.collectReaderAndUnknown(out, &status, sum)
 
 	for _, state := range []string{resourceReady, resourceDegraded, resourcePending} {
 		gauge(c.counts, float64(sum.flagSets[state]), kindFlagSet, state)
@@ -188,6 +200,37 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 
 	for _, bad := range sum.badObject[:min(len(sum.badObject), maxNamedResources)] {
 		gauge(c.named, 1, kindObject, bad.name, bad.state)
+	}
+}
+
+func (c *ConfigCollector) collectReaderAndUnknown(
+	out chan<- prom.Metric, status *relaycore.Status, sum *summary,
+) {
+	gauge := func(d *prom.Desc, v float64, labels ...string) {
+		out <- prom.MustNewConstMetric(d, prom.GaugeValue, v, labels...)
+	}
+	counter := func(d *prom.Desc, v float64, labels ...string) {
+		out <- prom.MustNewConstMetric(d, prom.CounterValue, v, labels...)
+	}
+
+	for _, kind := range []string{
+		controlplane.KindFlagSets, controlplane.KindFlags, kindManifest, controlplane.KindSegments,
+	} {
+		count := sum.unknownFields[kind]
+		if kind == kindManifest {
+			count = status.Source.Reader.Manifest.UnknownFields
+		}
+
+		gauge(c.unknownFields, float64(count), kind)
+	}
+
+	byReason := make(map[string]uint64, len(status.Source.Reader.Rejections))
+	for _, item := range status.Source.Reader.Rejections {
+		byReason[item.Reason] = item.Count
+	}
+
+	for _, reason := range manifestreader.RejectionReasons() {
+		counter(c.readerRejections, float64(byReason[reason]), reason)
 	}
 }
 

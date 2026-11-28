@@ -38,18 +38,19 @@ type Reader struct {
 	jitter   func() float64
 	reqCtx   func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// retry is the schedule of the objects that failed, by checksum.
-	retry      map[string]*retryState
-	routes     map[string]string
-	snaps      chan *Snapshot
-	refresh    *refresher
-	now        func() time.Time
-	logged     map[string]string
-	hookPanics map[string]uint64
-	held       *held
-	log        *slog.Logger
-	names      map[string]*nameState
-	pollCounts map[string]uint64
-	cache      map[string][]byte
+	retry        map[string]*retryState
+	routes       map[string]string
+	snaps        chan *Snapshot
+	refresh      *refresher
+	now          func() time.Time
+	logged       map[string]string
+	hookPanics   map[string]uint64
+	held         *held
+	log          *slog.Logger
+	names        map[string]*nameState
+	pollCounts   map[string]uint64
+	rejectCounts map[string]uint64
+	cache        map[string][]byte
 	// seen is the ETag sent as If-None-Match: the one of the last manifest read, accepted or not.
 	seen     string
 	lastPoll string
@@ -147,22 +148,23 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 	}
 
 	reader := &Reader{
-		store:      store,
-		cfg:        own,
-		log:        slog.New(slog.DiscardHandler),
-		sched:      timerScheduler{},
-		jitter:     defaultJitter,
-		reqCtx:     withTimeout,
-		snaps:      make(chan *Snapshot, 1),
-		refresh:    newRefresher(),
-		now:        clock.Now,
-		cache:      map[string][]byte{},
-		names:      map[string]*nameState{},
-		logged:     map[string]string{},
-		hookPanics: map[string]uint64{},
-		retry:      map[string]*retryState{},
-		pollCounts: map[string]uint64{},
-		manifest:   ManifestStatus{Outcome: OutcomeNone},
+		store:        store,
+		cfg:          own,
+		log:          slog.New(slog.DiscardHandler),
+		sched:        timerScheduler{},
+		jitter:       defaultJitter,
+		reqCtx:       withTimeout,
+		snaps:        make(chan *Snapshot, 1),
+		refresh:      newRefresher(),
+		now:          clock.Now,
+		cache:        map[string][]byte{},
+		names:        map[string]*nameState{},
+		logged:       map[string]string{},
+		hookPanics:   map[string]uint64{},
+		retry:        map[string]*retryState{},
+		pollCounts:   map[string]uint64{},
+		rejectCounts: map[string]uint64{},
+		manifest:     ManifestStatus{Outcome: OutcomeNone},
 	}
 
 	for _, opt := range opts {
@@ -436,15 +438,33 @@ func (r *Reader) logPoll(ctx context.Context, poll PollStatus) {
 // reject records a manifest that is not applied. The ETag of the rejected bytes is sent next (r.seen): the same
 // bytes are rejected again with the same result, so the next 304 spares the download and the repeated log, and
 // a corrected manifest has other bytes, so another ETag, and is read. The ETag of the ACCEPTED manifest is
-// kept apart in held.etag, and is what Save gets.
-func (r *Reader) reject(ctx context.Context, outcome, reason string, unknown int) {
+// kept apart in held.etag, and is what Save gets. The held manifest's UnknownFields count and paths stay untouched.
+func (r *Reader) reject(ctx context.Context, outcome, reason string) {
+	r.manifest.At = r.now().UTC()
 	r.manifest.Outcome = outcome
 	r.manifest.Reason = reason
-	r.manifest.UnknownFields = unknown
+	r.rejectCounts[rejectionMetricReason(outcome, reason)]++
 
 	r.log.LogAttrs(ctx, slog.LevelWarn, "manifest reader: manifest rejected, previous one kept",
 		slog.String("outcome", outcome), slog.String("reason", reason),
 		slog.Uint64("heldGeneration", r.manifest.Generation))
+}
+
+func capPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	return slices.Clone(paths[:min(len(paths), MaxUnknownFieldPaths)])
+}
+
+func rejectionMetricReason(outcome, reason string) string {
+	switch outcome {
+	case OutcomeChannelMismatch, OutcomeLowerGeneration, OutcomeConflict:
+		return outcome
+	}
+
+	return reason
 }
 
 // accept decodes, validates and applies the manifest of a 200 answer. It reports whether the manifest was
@@ -457,9 +477,7 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 		err = controlplane.ValidateManifest(manifest, controlplane.WithMaxObjects(r.cfg.MaxObjects))
 	}
 
-	unknown := len(info.UnknownFields)
-
-	if !r.validateAccepted(ctx, manifest, err, unknown) {
+	if !r.validateAccepted(ctx, manifest, err) {
 		return false
 	}
 
@@ -476,7 +494,7 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 
 	genChanged := r.held == nil || manifest.Generation != r.held.generation
 
-	if !r.checkGeneration(ctx, manifest, ident, genChanged, unknown) {
+	if !r.checkGeneration(ctx, manifest, ident, genChanged) {
 		return false
 	}
 
@@ -487,8 +505,13 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 	r.restoreStale(restoring)
 
 	r.manifest = ManifestStatus{
-		Outcome: OutcomeAccepted, Channel: manifest.Channel, Generation: manifest.Generation,
-		Objects: len(manifest.Objects), UnknownFields: unknown,
+		At:                r.now().UTC(),
+		Outcome:           OutcomeAccepted,
+		Channel:           manifest.Channel,
+		Generation:        manifest.Generation,
+		Objects:           len(manifest.Objects),
+		UnknownFields:     len(info.UnknownFields),
+		UnknownFieldPaths: capPaths(info.UnknownFields),
 	}
 
 	r.settle(ctx, genChanged, !restoring)
@@ -522,21 +545,21 @@ func (r *Reader) restoreStale(restoring bool) {
 	}
 }
 
-func (r *Reader) validateAccepted(ctx context.Context, manifest *controlplane.Manifest, err error, unknown int) bool {
+func (r *Reader) validateAccepted(ctx context.Context, manifest *controlplane.Manifest, err error) bool {
 	if err != nil && !onlyUnsupportedObjectVersions(err) {
-		r.reject(ctx, OutcomeInvalid, manifestReason(err), unknown)
+		r.reject(ctx, OutcomeInvalid, manifestReason(err))
 
 		return false
 	}
 
 	if r.cfg.Channel != "" && manifest.Channel != r.cfg.Channel {
-		r.reject(ctx, OutcomeChannelMismatch, "channel", unknown)
+		r.reject(ctx, OutcomeChannelMismatch, "channel")
 
 		return false
 	}
 
 	if !r.withinTotal(manifest.Objects) {
-		r.reject(ctx, OutcomeInvalid, ReasonTotalTooLarge, unknown)
+		r.reject(ctx, OutcomeInvalid, ReasonTotalTooLarge)
 
 		return false
 	}
@@ -549,7 +572,6 @@ func (r *Reader) checkGeneration(
 	manifest *controlplane.Manifest,
 	ident map[string]identity,
 	genChanged bool,
-	unknown int,
 ) bool {
 	if r.held == nil {
 		return true
@@ -557,11 +579,11 @@ func (r *Reader) checkGeneration(
 
 	switch {
 	case manifest.Generation < r.held.generation:
-		r.reject(ctx, OutcomeLowerGeneration, "generation", unknown)
+		r.reject(ctx, OutcomeLowerGeneration, "generation")
 
 		return false
 	case !genChanged && (manifest.Channel != r.held.channel || !maps.Equal(r.held.ident, ident)):
-		r.reject(ctx, OutcomeConflict, "generation", unknown)
+		r.reject(ctx, OutcomeConflict, "generation")
 
 		return false
 	}
@@ -1018,7 +1040,7 @@ func (r *Reader) storeStatus(ctx context.Context, poll PollStatus, confirmed boo
 	status := &Status{
 		LastSync: r.lastSync, Poll: poll, Manifest: r.manifest, Failures: r.failures, Counts: r.counts,
 		Cache: r.cacheStats(), Polls: r.polls, NotModified: r.notMod, Backoff: r.backoff,
-		PollResults: r.pollResults(),
+		PollResults: r.pollResults(), Rejections: r.rejectionResults(),
 	}
 
 	status.Backoff.ObjectsWaiting = r.objectsWaiting()

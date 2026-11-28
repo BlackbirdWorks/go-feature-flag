@@ -46,10 +46,11 @@ type summary struct {
 	flagSets    map[string]int
 	objects     map[string]int
 	// rejected counts the rejected flags present in the objects, by reason (kept, dropped).
-	rejected  map[string]int
-	dynamic   map[string]int
-	badSets   []unhealthy
-	badObject []unhealthy
+	rejected      map[string]int
+	dynamic       map[string]int
+	unknownFields map[string]int
+	badSets       []unhealthy
+	badObject     []unhealthy
 }
 
 // summaries caches the summary of the runtime that was last read. A new runtime is a new pointer, so the cache
@@ -72,6 +73,7 @@ func (sum *summary) addObjects(objects map[string]*flagruntime.ObjectStatus) {
 	for name, obj := range objects {
 		state := string(obj.State)
 		sum.objects[state]++
+		sum.unknownFields[obj.Kind] += obj.UnknownFields
 
 		for _, rej := range obj.Rejected {
 			if rej.Kept {
@@ -94,10 +96,11 @@ func (sum *summary) addObjects(objects map[string]*flagruntime.ObjectStatus) {
 func (c *summaries) of(status *flagruntime.Status) *summary {
 	if status == nil {
 		return &summary{
-			flagSets: map[string]int{},
-			objects:  map[string]int{},
-			rejected: map[string]int{},
-			dynamic:  map[string]int{},
+			flagSets:      map[string]int{},
+			objects:       map[string]int{},
+			rejected:      map[string]int{},
+			dynamic:       map[string]int{},
+			unknownFields: map[string]int{},
 		}
 	}
 
@@ -116,10 +119,11 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 	c.computed.Add(1)
 
 	sum := &summary{
-		flagSets: map[string]int{},
-		objects:  map[string]int{},
-		rejected: map[string]int{},
-		dynamic:  map[string]int{},
+		flagSets:      map[string]int{},
+		objects:       map[string]int{},
+		rejected:      map[string]int{},
+		dynamic:       map[string]int{},
+		unknownFields: map[string]int{},
 	}
 
 	for name, set := range status.FlagSets {
