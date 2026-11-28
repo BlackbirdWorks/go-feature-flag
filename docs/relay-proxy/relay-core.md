@@ -44,6 +44,25 @@ admin keys of the file.
   Values are never listed.
 - If the store is unreachable the relay keeps serving the last runtime, and the reader status shows the failed poll.
 
+### Measured
+
+Three tests prove what a reload costs. The figures are from a commodity 8-thread Linux machine.
+
+- Store requests: a reload that leaves the control plane unchanged reads no object. The bootstrap reload (SIGHUP) makes
+  no request at all. A refresh (`POST /admin/v1/retriever/refresh`) and a scheduled poll make one conditional GET of the
+  manifest, answered 304. A cold start reads the manifest and each object once (`task test-e2e`, gopherstack, counting
+  transport).
+- Memory: with a reader still holding the old runtime, a swap of 5000 flag sets x 100 flags holds 1.54 x the live heap
+  of one generation (58 MB; the bound is 2 x). After the reader lets go it is 1.08 x. A change of one flags object
+  (ten flag sets) adds 0.78 MB, 1.3% of one generation (`go test -tags=bench -run TestScaleMemoryDuringSwap
+  ./cmd/relayproxy/flagruntime`).
+- Latency: `task test-reload-load` sends 1000 evaluation requests per second over HTTP for 60 s to a relay proxy on a
+  file store while a reload that changes the flags runs every 200 ms (299 reloads, none failed). 60,000 requests, no
+  failure. p50 / p99 of the requests due during a reload: 0.58 ms / 1.18 ms (9,117 requests); outside: 0.62 ms / 1.18 ms
+  (50,883 requests); ratio 1.00. The test fails on any failed request and when the p99 during reloads is more than 3 x the p99 outside and also more
+  than 10 ms above it (without the race detector, which distorts the figure); CI runs the 10 s variant
+  (`SEMAPHORE_RELOAD_LOAD_DURATION`).
+
 ## Shut down
 
 `Shutdown` stops in order:

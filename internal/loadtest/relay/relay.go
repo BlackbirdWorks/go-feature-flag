@@ -28,6 +28,7 @@ import (
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 const (
@@ -53,6 +54,7 @@ const (
 var (
 	errUnexpectedListenerAddr = errors.New("unexpected listener address type")
 	errNotReady               = errors.New("the relay proxy did not serve its flags")
+	errNotApplied             = errors.New("the engine did not apply the generation")
 )
 
 // Options configures Start.
@@ -89,6 +91,8 @@ type Relay struct {
 	BaseURL string
 	dir     string
 	loops   sync.WaitGroup
+	// generation is the manifest generation last published.
+	generation atomic.Uint64
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.
@@ -136,6 +140,9 @@ func Start(opts Options) (_ *Relay, err error) {
 		Registerer: r.Metrics.Registry,
 		Broadcast:  r.streams.Broadcast,
 		Secrets:    r.secrets(),
+		// the spread is a random wait before the fetch of a new generation (it protects a store from a fleet): the
+		// harness reloads on purpose and measures the swap, not that wait
+		TuneReader: func(cfg *manifestreader.Config) { cfg.DisableFetchSpread = true },
 		Hooks: flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) {
 			select {
 			case rounds <- res:
@@ -172,6 +179,26 @@ func Start(opts Options) (_ *Relay, err error) {
 	}
 
 	return r, nil
+}
+
+// Republish publishes flagsYAML as the next manifest generation, polls the control plane now (what the admin refresh
+// does) and returns once the engine decided it. It fails when the engine did not apply the generation.
+func (r *Relay) Republish(ctx context.Context, flagsYAML string) error {
+	err := r.publish(flagsYAML)
+	if err != nil {
+		return err
+	}
+
+	res, err := r.core.Refresh(ctx)
+	if err != nil {
+		return fmt.Errorf("refresh the relay proxy: %w", err)
+	}
+
+	if res.Engine.Outcome != flagruntime.OutcomeApplied {
+		return fmt.Errorf("%w: %s %s", errNotApplied, res.Engine.Outcome, res.Engine.Detail)
+	}
+
+	return nil
 }
 
 // Dir returns the temporary directory holding the flag file (removed by Close).
@@ -273,9 +300,17 @@ func (r *Relay) publish(flagsYAML string) error {
 			return fmt.Errorf("create the store directory: %w", dirErr)
 		}
 
-		writeErr := os.WriteFile(path, data, 0o600)
+		// written aside and renamed: a poll that runs meanwhile never reads half of an object
+		tmp := path + ".tmp"
+
+		writeErr := os.WriteFile(tmp, data, 0o600)
 		if writeErr != nil {
 			return fmt.Errorf("write the store object: %w", writeErr)
+		}
+
+		writeErr = os.Rename(tmp, path)
+		if writeErr != nil {
+			return fmt.Errorf("publish the store object: %w", writeErr)
 		}
 
 		return nil
@@ -290,7 +325,7 @@ func (r *Relay) publish(flagsYAML string) error {
 
 	manifest := &controlplane.Manifest{
 		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindManifest, Channel: channelName,
-		Generation: 1,
+		Generation: r.generation.Add(1),
 	}
 
 	for _, object := range []struct {

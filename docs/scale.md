@@ -14,6 +14,8 @@ proves it at 5000 flag sets x 100 flags (500,000 flags, 500 flags objects shared
 - The engine is one goroutine, whatever the number of flag sets.
 - Readers that evaluate while the engine swaps repeatedly get no failed evaluation, and every value is the one of the
   generation of the runtime the reader loaded.
+- The live heap during a swap stays within two generations (a reader still holding the old runtime), and one changed
+  object adds memory in proportion to the flag sets it rebuilds: see [Measured](relay-proxy/relay-core.md#measured).
 - A cold start with the state directory fetches no object (one conditional poll of the manifest). Without it, the
   relay fetches every object exactly once.
 

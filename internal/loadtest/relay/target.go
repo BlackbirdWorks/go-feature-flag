@@ -124,6 +124,9 @@ func countFlags(body []byte) (int, error) {
 	return max(1, len(asMap)), nil
 }
 
+// Relay is the relay proxy the target evaluates against (a test republishes its flags through it).
+func (t *Target) Relay() *Relay { return t.relay }
+
 // FlagsPerCall implements loadtest.Weighted: the number of flags of a bulk response, 1 for a single evaluation.
 func (t *Target) FlagsPerCall() int { return t.perCall }
 
