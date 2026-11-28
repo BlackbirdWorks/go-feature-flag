@@ -15,6 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
+	"github.com/blackbirdworks/semaphore/cmd/cli/segment"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
 )
 
@@ -52,13 +53,13 @@ func (versionFlag) BeforeReset(ctx *kong.Context, vars kong.Vars) error {
 	return nil
 }
 
-//nolint:govet // fieldalignment: field order sets kong help command order
 type cli struct {
 	Evaluate evaluate.Cmd    `cmd:""                              help:"${helpEvaluate}"`
 	Lint     linter.Cmd      `cmd:""                              help:"${helpLint}"`
 	Generate generate.Cmd    `cmd:""                              help:"${helpGenerate}"`
 	Publish  publish.Cmd     `cmd:""                              help:"${helpPublish}"`
 	Config   config.Cmd      `cmd:""                              help:"${helpConfig}"`
+	Segment  segment.Cmd     `cmd:""                              help:"${helpSegment}"`
 	Help     helper.HelpFlag `help:"Show context-sensitive help." name:"help"            short:"h"`
 	Version  versionFlag     `help:"Print the version and exit"   name:"version"         short:"v"`
 }
@@ -77,6 +78,7 @@ func helpVars(build Build) kong.Vars {
 	maps.Copy(vars, generate.HelpVars())
 	maps.Copy(vars, linter.HelpVars())
 	maps.Copy(vars, publish.HelpVars())
+	maps.Copy(vars, segment.HelpVars())
 
 	return vars
 }

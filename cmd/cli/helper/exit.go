@@ -20,6 +20,8 @@ const (
 	ExitTransport = 4
 	// ExitVerify is the exit code of a verification that found problems in the bucket.
 	ExitVerify = 5
+	// ExitUnknown is the exit code of a change whose outcome is not known (the reply was lost): look before repeating.
+	ExitUnknown = 6
 )
 
 // ExitError is an error that carries the exit code of the process.
@@ -66,6 +68,8 @@ func JSONErrorName(code int) string {
 		return "transport"
 	case ExitVerify:
 		return "bad-state"
+	case ExitUnknown:
+		return "unknown"
 	}
 
 	return "failure"

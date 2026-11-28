@@ -241,13 +241,12 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 	return nil
 }
 
-// resolverSettings is the resolver section of the file, nil when it has no segments section.
+// resolverSettings is the resolver section of the file with the defaults applied (the defaults alone when the file has
+// no segments section), the same that the segment tool of the CLI reads.
 func resolverSettings(cfg *bootstrap.Config) *bootstrap.SegmentResolver {
-	if cfg.Segments == nil {
-		return nil
-	}
+	settings := cfg.EffectiveResolver()
 
-	return &cfg.Segments.Resolver
+	return &settings
 }
 
 // SerializeJitter makes a source of jitter (a value in [0, 1)) safe to call from several goroutines: the manifest
