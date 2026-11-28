@@ -7,8 +7,10 @@ import (
 	"maps"
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -90,6 +92,7 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // is bounded by the number of flag sets, and no name is lost. Events still in the pending table when Run returns
 // are dropped, and the channel is closed.
 type Engine struct {
+	roundStart    time.Time
 	hooks         Hooks
 	builder       *Builder
 	announced     map[string]struct{}
@@ -110,6 +113,7 @@ type Engine struct {
 	taken         atomic.Uint64
 	withdrawnCap  int
 	changeBuf     int
+	roundStats    reloadStats
 	snapshot      uint64
 	roundRevision uint64
 	bootstrapped  atomic.Bool
@@ -338,6 +342,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	)
 
 	e.roundHadBoot = cfg != nil
+	e.roundStart, e.roundStats = clock.Now(), reloadStats{}
 
 	e.roundRevision, e.roundContent = 0, false
 	if content != nil {
@@ -347,17 +352,20 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	if content != nil {
 		plan = e.planContent(ctx, content)
-		if plan.res.Outcome != "" {
-			results = append(results, plan.res)
-		}
 	}
 
 	if cfg != nil {
 		boot = e.planBootstrap(cfg)
+	}
 
-		if boot.res.Outcome != "" {
-			results = append(results, boot.res)
-		}
+	e.vetAdminKeys(&plan, &boot)
+
+	if plan.res.Outcome != "" {
+		results = append(results, plan.res)
+	}
+
+	if boot.res.Outcome != "" {
+		results = append(results, boot.res)
 	}
 
 	bootChanged := boot.apply && (!maps.Equal(boot.admin, e.cur.AdminKeys) ||
@@ -426,6 +434,7 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	if plan.built != nil {
 		e.builder.Commit(plan.built)
 		e.running = plan.running
+		e.roundStats = countChanges(plan.built)
 		events = e.enqueue(plan.built, candidate)
 	}
 
@@ -776,13 +785,15 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 	final := Reload{Outcome: OutcomeIgnored, Code: "unchanged", Generation: e.cur.Generation, Snapshot: e.cur.Snapshot}
 
 	for idx := range results {
-		e.log(ctx, &results[idx])
+		if results[idx].Outcome == OutcomeRejected {
+			e.logRejected(ctx, &results[idx])
+		}
 
 		final = results[idx]
 	}
 
 	if applied != nil {
-		e.log(ctx, applied)
+		e.logApplied(ctx, applied, e.roundStats, e.roundDuration())
 
 		final = *applied
 	}
@@ -811,16 +822,4 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 	if e.hooks.AfterRound != nil {
 		e.hooks.AfterRound(result)
 	}
-}
-
-func (e *Engine) log(ctx context.Context, res *Reload) {
-	level := slog.LevelInfo
-	if res.Outcome == OutcomeRejected {
-		level = slog.LevelWarn
-	}
-
-	e.logger.LogAttrs(ctx, level, "runtime reload",
-		slog.String("outcome", string(res.Outcome)), slog.String("code", res.Code),
-		slog.Uint64("generation", res.Generation), slog.Uint64("snapshot", res.Snapshot),
-		slog.String("detail", res.Detail))
 }

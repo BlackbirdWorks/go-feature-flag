@@ -52,13 +52,48 @@ it. It works with zero flag sets.
 | `semaphore_resource_count` | `kind` (`flagset`, `object`), `state` | resources by state, always exported |
 | `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
 | `semaphore_config_pending_restart` | | settings that changed and need a restart |
+| `semaphore_flag_rejected_total` | `reason` (`kept`, `dropped`) | flags rejected at load: `kept` serves the last valid definition, `dropped` had none |
+| `semaphore_object_status` | `state` (`ok`, `stale`, `missing`, `pending`, `invalid`) | source objects by state, always exported |
+| `semaphore_object_oldest_unapplied_age_seconds` | | seconds since the oldest object that is not `ok` left that state, 0 when all are `ok` |
 
 The generation of the manifest the reader fetched (`semaphore_manifest_generation`: the engine may have rejected it; the generation served is `semaphore_config_generation{layer="applied"}`), the S3 requests and the exporters have their own metrics
 (`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).
 
+Rejected flags: `semaphore_flag_rejected_total` counts a rejected flag **once**, in the applied generation whose content
+brought the rejection (a new version of its object, or a flag that was valid before). A poll or a generation that leaves
+the rejection as it was counts nothing, so the counter never grows with the poll interval; `rate()` shows new rejections,
+and the rejections still present are `rejected` and `kept` in `/info` and `semaphore_object_status`. The flag set is not a
+label: the flag sets that have a problem are in `semaphore_resource_status`. Object names appear only in
+`semaphore_resource_status{kind="object"}` (not `ok` only, at most 100): there is no per-object series for every object.
+The age starts when this process first saw the object not `ok`, and a restart from the state directory starts it again.
+
+All of this is computed when a generation is built, not per scrape, and nothing was added to the request path.
+
 Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per
 scrape, and a scrape evaluates no flag: its cost does not grow with the number of flags per flag set.
 Per-flag-set series exist only for flag sets that are not ready.
+
+## Reload log line
+
+Every reload writes one `runtime reload` line (`log/slog`), and an unchanged poll writes none:
+
+- Applied (level info): `outcome=applied`, `generation`, `snapshot`, `flagsets.created|updated|deleted`,
+  `flags.created|updated|deleted`, `objects.ok|stale|missing|pending|invalid`, `rejected` (flags rejected in the
+  objects that run) and `duration`.
+- Rejected (level warn): `outcome=rejected`, `generation`, the stable `code` and the `detail`. The running generation
+  stays (last known good).
+
+The lines carry counts, codes and paths. They never carry an API key, an admin key or the content of a flag.
+
+## Admin key equal to a flag-set key
+
+A key that is an admin key and an API key of a flag set would give a flag-set client the admin endpoints, so the relay
+refuses it. The admin keys come with the bootstrap file and the flag-set keys with the published documents, so the check
+runs when the generation is built. The generation is rejected with the code `admin-key-collision`, the running generation
+stays, and `/info` shows it in `lastRejected` and `lastReload`. The detail names the flag set by path
+(`flagSets[name].apiKeys`) and never prints a key. A `SIGHUP` that adds such an admin key is rejected the same way.
+(A key held by two flag sets is different: the flag set that already holds it keeps it and the other reports
+`duplicate-key`.)
 
 ## Kubernetes
 

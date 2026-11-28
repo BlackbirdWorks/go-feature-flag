@@ -130,6 +130,7 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	afterRound := engineHooks.AfterRound
 	engineHooks.AfterRound = func(res flagruntime.RoundResult) {
 		c.reloads.record(&res)
+		c.reloads.recordRejected(&res, c.holder.Load().Status.Objects)
 
 		if persist != nil {
 			persist.decided(&res, c.holder.Load().Status.Objects)

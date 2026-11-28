@@ -3,6 +3,7 @@ package corehttp
 import (
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 )
@@ -29,10 +30,12 @@ type unhealthy struct {
 // summary is what the probes and the metrics need of one status tree. It is computed once per runtime, when the
 // first reader meets it, never per scrape or per request.
 type summary struct {
-	flagSets  map[string]int
-	objects   map[string]int
-	badSets   []unhealthy
-	badObject []unhealthy
+	// oldestNotOK is when the oldest object that is not ok left that state; zero when every object is ok.
+	oldestNotOK time.Time
+	flagSets    map[string]int
+	objects     map[string]int
+	badSets     []unhealthy
+	badObject   []unhealthy
 }
 
 // summaries caches the summary of the runtime that was last read. A new runtime is a new pointer, so the cache
@@ -75,6 +78,10 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 		sum.objects[state]++
 
 		if obj.State != flagruntime.ObjectOK {
+			if !obj.Since.IsZero() && (sum.oldestNotOK.IsZero() || obj.Since.Before(sum.oldestNotOK)) {
+				sum.oldestNotOK = obj.Since
+			}
+
 			sum.badObject = append(sum.badObject, unhealthy{name: name, state: state})
 		}
 	}

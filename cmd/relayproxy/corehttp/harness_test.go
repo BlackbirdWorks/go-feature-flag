@@ -241,7 +241,9 @@ func newV2(tb testing.TB) *v2 {
 // manifest). dir is the store directory; empty makes a new one.
 type v2Options struct {
 	// beforeSwap vetoes a candidate runtime (a rejected round); nil lets every candidate through.
-	beforeSwap  func(*flagruntime.Runtime) error
+	beforeSwap func(*flagruntime.Runtime) error
+	// logger receives the logs of the core; nil discards them.
+	logger      *slog.Logger
 	stateDir    string
 	dir         string
 	cold        bool
@@ -304,6 +306,7 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 	require.NoError(tb, err)
 
 	deps := &relaycore.Deps{
+		Logger:    opts.logger,
 		Scheduler: rig.sched,
 		Broadcast: rig.streams.Broadcast,
 		NewManager: func(string, exporter.Config, *slog.Logger) events.FeatureManager {

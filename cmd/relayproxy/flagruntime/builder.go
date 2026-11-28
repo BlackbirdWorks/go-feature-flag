@@ -389,19 +389,48 @@ func (st *stage) objectStatus() map[string]*ObjectStatus {
 	out := maps.Clone(st.prev.objStatus)
 
 	for _, name := range st.changed {
+		var status *ObjectStatus
+
 		switch {
 		case st.objects[name] != nil:
-			out[name] = st.objects[name].status
+			status = st.objects[name].status
 		case st.docs[name] != nil:
-			out[name] = st.docs[name].status
+			status = st.docs[name].status
 		case st.segs[name] != nil:
-			out[name] = st.segs[name].status
+			status = st.segs[name].status
 		default:
 			delete(out, name)
+
+			continue
 		}
+
+		out[name] = st.stampSince(status, st.prev.objStatus[name])
 	}
 
 	return out
+}
+
+// stampSince returns the status with the time the object left the state ok: the one it had when it was already not
+// ok in the previous build, else the clock of this build. The shared status is never changed; an object that is ok
+// keeps its status.
+func (st *stage) stampSince(status, prev *ObjectStatus) *ObjectStatus {
+	if status.State == ObjectOK {
+		return status
+	}
+
+	since := st.now
+	if prev != nil && prev.State != ObjectOK && !prev.Since.IsZero() {
+		since = prev.Since
+	}
+
+	if status.Since.Equal(since) {
+		return status
+	}
+
+	stamped := *status
+	stamped.Since = since
+
+	return &stamped
 }
 
 // finish completes the candidate: the state to commit, the runtime tables, the status and the counts.

@@ -25,6 +25,7 @@ const (
 	CodeInvalidBootstrap   = "invalid-bootstrap"
 	CodeBuildFailed        = "build-failed"
 	CodeVetoed             = "vetoed"
+	CodeAdminKeyCollision  = "admin-key-collision"
 )
 
 // CodeSourceDegraded is the code of a [Problem] about a source object that is not ok. The codes of the

@@ -6,6 +6,7 @@ import (
 	prom "github.com/prometheus/client_golang/prometheus"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
@@ -19,11 +20,22 @@ const (
 	metricResources   = "semaphore_resource_count"
 	metricResource    = "semaphore_resource_status"
 	metricPending     = "semaphore_config_pending_restart"
+	metricRejected    = "semaphore_flag_rejected_total"
+	metricObjects     = "semaphore_object_status"
+	metricObjectAge   = "semaphore_object_oldest_unapplied_age_seconds"
 )
 
 // maxNamedResources caps the series of semaphore_resource_status: one per resource that is not ready, the first
 // ones by name. The counts in semaphore_resource_count are never capped.
 const maxNamedResources = 100
+
+// objectStates are the states of a source object, as /info reports them.
+func objectStates() []string {
+	return []string{
+		string(flagruntime.ObjectOK), string(flagruntime.ObjectStale), string(flagruntime.ObjectMissing),
+		string(flagruntime.ObjectPending), string(flagruntime.ObjectInvalid),
+	}
+}
 
 // nanosPerSecond converts a Unix time in nanoseconds to seconds.
 const nanosPerSecond = 1e9
@@ -32,7 +44,7 @@ const nanosPerSecond = 1e9
 func MetricNames() []string {
 	return []string{
 		metricGeneration, metricSnapshot, metricReloads, metricLastSuccess, metricAge, metricResources,
-		metricResource, metricPending,
+		metricResource, metricPending, metricRejected, metricObjects, metricObjectAge,
 	}
 }
 
@@ -45,6 +57,7 @@ type ConfigCollector struct {
 	sums *summaries
 
 	generation, snapshot, reloads, lastSuccess, age, counts, named, pending *prom.Desc
+	rejected, objects, objectAge                                            *prom.Desc
 }
 
 var _ prom.Collector = (*ConfigCollector)(nil)
@@ -69,6 +82,16 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 		named: desc(metricResource, "1 for a resource that is not ready, by kind and name; at most "+
 			strconv.Itoa(maxNamedResources)+" per kind.", "kind", "name", "state"),
 		pending: desc(metricPending, "Settings that changed in the bootstrap file and need a restart."),
+		rejected: desc(
+			metricRejected,
+			"Flags rejected at load, by what became of them: kept (the last valid definition "+
+				"keeps serving) or dropped (none to fall back on). Counted once per rejected flag, in the applied "+
+				"generation that brought the rejection.",
+			"reason",
+		),
+		objects: desc(metricObjects, "Source objects by state: ok, stale, missing, pending, invalid.", "state"),
+		objectAge: desc(metricObjectAge, "Seconds since the oldest object that is not ok left that state; 0 when "+
+			"every object is ok."),
 	}
 }
 
@@ -76,6 +99,7 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
 	for _, d := range []*prom.Desc{
 		c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending,
+		c.rejected, c.objects, c.objectAge,
 	} {
 		out <- d
 	}
@@ -120,14 +144,25 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 
 	gauge(c.pending, pending)
 
+	counter(c.rejected, float64(status.Reloads.FlagsRejected[relaycore.RejectedKept]), relaycore.RejectedKept)
+	counter(c.rejected, float64(status.Reloads.FlagsRejected[relaycore.RejectedDropped]), relaycore.RejectedDropped)
+
+	for _, state := range objectStates() {
+		gauge(c.objects, float64(sum.objects[state]), state)
+	}
+
+	oldest := 0.0
+	if !sum.oldestNotOK.IsZero() {
+		oldest = max(0, clock.Now().Sub(sum.oldestNotOK).Seconds())
+	}
+
+	gauge(c.objectAge, oldest)
+
 	for _, state := range []string{resourceReady, resourceDegraded, resourcePending} {
 		gauge(c.counts, float64(sum.flagSets[state]), kindFlagSet, state)
 	}
 
-	for _, state := range []string{
-		string(flagruntime.ObjectOK), string(flagruntime.ObjectStale), string(flagruntime.ObjectMissing),
-		string(flagruntime.ObjectPending), string(flagruntime.ObjectInvalid),
-	} {
+	for _, state := range objectStates() {
 		gauge(c.counts, float64(sum.objects[state]), kindObject, state)
 	}
 
