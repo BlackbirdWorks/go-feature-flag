@@ -24,7 +24,7 @@ control plane location, listeners, observability and admin keys. It is strict: a
 - Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` applies live; every other change is kept out and named in
   `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
   refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
-  is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
+  is the `runtime reload` line (see [the reload log line](probes.md#reload-log-line)) and the status. A reload whose admin key reference does not resolve is rejected as a
   whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
 - Stop: on `SIGTERM` or `SIGINT` the relay shuts down in the order described in [Shutdown](#shutdown).
 - Removed with the switch: the AWS Lambda mode and artifact are gone (`/admin/v1/retriever/refresh` polls the control
@@ -81,7 +81,8 @@ secretAccessKey: {fromFile: /run/secrets/s3-key}   # content of the file, traili
 
 `auth.adminKeys` is a list of plain strings (the keys are UUIDs set dynamically) or secret references. No development
 flag is needed. The keys are still never printed in errors, logs or the effective print (`[REDACTED]`), and a key may
-appear only once.
+appear only once. An admin key that equals an API key of a flag set is disabled, and the flag set does not get that key either: it
+reports `admin-key-collision`, see [admin key equal to a flag-set key](probes.md#admin-key-equal-to-a-flag-set-key).
 
 ## Environment variables
 

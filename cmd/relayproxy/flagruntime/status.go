@@ -24,6 +24,9 @@ type Status struct {
 	Public *PublicStatus `json:"public"`
 	// LastReload is the round that produced this runtime.
 	LastReload Reload `json:"lastReload"`
+	// DisabledAdminKeys is the number of admin keys that are not accepted because a flag set publishes the same
+	// key (never the keys themselves).
+	DisabledAdminKeys int `json:"disabledAdminKeys"`
 	// Generation is the manifest generation.
 	Generation uint64 `json:"generation"`
 	// Snapshot is the snapshot number.

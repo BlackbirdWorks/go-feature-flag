@@ -73,6 +73,7 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	}
 
 	info.Generation, info.Snapshot = current.Generation, current.Snapshot
+	info.DisabledAdminKeys = current.DisabledAdminKeys
 	info.PendingRestart = append(info.PendingRestart, current.PendingRestart...)
 
 	if public := current.Public; public != nil {

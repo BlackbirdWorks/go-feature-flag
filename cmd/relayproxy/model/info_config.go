@@ -30,6 +30,8 @@ type ConfigInfo struct {
 	Public PublicInfo `json:"public"`
 	// State says how the state directory is doing.
 	State StateInfo `json:"state"`
+	// DisabledAdminKeys counts the admin keys that are not accepted because a flag set publishes the same key.
+	DisabledAdminKeys int `json:"disabledAdminKeys"`
 	// Generation is the applied manifest generation, Snapshot the local swap counter.
 	Generation uint64 `json:"generation"`
 	Snapshot   uint64 `json:"snapshot"`

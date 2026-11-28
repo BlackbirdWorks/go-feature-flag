@@ -68,6 +68,10 @@
       "ConfigInfo": {
         "additionalProperties": false,
         "properties": {
+          "disabledAdminKeys": {
+            "format": "int64",
+            "type": "integer"
+          },
           "flagSets": {
             "items": {
               "$ref": "#/components/schemas/FlagSetInfo"
@@ -161,6 +165,7 @@
           "pendingRestart",
           "public",
           "state",
+          "disabledAdminKeys",
           "generation",
           "snapshot"
         ],

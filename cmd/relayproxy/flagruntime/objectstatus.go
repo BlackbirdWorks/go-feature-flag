@@ -1,7 +1,12 @@
 package flagruntime
 
+import "time"
+
 // ObjectStatus is the status of one source object.
 type ObjectStatus struct {
+	// Since is the time the object left the state ok, as this process saw it (the clock of the build that first
+	// saw it not ok); zero for an object that is ok.
+	Since time.Time `json:"since,omitzero"`
 	// Name is the object name.
 	Name string `json:"name"`
 	// Kind is the object kind.
