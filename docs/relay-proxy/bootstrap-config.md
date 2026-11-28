@@ -217,7 +217,7 @@ Public flags are not a bootstrap setting: see [Public flags](#public-flags).
 
 A flag set that is published **without API keys** (no `apiKeys` in its entry of the flag-set document) is public: a request without a key is served by the public flags: the evaluation, the bulk evaluation, OFREP, the flag change and the streams, everything a key of a flag set can do, and never the admin endpoints. Like the other flag sets, it changes with the published generation: no `SIGHUP`, no restart.
 
-- Several flag sets without keys form **one public namespace**. A flag key that two of them define is an error: the generation is rejected as a whole, the relay keeps the last known good (`code: build-failed`, with the flag key and the two flag sets in the log).
+- Several flag sets without keys form **one public namespace**. A flag key that two of them define is an error: the generation is rejected as a whole, the relay keeps the last known good (`code: build-failed`, with the flag key and the two flag sets in the log). `semaphore-cli publish` and `publish verify` [catch it before the upload](../tooling/publish.md#flag-sets-without-api-keys).
 - A request **with** a key behaves as before: a wrong key is `401`, it never falls back to the public flags.
 - When the generation has no flag set without keys, a request without a key is refused (`401`). When the generation that publishes the keys of the last public flag set arrives, the open streams of the clients without a key are closed (they reconnect and are refused).
 - **What a caller without a key can do:** it is a caller of the public flags only. It evaluates them (single, bulk,

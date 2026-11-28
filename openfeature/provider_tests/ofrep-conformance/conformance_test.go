@@ -52,14 +52,13 @@ const (
 	errCodeTargetingKeyMissing = "TARGETING_KEY_MISSING"
 	errCodeInvalidContext      = "INVALID_CONTEXT"
 	contentTypeJSON            = "application/json"
-	errSubstrOneOfFailed       = "value matched zero oneOf branches"
-	bugDefaultReason           = "#135"
 	reasonDisabled             = "DISABLED"
-	reasonDefault              = "DEFAULT"
+	reasonSplit                = "SPLIT"
 	reasonStatic               = "STATIC"
 	crlfPairLen                = 4
 
 	defaultCtxJSON    = `{"context":{"targetingKey":"user-1","email":"john.doe@gofeatureflag.org","version":"10.0.0-10"}}`
+	userOneCtxJSON    = `{"context":{"targetingKey":"user-1"}}`
 	activeFlagListCtx = `{"context":{"targetingKey":"user-1","email":"john.doe@gofeatureflag.org",` +
 		`"gofeatureflag":{"flagList":["bool_targeting_match","string_key","integer_key","double_key","object_key"]}}}`
 )
@@ -178,8 +177,6 @@ type singleFlagCase struct {
 	targetURL        string
 	flagKey          string
 	body             string
-	expectedBug      string
-	wantErrSubstr    string
 	wantAbsentFields []string
 	wantStatus       int
 }
@@ -275,7 +272,7 @@ func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
 			name:       "context enrichment on bootstrap.yaml",
 			targetURL:  baseURL,
 			flagKey:    flagEnrichment,
-			body:       `{"context":{"targetingKey":"user-1"}}`,
+			body:       userOneCtxJSON,
 			wantStatus: http.StatusOK,
 			wantFields: map[string]any{
 				jsonKeyField:    flagEnrichment,
@@ -356,18 +353,15 @@ func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
 			},
 		},
 		{
-			// Expected failure: #135 (returns "reason": "DEFAULT", invalid in OFREP 0.4.0).
-			name:          "default rule fallback",
-			targetURL:     baseURL,
-			flagKey:       flagSemver,
-			body:          `{"context":{"targetingKey":"user-1","version":"10.0.0-2"}}`,
-			wantStatus:    http.StatusOK,
-			expectedBug:   bugDefaultReason,
-			wantErrSubstr: "property reason: value is not in enum: got DEFAULT",
+			name:       "default rule fallback maps to STATIC",
+			targetURL:  baseURL,
+			flagKey:    flagSemver,
+			body:       `{"context":{"targetingKey":"user-1","version":"10.0.0-2"}}`,
+			wantStatus: http.StatusOK,
 			wantFields: map[string]any{
 				jsonKeyField:    flagSemver,
 				jsonValueField:  false,
-				jsonReasonField: reasonDefault,
+				jsonReasonField: reasonStatic,
 			},
 		},
 		{
@@ -446,50 +440,6 @@ func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
 	}
 }
 
-func patchKnownBugEntry(bug string, entry map[string]any) bool {
-	if bug == bugDefaultReason && entry[jsonReasonField] == reasonDefault {
-		entry[jsonReasonField] = reasonStatic
-
-		return true
-	}
-
-	return false
-}
-
-// patchKnownBugBody removes only the tracked relay defect from a cloned JSON payload so the rest
-// of the response can still be strictly schema-validated.
-func patchKnownBugBody(t *testing.T, bug string, body []byte) []byte {
-	t.Helper()
-
-	var root map[string]any
-	require.NoError(t, json.Unmarshal(body, &root), "body: %s", string(body))
-
-	patched := 0
-
-	if rawFlags, isBulk := root["flags"]; isBulk {
-		items, ok := rawFlags.([]any)
-		require.True(t, ok, "expected flags array in bulk response")
-
-		for _, item := range items {
-			entry, isObj := item.(map[string]any)
-			require.True(t, isObj, "expected object item in flags array")
-
-			if patchKnownBugEntry(bug, entry) {
-				patched++
-			}
-		}
-	} else if patchKnownBugEntry(bug, root) {
-		patched++
-	}
-
-	require.Positive(t, patched, "expected %s defect was not present in payload: %s", bug, string(body))
-
-	fixedBody, err := json.Marshal(root)
-	require.NoError(t, err)
-
-	return fixedBody
-}
-
 func runSingleFlagCase(t *testing.T, spec *ofrepconformance.Spec, baseURL string, testCase *singleFlagCase) {
 	t.Helper()
 
@@ -507,21 +457,7 @@ func runSingleFlagCase(t *testing.T, spec *ofrepconformance.Spec, baseURL string
 	assert.Equal(t, testCase.wantStatus, status, "body: %s", string(body))
 
 	valErr := spec.ValidateResponse(singleFlagPath, http.MethodPost, status, hdrs, body)
-	if testCase.expectedBug != "" {
-		require.Error(
-			t,
-			valErr,
-			"expected conformance failure for %s; remove expectedBug if fixed",
-			testCase.expectedBug,
-		)
-		require.ErrorContains(t, valErr, testCase.wantErrSubstr)
-		assert.Contains(t, hdrs.Get("Content-Type"), contentTypeJSON)
-
-		patched := patchKnownBugBody(t, testCase.expectedBug, body)
-		require.NoError(t, spec.ValidateResponse(singleFlagPath, http.MethodPost, status, hdrs, patched))
-	} else {
-		require.NoError(t, valErr, "body: %s", string(body))
-	}
+	require.NoError(t, valErr, "body: %s", string(body))
 
 	if len(testCase.wantFields) > 0 || len(testCase.wantAbsentFields) > 0 {
 		var parsed map[string]any
@@ -616,45 +552,10 @@ type bulkTestCase struct {
 	name                string
 	targetURL           string
 	body                string
-	expectedBug         string
-	wantErrSubstr       string
 	wantErrorCode       string
 	wantFlagKeys        []string
 	wantAbsentValueKeys []string
 	wantStatus          int
-}
-
-func assertBulkBugResponse(
-	t *testing.T,
-	spec *ofrepconformance.Spec,
-	status int,
-	hdrs http.Header,
-	body []byte,
-	valErr error,
-	testCase *bulkTestCase,
-) {
-	t.Helper()
-
-	require.Error(
-		t,
-		valErr,
-		"expected conformance failure for %s; remove expectedBug if fixed",
-		testCase.expectedBug,
-	)
-	require.ErrorContains(t, valErr, testCase.wantErrSubstr)
-	assert.NotEmpty(t, hdrs.Get("ETag"))
-	assert.Contains(t, hdrs.Get("Content-Type"), contentTypeJSON)
-
-	flags := parseBulkFlags(t, body)
-
-	for key, wantReason := range testCase.wantReasonByKey {
-		entry, ok := flags[key]
-		require.True(t, ok, "missing expected flag %q", key)
-		assert.Equal(t, wantReason, entry[jsonReasonField], "flag %q", key)
-	}
-
-	patched := patchKnownBugBody(t, testCase.expectedBug, body)
-	require.NoError(t, spec.ValidateResponse(bulkFlagsPath, http.MethodPost, status, hdrs, patched))
 }
 
 func assertBulkValidResponse(t *testing.T, body []byte, valErr error, testCase *bulkTestCase) {
@@ -774,14 +675,12 @@ func TestOFREPConformance_Bulk(t *testing.T) {
 			},
 		},
 		{
-			// Expected failure: #135 (default-rule fallback emits "reason": "DEFAULT").
-			name:            "bulk default rule fallback",
+			name:            "bulk default rule fallback maps to STATIC",
 			targetURL:       baseURL,
 			body:            `{"context":{"targetingKey":"user-1","gofeatureflag":{"flagList":["bool_targeting_match"]}}}`,
 			wantStatus:      http.StatusOK,
-			expectedBug:     bugDefaultReason,
-			wantErrSubstr:   errSubstrOneOfFailed,
-			wantReasonByKey: map[string]string{flagBoolMatch: reasonDefault},
+			wantFlagKeys:    []string{flagBoolMatch},
+			wantReasonByKey: map[string]string{flagBoolMatch: reasonStatic},
 		},
 		{
 			name:                "bulk individual flag error item",
@@ -850,13 +749,185 @@ func TestOFREPConformance_Bulk(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, status, "body: %s", string(body))
 
 			valErr := spec.ValidateResponse(bulkFlagsPath, http.MethodPost, status, hdrs, body)
-			if tt.expectedBug != "" {
-				assertBulkBugResponse(t, spec, status, hdrs, body, valErr, &tt)
+			assertBulkValidResponse(t, body, valErr, &tt)
+		})
+	}
+}
 
-				return
+func TestOFREPConformance_Reasons(t *testing.T) {
+	t.Parallel()
+
+	const reasonFlagsYAML = `static_flag:
+  variations:
+    v1: "static"
+  defaultRule:
+    variation: v1
+default_rule_flag:
+  variations:
+    match: "matched"
+    fallback: "default"
+  targeting:
+    - query: tier eq "vip"
+      variation: match
+  defaultRule:
+    variation: fallback
+targeting_flag:
+  variations:
+    match: "matched"
+    fallback: "default"
+  targeting:
+    - query: tier eq "vip"
+      variation: match
+  defaultRule:
+    variation: fallback
+split_flag:
+  variations:
+    a: "a"
+    b: "b"
+  defaultRule:
+    percentage:
+      a: 50
+      b: 50
+targeting_split_flag:
+  variations:
+    a: "a"
+    b: "b"
+    fallback: "default"
+  targeting:
+    - query: tier eq "vip"
+      percentage:
+        a: 50
+        b: 50
+  defaultRule:
+    variation: fallback
+disabled_flag:
+  variations:
+    v1: true
+  defaultRule:
+    variation: v1
+  disable: true
+`
+
+	spec, err := ofrepconformance.LoadSpec(filepath.Join("testdata", "openapi.yaml"))
+	require.NoError(t, err)
+
+	baseURL := startRelayWithFlags(t, reasonFlagsYAML)
+	hdrs := map[string]string{headerXAPIKey: validToken}
+
+	tests := []struct {
+		name           string
+		flagKey        string
+		contextJSON    string
+		wantReason     string
+		wantBulkReason string
+		wantErrorCode  string
+		wantStatus     int
+		wantOmitValue  bool
+	}{
+		{
+			name:           "engine STATIC maps to STATIC",
+			flagKey:        "static_flag",
+			contextJSON:    userOneCtxJSON,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonStatic,
+			wantBulkReason: reasonStatic,
+		},
+		{
+			name:           "engine DEFAULT maps to STATIC",
+			flagKey:        "default_rule_flag",
+			contextJSON:    `{"context":{"targetingKey":"user-1","tier":"free"}}`,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonStatic,
+			wantBulkReason: reasonStatic,
+		},
+		{
+			name:           "engine TARGETING_MATCH maps to TARGETING_MATCH",
+			flagKey:        "targeting_flag",
+			contextJSON:    `{"context":{"targetingKey":"user-1","tier":"vip"}}`,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonTargetMatch,
+			wantBulkReason: reasonTargetMatch,
+		},
+		{
+			name:           "engine SPLIT maps to SPLIT",
+			flagKey:        "split_flag",
+			contextJSON:    userOneCtxJSON,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonSplit,
+			wantBulkReason: reasonSplit,
+		},
+		{
+			name:           "engine TARGETING_MATCH_SPLIT maps to SPLIT",
+			flagKey:        "targeting_split_flag",
+			contextJSON:    `{"context":{"targetingKey":"user-1","tier":"vip"}}`,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonSplit,
+			wantBulkReason: reasonSplit,
+		},
+		{
+			name:           "engine DISABLED maps to DISABLED and omits value",
+			flagKey:        "disabled_flag",
+			contextJSON:    userOneCtxJSON,
+			wantStatus:     http.StatusOK,
+			wantReason:     reasonDisabled,
+			wantBulkReason: reasonDisabled,
+			wantOmitValue:  true,
+		},
+		{
+			name:           "engine ERROR returns 400 on single and ERROR item on bulk",
+			flagKey:        "split_flag",
+			contextJSON:    `{"context":{"tier":"vip"}}`,
+			wantStatus:     http.StatusBadRequest,
+			wantBulkReason: "ERROR",
+			wantErrorCode:  errCodeTargetingKeyMissing,
+			wantOmitValue:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			status, respHdrs, body := postOFREPRequest(
+				t,
+				baseURL+"/ofrep/v1/evaluate/flags/"+tt.flagKey,
+				hdrs,
+				tt.contextJSON,
+			)
+			assert.Equal(t, tt.wantStatus, status, "body: %s", string(body))
+			require.NoError(t, spec.ValidateResponse(singleFlagPath, http.MethodPost, status, respHdrs, body))
+
+			var singleParsed map[string]any
+			require.NoError(t, json.Unmarshal(body, &singleParsed))
+
+			if tt.wantReason != "" {
+				assert.Equal(t, tt.wantReason, singleParsed[jsonReasonField])
 			}
 
-			assertBulkValidResponse(t, body, valErr, &tt)
+			if tt.wantErrorCode != "" {
+				assert.Equal(t, tt.wantErrorCode, singleParsed[jsonErrorCodeField])
+			}
+
+			if tt.wantOmitValue {
+				assert.NotContains(t, singleParsed, jsonValueField)
+			}
+
+			bulkStatus, bulkHdrs, bulkBody := postOFREPRequest(t, baseURL+bulkFlagsPath, hdrs, tt.contextJSON)
+			assert.Equal(t, http.StatusOK, bulkStatus, "body: %s", string(bulkBody))
+			require.NoError(t, spec.ValidateResponse(bulkFlagsPath, http.MethodPost, bulkStatus, bulkHdrs, bulkBody))
+
+			flags := parseBulkFlags(t, bulkBody)
+			entry, ok := flags[tt.flagKey]
+			require.True(t, ok, "missing flag %q in bulk response", tt.flagKey)
+			assert.Equal(t, tt.wantBulkReason, entry[jsonReasonField])
+
+			if tt.wantErrorCode != "" {
+				assert.Equal(t, tt.wantErrorCode, entry[jsonErrorCodeField])
+			}
+
+			if tt.wantOmitValue {
+				assert.NotContains(t, entry, jsonValueField)
+			}
 		})
 	}
 }

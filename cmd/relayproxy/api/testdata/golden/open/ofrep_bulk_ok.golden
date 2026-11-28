@@ -1,8 +1,8 @@
 status: 200
 Content-Type: application/json
-Etag: "313-2c34e051b85ea2c6bc3330ebe1654f0be28d3c60"
+Etag: "311-35b0df80e7ebf5612cdccfcd9afcea11b95f2e1e"
 Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden
 ---
-"{\"flags\":[{\"key\":\"test-flag\",\"value\":false,\"reason\":\"DEFAULT\",\"variant\":\"Default\",\"metadata\":{\"defaultValue\":false,\"description\":\"this is a simple feature flag\",\"issue-link\":\"https://jira.xxx/GOFF-01\"}},{\"key\":\"test-flag2\",\"value\":false,\"reason\":\"DEFAULT\",\"variant\":\"Default\",\"metadata\":{\"defaultValue\":false}}]}\n"
+"{\"flags\":[{\"key\":\"test-flag\",\"value\":false,\"reason\":\"STATIC\",\"variant\":\"Default\",\"metadata\":{\"defaultValue\":false,\"description\":\"this is a simple feature flag\",\"issue-link\":\"https://jira.xxx/GOFF-01\"}},{\"key\":\"test-flag2\",\"value\":false,\"reason\":\"STATIC\",\"variant\":\"Default\",\"metadata\":{\"defaultValue\":false}}]}\n"

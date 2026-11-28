@@ -263,10 +263,10 @@ func expectations() map[string]expectation {
 
 	return map[string]expectation{
 		"ofrep bool vip":                     {`"value":true,"reason":"TARGETING_MATCH","variant":"enabled"`, ok},
-		"ofrep bool default":                 {`"value":false,"reason":"DEFAULT","variant":"disabled"`, ok},
+		"ofrep bool default":                 {`"value":false,"reason":"STATIC","variant":"disabled"`, ok},
 		"ofrep string":                       {`"value":"alpha","reason":"STATIC"`, ok},
 		"ofrep number rule":                  {`"value":42,"reason":"TARGETING_MATCH","variant":"high"`, ok},
-		"ofrep number default":               {`"value":1,"reason":"DEFAULT","variant":"low"`, ok},
+		"ofrep number default":               {`"value":1,"reason":"STATIC","variant":"low"`, ok},
 		"ofrep json object":                  {`"value":{"items":[1,2],"name":"on","nested":{"deep":true}}`, ok},
 		"ofrep disabled flag":                {`"key":"disabled-flag","reason":"DISABLED"`, ok},
 		"ofrep unknown flag":                 {`"errorCode":"FLAG_NOT_FOUND"`, notFound},
@@ -283,7 +283,7 @@ func expectations() map[string]expectation {
 		"ofrep bulk":                         {`"key":"scheduled-over-flag","value":"new"`, ok},
 		"ofrep bulk no targeting key":        {`"errorCode":"TARGETING_KEY_MISSING"`, ok},
 		"ofrep bulk flag list":               {`{"flags":[{"key":"bool-flag","value":false`, ok},
-		"ofrep bulk legacy flag list":        {`{"flags":[{"key":"bool-flag","value":false,"reason":"DEFAULT"`, ok},
+		"ofrep bulk legacy flag list":        {`{"flags":[{"key":"bool-flag","value":false,"reason":"STATIC"`, ok},
 		"legacy bool vip": {`"variationType":"enabled","failed":false,"version":"","reason":"TARGETING_MATCH"`,
 			ok},
 		"legacy bool default": {`"variationType":"disabled","failed":false,"version":"","reason":"DEFAULT"`,
