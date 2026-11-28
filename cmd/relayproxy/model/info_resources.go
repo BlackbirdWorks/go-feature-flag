@@ -30,3 +30,16 @@ type ObjectInfo struct {
 	Flags          int    `json:"flags"`
 	Rejected       int    `json:"rejected"`
 }
+
+// StateInfo is the state directory as /info shows it: whether one is in use, and whether the writes work. A write that
+// fails never stops the relay from serving; this is where it shows.
+type StateInfo struct {
+	// LastSaveError is the closed code of the failure of the last write (no-space, denied, io, unsafe), empty when it
+	// worked.
+	LastSaveError string `json:"lastSaveError"`
+	// Saves and SaveErrors count the writes that ended, and the ones that failed.
+	Saves      uint64 `json:"saves"`
+	SaveErrors uint64 `json:"saveErrors"`
+	// Enabled tells that a state directory is in use.
+	Enabled bool `json:"enabled"`
+}

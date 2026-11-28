@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
@@ -137,19 +138,21 @@ const (
 
 // Core is the assembled relay core.
 type Core struct {
-	log       *slog.Logger
-	factory   *connection.Factory
-	svc       *flagdef.Service
-	holder    *flagruntime.Holder
-	engine    *flagruntime.Engine
-	eval      *flagruntime.Evaluator
-	reader    *manifestreader.Reader
-	source    *controlsource.Source
-	events    *events.Runtime
-	state     *statedir.Store
-	collector prometheus.Collector
-	registry  prometheus.Registerer
-	cancel    context.CancelFunc
+	log     *slog.Logger
+	factory *connection.Factory
+	svc     *flagdef.Service
+	holder  *flagruntime.Holder
+	engine  *flagruntime.Engine
+	eval    *flagruntime.Evaluator
+	reader  *manifestreader.Reader
+	source  *controlsource.Source
+	events  *events.Runtime
+	state   *statedir.Store
+	// readerMetrics is the collector of the reader of the manifest, registered when there is a registry.
+	readerMetrics *metric.ManifestReader
+	collector     prometheus.Collector
+	registry      prometheus.Registerer
+	cancel        context.CancelFunc
 	// runDone is closed when the loops of Run ended and the state directory was flushed.
 	runDone chan struct{}
 	// finished is closed when the first Shutdown did its work, with its error in shutdownErr (written before the

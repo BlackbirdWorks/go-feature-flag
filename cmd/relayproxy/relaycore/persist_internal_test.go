@@ -1,6 +1,7 @@
 package relaycore
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,6 +55,8 @@ func statuses(invalid ...string) map[string]*flagruntime.ObjectStatus {
 
 	return out
 }
+
+func never() uint64 { return 0 }
 
 // step is one thing that happens to the persister: the reader offers a snapshot, or the engine decides a revision.
 type step struct {
@@ -123,7 +126,7 @@ func TestPersisterHandsOverWhatTheEngineApplied(t *testing.T) {
 
 			var saved []manifestreader.Persist
 
-			persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) })
+			persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
 
 			for _, one := range tt.steps {
 				if one.offer != nil {
@@ -182,7 +185,7 @@ func TestPersisterSavesTheLastGoodContentOfAnObjectTheEngineRejected(t *testing.
 
 	var saved []manifestreader.Persist
 
-	persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) })
+	persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
 
 	persist.offer(good)
 	persist.decided(round(1, flagruntime.OutcomeApplied), statuses())
@@ -200,7 +203,7 @@ func TestPersisterSavesTheLastGoodContentOfAnObjectTheEngineRejected(t *testing.
 	assert.Equal(t, "broken", string(bad.Snapshot.Objects[objFlags].Bytes), "the snapshot of the reader is not changed")
 
 	// the same persister, a generation applied with an undecodable object it never held
-	fresh := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) })
+	fresh := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
 	fresh.offer(first)
 	fresh.decided(round(1, flagruntime.OutcomeApplied), statuses(objFlags))
 
@@ -215,7 +218,7 @@ func TestPersisterSavesTheLastGoodContentOfAnObjectTheEngineRejected(t *testing.
 func TestPersisterForgetsTheOldestPendingSnapshots(t *testing.T) {
 	t.Parallel()
 
-	persist := newPersister(func(manifestreader.Persist) {})
+	persist := newPersister(func(manifestreader.Persist) {}, never)
 
 	for revision := uint64(1); revision <= maxPending+6; revision++ {
 		persist.offer(snapshotOf(revision, revision, "v", "s"))
@@ -224,4 +227,70 @@ func TestPersisterForgetsTheOldestPendingSnapshots(t *testing.T) {
 	assert.Len(t, persist.pending, maxPending)
 	assert.NotContains(t, persist.pending, uint64(1))
 	assert.Contains(t, persist.pending, uint64(maxPending+6))
+}
+
+// The engine decides the revision it took, never an older one: the snapshots older than the one taken are forgotten as
+// they are offered, the one in flight and the newer ones are kept until they are decided, whatever their number.
+func TestPersisterKeepsTheRevisionInFlight(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		offered     []uint64
+		wantPending []uint64
+		wantSaved   []uint64
+		taken       uint64
+		decide      uint64
+	}{
+		{
+			name: "older than the taken one are forgotten", taken: 3, offered: []uint64{1, 2, 3},
+			decide: 3, wantSaved: []uint64{3},
+		},
+		{
+			name: "the one in flight survives newer offers", taken: 2, offered: []uint64{1, 2, 3, 4},
+			decide: 2, wantPending: []uint64{3, 4}, wantSaved: []uint64{2},
+		},
+		{
+			name: "a long run of newer offers does not drop the one in flight", taken: 1,
+			offered: seq(1, maxPending), decide: 1, wantPending: seq(2, maxPending), wantSaved: []uint64{1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var saved []uint64
+
+			persist := newPersister(
+				func(p manifestreader.Persist) { saved = append(saved, p.Snapshot.Revision) },
+				func() uint64 { return tt.taken },
+			)
+
+			for _, revision := range tt.offered {
+				persist.offer(snapshotOf(revision, revision, "v", "s"))
+			}
+
+			persist.decided(round(tt.decide, flagruntime.OutcomeApplied), statuses())
+
+			pending := make([]uint64, 0, len(persist.pending))
+			for revision := range persist.pending {
+				pending = append(pending, revision)
+			}
+
+			slices.Sort(pending)
+
+			assert.Equal(t, tt.wantSaved, saved)
+			assert.Equal(t, nilIfEmpty(tt.wantPending), nilIfEmpty(pending))
+		})
+	}
+}
+
+func seq(from, to uint64) []uint64 {
+	out := make([]uint64, 0, to-from+1)
+	for revision := from; revision <= to; revision++ {
+		out = append(out, revision)
+	}
+
+	return out
 }

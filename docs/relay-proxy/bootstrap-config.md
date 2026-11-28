@@ -250,8 +250,8 @@ unreachable serves it at once. The directory holds **what the engine applied**, 
 - The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. The
   files are written to a temporary name and renamed, so a crash leaves the previous state readable, and a half
   written file is never loaded.
-- A write that fails (a full disk, a permission) is logged, counted in `state_saves_total` with `result="error"`, and
-  its closed reason is `lastSaveError` in the state status of the reader. The relay goes on serving. At shutdown the
+- A write that fails (a full disk, a permission) is logged, counted in `semaphore_manifest_state_saves_total` with `result="error"`
+  (its labels are the connection and the result), and its closed reason is `config.state.lastSaveError` in `/info`. The relay goes on serving. At shutdown the
   last applied generation is written within the shutdown deadline.
 
 ### `connections.<name>`

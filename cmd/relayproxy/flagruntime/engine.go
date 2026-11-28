@@ -106,6 +106,7 @@ type Engine struct {
 	logger        *slog.Logger
 	holder        *Holder
 	decided       atomic.Pointer[decision]
+	taken         atomic.Uint64
 	secrets       bootstrap.LoadOptions
 	withdrawnCap  int
 	changeBuf     int
@@ -208,6 +209,10 @@ type decision struct {
 	reload   Reload
 	revision uint64
 }
+
+// Taken is the revision of the content the engine took last, zero before any. The engine decides it next, and no
+// older revision is ever decided: whoever keeps content by revision can forget the older ones.
+func (e *Engine) Taken() uint64 { return e.taken.Load() }
 
 // Await returns when the engine has decided the content of the revision, or of a later one (the later content
 // replaces it: the engine keeps the latest only): the Reload is the decision, applied, ignored or rejected with its
@@ -315,6 +320,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	e.roundRevision = 0
 	if content != nil {
 		e.roundRevision = content.Revision
+		e.taken.Store(content.Revision)
 	}
 
 	if content != nil {

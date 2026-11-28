@@ -78,6 +78,7 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 
 	// the seed carries values of neither generation, so the first iteration is a full rebuild too
 	eng.Submit(scaleSeed(b))
+
 	res := <-rounds
 	requireApplied(b, &res)
 
@@ -128,8 +129,9 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 		gen++
 
 		eng.Submit(&flagruntime.Content{Generation: gen, Objects: gens[gen%2].Objects})
-		res := <-rounds
-		requireApplied(b, &res)
+
+		round := <-rounds
+		requireApplied(b, &round)
 	}
 
 	b.StopTimer()

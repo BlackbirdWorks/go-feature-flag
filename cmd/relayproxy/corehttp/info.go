@@ -54,6 +54,7 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		PendingRestart: []string{},
 		Public:         model.PublicInfo{Sets: []string{}, Flags: 0, Present: false},
 		Staleness:      staleness(status, now),
+		State:          stateInfo(&status.Source.Reader.State),
 	}
 
 	info.LastReload = roundInfo(status.Reloads.LastRound)
@@ -97,6 +98,12 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	slices.SortFunc(info.Objects, func(a, b model.ObjectInfo) int { return strings.Compare(a.Name, b.Name) })
 
 	return info
+}
+
+func stateInfo(state *manifestreader.StateStatus) model.StateInfo {
+	return model.StateInfo{
+		Enabled: state.Enabled, LastSaveError: state.LastSaveError, Saves: state.Saves, SaveErrors: state.SaveErrors,
+	}
 }
 
 func roundInfo(round *relaycore.RoundSummary) model.ReloadInfo {

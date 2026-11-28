@@ -128,6 +128,9 @@
           "staleness": {
             "$ref": "#/components/schemas/StalenessInfo"
           },
+          "state": {
+            "$ref": "#/components/schemas/StateInfo"
+          },
           "withdrawn": {
             "items": {
               "$ref": "#/components/schemas/WithdrawnInfo"
@@ -148,6 +151,7 @@
           "withdrawn",
           "pendingRestart",
           "public",
+          "state",
           "generation",
           "snapshot"
         ],
@@ -938,6 +942,34 @@
         },
         "required": [
           "ageSeconds"
+        ],
+        "type": "object"
+      },
+      "StateInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "lastSaveError": {
+            "type": "string"
+          },
+          "saveErrors": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "saves": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lastSaveError",
+          "saves",
+          "saveErrors",
+          "enabled"
         ],
         "type": "object"
       },

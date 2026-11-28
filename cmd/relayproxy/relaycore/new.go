@@ -9,6 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
@@ -104,7 +105,7 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	var persist *persister
 
 	if hooks.Save != nil {
-		persist = newPersister(hooks.Save)
+		persist = newPersister(hooks.Save, func() uint64 { return c.engine.Taken() })
 		hooks.Save = persist.offer
 	}
 
@@ -182,6 +183,12 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 			c.collector = nil
 
 			return &BuildError{Path: "observability.metrics", Err: fmt.Errorf("register the events collector: %w", err)}
+		}
+
+		// the reader of the manifest: its polls and the writes of the state directory, with the connection as the one label
+		c.readerMetrics, err = metric.NewManifestReader(c.registry, cfg.ControlPlane.Connection, c.reader.Status)
+		if err != nil {
+			return &BuildError{Path: "observability.metrics", Err: fmt.Errorf("register the reader metrics: %w", err)}
 		}
 	}
 

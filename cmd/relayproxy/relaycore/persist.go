@@ -8,24 +8,28 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
-// maxPending bounds the snapshots that wait for the decision of the engine. The engine keeps the latest content only,
-// so more than a few waiting means it is far behind: the oldest are forgotten, and the state directory simply gets the
-// next one that is applied.
+// maxPending is a guard against an engine that stalls: the snapshots that wait for a decision are forgotten from the
+// oldest when there are more. In the normal course the guard never acts, because the snapshots older than the one the
+// engine took last are dropped as they are offered (the engine keeps the latest content and never decides an older
+// revision), so only the one in flight and the newer ones wait. A snapshot that was forgotten is never written, and the
+// state directory keeps the generation it holds, so a stall costs freshness, never correctness.
 const maxPending = 64
 
 // persister makes the state directory hold what the engine applied. The reader hands it every snapshot it emits; the
 // engine tells which revision it decided. Only a snapshot that the engine applied is written, with the content the
 // engine serves: an object it could not decode keeps the last good content, as in the runtime.
 type persister struct {
-	save    func(manifestreader.Persist)
+	save func(manifestreader.Persist)
+	// taken tells the revision that the engine took last.
+	taken   func() uint64
 	pending map[uint64]manifestreader.Persist
 	// applied is the objects of the state that was last handed to the store.
 	applied map[string]manifestreader.ObjectState
 	mu      sync.Mutex
 }
 
-func newPersister(save func(manifestreader.Persist)) *persister {
-	return &persister{save: save, pending: map[uint64]manifestreader.Persist{}}
+func newPersister(save func(manifestreader.Persist), taken func() uint64) *persister {
+	return &persister{save: save, taken: taken, pending: map[uint64]manifestreader.Persist{}}
 }
 
 // offer keeps a snapshot until the engine decided it. It runs on the polling goroutine of the reader.
@@ -38,6 +42,14 @@ func (p *persister) offer(persist manifestreader.Persist) {
 	defer p.mu.Unlock()
 
 	p.pending[persist.Snapshot.Revision] = persist
+
+	// the engine never decides a revision older than the one it took: those can be forgotten
+	taken := p.taken()
+	for revision := range p.pending {
+		if revision < taken {
+			delete(p.pending, revision)
+		}
+	}
 
 	for len(p.pending) > maxPending {
 		oldest := persist.Snapshot.Revision

@@ -5,11 +5,6 @@
       "ignored": 0,
       "rejected": 0
     },
-    "public": {
-      "sets": [],
-      "flags": 0,
-      "present": false
-    },
     "staleness": {
       "ageSeconds": 0
     },
@@ -83,6 +78,17 @@
       }
     ],
     "pendingRestart": [],
+    "public": {
+      "sets": [],
+      "flags": 0,
+      "present": false
+    },
+    "state": {
+      "lastSaveError": "",
+      "saves": 0,
+      "saveErrors": 0,
+      "enabled": false
+    },
     "generation": 3,
     "snapshot": 4
   }
