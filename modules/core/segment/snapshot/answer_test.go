@@ -53,6 +53,29 @@ func missingHolder(t *testing.T) *snapshot.Holder {
 	return holder
 }
 
+func missingUnknownHolder(t *testing.T) *snapshot.Holder {
+	t.Helper()
+
+	holder, err := snapshot.New(segAlpha, segment.NewMemorySource(nil), snapshot.Options{Missing: segment.MissingUnknown})
+	require.NoError(t, err)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	return holder
+}
+
+func failedFirstLoad(t *testing.T) *snapshot.Holder {
+	t.Helper()
+
+	src := segment.NewMemorySource(nil)
+	src.Fail(segment.OpVersion, errAnswerStore)
+
+	holder, err := snapshot.New(segAlpha, src, snapshot.Options{})
+	require.NoError(t, err)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	return holder
+}
+
 func TestHolderAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +91,10 @@ func TestHolderAnswer(t *testing.T) {
 			wantState: segment.Unknown, wantStatus: segment.StatusStoreError,
 		},
 		{
+			name: "first load failed", setup: failedFirstLoad, id: answerMember,
+			wantState: segment.Unknown, wantStatus: segment.StatusStoreError,
+		},
+		{
 			name: "member", setup: loadedHolder, id: answerMember,
 			wantState: segment.Member, wantStatus: segment.StatusHealthy,
 		},
@@ -78,6 +105,10 @@ func TestHolderAnswer(t *testing.T) {
 		{
 			name: "stale after an error", setup: staleHolder, id: answerMember,
 			wantState: segment.Member, wantStatus: segment.StatusStale,
+		},
+		{
+			name: "missing under unknown is an answer", setup: missingUnknownHolder, id: answerMember,
+			wantState: segment.Unknown, wantStatus: segment.StatusHealthy,
 		},
 		{
 			name: "missing is an answer", setup: missingHolder, id: answerMember,
