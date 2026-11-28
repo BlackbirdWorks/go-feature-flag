@@ -44,23 +44,34 @@ What to do:
 
 ## A generation is rejected
 
-The relay keeps the held generation.
+The relay keeps the held generation. Two components can reject, and each leaves its trace in another place.
+
+The reader rejects a manifest that is not valid, is of another channel or has a lower generation:
+
+| Where | What to look for |
+|---|---|
+| Log | `"manifest reader: manifest rejected, previous one kept"` at level warn, with the attributes `outcome` and `reason`. |
+| Metric | `semaphore_config_generation{layer="applied"}` does not move while the publisher has written a newer generation. |
+
+Outcomes: `invalid`, `lower-generation`, `generation-conflict`, `channel-mismatch`. The reason for `invalid` is a
+closed code such as `unsupported-version` or `wrong-kind`. `/info` does not show the outcome; read the log.
+
+The engine rejects content that the reader accepted but that does not build:
 
 | Where | What to look for |
 |---|---|
 | Metric | `semaphore_config_reload_total{result="rejected"}` grows. `semaphore_manifest_generation` is ahead of `semaphore_config_generation{layer="applied"}`. |
 | `/info` | `config.lastRejected` has `code`, `generation` and `at`. |
-| Log | `"runtime reload"` at level warn with `outcome=rejected` and the `code`; `"manifest reader: manifest rejected, previous one kept"` with the outcome. |
+| Log | `"runtime reload"` at level warn with `outcome=rejected` and the `code`. |
 
-Codes of a rejected round: `invalid-content`, `stale-generation`, `build-failed`, `vetoed`. Outcomes of a manifest
-the reader rejects: `invalid`, `lower-generation`, `generation-conflict`, `channel-mismatch`.
+Codes of a rejected round: `invalid-content`, `stale-generation`, `build-failed`, `vetoed`.
 
 What to do:
 
 - `lower-generation` or `stale-generation`: the publisher wrote a generation that is not higher than the held one.
   Publish again with a higher generation.
 - `generation-conflict`: two writers published the same generation with other content. Publish a higher generation.
-- `invalid` or `invalid-content`: read `detail` in the log, fix the document, publish a new generation.
+- `invalid` or `invalid-content`: read the `reason` or `detail` in the log, fix the document, publish a new generation.
 - Validate before you publish with the `controlplane` package; `semaphore-cli publish` does it.
 
 ## `pendingRestart` does not go away
@@ -82,12 +93,17 @@ What to do:
 
 ## Rotate an API key
 
-A flag set can hold several keys, so a key rotates without a gap.
+A flag set can hold several keys, so a key rotates without a gap. A replica applies a published document at its next
+poll, so replicas change at different times.
 
-1. Add the new key to the flag set document and publish. Clients start to use it.
-2. Remove the old key from the document and publish. The old key answers `401` from that generation.
-3. Check `config.flagSets[].apiKeys` (the number of keys) and that `config.flagSets[].problems` is empty. A key that two flag sets
-   hold is reported as `duplicate-key`, and the later flag set loses it.
+1. Add the new key to the flag-set document and publish. Note the generation that the command prints.
+2. Wait until every replica serves that generation: `config.generation` of `/info` (or
+   `semaphore_config_generation{layer="applied"}`) is at least the published one on each replica. A replica that has not
+   applied it answers `401` to the new key.
+3. Move the clients to the new key. Keep the old key in the document until every client has moved.
+4. Remove the old key from the document and publish. The old key answers `401` from that generation.
+5. Check `config.flagSets[].apiKeys` (the number of keys) and that `config.flagSets[].problems` is empty. A key that two
+   flag sets hold is reported as `duplicate-key`, and the later flag set loses it.
 
 An admin key rotates in the bootstrap file: add the new reference, send `SIGHUP`, remove the old one, send `SIGHUP`.
 A key that is both an admin key and a flag-set key is disabled: `config.disabledAdminKeys` counts these.

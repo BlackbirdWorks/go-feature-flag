@@ -82,5 +82,15 @@ interval and replica, and no other series of that connection grows. After a gene
 `result="ok"` grows by `1 + K` once per replica. A request that the store client retries counts once for each attempt.
 See [the polling page](control-plane-polling.md#request-metric) for the labels.
 
-Pickup latency of a change is at most one interval plus the jitter, the fetch delay and the download, about 66 s at the
-default interval.
+## Pickup latency
+
+The time from a publish to the new content on a replica, for a poll that works, is at most the interval plus the
+jitter plus the fetch delay, before the download. A failed request or a retry makes it longer.
+
+<!-- budget: latency -->
+| Part | Seconds |
+|---|---|
+| Poll interval | 60 |
+| Jitter (10 %) | 6 |
+| Fetch delay (at most) | 5 |
+| Total before the download | 71 |

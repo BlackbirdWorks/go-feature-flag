@@ -32,8 +32,16 @@ An unchanged poll writes no log line and swaps nothing.
 
 The levels and what each keeps are in [last known good](manifest-and-documents.md#last-known-good). In short:
 
-- A manifest that is not valid or not newer is rejected whole. The round is `rejected`, the code is in
-  `config.lastRejected.code`, and the held state keeps serving.
+- A manifest that is not valid, of another channel, or of a lower generation is rejected by the reader, before the
+  engine sees it. No round runs, so `config.lastRejected` does not change. The reader writes one `"manifest reader:
+  manifest rejected, previous one kept"` log line with the attributes `outcome` and `reason`, and the held state keeps
+  serving. `/info` does not show the outcome.
+- A manifest at the same generation as the held one is not always ignored. The same objects in the same states change
+  nothing (an unchanged poll). A `304` poll can still retry an object that failed: when it becomes readable, the reader
+  publishes its new state at the same generation, and the engine applies it. Only another set of objects or another
+  checksum at the same generation is a conflict (`generation-conflict`).
+- When the engine rejects the content that the reader handed over (code `invalid-content`, `build-failed` or `vetoed`),
+  the round is `rejected` and the code is in `config.lastRejected.code`. The held state keeps serving.
 - An object that fails keeps its last valid content. `/info` lists it in `config.objects` with a `state` and a `reason`,
   and `semaphore_object_status` counts it.
 - A flag that fails keeps its last valid definition. `config.objects[].kept` counts these flags, and

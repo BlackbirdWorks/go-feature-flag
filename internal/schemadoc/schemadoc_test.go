@@ -386,3 +386,30 @@ func TestBootstrapReloadTableMatchesTheRuntime(t *testing.T) {
 
 	assert.Equal(t, flagruntime.Reloadabilities(), got)
 }
+
+// The Reload cell of the bootstrap document follows the table of the runtime.
+func TestBootstrapReloadCell(t *testing.T) {
+	t.Parallel()
+
+	docs := schemadoc.Documents(nil, nil)
+	require.NotEmpty(t, docs)
+	require.NotNil(t, docs[0].Reload)
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "auth.adminKeys", want: "live"},
+		{path: "version", want: "restart"},
+		{path: "server", want: "per key"},
+		{path: "nosuchkey", want: "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, docs[0].Reload(tt.path))
+		})
+	}
+}

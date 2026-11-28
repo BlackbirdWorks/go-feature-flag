@@ -129,6 +129,22 @@ func TestRequestBudgetTablesFollowTheFormula(t *testing.T) {
 		}
 	})
 
+	t.Run("latency", func(t *testing.T) {
+		t.Parallel()
+
+		jitter := interval * manifestreader.DefaultJitterFraction
+		spread := manifestreader.DefaultFetchSpread.Seconds()
+
+		want := [][]string{
+			{"Poll interval", fmtNumber(interval)},
+			{"Jitter (10 %)", fmtNumber(jitter)},
+			{"Fetch delay (at most)", fmtNumber(spread)},
+			{"Total before the download", fmtNumber(interval + jitter + spread)},
+		}
+
+		assert.Equal(t, want, table(t, "budget: latency"))
+	})
+
 	t.Run("start", func(t *testing.T) {
 		t.Parallel()
 

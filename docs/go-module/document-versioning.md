@@ -21,7 +21,9 @@ A flag object has no header: its format (`yaml`, `json`, `toml`) and its content
 - Upgrade relays before publishers write a new field that changes behaviour. An old relay ignores such a field and
   serves the old behaviour.
 - A document with another `kind` or an `apiVersion` that the reader does not support is rejected whole. For a
-  manifest the relay keeps the held one and reports the outcome `invalid` with the reason `unsupported-version`.
+  manifest the relay keeps the held one and logs the outcome `invalid`. The reason is `wrong-kind` for another `kind`
+  (a flag-set document in the place of the manifest) and `unsupported-version` for an `apiVersion` that the reader does
+  not support.
 - An object whose `version` is higher than the reader supports is a validation problem with the code
   `unsupported-version`. The relay validates the manifest as a whole, so it rejects the whole manifest (outcome
   `invalid`) and keeps serving the held one. A publisher that writes a newer content `version` upgrades the relays first.
