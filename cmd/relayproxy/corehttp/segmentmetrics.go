@@ -18,6 +18,7 @@ const (
 	storeStateConnecting = "connecting"
 	storeStateError      = "error"
 	storeStateIdle       = "idle"
+	storeStateClosed     = "closed"
 	resultHit            = "hit"
 	resultMiss           = "miss"
 	resultCoalesced      = "coalesced"
@@ -82,7 +83,9 @@ func (c *SegmentCollector) Collect(out chan<- prom.Metric) {
 	counter(c.breaker, stats.BreakerClosed, transitionClosed)
 
 	for _, store := range status.Stores {
-		for _, state := range []string{storeStateIdle, storeStateConnecting, storeStateConnected, storeStateError} {
+		states := []string{storeStateIdle, storeStateConnecting, storeStateConnected, storeStateError, storeStateClosed}
+
+		for _, state := range states {
 			value := 0.0
 			if store.State == state {
 				value = 1

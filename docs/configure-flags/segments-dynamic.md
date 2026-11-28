@@ -147,7 +147,7 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 | Store is back | the members of the store, after the breaker cooldown | none | ready |
 | Definition rejected (unknown connection, a kind that cannot serve the mode, the `snapshot` mode) | not a member | `NOT_CONFIGURED` | ready |
 
-`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected` or `error`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`). The metrics are in [probes](../relay-proxy/probes.md).
+`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`). The metrics are in [probes](../relay-proxy/probes.md).
 
 <!-- full-example -->
 ```yaml

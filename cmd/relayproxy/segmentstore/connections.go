@@ -60,7 +60,8 @@ type ConnectionState struct {
 	Name string `json:"name"`
 	// Kind is the type of the connection.
 	Kind string `json:"kind"`
-	// State is "idle" (no segment uses it), "connecting", "connected" or "error".
+	// State is "idle" (no segment uses it), "connecting", "connected", "error" (the last dial failed) or "closed"
+	// (after Shutdown).
 	State string `json:"state"`
 }
 
@@ -166,7 +167,13 @@ func (c *Connections) States() []ConnectionState {
 		conn := c.conns[name]
 		state := "idle"
 
+		conn.closeMu.Lock()
+		closed := conn.closed
+		conn.closeMu.Unlock()
+
 		switch {
+		case closed:
+			state = "closed"
 		case conn.handle.Load() != nil:
 			state = "connected"
 		case conn.failed.Load():

@@ -36,6 +36,8 @@ connections:
   control: {type: file, path: /tmp/control}
   cache: {type: redis, addresses: ["127.0.0.1:1"], password: {fromEnv: SEGPASS}, tls: {enable: true}}
   fast: {type: valkey, addresses: ["127.0.0.1:1"], forceSingleClient: true, timeouts: {connect: 200ms}}
+  tuned: {type: redis, addresses: ["127.0.0.1:1"], db: 2, maxRetries: -1, poolSize: 4, lookupTimeout: 50ms,
+    keyPrefix: "p:", atomic: true, timeouts: {connect: 100ms, read: 100ms, write: 100ms}}
   nopass: {type: redis, addresses: ["127.0.0.1:1"], password: {fromEnv: MISSING}}
   goodca:
     type: valkey
@@ -191,6 +193,9 @@ func TestConnectionsRun(t *testing.T) {
 	require.ErrorIs(t, binding.Provider.Contains(t.Context(), lookups), segmentstore.ErrNotConnected)
 	assert.Equal(t, segment.Unknown, lookups[0].State)
 
+	_, err = binding.Versioner.Version(t.Context(), segAudience)
+	require.ErrorIs(t, err, segmentstore.ErrNotConnected)
+
 	reporter, ok := binding.Provider.(segment.HealthReporter)
 	require.True(t, ok)
 	assert.Equal(t, "unavailable", reporter.Health().Failure)
@@ -230,7 +235,8 @@ func TestConnectionsRun(t *testing.T) {
 
 	require.NoError(t, conns.Shutdown(t.Context()))
 	assert.True(t, handle.closed.Load(), "the client is closed by Shutdown")
-	assert.Equal(t, "idle", stateOf(conns, "fast"))
+	assert.Equal(t, "closed", stateOf(conns, connCache), "the client is gone after Shutdown")
+	assert.Equal(t, "closed", stateOf(conns, "fast"))
 }
 
 // The real dialers of the kinds: go-redis connects on the first command, so a redis connection is up at once and its
@@ -247,6 +253,7 @@ func TestConnectionsDialKinds(t *testing.T) {
 		{name: kindRedis, conn: connCache, wantState: stateConnected},
 		{name: "valkey unreachable", conn: "fast", wantState: stateError},
 		{name: "unreadable CA bundle", conn: "badca", wantState: stateError},
+		{name: "redis with settings", conn: "tuned", wantState: stateConnected},
 		{name: "unset password", conn: "nopass", wantState: stateError},
 		{name: "CA bundle that is not PEM", conn: "notpem", wantState: stateError},
 		{name: "valkey with a CA bundle", conn: "goodca", wantState: stateError},
@@ -283,6 +290,13 @@ func TestConnectionsDialKinds(t *testing.T) {
 				lookups := []segment.Lookup{{Segment: segAudience, ID: memberAlice}}
 				require.Error(t, binding.Provider.Contains(t.Context(), lookups), "nothing listens on the port")
 				assert.Equal(t, segment.Unknown, lookups[0].State)
+
+				_, err = binding.Versioner.Version(t.Context(), segAudience)
+				require.Error(t, err, "no version key is configured, and nothing listens")
+
+				reporter, ok := binding.Provider.(segment.HealthReporter)
+				require.True(t, ok)
+				assert.NotEmpty(t, reporter.Health().Failure, "the failed call is the health of the provider")
 			}
 
 			cancel()
