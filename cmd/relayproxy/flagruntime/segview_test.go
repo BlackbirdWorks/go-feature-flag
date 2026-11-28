@@ -364,9 +364,18 @@ func TestRunSegmentVersions(t *testing.T) {
 
 	source.Fail(segment.OpVersion, errStoreDown)
 
-	ticks <- time.Now()
+	send := func() {
+		select {
+		case ticks <- time.Now():
+		case <-done:
+			assert.Fail(t, "the watcher stopped before the tick")
+		case <-time.After(5 * time.Second):
+			assert.Fail(t, "the watcher did not take the tick")
+		}
+	}
 
-	ticks <- time.Now() // received only when the first tick was handled
+	send()
+	send() // taken only when the first tick was handled
 
 	assert.Equal(t, int32(1), failures.Load(), "the failure of the poll is reported")
 
