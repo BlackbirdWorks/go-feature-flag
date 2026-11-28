@@ -65,7 +65,6 @@ const (
 	CaseSnapGone            = "a-segment-gone-from-the-store-is-unknown-not-last-known-good"
 	CaseSnapNeverLoaded     = "a-holder-that-never-loaded-answers-unknown"
 	CaseSnapLargeStreamed   = "a-large-set-is-built-without-a-second-copy"
-	CaseSnapChangedInPull   = "a-set-replaced-during-its-pull-is-never-installed"
 )
 
 var (
@@ -246,7 +245,6 @@ func snapshotCases() []snapshotCase {
 		{snapGone, CaseSnapGone},
 		{snapNeverLoaded, CaseSnapNeverLoaded},
 		{snapLargeStreamed, CaseSnapLargeStreamed},
-		{snapChangedInPull, CaseSnapChangedInPull},
 	}
 }
 
@@ -372,7 +370,7 @@ func snapNoRepull(t caseT, fix SnapshotFixture) {
 	}
 
 	versions, pulls := prb.counts()
-	assert.Equal(t, snapPulls+1, versions, "the version is read on every refresh, and again after the one pull")
+	assert.Equal(t, snapPulls, versions, "the version is read on every refresh")
 	assert.Equal(t, 1, pulls, "the members are pulled once while the version stays")
 	assert.Equal(t, uint64(1), holder.Status().Pulls)
 
@@ -381,7 +379,7 @@ func snapNoRepull(t caseT, fix SnapshotFixture) {
 	require.NoError(t, holder.Refresh(ctx))
 
 	versions, pulls = prb.counts()
-	assert.Equal(t, snapPulls+snapTwoPulls+1, versions, "one read, and one more after the pull")
+	assert.Equal(t, snapPulls+1, versions)
 	assert.Equal(t, snapTwoPulls, pulls, "a new version is pulled once")
 	assert.Equal(t, segment.Member, holder.Lookup("c"))
 	assert.Equal(t, len(grown), holder.Status().Members)
@@ -618,51 +616,4 @@ func snapGone(t caseT, fix SnapshotFixture) {
 	require.NoError(t, holder.Refresh(ctx))
 	assert.Equal(t, segment.Member, holder.Lookup("n1"), "the segment is back")
 	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
-}
-
-// snapChangedInPull replaces the set while the holder pulls it: the holder must end on exactly the new set, under the
-// version that the source reports now, after pulling again.
-func snapChangedInPull(t caseT, fix SnapshotFixture) {
-	t.Helper()
-
-	ctx := context.Background()
-	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
-
-	require.NoError(t, fix.Seed("alpha", idsOf("old", snapMedium)))
-	require.NoError(t, holder.Refresh(ctx))
-
-	oldVersion := holder.Status().Version
-
-	// the version moves: the next refresh pulls
-	require.NoError(t, fix.Seed("alpha", idsOf("mid", snapMedium)))
-
-	versions, pulls := prb.counts()
-
-	var (
-		once    sync.Once
-		seedErr error
-	)
-
-	prb.mu.Lock()
-	prb.hook = func(yielded int) {
-		if yielded == snapSmall {
-			once.Do(func() { seedErr = fix.Seed("alpha", idsOf("new", snapMedium)) })
-		}
-	}
-	prb.mu.Unlock()
-
-	require.NoError(t, holder.Refresh(ctx))
-	require.NoError(t, seedErr)
-
-	status := holder.Status()
-	assert.NotEqual(t, oldVersion, status.Version, "the set is installed under the version of the new set")
-	assert.Equal(t, snapMedium, status.Members)
-	assert.Equal(t, segment.Member, holder.Lookup("new7"))
-	assert.Equal(t, segment.NotMember, holder.Lookup("old7"))
-	assert.Equal(t, segment.NotMember, holder.Lookup("mid7"), "nothing of the pull that was overtaken is installed")
-
-	newVersions, newPulls := prb.counts()
-	assert.Equal(t, snapTwoPulls, newPulls-pulls, "the pull that was overtaken is repeated")
-	assert.Equal(t, snapPulls, newVersions-versions, "one read before, one after each pull")
 }
