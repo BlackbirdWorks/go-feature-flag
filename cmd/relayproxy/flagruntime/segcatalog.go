@@ -103,7 +103,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			delete(sets, def.Name)
 			delete(rejected, def.Name)
 
-			if slices.Contains(held.rejected, def.Name) {
+			if _, bad := held.rejected[def.Name]; bad {
 				rejected[def.Name] = struct{}{}
 			}
 
@@ -126,7 +126,8 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			out.Dynamic++
 		}
 
-		list = append(list, definitionOf(def))
+		_, bad := rejected[name]
+		list = append(list, definitionOf(def, bad))
 		out.hashes[name] = hashes[name]
 	}
 
@@ -156,10 +157,18 @@ func sortedNames(defs map[string]*controlplane.SegmentDefinition) []string {
 }
 
 // definitionOf is the definition of the catalog for a document definition. A dynamic segment is a redis segment
-// until the connection of the bootstrap file tells its kind; no provider serves it yet.
-func definitionOf(def *controlplane.SegmentDefinition) segment.Definition {
+// until the connection of the bootstrap file tells its kind; no provider serves it yet. A rejected definition (its
+// connection is missing or cannot serve it) always answers not a member, whatever its failure policy says: it is a
+// configuration error of this relay, not an outage that the publisher chose a policy for, and it never grants
+// membership (a rule that says onError: match does not match either, because the answer is not unknown).
+func definitionOf(def *controlplane.SegmentDefinition, rejected bool) segment.Definition {
 	out := segment.Definition{
 		Name: def.Name, Type: segment.TypeFile, OnError: segment.OnError(def.OnError),
+	}
+
+	if rejected {
+		out.OnError = segment.OnErrorNotMember
+		out.MissingKey = segment.MissingNotMember
 	}
 
 	if def.Connection != "" {
@@ -294,4 +303,18 @@ func (st *stage) placeholderCounts(spec *setSpec) *SegmentCounts {
 	}
 
 	return counts
+}
+
+// nameSet is the set of names, nil for none.
+func nameSet(names []string) map[string]struct{} {
+	if len(names) == 0 {
+		return nil
+	}
+
+	set := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		set[name] = struct{}{}
+	}
+
+	return set
 }

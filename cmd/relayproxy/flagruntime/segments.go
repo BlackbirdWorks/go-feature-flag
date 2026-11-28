@@ -20,12 +20,12 @@ type segState struct {
 	doc       *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
 	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
 	hashes    map[string]uint64              // the content hash of each definition (members included), built once
+	rejected  map[string]struct{}            // the dynamic definitions that the connections cannot serve
 	name      string
 	checksum  string
 	attempted string
 	reason    string
 	state     ObjectState
-	rejected  []string // the dynamic definitions that the connections cannot serve
 	segments  int
 	loaded    bool
 }
@@ -81,7 +81,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 
 	next := &segState{
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
-		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: check.names,
+		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: nameSet(check.names),
 	}
 	next.status = segStatus(next)
 
