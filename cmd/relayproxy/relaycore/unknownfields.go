@@ -22,20 +22,25 @@ type unknownTracker struct {
 }
 
 func (c *Core) noteUnknownFields(ctx context.Context, res *flagruntime.RoundResult) {
+	// Compare manifest unknown fields on every round because the reader adopts a valid manifest even if the engine
+	// rejects its object content (ContentApplied=false).
+	manifest := c.reader.Status().Manifest
+
+	var manifestPaths []string
+	if manifest.UnknownFields > 0 {
+		manifestPaths = slices.Clone(
+			manifest.UnknownFieldPaths[:min(len(manifest.UnknownFieldPaths), maxLoggedUnknownFields)],
+		)
+	}
+
+	c.logUnknownFieldsKind(ctx, kindManifest, manifest.UnknownFields, manifestPaths)
+
 	if !res.ContentApplied {
 		return
 	}
 
 	counts := map[string]int{}
 	paths := map[string][]string{}
-
-	manifest := c.reader.Status().Manifest
-	if manifest.UnknownFields > 0 {
-		counts[kindManifest] = manifest.UnknownFields
-		paths[kindManifest] = slices.Clone(
-			manifest.UnknownFieldPaths[:min(len(manifest.UnknownFieldPaths), maxLoggedUnknownFields)],
-		)
-	}
 
 	current := c.holder.Load()
 	for _, name := range slices.Sorted(maps.Keys(current.Status.Objects)) {
@@ -54,7 +59,7 @@ func (c *Core) noteUnknownFields(ctx context.Context, res *flagruntime.RoundResu
 		}
 	}
 
-	kinds := []string{controlplane.KindFlagSets, controlplane.KindFlags, kindManifest, controlplane.KindSegments}
+	kinds := []string{controlplane.KindFlagSets, controlplane.KindFlags, controlplane.KindSegments}
 	for _, kind := range kinds {
 		c.logUnknownFieldsKind(ctx, kind, counts[kind], paths[kind])
 	}

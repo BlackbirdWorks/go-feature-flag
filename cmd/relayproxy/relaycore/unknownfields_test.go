@@ -7,12 +7,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
+)
+
+const (
+	unknownTestSet = "alpha"
+	unknownTestKey = "test-key-unknown"
 )
 
 func TestCore_UnknownFieldsLoggedOnChange(t *testing.T) {
@@ -35,14 +42,9 @@ func TestCore_UnknownFieldsLoggedOnChange(t *testing.T) {
 		fmt.Fprintf(&setsExtra, "extraSet%02d: %s\n", i, secretValue)
 	}
 
-	const (
-		testSetName = "alpha"
-		testFlagKey = "test-key-unknown"
-	)
-
 	setsBytes := []byte("apiVersion: semaphore/v1\nkind: FlagSet\n" + setsExtra.String() +
-		"flagSets:\n  - name: " + testSetName + "\n    sources: [" + objA + ", " + objB + "]\n" +
-		"    apiKeys: [" + testFlagKey + "]\n")
+		"flagSets:\n  - name: " + unknownTestSet + "\n    sources: [" + objA + ", " + objB + "]\n" +
+		"    apiKeys: [" + unknownTestKey + "]\n")
 
 	var flagsAExtra, flagsBExtra strings.Builder
 	for i := range 6 {
@@ -126,7 +128,7 @@ func TestCore_UnknownFieldsLoggedOnChange(t *testing.T) {
 	// Removing all unknown fields in generation 3 logs cleared once per previously non-zero kind.
 	cleanSets, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{
 		FlagSets: []controlplane.FlagSet{
-			{Name: testSetName, Sources: []string{objA}, APIKeys: []string{testFlagKey}},
+			{Name: unknownTestSet, Sources: []string{objA}, APIKeys: []string{unknownTestKey}},
 		},
 	})
 	require.NoError(t, err)
@@ -136,4 +138,110 @@ func TestCore_UnknownFieldsLoggedOnChange(t *testing.T) {
 
 	finalLogs := logs.String()
 	assert.Equal(t, 3, strings.Count(finalLogs, `msg="unknown fields cleared in control-plane documents"`))
+}
+
+func TestCore_ManifestUnknownFieldsLoggedWhenRoundRejected(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "control")
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+
+	logs := &syncBuffer{}
+	deps, harness := newDeps(t, secretOptions(map[string]string{hookEnv: deadURL}))
+	deps.Logger = slog.New(slog.NewTextHandler(logs, nil))
+
+	put := filePut(t, dir)
+
+	publishDoc := func(gen uint64, twoPublicSets bool, extraManifestLine string) {
+		t.Helper()
+
+		flagSets := []controlplane.FlagSet{
+			{Name: unknownTestSet, Sources: []string{objA}, APIKeys: []string{unknownTestKey}},
+		}
+		if twoPublicSets {
+			flagSets = append(flagSets,
+				controlplane.FlagSet{Name: "pub-one", Sources: []string{objA}},
+				controlplane.FlagSet{Name: "pub-two", Sources: []string{objB}},
+			)
+		}
+
+		setsBytes, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: flagSets})
+		require.NoError(t, err)
+
+		sSum := controlplane.ChecksumOf(setsBytes)
+		sKey, keyErr := controlplane.ObjectKey(sSum, controlplane.FormatYAML)
+		require.NoError(t, keyErr)
+		put(sKey, setsBytes)
+
+		fBytes := flagsYAML(int(gen))
+		fSum := controlplane.ChecksumOf(fBytes)
+		fKey, keyErr := controlplane.ObjectKey(fSum, controlplane.FormatYAML)
+		require.NoError(t, keyErr)
+		put(fKey, fBytes)
+
+		manifest := &controlplane.Manifest{
+			APIVersion: controlplane.APIVersion,
+			Kind:       controlplane.DocumentKindManifest,
+			Channel:    channelName,
+			Generation: gen,
+			Objects: []controlplane.ManifestObject{
+				{
+					Name: setsName, Kind: controlplane.KindFlagSets, Connection: connName, Key: sKey,
+					Format: controlplane.FormatYAML, Checksum: sSum, Size: int64(len(setsBytes)),
+				},
+				{
+					Name: objA, Kind: controlplane.KindFlags, Connection: connName, Key: fKey,
+					Format: controlplane.FormatYAML, Checksum: fSum, Size: int64(len(fBytes)),
+				},
+			},
+		}
+
+		if twoPublicSets {
+			manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
+				Name: objB, Kind: controlplane.KindFlags, Connection: connName, Key: fKey,
+				Format: controlplane.FormatYAML, Checksum: fSum, Size: int64(len(fBytes)),
+			})
+		}
+
+		rawManifest, marshalErr := controlplane.MarshalManifest(manifest)
+		require.NoError(t, marshalErr)
+
+		if extraManifestLine != "" {
+			rawManifest = append(rawManifest, []byte(extraManifestLine)...)
+		}
+
+		put(manifestKey, rawManifest)
+	}
+
+	publishDoc(1, false, "")
+
+	cfg := parse(t, fileDoc(dir, ""), bootstrap.LoadOptions{LookupEnv: deps.Secrets.LookupEnv})
+	harness.start(t, cfg, deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
+
+	// Generation 2 adds an unknown manifest field while triggering a build failure (ContentApplied=false).
+	publishDoc(2, true, "extraManifestKey: value\n")
+	harness.poll(t)
+
+	timeout := time.After(waitBound)
+
+	for rejected := false; !rejected; {
+		select {
+		case res := <-harness.rounds:
+			rejected = res.Generation == 2 && res.Outcome == flagruntime.OutcomeRejected && !res.ContentApplied
+		case <-timeout:
+			require.FailNow(t, "engine did not reject generation 2")
+		}
+	}
+
+	assert.Equal(t, 1, strings.Count(logs.String(), `msg="unknown fields in control-plane documents"`))
+	assert.Contains(t, logs.String(), `kind=manifest count=1`)
+
+	// Generation 3 removes the unknown manifest field and fixes the flag sets; cleared must still be logged.
+	publishDoc(3, false, "")
+	harness.poll(t)
+	harness.awaitGeneration(t, 3)
+
+	assert.Equal(t, 1, strings.Count(logs.String(), `msg="unknown fields cleared in control-plane documents"`))
 }

@@ -51,7 +51,7 @@ The reader rejects a manifest that is not valid, is of another channel or has a 
 | Where | What to look for |
 |---|---|
 | `/info` | `config.reader` has `outcome`, `reason` and `at`. |
-| Metric | `semaphore_config_reader_rejections_total` grows for that `reason`; `semaphore_config_generation{layer="applied"}` does not move while the publisher has written a newer generation. |
+| Metric | `semaphore_config_reader_rejections_total` grows for its closed `reason` label (`channel-mismatch` when `config.reader.reason` is `channel`, `lower-generation` or `generation-conflict` when `config.reader.reason` is `generation`, otherwise the invalid code); `semaphore_config_generation{layer="applied"}` does not move while the publisher has written a newer generation. |
 | Log | `"manifest reader: manifest rejected, previous one kept"` at level warn, with the attributes `outcome` and `reason`. |
 
 Outcomes: `invalid`, `lower-generation`, `generation-conflict`, `channel-mismatch`. The reason for `invalid` is a
