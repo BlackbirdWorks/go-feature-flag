@@ -101,18 +101,30 @@ type segState struct {
 	existsBusy     bool          // an existence check of the segment is in flight (under mu)
 }
 
-// normalize returns the key of an id. An id that is not valid UTF-8 has no key when the segment normalises: the
-// lowering would replace its bytes by U+FFFD and two different ids could meet a member that holds that character.
-func (s *segState) normalize(id string) (string, Reason) {
-	if s.opts.Normalize != NormalizeTrimLower {
-		return id, ReasonNone
+// NormalizeID returns the key of an id under a normalization: the bytes that the relay looks up and that a writer must
+// store. An id that is not valid UTF-8 has no key when the segment normalises (ok is false): the lowering would
+// replace its bytes by U+FFFD and two different ids could meet a member that holds that character. The resolver and
+// the tools that write members both call it, so the two sides cannot drift.
+func NormalizeID(norm Normalization, id string) (string, bool) {
+	if norm != NormalizeTrimLower {
+		return id, true
 	}
 
 	if !utf8.ValidString(id) {
+		return "", false
+	}
+
+	return strings.ToLower(strings.TrimSpace(id)), true
+}
+
+// normalize returns the key of an id, see [NormalizeID].
+func (s *segState) normalize(id string) (string, Reason) {
+	key, ok := NormalizeID(s.opts.Normalize, id)
+	if !ok {
 		return "", ReasonInvalid
 	}
 
-	return strings.ToLower(strings.TrimSpace(id)), ReasonNone
+	return key, ReasonNone
 }
 
 // Resolver is a [segment.Provider] with a cache, coalescing and a breaker in front of another provider. It is safe

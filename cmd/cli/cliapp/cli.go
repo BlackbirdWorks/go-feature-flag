@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/config"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
+	"github.com/blackbirdworks/semaphore/cmd/cli/segment"
 )
 
 type runOptions struct {
@@ -41,6 +42,19 @@ func Main(
 		ReadFile:  os.ReadFile,
 		Build:     build,
 	})
+}
+
+// deps are the dependencies of the commands, with the environment and the file reader of the process.
+func (opts *runOptions) deps() (config.Deps, publish.Deps, segment.Deps) {
+	pubDeps := publish.DefaultDeps()
+	pubDeps.LookupEnv = opts.LookupEnv
+	pubDeps.ReadFile = opts.ReadFile
+
+	segDeps := segment.DefaultDeps()
+	segDeps.LookupEnv = opts.LookupEnv
+	segDeps.ReadFile = opts.ReadFile
+
+	return config.Deps{LookupEnv: opts.LookupEnv, ReadFile: opts.ReadFile}, pubDeps, segDeps
 }
 
 func run(ctx context.Context, opts *runOptions) int {
@@ -109,14 +123,11 @@ func execute(ctx context.Context, opts *runOptions) (int, error) {
 	}
 
 	streams := helper.Streams{Stdout: opts.Stdout, Stderr: opts.Stderr}
-	cfgDeps := config.Deps{LookupEnv: opts.LookupEnv, ReadFile: opts.ReadFile}
-	pubDeps := publish.DefaultDeps()
-	pubDeps.LookupEnv = opts.LookupEnv
-	pubDeps.ReadFile = opts.ReadFile
+	cfgDeps, pubDeps, segDeps := opts.deps()
 
 	kctx.BindTo(ctx, (*context.Context)(nil))
 
-	err = kctx.Run(&command.Config, &command.Publish, &streams, &cfgDeps, &pubDeps)
+	err = kctx.Run(&command.Config, &command.Publish, &command.Segment, &streams, &cfgDeps, &pubDeps, &segDeps)
 	if err != nil {
 		return helper.ExitCodeOf(err), err
 	}

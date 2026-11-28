@@ -9,6 +9,7 @@ Supported commands:
 - [`generate`](generate.md): Generate an OpenFeature flag manifest for the OpenFeature CLI **(experimental)**.
 - [`publish`](publish.md): Publish flag files and flag-set documents to S3 behind a manifest, and verify the bucket.
 - [`config`](config.md): Validate and print the effective version 2 bootstrap file of the relay.
+- [`segment`](segment.md): Load and edit the members of a dynamic segment (import with an atomic swap, add, remove, stat).
 
 ## Output streams and exit codes
 
