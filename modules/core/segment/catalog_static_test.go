@@ -9,12 +9,14 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
+const memberAlice = "alice"
+
 func TestCatalogMember(t *testing.T) {
 	t.Parallel()
 
 	catalog, err := segment.NewCatalogWithSets(
-		map[string]*segment.MemberSet{"beta": segment.NewMemberSet([]string{"alice"})},
-		segment.Definition{Name: "beta", Type: segment.TypeFile},
+		map[string]*segment.MemberSet{segBeta: segment.NewMemberSet([]string{memberAlice})},
+		segment.Definition{Name: segBeta, Type: segment.TypeFile},
 		segment.Definition{Name: "audience", Type: segment.TypeRedis},
 	)
 	require.NoError(t, err)
@@ -27,18 +29,25 @@ func TestCatalogMember(t *testing.T) {
 		wantState  segment.State
 		wantStatic bool
 	}{
-		{name: "member", catalog: catalog, segment: "beta", id: "alice", wantState: segment.Member, wantStatic: true},
+		{
+			name:       "member",
+			catalog:    catalog,
+			segment:    segBeta,
+			id:         memberAlice,
+			wantState:  segment.Member,
+			wantStatic: true,
+		},
 		{
 			name:       "not a member",
 			catalog:    catalog,
-			segment:    "beta",
+			segment:    segBeta,
 			id:         "bob",
 			wantState:  segment.NotMember,
 			wantStatic: true,
 		},
-		{name: "a dynamic segment is not static", catalog: catalog, segment: "audience", id: "alice"},
-		{name: "a segment that is not defined", catalog: catalog, segment: "ghost", id: "alice"},
-		{name: "no catalog", segment: "beta", id: "alice"},
+		{name: "a dynamic segment is not static", catalog: catalog, segment: "audience", id: memberAlice},
+		{name: "a segment that is not defined", catalog: catalog, segment: "ghost", id: memberAlice},
+		{name: "no catalog", segment: segBeta, id: memberAlice},
 	}
 
 	for _, tt := range tests {
@@ -58,7 +67,7 @@ func TestCatalogWithSetsRejectsMembersOfAnUndefinedSegment(t *testing.T) {
 
 	_, err := segment.NewCatalogWithSets(
 		map[string]*segment.MemberSet{"ghost": segment.NewMemberSet(nil)},
-		segment.Definition{Name: "beta", Type: segment.TypeFile},
+		segment.Definition{Name: segBeta, Type: segment.TypeFile},
 	)
 
 	require.ErrorIs(t, err, segment.ErrInvalidDefinition)
@@ -72,10 +81,10 @@ func TestCatalogWithSetsRejectsMembersOfAnUndefinedSegment(t *testing.T) {
 //nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestCatalogMemberAllocatesNothing(t *testing.T) {
 	catalog, err := segment.NewCatalogWithSets(
-		map[string]*segment.MemberSet{"beta": segment.NewMemberSet([]string{"alice"})},
-		segment.Definition{Name: "beta", Type: segment.TypeFile},
+		map[string]*segment.MemberSet{segBeta: segment.NewMemberSet([]string{memberAlice})},
+		segment.Definition{Name: segBeta, Type: segment.TypeFile},
 	)
 	require.NoError(t, err)
 
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = catalog.Member("beta", "alice") }))
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = catalog.Member(segBeta, memberAlice) }))
 }
